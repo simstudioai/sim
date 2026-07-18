@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Live-stack smoke for Full-stack Apps Phase 1.
  *
@@ -18,17 +19,23 @@
  *   APPS_LIVE_E2E=1 bun run scripts/apps-live-stack-smoke.ts
  */
 
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { createAppsHopProof } from '../apps/sim/lib/apps/hop-proof'
+import { MOTHERSHIP_STREAM_V1_SCHEMA } from '../apps/sim/lib/copilot/generated/mothership-stream-v1-schema'
+import {
+  AppBindAction,
+  AppBuild,
+  AppDetachAction,
+  AppListCallableReleases,
+  AppPreparePublish,
+  AppRefreshBinding,
+  AppWriteFiles,
+} from '../apps/sim/lib/copilot/generated/tool-catalog-v1'
 
 const SIM_URL = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '')
 const APPS_HOST_URL = (
   process.env.NEXT_PUBLIC_APP_PUBLIC_ORIGIN || 'http://apps.localhost:3005'
 ).replace(/\/$/, '')
 const GO_URL = (process.env.SIM_AGENT_API_URL || 'http://localhost:8080').replace(/\/$/, '')
-const ROOT = resolve(import.meta.dir, '..')
-const COPILOT_ROOT = resolve(ROOT, '../copilot/copilot')
 
 let failed = 0
 
@@ -67,41 +74,46 @@ async function checkGatewayHopRejection() {
 
 async function checkGatewayPointerEnforcement() {
   const path = '/api/apps/gateway/releases/00000000-0000-4000-8000-000000000000/actions/main'
-  const proof = createAppsHopProof('POST', path)
+  const body = JSON.stringify({ input: {} })
+  const proof = createAppsHopProof('POST', path, body)
   const res = await fetch(`${SIM_URL}${path}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-apps-hop-proof': proof,
+      'x-sim-apps-hop': proof,
     },
-    body: JSON.stringify({ input: {} }),
+    body,
   })
-  // Unknown / non-current releases must not execute (404), and must not 500.
-  if (res.status === 404 || res.status === 403) {
-    pass(`gateway fail-closed for unknown release (${res.status})`)
+  // A valid body-bound hop must reach pointer enforcement, then fail unknown.
+  if (res.status === 404) {
+    pass('gateway rejects unknown/non-current release after valid hop (404)')
   } else {
-    fail('gateway pointer enforcement', `expected 403/404 got ${res.status}`)
+    fail('gateway pointer enforcement', `expected 404 got ${res.status}`)
   }
 }
 
 function checkGoCatalogParity() {
-  const catalogPath = resolve(COPILOT_ROOT, 'contracts/tool-catalog-v1.json')
-  const streamPath = resolve(COPILOT_ROOT, 'contracts/mothership-stream-v1.schema.json')
   try {
-    const catalog = JSON.parse(readFileSync(catalogPath, 'utf8')) as {
-      tools: Array<{ id: string; route?: string }>
-    }
-    const ids = [
-      'app_bind_action',
-      'app_refresh_binding',
-      'app_detach_action',
-      'app_write_files',
-      'app_build',
-      'app_prepare_publish',
-      'app_list_callable_releases',
+    const tools = [
+      AppBindAction,
+      AppRefreshBinding,
+      AppDetachAction,
+      AppWriteFiles,
+      AppBuild,
+      AppPreparePublish,
+      AppListCallableReleases,
     ]
-    for (const id of ids) {
-      const entry = catalog.tools.find((t) => t.id === id)
+    const permissions: Record<string, string> = {
+      app_bind_action: 'admin',
+      app_refresh_binding: 'admin',
+      app_detach_action: 'admin',
+      app_write_files: 'write',
+      app_build: 'write',
+      app_prepare_publish: 'admin',
+      app_list_callable_releases: 'write',
+    }
+    for (const [id, permission] of Object.entries(permissions)) {
+      const entry = tools.find((tool) => tool.id === id)
       if (!entry) {
         fail(`catalog missing ${id}`)
         return
@@ -110,20 +122,33 @@ function checkGoCatalogParity() {
         fail(`catalog ${id} route`, `expected sim got ${entry.route}`)
         return
       }
+      if (entry.requiredPermission !== permission) {
+        fail(`catalog ${id} permission`, `expected ${permission} got ${entry.requiredPermission}`)
+        return
+      }
+      if (id === 'app_prepare_publish' && entry.parameters?.properties?.publish) {
+        fail('catalog app_prepare_publish', 'model-routed tool must not expose publish')
+        return
+      }
     }
     for (const denied of ['create_workflow', 'edit_workflow', 'delete_workflow']) {
       // These may exist globally, but Full-stack allowlist must not surface them.
       // Catalog presence is fine; routing policy is enforced in Go source tests.
       void denied
     }
-    pass('Go tool-catalog contains seven sim-routed app_* tools')
+    pass('Go tool-catalog matches the locked App routes and permission matrix')
 
-    const stream = JSON.parse(readFileSync(streamPath, 'utf8')) as {
+    const stream = MOTHERSHIP_STREAM_V1_SCHEMA as {
       $defs?: Record<string, { enum?: string[] }>
     }
     const eventType = stream.$defs?.MothershipStreamV1EventType?.enum
-    if (eventType?.includes('app')) {
-      pass('stream schema includes app event type')
+    const appEnvelopeType = stream.$defs?.MothershipStreamV1AppEnvelopeType?.enum
+    if (
+      eventType?.includes('app') &&
+      appEnvelopeType?.length === 1 &&
+      appEnvelopeType[0] === 'app'
+    ) {
+      pass('stream schema keeps app as a literal envelope discriminator')
     } else {
       fail('stream schema missing app event type')
     }
@@ -179,7 +204,7 @@ async function main() {
   console.log('  1. Home → Full-stack → new chat')
   console.log('  2. Create/open linked App → bind deployed workflow')
   console.log('  3. Write files → build → preview → prepare')
-  console.log('  4. Explicitly confirm publish in chat → public sim.run succeeds')
+  console.log('  4. Explicitly confirm publish in Apps UI → public sim.run succeeds')
   console.log('  5. Negative: no workflow mutation tools; revoke kills URL')
 }
 

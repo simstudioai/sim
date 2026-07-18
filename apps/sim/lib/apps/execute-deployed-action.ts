@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { DRAFT_DEPLOYMENT_VERSION_SENTINEL } from '@/lib/apps/draft-binding'
 import { APP_RESPONSE_BODY_MAX_BYTES } from '@/lib/apps/manifest'
+import { materializeAppsPublicOutputs } from '@/lib/apps/materialize-public-outputs'
 import { validateAppActionOutputs } from '@/lib/apps/schema-validate'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
@@ -14,6 +17,7 @@ import {
   type DeployedWorkflowData,
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
+  loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
@@ -21,7 +25,7 @@ import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('ExecuteDeployedAction')
 
-export type DeploymentGate = 'active' | 'pinned'
+export type DeploymentGate = 'active' | 'pinned' | 'draft'
 
 export type NamedOutputConfig = {
   key: string
@@ -50,6 +54,12 @@ export type ExecuteDeployedActionParams = {
   requestId: string
   executionId?: string
   abortSignal?: AbortSignal
+  /** Optional Apps ownership context for signed same-origin file URLs. */
+  appsFileContext?: {
+    projectId?: string
+    releaseId?: string
+    previewSessionId?: string
+  }
 }
 
 export type ExecuteDeployedActionResult =
@@ -79,9 +89,52 @@ function getByPath(obj: unknown, path: string): unknown {
   return cur
 }
 
+function normalizeJsonEncodedValues(value: unknown, depth = 0): unknown {
+  if (depth > 4) return value
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))
+    ) {
+      try {
+        return normalizeJsonEncodedValues(JSON.parse(trimmed), depth + 1)
+      } catch {
+        return value
+      }
+    }
+    return value
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeJsonEncodedValues(entry, depth + 1))
+  }
+  if (value && typeof value === 'object') {
+    const prototype = Object.getPrototypeOf(value)
+    if (prototype !== Object.prototype && prototype !== null) return value
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        key,
+        normalizeJsonEncodedValues(entry, depth + 1),
+      ])
+    )
+  }
+  return value
+}
+
 function projectOutputs(
   blockOutputs: Record<string, unknown>,
-  configs: NamedOutputConfig[]
+  configs: NamedOutputConfig[],
+  opts: {
+    forApps: boolean
+    materializeCtx: {
+      workspaceId: string
+      workflowId: string
+      executionId: string
+      projectId?: string
+      releaseId?: string
+      previewSessionId?: string
+    }
+  }
 ): Record<string, unknown> {
   if (configs.length === 0) {
     return { success: true }
@@ -89,8 +142,12 @@ function projectOutputs(
   const out: Record<string, unknown> = {}
   for (const c of configs) {
     const block = blockOutputs[c.blockId]
-    // Public boundary: never leak nested LargeValueRef storage pointers.
-    out[c.key] = sanitizePublicValue(getByPath(block, c.path))
+    const raw = normalizeJsonEncodedValues(getByPath(block, c.path))
+    // Apps: strip LargeValueRefs and rewrite UserFiles to signed same-origin URLs.
+    // Interfaces: keep prior sanitize-only public boundary.
+    out[c.key] = opts.forApps
+      ? materializeAppsPublicOutputs(raw, opts.materializeCtx)
+      : sanitizePublicValue(raw)
   }
   return out
 }
@@ -116,6 +173,34 @@ function enforceResponseSize(outputs: Record<string, unknown>): boolean {
   }
 }
 
+function classifyExecutionFailure(result: unknown): {
+  statusCode: number
+  code: string
+  message: string
+} {
+  const record = result && typeof result === 'object' ? (result as Record<string, unknown>) : {}
+  const logs = Array.isArray(record.logs) ? record.logs : []
+  const failedLog = [...logs]
+    .reverse()
+    .find((log) => log && typeof log === 'object' && typeof log.error === 'string') as
+    | { error: string }
+    | undefined
+  const detail =
+    (typeof record.error === 'string' && record.error.trim()) || failedLog?.error?.trim() || ''
+  if (detail && /(unsupported|invalid|required|must be|expected|out of range)/i.test(detail)) {
+    return {
+      statusCode: 400,
+      code: 'INVALID_ACTION_INPUT',
+      message: detail,
+    }
+  }
+  return {
+    statusCode: 500,
+    code: 'EXECUTION_FAILED',
+    message: 'Workflow execution failed',
+  }
+}
+
 /**
  * Shared public-surface execution core.
  * Interface: deploymentGate 'active' (current deploy + drift).
@@ -137,6 +222,7 @@ export async function executeDeployedAction(
     triggerIdentity,
     requestId,
     abortSignal,
+    appsFileContext,
   } = params
 
   if (executionPolicy !== 'sync') {
@@ -153,6 +239,14 @@ export async function executeDeployedAction(
       success: false,
       statusCode: 500,
       message: 'Pinned execution requires deploymentVersionId',
+    }
+  }
+
+  if (deploymentGate === 'draft' && triggerIdentity !== 'app') {
+    return {
+      success: false,
+      statusCode: 400,
+      message: 'Draft execution is only available for App preview',
     }
   }
 
@@ -196,6 +290,17 @@ export async function executeDeployedAction(
   try {
     if (preloadedDeployedState) {
       deployed = preloadedDeployedState
+    } else if (deploymentGate === 'draft') {
+      const draft = await loadWorkflowFromNormalizedTables(workflowId)
+      if (!draft) {
+        throw new Error('Draft workflow state missing')
+      }
+      deployed = {
+        ...draft,
+        loops: draft.loops || {},
+        parallels: draft.parallels || {},
+        deploymentVersionId: DRAFT_DEPLOYMENT_VERSION_SENTINEL,
+      }
     } else if (deploymentGate === 'pinned') {
       deployed = await loadWorkflowDeploymentVersionState(
         workflowId,
@@ -213,10 +318,12 @@ export async function executeDeployedAction(
       statusCode: 409,
       needsRepublishing: deploymentGate === 'active',
       message:
-        deploymentGate === 'active'
-          ? 'Interface needs republishing'
-          : 'The workflow version this action was bound to no longer exists; rebind and rebuild.',
-      code: 'DEPLOYMENT_VERSION_MISSING',
+        deploymentGate === 'draft'
+          ? 'Saved workflow draft is missing; recreate the backend and retry'
+          : deploymentGate === 'active'
+            ? 'Interface needs republishing'
+            : 'The workflow version this action was bound to no longer exists; rebind and rebuild.',
+      code: deploymentGate === 'draft' ? 'DRAFT_MISSING' : 'DEPLOYMENT_VERSION_MISSING',
     }
   }
 
@@ -324,11 +431,10 @@ export async function executeDeployedAction(
 
     if (!result.success) {
       await loggingSession.waitForPostExecution().catch(() => undefined)
+      const failure = classifyExecutionFailure(result)
       return {
         success: false,
-        statusCode: 500,
-        code: 'EXECUTION_FAILED',
-        message: 'Workflow execution failed',
+        ...failure,
       }
     }
 
@@ -336,7 +442,17 @@ export async function executeDeployedAction(
     // INVALID_OUTPUT / RESPONSE_TOO_LARGE cannot show as successful executions.
     const logs = (result as { logs?: Array<{ blockId?: string; output?: unknown }> }).logs
     const blockOutputs = blockOutputsFromLogs(logs)
-    const outputs = projectOutputs(blockOutputs, outputConfigs)
+    const outputs = projectOutputs(blockOutputs, outputConfigs, {
+      forApps: triggerIdentity === 'app',
+      materializeCtx: {
+        workspaceId,
+        workflowId,
+        executionId,
+        projectId: appsFileContext?.projectId,
+        releaseId: appsFileContext?.releaseId,
+        previewSessionId: appsFileContext?.previewSessionId,
+      },
+    })
 
     const outputSchemas = outputConfigs
       .filter((c) => c.schema != null)
@@ -382,12 +498,18 @@ export async function executeDeployedAction(
       rawResult: result,
     }
   } catch (error) {
-    logger.error(`[${requestId}] executeDeployedAction failed`, { error })
+    logger.error(`[${requestId}] executeDeployedAction failed`, {
+      error: getErrorMessage(error, 'Execution failed'),
+    })
     await releaseExecutionSlot(executionId).catch(() => undefined)
+    const executionResult =
+      error && typeof error === 'object' && 'executionResult' in error
+        ? (error as { executionResult?: unknown }).executionResult
+        : undefined
+    const failure = classifyExecutionFailure(executionResult)
     return {
       success: false,
-      statusCode: 500,
-      message: 'Execution failed',
+      ...failure,
     }
   } finally {
     if (abortSignal) {

@@ -37,20 +37,18 @@ All IDs and field names are stable.
 Handlers require the existing Sim tool context to include `userId`, `workspaceId`, `chatId`,
 `userPermission`, and `requestMode: "fullstack"`.
 
-`app_prepare_publish` prepares only by default. The agent must obtain explicit user confirmation
-before calling it with `publish: true`; authorization and prompt intent are separate gates.
+`app_prepare_publish` is prepare-only. It has no model-callable publish argument; publishing
+remains an explicit user action in the Apps UI so confirmation is server-verifiable.
 
 ## Stream contract
 
 `mothership-stream-v1` includes typed `type: "app"` envelopes. Go emits:
 
-- `app.build.started` when `app_build` is called
 - lifecycle events mirrored from Sim tool results' `{ event: { type, payload } }`
 
 Stable event names:
 
 - `app.revision.created`
-- `app.build.started`
 - `app.build.finished`
 - `app.release.prepared`
 - `app.release.published`
@@ -65,9 +63,9 @@ Home dispatches `app` events via `handle-app-event.ts` and invalidates App/chat 
 - [x] Add immutable `fullstack` chat routing and prompt.
 - [x] Add the seven schemas to `tool-catalog-v1.json` with route `sim`.
 - [x] Apply the Full-stack allowlist before model invocation.
-- [x] Require explicit user confirmation before invoking `app_prepare_publish` with `publish: true`.
+- [x] Keep the model-routed tool prepare-only; publishing requires the Apps UI confirmation path.
 - [x] Accept and preserve `chatType` across initial requests and resume/checkpoint requests.
-- [x] Add App lifecycle events to the stream schema and emit them around tool calls.
+- [x] Add App lifecycle events to the stream schema and mirror validated tool results.
 - [x] Add `fullstack` to generated trace/surface enums.
 - [x] Regenerate contracts and verify Sim's generated files have no drift.
 - [ ] Run bind → write → build → prepare/publish against local Sim with a live Go agent

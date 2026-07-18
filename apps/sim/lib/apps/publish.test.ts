@@ -3,27 +3,21 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockTransaction,
-  mockArtifactAllowed,
-  updateCalls,
-  deleteCalls,
-  insertCalls,
-  rows,
-} = vi.hoisted(() => ({
-  mockTransaction: vi.fn(),
-  mockArtifactAllowed: vi.fn(),
-  updateCalls: [] as Array<{ table: unknown; values: Record<string, unknown> }>,
-  deleteCalls: [] as unknown[],
-  insertCalls: [] as Array<{ table: unknown; values: Record<string, unknown> }>,
-  rows: {
-    project: [] as Record<string, unknown>[],
-    release: [] as Record<string, unknown>[],
-    actions: [] as Record<string, unknown>[],
-    versions: [] as Record<string, unknown>[],
-    workflows: [] as Record<string, unknown>[],
-  },
-}))
+const { mockTransaction, mockArtifactAllowed, updateCalls, deleteCalls, insertCalls, rows } =
+  vi.hoisted(() => ({
+    mockTransaction: vi.fn(),
+    mockArtifactAllowed: vi.fn(),
+    updateCalls: [] as Array<{ table: unknown; values: Record<string, unknown> }>,
+    deleteCalls: [] as unknown[],
+    insertCalls: [] as Array<{ table: unknown; values: Record<string, unknown> }>,
+    rows: {
+      project: [] as Record<string, unknown>[],
+      release: [] as Record<string, unknown>[],
+      actions: [] as Record<string, unknown>[],
+      versions: [] as Record<string, unknown>[],
+      workflows: [] as Record<string, unknown>[],
+    },
+  }))
 
 vi.mock('@sim/db', () => ({
   db: { transaction: mockTransaction },
@@ -72,11 +66,7 @@ vi.mock('@/lib/apps/release-artifact-policy', () => ({
 vi.mock('@/lib/core/config/env-flags', () => ({ isProd: false }))
 vi.mock('@/lib/core/security/turnstile', () => ({ isTurnstileConfigured: () => true }))
 
-import {
-  publishPreparedRelease,
-  revokeRelease,
-  rollbackPublishedRelease,
-} from '@/lib/apps/publish'
+import { publishPreparedRelease, revokeRelease, rollbackPublishedRelease } from '@/lib/apps/publish'
 
 const schema = await import('@sim/db/schema')
 
@@ -141,8 +131,8 @@ describe('app release publishing', () => {
     rows.versions = []
     rows.workflows = []
     mockArtifactAllowed.mockResolvedValue({ ok: true })
-    mockTransaction.mockImplementation(async (callback: (tx: ReturnType<typeof createTx>) => unknown) =>
-      callback(createTx())
+    mockTransaction.mockImplementation(
+      async (callback: (tx: ReturnType<typeof createTx>) => unknown) => callback(createTx())
     )
   })
 

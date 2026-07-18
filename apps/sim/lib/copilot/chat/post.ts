@@ -148,6 +148,11 @@ const ChatMessageSchema = z.object({
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
+  /** Only honored when creating a new workspace chat (not workflow-scoped). */
+  chatType: z.enum(['mothership', 'fullstack']).optional(),
+  /** Hosted Full-stack credential resume (creator-selected account IDs). */
+  credentialSelections: z.record(z.string().min(1), z.string().min(1)).optional(),
+  fullstackProjectId: z.string().min(1).optional(),
   implicitFeedback: z.string().optional(),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
   resourceAttachments: z.array(ResourceAttachmentSchema).optional(),
@@ -831,7 +836,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 ? { type: 'copilot' as const }
                 : body.chatId
                   ? {}
-                  : { type: 'mothership' as const }),
+                  : {
+                      type:
+                        body.chatType === 'fullstack'
+                          ? ('fullstack' as const)
+                          : ('mothership' as const),
+                    }),
             }),
           activeOtelRoot.context
         )
@@ -1086,6 +1096,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             draftRevisionId: linkedApp.draftRevisionId,
             publishedReleaseId: linkedApp.publishedReleaseId,
           }
+        }
+        if (body.credentialSelections) {
+          requestPayload.credentialSelections = body.credentialSelections
+        }
+        if (body.fullstackProjectId) {
+          requestPayload.fullstackProjectId = body.fullstackProjectId
         }
       }
 

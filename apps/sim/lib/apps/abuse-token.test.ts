@@ -3,11 +3,13 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-const SECRET = 'a'.repeat(32)
-
-vi.mock('@/lib/core/config/env', () => ({
-  getEnv: (name: string) => (name === 'APPS_ABUSE_TOKEN_SECRET' ? SECRET : undefined),
-}))
+vi.mock('@/lib/core/config/env', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/core/config/env')>()
+  return {
+    ...actual,
+    getEnv: (name: string) => (name === 'APPS_ABUSE_TOKEN_SECRET' ? 'a'.repeat(32) : undefined),
+  }
+})
 
 import { issueAppsAbuseToken, verifyAppsAbuseToken } from '@/lib/apps/abuse-token'
 

@@ -28,9 +28,13 @@ export type FullstackToolName = (typeof FULLSTACK_TOOL_NAMES)[number]
 
 /** Stream lifecycle events (names stable for Go ↔ Sim). */
 export const FULLSTACK_STREAM_EVENTS = [
+  'app.generation.started',
+  'app.generation.failed',
+  'app.frontend.generated',
   'app.revision.created',
-  'app.build.started',
   'app.build.finished',
+  'app.deploy.started',
+  'app.deploy.failed',
   'app.release.prepared',
   'app.release.published',
   'app.release.revoked',

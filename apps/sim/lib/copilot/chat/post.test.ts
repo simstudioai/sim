@@ -277,6 +277,46 @@ describe('handleUnifiedChatPost', () => {
     )
   })
 
+  it('creates a fullstack chat when createNewChat requests chatType fullstack', async () => {
+    resolveOrCreateChat.mockResolvedValueOnce({
+      chatId: 'chat-fullstack-new',
+      chat: {
+        id: 'chat-fullstack-new',
+        type: 'fullstack',
+        workspaceId: 'ws-1',
+      },
+      conversationHistory: [],
+      isNew: true,
+    })
+
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Build a TikTok profile app',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          chatType: 'fullstack',
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(resolveOrCreateChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'fullstack',
+        workspaceId: 'ws-1',
+      })
+    )
+    expect(createSSEStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestPayload: expect.objectContaining({
+          chatType: 'fullstack',
+        }),
+      })
+    )
+  })
+
   it('preserves fullstack type in the Go payload and Sim execution context', async () => {
     getLinkedAppProjectForChat.mockResolvedValueOnce({
       id: 'app-1',

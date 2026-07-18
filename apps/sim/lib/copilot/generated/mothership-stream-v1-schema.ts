@@ -10,6 +10,10 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
       additionalProperties: true,
       type: 'object',
     },
+    MothershipStreamV1AppEnvelopeType: {
+      enum: ['app'],
+      type: 'string',
+    },
     MothershipStreamV1AppEventEnvelope: {
       additionalProperties: false,
       properties: {
@@ -32,7 +36,7 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
           type: 'string',
         },
         type: {
-          $ref: '#/$defs/MothershipStreamV1EventType',
+          $ref: '#/$defs/MothershipStreamV1AppEnvelopeType',
         },
         v: {
           enum: [1],
@@ -44,9 +48,13 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
     },
     MothershipStreamV1AppEventName: {
       enum: [
+        'app.generation.started',
+        'app.generation.failed',
+        'app.frontend.generated',
         'app.revision.created',
-        'app.build.started',
         'app.build.finished',
+        'app.deploy.started',
+        'app.deploy.failed',
         'app.release.prepared',
         'app.release.published',
         'app.release.revoked',

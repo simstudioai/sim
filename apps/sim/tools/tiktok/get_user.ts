@@ -9,6 +9,20 @@ import type { ToolConfig } from '@/tools/types'
 
 const REQUIRED_USER_FIELDS = ['open_id', 'display_name'] as const
 const USER_FIELD_ALLOWLIST = new Set<string>(TIKTOK_USER_FIELD_NAMES)
+const USER_FIELD_ALIASES: Record<string, string> = {
+  openId: 'open_id',
+  unionId: 'union_id',
+  avatarUrl: 'avatar_url',
+  avatarLargeUrl: 'avatar_large_url',
+  displayName: 'display_name',
+  bioDescription: 'bio_description',
+  profileDeepLink: 'profile_deep_link',
+  isVerified: 'is_verified',
+  followerCount: 'follower_count',
+  followingCount: 'following_count',
+  likesCount: 'likes_count',
+  videoCount: 'video_count',
+}
 
 function resolveUserFields(fields: string | undefined): string {
   if (!fields?.trim()) return TIKTOK_USER_FIELDS
@@ -17,6 +31,7 @@ function resolveUserFields(fields: string | undefined): string {
     .split(',')
     .map((field) => field.trim())
     .filter(Boolean)
+    .map((field) => USER_FIELD_ALIASES[field] ?? field)
   const invalid = requested.filter((field) => !USER_FIELD_ALLOWLIST.has(field))
   if (invalid.length > 0) {
     throw new Error(`Unsupported TikTok user field(s): ${[...new Set(invalid)].join(', ')}`)

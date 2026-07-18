@@ -176,6 +176,7 @@ export async function archiveAppProject(
   projectId: string
 ): Promise<{ success: true } | { success: false; error: string }> {
   const { revokeRelease } = await import('@/lib/apps/publish')
+  const { stopActivePreviewSessionsForProject } = await import('@/lib/apps/pins')
 
   const published = await db
     .select({ id: appRelease.id })
@@ -192,6 +193,7 @@ export async function archiveAppProject(
     }
   }
 
+  await stopActivePreviewSessionsForProject(projectId)
   const now = new Date()
   await db
     .update(appProject)

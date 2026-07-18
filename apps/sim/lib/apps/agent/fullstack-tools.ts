@@ -1,15 +1,5 @@
 import { db } from '@sim/db'
-import {
-  appBuild,
-  appPreviewSession,
-  appProject,
-  appRelease,
-  appRevisionAction,
-  appSourceBlob,
-  appSourceFile,
-  appSourceRevision,
-  copilotChats,
-} from '@sim/db/schema'
+import { appBuild, appProject, appRelease, copilotChats, workflow } from '@sim/db/schema'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import type { FullstackStreamEvent } from '@/lib/apps/agent/fullstack-contract'
@@ -19,10 +9,10 @@ import { isAllowedUserPath } from '@/lib/apps/build/prepare-source'
 import { buildProjectRevision } from '@/lib/apps/build/project-build'
 import type { AppActionManifestEntry } from '@/lib/apps/manifest'
 import { type AppPermissionAction, assertAppPermission } from '@/lib/apps/permissions'
-import { stopPreviewSession } from '@/lib/apps/pins'
+import { stopActivePreviewSessionsForProject } from '@/lib/apps/pins'
 import { prepareProjectRelease } from '@/lib/apps/prepare-release'
 import { getCurrentRelease } from '@/lib/apps/projects'
-import { publishPreparedRelease } from '@/lib/apps/publish'
+import { loadRevisionSnapshot } from '@/lib/apps/revision-snapshot'
 import { createRevisionWithActions } from '@/lib/apps/revisions'
 import {
   assertServerToolNotAborted,
@@ -46,9 +36,7 @@ type ToolScope = {
 }
 
 function event(type: FullstackStreamEvent, payload: Record<string, unknown>) {
-  // Go's generated stream protocol does not yet carry app.* event envelopes.
-  // Keep the stable event in the tool result; Go can mirror it into the stream
-  // once mothership-stream-v1 adds the matching envelope.
+  // Go mirrors this validated tool-result shape into a typed app stream envelope.
   return { type, payload }
 }
 
@@ -111,43 +99,6 @@ async function touchBuilderChat(projectId: string, chatId: string) {
     .where(eq(appProject.id, projectId))
 }
 
-async function stopActivePreviews(projectId: string) {
-  const sessions = await db
-    .select({ id: appPreviewSession.id })
-    .from(appPreviewSession)
-    .where(and(eq(appPreviewSession.projectId, projectId), isNull(appPreviewSession.stoppedAt)))
-  for (const session of sessions) await stopPreviewSession(session.id)
-}
-
-async function loadRevisionSnapshot(projectId: string, revisionId: string) {
-  const [revision] = await db
-    .select({ id: appSourceRevision.id })
-    .from(appSourceRevision)
-    .where(and(eq(appSourceRevision.id, revisionId), eq(appSourceRevision.projectId, projectId)))
-    .limit(1)
-  if (!revision) throw new Error('Revision not found')
-
-  const [fileRows, actionRows] = await Promise.all([
-    db
-      .select({ path: appSourceFile.path, content: appSourceBlob.content })
-      .from(appSourceFile)
-      .innerJoin(appSourceBlob, eq(appSourceFile.contentHash, appSourceBlob.hash))
-      .where(eq(appSourceFile.revisionId, revisionId)),
-    db.select().from(appRevisionAction).where(eq(appRevisionAction.revisionId, revisionId)),
-  ])
-  const files = Object.fromEntries(fileRows.map((row) => [row.path, row.content]))
-  const actions: AppActionManifestEntry[] = actionRows.map((row) => ({
-    actionId: row.actionId,
-    workflowId: row.workflowId,
-    deploymentVersionId: row.deploymentVersionId,
-    inputSchema: row.inputSchema as AppActionManifestEntry['inputSchema'],
-    outputAllowlist: row.outputAllowlist as AppActionManifestEntry['outputAllowlist'],
-    executionPolicy: (row.executionPolicy as 'sync' | 'async') || 'sync',
-    schemaHash: row.schemaHash,
-  }))
-  return { files, actions }
-}
-
 async function rebuildBoundAction(params: {
   scope: ToolScope
   actionId: string
@@ -191,20 +142,33 @@ export const appBindActionServerTool: BaseServerTool<
       ? await loadRevisionSnapshot(args.projectId, scope.project.draftRevisionId)
       : { files: undefined, actions: [] }
     const actions = [...prior.actions.filter((action) => action.actionId !== args.actionId), bound]
-    await stopActivePreviews(args.projectId)
+    await stopActivePreviewSessionsForProject(args.projectId)
     const { revisionId } = await createRevisionWithActions({
       projectId: args.projectId,
       userId: scope.userId,
       actions,
       ...(prior.files ? { files: prior.files } : {}),
       parentRevisionId: scope.project.draftRevisionId,
+      expectedRevisionId: scope.project.draftRevisionId,
     })
     await touchBuilderChat(args.projectId, scope.chatId)
+    const [workflowRow] = await db
+      .select({ name: workflow.name })
+      .from(workflow)
+      .where(and(eq(workflow.id, args.workflowId), eq(workflow.workspaceId, scope.workspaceId)))
+      .limit(1)
     return {
       success: true,
       projectId: args.projectId,
       revisionId,
       actionId: args.actionId,
+      resources: [
+        {
+          type: 'workflow',
+          id: args.workflowId,
+          title: workflowRow?.name || 'Workflow',
+        },
+      ],
       event: event('app.revision.created', { projectId: args.projectId, revisionId }),
     }
   },
@@ -245,13 +209,14 @@ export const appRefreshBindingServerTool: BaseServerTool<
       throw new Error(`Action ${args.actionId} is not bound`)
     }
     assertServerToolNotAborted(context)
-    await stopActivePreviews(args.projectId)
+    await stopActivePreviewSessionsForProject(args.projectId)
     const { revisionId } = await createRevisionWithActions({
       projectId: args.projectId,
       userId: scope.userId,
       actions: refreshed,
       files: prior.files,
       parentRevisionId: scope.project.draftRevisionId,
+      expectedRevisionId: scope.project.draftRevisionId,
     })
     await touchBuilderChat(args.projectId, scope.chatId)
     const drifted = prior.actions.some((before) => {
@@ -288,13 +253,14 @@ export const appDetachActionServerTool: BaseServerTool<
     if (actions.length === prior.actions.length)
       throw new Error(`Action ${args.actionId} is not bound`)
     assertServerToolNotAborted(context)
-    await stopActivePreviews(args.projectId)
+    await stopActivePreviewSessionsForProject(args.projectId)
     const { revisionId } = await createRevisionWithActions({
       projectId: args.projectId,
       userId: scope.userId,
       actions,
       files: prior.files,
       parentRevisionId: scope.project.draftRevisionId,
+      expectedRevisionId: scope.project.draftRevisionId,
     })
     await touchBuilderChat(args.projectId, scope.chatId)
     return {
@@ -342,13 +308,14 @@ export const appWriteFilesServerTool: BaseServerTool<
     const caps = validateSourceCaps(files)
     if (!caps.ok) throw new Error(caps.error)
     assertServerToolNotAborted(context)
-    await stopActivePreviews(args.projectId)
+    await stopActivePreviewSessionsForProject(args.projectId)
     const { revisionId } = await createRevisionWithActions({
       projectId: args.projectId,
       userId: scope.userId,
       actions: prior.actions,
       files,
       parentRevisionId: scope.project.draftRevisionId,
+      expectedRevisionId: scope.project.draftRevisionId,
     })
     await touchBuilderChat(args.projectId, scope.chatId)
     return {
@@ -399,10 +366,11 @@ export const appBuildServerTool: BaseServerTool<
   },
 }
 
-const preparePublishInput = projectRevisionInput.extend({
-  buildId: z.string().min(1).optional(),
-  publish: z.boolean().default(false),
-})
+const preparePublishInput = projectRevisionInput
+  .extend({
+    buildId: z.string().min(1).optional(),
+  })
+  .strict()
 
 export const appPreparePublishServerTool: BaseServerTool<
   z.output<typeof preparePublishInput>,
@@ -439,32 +407,15 @@ export const appPreparePublishServerTool: BaseServerTool<
       userId: scope.userId,
     })
     if (!prepared.ok) throw new Error(prepared.error)
-    if (!args.publish) {
-      await touchBuilderChat(args.projectId, scope.chatId)
-      return {
-        success: true,
-        releaseId: prepared.releaseId,
-        state: 'prepared',
-        event: event('app.release.prepared', {
-          projectId: args.projectId,
-          releaseId: prepared.releaseId,
-        }),
-      }
-    }
-    const published = await publishPreparedRelease({
-      projectId: args.projectId,
-      releaseId: prepared.releaseId,
-      expectedVersion: scope.project.version,
-    })
-    if (!published.success) throw new Error(published.error)
     await touchBuilderChat(args.projectId, scope.chatId)
     return {
       success: true,
-      releaseId: published.releaseId,
-      state: 'published',
-      event: event('app.release.published', {
+      releaseId: prepared.releaseId,
+      state: 'prepared',
+      requiresPublishConfirmation: true,
+      event: event('app.release.prepared', {
         projectId: args.projectId,
-        releaseId: published.releaseId,
+        releaseId: prepared.releaseId,
       }),
     }
   },

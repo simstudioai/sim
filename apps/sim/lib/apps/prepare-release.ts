@@ -6,12 +6,12 @@ import {
   appReleaseAction,
   appRevisionAction,
   appSourceRevision,
-  workflow,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { getAppOriginStatus } from '@/lib/apps/origin'
 import { assertAppPermission } from '@/lib/apps/permissions'
+import { validateReleaseActionsForActivation } from '@/lib/apps/publish'
 
 export type PrepareProjectReleaseResult =
   | { ok: true; releaseId: string }
@@ -50,76 +50,79 @@ export async function prepareProjectRelease(params: {
     }
   }
 
-  const [revision] = await db
-    .select()
-    .from(appSourceRevision)
-    .where(
-      and(
-        eq(appSourceRevision.id, params.revisionId),
-        eq(appSourceRevision.projectId, params.projectId)
-      )
-    )
-    .limit(1)
-  if (!revision) return { ok: false, error: 'Revision not found', code: 'NOT_FOUND', status: 404 }
-
-  const [build] = await db
-    .select()
-    .from(appBuild)
-    .where(
-      and(
-        eq(appBuild.id, params.buildId),
-        eq(appBuild.projectId, params.projectId),
-        eq(appBuild.revisionId, params.revisionId),
-        eq(appBuild.status, 'succeeded')
-      )
-    )
-    .limit(1)
-  if (!build?.artifactManifestHash) {
-    return {
-      ok: false,
-      error: 'Successful build not found for revision',
-      code: 'BUILD_REQUIRED',
-      status: 400,
+  return db.transaction(async (tx): Promise<PrepareProjectReleaseResult> => {
+    const [lockedProject] = await tx
+      .select()
+      .from(appProject)
+      .where(and(eq(appProject.id, params.projectId), isNull(appProject.archivedAt)))
+      .for('update')
+      .limit(1)
+    if (!lockedProject) {
+      return { ok: false, error: 'Project not found', code: 'NOT_FOUND', status: 404 }
     }
-  }
 
-  const actions = await db
-    .select()
-    .from(appRevisionAction)
-    .where(eq(appRevisionAction.revisionId, params.revisionId))
-  if (actions.length === 0) {
-    return {
-      ok: false,
-      error: 'Revision has no bound actions',
-      code: 'EMPTY_REVISION',
-      status: 400,
-    }
-  }
-
-  for (const action of actions) {
-    const [wf] = await db
-      .select({ id: workflow.id })
-      .from(workflow)
+    const [revision] = await tx
+      .select()
+      .from(appSourceRevision)
       .where(
         and(
-          eq(workflow.id, action.workflowId),
-          eq(workflow.workspaceId, project.workspaceId),
-          isNull(workflow.archivedAt)
+          eq(appSourceRevision.id, params.revisionId),
+          eq(appSourceRevision.projectId, params.projectId)
         )
       )
       .limit(1)
-    if (!wf) {
+    if (!revision) {
+      return { ok: false, error: 'Revision not found', code: 'NOT_FOUND', status: 404 }
+    }
+
+    const [build] = await tx
+      .select()
+      .from(appBuild)
+      .where(
+        and(
+          eq(appBuild.id, params.buildId),
+          eq(appBuild.projectId, params.projectId),
+          eq(appBuild.revisionId, params.revisionId),
+          eq(appBuild.status, 'succeeded')
+        )
+      )
+      .limit(1)
+    if (!build?.artifactManifestHash) {
       return {
         ok: false,
-        error: `Workflow ${action.workflowId} is not available in this workspace`,
-        code: 'WORKFLOW_MISSING',
+        error: 'Successful build not found for revision',
+        code: 'BUILD_REQUIRED',
         status: 400,
       }
     }
-  }
 
-  const releaseId = generateId()
-  await db.transaction(async (tx) => {
+    const actions = await tx
+      .select()
+      .from(appRevisionAction)
+      .where(eq(appRevisionAction.revisionId, params.revisionId))
+    if (actions.length === 0) {
+      return {
+        ok: false,
+        error: 'Revision has no bound actions',
+        code: 'EMPTY_REVISION',
+        status: 400,
+      }
+    }
+
+    const validation = await validateReleaseActionsForActivation(tx, {
+      workspaceId: lockedProject.workspaceId,
+      actions,
+    })
+    if (!validation.ok) {
+      return {
+        ok: false,
+        error: validation.error,
+        code: validation.code,
+        status: validation.code === 'DEPLOYMENT_VERSION_MISSING' ? 409 : 400,
+      }
+    }
+
+    const releaseId = generateId()
     await tx.insert(appRelease).values({
       id: releaseId,
       projectId: params.projectId,
@@ -144,6 +147,6 @@ export async function prepareProjectRelease(params: {
         schemaHash: action.schemaHash,
       })
     }
+    return { ok: true, releaseId }
   })
-  return { ok: true, releaseId }
 }

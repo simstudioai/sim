@@ -68,6 +68,8 @@ export const env = createEnv({
     COPILOT_BILLING_ATTRIBUTION_V1_ENABLED: z.boolean().optional(),
     /** Rejects markerless old-Go billing traffic only when explicitly enabled. */
     COPILOT_BILLING_PROTOCOL_REQUIRED:     z.boolean().optional(),
+    /** Demo-only Full-stack path: hosted Copilot + draft preview + publish-with-deploy. */
+    FULLSTACK_DEMO_MODE:                   z.boolean().optional(),
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
     COPILOT_SOURCE_ENV:                    z.enum(['dev', 'staging', 'prod']).optional(), // Source Sim environment sent to mothership for callbacks
     COPILOT_DEV_URL:                       z.string().url().optional(),            // Sim agent API URL for the dev mothership environment
@@ -571,6 +573,8 @@ export const env = createEnv({
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: z.boolean().optional().default(true), // Control visibility of email/password login forms
     NEXT_PUBLIC_TURNSTILE_SITE_KEY:        z.string().min(1).optional(),           // Cloudflare Turnstile site key for captcha widget
     NEXT_PUBLIC_APP_PUBLIC_ORIGIN:         z.string().url().optional(),            // Client-visible apps origin for preview iframes / builder frame-src
+    /** Client-visible flag mirroring FULLSTACK_DEMO_MODE for home/app UI routing. */
+    NEXT_PUBLIC_FULLSTACK_DEMO_MODE:       z.boolean().optional(),
   },
 
   // Variables available on both server and client
@@ -612,6 +616,7 @@ export const env = createEnv({
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: process.env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_APP_PUBLIC_ORIGIN: process.env.NEXT_PUBLIC_APP_PUBLIC_ORIGIN,
+    NEXT_PUBLIC_FULLSTACK_DEMO_MODE: process.env.NEXT_PUBLIC_FULLSTACK_DEMO_MODE,
     NEXT_PUBLIC_E2B_ENABLED: process.env.NEXT_PUBLIC_E2B_ENABLED,
     NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS: process.env.NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS,
     NEXT_PUBLIC_AZURE_CONFIGURED: process.env.NEXT_PUBLIC_AZURE_CONFIGURED,

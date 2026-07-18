@@ -61,15 +61,12 @@ const project = {
 
 function request(abuseToken?: string) {
   const headers: Record<string, string> = { 'content-type': 'application/json' }
-  if (abuseToken) headers['x-sim-app-abuse-token'] = abuseToken
-  return new NextRequest(
-    'http://localhost/api/apps/gateway/releases/release-1/actions/submit',
-    {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ input: { name: 'Ada' } }),
-    }
-  )
+  if (abuseToken) headers['x-sim-apps-abuse-token'] = abuseToken
+  return new NextRequest('http://localhost/api/apps/gateway/releases/release-1/actions/submit', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ input: { name: 'Ada' } }),
+  })
 }
 
 function callPost(abuseToken?: string) {

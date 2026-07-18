@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { APP_ORIGIN_HEADER } from '@/lib/apps/origin'
 import { getEnv } from '@/lib/core/config/env'
 
@@ -13,12 +13,18 @@ function hopSecret(): string {
 }
 
 /**
- * Apps-domain proxy signs: `${timestamp}.${method}.${path}` with HMAC-SHA256.
+ * Apps-domain proxy signs: `${timestamp}.${method}.${path}.${bodySha256}` with HMAC-SHA256.
  * Header value: `${timestamp}.${hexDigest}`
  */
-export function createAppsHopProof(method: string, path: string, now = Date.now()): string {
+export function createAppsHopProof(
+  method: string,
+  path: string,
+  body: string | Buffer | Uint8Array = '',
+  now = Date.now()
+): string {
   const ts = String(now)
-  const payload = `${ts}.${method.toUpperCase()}.${path}`
+  const bodyDigest = createHash('sha256').update(body).digest('hex')
+  const payload = `${ts}.${method.toUpperCase()}.${path}.${bodyDigest}`
   const digest = createHmac('sha256', hopSecret()).update(payload, 'utf8').digest('hex')
   return `${ts}.${digest}`
 }
@@ -26,6 +32,7 @@ export function createAppsHopProof(method: string, path: string, now = Date.now(
 export function verifyAppsHopProof(
   method: string,
   path: string,
+  body: string | Buffer | Uint8Array,
   headerValue: string | null | undefined,
   now = Date.now()
 ): boolean {
@@ -35,22 +42,24 @@ export function verifyAppsHopProof(
   const timestamp = Number(ts)
   if (!Number.isFinite(timestamp) || Math.abs(now - timestamp) > HOP_TTL_MS) return false
 
-  const expected = createAppsHopProof(method, path, timestamp)
+  const expected = createAppsHopProof(method, path, body, timestamp)
   const a = Buffer.from(expected)
   const b = Buffer.from(`${ts}.${digest}`)
   if (a.length !== b.length) return false
   return timingSafeEqual(a, b)
 }
 
-export function requireAppsHopFromRequest(request: {
+export async function requireAppsHopFromRequest(request: {
   method: string
   nextUrl: { pathname: string }
   headers: { get: (name: string) => string | null }
-}): { ok: true } | { ok: false; status: number; message: string } {
+  clone: () => { arrayBuffer: () => Promise<ArrayBuffer> }
+}): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
   const proof = request.headers.get(APP_ORIGIN_HEADER)
   const path = request.nextUrl.pathname
   try {
-    if (!verifyAppsHopProof(request.method, path, proof)) {
+    const body = Buffer.from(await request.clone().arrayBuffer())
+    if (!verifyAppsHopProof(request.method, path, body, proof)) {
       return {
         ok: false,
         status: 403,

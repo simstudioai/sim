@@ -13,6 +13,7 @@ import {
   assertArtifactBundleReady,
   withArtifactStoreMutationLock,
 } from '@/lib/apps/artifacts/store'
+import { isDraftDeploymentVersionId } from '@/lib/apps/draft-binding'
 import {
   isPreviewSessionPastHardMax,
   mintPreviewChannelNonce,
@@ -243,6 +244,11 @@ export async function activatePreviewPins(params: {
         })
 
         for (const action of actions) {
+          // Draft-bound actions have no real deployment version to pin.
+          // Preview execute authenticates via the session and draft gate instead.
+          if (isDraftDeploymentVersionId(action.deploymentVersionId)) {
+            continue
+          }
           await tx.insert(appDeploymentPin).values({
             id: generateId(),
             kind: 'preview',
@@ -348,6 +354,20 @@ export async function stopPreviewSession(sessionId: string): Promise<void> {
   })
 }
 
+export async function stopActivePreviewSessionsForProject(projectId: string): Promise<number> {
+  const active = await db
+    .select({ id: appPreviewSession.id })
+    .from(appPreviewSession)
+    .where(
+      and(eq(appPreviewSession.projectId, projectId), sql`${appPreviewSession.stoppedAt} IS NULL`)
+    )
+
+  for (const session of active) {
+    await stopPreviewSession(session.id)
+  }
+  return active.length
+}
+
 /** Sweep expired preview pins/sessions. */
 export async function sweepExpiredPreviewPins(now = new Date()): Promise<number> {
   const hardMaxCutoff = new Date(now.getTime() - PREVIEW_SESSION_HARD_MAX_MS)
@@ -404,6 +424,7 @@ export async function revokeAllCallableReleasesForWorkspace(workspaceId: string)
       }
     }
 
+    await stopActivePreviewSessionsForProject(project.id)
     await db
       .update(appProject)
       .set({ archivedAt: new Date(), publishedReleaseId: null, updatedAt: new Date() })

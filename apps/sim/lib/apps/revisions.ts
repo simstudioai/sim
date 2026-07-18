@@ -32,12 +32,26 @@ function hashManifest(actions: AppActionManifestEntry[]): string {
   return hashContent(JSON.stringify(actions))
 }
 
+export const CHILD_REVISION_FILES_REQUIRED_ERROR =
+  'Child revisions must provide source files explicitly'
+
+export function assertRevisionSourcePolicy(params: {
+  files: Record<string, string> | undefined
+  currentDraftRevisionId: string | null
+}): void {
+  if (params.files === undefined && params.currentDraftRevisionId) {
+    throw new Error(CHILD_REVISION_FILES_REQUIRED_ERROR)
+  }
+}
+
 export async function createRevisionWithActions(params: {
   projectId: string
   userId: string
   actions: AppActionManifestEntry[]
   files?: Record<string, string>
   parentRevisionId?: string | null
+  /** Reject the write unless the project still points at this draft revision. */
+  expectedRevisionId?: string | null
 }): Promise<{ revisionId: string }> {
   const files = params.files ?? { ...APP_TEMPLATE_FILES }
   const sourceTreeHash = hashTree(files)
@@ -54,6 +68,16 @@ export async function createRevisionWithActions(params: {
 
     if (!project) {
       throw new Error('Project not found')
+    }
+    assertRevisionSourcePolicy({
+      files: params.files,
+      currentDraftRevisionId: project.draftRevisionId,
+    })
+    if (
+      params.expectedRevisionId !== undefined &&
+      project.draftRevisionId !== params.expectedRevisionId
+    ) {
+      throw new Error('Draft revision changed; reload before writing files')
     }
 
     await tx.insert(appSourceRevision).values({
@@ -104,4 +128,31 @@ export async function createRevisionWithActions(params: {
   })
 
   return { revisionId }
+}
+
+/**
+ * Point the project back at the last working parent when a newly-created
+ * revision fails to build. The failed immutable revision remains available as
+ * evidence, and the compare prevents rolling back a newer concurrent write.
+ */
+export async function restoreDraftRevisionPointer(params: {
+  projectId: string
+  failedRevisionId: string
+  parentRevisionId: string | null
+}): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [project] = await tx
+      .select({ draftRevisionId: appProject.draftRevisionId })
+      .from(appProject)
+      .where(and(eq(appProject.id, params.projectId), isNull(appProject.archivedAt)))
+      .for('update')
+      .limit(1)
+    if (!project || project.draftRevisionId !== params.failedRevisionId) return false
+
+    await tx
+      .update(appProject)
+      .set({ draftRevisionId: params.parentRevisionId, updatedAt: new Date() })
+      .where(eq(appProject.id, params.projectId))
+    return true
+  })
 }

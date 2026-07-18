@@ -75,9 +75,6 @@ const SKIP_TRIGGER_PROVIDERS = new Set([
   'rss',
   'table',
   'sim',
-  // TikTok is temporarily hideFromToolbar; skip so cleanup does not leave an
-  // orphan triggers-only docs page after the actions page is removed.
-  'tiktok',
 ])
 
 /**

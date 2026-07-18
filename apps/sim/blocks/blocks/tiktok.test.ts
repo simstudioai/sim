@@ -8,6 +8,10 @@ describe('TikTokBlock', () => {
   const buildParams = TikTokBlock.tools.config.params!
   const selectTool = TikTokBlock.tools.config.tool!
 
+  it('is available in the workflow toolbar', () => {
+    expect(TikTokBlock.hideFromToolbar).not.toBe(true)
+  })
+
   it('keeps direct posting unavailable until one-use human approval is supported', () => {
     expect(TikTokBlock.tools.access).not.toContain('tiktok_direct_post_video')
     expect(() => selectTool({ operation: 'tiktok_direct_post_video' })).toThrow(

@@ -38,24 +38,19 @@ export type MothershipStreamV1ToolStatus =
   | 'skipped'
   | 'rejected'
 export type MothershipStreamV1AppEventName =
+  | 'app.generation.started'
+  | 'app.generation.failed'
+  | 'app.frontend.generated'
   | 'app.revision.created'
-  | 'app.build.started'
   | 'app.build.finished'
+  | 'app.deploy.started'
+  | 'app.deploy.failed'
   | 'app.release.prepared'
   | 'app.release.published'
   | 'app.release.revoked'
   | 'app.binding.drift'
   | 'app.preview.ready'
-export type MothershipStreamV1EventType =
-  | 'session'
-  | 'text'
-  | 'tool'
-  | 'app'
-  | 'span'
-  | 'resource'
-  | 'run'
-  | 'error'
-  | 'complete'
+export type MothershipStreamV1AppEnvelopeType = 'app'
 export type MothershipStreamV1CompletionStatus = 'complete' | 'error' | 'cancelled'
 
 export interface MothershipStreamV1SessionStartEventEnvelope {
@@ -227,7 +222,7 @@ export interface MothershipStreamV1AppEventEnvelope {
   stream: MothershipStreamV1StreamRef
   trace?: MothershipStreamV1Trace
   ts: string
-  type: MothershipStreamV1EventType
+  type: MothershipStreamV1AppEnvelopeType
   v: 1
 }
 export interface MothershipStreamV1AppPayload {
@@ -445,10 +440,18 @@ export interface MothershipStreamV1UsageData {
   total_tokens?: number
 }
 
+export const MothershipStreamV1AppEnvelopeType = {
+  app: 'app',
+} as const
+
 export const MothershipStreamV1AppEventName = {
+  'app.generation.started': 'app.generation.started',
+  'app.generation.failed': 'app.generation.failed',
+  'app.frontend.generated': 'app.frontend.generated',
   'app.revision.created': 'app.revision.created',
-  'app.build.started': 'app.build.started',
   'app.build.finished': 'app.build.finished',
+  'app.deploy.started': 'app.deploy.started',
+  'app.deploy.failed': 'app.deploy.failed',
   'app.release.prepared': 'app.release.prepared',
   'app.release.published': 'app.release.published',
   'app.release.revoked': 'app.release.revoked',
@@ -478,6 +481,17 @@ export const MothershipStreamV1CompletionStatus = {
   error: 'error',
   cancelled: 'cancelled',
 } as const
+
+export type MothershipStreamV1EventType =
+  | 'session'
+  | 'text'
+  | 'tool'
+  | 'app'
+  | 'span'
+  | 'resource'
+  | 'run'
+  | 'error'
+  | 'complete'
 
 export const MothershipStreamV1EventType = {
   session: 'session',

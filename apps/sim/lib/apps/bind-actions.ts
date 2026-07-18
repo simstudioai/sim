@@ -1,3 +1,6 @@
+import { assertAppInputBoundary } from '@/lib/apps/app-input-boundary'
+import { assertPrivateCredentialBoundary } from '@/lib/apps/credential-boundary'
+import { DRAFT_DEPLOYMENT_VERSION_SENTINEL } from '@/lib/apps/draft-binding'
 import { type AppActionManifestEntry, withSchemaHash } from '@/lib/apps/manifest'
 import type { ApiStartField } from '@/lib/interfaces/spec/api-start-input'
 import { resolveApiStartInput } from '@/lib/interfaces/spec/api-start-input'
@@ -6,7 +9,10 @@ import {
   type FlattenOutputsBlockInput,
   flattenWorkflowOutputs,
 } from '@/lib/workflows/blocks/flatten-outputs'
-import { loadWorkflowDeploymentVersionState } from '@/lib/workflows/persistence/utils'
+import {
+  loadWorkflowDeploymentVersionState,
+  loadWorkflowFromNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 
 export type BindActionRequest = {
   actionId: string
@@ -47,6 +53,18 @@ export function apiStartFieldsToJsonSchema(fields: ApiStartField[]): Record<stri
   }
 }
 
+const APP_FILE_OUTPUT_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    url: { type: 'string' },
+    name: { type: 'string' },
+    mimeType: { type: 'string' },
+    size: { type: 'number' },
+  },
+  required: ['url', 'name', 'mimeType', 'size'],
+  additionalProperties: false,
+}
+
 function leafTypeToJsonSchema(leafType?: string): Record<string, unknown> {
   switch (leafType) {
     case 'string':
@@ -55,6 +73,10 @@ function leafTypeToJsonSchema(leafType?: string): Record<string, unknown> {
       return { type: 'number' }
     case 'boolean':
       return { type: 'boolean' }
+    case 'file':
+      return { ...APP_FILE_OUTPUT_SCHEMA }
+    case 'file[]':
+      return { type: 'array', items: { ...APP_FILE_OUTPUT_SCHEMA } }
     default:
       // Accept any JSON value when the block output type is opaque.
       return {}
@@ -84,6 +106,134 @@ function toFlattenBlocks(
     }
   }
   return out
+}
+
+async function deriveSchemasFromBlocks(params: {
+  actionId: string
+  workflowId: string
+  deploymentVersionId: string
+  blocks: Record<
+    string,
+    {
+      id?: string
+      type: string
+      name?: string
+      triggerMode?: boolean
+      subBlocks?: Record<string, unknown>
+    }
+  >
+  edges: Array<{ source: string; target: string }>
+  /** When omitted/empty for draft handoff, expose every safe flattened output. */
+  outputAllowlist?: Array<{ key: string; blockId: string; path: string }>
+  /** When true, empty allowlist means "expose nothing" (deployed bind path). */
+  requireExplicitAllowlist?: boolean
+  /** Enforce private OAuth binding + reject credential-like API start fields. */
+  enforceCredentialBoundary?: boolean
+}): Promise<
+  { ok: true; action: AppActionManifestEntry } | { ok: false; error: string; code?: string }
+> {
+  if (workflowHasHitlBlocks(params.blocks as Record<string, { type: string }>)) {
+    return {
+      ok: false,
+      error: 'Human-in-the-loop workflows are not supported for Full-stack Apps',
+      code: 'HITL_NOT_SUPPORTED',
+    }
+  }
+
+  const apiStart = resolveApiStartInput(
+    params.blocks as Record<string, { type: string; subBlocks?: Record<string, unknown> }>
+  )
+  if (!apiStart.ok) {
+    return {
+      ok: false,
+      error: apiStart.error || 'Workflow needs an API-compatible start block',
+      code: 'NO_API_START',
+    }
+  }
+
+  if (params.enforceCredentialBoundary !== false) {
+    const boundary = assertPrivateCredentialBoundary({
+      workflowId: params.workflowId,
+      blocks: params.blocks,
+      apiStartFieldNames: apiStart.data.fields.map((field) => field.name),
+    })
+    if (!boundary.ok) {
+      return { ok: false, error: boundary.error, code: boundary.code }
+    }
+  }
+
+  const inputBoundary = assertAppInputBoundary({
+    startBlockId: apiStart.data.blockId,
+    fieldNames: apiStart.data.fields.map((field) => field.name),
+    blocks: params.blocks,
+  })
+  if (!inputBoundary.ok) {
+    return {
+      ok: false,
+      error: inputBoundary.error,
+      code: inputBoundary.code,
+    }
+  }
+
+  const inputSchema = apiStartFieldsToJsonSchema(apiStart.data.fields)
+  const flattened = flattenWorkflowOutputs(
+    Object.values(toFlattenBlocks(params.blocks)),
+    params.edges
+  )
+  const validKeys = new Set(flattened.map((o) => `${o.blockId}::${o.path}`))
+  const leafByKey = new Map(flattened.map((o) => [`${o.blockId}::${o.path}`, o.leafType]))
+
+  const outputAllowlist: AppActionManifestEntry['outputAllowlist'] = []
+  const explicit = params.outputAllowlist
+  if (explicit && explicit.length > 0) {
+    for (const entry of explicit) {
+      const key = `${entry.blockId}::${entry.path}`
+      if (!validKeys.has(key)) {
+        return {
+          ok: false,
+          error: `Unknown output ${entry.blockId}.${entry.path}`,
+          code: 'INVALID_OUTPUT_ALLOWLIST',
+        }
+      }
+      outputAllowlist.push({
+        key: entry.key,
+        blockId: entry.blockId,
+        path: entry.path,
+        schema: leafTypeToJsonSchema(leafByKey.get(key)),
+      })
+    }
+  } else if (!params.requireExplicitAllowlist) {
+    // Demo handoff: expose every safe flattened output with stable keys.
+    const usedKeys = new Set<string>()
+    for (const output of flattened) {
+      let key = output.path.replace(/[^a-zA-Z0-9_]/g, '_') || 'output'
+      if (/^[0-9]/.test(key)) key = `out_${key}`
+      let unique = key
+      let n = 2
+      while (usedKeys.has(unique)) {
+        unique = `${key}_${n++}`
+      }
+      usedKeys.add(unique)
+      outputAllowlist.push({
+        key: unique,
+        blockId: output.blockId,
+        path: output.path,
+        schema: leafTypeToJsonSchema(output.leafType),
+      })
+    }
+  }
+
+  return {
+    ok: true,
+    action: withSchemaHash({
+      actionId: params.actionId,
+      workflowId: params.workflowId,
+      deploymentVersionId: params.deploymentVersionId,
+      inputSchema,
+      outputAllowlist,
+      executionPolicy: 'sync',
+    }),
+  }
 }
 
 /**
@@ -121,73 +271,68 @@ export async function buildBoundActionEntry(params: {
     }
   }
 
-  if (workflowHasHitlBlocks(deployed.blocks as Record<string, { type: string }>)) {
-    return {
-      ok: false,
-      error: 'Human-in-the-loop workflows are not supported for Full-stack Apps',
-      code: 'HITL_NOT_SUPPORTED',
-    }
-  }
-
-  const apiStart = resolveApiStartInput(
-    deployed.blocks as Record<string, { type: string; subBlocks?: Record<string, unknown> }>
-  )
-  if (!apiStart.ok) {
-    return {
-      ok: false,
-      error: apiStart.error || 'Workflow needs an API-compatible start block',
-      code: 'NO_API_START',
-    }
-  }
-
-  const inputSchema = apiStartFieldsToJsonSchema(apiStart.data.fields)
-  const flattened = flattenWorkflowOutputs(
-    Object.values(
-      toFlattenBlocks(
-        deployed.blocks as Record<
-          string,
-          {
-            id?: string
-            type: string
-            name?: string
-            triggerMode?: boolean
-            subBlocks?: Record<string, unknown>
-          }
-        >
-      )
-    ),
-    (deployed.edges || []) as Array<{ source: string; target: string }>
-  )
-  const validKeys = new Set(flattened.map((o) => `${o.blockId}::${o.path}`))
-  const leafByKey = new Map(flattened.map((o) => [`${o.blockId}::${o.path}`, o.leafType]))
-
-  const outputAllowlist = []
-  for (const entry of request.outputAllowlist) {
-    const key = `${entry.blockId}::${entry.path}`
-    if (!validKeys.has(key)) {
-      return {
-        ok: false,
-        error: `Unknown output ${entry.blockId}.${entry.path}`,
-        code: 'INVALID_OUTPUT_ALLOWLIST',
+  return deriveSchemasFromBlocks({
+    actionId: request.actionId,
+    workflowId: request.workflowId,
+    deploymentVersionId: request.deploymentVersionId,
+    blocks: deployed.blocks as Record<
+      string,
+      {
+        id?: string
+        type: string
+        name?: string
+        triggerMode?: boolean
+        subBlocks?: Record<string, unknown>
       }
-    }
-    outputAllowlist.push({
-      key: entry.key,
-      blockId: entry.blockId,
-      path: entry.path,
-      schema: leafTypeToJsonSchema(leafByKey.get(key)),
-    })
+    >,
+    edges: (deployed.edges || []) as Array<{ source: string; target: string }>,
+    outputAllowlist: request.outputAllowlist,
+    requireExplicitAllowlist: true,
+    enforceCredentialBoundary: true,
+  })
+}
+
+/**
+ * Build a draft-bound action entry from the saved normalized workflow tables.
+ * Uses the draft deployment-version sentinel (never publishable).
+ */
+export async function buildBoundActionEntryFromDraft(params: {
+  workspaceId: string
+  actionId: string
+  workflowId: string
+  outputAllowlist?: Array<{ key: string; blockId: string; path: string }>
+}): Promise<
+  { ok: true; action: AppActionManifestEntry } | { ok: false; error: string; code?: string }
+> {
+  if (!params.workspaceId) {
+    return { ok: false, error: 'workspaceId is required', code: 'WORKSPACE_REQUIRED' }
   }
 
-  return {
-    ok: true,
-    action: withSchemaHash({
-      actionId: request.actionId,
-      workflowId: request.workflowId,
-      deploymentVersionId: request.deploymentVersionId,
-      inputSchema,
-      outputAllowlist,
-      executionPolicy: 'sync',
-    }),
+  const draft = await loadWorkflowFromNormalizedTables(params.workflowId)
+  if (!draft) {
+    return {
+      ok: false,
+      error: 'Workflow draft state not found',
+      code: 'DRAFT_MISSING',
+    }
   }
+
+  return deriveSchemasFromBlocks({
+    actionId: params.actionId,
+    workflowId: params.workflowId,
+    deploymentVersionId: DRAFT_DEPLOYMENT_VERSION_SENTINEL,
+    blocks: draft.blocks as Record<
+      string,
+      {
+        id?: string
+        type: string
+        name?: string
+        triggerMode?: boolean
+        subBlocks?: Record<string, unknown>
+      }
+    >,
+    edges: (draft.edges || []) as Array<{ source: string; target: string }>,
+    outputAllowlist: params.outputAllowlist,
+    enforceCredentialBoundary: true,
+  })
 }

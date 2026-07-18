@@ -21,6 +21,12 @@ describe('TikTok Get User fields', () => {
     expect(url.searchParams.get('fields')).toBe(TIKTOK_USER_FIELDS)
   })
 
+  it('normalizes App-facing camelCase output aliases', () => {
+    const url = new URL(getRequestUrl('openId,displayName,followerCount'))
+
+    expect(url.searchParams.get('fields')).toBe('open_id,display_name,follower_count')
+  })
+
   it('rejects unsupported custom fields deterministically', () => {
     expect(() => getRequestUrl('open_id,not_a_field,also_bad,not_a_field')).toThrow(
       'Unsupported TikTok user field(s): not_a_field, also_bad'

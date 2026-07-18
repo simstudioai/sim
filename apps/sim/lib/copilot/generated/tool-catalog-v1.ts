@@ -213,7 +213,7 @@ export interface ToolCatalogEntry {
     | 'workflow'
     | 'workspace_file'
   parameters: unknown
-  requiredPermission?: 'admin' | 'read' | 'write'
+  requiredPermission?: 'admin' | 'write'
   resultSchema?: unknown
   route: 'client' | 'go' | 'sim' | 'subagent'
   subagentId?:
@@ -279,7 +279,7 @@ export const AppBindAction: ToolCatalogEntry = {
     },
     required: ['projectId', 'workflowId', 'deploymentVersionId'],
   },
-  requiredPermission: 'write',
+  requiredPermission: 'admin',
 }
 
 export const AppBuild: ToolCatalogEntry = {
@@ -314,7 +314,7 @@ export const AppDetachAction: ToolCatalogEntry = {
     },
     required: ['projectId', 'actionId'],
   },
-  requiredPermission: 'write',
+  requiredPermission: 'admin',
 }
 
 export const AppListCallableReleases: ToolCatalogEntry = {
@@ -327,7 +327,7 @@ export const AppListCallableReleases: ToolCatalogEntry = {
     properties: { projectId: { type: 'string', description: 'App project ID.' } },
     required: ['projectId'],
   },
-  requiredPermission: 'read',
+  requiredPermission: 'write',
 }
 
 export const AppPreparePublish: ToolCatalogEntry = {
@@ -343,12 +343,6 @@ export const AppPreparePublish: ToolCatalogEntry = {
         description: 'Optional succeeded build id; defaults to latest for the revision.',
       },
       projectId: { type: 'string', description: 'App project ID.' },
-      publish: {
-        type: 'boolean',
-        description:
-          'When true, also publishes the prepared release to the live pointer. Requires explicit user confirmation.',
-        default: false,
-      },
       revisionId: {
         type: 'string',
         description: 'Optional revision; defaults to the current draft.',
@@ -375,7 +369,7 @@ export const AppRefreshBinding: ToolCatalogEntry = {
     },
     required: ['projectId'],
   },
-  requiredPermission: 'write',
+  requiredPermission: 'admin',
 }
 
 export const AppWriteFiles: ToolCatalogEntry = {

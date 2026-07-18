@@ -1,5 +1,6 @@
 import { MothershipStreamV1AppEventName } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import { applyFullstackAppLifecycleEvent } from '@/app/workspace/[workspaceId]/home/hooks/fullstack-lifecycle-store'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import { appKeys } from '@/hooks/queries/apps'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
@@ -33,16 +34,20 @@ export function handleAppEvent(ctx: StreamLoopContext, parsed: AppEvent): void {
   const { queryClient, workspaceId, chatIdRef } = ctx.deps
   const chatId = chatIdRef.current
 
-  void queryClient.invalidateQueries({ queryKey: appKeys.all })
+  applyFullstackAppLifecycleEvent({
+    eventName,
+    payload: nested,
+    chatId,
+  })
+
   void queryClient.invalidateQueries({ queryKey: appKeys.list(workspaceId) })
   if (projectId) {
     void queryClient.invalidateQueries({ queryKey: appKeys.detail(projectId) })
+  } else {
+    void queryClient.invalidateQueries({ queryKey: appKeys.details() })
   }
-  void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.lists() })
   void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
   if (chatId) {
     void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
   }
-
-  void eventName
 }

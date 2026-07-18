@@ -2,6 +2,7 @@
 
 import {
   memo,
+  type ReactNode,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -73,6 +74,7 @@ interface MothershipChatProps {
   animateInput?: boolean
   onInputAnimationEnd?: () => void
   className?: string
+  inlineStatus?: ReactNode
 }
 
 /**
@@ -267,6 +269,7 @@ export function MothershipChat({
   animateInput = false,
   onInputAnimationEnd,
   className,
+  inlineStatus,
 }: MothershipChatProps) {
   const styles = LAYOUT_STYLES[layout]
   const isStreamActive = isSending || isReconnecting
@@ -535,6 +538,8 @@ export function MothershipChat({
             </div>
           )}
         </div>
+
+        {inlineStatus ? <div className='flex-shrink-0 px-6'>{inlineStatus}</div> : null}
 
         <div
           className={cn(styles.footer, animateInput && 'animate-slide-in-bottom')}

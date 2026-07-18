@@ -6,7 +6,9 @@ import { previewSessionContract } from '@/lib/api/contracts/apps'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getAppOriginStatus } from '@/lib/apps/origin'
 import { assertAppPermission } from '@/lib/apps/permissions'
-import { activatePreviewPins } from '@/lib/apps/pins'
+import { activatePreviewPins, stopPreviewSession } from '@/lib/apps/pins'
+import { waitForAppPreviewReady } from '@/lib/apps/preview-readiness'
+import { buildAppPreviewUrl } from '@/lib/apps/preview-url'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -58,6 +60,27 @@ export const POST = withRouteHandler(
         revisionId: parsed.data.body.revisionId,
         userId: session.user.id,
       })
+
+      const parentOrigin = request.headers.get('origin') || new URL(request.url).origin
+      const previewUrl = buildAppPreviewUrl({
+        appPublicOrigin: origin.appPublicOrigin,
+        sessionId: result.sessionId,
+        channelNonce: result.channelNonce,
+        parentOrigin,
+      })
+
+      const readiness = await waitForAppPreviewReady({
+        previewUrl,
+        abortSignal: request.signal,
+      })
+      if (!readiness.ok) {
+        await stopPreviewSession(result.sessionId)
+        return createErrorResponse(
+          'Apps preview host is not ready yet. Wait a moment and retry.',
+          503,
+          'APPS_HOST_UNAVAILABLE'
+        )
+      }
 
       return createSuccessResponse({
         sessionId: result.sessionId,

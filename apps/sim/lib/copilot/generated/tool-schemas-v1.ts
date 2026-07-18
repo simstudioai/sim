@@ -130,12 +130,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           description: 'App project ID.',
         },
-        publish: {
-          type: 'boolean',
-          description:
-            'When true, also publishes the prepared release to the live pointer. Requires explicit user confirmation.',
-          default: false,
-        },
         revisionId: {
           type: 'string',
           description: 'Optional revision; defaults to the current draft.',

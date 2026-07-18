@@ -611,6 +611,7 @@ async function runCheckpointLoop(
   const callerOnEvent = options.onEvent
   const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
   const lifecycleWorkspaceId = nonBlankString(options.workspaceId)
+  const isFullstackChat = initialPayload.chatType === 'fullstack'
 
   // Go's auth middleware re-validates every Sim -> Go request by reading
   // workspaceId from the JSON body and forwarding it to Sim's validate route,
@@ -930,6 +931,7 @@ async function runCheckpointLoop(
       checkpointId: continuation.checkpointId,
       userId: options.userId,
       ...(lifecycleWorkspaceId ? { workspaceId: lifecycleWorkspaceId } : {}),
+      ...(isFullstackChat ? { chatType: 'fullstack' } : {}),
       results,
     }
 

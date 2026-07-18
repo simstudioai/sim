@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, ChipConfirmModal, ChipSelect, Label, Loader, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Copy, ExternalLink, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowLeft, Copy, ExternalLink, RefreshCw, Trash2 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { AppPreviewBridge } from '@/components/apps/preview-bridge'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { AppRelease } from '@/lib/api/contracts/apps'
+import { publishAppWithDeploy } from '@/lib/apps/client'
+import { DRAFT_DEPLOYMENT_VERSION_SENTINEL } from '@/lib/apps/draft-binding'
+import { buildAppPreviewUrl } from '@/lib/apps/preview-url'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 import {
@@ -25,6 +28,7 @@ import { useDeploymentVersions } from '@/hooks/queries/deployments'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 
 type ConfirmAction =
+  | { type: 'publish' }
   | { type: 'revoke'; releaseId: string }
   | { type: 'rollback'; releaseId: string }
   | { type: 'archive' }
@@ -106,19 +110,26 @@ export default function AppBuilderPage() {
   const [workflowId, setWorkflowId] = useState('')
   const [deploymentVersionId, setDeploymentVersionId] = useState('')
   const [selectedOutputs, setSelectedOutputs] = useState<string[]>([])
-  const [bindingInitialized, setBindingInitialized] = useState(false)
-  const [lastBuildId, setLastBuildId] = useState<string | null>(null)
+  const [hydratedProjectKey, setHydratedProjectKey] = useState<string | null>(null)
+  const [lastBuild, setLastBuild] = useState<{ id: string; revisionId: string } | null>(null)
   const [preparedReleaseId, setPreparedReleaseId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null)
+  const [publishWithDeployPending, setPublishWithDeployPending] = useState(false)
   const [preview, setPreview] = useState<{
     sessionId: string
     channelNonce: string
     previewSrc: string
+    revisionId: string
   } | null>(null)
 
   const detail = detailQuery.data
   const project = detail?.project
+  const hasDraftBindings = Boolean(
+    detail?.draftActions.some(
+      (action) => action.deploymentVersionId === DRAFT_DEPLOYMENT_VERSION_SENTINEL
+    )
+  )
   const versionsQuery = useDeploymentVersions(workflowId || null, {
     enabled: Boolean(workflowId),
   })
@@ -155,56 +166,79 @@ export default function AppBuilderPage() {
         (release.state === 'prepared' && release.revisionId === project?.draftRevisionId)
     ) ?? null
   const activeBuildId =
-    lastBuildId ??
+    (lastBuild && lastBuild.revisionId === project?.draftRevisionId ? lastBuild.id : null) ??
     (detail?.latestBuild?.status === 'succeeded' &&
     detail.latestBuild.revisionId === project?.draftRevisionId
       ? detail.latestBuild.id
       : null)
-  const bindingDirty =
-    !currentAction ||
-    currentAction.workflowId !== workflowId ||
-    currentAction.deploymentVersionId !== deploymentVersionId ||
-    JSON.stringify(
-      currentAction.outputAllowlist.map((output) => `${output.blockId}_${output.path}`).sort()
-    ) !== JSON.stringify([...selectedOutputs].sort())
+  const bindingDirty = hasDraftBindings
+    ? false
+    : !currentAction ||
+      currentAction.workflowId !== workflowId ||
+      currentAction.deploymentVersionId !== deploymentVersionId ||
+      JSON.stringify(
+        currentAction.outputAllowlist.map((output) => `${output.blockId}_${output.path}`).sort()
+      ) !== JSON.stringify([...selectedOutputs].sort())
   const busy =
     bindRevision.isPending ||
     buildRevision.isPending ||
     prepareRelease.isPending ||
     publishRelease.isPending ||
+    publishWithDeployPending ||
     revokeRelease.isPending ||
     rollbackRelease.isPending ||
     archiveProject.isPending ||
     createPreview.isPending
 
   useEffect(() => {
-    setBindingInitialized(false)
-    setLastBuildId(null)
+    setHydratedProjectKey(null)
+    setLastBuild(null)
     setPreparedReleaseId(null)
     setPreview(null)
   }, [appId])
 
   useEffect(() => {
-    if (!detail || bindingInitialized) return
+    if (!detail) return
+    const projectKey = `${detail.project.draftRevisionId ?? 'none'}:${detail.project.version}`
+    if (hydratedProjectKey === projectKey) return
     const action = detail.draftActions[0]
     if (action) {
       setWorkflowId(action.workflowId)
       setDeploymentVersionId(action.deploymentVersionId)
       setSelectedOutputs(action.outputAllowlist.map((output) => `${output.blockId}_${output.path}`))
+    } else {
+      setWorkflowId('')
+      setDeploymentVersionId('')
+      setSelectedOutputs([])
     }
     if (
       detail.latestBuild?.status === 'succeeded' &&
       detail.latestBuild.revisionId === detail.project.draftRevisionId
     ) {
-      setLastBuildId(detail.latestBuild.id)
+      setLastBuild({
+        id: detail.latestBuild.id,
+        revisionId: detail.latestBuild.revisionId,
+      })
+    } else {
+      setLastBuild(null)
     }
     const prepared = detail.releases.find(
       (release) =>
         release.state === 'prepared' && release.revisionId === detail.project.draftRevisionId
     )
-    if (prepared) setPreparedReleaseId(prepared.id)
-    setBindingInitialized(true)
-  }, [bindingInitialized, detail])
+    setPreparedReleaseId(prepared?.id ?? null)
+    setPreview(null)
+    setHydratedProjectKey(projectKey)
+  }, [detail, hydratedProjectKey])
+
+  useEffect(() => {
+    if (
+      preview &&
+      (bindingDirty || !project?.draftRevisionId || preview.revisionId !== project.draftRevisionId)
+    ) {
+      setPreview(null)
+    }
+  }, [bindingDirty, preview, project?.draftRevisionId])
 
   async function saveBinding() {
     if (!workflowId || !deploymentVersionId) return
@@ -221,7 +255,7 @@ export default function AppBuilderPage() {
           },
         ],
       })
-      setLastBuildId(null)
+      setLastBuild(null)
       setPreparedReleaseId(null)
       setPreview(null)
       toast({ message: `Binding saved to revision ${result.revisionId.slice(0, 8)}…` })
@@ -235,7 +269,7 @@ export default function AppBuilderPage() {
     setError(null)
     try {
       const result = await buildRevision.mutateAsync({ revisionId: project.draftRevisionId })
-      setLastBuildId(result.buildId)
+      setLastBuild({ id: result.buildId, revisionId: project.draftRevisionId })
       setPreparedReleaseId(null)
       setPreview(null)
       toast({ message: result.reused ? 'Reused existing build' : 'Build completed' })
@@ -259,9 +293,34 @@ export default function AppBuilderPage() {
     }
   }
 
-  async function publishPrepared() {
-    if (!project || !preparedRelease || bindingDirty) return
+  async function publishPrepared(): Promise<boolean> {
+    if (!project || bindingDirty) return false
     setError(null)
+
+    // Draft bindings always use compound publish; demo flag only gates the API route.
+    if (hasDraftBindings) {
+      setPublishWithDeployPending(true)
+      try {
+        const result = await publishAppWithDeploy({
+          projectId: project.id,
+          expectedVersion: project.version,
+        })
+        setPreparedReleaseId(null)
+        setPreview(null)
+        await detailQuery.refetch()
+        toast({
+          message: `Published with ${result.deployments.length} workflow deploy(s)`,
+        })
+        return true
+      } catch (publishError) {
+        setError(appActionErrorMessage(publishError, 'Failed to deploy and publish'))
+        return false
+      } finally {
+        setPublishWithDeployPending(false)
+      }
+    }
+
+    if (!preparedRelease) return false
     try {
       await publishRelease.mutateAsync({
         releaseId: preparedRelease.id,
@@ -269,8 +328,16 @@ export default function AppBuilderPage() {
       })
       setPreparedReleaseId(null)
       toast({ message: 'App published' })
+      return true
     } catch (publishError) {
+      if (isApiClientError(publishError) && publishError.code === 'CONFLICT') {
+        setPreparedReleaseId(null)
+        await detailQuery.refetch()
+        setError('Project changed concurrently. Review the latest revision and prepare again.')
+        return false
+      }
       setError(appActionErrorMessage(publishError, 'Failed to publish release'))
+      return false
     }
   }
 
@@ -281,12 +348,16 @@ export default function AppBuilderPage() {
       const result = await createPreview.mutateAsync({
         revisionId: project.draftRevisionId,
       })
-      const origin = result.appPublicOrigin.replace(/\/$/, '')
-      const parentOrigin = window.location.origin
       setPreview({
         sessionId: result.sessionId,
         channelNonce: result.channelNonce,
-        previewSrc: `${origin}/__sim/preview/${encodeURIComponent(result.sessionId)}/${encodeURIComponent(result.channelNonce)}/?parentOrigin=${encodeURIComponent(parentOrigin)}`,
+        previewSrc: buildAppPreviewUrl({
+          appPublicOrigin: result.appPublicOrigin,
+          sessionId: result.sessionId,
+          channelNonce: result.channelNonce,
+          parentOrigin: window.location.origin,
+        }),
+        revisionId: project.draftRevisionId,
       })
     } catch (previewError) {
       setError(appActionErrorMessage(previewError, 'Failed to open preview'))
@@ -297,7 +368,9 @@ export default function AppBuilderPage() {
     if (!project || !confirmAction) return
     setError(null)
     try {
-      if (confirmAction.type === 'revoke') {
+      if (confirmAction.type === 'publish') {
+        if (!(await publishPrepared())) return
+      } else if (confirmAction.type === 'revoke') {
         await revokeRelease.mutateAsync({ releaseId: confirmAction.releaseId })
         toast({ message: 'Release revoked' })
       } else if (confirmAction.type === 'rollback') {
@@ -305,6 +378,7 @@ export default function AppBuilderPage() {
         toast({ message: 'Release is current' })
       } else {
         await archiveProject.mutateAsync({ projectId: appId, workspaceId })
+        setConfirmAction(null)
         router.push(`/workspace/${workspaceId}/apps`)
         return
       }
@@ -361,11 +435,27 @@ export default function AppBuilderPage() {
             </p>
           </div>
           <div className='flex shrink-0 items-center gap-2'>
+            <Button
+              type='button'
+              variant='tertiary'
+              onClick={() => {
+                const builderChatId = project.lastBuilderChatId || project.createdFromChatId
+                router.push(
+                  builderChatId
+                    ? `/workspace/${workspaceId}/chat/${builderChatId}`
+                    : `/workspace/${workspaceId}/home`
+                )
+              }}
+            >
+              <ArrowLeft className='size-[14px]' />
+              Back to builder
+            </Button>
             {detail.publicUrl ? (
               <>
                 <Button
                   type='button'
                   variant='default'
+                  className='gap-1.5'
                   onClick={() => {
                     void navigator.clipboard.writeText(detail.publicUrl!)
                     toast({ message: 'Public URL copied' })
@@ -400,7 +490,10 @@ export default function AppBuilderPage() {
         </header>
 
         {error ? (
-          <div className='border-[var(--border)] border-b bg-[var(--surface-2)] px-6 py-2 text-[var(--text-error)] text-sm'>
+          <div
+            className='border-[var(--border)] border-b bg-[var(--surface-2)] px-6 py-2 text-[var(--text-error)] text-sm'
+            role='alert'
+          >
             {error}
           </div>
         ) : null}
@@ -411,71 +504,94 @@ export default function AppBuilderPage() {
               <div>
                 <h2 className='font-medium text-[var(--text-primary)] text-sm'>Backend binding</h2>
                 <p className='mt-1 text-[var(--text-tertiary)] text-xs'>
-                  Select a deployed workflow version. Published releases stay pinned to that exact
-                  version.
+                  {hasDraftBindings
+                    ? 'Draft-bound workflows from the hosted demo. Preview runs saved drafts; publishing deploys every workflow first.'
+                    : 'Select a deployed workflow version. Published releases stay pinned to that exact version.'}
                 </p>
               </div>
-              <div className='flex flex-col gap-1.5'>
-                <Label>Workflow</Label>
-                <ChipSelect
-                  options={workflowOptions}
-                  value={workflowId || undefined}
-                  placeholder='Select workflow'
-                  onChange={(value) => {
-                    setWorkflowId(value)
-                    setDeploymentVersionId('')
-                    setSelectedOutputs([])
-                  }}
-                  disabled={!canAdmin || busy}
-                />
-              </div>
-              <div className='flex flex-col gap-1.5'>
-                <Label>Deployment version</Label>
-                <ChipSelect
-                  options={versionOptions}
-                  value={deploymentVersionId || undefined}
-                  placeholder={workflowId ? 'Select version' : 'Select a workflow first'}
-                  onChange={setDeploymentVersionId}
-                  disabled={!canAdmin || !workflowId || versionsQuery.isLoading || busy}
-                />
-              </div>
-              {workflowId ? (
-                <div className='flex flex-col gap-1.5'>
-                  <Label>Outputs exposed to the app</Label>
-                  <OutputSelect
-                    workflowId={workflowId}
-                    selectedOutputs={selectedOutputs}
-                    onOutputSelect={setSelectedOutputs}
-                    disabled={!canAdmin || busy}
-                  />
-                  <p className='text-[var(--text-tertiary)] text-xs'>
-                    Empty means the action returns success only.
-                  </p>
-                </div>
-              ) : null}
-              <Button
-                type='button'
-                variant='tertiary'
-                disabled={
-                  !canAdmin ||
-                  !workflowId ||
-                  !deploymentVersionId ||
-                  !bindingDirty ||
-                  bindRevision.isPending
-                }
-                onClick={() => void saveBinding()}
-              >
-                {bindRevision.isPending
-                  ? 'Saving…'
-                  : bindingDirty
-                    ? 'Save binding'
-                    : 'Binding saved'}
-              </Button>
-              {!canAdmin ? (
-                <p className='text-[var(--text-tertiary)] text-xs'>
-                  Workspace admin permission is required to change bindings.
-                </p>
-              ) : null}
+              {hasDraftBindings ? (
+                <ul className='space-y-2'>
+                  {detail.draftActions.map((action) => (
+                    <li
+                      key={action.actionId}
+                      className='rounded-md border border-[var(--border)] px-3 py-2 text-left text-xs'
+                    >
+                      <div className='font-medium text-[var(--text-primary)]'>
+                        {action.actionId}
+                      </div>
+                      <div className='mt-0.5 text-[var(--text-tertiary)]'>
+                        {workflowMap[action.workflowId]?.name || action.workflowId}
+                        {' · '}
+                        draft preview
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <>
+                  <div className='flex flex-col gap-1.5'>
+                    <Label>Workflow</Label>
+                    <ChipSelect
+                      options={workflowOptions}
+                      value={workflowId || undefined}
+                      placeholder='Select workflow'
+                      onChange={(value) => {
+                        setWorkflowId(value)
+                        setDeploymentVersionId('')
+                        setSelectedOutputs([])
+                      }}
+                      disabled={!canAdmin || busy}
+                    />
+                  </div>
+                  <div className='flex flex-col gap-1.5'>
+                    <Label>Deployment version</Label>
+                    <ChipSelect
+                      options={versionOptions}
+                      value={deploymentVersionId || undefined}
+                      placeholder={workflowId ? 'Select version' : 'Select a workflow first'}
+                      onChange={setDeploymentVersionId}
+                      disabled={!canAdmin || !workflowId || versionsQuery.isLoading || busy}
+                    />
+                  </div>
+                  {workflowId ? (
+                    <div className='flex flex-col gap-1.5'>
+                      <Label>Outputs exposed to the app</Label>
+                      <OutputSelect
+                        workflowId={workflowId}
+                        selectedOutputs={selectedOutputs}
+                        onOutputSelect={setSelectedOutputs}
+                        disabled={!canAdmin || busy}
+                      />
+                      <p className='text-[var(--text-tertiary)] text-xs'>
+                        Empty means the action returns success only.
+                      </p>
+                    </div>
+                  ) : null}
+                  <Button
+                    type='button'
+                    variant='tertiary'
+                    disabled={
+                      !canAdmin ||
+                      !workflowId ||
+                      !deploymentVersionId ||
+                      !bindingDirty ||
+                      bindRevision.isPending
+                    }
+                    onClick={() => void saveBinding()}
+                  >
+                    {bindRevision.isPending
+                      ? 'Saving…'
+                      : bindingDirty
+                        ? 'Save binding'
+                        : 'Binding saved'}
+                  </Button>
+                  {!canAdmin ? (
+                    <p className='text-[var(--text-tertiary)] text-xs'>
+                      Workspace admin permission is required to change bindings.
+                    </p>
+                  ) : null}
+                </>
+              )}
             </section>
 
             <section className='space-y-4 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-4'>
@@ -484,7 +600,9 @@ export default function AppBuilderPage() {
                   Build and publish
                 </h2>
                 <p className='mt-1 text-[var(--text-tertiary)] text-xs'>
-                  Build the current revision, prepare an immutable release, then publish it.
+                  {hasDraftBindings
+                    ? 'Publishing deploys every draft workflow, rebinds actions, rebuilds, then flips the public pointer.'
+                    : 'Build the current revision, prepare an immutable release, then publish it.'}
                 </p>
               </div>
               <div className='space-y-2 text-xs'>
@@ -505,34 +623,49 @@ export default function AppBuilderPage() {
                   </span>
                 </div>
               </div>
-              <div className='grid grid-cols-3 gap-2'>
-                <Button
-                  type='button'
-                  variant='default'
-                  disabled={!canEdit || !project.draftRevisionId || bindingDirty || busy}
-                  onClick={() => void buildCurrentRevision()}
-                >
-                  {buildRevision.isPending ? 'Building…' : 'Build'}
-                </Button>
-                <Button
-                  type='button'
-                  variant='default'
-                  disabled={
-                    !canAdmin || !project.draftRevisionId || !activeBuildId || bindingDirty || busy
-                  }
-                  onClick={() => void prepareCurrentRelease()}
-                >
-                  {prepareRelease.isPending ? 'Preparing…' : 'Prepare'}
-                </Button>
+              {hasDraftBindings ? (
                 <Button
                   type='button'
                   variant='tertiary'
-                  disabled={!canAdmin || !preparedRelease || bindingDirty || busy}
-                  onClick={() => void publishPrepared()}
+                  disabled={!canAdmin || !project.draftRevisionId || busy}
+                  onClick={() => setConfirmAction({ type: 'publish' })}
                 >
-                  {publishRelease.isPending ? 'Publishing…' : 'Publish'}
+                  {publishWithDeployPending ? 'Deploying & publishing…' : 'Deploy & publish'}
                 </Button>
-              </div>
+              ) : (
+                <div className='grid grid-cols-3 gap-2'>
+                  <Button
+                    type='button'
+                    variant='default'
+                    disabled={!canEdit || !project.draftRevisionId || bindingDirty || busy}
+                    onClick={() => void buildCurrentRevision()}
+                  >
+                    {buildRevision.isPending ? 'Building…' : 'Build'}
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='default'
+                    disabled={
+                      !canAdmin ||
+                      !project.draftRevisionId ||
+                      !activeBuildId ||
+                      bindingDirty ||
+                      busy
+                    }
+                    onClick={() => void prepareCurrentRelease()}
+                  >
+                    {prepareRelease.isPending ? 'Preparing…' : 'Prepare'}
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='tertiary'
+                    disabled={!canAdmin || !preparedRelease || bindingDirty || busy}
+                    onClick={() => setConfirmAction({ type: 'publish' })}
+                  >
+                    {publishRelease.isPending ? 'Publishing…' : 'Publish'}
+                  </Button>
+                </div>
+              )}
             </section>
 
             <section className='space-y-3 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-4'>
@@ -660,16 +793,22 @@ export default function AppBuilderPage() {
         srTitle={
           confirmAction?.type === 'archive'
             ? 'Archive app'
-            : confirmAction?.type === 'rollback'
-              ? 'Make release current'
-              : 'Revoke release'
+            : confirmAction?.type === 'publish'
+              ? 'Publish app'
+              : confirmAction?.type === 'rollback'
+                ? 'Make release current'
+                : 'Revoke release'
         }
         title={
           confirmAction?.type === 'archive'
             ? 'Archive app'
-            : confirmAction?.type === 'rollback'
-              ? 'Make this release current?'
-              : 'Revoke this release?'
+            : confirmAction?.type === 'publish'
+              ? hasDraftBindings
+                ? 'Deploy workflows and publish?'
+                : 'Publish this release?'
+              : confirmAction?.type === 'rollback'
+                ? 'Make this release current?'
+                : 'Revoke this release?'
         }
         text={
           confirmAction?.type === 'archive'
@@ -678,28 +817,45 @@ export default function AppBuilderPage() {
                 { text: project.name, bold: true },
                 '? Its current release will be revoked and the public URL will show an unavailable page.',
               ]
-            : confirmAction?.type === 'rollback'
-              ? 'The current release will be vacated. This historical release will be revalidated and made current.'
-              : [
-                  'This is a permanent kill switch for the selected release. ',
-                  { text: 'Manually revoked releases cannot be reactivated.', error: true },
-                ]
+            : confirmAction?.type === 'publish'
+              ? hasDraftBindings
+                ? `This deploys ${detail.draftActions.length} workflow(s), rebinds actions, rebuilds the app, then makes /a/${project.publicId}/${project.slug}/ callable.`
+                : `This makes /a/${project.publicId}/${project.slug}/ callable with the prepared release.`
+              : confirmAction?.type === 'rollback'
+                ? 'The current release will be vacated. This historical release will be revalidated and made current.'
+                : [
+                    'This is a permanent kill switch for the selected release. ',
+                    { text: 'Manually revoked releases cannot be reactivated.', error: true },
+                  ]
         }
         confirm={{
           label:
             confirmAction?.type === 'archive'
               ? 'Archive app'
-              : confirmAction?.type === 'rollback'
-                ? 'Make current'
-                : 'Revoke release',
+              : confirmAction?.type === 'publish'
+                ? hasDraftBindings
+                  ? 'Deploy & publish'
+                  : 'Publish'
+                : confirmAction?.type === 'rollback'
+                  ? 'Make current'
+                  : 'Revoke release',
           onClick: () => void runConfirmedAction(),
-          pending: archiveProject.isPending || revokeRelease.isPending || rollbackRelease.isPending,
+          pending:
+            archiveProject.isPending ||
+            publishRelease.isPending ||
+            publishWithDeployPending ||
+            revokeRelease.isPending ||
+            rollbackRelease.isPending,
           pendingLabel:
             confirmAction?.type === 'archive'
               ? 'Archiving…'
-              : confirmAction?.type === 'rollback'
-                ? 'Switching…'
-                : 'Revoking…',
+              : confirmAction?.type === 'publish'
+                ? hasDraftBindings
+                  ? 'Deploying…'
+                  : 'Publishing…'
+                : confirmAction?.type === 'rollback'
+                  ? 'Switching…'
+                  : 'Revoking…',
         }}
       />
     </>

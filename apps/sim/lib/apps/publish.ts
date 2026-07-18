@@ -11,6 +11,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { isDraftDeploymentVersionId } from '@/lib/apps/draft-binding'
 import { getAppOriginStatus } from '@/lib/apps/origin'
 import { assertReleaseArtifactAllowed } from '@/lib/apps/release-artifact-policy'
 import { isProd } from '@/lib/core/config/env-flags'
@@ -152,6 +153,14 @@ export async function validateReleaseActionsForActivation(
   const { workspaceId, actions } = params
   if (actions.length === 0) {
     return { ok: false, error: 'Release has no actions', code: 'EMPTY_RELEASE' }
+  }
+
+  if (actions.some((action) => isDraftDeploymentVersionId(action.deploymentVersionId))) {
+    return {
+      ok: false,
+      error: 'Draft bindings cannot be published; deploy workflows and rebind first',
+      code: 'DRAFT_BINDING',
+    }
   }
 
   const versionIds = [...new Set(actions.map((a) => a.deploymentVersionId))]

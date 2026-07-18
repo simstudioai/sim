@@ -8,6 +8,8 @@ const {
   mockGetSession,
   mockAssertAppPermission,
   mockActivatePreviewPins,
+  mockStopPreviewSession,
+  mockWaitForAppPreviewReady,
   mockGetAppOriginStatus,
   mockSelect,
   mockLimit,
@@ -15,6 +17,8 @@ const {
   mockGetSession: vi.fn(),
   mockAssertAppPermission: vi.fn(),
   mockActivatePreviewPins: vi.fn(),
+  mockStopPreviewSession: vi.fn(),
+  mockWaitForAppPreviewReady: vi.fn(),
   mockGetAppOriginStatus: vi.fn(),
   mockSelect: vi.fn(),
   mockLimit: vi.fn(),
@@ -23,7 +27,13 @@ const {
 vi.mock('@sim/db', () => ({ db: { select: mockSelect } }))
 vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
 vi.mock('@/lib/apps/permissions', () => ({ assertAppPermission: mockAssertAppPermission }))
-vi.mock('@/lib/apps/pins', () => ({ activatePreviewPins: mockActivatePreviewPins }))
+vi.mock('@/lib/apps/pins', () => ({
+  activatePreviewPins: mockActivatePreviewPins,
+  stopPreviewSession: mockStopPreviewSession,
+}))
+vi.mock('@/lib/apps/preview-readiness', () => ({
+  waitForAppPreviewReady: mockWaitForAppPreviewReady,
+}))
 vi.mock('@/lib/apps/origin', () => ({ getAppOriginStatus: mockGetAppOriginStatus }))
 
 import { POST } from '@/app/api/apps/[projectId]/preview/session/route'
@@ -54,6 +64,8 @@ describe('POST /api/apps/[projectId]/preview/session', () => {
       appPublicOrigin: 'https://apps.test',
     })
     mockAssertAppPermission.mockResolvedValue({ ok: true })
+    mockWaitForAppPreviewReady.mockResolvedValue({ ok: true, attempts: 1 })
+    mockStopPreviewSession.mockResolvedValue(undefined)
     mockActivatePreviewPins.mockResolvedValue({
       sessionId: 'session-1',
       channelNonce: 'nonce-1',
@@ -113,5 +125,30 @@ describe('POST /api/apps/[projectId]/preview/session', () => {
       revisionId: 'revision-1',
       userId: 'user-1',
     })
+    expect(mockWaitForAppPreviewReady).toHaveBeenCalledWith({
+      previewUrl:
+        'https://apps.test/__sim/preview/session-1/nonce-1/?parentOrigin=http%3A%2F%2Flocalhost',
+      abortSignal: expect.any(AbortSignal),
+    })
+  })
+
+  it('cleans up the session when Apps Host never becomes ready', async () => {
+    mockLimit
+      .mockResolvedValueOnce([{ id: 'project-1', workspaceId: 'ws-1' }])
+      .mockResolvedValueOnce([{ id: 'revision-1', projectId: 'project-1' }])
+    mockWaitForAppPreviewReady.mockResolvedValueOnce({
+      ok: false,
+      attempts: 6,
+      lastStatus: 503,
+    })
+
+    const response = await callPost()
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      error: 'Apps preview host is not ready yet. Wait a moment and retry.',
+      code: 'APPS_HOST_UNAVAILABLE',
+    })
+    expect(mockStopPreviewSession).toHaveBeenCalledWith('session-1')
   })
 })

@@ -19,7 +19,7 @@ export const GET = withRouteHandler(
     request: NextRequest,
     context: { params: Promise<{ publicId: string; releaseId: string }> }
   ) => {
-    const hop = requireAppsHopFromRequest(request)
+    const hop = await requireAppsHopFromRequest(request)
     if (!hop.ok) {
       return new Response(hop.message, { status: hop.status })
     }

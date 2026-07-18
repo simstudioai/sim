@@ -11,6 +11,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { previewExecuteContract } from '@/lib/api/contracts/apps'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import { isDraftDeploymentVersionId } from '@/lib/apps/draft-binding'
 import { executeDeployedAction } from '@/lib/apps/execute-deployed-action'
 import { APP_REQUEST_BODY_MAX_BYTES } from '@/lib/apps/manifest'
 import { assertAppPermission } from '@/lib/apps/permissions'
@@ -106,21 +107,25 @@ export const POST = withRouteHandler(
         return createErrorResponse('Unknown action', 404)
       }
 
-      const [pin] = await db
-        .select({ id: appDeploymentPin.id })
-        .from(appDeploymentPin)
-        .where(
-          and(
-            eq(appDeploymentPin.kind, 'preview'),
-            eq(appDeploymentPin.previewSessionId, sessionId),
-            eq(appDeploymentPin.workflowId, action.workflowId),
-            eq(appDeploymentPin.deploymentVersionId, action.deploymentVersionId)
-          )
-        )
-        .limit(1)
+      const isDraftAction = isDraftDeploymentVersionId(action.deploymentVersionId)
 
-      if (!pin) {
-        return createErrorResponse('Preview pin missing; reopen preview', 410)
+      if (!isDraftAction) {
+        const [pin] = await db
+          .select({ id: appDeploymentPin.id })
+          .from(appDeploymentPin)
+          .where(
+            and(
+              eq(appDeploymentPin.kind, 'preview'),
+              eq(appDeploymentPin.previewSessionId, sessionId),
+              eq(appDeploymentPin.workflowId, action.workflowId),
+              eq(appDeploymentPin.deploymentVersionId, action.deploymentVersionId)
+            )
+          )
+          .limit(1)
+
+        if (!pin) {
+          return createErrorResponse('Preview pin missing; reopen preview', 410)
+        }
       }
 
       const inputValidation = validateAppActionInput({
@@ -168,14 +173,18 @@ export const POST = withRouteHandler(
         workflowId: action.workflowId,
         userId: wf.userId,
         workspaceId: wf.workspaceId,
-        deploymentGate: 'pinned',
-        deploymentVersionId: action.deploymentVersionId,
+        deploymentGate: isDraftAction ? 'draft' : 'pinned',
+        deploymentVersionId: isDraftAction ? undefined : action.deploymentVersionId,
         input: input || {},
         outputConfigs,
         executionPolicy: (action.executionPolicy as 'sync' | 'async') || 'sync',
         triggerIdentity: 'app',
         requestId,
         abortSignal: request.signal,
+        appsFileContext: {
+          projectId: project.id,
+          previewSessionId: sessionId,
+        },
       })
 
       if (!result.success) {

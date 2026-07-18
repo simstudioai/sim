@@ -106,8 +106,14 @@ import type {
   ToolCallInfo,
 } from '../types'
 
+export type SendMessageExtras = {
+  credentialSelections?: Record<string, string>
+  fullstackProjectId?: string
+}
+
 export interface UseChatReturn {
   messages: ChatMessage[]
+  chatHistory: MothershipChatHistory | undefined
   isSending: boolean
   isReconnecting: boolean
   error: string | null
@@ -115,7 +121,8 @@ export interface UseChatReturn {
   sendMessage: (
     message: string,
     fileAttachments?: FileAttachmentForApi[],
-    contexts?: ChatContext[]
+    contexts?: ChatContext[],
+    extras?: SendMessageExtras
   ) => Promise<void>
   stopGeneration: () => Promise<void>
   resources: MothershipResource[]
@@ -997,6 +1004,8 @@ export interface UseChatOptions {
   apiPath?: string
   stopPath?: string
   workflowId?: string
+  /** When creating a new workspace chat, request this persisted chat type. */
+  createChatType?: 'mothership' | 'fullstack'
   onToolResult?: (toolName: string, success: boolean, result: unknown) => void
   onTitleUpdate?: () => void
   onStreamEnd?: (chatId: string, messages: ChatMessage[]) => void
@@ -1037,6 +1046,7 @@ export function getMothershipUseChatOptions(
     | 'initialActiveResourceId'
     | 'activeResourceState'
     | 'onRequestStarted'
+    | 'createChatType'
   > = {}
 ): UseChatOptions {
   return {
@@ -1096,6 +1106,8 @@ export function useChat(
   const pendingStopModeRef = useRef<StopGenerationMode | null>(null)
   const workflowIdRef = useRef(options?.workflowId)
   workflowIdRef.current = options?.workflowId
+  const createChatTypeRef = useRef(options?.createChatType)
+  createChatTypeRef.current = options?.createChatType
   const onToolResultRef = useRef(options?.onToolResult)
   onToolResultRef.current = options?.onToolResult
   const onTitleUpdateRef = useRef(options?.onTitleUpdate)
@@ -3027,7 +3039,8 @@ export function useChat(
       contexts?: ChatContext[],
       pendingStopOverride?: Promise<void> | null,
       onOptimisticSendApplied?: () => void,
-      queuedSendHandoff?: QueuedSendHandoffSeed
+      queuedSendHandoff?: QueuedSendHandoffSeed,
+      sendExtras?: SendMessageExtras
     ) => {
       if (!message.trim() || !workspaceId) return false
       const pendingStop = pendingStopOverride ?? pendingStopPromiseRef.current
@@ -3271,6 +3284,15 @@ export function useChat(
             userMessageId,
             createNewChat: !requestChatId,
             ...(requestChatId ? { chatId: requestChatId } : {}),
+            ...(!requestChatId && createChatTypeRef.current
+              ? { chatType: createChatTypeRef.current }
+              : {}),
+            ...(sendExtras?.credentialSelections
+              ? { credentialSelections: sendExtras.credentialSelections }
+              : {}),
+            ...(sendExtras?.fullstackProjectId
+              ? { fullstackProjectId: sendExtras.fullstackProjectId }
+              : {}),
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
@@ -3428,7 +3450,12 @@ export function useChat(
     ]
   )
   const sendMessage = useCallback(
-    async (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
+    async (
+      message: string,
+      fileAttachments?: FileAttachmentForApi[],
+      contexts?: ChatContext[],
+      extras?: SendMessageExtras
+    ) => {
       if (!message.trim() || !workspaceId) return
 
       const queueStore = useMothershipQueueStore.getState()
@@ -3466,7 +3493,15 @@ export function useChat(
         return
       }
 
-      await startSendMessage(message, fileAttachments, contexts)
+      await startSendMessage(
+        message,
+        fileAttachments,
+        contexts,
+        undefined,
+        undefined,
+        undefined,
+        extras
+      )
     },
     [workspaceId, startSendMessage, createQueuedMessage]
   )
@@ -4239,6 +4274,7 @@ export function useChat(
 
   return {
     messages,
+    chatHistory,
     isSending,
     isReconnecting,
     error,

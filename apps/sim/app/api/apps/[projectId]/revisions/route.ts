@@ -7,6 +7,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { buildBoundActionEntry } from '@/lib/apps/bind-actions'
 import { assertAppPermission } from '@/lib/apps/permissions'
 import { stopPreviewSession } from '@/lib/apps/pins'
+import { loadRevisionSnapshot } from '@/lib/apps/revision-snapshot'
 import { createRevisionWithActions } from '@/lib/apps/revisions'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -72,6 +73,10 @@ export const POST = withRouteHandler(
       actions.push(bound.action)
     }
 
+    const currentRevision = project.draftRevisionId
+      ? await loadRevisionSnapshot(projectId, project.draftRevisionId)
+      : null
+
     // Rebind invalidates prior draft previews for this project.
     const priorSessions = await db
       .select({ id: appPreviewSession.id })
@@ -85,6 +90,9 @@ export const POST = withRouteHandler(
       projectId,
       userId: session.user.id,
       actions,
+      ...(currentRevision ? { files: currentRevision.files } : {}),
+      parentRevisionId: project.draftRevisionId,
+      expectedRevisionId: project.draftRevisionId,
     })
 
     return createSuccessResponse({ revisionId })

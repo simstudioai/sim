@@ -1,4 +1,5 @@
 import {
+  AppBindAction,
   CreateFile,
   CreateWorkflow,
   DeleteFile,
@@ -38,6 +39,7 @@ const RESOURCE_TOOL_NAMES: Set<string> = new Set([
   GenerateVideo.id,
   GenerateAudio.id,
   Ffmpeg.id,
+  AppBindAction.id,
 ])
 
 export function isResourceToolName(toolName: string): boolean {
@@ -77,6 +79,20 @@ export function extractResourcesFromToolResult(
 
   const result = asRecord(output)
   const data = asRecord(result.data)
+  if (Array.isArray(result.resources)) {
+    return result.resources.flatMap((resource) => {
+      const record = asRecord(resource)
+      return typeof record.type === 'string' && typeof record.id === 'string'
+        ? [
+            {
+              type: record.type as ResourceType,
+              id: record.id,
+              title: typeof record.title === 'string' ? record.title : 'Resource',
+            },
+          ]
+        : []
+    })
+  }
 
   switch (toolName) {
     case UserTable.id: {

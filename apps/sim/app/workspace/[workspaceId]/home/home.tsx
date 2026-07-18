@@ -11,15 +11,16 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Button, toast } from '@sim/emcn'
+import { Button } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
+import { isFullstackDemoModeClient } from '@/lib/apps/demo/flags'
+import { FULLSTACK_CREDENTIAL_RESUME_MESSAGE } from '@/lib/apps/demo/resume-prompt'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import {
   buildWorkflowAliasWorkflowEntries,
@@ -39,11 +40,8 @@ import {
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
-import { appKeys } from '@/hooks/queries/apps'
 import { useFolders } from '@/hooks/queries/folders'
 import {
-  mothershipChatKeys,
-  useCreateMothershipChat,
   useMarkMothershipChatRead,
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
@@ -60,7 +58,9 @@ import {
   UserInput,
   type UserInputHandle,
 } from './components'
+import { FullstackChatStatus } from './components/fullstack-chat-status'
 import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
+import { resetFullstackLifecycleForChat } from './hooks/fullstack-lifecycle-store'
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
@@ -76,6 +76,12 @@ const MothershipView = lazy(() =>
   }))
 )
 
+const FullstackWorkspaceView = lazy(() =>
+  import('./components/fullstack-workspace-view').then((m) => ({
+    default: m.FullstackWorkspaceView,
+  }))
+)
+
 interface HomeProps {
   chatId?: string
   userName?: string
@@ -86,7 +92,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   useOAuthReturnRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
-  const queryClient = useQueryClient()
   /**
    * URL is the single source of truth for the selected resource. `Home` renders
    * client-side, so nuqs reads `?resource=` from the URL on mount — the same
@@ -197,16 +202,16 @@ export function Home({ chatId, userName, userId }: HomeProps) {
 
   const wasSendingRef = useRef(false)
 
-  const { data: chatHistory, isPending: isChatHistoryPending } = useMothershipChatHistory(chatId)
+  const { data: routeChatHistory, isPending: isChatHistoryPending } =
+    useMothershipChatHistory(chatId)
   const { mutate: markRead } = useMarkMothershipChatRead(workspaceId)
-  const createFullstackChat = useCreateMothershipChat(workspaceId, 'fullstack')
   const [homeMode, setHomeMode] = useState<'backend' | 'fullstack'>('backend')
-  const isFullstackChat = chatHistory?.type === 'fullstack'
+  const isFullstackDemoMode = isFullstackDemoModeClient()
 
   useEffect(() => {
-    if (!chatId || !chatHistory) return
-    setHomeMode(chatHistory.type === 'fullstack' ? 'fullstack' : 'backend')
-  }, [chatHistory, chatId])
+    if (!chatId || !routeChatHistory) return
+    setHomeMode(routeChatHistory.type === 'fullstack' ? 'fullstack' : 'backend')
+  }, [routeChatHistory, chatId])
 
   const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
 
@@ -228,6 +233,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
 
   const {
     messages,
+    chatHistory: resolvedChatHistory,
     isSending,
     isReconnecting,
     sendMessage,
@@ -253,16 +259,8 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     workspaceId,
     chatId,
     getMothershipUseChatOptions({
+      createChatType: homeMode === 'fullstack' ? 'fullstack' : 'mothership',
       onResourceEvent: handleResourceEvent,
-      onToolResult: (toolName, success) => {
-        if (!success || !toolName.startsWith('app_')) return
-        void queryClient.invalidateQueries({ queryKey: appKeys.all })
-        if (chatId) {
-          void queryClient.invalidateQueries({
-            queryKey: mothershipChatKeys.detail(chatId),
-          })
-        }
-      },
       activeResourceState,
       onRequestStarted: ({ requestId, userMessageId }) => {
         captureEvent(posthogRef.current, 'task_request_started', {
@@ -274,6 +272,13 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       },
     })
   )
+  const chatHistory = resolvedChatHistory ?? routeChatHistory
+  const isFullstackChat = chatHistory?.type === 'fullstack'
+  const showFullstackWorkspace = isFullstackChat || (!chatId && homeMode === 'fullstack')
+
+  useEffect(() => {
+    resetFullstackLifecycleForChat(resolvedChatId ?? chatId ?? null)
+  }, [chatId, resolvedChatId])
 
   useEffect(() => {
     wasSendingRef.current = false
@@ -301,10 +306,19 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   }, [resources])
 
   useEffect(() => {
+    if (!showFullstackWorkspace || !isResourceCollapsedRef.current) return
+    setIsResourceCollapsed(false)
+    setSkipResourceTransition(true)
+    const id = requestAnimationFrame(() => setSkipResourceTransition(false))
+    return () => cancelAnimationFrame(id)
+  }, [showFullstackWorkspace])
+
+  useEffect(() => {
+    if (showFullstackWorkspace) return
     if (resources.length === 0 && !isResourceCollapsedRef.current) {
       collapseResource()
     }
-  }, [resources, collapseResource])
+  }, [resources, collapseResource, showFullstackWorkspace])
 
   const handleStopGeneration = useCallback(() => {
     captureEvent(posthogRef.current, 'task_generation_aborted', {
@@ -314,15 +328,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     })
     void stopGeneration().catch(() => {})
   }, [workspaceId, getCurrentRequestId, stopGeneration])
-
-  const handleStartFullstackChat = useCallback(async () => {
-    try {
-      const { id } = await createFullstackChat.mutateAsync()
-      router.push(`/workspace/${workspaceId}/chat/${id}`)
-    } catch {
-      toast.error('Failed to start Full-stack chat')
-    }
-  }, [createFullstackChat, router, workspaceId])
 
   const handleSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
@@ -340,9 +345,25 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         setIsInputEntering(true)
       }
 
+      // Full-stack (including hosted demo) uses the normal chat shell so the
+      // split layout opens immediately with streamed backend + App lifecycle.
       sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
     [workspaceId, chatId, sendMessage]
+  )
+
+  const handleCredentialResume = useCallback(
+    (params: {
+      projectId: string
+      chatId: string
+      credentialSelections: Record<string, string>
+    }) => {
+      sendMessage(FULLSTACK_CREDENTIAL_RESUME_MESSAGE, undefined, undefined, {
+        fullstackProjectId: params.projectId,
+        credentialSelections: params.credentialSelections,
+      })
+    },
+    [sendMessage]
   )
 
   /**
@@ -509,72 +530,33 @@ export function Home({ chatId, userName, userId }: HomeProps) {
                 Full-stack apps
               </h1>
               <p className='text-[var(--text-secondary)] text-sm'>
-                Build, preview, and publish React apps backed by existing deployed workflows.
+                {isFullstackDemoMode
+                  ? 'Describe an app. Hosted Mothership builds workflows on the left, then opens a live preview on the right.'
+                  : 'Build, preview, and publish React apps backed by existing deployed workflows.'}
               </p>
-              {chatId && isFullstackChat ? (
-                <>
-                  <div className='flex flex-wrap items-center justify-center gap-2'>
-                    {chatHistory.linkedAppProject ? (
-                      <Button
-                        type='button'
-                        variant='default'
-                        onClick={() =>
-                          router.push(
-                            `/workspace/${workspaceId}/apps/${chatHistory.linkedAppProject!.id}`
-                          )
-                        }
-                      >
-                        Open {chatHistory.linkedAppProject.name}
-                      </Button>
-                    ) : (
-                      <Button
-                        type='button'
-                        variant='default'
-                        onClick={() =>
-                          router.push(
-                            `/workspace/${workspaceId}/apps?chatId=${encodeURIComponent(chatId)}`
-                          )
-                        }
-                      >
-                        Create linked App
-                      </Button>
-                    )}
-                  </div>
-                  <div ref={initialViewInputRef} className='relative w-full max-w-[48rem]'>
-                    <ChatSurfaceProvider
-                      userId={userId}
-                      onContextAdd={handleContextAdd}
-                      onContextRemove={handleInitialContextRemove}
-                    >
-                      <UserInput
-                        ref={initialViewUserInputRef}
-                        defaultValue={initialPrompt}
-                        draftScopeKey={draftScopeKey}
-                        onSubmit={handleSubmit}
-                        isSending={isSending}
-                        onStopGeneration={handleStopGeneration}
-                      />
-                    </ChatSurfaceProvider>
-                  </div>
-                </>
-              ) : (
-                <div className='flex flex-wrap items-center justify-center gap-2'>
-                  <Button
-                    type='button'
-                    disabled={createFullstackChat.isPending}
-                    onClick={() => void handleStartFullstackChat()}
-                  >
-                    {createFullstackChat.isPending ? 'Starting…' : 'Start Full-stack chat'}
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='default'
-                    onClick={() => router.push(`/workspace/${workspaceId}/apps`)}
-                  >
-                    Open Apps
-                  </Button>
-                </div>
-              )}
+              <div ref={initialViewInputRef} className='relative w-full max-w-[48rem] text-left'>
+                <ChatSurfaceProvider
+                  userId={userId}
+                  onContextAdd={handleContextAdd}
+                  onContextRemove={handleInitialContextRemove}
+                >
+                  <UserInput
+                    ref={initialViewUserInputRef}
+                    defaultValue={initialPrompt}
+                    draftScopeKey={draftScopeKey}
+                    onSubmit={handleSubmit}
+                    isSending={isSending}
+                    onStopGeneration={handleStopGeneration}
+                  />
+                </ChatSurfaceProvider>
+              </div>
+              <Button
+                type='button'
+                variant='default'
+                onClick={() => router.push(`/workspace/${workspaceId}/apps`)}
+              >
+                Open Apps
+              </Button>
             </div>
           ) : null}
           {homeMode === 'backend' ? (
@@ -616,39 +598,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   return (
     <div className='relative flex h-full bg-[var(--bg)]'>
       <div className='flex h-full min-w-[320px] flex-1 flex-col'>
-        {isFullstackChat && chatId ? (
-          <div className='flex items-center justify-between gap-3 border-[var(--border)] border-b px-4 py-2'>
-            <div className='min-w-0'>
-              <p className='font-medium text-[var(--text-primary)] text-sm'>Full-stack App</p>
-              <p className='text-[var(--text-tertiary)] text-xs'>
-                Workflow graphs are read-only from this chat.
-              </p>
-            </div>
-            {chatHistory.linkedAppProject ? (
-              <Button
-                type='button'
-                variant='default'
-                className='shrink-0'
-                onClick={() =>
-                  router.push(`/workspace/${workspaceId}/apps/${chatHistory.linkedAppProject!.id}`)
-                }
-              >
-                Open {chatHistory.linkedAppProject.name}
-              </Button>
-            ) : (
-              <Button
-                type='button'
-                variant='default'
-                className='shrink-0'
-                onClick={() =>
-                  router.push(`/workspace/${workspaceId}/apps?chatId=${encodeURIComponent(chatId)}`)
-                }
-              >
-                Create linked App
-              </Button>
-            )}
-          </div>
-        ) : null}
         <MothershipChat
           messages={messages}
           isSending={isSending}
@@ -670,7 +619,17 @@ export function Home({ chatId, userName, userId }: HomeProps) {
           draftScopeKey={draftScopeKey}
           animateInput={isInputEntering}
           onInputAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
-          initialScrollBlocked={resources.length > 0 && isResourceCollapsed}
+          initialScrollBlocked={
+            (showFullstackWorkspace || resources.length > 0) && isResourceCollapsed
+          }
+          inlineStatus={
+            showFullstackWorkspace ? (
+              <FullstackChatStatus
+                isSending={isSending}
+                onContinueCredentials={handleCredentialResume}
+              />
+            ) : undefined
+          }
         />
       </div>
 
@@ -695,18 +654,35 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         collapseResource={collapseResource}
       >
         <Suspense fallback={null}>
-          <MothershipView
-            ref={mothershipRef}
-            workspaceId={workspaceId}
-            chatId={resolvedChatId}
-            resources={resources}
-            activeResourceId={activeResourceId}
-            isCollapsed={isResourceCollapsed}
-            previewSession={previewSession}
-            isAgentResponding={isSending}
-            genericResourceData={genericResourceData ?? undefined}
-            className={skipResourceTransition ? '!transition-none' : undefined}
-          />
+          {showFullstackWorkspace ? (
+            <FullstackWorkspaceView
+              ref={mothershipRef}
+              workspaceId={workspaceId}
+              chatId={resolvedChatId}
+              resources={resources}
+              activeResourceId={activeResourceId}
+              isCollapsed={isResourceCollapsed}
+              previewSession={previewSession}
+              isAgentResponding={isSending}
+              genericResourceData={genericResourceData ?? undefined}
+              projectId={chatHistory?.linkedAppProject?.id}
+              projectName={chatHistory?.linkedAppProject?.name}
+              className={skipResourceTransition ? '!transition-none' : undefined}
+            />
+          ) : (
+            <MothershipView
+              ref={mothershipRef}
+              workspaceId={workspaceId}
+              chatId={resolvedChatId}
+              resources={resources}
+              activeResourceId={activeResourceId}
+              isCollapsed={isResourceCollapsed}
+              previewSession={previewSession}
+              isAgentResponding={isSending}
+              genericResourceData={genericResourceData ?? undefined}
+              className={skipResourceTransition ? '!transition-none' : undefined}
+            />
+          )}
         </Suspense>
       </MothershipResourcesProvider>
 

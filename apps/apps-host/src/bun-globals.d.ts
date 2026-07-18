@@ -37,10 +37,7 @@ declare const Bun: {
   file(path: string): Blob & {
     exists(): Promise<boolean>
   }
-  serve(options: {
-    port: number
-    fetch(req: Request): Response | Promise<Response>
-  }): {
+  serve(options: { port: number; fetch(req: Request): Response | Promise<Response> }): {
     port: number
     requestIP?(req: Request): string | { address: string } | null | undefined
   }

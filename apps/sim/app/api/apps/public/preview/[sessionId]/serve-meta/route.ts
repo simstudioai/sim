@@ -18,7 +18,7 @@ import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ sessionId: string }> }) => {
-    const hop = requireAppsHopFromRequest(request)
+    const hop = await requireAppsHopFromRequest(request)
     if (!hop.ok) return createErrorResponse(hop.message, hop.status)
 
     const parsed = await parseRequest(previewServeMetaContract, request, context)

@@ -9,6 +9,7 @@
  *
  * Public URLs: /a/{publicId}/{slug}
  * Actions:     /__sim/actions/releases/{releaseId}/actions/{actionId}
+ * Files:       GET /__sim/files/{capabilityToken}
  * Abuse:       POST /__sim/abuse/session  (Turnstile → abuse token)
  * Preview:     /__sim/preview/{sessionId}/{channelNonce}/?parentOrigin=
  */
@@ -17,6 +18,7 @@ import { createHash } from 'node:crypto'
 import { lstat, readFile, realpath } from 'node:fs/promises'
 import { resolve, sep } from 'node:path'
 import { createAppsHopProof } from './hop'
+import { buildPreviewHandshakeScript } from './preview-handshake'
 import {
   appDirectoryRedirect,
   isPublishedDocumentRequest,
@@ -204,13 +206,17 @@ async function proxyToSim(
 ): Promise<Response> {
   const url = new URL(req.url)
   const target = `${SIM_URL}${simPath}${url.search}`
+  const body =
+    req.method === 'GET' || req.method === 'HEAD'
+      ? new Uint8Array()
+      : new Uint8Array(await req.arrayBuffer())
   const headers = new Headers()
   for (const [key, value] of req.headers.entries()) {
     if (HOP_HEADER_ALLOWLIST.has(key.toLowerCase())) {
       headers.set(key, value)
     }
   }
-  headers.set('x-sim-apps-hop', createAppsHopProof(HOP_SECRET, req.method, simPath))
+  headers.set('x-sim-apps-hop', createAppsHopProof(HOP_SECRET, req.method, simPath, body))
   headers.set('x-forwarded-for', clientIpFromSocket(server, req))
   headers.set('x-real-ip', clientIpFromSocket(server, req))
 
@@ -220,8 +226,8 @@ async function proxyToSim(
     duplex: 'half',
   } as RequestInit
 
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    init.body = req.body
+  if (body.byteLength > 0) {
+    init.body = body
   }
 
   return fetch(target, init)
@@ -613,6 +619,20 @@ function previewShellHtml(params: {
   var cfg = ${bootstrap};
   var channelNonce = cfg.channelNonce;
   var parentOrigin = cfg.parentOrigin;
+  function announceReady() {
+    window.parent.postMessage({
+      type: 'sim.preview.ready',
+      nonce: channelNonce
+    }, parentOrigin);
+  }
+  window.addEventListener('message', function (event) {
+    if (event.origin !== parentOrigin || event.source !== window.parent) return;
+    var data = event.data;
+    if (data && data.type === 'sim.preview.ping' && data.nonce === channelNonce) {
+      announceReady();
+    }
+  });
+  announceReady();
   function run(actionId, input) {
     return new Promise(function (resolve) {
       var requestId = crypto.randomUUID();
@@ -887,10 +907,10 @@ async function servePreviewArtifact(
   }
 
   const previewScript = parentOrigin
-    ? `<script nonce="${meta.htmlNonce}">window.__SIM_PREVIEW__=${safeJsonForScript({
+    ? `<script nonce="${meta.htmlNonce}">${buildPreviewHandshakeScript({
         channelNonce: meta.channelNonce,
         parentOrigin,
-      })};</script>`
+      })}</script>`
     : ''
 
   return serveManifestAsset({
@@ -961,6 +981,17 @@ const server = Bun.serve({
 
     if (pathname === '/__sim/abuse/session' && req.method === 'POST') {
       return proxyToSim(req, '/api/apps/gateway/abuse/session', server)
+    }
+
+    // Same-origin execution file outputs (signed capability token).
+    const fileMatch = pathname.match(/^\/__sim\/files\/([^/]+)$/)
+    if (fileMatch && (req.method === 'GET' || req.method === 'HEAD')) {
+      const simPath = `/api/apps/gateway/files/${fileMatch[1]}`
+      const response = await proxyToSim(req, simPath, server)
+      if (req.method === 'HEAD') {
+        return new Response(null, { status: response.status, headers: response.headers })
+      }
+      return response
     }
 
     const appMatch = pathname.match(/^\/a\/([^/]+)\/([^/]+)(?:\/(.*))?$/)

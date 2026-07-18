@@ -15,7 +15,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const hop = requireAppsHopFromRequest(request)
+  const hop = await requireAppsHopFromRequest(request)
   if (!hop.ok) return createErrorResponse(hop.message, hop.status)
 
   const ipLimit = await enforceAppsIpRateLimit('abuse-session', request)
@@ -66,6 +66,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       expectedHostname,
     })
     if (!verified.success) {
+      if (verified.transportError) {
+        return createErrorResponse(
+          'Abuse protection is temporarily unavailable',
+          503,
+          'ABUSE_PROTECTION_UNAVAILABLE'
+        )
+      }
       return createErrorResponse('Captcha verification failed', 403, 'TURNSTILE_FAILED')
     }
   }

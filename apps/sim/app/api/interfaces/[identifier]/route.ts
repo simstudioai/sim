@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workflowInterface } from '@sim/db/schema'
+import { workflow, workflowInterface, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
@@ -27,6 +27,18 @@ export const maxDuration = 3600
 
 const MAX_BODY_BYTES = 1_048_576
 
+async function resolveActiveWorkspaceId(workflowId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ workspaceId: workflow.workspaceId })
+    .from(workflow)
+    .innerJoin(workspace, eq(workspace.id, workflow.workspaceId))
+    .where(
+      and(eq(workflow.id, workflowId), isNull(workflow.archivedAt), isNull(workspace.archivedAt))
+    )
+    .limit(1)
+  return row?.workspaceId ?? null
+}
+
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ identifier: string }> }) => {
     const parsed = await parseRequest(getPublicInterfaceContract, request, context)
@@ -51,6 +63,9 @@ export const GET = withRouteHandler(
       }
 
       if (row.authType !== 'public') {
+        return createErrorResponse('This interface is not available', 404)
+      }
+      if (!(await resolveActiveWorkspaceId(row.workflowId))) {
         return createErrorResponse('This interface is not available', 404)
       }
 
@@ -116,22 +131,15 @@ export const POST = withRouteHandler(
         return createErrorResponse(toPublicSafeInputError('Unknown action'), 400)
       }
 
-      // Resolve workspace from workflow for active-gate execute
-      const { workflow: workflowTable } = await import('@sim/db/schema')
-      const [wf] = await db
-        .select({ workspaceId: workflowTable.workspaceId })
-        .from(workflowTable)
-        .where(eq(workflowTable.id, row.workflowId))
-        .limit(1)
-
-      if (!wf?.workspaceId) {
-        return createErrorResponse('This interface is not available', 500)
+      const workspaceId = await resolveActiveWorkspaceId(row.workflowId)
+      if (!workspaceId) {
+        return createErrorResponse('This interface is not available', 404)
       }
 
       const result = await executePublicInterfaceAction({
         workflowId: row.workflowId,
         userId: row.userId,
-        workspaceId: wf.workspaceId,
+        workspaceId,
         spec,
         outputConfigs: (row.outputConfigs as OutputConfig[]) || [],
         actionId,

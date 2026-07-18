@@ -5,6 +5,15 @@ import { describe, expect, it } from 'vitest'
 import { extractDeletedResourcesFromToolResult, extractResourcesFromToolResult } from './extraction'
 
 describe('extractResourcesFromToolResult', () => {
+  it('extracts bound workflow resources from app_bind_action results', () => {
+    expect(
+      extractResourcesFromToolResult('app_bind_action', undefined, {
+        success: true,
+        resources: [{ type: 'workflow', id: 'workflow-1', title: 'TikTok Profile' }],
+      })
+    ).toEqual([{ type: 'workflow', id: 'workflow-1', title: 'TikTok Profile' }])
+  })
+
   it('extracts file resources from create_file results', () => {
     const resources = extractResourcesFromToolResult(
       'create_file',

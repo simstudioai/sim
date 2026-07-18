@@ -15,6 +15,7 @@ const {
   mockHandlePauseState,
   mockWaitForPostExecution,
   mockMarkAsFailed,
+  mockLoggerError,
 } = vi.hoisted(() => ({
   mockGenerateId: vi.fn(),
   mockPreprocessExecution: vi.fn(),
@@ -27,9 +28,13 @@ const {
   mockHandlePauseState: vi.fn(),
   mockWaitForPostExecution: vi.fn(),
   mockMarkAsFailed: vi.fn(),
+  mockLoggerError: vi.fn(),
 }))
 
 vi.mock('@sim/utils/id', () => ({ generateId: mockGenerateId }))
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ error: mockLoggerError }),
+}))
 vi.mock('@/lib/execution/preprocessing', () => ({ preprocessExecution: mockPreprocessExecution }))
 vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
   releaseExecutionSlot: mockReleaseExecutionSlot,
@@ -45,6 +50,9 @@ vi.mock('@/lib/workflows/executor/execution-core', () => ({
 vi.mock('@/lib/apps/schema-validate', () => ({ validateAppActionOutputs: mockValidateOutputs }))
 vi.mock('@/lib/interfaces/compiler/output-response', () => ({
   sanitizePublicValue: (value: unknown) => value,
+}))
+vi.mock('@/lib/apps/materialize-public-outputs', () => ({
+  materializeAppsPublicOutputs: (value: unknown) => value,
 }))
 vi.mock('@/lib/workflows/executor/pause-persistence', () => ({
   handlePostExecutionPauseState: mockHandlePauseState,
@@ -160,9 +168,7 @@ describe('executeDeployedAction', () => {
   })
 
   it('rejects async execution policy before preprocessing', async () => {
-    await expect(
-      executeDeployedAction(params({ executionPolicy: 'async' }))
-    ).resolves.toEqual({
+    await expect(executeDeployedAction(params({ executionPolicy: 'async' }))).resolves.toEqual({
       success: false,
       statusCode: 400,
       code: 'ASYNC_NOT_SUPPORTED',
@@ -210,5 +216,69 @@ describe('executeDeployedAction', () => {
         outputs: { name: 'Ada', count: 3 },
       })
     )
+  })
+
+  it('returns actionable client validation errors from failed blocks', async () => {
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: false,
+      status: 'failed',
+      error: 'tiktokUser: Unsupported TikTok user field(s): bad_field',
+      logs: [],
+    })
+
+    await expect(executeDeployedAction(params())).resolves.toEqual({
+      success: false,
+      statusCode: 400,
+      code: 'INVALID_ACTION_INPUT',
+      message: 'tiktokUser: Unsupported TikTok user field(s): bad_field',
+    })
+  })
+
+  it('normalizes JSON-encoded response values before returning App outputs', async () => {
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'completed',
+      logs: [{ blockId: 'result', output: { data: '{"displayName":"Ada","count":3}' } }],
+    })
+
+    const result = await executeDeployedAction(
+      params({
+        outputConfigs: [{ key: 'profile', blockId: 'result', path: 'data' }],
+      })
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        outputs: { profile: { displayName: 'Ada', count: 3 } },
+      })
+    )
+  })
+
+  it('does not serialize workflow credential identifiers when execution throws', async () => {
+    mockExecuteWorkflowCore.mockRejectedValueOnce(
+      Object.assign(new Error('Provider input failed'), {
+        executionResult: {
+          success: false,
+          error: 'Provider input failed',
+          metadata: {
+            workflowStateOverride: {
+              blocks: {
+                integration: {
+                  subBlocks: { credential: { value: 'credential-private-id' } },
+                },
+              },
+            },
+          },
+        },
+      })
+    )
+
+    await executeDeployedAction(params())
+
+    expect(mockLoggerError).toHaveBeenCalledWith(expect.any(String), {
+      error: 'Provider input failed',
+    })
+    expect(JSON.stringify(mockLoggerError.mock.calls)).not.toContain('credential-private-id')
   })
 })

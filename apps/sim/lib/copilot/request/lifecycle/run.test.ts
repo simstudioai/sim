@@ -569,7 +569,7 @@ describe('runCopilotLifecycle', () => {
     )
   })
 
-  it('uses the lifecycle workspaceId for async tool resume requests', async () => {
+  it('preserves lifecycle workspace and Full-stack type on async resume requests', async () => {
     const requestBodies: Record<string, unknown>[] = []
     const fetchUrls: string[] = []
     const executionContext: ExecutionContext = {
@@ -608,7 +608,7 @@ describe('runCopilotLifecycle', () => {
     )
 
     await runCopilotLifecycle(
-      { message: 'hello', messageId: 'stream-1' },
+      { message: 'hello', messageId: 'stream-1', chatType: 'fullstack' },
       {
         userId: 'user-1',
         workspaceId: 'ws-1',
@@ -626,6 +626,7 @@ describe('runCopilotLifecycle', () => {
         checkpointId: 'ckpt-1',
         userId: 'user-1',
         workspaceId: 'ws-1',
+        chatType: 'fullstack',
       })
     )
   })

@@ -5,6 +5,11 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import {
+  runFullstackDemoChatCoordinator,
+  shouldRunFullstackDemoChatCoordinator,
+} from '@/lib/apps/demo/chat-coordinator'
+import { isFullstackDemoModeEnabled } from '@/lib/apps/demo/runtime'
+import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
   createAttributedBillingRequestEnvelope,
@@ -236,41 +241,81 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             })
           }
 
-          fireTitleGeneration({
-            chatId,
-            currentChat,
-            isNewChat,
-            userId,
-            message,
-            titleModel,
-            titleProvider,
-            workspaceId,
-            billingAttribution: orchestrateOptions.billingAttribution,
-            requestId,
-            publisher,
-            otelContext,
-          })
+          const usesHostedFullstackCoordinator =
+            isFullstackDemoModeEnabled() &&
+            shouldRunFullstackDemoChatCoordinator(requestPayload) &&
+            typeof chatId === 'string' &&
+            chatId.length > 0 &&
+            typeof workspaceId === 'string' &&
+            workspaceId.length > 0
+          if (!usesHostedFullstackCoordinator) {
+            fireTitleGeneration({
+              chatId,
+              currentChat,
+              isNewChat,
+              userId,
+              message,
+              titleModel,
+              titleProvider,
+              workspaceId,
+              billingAttribution: orchestrateOptions.billingAttribution,
+              requestId,
+              publisher,
+              otelContext,
+            })
+          }
 
           try {
-            const result = await runCopilotLifecycle(requestPayload, {
-              ...orchestrateOptions,
-              executionId,
-              runId,
-              trace: collector,
-              simRequestId: requestId,
-              otelContext,
-              abortSignal: abortController.signal,
-              onEvent: async (event) => {
-                await publisher.publish(event)
-              },
-              onAbortObserved: (reason) => {
-                if (!abortController.signal.aborted) {
-                  abortController.abort(reason)
-                }
-              },
-            })
+            const runDemoCoordinator = usesHostedFullstackCoordinator
+
+            const result = runDemoCoordinator
+              ? await runFullstackDemoChatCoordinator({
+                  userId,
+                  workspaceId,
+                  chatId,
+                  prompt: message,
+                  projectId:
+                    typeof requestPayload.fullstackProjectId === 'string'
+                      ? requestPayload.fullstackProjectId
+                      : undefined,
+                  credentialSelections:
+                    requestPayload.credentialSelections &&
+                    typeof requestPayload.credentialSelections === 'object'
+                      ? (requestPayload.credentialSelections as Record<string, string>)
+                      : undefined,
+                  abortSignal: abortController.signal,
+                  onEvent: async (event) => {
+                    await publisher.publish(event)
+                  },
+                })
+              : await runCopilotLifecycle(requestPayload, {
+                  ...orchestrateOptions,
+                  executionId,
+                  runId,
+                  trace: collector,
+                  simRequestId: requestId,
+                  otelContext,
+                  abortSignal: abortController.signal,
+                  onEvent: async (event) => {
+                    await publisher.publish(event)
+                  },
+                  onAbortObserved: (reason) => {
+                    if (!abortController.signal.aborted) {
+                      abortController.abort(reason)
+                    }
+                  },
+                })
 
             lifecycleResult = result
+            // Demo coordinator bypasses runCopilotLifecycle, so persist the
+            // assistant turn through the same chat-lifecycle callbacks.
+            if (runDemoCoordinator) {
+              if (result.success || result.cancelled) {
+                await orchestrateOptions.onComplete?.(result)
+              } else if (result.error) {
+                await orchestrateOptions.onError?.(new Error(result.error), result)
+              }
+            }
             // Outcome classification (priority order):
             //   1. `result.success` → success. The orchestrator
             //      reporting "finished cleanly" wins over any later

@@ -203,6 +203,7 @@ export function createSimClientFromWindow(options?: {
           }, APP_SYNC_TIMEOUT_MS)
           const onMessage = (event: MessageEvent) => {
             if (event.origin !== parentOrigin) return
+            if (event.source !== parent) return
             const data = event.data as {
               type?: string
               requestId?: string

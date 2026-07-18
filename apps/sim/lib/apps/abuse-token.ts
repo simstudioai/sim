@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { getEnv } from '@/lib/core/config/env'
+import { isProd } from '@/lib/core/config/env-flags'
 
 /** Visitor×app session abuse token TTL (after Turnstile). */
 const ABUSE_TOKEN_TTL_MS = 30 * 60 * 1000
@@ -9,6 +10,9 @@ function abuseSecret(): string {
   // should set APPS_ABUSE_TOKEN_SECRET so abuse tokens are not cross-purpose with proxy HMAC.
   const dedicated = (getEnv('APPS_ABUSE_TOKEN_SECRET') || '').trim()
   if (dedicated.length >= 32) return dedicated
+  if (isProd) {
+    throw new Error('APPS_ABUSE_TOKEN_SECRET must be configured separately in production')
+  }
   const hop = (getEnv('APPS_PROXY_HOP_SECRET') || '').trim()
   if (hop.length >= 32) return hop
   throw new Error('APPS_ABUSE_TOKEN_SECRET (preferred) or APPS_PROXY_HOP_SECRET must be set')

@@ -4,6 +4,15 @@ import {
   appPreparePublishServerTool,
   fullstackAppServerTools,
 } from '@/lib/apps/agent/fullstack-tools'
+import {
+  AppBindAction,
+  AppBuild,
+  AppDetachAction,
+  AppListCallableReleases,
+  AppPreparePublish,
+  AppRefreshBinding,
+  AppWriteFiles,
+} from '@/lib/copilot/generated/tool-catalog-v1'
 
 describe('Full-stack App server tools', () => {
   it('implements every locked tool name exactly once', () => {
@@ -18,10 +27,37 @@ describe('Full-stack App server tools', () => {
     }
   })
 
-  it('prepares without publishing unless confirmation is explicit', () => {
+  it('cannot publish from the model-routed server tool', () => {
     expect(appPreparePublishServerTool.inputSchema?.parse({ projectId: 'project-1' })).toEqual({
       projectId: 'project-1',
-      publish: false,
     })
+    expect(() =>
+      appPreparePublishServerTool.inputSchema?.parse({
+        projectId: 'project-1',
+        publish: true,
+      })
+    ).toThrow()
+  })
+
+  it('keeps the generated Go catalog ordered and permission-aligned with Sim', () => {
+    const catalog = [
+      AppBindAction,
+      AppRefreshBinding,
+      AppDetachAction,
+      AppWriteFiles,
+      AppBuild,
+      AppPreparePublish,
+      AppListCallableReleases,
+    ]
+    expect(catalog.map((tool) => tool.id)).toEqual(FULLSTACK_TOOL_NAMES)
+    expect(catalog.map((tool) => tool.requiredPermission)).toEqual([
+      'admin',
+      'admin',
+      'admin',
+      'write',
+      'write',
+      'admin',
+      'write',
+    ])
   })
 })

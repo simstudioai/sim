@@ -23,7 +23,7 @@ package-lock.json
 /.next/
 /apps/**/out/
 /apps/**/.next/
-/apps/**/build
+/apps/*/build/
 
 # production
 /build

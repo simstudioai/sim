@@ -35,7 +35,7 @@ export const POST = withRouteHandler(
   ) => {
     const requestId = generateRequestId()
 
-    const hop = requireAppsHopFromRequest(request)
+    const hop = await requireAppsHopFromRequest(request)
     if (!hop.ok) {
       return createErrorResponse(hop.message, hop.status)
     }
@@ -186,6 +186,10 @@ export const POST = withRouteHandler(
         triggerIdentity: 'app',
         requestId,
         abortSignal: request.signal,
+        appsFileContext: {
+          projectId: project.id,
+          releaseId,
+        },
       })
 
       if (!result.success) {
