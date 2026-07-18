@@ -57,12 +57,7 @@ const FAILURE_CACHE_SENTINEL: McpTool[] = []
 
 type DiscoveryOutcome =
   | { kind: 'cached'; tools: McpTool[] }
-  | {
-      kind: 'fetched'
-      tools: McpTool[]
-      resolvedConfig: McpServerConfig
-      resolvedIP: string | null
-    }
+  | { kind: 'fetched'; tools: McpTool[] }
   | { kind: 'oauth-pending' }
   | { kind: 'unhealthy' }
   // originalError preserves the type so markServerUnhealthy's instanceof
@@ -654,24 +649,27 @@ class McpService {
           }
 
           try {
-            const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
-              config,
-              userId,
-              workspaceId
-            )
+            const create = async () => {
+              const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
+                config,
+                userId,
+                workspaceId
+              )
+              return this.createClient(resolvedConfig, resolvedIP, userId)
+            }
             const tools = await this.withServerClient(
               {
                 key: this.poolKey(config.id, workspaceId, userId),
                 serverId: config.id,
                 allowPool: true,
               },
-              () => this.createClient(resolvedConfig, resolvedIP, userId),
+              create,
               (client) => client.listTools()
             )
             logger.debug(
               `[${requestId}] Discovered ${tools.length} tools from server ${config.name}`
             )
-            return { kind: 'fetched', tools, resolvedConfig, resolvedIP }
+            return { kind: 'fetched', tools }
           } catch (error) {
             if (isOauthAuthorizationError(error, config.authType)) {
               return { kind: 'oauth-pending' }
@@ -688,10 +686,7 @@ class McpService {
       const allTools: McpTool[] = []
       const cacheWrites: Promise<unknown>[] = []
       const deferredSideEffects: Promise<unknown>[] = []
-      const liveConnections: Array<{
-        resolvedConfig: McpServerConfig
-        resolvedIP: string | null
-      }> = []
+      const liveConnections: McpServerConfig[] = []
       let cachedCount = 0
       let fetchedCount = 0
       let failedCount = 0
@@ -720,10 +715,7 @@ class McpService {
               )
           )
           deferredSideEffects.push(this.clearServerFailure(workspaceId, server.id))
-          liveConnections.push({
-            resolvedConfig: outcome.resolvedConfig,
-            resolvedIP: outcome.resolvedIP,
-          })
+          liveConnections.push(server)
           return
         }
         if (outcome.kind === 'oauth-pending') {
@@ -776,15 +768,24 @@ class McpService {
       for (const p of deferredSideEffects) p.catch(() => {})
 
       if (mcpConnectionManager) {
-        for (const conn of liveConnections) {
-          mcpConnectionManager
-            .connect(conn.resolvedConfig, userId, workspaceId, conn.resolvedIP)
-            .catch((err) => {
-              logger.warn(
-                `[${requestId}] Persistent connection failed for ${conn.resolvedConfig.name}:`,
-                err
+        const manager = mcpConnectionManager
+        for (const config of liveConnections) {
+          // Resolve only for servers the manager isn't already monitoring — a
+          // pooled `listTools` hit above no longer resolves, so this is the sole
+          // remaining resolution cost, and it's skipped in the steady state.
+          if (manager.hasConnection(config.id)) continue
+          void (async () => {
+            try {
+              const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
+                config,
+                userId,
+                workspaceId
               )
-            })
+              await manager.connect(resolvedConfig, userId, workspaceId, resolvedIP)
+            } catch (err) {
+              logger.warn(`[${requestId}] Persistent connection failed for ${config.name}:`, err)
+            }
+          })()
         }
       }
 
