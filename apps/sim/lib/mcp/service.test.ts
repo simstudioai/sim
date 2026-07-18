@@ -400,7 +400,11 @@ describe('McpService.discoverTools per-server caching', () => {
 
   it('successful discoverServerTools clears the negative cache', async () => {
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
-    mockListTools.mockRejectedValueOnce(new Error('Request timed out'))
+    // A timeout is transient/retryable, so it must fail every attempt to reach
+    // the persisted-failure path.
+    mockListTools
+      .mockRejectedValueOnce(new Error('Request timed out'))
+      .mockRejectedValueOnce(new Error('Request timed out'))
 
     await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
       'Request timed out'
@@ -450,7 +454,9 @@ describe('McpService.discoverTools per-server caching', () => {
         statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
       }),
     ])
-    mockListTools.mockRejectedValueOnce(new Error('Request timed out'))
+    mockListTools
+      .mockRejectedValueOnce(new Error('Request timed out'))
+      .mockRejectedValueOnce(new Error('Request timed out'))
 
     await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
       'Request timed out'
@@ -459,10 +465,23 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(mockUpdateSet).toHaveBeenCalledWith(
       expect.objectContaining({
         connectionStatus: 'disconnected',
-        lastError: 'Request timed out',
+        // Raw SDK timeout text is mapped to a user-facing message before persisting.
+        lastError: 'The MCP server took too long to respond and timed out',
         statusConfig: { consecutiveFailures: 1, lastSuccessfulDiscovery: null },
       })
     )
+  })
+
+  it('retries a transient tools/list timeout and succeeds on the second attempt', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools
+      .mockRejectedValueOnce(new Error('Request timed out'))
+      .mockResolvedValueOnce([tool('a1', 'mcp-a')])
+
+    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
+
+    expect(tools.map((t) => t.name)).toEqual(['a1'])
+    expect(mockListTools).toHaveBeenCalledTimes(2)
   })
 
   it('persists and negative-caches per-server UnauthorizedError for headers auth', async () => {

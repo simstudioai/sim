@@ -164,4 +164,37 @@ describe('MCP server refresh route', () => {
     )
     expect(mockClearCache).toHaveBeenCalledWith('workspace-1')
   })
+
+  it('does not 500 when workflow sync fails after a successful discovery', async () => {
+    mockDiscoverServerTools.mockResolvedValueOnce([
+      {
+        name: 'search',
+        description: 'Search tool',
+        inputSchema: {},
+        serverId: 'server-1',
+        serverName: 'OAuth Server',
+      },
+    ])
+    // The route's server lookup consumes the first select (beforeEach). The sync's
+    // workflow select is left unmocked, so it throws — exercising the guard that
+    // keeps a secondary sync failure from turning a successful refresh into a 500.
+    mockUpdateSet.mockReturnValueOnce({
+      where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([initialServer]) }),
+    })
+
+    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
+      method: 'POST',
+    }) as NextRequest
+    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data).toEqual(
+      expect.objectContaining({
+        status: 'connected',
+        workflowsUpdated: 0,
+        updatedWorkflowIds: [],
+      })
+    )
+  })
 })

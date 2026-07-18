@@ -3,7 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger, mockSdkConnect } = vi.hoisted(() => ({
+const { mockLogger, mockSdkConnect, mockSdkListTools } = vi.hoisted(() => ({
   mockLogger: {
     debug: vi.fn(),
     error: vi.fn(),
@@ -11,6 +11,7 @@ const { mockLogger, mockSdkConnect } = vi.hoisted(() => ({
     warn: vi.fn(),
   },
   mockSdkConnect: vi.fn().mockResolvedValue(undefined),
+  mockSdkListTools: vi.fn().mockResolvedValue({ tools: [] }),
 }))
 
 vi.mock('@sim/logger', () => ({
@@ -37,7 +38,7 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
             .mockImplementation((_schema: unknown, handler: () => Promise<void>) => {
               capturedNotificationHandler = handler
             }),
-          listTools: vi.fn().mockResolvedValue({ tools: [] }),
+          listTools: mockSdkListTools,
         })
       }
     }
@@ -63,6 +64,7 @@ vi.mock('@/lib/core/execution-limits', () => ({
 }))
 
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { McpClient } from './client'
 import type { McpClientOptions, McpServerConfig } from './types'
 
@@ -80,6 +82,10 @@ describe('McpClient notification handler', () => {
     capturedNotificationHandler = null
     vi.clearAllMocks()
     mockSdkConnect.mockResolvedValue(undefined)
+    mockSdkListTools.mockResolvedValue({ tools: [] })
+    // clearAllMocks resets call history but not implementations; re-establish the
+    // default so a per-test override can't bleed into later tests.
+    vi.mocked(getMaxExecutionTimeout).mockReturnValue(30_000)
   })
 
   it('fires onToolsChanged when a notification arrives while connected', async () => {
@@ -150,6 +156,42 @@ describe('McpClient notification handler', () => {
     await client.connect()
 
     expect(mockSdkConnect).toHaveBeenCalledWith(expect.anything(), { timeout: 30_000 })
+  })
+
+  it('bounds tools/list with an idle timeout, hard cap, and progress reset', async () => {
+    const client = new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    await client.connect()
+    await client.listTools()
+
+    expect(mockSdkListTools).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({
+        timeout: 30_000,
+        maxTotalTimeout: 60_000,
+        resetTimeoutOnProgress: true,
+        onprogress: expect.any(Function),
+      })
+    )
+  })
+
+  it('clamps a configured tools/list timeout to the absolute discovery ceiling', async () => {
+    vi.mocked(getMaxExecutionTimeout).mockReturnValue(120_000)
+    const client = new McpClient({
+      config: { ...createConfig(), timeout: 300_000 },
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    await client.connect()
+    await client.listTools()
+
+    expect(mockSdkListTools).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ timeout: 60_000, maxTotalTimeout: 60_000 })
+    )
   })
 
   it('logs connection diagnostics without header values', async () => {

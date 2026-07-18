@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { mcpServers, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
@@ -209,13 +209,22 @@ export const POST = withRouteHandler(
         }
 
         if (discoveryError === null) {
-          syncResult = await syncToolSchemasToWorkflows(
-            workspaceId,
-            serverId,
-            discoveredTools,
-            requestId,
-            { url: server.url ?? undefined, name: server.name ?? undefined }
-          )
+          try {
+            syncResult = await syncToolSchemasToWorkflows(
+              workspaceId,
+              serverId,
+              discoveredTools,
+              requestId,
+              { url: server.url ?? undefined, name: server.name ?? undefined }
+            )
+          } catch (error) {
+            // Discovery already persisted status and cached tools; a workflow-sync
+            // failure is a secondary propagation and must not fail the refresh with
+            // a 500. Surface it as zero workflows updated instead.
+            logger.warn(`[${requestId}] Tool schema sync failed after successful discovery`, {
+              error: getErrorMessage(error),
+            })
+          }
         }
 
         const now = new Date()
