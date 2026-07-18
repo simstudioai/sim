@@ -9,11 +9,11 @@ import {
   ToolListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
-import { describeError, getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import { createPinnedFetch } from '@/lib/core/security/input-validation.server'
-import { sanitizeForLogging } from '@/lib/core/security/redaction'
+import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
+import { createPinnedMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
   type McpClientOptions,
   McpConnectionError,
@@ -43,9 +43,15 @@ type ConnectionOutcome =
   | 'cancelled'
   | 'error'
 
-function classifyConnectionOutcome(error: unknown): ConnectionOutcome {
-  if (error instanceof McpOauthRedirectRequired || error instanceof UnauthorizedError) {
+function classifyConnectionOutcome(
+  error: unknown,
+  authType: McpServerConfig['authType']
+): ConnectionOutcome {
+  if (error instanceof McpOauthRedirectRequired) {
     return 'authorization_required'
+  }
+  if (error instanceof UnauthorizedError) {
+    return authType === 'oauth' ? 'authorization_required' : 'unauthorized'
   }
   const message = getErrorMessage(error, '').toLowerCase()
   if (message.includes('connection attempt cancelled')) return 'cancelled'
@@ -67,6 +73,7 @@ export class McpClient {
   private onToolsChanged?: McpToolsChangedCallback
   private authProvider?: McpClientOptions['authProvider']
   private isConnected = false
+  private closePinnedTransport?: () => Promise<void>
 
   constructor(options: McpClientOptions) {
     this.config = options.config
@@ -89,10 +96,12 @@ export class McpClient {
       throw new McpError('OAuth MCP server requires an authProvider')
     }
     const useOauth = this.config.authType === 'oauth'
+    const pinned = resolvedIP ? createPinnedMcpFetch(resolvedIP) : undefined
+    this.closePinnedTransport = pinned?.close
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
       requestInit: { headers: this.config.headers },
-      ...(resolvedIP ? { fetch: createPinnedFetch(resolvedIP) } : {}),
+      ...(pinned ? { fetch: pinned.fetch } : {}),
     })
 
     this.client = new Client(
@@ -105,11 +114,12 @@ export class McpClient {
       }
     )
 
-    // Observe out-of-band transport errors the SDK would otherwise drop silently.
     this.client.onerror = (error) => {
       logger.warn(`MCP transport error for ${this.config.name}`, {
         serverId: this.config.id,
-        error: sanitizeForLogging(getErrorMessage(error, 'Unknown transport error'), 200),
+        phase: 'transport',
+        sessionIdPresent: Boolean(this.transport.sessionId),
+        error: getMcpSafeErrorDiagnostics(error),
       })
     }
   }
@@ -152,6 +162,7 @@ export class McpClient {
         await this.client.close().catch((error) => {
           logger.warn(`Error closing cancelled connection to ${this.config.name}:`, error)
         })
+        // The Agent is released by the shared catch below, which this throw enters.
         throw new McpConnectionError('Connection attempt cancelled', this.config.name)
       }
 
@@ -177,24 +188,22 @@ export class McpClient {
       })
     } catch (error) {
       this.isConnected = false
+      // A failed connect discards this client without a disconnect(), so release the Agent here.
+      await this.closeTransportAgent()
       const errorMessage = getErrorMessage(error, 'Unknown error')
-      const describedError = describeError(error)
-      const outcome = classifyConnectionOutcome(error)
+      const outcome = classifyConnectionOutcome(error, this.config.authType)
       logger.error(`Failed to connect to MCP server ${this.config.name}`, {
         ...diagnostics,
         durationMs: Date.now() - startedAt,
-        error: {
-          name: sanitizeForLogging(describedError.name, 100),
-          code: describedError.code ? sanitizeForLogging(describedError.code, 100) : undefined,
-          errno: describedError.errno ? sanitizeForLogging(describedError.errno, 100) : undefined,
-          syscall: describedError.syscall
-            ? sanitizeForLogging(describedError.syscall, 100)
-            : undefined,
-        },
+        error: getMcpSafeErrorDiagnostics(error),
         outcome,
       })
       if (outcome === 'authorization_required') {
         this.connectionStatus.lastError = undefined
+        throw error
+      }
+      if (error instanceof UnauthorizedError) {
+        this.connectionStatus.lastError = 'Authentication failed'
         throw error
       }
       this.connectionStatus.lastError = errorMessage
@@ -211,9 +220,29 @@ export class McpClient {
       logger.warn(`Error during disconnect from ${this.config.name}:`, error)
     }
 
+    await this.closeTransportAgent()
+
     this.isConnected = false
     this.connectionStatus.connected = false
     logger.info(`Disconnected from MCP server: ${this.config.name}`)
+  }
+
+  /**
+   * Tears down the pinned transport's HTTP/2 Agent, releasing its sockets. Must run
+   * on every terminal path — successful disconnect, and failed or cancelled connect —
+   * since a failed `connect()` discards this client without a `disconnect()` call.
+   * Idempotent: the handle is cleared before use so repeat calls (a failed connect
+   * followed by the caller's `disconnect()`) never destroy the same Agent twice.
+   */
+  private async closeTransportAgent(): Promise<void> {
+    const close = this.closePinnedTransport
+    if (!close) return
+    this.closePinnedTransport = undefined
+    try {
+      await close()
+    } catch (error) {
+      logger.warn(`Error closing pinned transport for ${this.config.name}:`, error)
+    }
   }
 
   getStatus(): McpConnectionStatus {
@@ -226,8 +255,6 @@ export class McpClient {
     }
 
     const configuredTimeout = this.config.timeout
-    // Idle timeout honors the per-server config but never exceeds the absolute
-    // discovery ceiling, so tools/list can't hang the UI past that cap.
     const idleTimeoutMs = Math.min(
       configuredTimeout !== undefined && Number.isFinite(configuredTimeout) && configuredTimeout > 0
         ? Math.floor(configuredTimeout)
@@ -236,6 +263,7 @@ export class McpClient {
       MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_TOTAL_TIMEOUT_MS
     )
     const maxTotalTimeoutMs = MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_TOTAL_TIMEOUT_MS
+    const startedAt = Date.now()
 
     try {
       const result: ListToolsResult = await this.client.listTools(undefined, {
@@ -265,7 +293,15 @@ export class McpClient {
         serverName: this.config.name,
       }))
     } catch (error) {
-      logger.error(`Failed to list tools from server ${this.config.name}:`, error)
+      logger.error(`Failed to list tools from server ${this.config.name}`, {
+        serverId: this.config.id,
+        phase: 'tools/list',
+        durationMs: Date.now() - startedAt,
+        idleTimeoutMs,
+        maxTotalTimeoutMs,
+        sessionIdPresent: Boolean(this.transport.sessionId),
+        error: getMcpSafeErrorDiagnostics(error),
+      })
       throw error
     }
   }

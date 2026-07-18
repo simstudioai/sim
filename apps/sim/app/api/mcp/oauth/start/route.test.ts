@@ -162,6 +162,23 @@ describe('MCP OAuth start route', () => {
     expect(body.error).not.toContain('ECONNREFUSED')
     expect(body.error).not.toContain('internal-db-host')
   })
+
+  it('returns an actionable 4xx when the server does not support dynamic client registration', async () => {
+    mcpOauthMockFns.mockMcpAuthGuarded.mockRejectedValueOnce(
+      new Error('Incompatible auth server: does not support dynamic client registration')
+    )
+    const request = new NextRequest(
+      'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
+    )
+
+    const response = await GET(request)
+    const body = await response.json()
+
+    expect(response.status).toBe(422)
+    expect(body.error).toBe(
+      "This server doesn't support automatic OAuth client registration. Add a pre-registered OAuth client ID and secret, or configure a token instead."
+    )
+  })
 })
 
 describe('surfaceOauthError', () => {

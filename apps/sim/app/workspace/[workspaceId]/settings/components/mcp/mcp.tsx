@@ -85,7 +85,12 @@ function ServerListItem({
   onViewDetails,
 }: ServerListItemProps) {
   const transportLabel = formatTransportLabel(server.transport || 'http')
-  const toolsLabel = getServerToolsLabel(tools, server.connectionStatus, server.lastError)
+  const toolsLabel = getServerToolsLabel(
+    tools,
+    server.connectionStatus,
+    server.lastError,
+    server.authType
+  )
   const hasConnectionIssue =
     server.connectionStatus === 'error' || server.connectionStatus === 'disconnected'
 
@@ -380,6 +385,8 @@ export function MCP() {
     const refreshAction = getRefreshActionState({
       mutationStatus: isCurrentRefresh ? refreshServerMutation.status : 'idle',
       connectionStatus: isCurrentRefresh ? refreshServerMutation.data?.status : undefined,
+      authType: server.authType,
+      error: isCurrentRefresh ? refreshServerMutation.data?.error : undefined,
       workflowsUpdated: isCurrentRefresh ? refreshServerMutation.data?.workflowsUpdated : undefined,
     })
 
@@ -427,7 +434,12 @@ export function MCP() {
               <div className='flex flex-col gap-2'>
                 <span className='text-[var(--text-muted)] text-caption'>Status</span>
                 <p className='text-[var(--text-error)] text-sm'>
-                  {getServerToolsLabel([], server.connectionStatus, server.lastError)}
+                  {getServerToolsLabel(
+                    [],
+                    server.connectionStatus,
+                    server.lastError,
+                    server.authType
+                  )}
                 </p>
               </div>
             )}
