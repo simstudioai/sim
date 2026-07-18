@@ -270,6 +270,26 @@ describe('handleUnifiedChatPost', () => {
     )
   })
 
+  it('forwards the desktop local filesystem capability into payload construction', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Inspect my local project',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          desktopCapabilities: { localFilesystem: true },
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ desktopLocalFilesystem: true }),
+      { selectedModel: '' }
+    )
+  })
+
   it('accepts tagged skill contexts and forwards them to context resolution', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {

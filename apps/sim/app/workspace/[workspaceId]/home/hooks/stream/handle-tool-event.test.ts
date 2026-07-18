@@ -109,6 +109,14 @@ describe('tool events (dispatch → model + side effects)', () => {
     expect(toolNode(ctx, 'tc-3').status).toBe('error')
   })
 
+  it('starts a desktop local filesystem tool once its complete call arrives', () => {
+    const startClientLocalFilesystemTool = vi.fn()
+    const ctx = createStreamLoopContext(makeStreamLoopDeps({ startClientLocalFilesystemTool }))
+    dispatchStreamEvent(ctx, toolCall('local-1', 'local_list_mounts'))
+
+    expect(startClientLocalFilesystemTool).toHaveBeenCalledWith('local-1', 'local_list_mounts', {})
+  })
+
   it('settles a file-write row on its own result, independent of a streaming preview session', () => {
     const previewSessionsRef = ref<Record<string, FilePreviewSession>>({})
     const ctx = createStreamLoopContext(makeStreamLoopDeps({ previewSessionsRef }))

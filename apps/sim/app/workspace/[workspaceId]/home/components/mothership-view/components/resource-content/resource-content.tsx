@@ -34,6 +34,7 @@ import {
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
@@ -275,6 +276,9 @@ export const ResourceContent = memo(function ResourceContent({
         <GenericResourceContent key={resource.id} data={genericResourceData ?? { entries: [] }} />
       )
 
+    case 'browser':
+      return <BrowserSession key={resource.id} />
+
     default:
       return null
   }
@@ -315,6 +319,7 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
       return <EmbeddedScheduledTaskActions workspaceId={workspaceId} />
     case 'folder':
     case 'generic':
+    case 'browser':
       return null
     default:
       return null

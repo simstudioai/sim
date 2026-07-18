@@ -214,6 +214,25 @@ export const removeMothershipChatResourceContract = defineRouteContract({
   },
 })
 
+export const stageLocalFileUploadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/mothership/local-files/stage',
+  body: z.object({
+    workspaceId: z.string().min(1),
+    chatId: z.string().min(1),
+    key: z.string().min(1).max(2048),
+  }),
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      displayName: z.string(),
+      fileName: z.string(),
+      uploadPath: z.string(),
+    }),
+  },
+})
+
 export const mothershipChatSchema = z.object({
   id: z.string(),
   title: z.string().nullable(),

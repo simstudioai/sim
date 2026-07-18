@@ -5,6 +5,7 @@ import { cn } from '@sim/emcn'
 import {
   Calendar,
   Connections,
+  Cursor,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
@@ -212,6 +213,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IntegrationDropdownItem {...props} />,
   },
+  browser: {
+    type: 'browser',
+    label: 'Browser',
+    icon: Cursor,
+    renderTabIcon: (_resource, className) => (
+      <Cursor className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Cursor} />,
+  },
 } as const
 
 export const RESOURCE_TYPES = Object.values(RESOURCE_REGISTRY)
@@ -265,6 +275,12 @@ const RESOURCE_INVALIDATORS: Record<
    * invalidate when one is added.
    */
   integration: () => {},
+  /**
+   * The browser panel renders live frames pushed by the desktop app
+   * (in-memory store, no server-backed query), so there is nothing to
+   * invalidate.
+   */
+  browser: () => {},
 }
 
 /**

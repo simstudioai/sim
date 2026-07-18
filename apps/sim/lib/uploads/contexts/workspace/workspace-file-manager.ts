@@ -9,7 +9,7 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import {
   decrementStorageUsageForBillingContextInTx,
@@ -577,7 +577,8 @@ export const CHAT_DISPLAY_NAME_INDEX = 'workspace_files_chat_display_name_unique
 /**
  * Track a file that was already uploaded to workspace S3 as a chat-scoped upload.
  * Links the existing workspaceFiles metadata record (created by the storage service
- * during upload) to the chat by setting chatId and context='mothership'.
+ * during upload) to the same user's chat by setting chatId and context='mothership'.
+ * A row already linked to a different chat is never re-parented.
  * Falls back to inserting a new record if none exists for the key.
  *
  * Allocates a collision-free `displayName` (the partial unique index on
@@ -603,6 +604,8 @@ export async function trackChatUpload(
           and(
             eq(workspaceFiles.key, s3Key),
             eq(workspaceFiles.workspaceId, workspaceId),
+            eq(workspaceFiles.userId, userId),
+            or(isNull(workspaceFiles.chatId), eq(workspaceFiles.chatId, chatId)),
             isNull(workspaceFiles.deletedAt)
           )
         )
@@ -1189,6 +1192,71 @@ export async function renameWorkspaceFile(
   return {
     ...fileRecord,
     name: normalizedName,
+  }
+}
+
+/**
+ * Move and/or rename a workspace file in one row update.
+ */
+export async function moveRenameWorkspaceFile(params: {
+  workspaceId: string
+  fileId: string
+  targetFolderId: string | null
+  newName: string
+}): Promise<{ file: WorkspaceFileRecord; renamed: boolean; moved: boolean }> {
+  const normalizedName = normalizeWorkspaceFileItemName(params.newName.trim(), 'File')
+  const fileRecord = await getWorkspaceFile(params.workspaceId, params.fileId)
+  if (!fileRecord) {
+    throw new Error('File not found')
+  }
+
+  const targetFolderId = await assertWorkspaceFileFolderTarget(
+    params.workspaceId,
+    params.targetFolderId
+  )
+  const currentFolderId = fileRecord.folderId ?? null
+  const renamed = fileRecord.name !== normalizedName
+  const moved = currentFolderId !== targetFolderId
+  if (!renamed && !moved) {
+    return { file: fileRecord, renamed, moved }
+  }
+
+  if (await fileExistsInWorkspace(params.workspaceId, normalizedName, targetFolderId)) {
+    throw new FileConflictError(normalizedName)
+  }
+
+  let updated: { id: string }[]
+  try {
+    updated = await db
+      .update(workspaceFiles)
+      .set({ originalName: normalizedName, folderId: targetFolderId, updatedAt: new Date() })
+      .where(
+        and(
+          eq(workspaceFiles.id, params.fileId),
+          eq(workspaceFiles.workspaceId, params.workspaceId),
+          eq(workspaceFiles.context, 'workspace')
+        )
+      )
+      .returning({ id: workspaceFiles.id })
+  } catch (error: unknown) {
+    if (getPostgresErrorCode(error) === '23505') {
+      throw new FileConflictError(normalizedName)
+    }
+    throw error
+  }
+
+  if (updated.length === 0) {
+    throw new Error('File not found or could not be moved')
+  }
+
+  return {
+    file: {
+      ...fileRecord,
+      name: normalizedName,
+      folderId: targetFolderId,
+    },
+    renamed,
+    moved,
   }
 }
 

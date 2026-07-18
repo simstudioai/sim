@@ -328,7 +328,11 @@ export function ResourceTabs({
   const handleAdd = useCallback(
     (resource: MothershipResource) => {
       if (!chatId) return
-      addResource.mutate({ chatId, resource })
+      // Ephemeral panels (live browser session) are in-memory only — never
+      // persisted to the chat's resource list.
+      if (!isEphemeralResource(resource)) {
+        addResource.mutate({ chatId, resource })
+      }
       onAddResource(resource)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

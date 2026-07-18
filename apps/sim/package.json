@@ -99,6 +99,8 @@
     "@react-email/components": "0.5.7",
     "@react-email/render": "2.0.8",
     "@sim/audit": "workspace:*",
+    "@sim/browser-protocol": "workspace:*",
+    "@sim/desktop-bridge": "workspace:*",
     "@sim/emcn": "workspace:*",
     "@sim/logger": "workspace:*",
     "@sim/platform-authz": "workspace:*",

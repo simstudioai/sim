@@ -2,12 +2,18 @@ import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import type { BrowserWindow } from 'electron'
 import { app, net, session } from 'electron'
+import {
+  initDriver as initBrowserAgentDriver,
+  setPanelBounds as setBrowserAgentPanelBounds,
+} from '@/main/browser-agent/driver'
 import { createConfigStore, partitionForOrigin } from '@/main/config'
 import { attachContextMenu } from '@/main/context-menu'
 import { attachDownloadHandling } from '@/main/downloads'
 import { createAuthFlow, createHandoffManager } from '@/main/handoff'
 import { registerIpcHandlers } from '@/main/ipc'
 import { attachLoadHealth, type LoadHealthHandle } from '@/main/load-health'
+import { LocalFilesystemService } from '@/main/local-filesystem'
+import { createEncryptedLocalFilesystemGrantStore } from '@/main/local-filesystem-grant-store'
 import { installApplicationMenu } from '@/main/menu'
 import { openExternalSafe } from '@/main/navigation'
 import { createEventLog } from '@/main/observability'
@@ -33,6 +39,11 @@ function main(): void {
 
   const config = createConfigStore(join(app.getPath('userData'), 'settings.json'))
   const events = createEventLog(join(app.getPath('userData'), 'logs'))
+  const localFilesystem = new LocalFilesystemService({
+    grantStore: createEncryptedLocalFilesystemGrantStore(
+      join(app.getPath('userData'), 'local-filesystem-grants.json')
+    ),
+  })
   const preloadPath = join(__dirname, 'preload.cjs')
 
   let mainWindow: BrowserWindow | null = null
@@ -107,6 +118,12 @@ function main(): void {
       },
     })
     mainWindow = win
+    // A fresh document (reload, origin change, crash recovery) has no browser
+    // panel mounted yet — hide the embedded agent-browser view immediately
+    // rather than letting it linger over the loading page.
+    win.webContents.on('did-start-loading', () => {
+      setBrowserAgentPanelBounds(null)
+    })
     attachWindowOpenPolicy(win.webContents, {
       appOrigin,
       getMainWindow,
@@ -126,7 +143,10 @@ function main(): void {
       appSession: ses,
       origin: appOrigin,
       events,
-      clearHandoffState: () => handoff.clear(),
+      clearHandoffState: async () => {
+        handoff.clear()
+        await localFilesystem.forgetAll()
+      },
       onReauthRequested: () => void authFlow.beginLoginHandoff(),
     })
     loadHealth.startWatchdog()
@@ -154,6 +174,7 @@ function main(): void {
     }
     logger.info('Server origin changed; recreating window')
     events.record('origin_changed')
+    await localFilesystem.forgetAll()
     handoff.clear()
     const win = getMainWindow()
     if (win) {
@@ -165,6 +186,7 @@ function main(): void {
   }
 
   async function signOutFromMenu(): Promise<void> {
+    await localFilesystem.forgetAll()
     const ses = session.fromPartition(partitionForOrigin(appOrigin()))
     await tearDownSession(ses, () => handoff.clear(), events)
     const win = getMainWindow()
@@ -191,6 +213,10 @@ function main(): void {
     }
   })
 
+  app.on('before-quit', () => {
+    localFilesystem.close()
+  })
+
   app.on('activate', () => {
     if (app.isReady() && !getMainWindow()) {
       void createAndLoadMainWindow()
@@ -202,6 +228,18 @@ function main(): void {
       version: app.getVersion(),
       electron: process.versions.electron ?? '',
     })
+    initBrowserAgentDriver(
+      {
+        onPageState: (state) => {
+          getMainWindow()?.webContents.send('browser-agent:page-state', state)
+        },
+        onSessionStatus: (alive) => {
+          getMainWindow()?.webContents.send('browser-agent:session-status', alive)
+        },
+      },
+      getMainWindow
+    )
+    await localFilesystem.initialize()
     registerIpcHandlers({
       config,
       appOrigin,
@@ -210,6 +248,7 @@ function main(): void {
       openSettings,
       closeSettings: closeSettingsWindow,
       applyOrigin,
+      localFilesystem,
     })
     await createAndLoadMainWindow()
     installApplicationMenu({

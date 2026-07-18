@@ -26,6 +26,8 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@sim/browser-protocol": "workspace:*",
+    "@sim/desktop-bridge": "workspace:*",
     "@sim/logger": "workspace:*",
     "@sim/security": "workspace:*",
     "@sim/utils": "workspace:*",

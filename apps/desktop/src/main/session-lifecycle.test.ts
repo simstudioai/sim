@@ -8,6 +8,7 @@ import {
   isLogoutNavigation,
   isSessionCookieName,
   probeSession,
+  tearDownSession,
 } from '@/main/session-lifecycle'
 
 const APP = 'https://sim.ai'
@@ -89,5 +90,27 @@ describe('probeSession', () => {
     const ses = sessionWithResponse(200, null)
     await probeSession(ses, APP)
     expect(vi.mocked(ses.fetch).mock.calls[0][0]).toBe(`${APP}/api/auth/get-session`)
+  })
+})
+
+describe('tearDownSession', () => {
+  it('waits for local secret revocation before clearing the web session', async () => {
+    const order: string[] = []
+    const session = {
+      clearStorageData: vi.fn(async () => {
+        order.push('session')
+      }),
+    } as unknown as Session
+
+    await tearDownSession(
+      session,
+      async () => {
+        await Promise.resolve()
+        order.push('local')
+      },
+      { filePath: '/tmp/events.log', record: vi.fn() }
+    )
+
+    expect(order).toEqual(['local', 'session'])
   })
 })

@@ -165,4 +165,5 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   job: 'Job Agent',
   file: 'File Agent',
   media: 'Media Agent',
+  browser: 'Browser Agent',
 } as const

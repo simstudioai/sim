@@ -21,10 +21,8 @@ import {
   ManageScheduledTaskOperation,
   ManageSkill,
   ManageSkillOperation,
-  MoveWorkflow,
   QueryLogs,
   Redeploy,
-  RenameWorkflow,
   RunFromBlock,
   RunWorkflow,
   RunWorkflowUntilBlock,
@@ -34,7 +32,7 @@ import {
   WorkspaceFileOperation,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
-import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import { getToolDisplayTitle, mvDisplayVerb } from '@/lib/copilot/tools/tool-display'
 import type { ContentBlock, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { getWorkflowById } from '@/hooks/queries/utils/workflow-cache'
@@ -52,12 +50,15 @@ export const DEPLOY_TOOL_NAMES: Set<string> = new Set([
   Redeploy.id,
 ])
 
-export const FOLDER_TOOL_NAMES: Set<string> = new Set([ManageFolder.id])
+export const FOLDER_TOOL_NAMES: Set<string> = new Set([ManageFolder.id, 'mkdir', 'mv'])
 
 export const WORKFLOW_MUTATION_TOOL_NAMES: Set<string> = new Set([
-  MoveWorkflow.id,
-  RenameWorkflow.id,
+  'mv',
+  'cp',
   DeleteWorkflow.id,
+  // Grace-period transcript/checkpoint compatibility.
+  'move_workflow',
+  'rename_workflow',
 ])
 
 export type StreamPayload = Record<string, unknown>
@@ -289,6 +290,28 @@ export function resolveStreamingToolDisplayTitle(
     return toolTitle ? `Finding ${toolTitle}` : undefined
   }
 
+  if (name === 'mv') {
+    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
+    if (!toolTitle) return undefined
+    const multiSource = /"sources"\s*:\s*\[\s*"[^"]*"\s*,/.test(streamingArgs)
+    const firstSource = streamingArgs.match(/"sources"\s*:\s*\[\s*"([^"]*)"/m)?.[1]
+    const destination = matchStreamingStringArg(streamingArgs, 'destination')
+    const verb = multiSource
+      ? 'Moving'
+      : mvDisplayVerb(firstSource ? decodeStreamingString(firstSource) : undefined, destination)
+    return `${verb} ${toolTitle}`
+  }
+
+  if (name === 'cp') {
+    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
+    return toolTitle ? `Duplicating ${toolTitle}` : undefined
+  }
+
+  if (name === 'mkdir') {
+    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
+    return toolTitle ? `Creating ${toolTitle}` : undefined
+  }
+
   if (name === ScrapePage.id) {
     const url = matchStreamingStringArg(streamingArgs, 'url')
     return url ? `Scraping ${url}` : undefined
@@ -364,12 +387,13 @@ export function resolveStreamingToolDisplayTitle(
   }
 
   if (name === ManageFolder.id) {
+    // create/rename/move remain here for checkpoint and transcript compatibility.
     return resolveOperationDisplayTitle(
       matchStreamingStringArg(streamingArgs, 'operation'),
       {
-        [ManageFolderOperation.create]: 'Creating folder',
-        [ManageFolderOperation.rename]: 'Renaming folder',
-        [ManageFolderOperation.move]: 'Moving folder',
+        create: 'Creating folder',
+        rename: 'Renaming folder',
+        move: 'Moving folder',
         [ManageFolderOperation.delete]: 'Deleting folder',
       },
       'Folder action'

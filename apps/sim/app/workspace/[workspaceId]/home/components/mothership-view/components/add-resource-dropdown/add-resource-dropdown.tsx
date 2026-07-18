@@ -16,6 +16,8 @@ import {
 } from '@sim/emcn'
 import { Folder, Plus, Workflow } from '@sim/emcn/icons'
 import { truncate } from '@sim/utils/string'
+import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
@@ -183,6 +185,20 @@ export function useAvailableResources(
         }),
       },
     ]
+    // The live browser panel — desktop app only (needs the agent-browser
+    // bridge). A singleton: opening it again just activates the existing tab.
+    if (isBrowserAgentAvailable()) {
+      groups.push({
+        type: 'browser' as const,
+        items: [
+          {
+            id: BROWSER_SESSION_RESOURCE_ID,
+            name: 'Browser',
+            isOpen: existingKeys.has(`browser:${BROWSER_SESSION_RESOURCE_ID}`),
+          },
+        ],
+      })
+    }
     return groups.filter((g) => !excluded.has(g.type))
   }, [
     workflows,
@@ -543,6 +559,20 @@ export function AddResourceDropdown({
                 if (items.length === 0) return null
                 const config = getResourceConfig(type)
                 const Icon = config.icon
+                // The browser panel is a singleton — a flat item, not a
+                // one-entry submenu.
+                if (type === 'browser') {
+                  const item = items[0]
+                  return (
+                    <DropdownMenuItem
+                      key={type}
+                      onClick={() => select({ type, id: item.id, title: item.name }, item.isOpen)}
+                    >
+                      <Icon className='size-[14px]' />
+                      <span>{config.label}</span>
+                    </DropdownMenuItem>
+                  )
+                }
                 return (
                   <DropdownMenuSub key={type}>
                     <DropdownMenuSubTrigger>

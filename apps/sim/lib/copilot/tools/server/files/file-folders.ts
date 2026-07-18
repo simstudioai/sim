@@ -1,13 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import {
-  CreateFileFolder,
-  DeleteFileFolder,
-  ListFileFolders,
-  MoveFile,
-  MoveFileFolder,
-  RenameFileFolder,
-} from '@/lib/copilot/generated/tool-catalog-v1'
+import { DeleteFileFolder } from '@/lib/copilot/generated/tool-catalog-v1'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
@@ -192,7 +185,7 @@ function folderLabel(folder: WorkspaceFileFolderRecord): string {
 }
 
 export const listFileFoldersServerTool: BaseServerTool<ListFileFoldersArgs, FileFolderResult> = {
-  name: ListFileFolders.id,
+  name: 'list_file_folders',
   async execute(
     params: ListFileFoldersArgs,
     context?: ServerToolContext
@@ -215,7 +208,7 @@ export const listFileFoldersServerTool: BaseServerTool<ListFileFoldersArgs, File
 }
 
 export const createFileFolderServerTool: BaseServerTool<CreateFileFolderArgs, FileFolderResult> = {
-  name: CreateFileFolder.id,
+  name: 'create_file_folder',
   async execute(
     params: CreateFileFolderArgs,
     context?: ServerToolContext
@@ -285,7 +278,7 @@ export const createFileFolderServerTool: BaseServerTool<CreateFileFolderArgs, Fi
 }
 
 export const renameFileFolderServerTool: BaseServerTool<RenameFileFolderArgs, FileFolderResult> = {
-  name: RenameFileFolder.id,
+  name: 'rename_file_folder',
   async execute(
     params: RenameFileFolderArgs,
     context?: ServerToolContext
@@ -341,7 +334,7 @@ export const renameFileFolderServerTool: BaseServerTool<RenameFileFolderArgs, Fi
 }
 
 export const moveFileFolderServerTool: BaseServerTool<MoveFileFolderArgs, FileFolderResult> = {
-  name: MoveFileFolder.id,
+  name: 'move_file_folder',
   async execute(
     params: MoveFileFolderArgs,
     context?: ServerToolContext
@@ -450,7 +443,7 @@ export const deleteFileFolderServerTool: BaseServerTool<DeleteFileFolderArgs, Fi
 }
 
 export const moveFileServerTool: BaseServerTool<MoveFileArgs, FileFolderResult> = {
-  name: MoveFile.id,
+  name: 'move_file',
   async execute(params: MoveFileArgs, context?: ServerToolContext): Promise<FileFolderResult> {
     try {
       const workspaceId = await resolveWorkspaceId(params, context, 'write')

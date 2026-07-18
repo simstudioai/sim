@@ -71,6 +71,13 @@ export interface StreamLoopDeps {
   addResource: (resource: MothershipResource) => boolean
   removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
   startClientWorkflowTool: (id: string, name: string, args: Record<string, unknown>) => void
+  startClientLocalFilesystemTool: (id: string, name: string, args: Record<string, unknown>) => void
+  startClientBrowserTool: (
+    id: string,
+    name: string,
+    args: Record<string, unknown>,
+    ts?: string
+  ) => void
   upsertMothershipChatHistory: (
     chatId: string,
     updater: (current: MothershipChatHistory) => MothershipChatHistory

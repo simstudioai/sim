@@ -100,7 +100,7 @@ export const SPEECH_RECOGNITION_LANG = 'en-US'
  * supplied — preventing silent drift between the two taxonomies.
  */
 const RESOURCE_TO_CONTEXT: Record<
-  MothershipResourceType,
+  Exclude<MothershipResourceType, 'browser'>,
   (resource: MothershipResource) => ChatContext
 > = {
   workflow: (r) => ({ kind: 'workflow', workflowId: r.id, label: r.title }),
@@ -117,5 +117,8 @@ const RESOURCE_TO_CONTEXT: Record<
 }
 
 export function mapResourceToContext(resource: MothershipResource): ChatContext {
+  if (resource.type === 'browser') {
+    throw new Error('Live browser sessions cannot be attached as chat context')
+  }
   return RESOURCE_TO_CONTEXT[resource.type](resource)
 }

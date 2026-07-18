@@ -15,6 +15,7 @@ src/main/           # main process (bundled to dist/main.cjs)
   handoff.ts        # 127.0.0.1 loopback login handoff + token redeem
   session-lifecycle.ts # sign-out teardown, 401 watcher, connect intercept
   load-health.ts    # offline/error page, auto-retry, watchdog
+  local-filesystem.ts # session-scoped read-only directory grants + localfs:// broker
   downloads.ts      # will-download handling
   context-menu.ts   # native right-click + spellcheck
   telemetry-policy.ts # third-party analytics blocking
@@ -107,7 +108,7 @@ Yes — the architecture has a single, clean seam for native features, and nothi
 1. **One bridge.** The preload (`src/preload/index.ts`) exposes `window.simDesktop` via `contextBridge` on the main window. This is the *only* channel between web content and native capability. It exposes narrow, typed methods — never raw `ipcRenderer` (Electron security checklist item 20).
 2. **Feature-detect, never assume.** The same web app is served to browsers and to the desktop from one origin, so a desktop feature is progressive enhancement: `if (window.simDesktop) { … }`. In a browser `window.simDesktop` is `undefined` and the feature is simply absent. (`isHosted` already tags these sessions for analytics.)
 3. **Gate in main.** Every channel is validated in `src/main/ipc.ts` by sender frame — app-origin for capability calls, bundled `file:` pages for shell-control calls (checklist item 17). A new native feature adds one gated channel there.
-4. **Single-source the contract.** `apps/sim` cannot import from `apps/desktop` (monorepo rule: `apps/* → packages/*` only). To give the web app types without duplication, put the bridge interface in a shared **types-only package** (e.g. `packages/desktop-bridge`) that both the preload (implements) and the web app (consumes, via a `useDesktop()` hook returning the typed bridge or `null`) import. Until such a feature exists, the bridge stays desktop-local — there are zero desktop-only features in the web app today.
+4. **Single-source the contract.** `apps/sim` cannot import from `apps/desktop` (monorepo rule: `apps/* → packages/*` only). The bridge interface lives in the shared types-only `packages/desktop-bridge` package, which both the preload and web app consume.
 
 Concrete example — a "Reveal in Finder" button:
 
@@ -130,6 +131,22 @@ const desktop = useDesktop()
 ```
 
 Good fits for the bridge: OS notifications + dock badge on workflow completion, global shortcuts, "reveal in Finder", tray, secure OS-keychain storage. Anything that touches the server/DB still goes through normal APIs — the bridge is only for **native** capability. This same bridge is also the robust way to retire the web-app couplings in the table above: have the web app *tell* the shell (`signalLogout()`, `markAuthSurface()`) instead of the shell inferring from URLs.
+
+### Local filesystem access
+
+The main Copilot agent can inspect a user-selected local directory in the desktop app through request-local client tools (`local_mount_directory`, `local_list_mounts`, `local_list`, `local_glob`, `local_read`, `local_grep`, `local_stat`, and `local_forget_mount`). This capability is:
+
+- **Explicit and read-only:** the native folder picker creates the grant; there are no write/delete/execute operations.
+- **Remembered securely:** grants are encrypted in Electron's private app data with OS-backed `safeStorage` and restored with the same opaque URI after a normal app restart. Sandboxed macOS builds also retain the security-scoped bookmark. There is no plaintext fallback: when secure storage is unavailable, the returned mount has `remembered: false` and lasts only for that app session.
+- **Revocable:** `local_forget_mount` removes one grant. All grants are removed on explicit sign-out or server-origin change so another Sim account or server cannot inherit them. Normal app quit only releases active OS handles and keeps the encrypted grants.
+- **Opaque:** renderer and model see only `localfs://<mount-id>/...` URIs. Electron resolves every URI, checks lexical and realpath containment, and refuses symlink escapes.
+- **Desktop-only:** the web app advertises these request-local tools only when `window.simDesktop.localFilesystem` is present. They are available directly to the main agent and are not added to subagent allowlists.
+
+Server-side tools cannot consume a `localfs://` URI. `local_stage_file` reads the granted file in Electron and uploads its bytes as a normal chat upload, returning `uploads/...` plus the collision-safe `fileName`. The agent then calls `materialize_file(fileName)` to promote it to durable `files/...` before passing that path to tools such as `function_execute` or `generate_image`:
+
+```text
+localfs://... → local_stage_file → uploads/... → materialize_file → files/... → server tool
+```
 
 ## Auto-update, channels, rollout, rollback
 

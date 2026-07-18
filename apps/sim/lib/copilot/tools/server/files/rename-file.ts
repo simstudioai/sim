@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { RenameFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
@@ -32,7 +31,8 @@ interface RenameFileResult {
 }
 
 export const renameFileServerTool: BaseServerTool<RenameFileArgs, RenameFileResult> = {
-  name: RenameFile.id,
+  // Grace-period executor for checkpoints created before mv replaced rename_file.
+  name: 'rename_file',
   async execute(params: RenameFileArgs, context?: ServerToolContext): Promise<RenameFileResult> {
     if (!context?.userId) {
       throw new Error('Authentication required')

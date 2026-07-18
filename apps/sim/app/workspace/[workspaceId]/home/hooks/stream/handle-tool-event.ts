@@ -1,3 +1,4 @@
+import { isBrowserToolName } from '@sim/browser-protocol'
 import {
   MothershipStreamV1ToolPhase,
   MothershipStreamV1ToolStatus,
@@ -8,6 +9,7 @@ import {
   extractResourcesFromToolResult,
   isResourceToolName,
 } from '@/lib/copilot/resources/extraction'
+import { isLocalFilesystemToolName } from '@/lib/copilot/tools/local-filesystem'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
@@ -185,6 +187,29 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
     if (shouldStartWorkflowTool) {
       const args = payload.arguments as Record<string, unknown> | undefined
       deps.startClientWorkflowTool(rawId, name, args ?? {})
+    }
+  }
+  if (isLocalFilesystemToolName(name) && !isPartial) {
+    const shouldStartLocalFilesystemTool =
+      node?.kind === 'tool' && node.status === 'running' && !node.result
+    if (shouldStartLocalFilesystemTool) {
+      const args = payload.arguments as Record<string, unknown> | undefined
+      deps.startClientLocalFilesystemTool(rawId, name, args ?? {})
+    }
+  }
+  if (isBrowserToolName(name) && !isPartial) {
+    const shouldStartBrowserTool =
+      !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
+      node?.kind === 'tool' &&
+      node.status === 'running' &&
+      !node.result
+    if (shouldStartBrowserTool) {
+      deps.startClientBrowserTool(
+        rawId,
+        name,
+        (payload.arguments as Record<string, unknown> | undefined) ?? {},
+        parsed.ts
+      )
     }
   }
   ops.flush()

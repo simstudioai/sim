@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { isBrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -21,6 +22,7 @@ import {
   reorderMothershipChatResourcesContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
+import { initBrowserAgentTransport, isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
@@ -54,6 +56,9 @@ import {
   isFilePreviewSession,
 } from '@/lib/copilot/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
+import { BROWSER_SESSION_RESOURCE_ID, isEphemeralResource } from '@/lib/copilot/resources/types'
+import { executeBrowserToolOnClient } from '@/lib/copilot/tools/client/browser-tool-execution'
+import { executeLocalFilesystemTool } from '@/lib/copilot/tools/client/local-filesystem'
 import {
   bindRunToolToExecution,
   cancelRunToolExecution,
@@ -62,6 +67,7 @@ import {
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-context'
+import { isLocalFilesystemToolName } from '@/lib/copilot/tools/local-filesystem'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import { readSSELines } from '@/lib/core/utils/sse'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
@@ -929,7 +935,12 @@ export function getReplayCompletedWorkflowToolCallIds(events: StreamBatchEvent[]
     const payload = event.payload
     if (!('phase' in payload)) continue
     if (payload.phase !== MothershipStreamV1ToolPhase.result) continue
-    if (typeof payload.toolCallId === 'string' && isWorkflowToolName(payload.toolName)) {
+    // Client-executed tools (workflow runs, browser actions) must never
+    // re-fire when their completed call replays after reconnect/reload.
+    if (
+      typeof payload.toolCallId === 'string' &&
+      (isWorkflowToolName(payload.toolName) || isBrowserToolName(payload.toolName))
+    ) {
       completedToolCallIds.add(payload.toolCallId)
     }
   }
@@ -1260,6 +1271,7 @@ export function useChat(
   const streamingContentRef = useRef('')
   const streamingBlocksRef = useRef<ContentBlock[]>([])
   const handledClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
+  const handledClientLocalFilesystemToolIdsRef = useRef<Set<string>>(new Set())
   const recoveringClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
   const executionStream = useExecutionStream()
   const isHomePage = pathname.endsWith('/home')
@@ -1480,7 +1492,9 @@ export function useChat(
     })
     setActiveResourceId(resource.id)
 
-    if (resource.id === 'streaming-file') {
+    // Ephemeral panels (streaming file preview, live browser session) are
+    // in-memory only — never persisted to the chat's resource list.
+    if (resource.id === 'streaming-file' || resource.type === 'browser') {
       return true
     }
 
@@ -1507,6 +1521,9 @@ export function useChat(
   const removeResource = useCallback((resourceType: MothershipResourceType, resourceId: string) => {
     setResources((prev) => prev.filter((r) => !(r.type === resourceType && r.id === resourceId)))
     setActiveResourceId((prev) => (prev === resourceId ? null : prev))
+
+    // Ephemeral panels were never persisted; nothing to delete server-side.
+    if (isEphemeralResource({ type: resourceType, id: resourceId, title: '' })) return
 
     const key = `${resourceType}:${resourceId}`
     const wasPending = pendingPersistResourceKeysRef.current.delete(key)
@@ -1549,7 +1566,7 @@ export function useChat(
           if (!chatId) return
           const order = resourcesRef.current.filter(
             (r) =>
-              r.id !== 'streaming-file' &&
+              !isEphemeralResource(r) &&
               !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
           )
           if (order.length === 0) return
@@ -1562,7 +1579,7 @@ export function useChat(
       }
       return
     }
-    const persistableResources = newOrder.filter((r) => r.id !== 'streaming-file')
+    const persistableResources = newOrder.filter((r) => !isEphemeralResource(r))
     if (persistableResources.length === 0) return
     requestJson(reorderMothershipChatResourcesContract, {
       body: { chatId: persistChatId, resources: persistableResources },
@@ -1615,6 +1632,40 @@ export function useChat(
       executeRunToolOnClient(toolCallId, toolName, toolArgs)
     },
     [ensureWorkflowToolResource]
+  )
+
+  const startClientLocalFilesystemTool = useCallback(
+    (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>) => {
+      if (!isLocalFilesystemToolName(toolName)) {
+        return
+      }
+      if (handledClientLocalFilesystemToolIdsRef.current.has(toolCallId)) {
+        return
+      }
+      handledClientLocalFilesystemToolIdsRef.current.add(toolCallId)
+      executeLocalFilesystemTool(toolCallId, toolName, toolArgs, {
+        workspaceId,
+        chatId: chatIdRef.current ?? selectedChatIdRef.current,
+      })
+    },
+    [workspaceId]
+  )
+
+  const startClientBrowserTool = useCallback(
+    (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>, eventTs?: string) => {
+      if (!isBrowserToolName(toolName)) {
+        return
+      }
+      // Surface the live browser panel the first time the agent touches the
+      // browser; addResource activates it and dedupes on subsequent calls.
+      if (addResource({ type: 'browser', id: BROWSER_SESSION_RESOURCE_ID, title: 'Browser' })) {
+        onResourceEventRef.current?.()
+      }
+      // Replay/exactly-once guarding lives in executeBrowserToolOnClient
+      // (sessionStorage-backed, so reloads cannot re-run an action).
+      executeBrowserToolOnClient(toolCallId, toolName, toolArgs, eventTs)
+    },
+    [addResource]
   )
 
   const recoverPendingClientWorkflowTools = useCallback(
@@ -1730,6 +1781,10 @@ export function useChat(
   ])
 
   useEffect(() => {
+    initBrowserAgentTransport()
+  }, [])
+
+  useEffect(() => {
     if (workflowIdRef.current) return
     if (!isHomePage || !chatIdRef.current) return
     resetHomeChatState()
@@ -1781,7 +1836,28 @@ export function useChat(
     const localOnly = resourcesRef.current.filter(
       (r) => r.id !== 'streaming-file' && !serverKeys.has(`${r.type}:${r.id}`)
     )
-    const mergedResources = [...persistedResources, ...localOnly]
+    // Server order is authoritative for persisted resources, but local-only
+    // items (pending-persist adds, ephemeral panels like the live browser)
+    // keep their current on-screen position — hydration reruns on every send
+    // and stream completion, and appending them at the end made those tabs
+    // visibly jump/flash each time.
+    const mergedResources = [...persistedResources]
+    for (const resource of localOnly) {
+      const currentIndex = resourcesRef.current.findIndex(
+        (r) => r.type === resource.type && r.id === resource.id
+      )
+      const insertAt =
+        currentIndex < 0 ? mergedResources.length : Math.min(currentIndex, mergedResources.length)
+      mergedResources.splice(insertAt, 0, resource)
+    }
+    const resourcesUnchanged =
+      mergedResources.length === resourcesRef.current.length &&
+      mergedResources.every(
+        (resource, index) =>
+          resourcesRef.current[index].type === resource.type &&
+          resourcesRef.current[index].id === resource.id &&
+          resourcesRef.current[index].title === resource.title
+      )
 
     if (mergedResources.length > 0) {
       const hydratedActiveResourceId =
@@ -1789,9 +1865,13 @@ export function useChat(
         mergedResources.some((resource) => resource.id === activeResourceIdRef.current)
           ? activeResourceIdRef.current
           : mergedResources[mergedResources.length - 1].id
-      activeResourceIdRef.current = hydratedActiveResourceId
-      setResources(mergedResources)
-      setActiveResourceId(hydratedActiveResourceId)
+      // Replacing the array with an identical one still re-renders the tab
+      // strip and panel — skip the no-op so open panels don't flash.
+      if (!resourcesUnchanged) {
+        activeResourceIdRef.current = hydratedActiveResourceId
+        setResources(mergedResources)
+        setActiveResourceId(hydratedActiveResourceId)
+      }
 
       for (const resource of persistedResources) {
         if (resource.type !== 'workflow') continue
@@ -1949,6 +2029,8 @@ export function useChat(
         addResource,
         removeResource,
         startClientWorkflowTool,
+        startClientLocalFilesystemTool,
+        startClientBrowserTool,
         upsertMothershipChatHistory: upsertChatHistory,
         ensureWorkflowInRegistry,
         onPreviewPhase,
@@ -2050,6 +2132,8 @@ export function useChat(
       addResource,
       removeResource,
       startClientWorkflowTool,
+      startClientLocalFilesystemTool,
+      startClientBrowserTool,
       upsertChatHistory,
       onPreviewPhase,
       applyPreviewSessionUpdate,
@@ -3204,7 +3288,10 @@ export function useChat(
         abortControllerRef.current = abortController
 
         const currentActiveId = activeResourceIdRef.current
-        const currentResources = resourcesRef.current
+        // The live browser panel is a client-side surface, not a
+        // server-resolvable resource — it must never ride resourceAttachments
+        // (the request schema rejects it, failing the whole send).
+        const currentResources = resourcesRef.current.filter((r) => r.type !== 'browser')
         const resourceAttachments =
           currentResources.length > 0
             ? currentResources.map((r) => ({
@@ -3228,6 +3315,12 @@ export function useChat(
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
             ...(workflowIdRef.current ? { workflowId: workflowIdRef.current } : {}),
+            ...(typeof window !== 'undefined' && window.simDesktop?.localFilesystem
+              ? { desktopCapabilities: { localFilesystem: true } }
+              : {}),
+            // Advertised only when the desktop app's browser-agent bridge is
+            // present — gates the browser subagent server-side.
+            ...(isBrowserAgentAvailable() ? { browserCapable: true } : {}),
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: abortController.signal,

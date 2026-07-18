@@ -1,23 +1,29 @@
+import type {
+  BrowserPageState,
+  BrowserPanelAction,
+  BrowserPanelBounds,
+  BrowserToolName,
+  BrowserToolResponse,
+} from '@sim/browser-protocol'
+import type {
+  DesktopUpdateStatus,
+  LocalFilesystemRequest,
+  LocalFilesystemResponse,
+  SimDesktopApi,
+} from '@sim/desktop-bridge'
 import { contextBridge, ipcRenderer } from 'electron'
 
-export interface UpdateStatus {
-  state: string
-  version?: string
-}
-
 /**
- * The minimal bridge exposed to pages. The remote web app reads no Electron
- * global today; this surface exists for the bundled offline/settings pages
- * and future opt-in web integration. Every channel is validated and gated in
+ * The narrow bridge exposed to pages. Every channel is validated and gated in
  * the main process — nothing here grants page code any privilege by itself.
  */
-const api = {
+const api: SimDesktopApi = {
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('desktop:get-app-version'),
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('desktop:open-external', url),
   requestMicrophonePermission: (): Promise<boolean> =>
     ipcRenderer.invoke('desktop:request-mic-permission'),
-  onUpdateStatus: (callback: (status: UpdateStatus) => void): (() => void) => {
-    const listener = (_event: unknown, status: UpdateStatus) => callback(status)
+  onUpdateStatus: (callback: (status: DesktopUpdateStatus) => void): (() => void) => {
+    const listener = (_event: unknown, status: DesktopUpdateStatus) => callback(status)
     ipcRenderer.on('desktop:update-status', listener)
     return () => {
       ipcRenderer.removeListener('desktop:update-status', listener)
@@ -36,8 +42,35 @@ const api = {
     ipcRenderer.invoke('settings:get'),
   settingsSave: (origin: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('settings:save', origin),
+  localFilesystem: (request: LocalFilesystemRequest): Promise<LocalFilesystemResponse> =>
+    ipcRenderer.invoke('desktop:local-filesystem', request),
+  browserAgent: {
+    executeTool: (
+      tool: BrowserToolName,
+      params: Record<string, unknown>
+    ): Promise<BrowserToolResponse> =>
+      ipcRenderer.invoke('browser-agent:execute-tool', tool, params),
+    panelAction: (action: BrowserPanelAction): void => {
+      ipcRenderer.send('browser-agent:panel-action', action)
+    },
+    setPanelBounds: (bounds: BrowserPanelBounds | null): void => {
+      ipcRenderer.send('browser-agent:set-panel-bounds', bounds)
+    },
+    onPageState: (callback: (state: BrowserPageState) => void): (() => void) => {
+      const listener = (_event: unknown, state: BrowserPageState) => callback(state)
+      ipcRenderer.on('browser-agent:page-state', listener)
+      return () => {
+        ipcRenderer.removeListener('browser-agent:page-state', listener)
+      }
+    },
+    onSessionStatus: (callback: (alive: boolean) => void): (() => void) => {
+      const listener = (_event: unknown, alive: boolean) => callback(alive)
+      ipcRenderer.on('browser-agent:session-status', listener)
+      return () => {
+        ipcRenderer.removeListener('browser-agent:session-status', listener)
+      }
+    },
+  },
 }
-
-export type SimDesktopApi = typeof api
 
 contextBridge.exposeInMainWorld('simDesktop', api)

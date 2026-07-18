@@ -107,11 +107,11 @@ export async function probeSession(
  */
 export async function tearDownSession(
   session: Session,
-  clearHandoffState: () => void,
+  clearHandoffState: () => void | Promise<void>,
   events: EventRecorder
 ): Promise<void> {
   events.record('sign_out')
-  clearHandoffState()
+  await clearHandoffState()
   await session.clearStorageData({ storages: [...CLEARED_STORAGES] })
 }
 
@@ -119,7 +119,7 @@ export interface SessionLifecycleDeps {
   appSession: Session
   origin: () => string
   events: EventRecorder
-  clearHandoffState: () => void
+  clearHandoffState: () => void | Promise<void>
   onReauthRequested: () => void
 }
 

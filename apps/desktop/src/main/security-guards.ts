@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { WebContents } from 'electron'
 import { app } from 'electron'
+import { isAgentWebContents } from '@/main/browser-agent/registry'
 import { classifyNavigation, openExternalSafe } from '@/main/navigation'
 import { scrubUrl } from '@/main/observability'
 
@@ -22,6 +23,16 @@ export interface GuardDeps {
  */
 export function attachNavigationGuards(contents: WebContents, deps: GuardDeps): void {
   const handle = (event: { preventDefault(): void }, url: string) => {
+    // The agent browser's tabs are general-purpose browsing surfaces: any
+    // http(s) navigation is their job (they run isolated on their own
+    // partition with no preload). Everything else stays denied.
+    if (isAgentWebContents(contents)) {
+      if (!/^https?:/i.test(url)) {
+        event.preventDefault()
+        logger.warn('Denied non-http navigation in agent browser', { url: scrubUrl(url) })
+      }
+      return
+    }
     const action = classifyNavigation(url, {
       appOrigin: deps.appOrigin(),
       currentUrl: contents.getURL(),
@@ -54,11 +65,13 @@ export function attachNavigationGuards(contents: WebContents, deps: GuardDeps): 
 
 /**
  * Global defense-in-depth: every WebContents ever created — main window, MCP
- * popups, blank children, settings — gets webview blocking, packaged DevTools
- * lockdown, a default-deny window.open handler (specific policies overwrite
- * it), and the navigation classifier. TLS errors are always fatal when
- * packaged; self-host private CAs must be system-trusted rather than bypassed
- * in-app.
+ * popups, blank children, settings, agent-browser tabs — gets webview
+ * blocking, packaged DevTools lockdown, a default-deny window.open handler
+ * (specific policies overwrite it), and the navigation classifier.
+ * Agent-browser tabs swap the classifier for a free-http(s) policy (their job
+ * is browsing arbitrary sites, isolated on their own partition). TLS errors
+ * are always fatal when packaged; self-host private CAs must be
+ * system-trusted rather than bypassed in-app.
  */
 export function installGlobalGuards(deps: GuardDeps): void {
   app.on('web-contents-created', (_event, contents) => {

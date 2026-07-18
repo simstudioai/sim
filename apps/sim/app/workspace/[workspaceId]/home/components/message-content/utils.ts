@@ -19,7 +19,7 @@ import {
   TerminalWindow,
   Wrench,
 } from '@sim/emcn'
-import { Calendar, Table as TableIcon } from '@sim/emcn/icons'
+import { Calendar, Cursor, Table as TableIcon } from '@sim/emcn/icons'
 import { AgentIcon, ImageIcon, TTSIcon, VideoIcon } from '@/components/icons'
 import type { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -30,6 +30,9 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   glob: FolderCode,
   grep: Search,
   read: File,
+  mv: FolderCode,
+  cp: Layout,
+  mkdir: FolderCode,
   search_online: Search,
   scrape_page: Search,
   get_page_contents: Search,
@@ -65,6 +68,26 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   generate_video: VideoIcon,
   generate_audio: TTSIcon,
   ffmpeg: Wrench,
+  browser: Cursor,
+  browser_navigate: Cursor,
+  browser_go_back: Cursor,
+  browser_go_forward: Cursor,
+  browser_open_tab: Cursor,
+  browser_switch_tab: Cursor,
+  browser_close_tab: Cursor,
+  browser_list_tabs: Cursor,
+  browser_wait_for: Cursor,
+  browser_snapshot: Eye,
+  browser_read_text: File,
+  browser_screenshot: Eye,
+  browser_extract: Search,
+  browser_click: Cursor,
+  browser_type: Pencil,
+  browser_press_key: Cursor,
+  browser_scroll: Cursor,
+  browser_select_option: Cursor,
+  browser_hover: Cursor,
+  browser_request_takeover: Cursor,
 }
 
 export function getAgentIcon(name: string): IconComponent {

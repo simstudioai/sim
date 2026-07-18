@@ -152,6 +152,12 @@ const ChatMessageSchema = z.object({
   contexts: z.array(ChatContextSchema).optional(),
   commands: z.array(z.string()).optional(),
   userTimezone: z.string().optional(),
+  desktopCapabilities: z
+    .object({
+      localFilesystem: z.boolean().optional(),
+    })
+    .optional(),
+  browserCapable: z.boolean().optional(),
 })
 
 type UnifiedChatRequest = z.infer<typeof ChatMessageSchema>
@@ -190,6 +196,8 @@ type UnifiedChatBranch =
         implicitFeedback?: string
         workspaceContext?: string
         vfs?: VfsSnapshotV1
+        desktopLocalFilesystem?: boolean
+        browserCapable?: boolean
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
         userId: string
@@ -220,6 +228,8 @@ type UnifiedChatBranch =
         userMetadata?: { name?: string; email?: string; timezone?: string }
         workspaceContext?: string
         vfs?: VfsSnapshotV1
+        desktopLocalFilesystem?: boolean
+        browserCapable?: boolean
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
         userId: string
@@ -637,6 +647,8 @@ async function resolveBranch(params: {
             entitlements: payloadParams.entitlements,
             userTimezone: payloadParams.userTimezone,
             userMetadata: payloadParams.userMetadata,
+            desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
+            browserCapable: payloadParams.browserCapable,
           },
           { selectedModel }
         ),
@@ -694,6 +706,8 @@ async function resolveBranch(params: {
           userTimezone: payloadParams.userTimezone,
           userMetadata: payloadParams.userMetadata,
           includeMothershipTools: true,
+          desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
+          browserCapable: payloadParams.browserCapable,
         },
         { selectedModel: '' }
       ),
@@ -1020,6 +1034,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 implicitFeedback: body.implicitFeedback,
                 workspaceContext,
                 vfs,
+                desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
+                browserCapable: body.browserCapable === true,
               })
             : branch.buildPayload({
                 message: body.message,
@@ -1034,6 +1050,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 userMetadata,
                 workspaceContext,
                 vfs,
+                desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
+                browserCapable: body.browserCapable === true,
               }),
         activeOtelRoot.context
       )

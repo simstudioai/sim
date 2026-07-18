@@ -10,6 +10,7 @@ export const MothershipResourceType = {
   log: 'log',
   integration: 'integration',
   generic: 'generic',
+  browser: 'browser',
 } as const
 export type MothershipResourceType =
   (typeof MothershipResourceType)[keyof typeof MothershipResourceType]
@@ -22,8 +23,17 @@ export interface MothershipResource {
 }
 
 export function isEphemeralResource(resource: MothershipResource): boolean {
-  return resource.type === 'generic' || resource.id === 'streaming-file'
+  return (
+    resource.type === 'generic' || resource.type === 'browser' || resource.id === 'streaming-file'
+  )
 }
+
+/**
+ * Singleton id for the live browser-session panel. The panel's frames live
+ * only in memory (pushed by the desktop app with each tool result), so the
+ * resource is ephemeral and never persisted to the chat.
+ */
+export const BROWSER_SESSION_RESOURCE_ID = 'browser-session'
 
 /** Placeholder resource titles that a more specific title may overwrite during dedup. */
 export const GENERIC_RESOURCE_TITLES = new Set<string>([

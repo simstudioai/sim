@@ -11,6 +11,7 @@ import {
 } from '@/lib/copilot/integration-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
+import { buildLocalFilesystemToolSchemas } from '@/lib/copilot/tools/local-filesystem'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
@@ -50,6 +51,8 @@ interface BuildPayloadParams {
     timezone?: string
   }
   includeMothershipTools?: boolean
+  desktopLocalFilesystem?: boolean
+  browserCapable?: boolean
 }
 
 export interface ToolSchema {
@@ -367,6 +370,10 @@ export async function buildCopilotRequestPayload(
         })
       }
     }
+
+    if (params.desktopLocalFilesystem) {
+      mothershipTools.push(...buildLocalFilesystemToolSchemas())
+    }
   }
 
   return {
@@ -398,6 +405,9 @@ export async function buildCopilotRequestPayload(
     // Tell the copilot file subagent which document toolchain to write. Emitted
     // only in Python mode so the JS path sends no new field (Go defaults to js).
     ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
+    // Advertised only when the desktop app's browser-agent bridge answered the
+    // page handshake — gates the browser subagent server-side.
+    ...(params.browserCapable ? { browserCapable: true } : {}),
     isHosted,
   }
 }

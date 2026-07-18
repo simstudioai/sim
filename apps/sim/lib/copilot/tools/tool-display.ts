@@ -50,9 +50,52 @@ function operationTitle(
   return labels[operation] ?? placeholder
 }
 
+/** Compact form of a URL for titles: host + path, no scheme/query noise. */
+function displayUrl(raw: string): string {
+  if (!raw) return ''
+  try {
+    const url = new URL(raw)
+    const path = url.pathname === '/' ? '' : url.pathname
+    return `${url.host}${path}`.slice(0, 80)
+  } catch {
+    return raw.slice(0, 80)
+  }
+}
+
 function isWorkflowArtifactPath(path: string, filename: string): boolean {
   const trimmed = path.trim()
   return trimmed.startsWith('workflows/') && trimmed.endsWith(`/${filename}`)
+}
+
+function decodePathSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
+  }
+}
+
+/**
+ * Derive whether an mv call is a rename or a move from its canonical VFS paths.
+ * A single source with an unchanged parent and changed leaf is a rename.
+ */
+export function mvDisplayVerb(
+  source: string | undefined,
+  destination: string | undefined
+): 'Renaming' | 'Moving' {
+  if (!source || !destination || /\/\s*$/.test(destination)) return 'Moving'
+  const segments = (path: string) =>
+    path
+      .trim()
+      .replace(/^\/+|\/+$/g, '')
+      .split('/')
+      .map(decodePathSegment)
+  const src = segments(source)
+  const dst = segments(destination)
+  if (src.length < 2 || dst.length < 2) return 'Moving'
+  const sameParent = src.slice(0, -1).join('/') === dst.slice(0, -1).join('/')
+  const leafChanged = src.at(-1) !== dst.at(-1)
+  return sameParent && leafChanged ? 'Renaming' : 'Moving'
 }
 
 function workspaceFileTitle(args: ToolArgs): string {
@@ -114,6 +157,15 @@ const TOOL_TITLES: Record<string, string> = {
   get_workflow_run_options: 'Getting run options',
   list_file_folders: 'Listing folders',
   list_integration_tools: 'Listing integrations',
+  local_glob: 'Finding local files',
+  local_grep: 'Searching local files',
+  local_forget_mount: 'Forgetting local folder',
+  local_list: 'Listing local files',
+  local_list_mounts: 'Listing local folders',
+  local_mount_directory: 'Selecting local folder',
+  local_read: 'Reading local file',
+  local_stage_file: 'Preparing local file',
+  local_stat: 'Inspecting local file',
   list_user_workspaces: 'Listing workspaces',
   list_workspace_mcp_servers: 'Listing MCP servers',
   load_deployment: 'Loading deployment',
@@ -138,6 +190,19 @@ const TOOL_TITLES: Record<string, string> = {
   update_deployment_version: 'Updating deployment',
   update_scheduled_task_history: 'Updating task history',
   update_workspace_mcp_server: 'Updating MCP server',
+  // Browser agent tools without an argument-aware title.
+  browser_go_back: 'Going back',
+  browser_go_forward: 'Going forward',
+  browser_switch_tab: 'Switching tab',
+  browser_close_tab: 'Closing tab',
+  browser_list_tabs: 'Listing tabs',
+  browser_snapshot: 'Scanning page',
+  browser_read_text: 'Reading page',
+  browser_screenshot: 'Taking screenshot',
+  browser_click: 'Clicking element',
+  browser_type: 'Typing text',
+  browser_select_option: 'Selecting option',
+  browser_hover: 'Hovering element',
   // Subagent trigger tools, when surfaced as a tool call.
   workflow: 'Workflow Agent',
   run: 'Run Agent',
@@ -149,6 +214,7 @@ const TOOL_TITLES: Record<string, string> = {
   agent: 'Tools Agent',
   research: 'Research Agent',
   media: 'Media Agent',
+  browser: 'Browser Agent',
   superagent: 'Executing action',
 }
 
@@ -193,6 +259,21 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const target = firstStringArg(args, 'toolTitle', 'title')
       return target ? `Finding ${target}` : 'Finding files'
     }
+    case 'mv': {
+      const sources = stringArrayArg(args, 'sources')
+      const verb =
+        sources.length === 1 ? mvDisplayVerb(sources[0], stringArg(args, 'destination')) : 'Moving'
+      const target = firstStringArg(args, 'toolTitle', 'title')
+      return target ? `${verb} ${target}` : verb
+    }
+    case 'cp': {
+      const target = firstStringArg(args, 'toolTitle', 'title')
+      return target ? `Duplicating ${target}` : 'Duplicating workflow'
+    }
+    case 'mkdir': {
+      const target = firstStringArg(args, 'toolTitle', 'title')
+      return target ? `Creating ${target}` : 'Creating folder'
+    }
     case 'enrichment_run': {
       const subject = nestedStringArg(
         args,
@@ -208,6 +289,34 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'scrape_page': {
       const url = stringArg(args, 'url')
       return url ? `Scraping ${url}` : 'Scraping page'
+    }
+    case 'browser_navigate': {
+      const url = displayUrl(stringArg(args, 'url'))
+      return url ? `Opening ${url}` : 'Opening page'
+    }
+    case 'browser_open_tab': {
+      const url = displayUrl(stringArg(args, 'url'))
+      return url ? `Opening ${url} in a new tab` : 'Opening new tab'
+    }
+    case 'browser_wait_for': {
+      const text = stringArg(args, 'text')
+      return text ? `Waiting for "${text}"` : 'Waiting for page'
+    }
+    case 'browser_press_key': {
+      const key = stringArg(args, 'key')
+      return key ? `Pressing ${key}` : 'Pressing key'
+    }
+    case 'browser_scroll': {
+      const direction = stringArg(args, 'direction')
+      return direction ? `Scrolling ${direction}` : 'Scrolling page'
+    }
+    case 'browser_extract': {
+      const instruction = stringArg(args, 'instruction')
+      return instruction ? `Extracting ${instruction}` : 'Extracting page data'
+    }
+    case 'browser_request_takeover': {
+      const reason = stringArg(args, 'reason')
+      return reason ? `Waiting for you: ${reason}` : 'Waiting for you in the browser'
     }
     case 'crawl_website': {
       const url = stringArg(args, 'url')
@@ -295,6 +404,8 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Adding: 'Added',
   Applying: 'Applied',
   Checking: 'Checked',
+  Clicking: 'Clicked',
+  Closing: 'Closed',
   Comparing: 'Compared',
   Completing: 'Completed',
   Crawling: 'Crawled',
@@ -304,16 +415,20 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Downloading: 'Downloaded',
   Editing: 'Edited',
   Executing: 'Executed',
+  Extracting: 'Extracted',
   Finding: 'Found',
   Gathering: 'Gathered',
   Generating: 'Generated',
   Getting: 'Got',
+  Going: 'Went',
+  Hovering: 'Hovered',
   Listing: 'Listed',
   Loading: 'Loaded',
   Managing: 'Managed',
   Moving: 'Moved',
   Opening: 'Opened',
   Preparing: 'Prepared',
+  Pressing: 'Pressed',
   Processing: 'Processed',
   Promoting: 'Promoted',
   Querying: 'Queried',
@@ -323,12 +438,19 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Requesting: 'Requested',
   Restoring: 'Restored',
   Running: 'Ran',
+  Scanning: 'Scanned',
   Scraping: 'Scraped',
+  Scrolling: 'Scrolled',
   Searching: 'Searched',
+  Selecting: 'Selected',
   Setting: 'Set',
+  Switching: 'Switched',
+  Taking: 'Took',
   Toggling: 'Toggled',
+  Typing: 'Typed',
   Updating: 'Updated',
   Validating: 'Validated',
+  Waiting: 'Waited',
   Writing: 'Wrote',
 }
 
