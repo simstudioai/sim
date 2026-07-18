@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { McpTool } from '@/lib/mcp/types'
 import { MCP_CONSTANTS } from '@/lib/mcp/utils'
-import type { McpCacheEntry, McpCacheStorageAdapter } from './adapter'
+import type { McpCacheEntry, McpCacheMutationSet, McpCacheStorageAdapter } from './adapter'
 
 const logger = createLogger('McpMemoryCache')
 
@@ -115,6 +115,25 @@ export class MemoryMcpCache implements McpCacheStorageAdapter {
   ): Promise<boolean> {
     if (this.mutationVersions.get(scopeKey) !== mutationId) return false
     await this.delete(key)
+    return true
+  }
+
+  async applyMutationIfCurrent(
+    scopeKey: string,
+    mutationId: number,
+    setEntry: McpCacheMutationSet | null,
+    deleteKeys: string[]
+  ): Promise<boolean> {
+    if (this.mutationVersions.get(scopeKey) !== mutationId) return false
+
+    if (setEntry) {
+      this.cache.set(setEntry.key, {
+        tools: setEntry.tools,
+        expiry: Date.now() + setEntry.ttlMs,
+      })
+    }
+    for (const key of deleteKeys) this.cache.delete(key)
+    this.evictIfNeeded()
     return true
   }
 

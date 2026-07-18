@@ -27,6 +27,7 @@ import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import {
   createMcpCacheAdapter,
   getMcpCacheType,
+  type McpCacheMutationSet,
   type McpCacheStorageAdapter,
 } from '@/lib/mcp/storage'
 import {
@@ -65,8 +66,8 @@ type DiscoveryOutcome =
     }
   | { kind: 'oauth-pending'; config: McpServerConfig; mutation: CacheMutation | null }
   | { kind: 'unhealthy' }
-  // originalError preserves the type so markServerUnhealthy's instanceof
-  // exemption survives the getErrorMessage call.
+  // originalError preserves the type so the OAuth exemption survives the
+  // getErrorMessage call.
   | {
       kind: 'error'
       message: string
@@ -436,7 +437,10 @@ class McpService {
             lastConnected: now,
             lastError: null,
             toolCount: update.toolCount,
-            lastToolsRefresh: now,
+            // This column is also the publication ordering token. Persist the
+            // discovery start (rather than finish) so a newer-started run can
+            // still publish after an older run completes while it is in flight.
+            lastToolsRefresh: update.discoveryStartedAt,
             statusConfig: {
               consecutiveFailures: 0,
               lastSuccessfulDiscovery: now.toISOString(),
@@ -477,7 +481,7 @@ class McpService {
           connectionStatus: isErrorState ? 'error' : 'disconnected',
           lastError: update.error || 'Unknown error',
           toolCount: 0,
-          lastToolsRefresh: now,
+          lastToolsRefresh: update.discoveryStartedAt,
           statusConfig: {
             consecutiveFailures: newFailures,
             lastSuccessfulDiscovery: currentConfig.lastSuccessfulDiscovery,
@@ -496,31 +500,26 @@ class McpService {
     }
   }
 
-  /**
-   * Negative-cache a discovery failure. OAuth-required errors are exempt so
-   * reconnects retry immediately.
-   */
-  private async markServerUnhealthy(
+  private async applyServerCacheMutation(
     workspaceId: string,
     serverId: string,
-    error: unknown,
-    authType: McpServerConfig['authType'],
-    mutation: CacheMutation | null
+    mutation: CacheMutation | null,
+    setEntry: McpCacheMutationSet | null,
+    deleteKeys: string[]
   ): Promise<boolean> {
-    if (isOauthAuthorizationError(error, authType)) {
-      return true
-    }
     if (!mutation) return true
     try {
-      return await this.cacheAdapter.setIfCurrentMutation(
+      return await this.cacheAdapter.applyMutationIfCurrent(
         mutation.scopeKey,
         mutation.id,
-        failureCacheKey(workspaceId, serverId),
-        FAILURE_CACHE_SENTINEL,
-        MCP_CLIENT_CONSTANTS.FAILURE_CACHE_TTL_MS
+        setEntry,
+        deleteKeys
       )
-    } catch (err) {
-      logger.warn(`Failed to write failure cache for server ${serverId}:`, err)
+    } catch (error) {
+      logger.warn(`Failed to atomically update cache for server ${serverId}`, {
+        workspaceId,
+        error: getSafeErrorDiagnostics(error),
+      })
       return true
     }
   }
@@ -532,14 +531,13 @@ class McpService {
     discoveryStartedAt: Date
   ): Promise<boolean> {
     try {
-      const now = new Date()
       const updatedServers = await db
         .update(mcpServers)
         .set({
           connectionStatus: 'disconnected',
           lastError: null,
           toolCount: 0,
-          lastToolsRefresh: now,
+          lastToolsRefresh: discoveryStartedAt,
         })
         .where(
           and(
@@ -570,24 +568,6 @@ class McpService {
     }
   }
 
-  private async clearServerFailure(
-    workspaceId: string,
-    serverId: string,
-    mutation: CacheMutation | null
-  ): Promise<boolean> {
-    if (!mutation) return true
-    try {
-      return await this.cacheAdapter.deleteIfCurrentMutation(
-        mutation.scopeKey,
-        mutation.id,
-        failureCacheKey(workspaceId, serverId)
-      )
-    } catch (err) {
-      logger.warn(`Failed to clear failure cache for server ${serverId}:`, err)
-      return true
-    }
-  }
-
   private async beginServerCacheMutation(
     workspaceId: string,
     serverId: string
@@ -606,61 +586,10 @@ class McpService {
   private async invalidateServerCache(workspaceId: string, serverId: string): Promise<void> {
     const mutation = await this.beginServerCacheMutation(workspaceId, serverId)
     if (!mutation) return
-    await Promise.all([
-      this.cacheAdapter.deleteIfCurrentMutation(
-        mutation.scopeKey,
-        mutation.id,
-        serverCacheKey(workspaceId, serverId)
-      ),
-      this.cacheAdapter.deleteIfCurrentMutation(
-        mutation.scopeKey,
-        mutation.id,
-        failureCacheKey(workspaceId, serverId)
-      ),
+    await this.applyServerCacheMutation(workspaceId, serverId, mutation, null, [
+      serverCacheKey(workspaceId, serverId),
+      failureCacheKey(workspaceId, serverId),
     ])
-  }
-
-  private async setServerToolsCache(
-    workspaceId: string,
-    serverId: string,
-    mutation: CacheMutation | null,
-    tools: McpTool[]
-  ): Promise<boolean> {
-    if (!mutation) return true
-    try {
-      return await this.cacheAdapter.setIfCurrentMutation(
-        mutation.scopeKey,
-        mutation.id,
-        serverCacheKey(workspaceId, serverId),
-        tools,
-        this.cacheTimeout
-      )
-    } catch (error) {
-      logger.warn(`Failed to write tool cache for server ${serverId}`, {
-        error: getSafeErrorDiagnostics(error),
-      })
-      return true
-    }
-  }
-
-  private async deleteServerToolsCache(
-    workspaceId: string,
-    serverId: string,
-    mutation: CacheMutation | null
-  ): Promise<boolean> {
-    if (!mutation) return true
-    try {
-      return await this.cacheAdapter.deleteIfCurrentMutation(
-        mutation.scopeKey,
-        mutation.id,
-        serverCacheKey(workspaceId, serverId)
-      )
-    } catch (error) {
-      logger.warn(`Failed to delete tool cache for server ${serverId}`, {
-        error: getSafeErrorDiagnostics(error),
-      })
-      return true
-    }
   }
 
   private async publishSuccessfulDiscovery(
@@ -670,19 +599,35 @@ class McpService {
     tools: McpTool[],
     discoveryStartedAt: Date
   ): Promise<boolean> {
+    const cacheApplied = await this.applyServerCacheMutation(
+      workspaceId,
+      config.id,
+      mutation,
+      {
+        key: serverCacheKey(workspaceId, config.id),
+        tools,
+        ttlMs: this.cacheTimeout,
+      },
+      [failureCacheKey(workspaceId, config.id)]
+    )
+    if (!cacheApplied) return false
+
     const statusApplied = await this.updateServerStatus(config.id, workspaceId, {
       outcome: 'connected',
       toolCount: tools.length,
       configUpdatedAt: config.updatedAt!,
       discoveryStartedAt,
     })
-    if (!statusApplied) return false
+    if (statusApplied) return true
 
-    const [toolsApplied, failureCleared] = await Promise.all([
-      this.setServerToolsCache(workspaceId, config.id, mutation, tools),
-      this.clearServerFailure(workspaceId, config.id, mutation),
+    // A config change or newer discovery won the database CAS after the cache
+    // mutation. Remove this result only if its mutation is still current; a
+    // newer cache publisher must never be disturbed.
+    await this.applyServerCacheMutation(workspaceId, config.id, mutation, null, [
+      serverCacheKey(workspaceId, config.id),
+      failureCacheKey(workspaceId, config.id),
     ])
-    return toolsApplied && failureCleared
+    return false
   }
 
   private async publishFailedDiscovery(
@@ -693,19 +638,35 @@ class McpService {
     message: string,
     discoveryStartedAt: Date
   ): Promise<boolean> {
+    const cacheApplied = await this.applyServerCacheMutation(
+      workspaceId,
+      config.id,
+      mutation,
+      isOauthAuthorizationError(error, config.authType)
+        ? null
+        : {
+            key: failureCacheKey(workspaceId, config.id),
+            tools: FAILURE_CACHE_SENTINEL,
+            ttlMs: MCP_CLIENT_CONSTANTS.FAILURE_CACHE_TTL_MS,
+          },
+      [serverCacheKey(workspaceId, config.id)]
+    )
+    if (!cacheApplied) return false
+
     const statusApplied = await this.updateServerStatus(config.id, workspaceId, {
       outcome: 'failed',
       error: message,
       configUpdatedAt: config.updatedAt!,
       discoveryStartedAt,
     })
-    if (!statusApplied) return false
+    if (statusApplied) return true
 
-    const [toolsDeleted, failureApplied] = await Promise.all([
-      this.deleteServerToolsCache(workspaceId, config.id, mutation),
-      this.markServerUnhealthy(workspaceId, config.id, error, config.authType, mutation),
+    // Do not leave a negative-cache entry for a failure that lost the
+    // database publication CAS.
+    await this.applyServerCacheMutation(workspaceId, config.id, mutation, null, [
+      failureCacheKey(workspaceId, config.id),
     ])
-    return toolsDeleted && failureApplied
+    return false
   }
 
   private async publishOauthPending(
@@ -714,19 +675,21 @@ class McpService {
     mutation: CacheMutation | null,
     discoveryStartedAt: Date
   ): Promise<boolean> {
-    const statusApplied = await this.markServerOauthPending(
+    const cacheApplied = await this.applyServerCacheMutation(
+      workspaceId,
+      config.id,
+      mutation,
+      null,
+      [serverCacheKey(workspaceId, config.id), failureCacheKey(workspaceId, config.id)]
+    )
+    if (!cacheApplied) return false
+
+    return this.markServerOauthPending(
       config.id,
       workspaceId,
       config.updatedAt!,
       discoveryStartedAt
     )
-    if (!statusApplied) return false
-
-    const [toolsDeleted, failureCleared] = await Promise.all([
-      this.deleteServerToolsCache(workspaceId, config.id, mutation),
-      this.clearServerFailure(workspaceId, config.id, mutation),
-    ])
-    return toolsDeleted && failureCleared
   }
 
   async discoverTools(

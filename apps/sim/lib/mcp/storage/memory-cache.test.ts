@@ -187,6 +187,27 @@ describe('MemoryMcpCache', () => {
       expect(await cache.get('server-1:failure')).toBeNull()
     })
 
+    it('atomically replaces tools and failure state for one mutation', async () => {
+      await cache.set('server-1:failure', [], 60000)
+      const mutation = await cache.beginMutation('server-1')
+
+      expect(
+        await cache.applyMutationIfCurrent(
+          'server-1',
+          mutation,
+          {
+            key: 'server-1:tools',
+            tools: [createTool('new-tool')],
+            ttlMs: 60000,
+          },
+          ['server-1:failure']
+        )
+      ).toBe(true)
+
+      expect((await cache.get('server-1:tools'))?.tools).toEqual([createTool('new-tool')])
+      expect(await cache.get('server-1:failure')).toBeNull()
+    })
+
     it('invalidates in-flight mutations when the cache is cleared', async () => {
       const mutation = await cache.beginMutation('server-1')
 

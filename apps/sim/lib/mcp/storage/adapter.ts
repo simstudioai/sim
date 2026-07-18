@@ -5,6 +5,12 @@ export interface McpCacheEntry {
   expiry: number // Unix timestamp ms
 }
 
+export interface McpCacheMutationSet {
+  key: string
+  tools: McpTool[]
+  ttlMs: number
+}
+
 export interface McpCacheStorageAdapter {
   get(key: string): Promise<McpCacheEntry | null>
   set(key: string, tools: McpTool[], ttlMs: number): Promise<void>
@@ -23,6 +29,13 @@ export interface McpCacheStorageAdapter {
     ttlMs: number
   ): Promise<boolean>
   deleteIfCurrentMutation(scopeKey: string, mutationId: number, key: string): Promise<boolean>
+  /** Atomically applies one server's complete cache state if this mutation still owns it. */
+  applyMutationIfCurrent(
+    scopeKey: string,
+    mutationId: number,
+    setEntry: McpCacheMutationSet | null,
+    deleteKeys: string[]
+  ): Promise<boolean>
   clear(): Promise<void>
   dispose(): void
 }

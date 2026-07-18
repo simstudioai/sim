@@ -277,12 +277,13 @@ describe('McpClient notification handler', () => {
       securityPolicy: { requireConsent: false, auditLevel: 'basic' },
     })
 
-    await expect(client.connect()).rejects.toThrow('Static token rejected')
+    await expect(client.connect()).rejects.toBeInstanceOf(UnauthorizedError)
 
     expect(mockLogger.error).toHaveBeenCalledWith(
       expect.stringContaining('Failed to connect'),
       expect.objectContaining({ outcome: 'unauthorized' })
     )
+    expect(client.getStatus().lastError).toBe('Authentication failed')
   })
 
   it('logs tools/list failures without echoed credentials or session identifiers', async () => {

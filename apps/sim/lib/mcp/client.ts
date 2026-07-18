@@ -207,6 +207,10 @@ export class McpClient {
         this.connectionStatus.lastError = undefined
         throw error
       }
+      if (error instanceof UnauthorizedError) {
+        this.connectionStatus.lastError = 'Authentication failed'
+        throw error
+      }
       this.connectionStatus.lastError = errorMessage
       throw new McpConnectionError(errorMessage, this.config.name)
     }

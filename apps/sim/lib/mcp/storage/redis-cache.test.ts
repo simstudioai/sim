@@ -89,4 +89,33 @@ describe('RedisMcpCache ordered mutations', () => {
       '6'
     )
   })
+
+  it('atomically replaces the complete cache state for the current mutation', async () => {
+    redis.eval.mockResolvedValueOnce(1)
+
+    await expect(
+      cache.applyMutationIfCurrent(
+        'workspace:w:server:s',
+        7,
+        {
+          key: 'workspace:w:server:s',
+          tools: [tool],
+          ttlMs: 60_000,
+        },
+        ['workspace:w:server:s:failure']
+      )
+    ).resolves.toBe(true)
+
+    expect(redis.eval).toHaveBeenCalledWith(
+      expect.stringMatching(/redis\.call\('SET'.*redis\.call\('DEL'/s),
+      3,
+      'mcp:tools-mutation:workspace:w:server:s',
+      'mcp:tools:workspace:w:server:s',
+      'mcp:tools:workspace:w:server:s:failure',
+      '7',
+      '1',
+      expect.stringContaining('new-tool'),
+      '60000'
+    )
+  })
 })

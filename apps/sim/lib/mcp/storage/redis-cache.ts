@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type Redis from 'ioredis'
 import type { McpTool } from '@/lib/mcp/types'
-import type { McpCacheEntry, McpCacheStorageAdapter } from './adapter'
+import type { McpCacheEntry, McpCacheMutationSet, McpCacheStorageAdapter } from './adapter'
 
 const logger = createLogger('McpRedisCache')
 
@@ -22,6 +22,19 @@ if redis.call('GET', KEYS[1]) ~= ARGV[1] then
   return 0
 end
 redis.call('DEL', KEYS[2])
+return 1
+`
+
+const APPLY_MUTATION_IF_CURRENT = `
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then
+  return 0
+end
+if ARGV[2] == '1' then
+  redis.call('SET', KEYS[2], ARGV[3], 'PX', ARGV[4])
+end
+for index = 3, #KEYS do
+  redis.call('DEL', KEYS[index])
+end
 return 1
 `
 
@@ -145,6 +158,40 @@ export class RedisMcpCache implements McpCacheStorageAdapter {
       return result === 1
     } catch (error) {
       logger.error('Redis conditional cache delete error:', error)
+      throw error
+    }
+  }
+
+  async applyMutationIfCurrent(
+    scopeKey: string,
+    mutationId: number,
+    setEntry: McpCacheMutationSet | null,
+    deleteKeys: string[]
+  ): Promise<boolean> {
+    try {
+      const entry = setEntry
+        ? JSON.stringify({
+            tools: setEntry.tools,
+            expiry: Date.now() + setEntry.ttlMs,
+          } satisfies McpCacheEntry)
+        : ''
+      const keys = [
+        this.getMutationKey(scopeKey),
+        setEntry ? this.getKey(setEntry.key) : this.getMutationKey(scopeKey),
+        ...deleteKeys.map((key) => this.getKey(key)),
+      ]
+      const result = await this.redis.eval(
+        APPLY_MUTATION_IF_CURRENT,
+        keys.length,
+        ...keys,
+        String(mutationId),
+        setEntry ? '1' : '0',
+        entry,
+        String(setEntry?.ttlMs ?? 0)
+      )
+      return result === 1
+    } catch (error) {
+      logger.error('Redis atomic cache mutation error:', error)
       throw error
     }
   }
