@@ -252,7 +252,7 @@ describe('McpConnectionPool', () => {
     expect(create).toHaveBeenCalledTimes(2)
   })
 
-  it('does not pool a connection whose create finished after the server was evicted', async () => {
+  it('uses an evicted-mid-create connection one-shot and does not pool it', async () => {
     let resolveCreate: ((client: McpClient) => void) | undefined
     const created = new Promise<McpClient>((resolve) => {
       resolveCreate = resolve
@@ -270,11 +270,18 @@ describe('McpConnectionPool', () => {
     resolveCreate?.(staleClient)
     const lease = await acquireP
 
-    // The stale-config connection is disconnected, not pooled; a fresh one is built.
-    expect(staleClient.disconnect).toHaveBeenCalledTimes(1)
-    expect(lease.client).toBe(freshClient)
-    expect(create).toHaveBeenCalledTimes(2)
+    // The in-flight request still uses the connection it built (as connect-per-op
+    // would), but it isn't pooled and is disconnected on release.
+    expect(lease.client).toBe(staleClient)
+    expect(staleClient.disconnect).not.toHaveBeenCalled()
     await lease.release()
+    expect(staleClient.disconnect).toHaveBeenCalledTimes(1)
+
+    // The next acquire builds fresh — the stale connection was never pooled.
+    const next = await pool.acquire(params('s1:w1:u1', create))
+    expect(next.client).toBe(freshClient)
+    expect(create).toHaveBeenCalledTimes(2)
+    await next.release()
   })
 
   it('bypasses the pool once disposed (connects without caching)', async () => {

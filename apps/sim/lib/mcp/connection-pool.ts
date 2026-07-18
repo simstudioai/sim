@@ -85,21 +85,14 @@ export class McpConnectionPool {
 
   private async resolveEntry(params: AcquireParams): Promise<PoolEntry> {
     const pending = this.pending.get(params.key)
-    if (pending) {
-      const entry = await pending
-      if (!entry.retired) return entry
-      return this.resolveEntry(params)
-    }
+    if (pending) return pending
 
     const current = this.entries.get(params.key)
     if (current) {
       const reusable = await this.tryReuse(current)
       if (reusable) return reusable
     }
-    const created = await this.createEntry(params)
-    // Evicted (config edit/delete) mid-create → don't borrow the stale connection.
-    if (created.retired && !this.disposed) return this.resolveEntry(params)
-    return created
+    return this.createEntry(params)
   }
 
   /** Return `entry` if in-age, connected, and live; else retire it and return null. */
@@ -152,10 +145,11 @@ export class McpConnectionPool {
         closing: false,
       }
       // Disposed, or the server was evicted (config edit/delete) while connecting:
-      // don't pool a connection built against the old config.
+      // don't pool a connection built against the now-stale config. The current
+      // borrower still uses it once (as connect-per-op would for an in-flight
+      // request); it's disconnected on release, and the next acquire builds fresh.
       if (this.disposed || (this.serverGenerations.get(params.serverId) ?? 0) !== generation) {
         entry.retired = true
-        void client.disconnect().catch(() => {})
         return entry
       }
       this.evictLruIfFull()

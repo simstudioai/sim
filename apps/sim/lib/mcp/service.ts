@@ -1008,6 +1008,11 @@ class McpService {
     }
   }
 
+  /**
+   * Invalidate the MCP tool cache. This does NOT evict pooled connections —
+   * pool eviction is tied to config changes (see `evictServerConnections`), so a
+   * refresh or a single-server edit doesn't tear down unrelated warm connections.
+   */
   async clearCache(workspaceId?: string): Promise<void> {
     try {
       if (workspaceId) {
@@ -1022,7 +1027,6 @@ class McpService {
           rows.flatMap((r) => [
             this.cacheAdapter.delete(serverCacheKey(workspaceId, r.id)),
             this.cacheAdapter.delete(failureCacheKey(workspaceId, r.id)),
-            mcpConnectionPool?.evictServer(r.id, 'cache cleared'),
           ])
         )
         logger.debug(`Cleared MCP tool cache for workspace ${workspaceId} (${rows.length} servers)`)
@@ -1033,6 +1037,11 @@ class McpService {
     } catch (error) {
       logger.warn('Failed to clear cache:', error)
     }
+  }
+
+  /** Evict a single server's warm pooled connections (all users) — call on config change/delete. */
+  async evictServerConnections(serverId: string, reason: string): Promise<void> {
+    await mcpConnectionPool?.evictServer(serverId, reason)
   }
 }
 

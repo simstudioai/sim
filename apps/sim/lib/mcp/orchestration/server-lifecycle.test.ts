@@ -14,12 +14,12 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockClearCache, mockOauthCredsChanged, mockRevokeOauthTokens, mockEvictServer } =
+const { mockClearCache, mockOauthCredsChanged, mockRevokeOauthTokens, mockEvictServerConnections } =
   vi.hoisted(() => ({
     mockClearCache: vi.fn(),
     mockOauthCredsChanged: vi.fn(),
     mockRevokeOauthTokens: vi.fn(),
-    mockEvictServer: vi.fn(),
+    mockEvictServerConnections: vi.fn(),
   }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -47,10 +47,10 @@ vi.mock('@/lib/mcp/oauth', () => ({
   revokeMcpOauthTokens: mockRevokeOauthTokens,
 }))
 vi.mock('@/lib/mcp/service', () => ({
-  mcpService: { clearCache: mockClearCache },
-}))
-vi.mock('@/lib/mcp/connection-pool', () => ({
-  mcpConnectionPool: { evictServer: mockEvictServer },
+  mcpService: {
+    clearCache: mockClearCache,
+    evictServerConnections: mockEvictServerConnections,
+  },
 }))
 vi.mock('@/lib/mcp/utils', () => ({ generateMcpServerId: vi.fn() }))
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
@@ -161,6 +161,6 @@ describe('MCP server lifecycle orchestration', () => {
     })
 
     expect(result.success).toBe(true)
-    expect(mockEvictServer).toHaveBeenCalledWith('server-1', expect.any(String))
+    expect(mockEvictServerConnections).toHaveBeenCalledWith('server-1', expect.any(String))
   })
 })
