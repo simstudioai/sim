@@ -85,6 +85,7 @@ export const AdanosBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['stock_sentiment', 'trending', 'market_sentiment'],
+        and: { field: 'assetType', value: 'crypto', not: true },
       },
     },
     {

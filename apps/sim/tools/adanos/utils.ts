@@ -16,12 +16,16 @@ const STOCK_SOURCE_PATHS: Record<AdanosStockSource, string> = {
   polymarket: '/polymarket/stocks/v1',
 }
 
+function isCryptoAssetType(assetType: AdanosAssetType) {
+  return assetType.trim().toLowerCase() === 'crypto'
+}
+
 export function getAdanosSource(assetType: AdanosAssetType, source?: AdanosStockSource) {
-  return assetType === 'crypto' ? 'reddit' : (source ?? 'reddit')
+  return isCryptoAssetType(assetType) ? 'reddit' : (source ?? 'reddit')
 }
 
 export function getAdanosBasePath(assetType: AdanosAssetType, source?: AdanosStockSource) {
-  if (assetType === 'crypto') {
+  if (isCryptoAssetType(assetType)) {
     return '/reddit/crypto/v1'
   }
 

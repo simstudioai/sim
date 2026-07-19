@@ -55,14 +55,16 @@ describe('Adanos request configuration', () => {
   it('builds a crypto trending URL with a bounded result limit', () => {
     const buildUrl = adanosTrendingTool.request.url as (params: {
       apiKey: string
-      assetType: 'crypto'
+      assetType: 'crypto' | ' Crypto '
       source: 'polymarket'
       limit: number
     }) => string
 
-    expect(buildUrl({ apiKey: 'key', assetType: 'crypto', source: 'polymarket', limit: 25 })).toBe(
-      'https://api.adanos.org/reddit/crypto/v1/trending?limit=25'
-    )
+    for (const assetType of ['crypto', ' Crypto '] as const) {
+      expect(buildUrl({ apiKey: 'key', assetType, source: 'polymarket', limit: 25 })).toBe(
+        'https://api.adanos.org/reddit/crypto/v1/trending?limit=25'
+      )
+    }
   })
 
   it('rejects unsupported stock sources and out-of-range limits', () => {
@@ -209,5 +211,15 @@ describe('Adanos block configuration', () => {
         endDate: '',
       })
     ).toMatchObject({ limit: 20, source: undefined, startDate: undefined, endDate: undefined })
+  })
+
+  it('hides stock source selection for crypto operations', () => {
+    const sourceBlock = AdanosBlock.subBlocks.find((subBlock) => subBlock.id === 'source')
+
+    expect(sourceBlock?.condition).toEqual({
+      field: 'operation',
+      value: ['stock_sentiment', 'trending', 'market_sentiment'],
+      and: { field: 'assetType', value: 'crypto', not: true },
+    })
   })
 })
