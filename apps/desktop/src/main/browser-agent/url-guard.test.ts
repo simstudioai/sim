@@ -56,9 +56,9 @@ describe('checkAgentUrl', () => {
     expect((await checkAgentUrl('https://mixed.test/')).ok).toBe(false)
   })
 
-  it('allows the load to proceed when DNS resolution fails', async () => {
+  it('fails closed when DNS resolution fails', async () => {
     mockLookup.mockRejectedValue(new Error('ENOTFOUND'))
-    expect((await checkAgentUrl('https://nope.invalid/')).ok).toBe(true)
+    expect((await checkAgentUrl('https://nope.invalid/')).ok).toBe(false)
   })
 })
 

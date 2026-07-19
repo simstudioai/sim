@@ -26,11 +26,13 @@ const BLOCKED: UrlGuardResult = {
  * fetches and blocks any that land on a private/reserved address.
  *
  * IP literals are classified directly; hostnames are DNS-resolved and every
- * returned address is checked. A resolution failure is not treated as a block —
- * an unresolvable host reaches nothing, and Chromium fails the load naturally.
- * The residual DNS-rebinding TOCTOU window (our lookup vs Chromium's) is only
- * fully closable with egress firewalling; {@link isBlockedRequestUrl} adds a
- * synchronous per-request literal-IP backstop for redirects and subresources.
+ * returned address is checked. Resolution failure fails CLOSED (blocks): we
+ * can't confirm the host is public, and Chromium resolves independently, so it
+ * could still reach a private address our lookup missed — matching
+ * `validateUrlWithDNS` in `apps/sim`. The residual DNS-rebinding TOCTOU window
+ * (our lookup vs Chromium's) is only fully closable with egress firewalling;
+ * {@link isBlockedRequestUrl} adds a synchronous per-request literal-IP backstop
+ * for redirects and subresources.
  */
 export async function checkAgentUrl(rawUrl: string): Promise<UrlGuardResult> {
   const url = parseHttpUrl(rawUrl)
@@ -56,10 +58,13 @@ export async function checkAgentUrl(rawUrl: string): Promise<UrlGuardResult> {
       return BLOCKED
     }
   } catch (error) {
-    logger.info('Agent navigation host did not resolve; letting the load fail naturally', {
+    // Fail closed: an unresolved host can't be confirmed public, and Chromium
+    // resolves independently, so it could still reach a private address.
+    logger.warn('Agent navigation host did not resolve; blocking', {
       host,
       error: getErrorMessage(error),
     })
+    return { ok: false, error: 'That address could not be resolved.' }
   }
 
   return OK
