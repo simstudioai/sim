@@ -128,6 +128,28 @@ const SUSPICIOUS_UA_PATTERNS = [
 /**
  * Handles authentication-based redirects for root paths
  */
+const LOCALE_PREFIX_PATTERN = /^\/(en|ru|de)(\/.*)?$/
+
+/**
+ * Locale is cookie-based (see lib/i18n/config.ts — no URL prefix routing), but
+ * /ru-style links circulate externally. Strip the prefix, persist the locale in
+ * the next-intl cookie, and redirect to the unprefixed path.
+ */
+function handleLocalePrefixRedirects(request: NextRequest): NextResponse | null {
+  const match = request.nextUrl.pathname.match(LOCALE_PREFIX_PATTERN)
+  if (!match) return null
+
+  const url = request.nextUrl.clone()
+  url.pathname = match[2] || '/'
+  const response = NextResponse.redirect(url)
+  response.cookies.set('NEXT_LOCALE', match[1], {
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: 'lax',
+  })
+  return response
+}
+
 function handleRootPathRedirects(
   request: NextRequest,
   hasActiveSession: boolean
@@ -250,6 +272,9 @@ export async function proxy(request: NextRequest) {
 
   const sessionCookie = getSessionCookie(request)
   const hasActiveSession = isAuthDisabled || !!sessionCookie
+
+  const localeRedirect = handleLocalePrefixRedirects(request)
+  if (localeRedirect) return track(request, localeRedirect)
 
   const redirect = handleRootPathRedirects(request, hasActiveSession)
   if (redirect) return track(request, redirect)
