@@ -9,6 +9,7 @@
  *   SIM_WORKSPACE=/path/to/sim bun run src/index.ts Stripe "..."
  */
 
+import { getErrorMessage } from "@sim/utils/errors";
 import { existsSync, readFileSync } from "node:fs";
 import { SimIntegrationAgent } from "./agent-sdk";
 
@@ -92,7 +93,7 @@ async function main() {
     await agent.run();
   } catch (error) {
     console.error("\n❌ Integration generation failed:");
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(getErrorMessage(error));
     process.exit(1);
   }
 }

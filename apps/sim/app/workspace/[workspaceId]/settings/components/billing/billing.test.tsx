@@ -38,7 +38,6 @@ vi.mock('@/lib/billing/client/provider', () => ({
 vi.mock('@sim/emcn', () => ({
   ArrowRight: () => <span />,
   ChipInput: (props: Record<string, unknown>) => <input {...(props as object)} />,
-  toast: { success: () => undefined, error: () => undefined },
   Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Chip: ({
     children,
@@ -81,7 +80,7 @@ vi.mock('@sim/emcn', () => ({
   },
   chipVariants: () => '',
   cn: (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' '),
-  toast: { error: vi.fn() },
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 vi.mock('@tanstack/react-query', () => ({

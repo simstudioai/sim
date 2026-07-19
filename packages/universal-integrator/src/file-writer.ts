@@ -5,6 +5,7 @@
  * Creates directories as needed. Supports dry-run mode.
  */
 
+import { getErrorMessage } from "@sim/utils/errors";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -75,7 +76,7 @@ export class FileWriter {
       await writeFile(absPath, file.content, "utf-8");
       return { path: file.path, action };
     } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
+      const error = getErrorMessage(err);
       return { path: file.path, action: "error", error };
     }
   }
