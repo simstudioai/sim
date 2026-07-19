@@ -320,7 +320,7 @@ function main(): void {
       closeSettings: closeSettingsWindow,
       applyOrigin,
       localFilesystem,
-      beginOAuthConnect: (providerId) => connectFlow.beginConnectHandoff(providerId),
+      beginOAuthConnect: (providerId, scope) => connectFlow.beginConnectHandoff(providerId, scope),
       launcher: {
         openChat: (target) => {
           launcher.hide()

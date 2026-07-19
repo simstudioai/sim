@@ -7,6 +7,7 @@ import type {
 } from '@sim/browser-protocol'
 import type {
   DesktopOAuthConnectResult,
+  DesktopOAuthConnectScope,
   LauncherShortcutSettings,
   LocalFilesystemRequest,
   LocalFilesystemResponse,
@@ -20,8 +21,8 @@ import { contextBridge, ipcRenderer } from 'electron'
  */
 const api: SimDesktopApi = {
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('desktop:open-external', url),
-  beginOAuthConnect: (providerId: string): Promise<boolean> =>
-    ipcRenderer.invoke('desktop:oauth-connect', providerId),
+  beginOAuthConnect: (providerId: string, scope?: DesktopOAuthConnectScope): Promise<boolean> =>
+    ipcRenderer.invoke('desktop:oauth-connect', providerId, scope),
   onOAuthConnectComplete: (callback: (result: DesktopOAuthConnectResult) => void): (() => void) => {
     const listener = (_event: unknown, result: DesktopOAuthConnectResult) => callback(result)
     ipcRenderer.on('desktop:oauth-connect-complete', listener)

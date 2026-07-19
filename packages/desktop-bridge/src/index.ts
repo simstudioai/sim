@@ -162,6 +162,17 @@ export interface DesktopOAuthConnectResult {
   error?: string
 }
 
+/**
+ * Optional scope for an OAuth connect handoff. Chip-initiated connects carry
+ * the workspace (the browser flow creates the workspace connect draft
+ * server-side) and, for reconnects, the credential to rebind. Modal-initiated
+ * connects omit both — the app already created the draft.
+ */
+export interface DesktopOAuthConnectScope {
+  workspaceId?: string
+  credentialId?: string
+}
+
 export interface SimDesktopApi {
   openExternal(url: string): Promise<boolean>
   /**
@@ -169,7 +180,7 @@ export interface SimDesktopApi {
    * the system browser and returns via loopback. Resolves false when the
    * browser could not be opened.
    */
-  beginOAuthConnect(providerId: string): Promise<boolean>
+  beginOAuthConnect(providerId: string, scope?: DesktopOAuthConnectScope): Promise<boolean>
   /**
    * Subscribe to connect-handoff completions (the app is refocused just
    * before this fires). Returns an unsubscribe function.

@@ -24,6 +24,14 @@ declare global {
 export function collectSnapshot(): unknown {
   const refCap = 300
   const lineCap = 600
+  // Surrogate-safe truncation: plain slice() cuts by UTF-16 code units and
+  // can split an astral character (emoji, 𝐛𝐨𝐥𝐝 text), leaving a lone high
+  // surrogate that is invalid JSON downstream (Postgres jsonb rejects it).
+  const cut = (s: string, n: number): string => {
+    const out = s.slice(0, n)
+    const last = out.charCodeAt(out.length - 1)
+    return last >= 0xd800 && last <= 0xdbff ? out.slice(0, -1) : out
+  }
   const interactiveSelector = [
     'a[href]',
     'button',
@@ -115,7 +123,7 @@ export function collectSnapshot(): unknown {
         el.getAttribute('name') ||
         ''
     }
-    return name.replace(/\s+/g, ' ').trim().slice(0, 120)
+    return cut(name.replace(/\s+/g, ' ').trim(), 120)
   }
 
   const push = (line: string): boolean => {
@@ -143,11 +151,11 @@ export function collectSnapshot(): unknown {
     ) {
       const isPassword = el instanceof HTMLInputElement && el.type === 'password'
       if (isPassword) role = 'password-field'
-      else if (el.value) parts.push(`value="${String(el.value).slice(0, 120)}"`)
+      else if (el.value) parts.push(`value="${cut(String(el.value), 120)}"`)
     }
     if (el.tagName === 'A') {
       const href = el.getAttribute('href')
-      if (href) parts.push(`href="${href.slice(0, 200)}"`)
+      if (href) parts.push(`href="${cut(href, 200)}"`)
     }
     if ((el as HTMLInputElement).disabled === true) parts.push('disabled')
     if ((el as HTMLInputElement).checked === true) parts.push('checked')
@@ -179,7 +187,7 @@ export function collectSnapshot(): unknown {
             : tag === 'aside'
               ? 'complementary'
               : tag)
-    const label = (el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim().slice(0, 80)
+    const label = cut((el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim(), 80)
     return label ? `${kind} "${label}"` : kind
   }
 
@@ -199,10 +207,7 @@ export function collectSnapshot(): unknown {
       } else {
         const level = headingLevel(el)
         if (level !== null && isVisible(el)) {
-          const text = ((el as HTMLElement).innerText || '')
-            .replace(/\s+/g, ' ')
-            .trim()
-            .slice(0, 160)
+          const text = cut(((el as HTMLElement).innerText || '').replace(/\s+/g, ' ').trim(), 160)
           if (text) push(`${indent}- heading "${text}" (h${level})`)
         } else if (el.matches(interactiveSelector) && isVisible(el)) {
           emitInteractive(el, indent)
@@ -267,7 +272,8 @@ export function clickElement(id: number): unknown {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 80)
-  return { clicked: true, element: label }
+  // Drop a trailing lone high surrogate the slice may have created.
+  return { clicked: true, element: label.replace(/[\uD800-\uDBFF]$/, '') }
 }
 
 /**
@@ -333,7 +339,12 @@ export function readActiveElementState(): unknown {
     activeElement: active.tagName.toLowerCase(),
     selectedChars,
     valueLength: value.length,
-    valuePreview: value.replace(/\s+/g, ' ').trim().slice(0, 120),
+    // Trailing regex drops a lone high surrogate the slice may have created.
+    valuePreview: value
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120)
+      .replace(/[\uD800-\uDBFF]$/, ''),
   }
 }
 
@@ -483,7 +494,8 @@ export function readPageText(id?: number): unknown {
   return {
     url: window.location.href,
     title: document.title,
-    text: trimmed.slice(0, maxChars),
+    // Trailing regex drops a lone high surrogate the slice may have created.
+    text: trimmed.slice(0, maxChars).replace(/[\uD800-\uDBFF]$/, ''),
     truncated: trimmed.length > maxChars,
   }
 }

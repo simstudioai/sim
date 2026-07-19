@@ -974,11 +974,35 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   const label = reconnectCredentialId
     ? `Reconnect ${reconnectCredential?.displayName ?? integrationName}`
     : `Connect ${integrationName}`
+
+  /**
+   * Desktop app: OAuth cannot run in an embedded window — not in the app
+   * window (better-auth binds the flow's state to the initiating browser's
+   * cookies) and not in the Sim browser panel (its partition isn't signed in
+   * to Sim, and Google/Microsoft reject embedded user agents outright). So
+   * the chip hands the whole flow to the system browser via the connect
+   * handoff, carrying the workspace/credential scope from the authorize URL;
+   * completion returns through the app's loopback and refreshes credentials.
+   */
+  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    const bridge = getDesktopBridge()
+    if (!bridge?.beginOAuthConnect || !data.value) return
+    event.preventDefault()
+    const url = new URL(data.value)
+    const providerId = url.searchParams.get('providerId') ?? data.provider
+    if (!providerId) return
+    void bridge.beginOAuthConnect(providerId, {
+      workspaceId: url.searchParams.get('workspaceId') ?? undefined,
+      credentialId: url.searchParams.get('credentialId') ?? undefined,
+    })
+  }
+
   return (
     <a
       href={data.value}
       target='_blank'
       rel='noopener noreferrer'
+      onClick={handleClick}
       className='flex items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
     >
       {createElement(Icon, { className: 'size-[16px] shrink-0' })}

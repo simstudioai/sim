@@ -57,9 +57,15 @@ export interface HandoffManagerDeps {
   now?: () => number
 }
 
+/** Optional scope a chip-initiated connect carries into /desktop/connect. */
+export interface ConnectScope {
+  workspaceId?: string
+  credentialId?: string
+}
+
 export interface HandoffManager {
   begin(): Promise<boolean>
-  beginConnect(providerId: string): Promise<boolean>
+  beginConnect(providerId: string, scope?: ConnectScope): Promise<boolean>
   consume(state: string, kind: HandoffKind): boolean
   clear(): void
 }
@@ -194,12 +200,16 @@ export function createHandoffManager(
     begin() {
       return beginFlow('login', '/desktop/auth', {})
     },
-    beginConnect(providerId: string) {
+    beginConnect(providerId: string, scope: ConnectScope = {}) {
       if (!PROVIDER_ID_PATTERN.test(providerId)) {
         logger.warn('Rejected connect handoff for invalid providerId')
         return Promise.resolve(false)
       }
-      return beginFlow('connect', '/desktop/connect', { provider: providerId })
+      return beginFlow('connect', '/desktop/connect', {
+        provider: providerId,
+        ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
+        ...(scope.credentialId ? { credentialId: scope.credentialId } : {}),
+      })
     },
     consume(state: string, kind: HandoffKind) {
       if (!pending || pending.kind !== kind) {
@@ -364,7 +374,7 @@ export interface ConnectFlowDeps {
 }
 
 export interface ConnectFlow {
-  beginConnectHandoff(providerId: string): Promise<boolean>
+  beginConnectHandoff(providerId: string, scope?: ConnectScope): Promise<boolean>
   handleCallback(callback: ConnectHandoffCallback): void
 }
 
@@ -379,8 +389,8 @@ export interface ConnectFlow {
  */
 export function createConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
   return {
-    async beginConnectHandoff(providerId: string) {
-      const opened = await deps.handoff.beginConnect(providerId)
+    async beginConnectHandoff(providerId: string, scope?: ConnectScope) {
+      const opened = await deps.handoff.beginConnect(providerId, scope)
       if (!opened) {
         deps.events.record('connect_handoff_open_fail')
       }

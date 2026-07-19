@@ -9,6 +9,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { filterUndefined } from '@sim/utils/object'
+import { sanitizeValueForJsonb } from '@sim/utils/string'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
@@ -273,6 +274,7 @@ export async function upsertAsyncToolCall(input: {
       }
 
       const now = new Date()
+      const args = sanitizeValueForJsonb(input.args ?? {})
       const [row] = await db
         .insert(copilotAsyncToolCalls)
         .values({
@@ -280,7 +282,7 @@ export async function upsertAsyncToolCall(input: {
           checkpointId: input.checkpointId ?? null,
           toolCallId: input.toolCallId,
           toolName: input.toolName,
-          args: input.args ?? {},
+          args,
           status: incomingStatus,
           updatedAt: now,
         })
@@ -290,7 +292,7 @@ export async function upsertAsyncToolCall(input: {
             runId: effectiveRunId,
             checkpointId: input.checkpointId ?? null,
             toolName: input.toolName,
-            args: input.args ?? {},
+            args,
             status: incomingStatus,
             updatedAt: now,
           },
@@ -354,7 +356,9 @@ async function markAsyncToolStatus(
           status,
           claimedBy: updates.claimedBy,
           claimedAt,
-          result: updates.result,
+          // Results carry client/page-derived text; lone UTF-16 surrogates or
+          // NULs in it would make the jsonb write throw (invalid JSON input).
+          result: sanitizeValueForJsonb(updates.result),
           error: updates.error,
           completedAt: updates.completedAt,
           updatedAt: new Date(),

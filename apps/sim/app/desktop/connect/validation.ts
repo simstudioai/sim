@@ -25,12 +25,32 @@ export function sanitizeOAuthErrorSlug(value: unknown): string | null {
   return ERROR_SLUG_PATTERN.test(value) ? value : 'oauth_error'
 }
 
+/** Workspace/credential ids are opaque tokens; anything else never reaches a URL. */
+const OPAQUE_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+
+export function isValidOpaqueId(value: unknown): value is string {
+  return typeof value === 'string' && OPAQUE_ID_PATTERN.test(value)
+}
+
+/** Optional connect scope forwarded from the desktop app's credential chips. */
+export interface ConnectScope {
+  workspaceId?: string
+  credentialId?: string
+}
+
 /**
  * Rebuilds the connect launcher's own path from validated parameters, for use
  * as the post-login callbackUrl.
  */
-export function buildDesktopConnectPath(providerId: string, state: string, port: number): string {
+export function buildDesktopConnectPath(
+  providerId: string,
+  state: string,
+  port: number,
+  scope: ConnectScope = {}
+): string {
   const params = new URLSearchParams({ provider: providerId, state, port: String(port) })
+  if (scope.workspaceId) params.set('workspaceId', scope.workspaceId)
+  if (scope.credentialId) params.set('credentialId', scope.credentialId)
   return `/desktop/connect?${params.toString()}`
 }
 

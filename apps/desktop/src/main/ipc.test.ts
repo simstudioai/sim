@@ -82,7 +82,19 @@ describe('registerIpcHandlers', () => {
     expect(deps.beginOAuthConnect).not.toHaveBeenCalled()
     expect(await handler?.(appEvent, 42)).toBe(false)
     expect(await handler?.(appEvent, 'slack')).toBe(true)
-    expect(deps.beginOAuthConnect).toHaveBeenCalledWith('slack')
+    expect(deps.beginOAuthConnect).toHaveBeenCalledWith('slack', {})
+
+    // Chip-initiated connects carry workspace/credential scope; malformed
+    // scopes (wrong types, unsafe ids) are rejected before the handoff.
+    expect(
+      await handler?.(appEvent, 'slack', { workspaceId: 'ws1', credentialId: 'cred_1' })
+    ).toBe(true)
+    expect(deps.beginOAuthConnect).toHaveBeenCalledWith('slack', {
+      workspaceId: 'ws1',
+      credentialId: 'cred_1',
+    })
+    expect(await handler?.(appEvent, 'slack', { workspaceId: 'ws/../evil' })).toBe(false)
+    expect(await handler?.(appEvent, 'slack', 'not-an-object')).toBe(false)
   })
 
   it('restricts local filesystem access to the app origin', async () => {

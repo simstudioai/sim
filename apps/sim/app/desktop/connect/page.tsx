@@ -2,12 +2,14 @@ import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isValidHandoffState, parseLoopbackPort } from '@/app/desktop/auth/validation'
 import { ConnectLauncher } from '@/app/desktop/connect/connect-launcher'
 import {
   buildConnectCompletePath,
   buildDesktopConnectPath,
   isValidOAuthProviderId,
+  isValidOpaqueId,
 } from '@/app/desktop/connect/validation'
 
 export const metadata: Metadata = {
@@ -48,6 +50,8 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   const providerId = typeof params.provider === 'string' ? params.provider : ''
   const state = typeof params.state === 'string' ? params.state : ''
   const port = parseLoopbackPort(typeof params.port === 'string' ? params.port : '')
+  const workspaceId = isValidOpaqueId(params.workspaceId) ? params.workspaceId : undefined
+  const credentialId = isValidOpaqueId(params.credentialId) ? params.credentialId : undefined
   if (!isValidOAuthProviderId(providerId) || !isValidHandoffState(state) || port === null) {
     return <InvalidRequest />
   }
@@ -58,8 +62,29 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   const session = await auth.api.getSession({ headers: hdrs, query: { disableCookieCache: true } })
   if (!session?.user) {
     redirect(
-      `/login?callbackUrl=${encodeURIComponent(buildDesktopConnectPath(providerId, state, port))}`
+      `/login?callbackUrl=${encodeURIComponent(
+        buildDesktopConnectPath(providerId, state, port, { workspaceId, credentialId })
+      )}`
     )
+  }
+
+  // Workspace-scoped connects (the copilot's credential chips) go through the
+  // authorize route, which owns the workspace access checks and the connect
+  // draft — including reconnect rebinding when a credentialId rides along.
+  // Modal-initiated connects have no workspaceId here (the desktop app already
+  // created the draft) and use the plain link flow below.
+  if (workspaceId) {
+    const authorize = new URL('/api/auth/oauth2/authorize', getBaseUrl())
+    authorize.searchParams.set('providerId', providerId)
+    authorize.searchParams.set('workspaceId', workspaceId)
+    authorize.searchParams.set(
+      'callbackURL',
+      `${getBaseUrl()}${buildConnectCompletePath(state, port)}`
+    )
+    if (credentialId) {
+      authorize.searchParams.set('credentialId', credentialId)
+    }
+    redirect(authorize.toString())
   }
 
   return (

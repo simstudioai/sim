@@ -23,7 +23,8 @@ import {
 } from '@/lib/api/contracts/mothership-chats'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
-import { initBrowserAgentTransport } from '@/lib/browser-agent/transport'
+import { onOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
+import { initBrowserAgentTransport, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
@@ -1642,6 +1643,17 @@ export function useChat(
     },
     [addResource]
   )
+
+  // Chat links clicked in the desktop app open in the embedded browser panel
+  // (message components dispatch the request; this hook owns the resource).
+  useEffect(() => {
+    return onOpenInBrowserPanel((url) => {
+      if (addResource({ type: 'browser', id: BROWSER_SESSION_RESOURCE_ID, title: 'Browser' })) {
+        onResourceEventRef.current?.()
+      }
+      sendBrowserPanelAction('navigate', { url })
+    })
+  }, [addResource])
 
   const recoverPendingClientWorkflowTools = useCallback(
     async (nextMessages: ChatMessage[]) => {

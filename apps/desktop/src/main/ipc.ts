@@ -36,6 +36,42 @@ export function parseLauncherOpenChatTarget(raw: unknown): LauncherOpenChatTarge
   return { workspaceId, ...(chatId !== undefined ? { chatId } : {}) }
 }
 
+export interface OAuthConnectScope {
+  workspaceId?: string
+  credentialId?: string
+}
+
+/**
+ * Validates the optional connect-handoff scope: absent is fine, but a present
+ * scope must be an object whose ids are opaque tokens (they are embedded into
+ * the /desktop/connect URL). Returns undefined for malformed payloads.
+ */
+export function parseOAuthConnectScope(raw: unknown): OAuthConnectScope | undefined {
+  if (raw === undefined || raw === null) {
+    return {}
+  }
+  if (typeof raw !== 'object') {
+    return undefined
+  }
+  const { workspaceId, credentialId } = raw as { workspaceId?: unknown; credentialId?: unknown }
+  if (
+    workspaceId !== undefined &&
+    (typeof workspaceId !== 'string' || !ID_PATTERN.test(workspaceId))
+  ) {
+    return undefined
+  }
+  if (
+    credentialId !== undefined &&
+    (typeof credentialId !== 'string' || !ID_PATTERN.test(credentialId))
+  ) {
+    return undefined
+  }
+  return {
+    ...(workspaceId !== undefined ? { workspaceId } : {}),
+    ...(credentialId !== undefined ? { credentialId } : {}),
+  }
+}
+
 /** Validates a renderer-reported panel rect (finite numbers or explicit null). */
 export function parsePanelBounds(
   raw: unknown
@@ -67,7 +103,7 @@ export interface IpcDeps {
   closeSettings: () => void
   applyOrigin: (raw: string) => Promise<OriginValidation>
   localFilesystem: LocalFilesystemService
-  beginOAuthConnect: (providerId: string) => Promise<boolean>
+  beginOAuthConnect: (providerId: string, scope: OAuthConnectScope) => Promise<boolean>
   launcher: {
     openChat: (target: LauncherOpenChatTarget) => void
     openApp: () => void
@@ -131,8 +167,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'invoke',
       gate: 'app-origin',
       denied: false,
-      handler: (providerId) =>
-        typeof providerId === 'string' ? deps.beginOAuthConnect(providerId) : false,
+      handler: (providerId, scope) => {
+        if (typeof providerId !== 'string') {
+          return false
+        }
+        const parsedScope = parseOAuthConnectScope(scope)
+        if (parsedScope === undefined) {
+          return false
+        }
+        return deps.beginOAuthConnect(providerId, parsedScope)
+      },
     },
     'desktop:local-filesystem': {
       kind: 'invoke',
