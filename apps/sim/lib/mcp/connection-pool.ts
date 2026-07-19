@@ -107,11 +107,11 @@ export class McpConnectionPool {
   private async tryReuse(entry: PoolEntry): Promise<PoolEntry | null> {
     const now = Date.now()
     if (now - entry.createdAt > MAX_CONNECTION_AGE_MS) {
-      this.retire(entry)
+      this.retire(entry, 'max age reached')
       return null
     }
     if (!entry.client.getStatus().connected) {
-      this.retire(entry)
+      this.retire(entry, 'not connected')
       return null
     }
     if (now - entry.lastLivenessCheckAt > LIVENESS_TTL_MS) {
@@ -123,11 +123,12 @@ export class McpConnectionPool {
       // ping await; don't hand out a connection that's already closing.
       if (entry.retired) return null
       if (!alive) {
-        this.retire(entry)
+        this.retire(entry, 'liveness ping failed')
         return null
       }
       entry.lastLivenessCheckAt = now
     }
+    logger.debug(`Reusing pooled MCP connection ${entry.key}`)
     return entry
   }
 
@@ -164,6 +165,9 @@ export class McpConnectionPool {
       this.entries.set(params.key, entry)
       client.onClose(this.makeCloseHandler(entry))
       this.ensureIdleCheck()
+      logger.debug(
+        `Established and pooled MCP connection ${params.key} (${this.entries.size}/${MAX_POOL_SIZE})`
+      )
       return entry
     })()
 
@@ -176,22 +180,26 @@ export class McpConnectionPool {
   private async release(entry: PoolEntry, poison: boolean): Promise<void> {
     entry.borrowers = Math.max(0, entry.borrowers - 1)
     entry.lastActivityAt = Date.now()
-    if (poison) this.retire(entry)
+    if (poison) this.retire(entry, 'poisoned by failed operation')
     await this.closeIfIdle(entry)
   }
 
   /** Own scope so the handler captures only `entry` (never the create params / secrets). */
   private makeCloseHandler(entry: PoolEntry): () => void {
     return () => {
-      if (this.entries.get(entry.key) === entry) this.retire(entry)
+      if (this.entries.get(entry.key) === entry) this.retire(entry, 'transport closed')
     }
   }
 
   /** Remove `entry` from the pool so no new borrower takes it; close it once idle. */
-  private retire(entry: PoolEntry): void {
+  private retire(entry: PoolEntry, reason: string): void {
     if (!entry.retired) {
       entry.retired = true
       if (this.entries.get(entry.key) === entry) this.entries.delete(entry.key)
+      logger.debug(`Retiring pooled MCP connection ${entry.key}: ${reason}`, {
+        borrowers: entry.borrowers,
+        poolSize: this.entries.size,
+      })
     }
     void this.closeIfIdle(entry)
   }
@@ -199,7 +207,7 @@ export class McpConnectionPool {
   private async closeIfIdle(entry: PoolEntry): Promise<void> {
     if (!entry.retired || entry.borrowers > 0 || entry.closing) return
     entry.closing = true
-    logger.info(`Closing pooled MCP connection ${entry.key}`)
+    logger.debug(`Closing pooled MCP connection ${entry.key}`)
     await entry.client.disconnect().catch((error) => {
       logger.warn(`Error disconnecting pooled MCP connection ${entry.key}:`, error)
     })
@@ -211,10 +219,7 @@ export class McpConnectionPool {
     // instead of pooling a connection built against the now-stale config.
     this.serverGenerations.set(serverId, (this.serverGenerations.get(serverId) ?? 0) + 1)
     for (const entry of this.entries.values()) {
-      if (entry.serverId === serverId) {
-        logger.info(`Evicting pooled MCP connection ${entry.key}: ${reason}`)
-        this.retire(entry)
-      }
+      if (entry.serverId === serverId) this.retire(entry, reason)
     }
   }
 
@@ -225,7 +230,7 @@ export class McpConnectionPool {
       if (!lru || entry.lastActivityAt < lru.lastActivityAt) lru = entry
     }
     // Retiring a still-borrowed LRU frees the map slot now; its socket closes on release.
-    if (lru) this.retire(lru)
+    if (lru) this.retire(lru, 'pool at capacity (LRU)')
   }
 
   private ensureIdleCheck(): void {
@@ -234,7 +239,7 @@ export class McpConnectionPool {
       const now = Date.now()
       for (const entry of this.entries.values()) {
         if (entry.borrowers === 0 && now - entry.lastActivityAt > IDLE_TIMEOUT_MS)
-          this.retire(entry)
+          this.retire(entry, 'idle timeout')
       }
       if (this.entries.size === 0 && this.idleCheckTimer) {
         clearInterval(this.idleCheckTimer)
