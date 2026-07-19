@@ -70,6 +70,14 @@ export function createHandoffManager(
     }
   }
 
+  /** Constant-time, non-consuming check that a callback's state matches the live
+   * pending handoff. Gates the callback so a wrong/expired state is ignored
+   * without consuming the pending handoff or surfacing a failure. */
+  const matchesPendingState = (state: string): boolean =>
+    pending !== null &&
+    now() - pending.createdAt <= HANDOFF_TTL_MS &&
+    safeCompare(pending.state, state)
+
   const startLoopback = async (): Promise<number | undefined> => {
     stopLoopback()
     const server = createServer((request, response) => {
@@ -87,11 +95,14 @@ export function createHandoffManager(
       response
         .writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
         .end(CALLBACK_RESPONSE_HTML)
-      // Do NOT tear the server down here: a request with a format-valid but
-      // wrong state must not kill the one-shot listener before the genuine
-      // callback arrives. `consume()` stops the server once the state actually
-      // validates (via clear()); the TTL timer is the backstop otherwise.
-      onCallback({ token, state })
+      // Only a state match advances the flow. A format-valid but wrong/expired
+      // state gets the generic 200 page and is otherwise ignored: the one-shot
+      // listener survives for the genuine callback (TTL is the backstop) and no
+      // spurious "sign-in failed" UI fires. `consume()` in the callback path
+      // re-validates and tears the server down once the real state lands.
+      if (matchesPendingState(state)) {
+        onCallback({ token, state })
+      }
     })
     loopbackServer = server
     try {

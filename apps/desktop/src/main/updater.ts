@@ -237,9 +237,19 @@ export function checkForUpdatesInteractive(deps: UpdaterDeps): void {
   if (!autoUpdater) {
     return
   }
-  void autoUpdater.checkForUpdates().then((result) => {
-    if (!result || result.updateInfo.version === app.getVersion()) {
-      void dialog.showMessageBox({ type: 'info', message: 'Sim is up to date' })
-    }
-  })
+  void autoUpdater
+    .checkForUpdates()
+    .then((result) => {
+      if (!result || result.updateInfo.version === app.getVersion()) {
+        void dialog.showMessageBox({ type: 'info', message: 'Sim is up to date' })
+      }
+    })
+    .catch((error) => {
+      logger.error('Manual update check failed', { error })
+      void dialog.showMessageBox({
+        type: 'error',
+        message: 'Could not check for updates',
+        detail: 'Something went wrong reaching the update server. Try again later.',
+      })
+    })
 }

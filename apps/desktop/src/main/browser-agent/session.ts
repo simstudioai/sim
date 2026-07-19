@@ -79,12 +79,19 @@ function configureAgentPartition(ses: Session): void {
   // document's check).
   ses.webRequest.onBeforeRequest((details, callback) => {
     if (details.resourceType === 'mainFrame' || details.resourceType === 'subFrame') {
-      void checkAgentUrl(details.url).then((guard) => {
-        if (!guard.ok) {
-          logger.warn('Blocked agent document navigation to a private host')
-        }
-        callback({ cancel: !guard.ok })
-      })
+      void checkAgentUrl(details.url)
+        .then((guard) => {
+          if (!guard.ok) {
+            logger.warn('Blocked agent document navigation to a private host')
+          }
+          callback({ cancel: !guard.ok })
+        })
+        .catch((error) => {
+          // Fail closed: an unexpected rejection must cancel, never leave the
+          // request suspended with no callback.
+          logger.error('Agent SSRF check failed; cancelling request', { error })
+          callback({ cancel: true })
+        })
       return
     }
     callback({ cancel: isBlockedRequestUrl(details.url) })

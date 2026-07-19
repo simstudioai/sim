@@ -97,11 +97,13 @@ describe('createHandoffManager', () => {
     expect(received).toHaveLength(0)
 
     // A format-valid but WRONG state must NOT tear down the one-shot listener
-    // (self-DoS guard) — the server stays up for the genuine callback.
+    // (self-DoS guard) and must NOT fire the callback — firing it would surface
+    // a spurious "sign-in failed" UI while the genuine callback is still pending.
     const wrongState = 'z'.repeat(state.length)
     expect(
       (await fetch(`${base}/auth/callback?token=${VALID_TOKEN}&state=${wrongState}`)).status
     ).toBe(200)
+    expect(received).toHaveLength(0)
     expect(manager.consume(wrongState)).toBe(false)
 
     // The genuine callback still lands while the server is up.
