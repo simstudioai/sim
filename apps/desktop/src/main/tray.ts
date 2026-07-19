@@ -6,8 +6,14 @@ import { isSafeInternalPath } from '@/main/config'
 
 const logger = createLogger('DesktopTray')
 
-const RECENT_CHATS_LIMIT = 5
-const CHATS_FETCH_TIMEOUT_MS = 1500
+/** Chats shown inline at the top of the menu. */
+const RECENT_CHATS_INLINE = 5
+/** Total chats kept (inline + the "More" hover submenu). */
+const RECENT_CHATS_TOTAL = 30
+// Generous: the refresh is async (a click always pops the cached menu
+// immediately), so a slow dev-server compile just delays the NEXT open's
+// recents instead of dropping them.
+const CHATS_FETCH_TIMEOUT_MS = 5000
 const CHATS_API_PATH = '/api/copilot/chats'
 
 export interface RecentChat {
@@ -23,7 +29,7 @@ export interface RecentChat {
  */
 export function parseRecentChats(
   payload: unknown,
-  limit: number = RECENT_CHATS_LIMIT
+  limit: number = RECENT_CHATS_TOTAL
 ): RecentChat[] {
   if (typeof payload !== 'object' || payload === null) {
     return []
@@ -57,6 +63,10 @@ export function parseRecentChats(
   return result
 }
 
+export function chatRoute(chat: RecentChat): string {
+  return `/workspace/${chat.workspaceId}/chat/${chat.id}`
+}
+
 /**
  * Route for a tray-initiated "New Chat": the home (chat) surface of the
  * workspace the user was last in, falling back to the workspace picker
@@ -72,60 +82,53 @@ export function newChatRoute(lastRoute: string | undefined): string {
   return '/workspace'
 }
 
-export function chatRoute(chat: RecentChat): string {
-  return `/workspace/${chat.workspaceId}/chat/${chat.id}`
-}
-
 export interface TrayDeps {
   partition: () => string
   appOrigin: () => string
   lastRoute: () => string | undefined
-  /** Shortcut hint shown next to Quick Ask ('disabled' hides the hint). */
-  launcherShortcut: () => string
   openMainWindow: (route?: string) => void
-  toggleLauncher: () => void
-  /** Open Quick Ask in voice mode (mic focused, replies spoken aloud). */
-  toggleLauncherVoice: () => void
   openSettings: () => void
-  checkForUpdates: () => void
 }
 
+function chatMenuItem(chat: RecentChat, deps: TrayDeps): MenuItemConstructorOptions {
+  return {
+    label: chat.title.length > 60 ? `${chat.title.slice(0, 57)}…` : chat.title,
+    click: () => deps.openMainWindow(chatRoute(chat)),
+  }
+}
+
+/**
+ * Menu shape (modeled on ChatGPT's status item): a Recent section with the
+ * newest chats inline and the rest under a "More" hover submenu, then New
+ * Chat / Open Sim, then Settings / Quit.
+ */
 export function buildTrayMenuTemplate(
   deps: TrayDeps,
   recentChats: RecentChat[]
 ): MenuItemConstructorOptions[] {
-  const shortcut = deps.launcherShortcut()
-  const template: MenuItemConstructorOptions[] = [
-    { label: 'Open Sim', click: () => deps.openMainWindow() },
-    { label: 'New Chat', click: () => deps.openMainWindow(newChatRoute(deps.lastRoute())) },
-    {
-      label: 'Quick Ask',
-      // Display-only hint: the actual binding is the globalShortcut
-      // registration; tray menu accelerators on macOS render but never fire.
-      ...(shortcut !== 'disabled' ? { accelerator: shortcut } : {}),
-      click: () => deps.toggleLauncher(),
-    },
-    {
-      label: 'Voice Mode',
-      click: () => deps.toggleLauncherVoice(),
-    },
-    { type: 'separator' },
-  ]
+  const template: MenuItemConstructorOptions[] = []
   if (recentChats.length > 0) {
-    template.push({ label: 'Recent Chats', enabled: false })
-    for (const chat of recentChats) {
+    template.push({ label: 'Recent', enabled: false })
+    for (const chat of recentChats.slice(0, RECENT_CHATS_INLINE)) {
+      template.push(chatMenuItem(chat, deps))
+    }
+    const overflow = recentChats.slice(RECENT_CHATS_INLINE)
+    if (overflow.length > 0) {
       template.push({
-        label: chat.title.length > 60 ? `${chat.title.slice(0, 57)}…` : chat.title,
-        click: () => deps.openMainWindow(chatRoute(chat)),
+        label: 'More',
+        submenu: overflow.map((chat) => chatMenuItem(chat, deps)),
       })
     }
     template.push({ type: 'separator' })
   }
   template.push(
-    { label: 'Settings…', click: () => deps.openSettings() },
-    { label: 'Check for Updates…', click: () => deps.checkForUpdates() },
+    { label: 'New Chat', click: () => deps.openMainWindow(newChatRoute(deps.lastRoute())) },
+    { label: 'Open Sim', click: () => deps.openMainWindow() },
     { type: 'separator' },
-    { label: 'Quit Sim', role: 'quit' }
+    { label: 'Settings…', click: () => deps.openSettings() },
+    // Plain item, not role:'quit' — macOS Tahoe auto-decorates standard roles
+    // with SF Symbol icons and the ⌘Q badge, which this menu doesn't want.
+    { label: 'Quit Sim', click: () => app.quit() }
   )
   return template
 }

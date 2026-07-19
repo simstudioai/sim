@@ -156,12 +156,8 @@ export interface SimDesktopLauncherApi {
   close(): void
   /** Grow/shrink the panel to fit content; the main process clamps. */
   resize(height: number): void
-  /**
-   * Fires each time the panel is summoned. `voice` is true when opened via
-   * Voice Mode (mic focused, replies spoken aloud). Returns an unsubscribe
-   * function.
-   */
-  onShown(callback: (payload: { voice: boolean }) => void): () => void
+  /** Fires each time the panel is summoned. Returns an unsubscribe function. */
+  onShown(callback: () => void): () => void
 }
 
 export interface SimDesktopApi {

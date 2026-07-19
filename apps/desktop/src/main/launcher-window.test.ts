@@ -2,17 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-// Same module instance the vi.mock factory returns, with mock-typed statics.
-import { BrowserWindow } from '@/test/electron-mock'
 import {
   clampLauncherHeight,
   createLauncherWindow,
   LAUNCHER_MAX_HEIGHT,
   LAUNCHER_MIN_HEIGHT,
   LAUNCHER_WIDTH,
-  launcherBoundsFor,
   type LauncherWindowDeps,
+  launcherBoundsFor,
 } from '@/main/launcher-window'
+// Same module instance the vi.mock factory returns, with mock-typed statics.
+import { BrowserWindow } from '@/test/electron-mock'
 
 type MockWindow = InstanceType<typeof BrowserWindow>
 
@@ -82,7 +82,7 @@ describe('createLauncherWindow', () => {
     expect(win.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
     expect(win.webContents.loadURL).toHaveBeenCalledWith('https://sim.ai/desktop/launcher')
     expect(win.show).toHaveBeenCalledTimes(1)
-    expect(win.webContents.send).toHaveBeenCalledWith('launcher:shown', { voice: false })
+    expect(win.webContents.send).toHaveBeenCalledWith('launcher:shown')
   })
 
   it('toggle hides a visible panel and re-shows a hidden one without recreating', () => {

@@ -62,9 +62,8 @@ const api: SimDesktopApi = {
     resize: (height: number): void => {
       ipcRenderer.send('launcher:resize', height)
     },
-    onShown: (callback: (payload: { voice: boolean }) => void): (() => void) => {
-      const listener = (_event: unknown, payload?: { voice?: boolean }) =>
-        callback({ voice: payload?.voice === true })
+    onShown: (callback: () => void): (() => void) => {
+      const listener = () => callback()
       ipcRenderer.on('launcher:shown', listener)
       return () => {
         ipcRenderer.removeListener('launcher:shown', listener)
