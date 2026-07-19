@@ -3,7 +3,8 @@ import type { ToolConfig } from '@/tools/types'
 export const stripeListProductsTool: ToolConfig = {
   id: 'stripe_list_products',
   name: 'List Available Products',
-  description: 'Retrieves a list of all products defined in the Stripe dashboard. Used for catalog management.',
+  description:
+    'Retrieves a list of all products defined in the Stripe dashboard. Used for catalog management.',
   version: '1.0.0',
 
   params: {
@@ -27,13 +28,12 @@ export const stripeListProductsTool: ToolConfig = {
   },
 
   request: {
-    url: () => `https://api.stripe.com//v1/products`,
+    url: () => `https://api.stripe.com/v1/products`,
     method: () => 'GET',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
-
   },
 
   transformResponse: async (response: Response) => {

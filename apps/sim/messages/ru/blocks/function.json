@@ -1,0 +1,13 @@
+{
+  "code": "Код",
+  "console_log_output_and_debug_messages_from_function": "Выход в консоль кода и отладочные сообщения из выполнения функции",
+  "describe_the_function_you_want_to_create": "Опишите функцию, которую вы хотите создать...",
+  "execution_timeout": "Время ожидания выполнения",
+  "function": "Функция",
+  "javascript_or_python_code_to_execute": "JavaScript или Python-код для выполнения",
+  "language_javascript_or_python": "Язык (JavaScript или Python)",
+  "return_value_from_the_executed_javascript_function": "Возвращаемое значение выполненной JavaScript функции",
+  "run_custom_logic": "Выполнить собственную логику",
+  "select_language": "Выберите язык",
+  "this_is_a_core_workflow_block_execute_custom": "Это базовый блок воркфлоу. Выполните собственное JavaScript или Python код внутри вашего воркфлоу. JavaScript без импорта выполняется локально для быстрого выполнения, а код с импортами или Python используется E2B-сандбокс."
+}

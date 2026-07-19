@@ -1,0 +1,8 @@
+{
+  "initiate_your_workflow_manually_with_optional_structured_input": "Beginnen Sie den Workflow manuell mit optionalem strukturiertem Eingabedaten.",
+  "input_format": "Eingabeformat",
+  "name_and_type_define_your_input_schema_value": "Name und Typ definieren Ihren Eingabeschema. Wert wird nur für manuelle Testlaufwerke verwendet.",
+  "start_workflow": "Starten Sie den Workflow",
+  "starter": "Starter",
+  "workflow_input_data": "Workflow-Eingabedaten"
+}

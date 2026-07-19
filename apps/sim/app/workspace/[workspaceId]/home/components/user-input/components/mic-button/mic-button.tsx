@@ -1,9 +1,9 @@
 'use client'
 
 import React from 'react'
+import { useTranslations } from 'next-intl'
 import { Mic, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { useTranslations } from 'next-intl'
 
 interface MicButtonProps {
   isListening: boolean

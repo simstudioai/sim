@@ -8,7 +8,12 @@ import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/env-flags'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { getBlock } from '@/blocks/registry'
-import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
+import {
+  AuthMode,
+  type BlockConfig,
+  isHiddenFromDisplay,
+  type SubBlockConfig,
+} from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { tools as toolsRegistry } from '@/tools/registry'
@@ -25,7 +30,7 @@ interface CopilotSubblockMetadata {
   layout?: string
   mode?: string
   hidden?: boolean
-  condition?: any
+  condition?: unknown
   // Dropdown/combobox options
   options?: { id: string; label?: string; hasIcon?: boolean }[]
   // Numeric constraints
@@ -51,12 +56,12 @@ interface CopilotSubblockMetadata {
   // Other properties
   connectionDroppable?: boolean
   columns?: string[]
-  wandConfig?: any
+  wandConfig?: unknown
   availableTriggers?: string[]
   triggerProvider?: string
   dependsOn?: string[]
   canonicalParamId?: string
-  defaultValue?: any
+  defaultValue?: unknown
   value?: string // 'function' if it's a function, undefined otherwise
 }
 
@@ -64,14 +69,14 @@ interface CopilotToolMetadata {
   id: string
   name: string
   description?: string
-  inputs?: any
-  outputs?: any
+  inputs?: unknown
+  outputs?: unknown
 }
 
 interface CopilotTriggerMetadata {
   id: string
-  outputs?: any
-  configFields?: any
+  outputs?: unknown
+  configFields?: unknown
 }
 
 interface CopilotBlockMetadata {
@@ -80,7 +85,7 @@ interface CopilotBlockMetadata {
   description: string
   bestPractices?: string
   inputSchema: CopilotSubblockMetadata[]
-  inputDefinitions?: Record<string, any>
+  inputDefinitions?: Record<string, unknown>
   triggerAllowed?: boolean
   authType?: 'OAuth' | 'API Key' | 'Bot Token'
   tools: CopilotToolMetadata[]
@@ -92,17 +97,17 @@ interface CopilotBlockMetadata {
       toolId?: string
       toolName?: string
       description?: string
-      inputs?: Record<string, any>
-      outputs?: Record<string, any>
+      inputs?: Record<string, unknown>
+      outputs?: Record<string, unknown>
       inputSchema?: CopilotSubblockMetadata[]
     }
   >
-  outputs?: Record<string, any>
+  outputs?: Record<string, unknown>
   yamlDocumentation?: string
 }
 
 const GetBlocksMetadataInputSchema = z.object({ blockIds: z.array(z.string()).min(1) })
-const GetBlocksMetadataResultSchema = z.object({ metadata: z.record(z.string(), z.any()) })
+const GetBlocksMetadataResultSchema = z.object({ metadata: z.record(z.string(), z.unknown()) })
 
 export const getBlocksMetadataServerTool: BaseServerTool<
   z.infer<typeof GetBlocksMetadataInputSchema>,
@@ -132,7 +137,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         continue
       }
 
-      let metadata: any
+      let metadata: Record<string, unknown>
 
       if (SPECIAL_BLOCKS_METADATA[blockId]) {
         const specialBlock = SPECIAL_BLOCKS_METADATA[blockId]
@@ -196,7 +201,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
               (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') &&
               !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)
             ) {
-              const fieldDef: any = {
+              const fieldDef: Record<string, unknown> = {
                 type: subBlock.type,
                 required: subBlock.required || false,
               }
@@ -207,10 +212,12 @@ export const getBlocksMetadataServerTool: BaseServerTool<
               if (subBlock.defaultValue !== undefined) fieldDef.default = subBlock.defaultValue
 
               if (subBlock.options && Array.isArray(subBlock.options)) {
-                fieldDef.options = subBlock.options.map((opt: any) => ({
-                  id: opt.id,
-                  label: opt.label || opt.id,
-                }))
+                fieldDef.options = subBlock.options.map(
+                  (opt: { id: string; label?: string; hasIcon?: boolean }) => ({
+                    id: opt.id,
+                    label: opt.label || opt.id,
+                  })
+                )
               }
 
               if (subBlock.condition) {
@@ -335,7 +342,9 @@ export const getBlocksMetadataServerTool: BaseServerTool<
   },
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const transformed: any = {
     blockType: metadata.id,
     name: metadata.name,
@@ -414,7 +423,9 @@ function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
   if (metadata.triggers && metadata.triggers.length > 0) {
     transformed.triggers = metadata.triggers.map((t) => ({
       id: t.id,
-      outputs: formatOutputsFromDefinition(t.outputs || {}),
+      outputs: formatOutputsFromDefinition(
+        (t.outputs as Record<string, unknown>) || ({} as Record<string, unknown>)
+      ),
       configFields: t.configFields || {},
     }))
   }
@@ -427,11 +438,11 @@ function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
 }
 
 function extractInputs(metadata: CopilotBlockMetadata): {
-  required: any[]
-  optional: any[]
+  required: Record<string, unknown>[]
+  optional: Record<string, unknown>[]
 } {
-  const required: any[] = []
-  const optional: any[] = []
+  const required: Record<string, unknown>[] = []
+  const optional: Record<string, unknown>[] = []
   const inputDefs = metadata.inputDefinitions || {}
 
   for (const schema of metadata.inputSchema || []) {
@@ -444,14 +455,15 @@ function extractInputs(metadata: CopilotBlockMetadata): {
       continue
     }
 
-    const inputDef = inputDefs[schema.id] || inputDefs[schema.canonicalParamId || '']
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const inputDef: any = inputDefs[schema.id] || inputDefs[schema.canonicalParamId || '']
 
     let description = schema.description || inputDef?.description || schema.title
     if (schema.id === 'operation') {
       description = 'Operation to perform'
     }
 
-    const input: any = {
+    const input: Record<string, unknown> = {
       name: schema.id,
       type: mapSchemaTypeToSimpleType(schema.type, schema),
       description,
@@ -501,25 +513,25 @@ function extractInputs(metadata: CopilotBlockMetadata): {
 }
 
 function extractOperationInputs(
-  opData: any,
+  opData: Record<string, unknown>,
   blockLevelInputs: Set<string>
 ): {
-  required: any[]
-  optional: any[]
+  required: Record<string, unknown>[]
+  optional: Record<string, unknown>[]
 } {
-  const required: any[] = []
-  const optional: any[] = []
-  const inputs = opData.inputs || {}
+  const required: Record<string, unknown>[] = []
+  const optional: Record<string, unknown>[] = []
+  const inputs = (opData.inputs || {}) as Record<string, Record<string, unknown>>
 
   for (const [key, inputDef] of Object.entries(inputs)) {
     if (blockLevelInputs.has(key)) {
       continue
     }
 
-    const input: any = {
+    const input: Record<string, unknown> = {
       name: key,
-      type: (inputDef as any)?.type || 'string',
-      description: (inputDef as any)?.description,
+      type: inputDef?.type || 'string',
+      description: inputDef?.description as string | undefined,
     }
 
     if ((inputDef as any)?.enum) {
@@ -544,8 +556,8 @@ function extractOperationInputs(
   return { required, optional }
 }
 
-function extractOutputs(metadata: CopilotBlockMetadata): any[] {
-  const outputs: any[] = []
+function extractOutputs(metadata: CopilotBlockMetadata): Record<string, unknown>[] {
+  const outputs: Record<string, unknown>[] = []
 
   if (metadata.outputs && Object.keys(metadata.outputs).length > 0) {
     return formatOutputsFromDefinition(metadata.outputs)
@@ -559,18 +571,23 @@ function extractOutputs(metadata: CopilotBlockMetadata): any[] {
   return outputs
 }
 
-function formatOutputsFromDefinition(outputDefs: Record<string, any>): any[] {
-  const outputs: any[] = []
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function formatOutputsFromDefinition(
+  outputDefs: Record<string, unknown>
+): Record<string, unknown>[] {
+  const outputs: Record<string, unknown>[] = []
 
   for (const [key, def] of Object.entries(outputDefs)) {
-    const output: any = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const defAny: any = def
+    const output: Record<string, unknown> = {
       name: key,
-      type: typeof def === 'string' ? def : def?.type || 'any',
+      type: typeof def === 'string' ? def : defAny?.type || 'any',
     }
 
-    if (typeof def === 'object') {
-      if (def.description) output.description = def.description
-      if (def.example) output.example = def.example
+    if (typeof def === 'object' && def !== null) {
+      if (defAny.description) output.description = defAny.description
+      if (defAny.example) output.example = defAny.example
     }
 
     outputs.push(output)
@@ -604,7 +621,10 @@ function mapSchemaTypeToSimpleType(schemaType: string, schema: CopilotSubblockMe
   return mappedType
 }
 
-function generateInputExample(schema: CopilotSubblockMetadata, inputDef?: any): any {
+function generateInputExample(
+  schema: CopilotSubblockMetadata,
+  inputDef?: Record<string, unknown>
+): unknown {
   if (inputDef?.example !== undefined) return inputDef.example
 
   switch (schema.type) {
@@ -632,6 +652,7 @@ function generateInputExample(schema: CopilotSubblockMetadata, inputDef?: any): 
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function processSubBlock(sb: any): CopilotSubblockMetadata {
   const processed: CopilotSubblockMetadata = {
     id: sb.id,
@@ -647,7 +668,7 @@ function processSubBlock(sb: any): CopilotSubblockMetadata {
     mode: sb.mode,
     hidden: sb.hidden,
     canonicalParamId: sb.canonicalParamId,
-    defaultValue: sb.defaultValue,
+    defaultValue: sb.defaultValue as CopilotSubblockMetadata['defaultValue'],
 
     // Numeric constraints
     min: sb.min,
@@ -781,7 +802,9 @@ function callOptionsWithFallback(
   }
 
   // Store original getState if it exists
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let originalGetState: (() => any) | undefined
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let store: any
 
   try {
@@ -809,21 +832,23 @@ function callOptionsWithFallback(
 }
 
 function resolveSubblockOptions(
-  sb: any
+  sb: SubBlockConfig
 ): { id: string; label?: string; hasIcon?: boolean }[] | undefined {
   // Skip if subblock uses fetchOptions (async network calls)
-  if (sb.fetchOptions) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((sb as any).fetchOptions) {
     return undefined
   }
 
-  let rawOptions: any[] | undefined
+  let rawOptions: { id: string; label?: string; hasIcon?: boolean }[] | undefined
 
   try {
     if (typeof sb.options === 'function') {
       // Try calling with fallback data injection for store-dependent options
-      rawOptions = callOptionsWithFallback(sb.options)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      rawOptions = callOptionsWithFallback(sb.options as () => any[])
     } else {
-      rawOptions = sb.options
+      rawOptions = sb.options as { id: string; label?: string; hasIcon?: boolean }[] | undefined
     }
   } catch {
     // Options function failed even with fallback, skip
@@ -835,6 +860,7 @@ function resolveSubblockOptions(
   }
 
   const normalized = rawOptions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((opt: any) => {
       if (!opt) return undefined
 
@@ -860,9 +886,11 @@ function resolveSubblockOptions(
   return normalized.length > 0 ? normalized : undefined
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function removeNullish(obj: any): any {
   if (!obj || typeof obj !== 'object') return obj
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cleaned: any = Array.isArray(obj) ? [] : {}
 
   for (const [key, value] of Object.entries(obj)) {
@@ -874,6 +902,7 @@ function removeNullish(obj: any): any {
   return cleaned
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalizeCondition(condition: any): any | undefined {
   try {
     if (!condition) return undefined
@@ -886,8 +915,10 @@ function normalizeCondition(condition: any): any | undefined {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function splitParametersByOperation(
   subBlocks: any[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   blockInputsForDescriptions?: Record<string, any>
 ): {
   commonParameters: CopilotSubblockMetadata[]
@@ -901,6 +932,7 @@ function splitParametersByOperation(
     const processed = processSubBlock(sb)
 
     if (cond && cond.field === 'operation' && !cond.not && cond.value !== undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const values: any[] = Array.isArray(cond.value) ? cond.value : [cond.value]
       for (const v of values) {
         const key = String(v)
@@ -926,12 +958,13 @@ function splitParametersByOperation(
   return { commonParameters, operationParameters }
 }
 
-function computeBlockLevelInputs(blockConfig: BlockConfig): Record<string, any> {
+function computeBlockLevelInputs(blockConfig: BlockConfig): Record<string, unknown> {
   const inputs = blockConfig.inputs || {}
-  const subBlocks: any[] = Array.isArray(blockConfig.subBlocks)
+  const subBlocks: SubBlockConfig[] = Array.isArray(blockConfig.subBlocks)
     ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced')
     : []
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const byParamKey: Record<string, any[]> = {}
   for (const sb of subBlocks) {
     if (sb.id) {

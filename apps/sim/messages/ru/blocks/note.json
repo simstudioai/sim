@@ -1,0 +1,8 @@
+{
+  "add_context_or_instructions_for_collaborators": "Добавьте контекст или инструкции для коллег...",
+  "add_contextual_annotations_directly_onto_the_workflow_canvas": "Добавьте контекстные заметки напрямую на холст воркфлоу.",
+  "markdown_text_for_the_note": "Markdown текст для заметки.",
+  "note": "Заметка",
+  "use_note_blocks_to_document_decisions_share_instructions": "Используйте блоки заметок, чтобы документировать решения, делиться инструкциями или оставлять контекст для коллег напрямую на холст воркфлоу. Заметки поддерживают отображение Markdown и встраиваемых видео из YouTube.",
+  "write_your_note_using_markdown_youtube_links_will": "Напишите свою заметку с использованием Markdown. Ссылки на YouTube будут отображаться как встраиваемые видео."
+}

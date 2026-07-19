@@ -11,7 +11,8 @@ export async function GET() {
       if (!page || !page.data || !page.url) return false
 
       const pathParts = page.url.split('/').filter(Boolean)
-      const hasLangPrefix = pathParts[0] && ['es', 'fr', 'de', 'ja', 'zh', 'ru'].includes(pathParts[0])
+      const hasLangPrefix =
+        pathParts[0] && ['es', 'fr', 'de', 'ja', 'zh', 'ru'].includes(pathParts[0])
 
       return !hasLangPrefix
     })

@@ -3,9 +3,9 @@
 import React from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
+import { useTranslations } from 'next-intl'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/emcn'
 import type { ChangelogEntry } from '@/app/changelog/components/changelog-content'
-import { useTranslations } from 'next-intl'
 
 type Props = { initialEntries: ChangelogEntry[] }
 

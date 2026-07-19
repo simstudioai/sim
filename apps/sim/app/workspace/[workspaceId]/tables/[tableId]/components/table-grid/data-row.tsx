@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { useTranslations } from 'next-intl'
 import { Button, Checkbox } from '@/components/emcn'
 import { PlayOutline, Square } from '@/components/emcn/icons'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
@@ -19,7 +20,6 @@ import {
 } from './constants'
 import type { DisplayColumn } from './types'
 import { type NormalizedSelection, resolveCellExec } from './utils'
-import { useTranslations } from 'next-intl'
 
 export interface DataRowProps {
   row: TableRowType

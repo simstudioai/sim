@@ -1,0 +1,20 @@
+{
+  "company_domain_resolver": "Company domain resolver",
+  "company_profile_enricher": "Company profile enricher",
+  "crm_enrichment_sweep": "CRM-enrichment-Sweep",
+  "data_enrichment": "Daten-Enrichment",
+  "enrich_data_with_a_sim_enrichment": "Enrich Daten mit einem Sim-Enrichment.",
+  "enrichment": "Enrichment",
+  "enrichment_to_run": "Enrichment ausführen",
+  "find_a_verified_work_email_for_a_contact": "Gibt einen verifizierten Arbeitse-Mail-Adresse für eine Kontakt aufgrund ihres vollständigen Namens und der Firmendomäne über die Work-E-Mail-Enrichment finden.",
+  "inbound_lead_qualifier": "Einbahn-Lead-Qualifier",
+  "name_to_full_contact_pipeline": "Name in Vollkontakt-Pipeline umwandeln",
+  "phone_number_lookup": "Telefonnummer-Suchanfrage",
+  "provider_whose_result_was_returned_e_g_hunter": "Gewerteter Anbieter (z.B. \"Hunter\", \"People Data Labs\")",
+  "pull_firmographics_industry_headcount_founded_year_description_f": "Pull firmographics (industrie, Mitarbeiterzahl, Gründungsjahr, Beschreibung) für eine Firmendomain über die Company Info-Verfeinerung aus.",
+  "run_a_sim_enrichment_to_look_up_data": "Führe eine Sim-Verfeinerung durch, um Daten zu suchen — Arbeitse-Mail, Telefonnummer, Firmendomain, Firmendaten und mehr — aus den Feldern zu verwenden, die du in der Tabelle-Verfeinerung definiert hast. Nutzt dieselbe Kaskadenanbieter-Kette wie bei den Tabellenerfasserungen.",
+  "take_a_prospect_name_and_company_resolve_the": "Suche einen potenziellen Namen und eine Firma auf, um die Domain zu entschleiernen, dann finde die Arbeitse-Mail und die Telefonnummer, um ein komplettes Kontaktprofil zusammenzustellen.",
+  "target_account_researcher": "Zielkundenforscher",
+  "whether_the_enrichment_found_a_result": "Ob die Verfeinerung ein Ergebnis gefunden hat",
+  "work_email_finder": "Arbeitse-Mail-Finder"
+}

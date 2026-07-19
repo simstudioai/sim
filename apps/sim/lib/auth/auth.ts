@@ -40,13 +40,13 @@ import {
 } from '@/lib/billing/core/subscription'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import { provisionLagoBillingForUser } from '@/lib/billing/lago/provision'
-import { promotePlatformAdminByEmail } from '@/lib/billing/platform-admin'
 import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
+import { promotePlatformAdminByEmail } from '@/lib/billing/platform-admin'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -64,7 +64,6 @@ import {
 import { env } from '@/lib/core/config/env'
 import {
   isAuthDisabled,
-  isBillingEnabled,
   isEmailPasswordEnabled,
   isEmailSignupDisabled,
   isEmailVerificationEnabled,
@@ -716,24 +715,24 @@ export const auth = betterAuth({
     ...(!isGithubAuthDisabled &&
       env.GITHUB_CLIENT_ID &&
       env.GITHUB_CLIENT_SECRET && {
-      github: {
-        clientId: env.GITHUB_CLIENT_ID,
-        clientSecret: env.GITHUB_CLIENT_SECRET,
-        scope: ['user:email', 'repo'],
-      },
-    }),
+        github: {
+          clientId: env.GITHUB_CLIENT_ID,
+          clientSecret: env.GITHUB_CLIENT_SECRET,
+          scope: ['user:email', 'repo'],
+        },
+      }),
     ...(!isGoogleAuthDisabled &&
       env.GOOGLE_CLIENT_ID &&
       env.GOOGLE_CLIENT_SECRET && {
-      google: {
-        clientId: env.GOOGLE_CLIENT_ID,
-        clientSecret: env.GOOGLE_CLIENT_SECRET,
-        scope: [
-          'https://www.googleapis.com/auth/userinfo.email',
-          'https://www.googleapis.com/auth/userinfo.profile',
-        ],
-      },
-    }),
+        google: {
+          clientId: env.GOOGLE_CLIENT_ID,
+          clientSecret: env.GOOGLE_CLIENT_SECRET,
+          scope: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+          ],
+        },
+      }),
     ...(!isMicrosoftAuthDisabled &&
       env.MICROSOFT_CLIENT_ID &&
       env.MICROSOFT_CLIENT_SECRET && {

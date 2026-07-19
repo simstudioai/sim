@@ -1,0 +1,16 @@
+{
+  "async": "Async",
+  "iso_timestamp_at_which_a_suspended_wait_will": "ISO timestamp at which a suspended wait will resume (long waits only)",
+  "max_5_minutes_300_seconds_enable_async_for": "Максимум 5 минут (300 секунды). Включите Async для до 30 дней.",
+  "pause_workflow_execution_for_a_time_interval": "Пауза выполнения воркфлоу на определенный временной интервал",
+  "pauses_workflow_execution_for_a_specified_time_interval": "Призма выполнения воркфлоу на заданное время. По умолчанию, пауза выполняется в памяти до 5 минут. Включите Async для того чтобы запаузить выполнение на диске и автоматически продолжить выполнение после 30 дней.",
+  "run_the_wait_asynchronously_to_allow_durations_up": "Запуск паузы асинхронно для обеспечения длительности до 30 дней",
+  "status_of_the_wait_block_waiting_completed_cancelled": "Статус блока ожидания (ожидает, завершено, отменено)",
+  "unit": "Единица измерения",
+  "wait": "Ожидание",
+  "wait_amount": "Количество ожидания",
+  "wait_duration_in_milliseconds": "Длительность ожидания в миллисекундах",
+  "wait_duration_unit_when_async_is_off_seconds": "Единица измерения длительности при отключенной асинхронной паузе (в секундах или минутах)",
+  "wait_duration_unit_when_async_is_on_minutes": "Ожидание в единицах времени при асинхронном выполнении (минуты, часы или дни)",
+  "wait_duration_value": "Значение ожидания в секундах"
+}

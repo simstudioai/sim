@@ -7,14 +7,17 @@ import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { setLocalCreditBalance } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { mapLagoPlanToSimPlan } from '@/lib/billing/lago/config'
-import { fromLagoCustomerExternalId, fromLagoSubscriptionExternalId } from '@/lib/billing/lago/external-ids'
+import {
+  fromLagoCustomerExternalId,
+  fromLagoSubscriptionExternalId,
+} from '@/lib/billing/lago/external-ids'
 import { upsertLocalSubscriptionFromLago } from '@/lib/billing/lago/subscriptions'
-import { getLagoWalletBalance } from '@/lib/billing/lago/wallets'
 import type {
   LagoWebhookEnvelope,
   LagoWebhookSubscription,
   LagoWebhookWallet,
 } from '@/lib/billing/lago/types'
+import { getLagoWalletBalance } from '@/lib/billing/lago/wallets'
 import { handleSubscriptionCreated } from '@/lib/billing/webhooks/subscription'
 import { env } from '@/lib/core/config/env'
 
@@ -29,7 +32,10 @@ function parseLagoDate(value: string | null | undefined): Date | null {
 /**
  * Verifies the `X-Lago-Signature` HMAC header when a webhook secret is configured.
  */
-export function verifyLagoWebhookSignature(rawBody: string, signatureHeader: string | null): boolean {
+export function verifyLagoWebhookSignature(
+  rawBody: string,
+  signatureHeader: string | null
+): boolean {
   const secret = env.LAGO_WEBHOOK_SECRET?.trim()
   if (!secret) {
     return true
@@ -111,9 +117,12 @@ async function handleLagoWalletTransactionWebhook(payload: LagoWebhookEnvelope):
   const txn = payload.wallet_transaction as { external_customer_id?: string } | undefined
   const externalCustomerId = txn?.external_customer_id
   if (!externalCustomerId) {
-    logger.info('Lago wallet_transaction webhook without customer reference; relying on wallet.updated', {
-      webhookType: payload.webhook_type,
-    })
+    logger.info(
+      'Lago wallet_transaction webhook without customer reference; relying on wallet.updated',
+      {
+        webhookType: payload.webhook_type,
+      }
+    )
     return
   }
   const entity = fromLagoCustomerExternalId(externalCustomerId)

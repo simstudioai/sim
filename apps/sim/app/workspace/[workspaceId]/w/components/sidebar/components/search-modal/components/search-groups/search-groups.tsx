@@ -3,6 +3,7 @@
 import type { ComponentType } from 'react'
 import { memo } from 'react'
 import { Command } from 'cmdk'
+import { useTranslations } from 'next-intl'
 import { Database, Table } from '@/components/emcn/icons'
 import {
   MemoizedActionItem,
@@ -29,7 +30,6 @@ import type {
   SearchDocItem,
   SearchToolOperationItem,
 } from '@/stores/modals/search/types'
-import { useTranslations } from 'next-intl'
 
 export const ActionsGroup = memo(function ActionsGroup({
   items,

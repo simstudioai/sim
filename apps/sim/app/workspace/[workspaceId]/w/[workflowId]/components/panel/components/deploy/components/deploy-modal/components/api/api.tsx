@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Check, Clipboard } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   ButtonGroup,

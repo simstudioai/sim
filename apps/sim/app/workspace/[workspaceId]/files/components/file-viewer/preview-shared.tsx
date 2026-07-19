@@ -65,7 +65,7 @@ export class PreviewErrorBoundary extends Component<
       return (
         <PreviewError
           label={this.props.label}
-          error={this.state.error?.message ?? tI18n('an_unexpected_error_occurred')}
+          error={this.state.error?.message ?? 'An unexpected error occurred'}
         />
       )
     }

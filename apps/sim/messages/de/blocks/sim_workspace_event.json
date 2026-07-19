@@ -1,0 +1,4 @@
+{
+  "run_this_workflow_when_workspace_events_occur_run": "Führen Sie diesen Workflow beim Auftreten von Arbeitsbereichsauftragen durch: Fehler oder Erfolge, Bereitstellungen und Bedingungen wie Latenz oder Kostenauswüchse.",
+  "sim_workspace_events": "Sim Arbeitsbereichsaufträge"
+}

@@ -324,6 +324,7 @@ import { WorkdayBlock, WorkdayBlockMeta } from '@/blocks/blocks/workday'
 import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { WorkflowInputBlock } from '@/blocks/blocks/workflow_input'
 import { XBlock, XBlockMeta } from '@/blocks/blocks/x'
+import { YandexMusicBlock, YandexMusicBlockMeta } from '@/blocks/blocks/yandex_music'
 import { YouTubeBlock, YouTubeBlockMeta } from '@/blocks/blocks/youtube'
 import { ZendeskBlock, ZendeskBlockMeta } from '@/blocks/blocks/zendesk'
 import { ZepBlock, ZepBlockMeta } from '@/blocks/blocks/zep'
@@ -331,7 +332,6 @@ import { ZeroBounceBlock, ZeroBounceBlockMeta } from '@/blocks/blocks/zerobounce
 import { ZoomBlock, ZoomBlockMeta } from '@/blocks/blocks/zoom'
 import { ZoomInfoBlock, ZoomInfoBlockMeta } from '@/blocks/blocks/zoominfo'
 import type {
-import { YandexMusicBlock, YandexMusicBlockMeta } from '@/blocks/blocks/yandex_music'
   BlockCategory,
   BlockConfig,
   BlockMeta,

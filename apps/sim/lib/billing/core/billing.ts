@@ -25,11 +25,11 @@ import type { DbClient } from '@/lib/db/types'
 
 export { getPlanPricing }
 
-import { isLagoBillingProvider } from '@/lib/core/config/env-flags'
+import { createLogger } from '@sim/logger'
 import { lagoRequest } from '@/lib/billing/lago/client'
 import { mapLagoStatusToSimStatus } from '@/lib/billing/lago/subscriptions'
 import type { LagoSubscriptionResponse } from '@/lib/billing/lago/types'
-import { createLogger } from '@sim/logger'
+import { isLagoBillingProvider } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('Billing')
 
@@ -74,12 +74,7 @@ export async function getOrganizationSubscription(
 
     // When the subscription is managed by Lago, refresh the status from Lago's API
     // so callers always see the authoritative state.
-    if (
-      sub &&
-      sub.billingProvider === 'lago' &&
-      isLagoBillingProvider &&
-      sub.lagoSubscriptionId
-    ) {
+    if (sub && sub.billingProvider === 'lago' && isLagoBillingProvider && sub.lagoSubscriptionId) {
       try {
         const lagoSub = await lagoRequest<LagoSubscriptionResponse>(
           'GET',

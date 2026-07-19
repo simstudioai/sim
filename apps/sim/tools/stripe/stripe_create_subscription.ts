@@ -3,7 +3,8 @@ import type { ToolConfig } from '@/tools/types'
 export const stripeCreateSubscriptionTool: ToolConfig = {
   id: 'stripe_create_subscription',
   name: 'Create Recurring Subscription',
-  description: 'Sets up a recurring billing cycle for a customer using a specific price ID. Essential for SaaS models.',
+  description:
+    'Sets up a recurring billing cycle for a customer using a specific price ID. Essential for SaaS models.',
   version: '1.0.0',
 
   params: {
@@ -13,7 +14,7 @@ export const stripeCreateSubscriptionTool: ToolConfig = {
       visibility: 'user-or-llm',
       description: 'The Stripe Customer ID to subscribe.',
     },
-    items[].price: {
+    price: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
@@ -33,14 +34,14 @@ export const stripeCreateSubscriptionTool: ToolConfig = {
   },
 
   request: {
-    url: () => `https://api.stripe.com//v1/subscriptions`,
+    url: () => `https://api.stripe.com/v1/subscriptions`,
     method: () => 'POST',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const { apiKey, ...bodyParams } = params
+      const { apiKey: _apiKey, ...bodyParams } = params
       return bodyParams
     },
   },

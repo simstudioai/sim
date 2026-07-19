@@ -1,6 +1,7 @@
 'use client'
 
 import { ArrowLeftRight, Info } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@/components/emcn'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import type {
@@ -9,7 +10,6 @@ import type {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import type { SelectorKey } from '@/hooks/selectors/types'
-import { useTranslations } from 'next-intl'
 
 export interface ConnectorConfigFieldsProps {
   /** Registry definition whose `configFields` drive the rendered rows. */

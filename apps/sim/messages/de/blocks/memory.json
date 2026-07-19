@@ -1,0 +1,20 @@
+{
+  "add_memory_store": "Hinzufügen einer Speicherkonstante",
+  "agent_role": "Agent-Rolle",
+  "content": "Inhalt",
+  "conversation_id": "Konversation-ID",
+  "conversation_identifier": "Kontaktdaten-ID",
+  "enter_conversation_id_e_g_user_123": "Geben Sie die Konversations-ID (z.B. user-123) ein",
+  "enter_message_content": "Geben Sie das Nachrichteninhaltszeichenfolge ein",
+  "integrate_memory_into_the_workflow_can_add_get": "Integrieren Sie Speicher in den Workflow. Es können Speichern hinzugefügt, abgerufen, alle Speicher abgerufen und Speicher gelöscht werden.",
+  "memory": "Speicher",
+  "memory_content": "Speicherinhalt",
+  "memory_data": "Speicher-Daten",
+  "memory_identifier": "Speicher-ID",
+  "memory_identifier_conversation_id": "Speicheridentifikator (Konversation-ID)",
+  "operation": "Aktion",
+  "operation_to_perform": "Die zu ausf\"hrende Aktion",
+  "role": "Rolle",
+  "select_agent_role": "Wählen Sie den Agenten-Rollen",
+  "select_operation": "Wählen Sie eine Operation aus"
+}

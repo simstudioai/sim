@@ -1,0 +1,4 @@
+{
+  "run_this_workflow_when_workspace_events_occur_run": "Вы можете запустить этот воркфлоу при возникновении событий рабочего пространства: ошибок или успехов, деплойментов и условий, таких как задержка или рост затрат.",
+  "sim_workspace_events": "Sim Workspace Events"
+}

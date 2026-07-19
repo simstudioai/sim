@@ -36,7 +36,7 @@ export const yandexMusicCreatePlaylistTool: ToolConfig = {
     url: () => `https://api.yandex.ru/music/v1/v1/playlists`,
     method: () => 'POST',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

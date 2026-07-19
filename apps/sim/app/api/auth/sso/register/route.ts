@@ -115,6 +115,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers[key] = value
     })
 
+    // Dynamic config for Better Auth registerSSOProvider - shape varies by provider type
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const providerConfig: any = {
       providerId,
       issuer,
@@ -163,6 +165,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
       }
 
+      // Dynamic OIDC config built from request body and discovery
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const oidcConfig: any = {
         clientId,
         clientSecret,
@@ -403,6 +407,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   </IDPSSODescriptor>
 </EntityDescriptor>`
 
+      // Dynamic SAML config built from request body
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const samlConfig: any = {
         entryPoint,
         cert,

@@ -1,0 +1,17 @@
+{
+  "enter_language_e_g_spanish_french_etc": "Введите язык (например, испанский, французский и т.д.)",
+  "enter_the_text_you_want_to_translate": "Введите текст для перевода",
+  "integrate_translate_into_the_workflow_can_translate_text": "Интегрируйте перевод в рабочем процессе. Могут переводить текст на любой язык.",
+  "model": "Модель",
+  "model_used": "Используемая модель",
+  "system_prompt": "Системный запрос",
+  "target_language": "Целевый язык",
+  "text_to_translate": "Текст для трансляции",
+  "token_usage": "Использованные токены",
+  "translate": "Переведите",
+  "translate_text_to_any_language": "Перевести в любую лингвистическую систему",
+  "translate_to": "Переводить в любую лингвистическую систему",
+  "translated_text": "Переведено текстом.",
+  "translation_instructions": "Инструкции по переводу.",
+  "type_or_select_a_model": "Введите или выберите модель..."
+}

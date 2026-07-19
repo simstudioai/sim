@@ -432,7 +432,8 @@ export function createPinnedFetch(resolvedIP: string): typeof fetch {
     return response as unknown as Response
   }
 
-  return pinned
+  // double-cast-allowed: Node 26's typeof fetch adds preconnect; our pinned wrapper is structural subset
+  return pinned as unknown as typeof fetch
 }
 
 /**

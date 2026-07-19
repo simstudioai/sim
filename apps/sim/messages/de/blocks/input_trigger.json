@@ -1,0 +1,7 @@
+{
+  "define_the_json_input_schema_for_this_workflow": "Definiere den JSON-Eingabeschlüssel für diesen Workflow beim Manuell ausführen.",
+  "input_form_legacy": "Eingabeformular (Altes)",
+  "input_format": "Eingabeformat",
+  "legacy_manual_start_block_with_structured_input_prefer": "Altes manuelles Startblock mit strukturiertem Eingabeverhalten. Verwende Startblock bevorzugstes.",
+  "manually_trigger_the_workflow_from_the_editor_with": "Manuelle Ausführung des Workflows vom Editor mit einem strukturierten Eingabeschlüssel. Dies ermöglicht die typisierte Eingabe für Elternworkflows, um inzuspielen."
+}

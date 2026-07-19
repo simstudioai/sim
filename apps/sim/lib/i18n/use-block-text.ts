@@ -1,7 +1,7 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
 import { useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { blockI18nKey } from '@/lib/i18n/block-key'
 
 /**

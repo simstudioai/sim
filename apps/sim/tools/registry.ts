@@ -3500,6 +3500,14 @@ import {
 } from '@/tools/ssh'
 import { stagehandAgentTool, stagehandExtractTool } from '@/tools/stagehand'
 import {
+  stripeCreateChargeTool,
+  stripeCreateCheckoutSessionTool,
+  stripeCreateSubscriptionTool,
+  stripeListProductsTool,
+  stripeRetrieveCustomerTool,
+  stripeWebhookListenTool,
+} from '@/tools/stripe'
+import {
   stsAssumeRoleTool,
   stsGetAccessKeyInfoTool,
   stsGetCallerIdentityTool,
@@ -3542,28 +3550,6 @@ import {
   supabaseUpsertTool,
   supabaseVectorSearchTool,
 } from '@/tools/supabase'
-import {
-  stripeCoreTool,
-  stripeCustomersTool,
-  stripeSubscriptionsTool,
-  stripeChargesTool,
-  stripePaymentsTool,
-  stripePaymentMethodsTool,
-  stripeInvoicesTool,
-  stripeProductsTool,
-  stripeCouponsTool,
-  stripeRefundsTool,
-  stripeTransfersTool,
-  stripeDisputesTool,
-  stripeSourcesTool,
-  stripeWebhooksTool,
-  stripeFilesTool,
-  stripeFinancialTool,
-  stripeTaxTool,
-  stripeBillingPortalTool,
-  stripeCheckoutTool,
-  stripeAdvancedTool,
-} from '@/tools/stripe'
 import {
   tableBatchInsertRowsTool,
   tableCreateTool,
@@ -4012,6 +3998,14 @@ import {
   xWriteTool,
 } from '@/tools/x'
 import {
+  yandexMusicAddTracksToPlaylistTool,
+  yandexMusicCreatePlaylistTool,
+  yandexMusicGetTrackDetailsTool,
+  yandexMusicGetUserProfileTool,
+  yandexMusicSearchAlbumsTool,
+  yandexMusicSearchTracksTool,
+} from '@/tools/yandex_music'
+import {
   youtubeChannelInfoTool,
   youtubeChannelPlaylistsTool,
   youtubeChannelVideosTool,
@@ -4075,22 +4069,6 @@ import {
   zoomUpdateMeetingTool,
 } from '@/tools/zoom'
 import {
-import {
-import {
-  yandexMusicSearchTracksTool,
-  yandexMusicGetTrackDetailsTool,
-  yandexMusicCreatePlaylistTool,
-  yandexMusicAddTracksToPlaylistTool,
-  yandexMusicGetUserProfileTool,
-  yandexMusicSearchAlbumsTool,
-} from '@/tools/yandex_music'
-  stripeCreateChargeTool,
-  stripeRetrieveCustomerTool,
-  stripeCreateCheckoutSessionTool,
-  stripeListProductsTool,
-  stripeCreateSubscriptionTool,
-  stripeWebhookListenTool,
-} from '@/tools/stripe'
   zoominfoEnrichCompaniesTool,
   zoominfoEnrichContactsTool,
   zoominfoSearchCompaniesTool,
@@ -7825,26 +7803,6 @@ export const tools: Record<string, ToolConfig> = {
   square_create_catalog_image: squareCreateCatalogImageTool,
   square_delete_catalog_object: squareDeleteCatalogObjectTool,
   square_batch_retrieve_inventory_counts: squareBatchRetrieveInventoryCountsTool,
-  stripe_core: stripeCoreTool,
-  stripe_customers: stripeCustomersTool,
-  stripe_subscriptions: stripeSubscriptionsTool,
-  stripe_charges: stripeChargesTool,
-  stripe_payments: stripePaymentsTool,
-  stripe_payment_methods: stripePaymentMethodsTool,
-  stripe_invoices: stripeInvoicesTool,
-  stripe_products: stripeProductsTool,
-  stripe_coupons: stripeCouponsTool,
-  stripe_refunds: stripeRefundsTool,
-  stripe_transfers: stripeTransfersTool,
-  stripe_disputes: stripeDisputesTool,
-  stripe_sources: stripeSourcesTool,
-  stripe_webhooks: stripeWebhooksTool,
-  stripe_files: stripeFilesTool,
-  stripe_financial: stripeFinancialTool,
-  stripe_tax: stripeTaxTool,
-  stripe_billing_portal: stripeBillingPortalTool,
-  stripe_checkout: stripeCheckoutTool,
-  stripe_advanced: stripeAdvancedTool,
   upstash_redis_get: upstashRedisGetTool,
   upstash_redis_set: upstashRedisSetTool,
   upstash_redis_delete: upstashRedisDeleteTool,

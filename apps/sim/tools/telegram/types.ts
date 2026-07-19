@@ -242,7 +242,24 @@ export interface Update {
 }
 
 export interface MessageEntity {
-  type: 'mention' | 'hashtag' | 'cashtag' | 'bot_command' | 'url' | 'email' | 'phone_number' | 'bold' | 'italic' | 'underline' | 'strikethrough' | 'spoiler' | 'code' | 'pre' | 'text_link' | 'text_mention' | 'custom_emoji'
+  type:
+    | 'mention'
+    | 'hashtag'
+    | 'cashtag'
+    | 'bot_command'
+    | 'url'
+    | 'email'
+    | 'phone_number'
+    | 'bold'
+    | 'italic'
+    | 'underline'
+    | 'strikethrough'
+    | 'spoiler'
+    | 'code'
+    | 'pre'
+    | 'text_link'
+    | 'text_mention'
+    | 'custom_emoji'
   offset: number
   length: number
   url?: string
@@ -611,7 +628,7 @@ export interface VideoChatScheduled {
   start_date: number
 }
 
-export interface VideoChatStarted {}
+export type VideoChatStarted = {}
 
 export interface VideoChatEnded {
   duration: number
@@ -645,13 +662,13 @@ export interface ForumTopicEdited {
   icon_custom_emoji_id?: string
 }
 
-export interface ForumTopicClosed {}
+export type ForumTopicClosed = {}
 
-export interface ForumTopicReopened {}
+export type ForumTopicReopened = {}
 
-export interface GeneralForumTopicHidden {}
+export type GeneralForumTopicHidden = {}
 
-export interface GeneralForumTopicUnhidden {}
+export type GeneralForumTopicUnhidden = {}
 
 export interface GiveawayCreated {
   prize_star_count?: number

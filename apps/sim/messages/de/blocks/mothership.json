@@ -1,0 +1,21 @@
+{
+  "attachments": "Anhänge",
+  "chat_id_to_continue_generated_when_omitted": "Chat-ID zum Fortfahren; bei Leerstellen generiert",
+  "chat_id_used_for_this_request": "Generierte Chat-ID für diese Anfrage",
+  "conversation_id": "Konversation-ID",
+  "cost_of_the_execution": "Ausführungskosten",
+  "e_g_user_123_session_abc_customer_456": "z.B. user-123, session-abc, customer-456",
+  "enter_your_prompt_for_sim": "Geben Sie Ihre Anweisung für Sim ein...",
+  "files_to_send_to_sim_as_attachments": "Dateien an Sim als Anhänge zu senden",
+  "generated_response_content": "Erzeugte Antwort-Inhalt",
+  "model_used_for_generation": "Generierungsmodell",
+  "prompt": "Anweisung",
+  "reference_files_from_previous_blocks": "Vorherige Blöcke ausgewiesene Referenzdateien",
+  "sim": "Sim",
+  "talk_to_sim": "Sagen Sie 'Sim' zu mir.",
+  "the_prompt_to_send_to_sim": "Der Text für die Verwendung mit dem Sim-Block an Sim zu senden.",
+  "the_sim_block_sends_messages_to_sim_which": "Der Sim-Block sendet Nachrichten an Sim, der Zugang zu Subagenten, Integrationstools, Erinnerungen und Arbeitsbereichkontext hat. Nutzen Sie ihn, um komplexe mehrschrittige Schlussfolgerung durchzuführen, Mehrfachdiensteabfragen oder jede Aufgabe zu erledigen, die von der volle Sim-Intelligenz profitiert.",
+  "token_usage_statistics": "Tokenverbrauchstatistiken",
+  "tool_calls_made_during_execution": "Anzahl der Tool-Anrufe während der Ausführung",
+  "upload_files_to_attach": "Dateien hochladen, um sie anzuheften."
+}

@@ -1,0 +1,19 @@
+{
+  "child_workflow_id": "Воркфлоу ID дочернего воркфлоу",
+  "child_workflow_name": "Имя дочернего воркфлоу",
+  "child_workflow_trace_spans": "Сегменты дочернего воркфлоу",
+  "enter_workflow_id": "Введите ID воркфлоу",
+  "error_message": "Сообщение об ошибке",
+  "execution_success_status": "Успешное выполнение воркфлоу",
+  "id_of_the_workflow_to_execute": "ID воркфлоу для выполнения",
+  "input_variable": "Входная переменная",
+  "search_workflows": "Поиск воркфлоу...",
+  "select_a_variable_to_pass_to_the_child": "Выберите переменную, которую нужно передать дочернему воркфлоу",
+  "select_workflow": "Выберите воркфлоу",
+  "this_is_a_core_workflow_block_execute_another": "Это основной блок воркфлоу. Выполните другое воркфлоу как блок в вашем воркфлоу. Введите входную переменную, которую нужно передать дочернему воркфлоу.",
+  "this_variable_will_be_available_as_start_input": "Этот переменный будет доступен как start.input в подворкфлоу",
+  "variable_reference_to_pass_to_the_child_workflow": "Ссылка на переменную для передачи в подворкфлоу",
+  "workflow": "Воркфлоу",
+  "workflow_execution_result": "Результат выполнения воркфлоу",
+  "workflow_id": "ID воркфлоу"
+}

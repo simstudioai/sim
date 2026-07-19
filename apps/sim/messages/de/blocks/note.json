@@ -1,0 +1,8 @@
+{
+  "add_context_or_instructions_for_collaborators": "Fügen Sie Kontext oder Anweisungen für die Kollegen hinzu...",
+  "add_contextual_annotations_directly_onto_the_workflow_canvas": "Fügen Sie kontextuelle Anmerkungen direkt auf der Workflow-Kanvas hinzu.",
+  "markdown_text_for_the_note": "Markdown-Text für die Notiz.",
+  "note": "Notiz",
+  "use_note_blocks_to_document_decisions_share_instructions": "Verwenden Sie Notizblöcke, um Entscheidungen zu dokumentieren, Anweisungen zu teilen oder Kontext für Kollegen direkt auf dem Workflow-Kanvas zu hinterlassen. Notizen unterstützen Markdown-Renders und YouTube-Videobeimessung.",
+  "write_your_note_using_markdown_youtube_links_will": "Schreiben Sie Ihre Notiz mit Markdown. YouTube-Links werden als eingebettete Videos angezeigt."
+}

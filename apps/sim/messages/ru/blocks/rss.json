@@ -1,0 +1,13 @@
+{
+  "competitor_blog_watcher": "Внимание к блогу конкурента",
+  "item_link": "Ссылка на элемент",
+  "item_title": "Заголовок элемента",
+  "monitor_rss_feeds_and_trigger_workflows_when_new": "Monиторинг Feeds RSS и срабатывание воркфлоу при публикации новых элементов",
+  "publication_date": "Дата публикации",
+  "raw_feed_object_with_all_fields": "Полный объект Feeds RSS со всеми полями",
+  "raw_item_object_with_all_fields": "Полный объект элемента со всеми полями",
+  "rss_feed": "Feeds RSS",
+  "rss_feed_to_content_table": "Feeds RSS в таблицу содержимого",
+  "rss_post_to_slack": "Feeds RSS в Slack",
+  "subscribe_to_any_rss_or_atom_feed_and": "Подписывайтесь на любой Feeds RSS или Atom и автоматически срабатывайте ваш воркфлоат при публикации нового контента. Прекрасно подходит для мониторинга блогов, новостных сайтов, панков и любых источников, которые публикуют Feeds RSS."
+}

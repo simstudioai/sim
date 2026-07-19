@@ -2,11 +2,11 @@ import { db } from '@sim/db'
 import { subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { hasValidLagoCredentials } from '@/lib/billing/lago/client'
 import { upsertLagoCustomer } from '@/lib/billing/lago/customers'
 import { createLagoSubscription } from '@/lib/billing/lago/subscriptions'
-import { ensureLagoWallet } from '@/lib/billing/lago/wallets'
 import type { LagoBillingEntityType } from '@/lib/billing/lago/types'
-import { hasValidLagoCredentials } from '@/lib/billing/lago/client'
+import { ensureLagoWallet } from '@/lib/billing/lago/wallets'
 import { isBillingEnabled, isLagoBillingProvider } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('LagoProvision')

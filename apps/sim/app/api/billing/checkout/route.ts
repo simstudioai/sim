@@ -31,7 +31,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const { planName, referenceId, successUrl, cancelUrl, seats } = parsed.data.body
   const userId = session.user.id
 
-  const authorized = await authorizeSubscriptionReference(userId, referenceId, 'upgrade-subscription')
+  const authorized = await authorizeSubscriptionReference(
+    userId,
+    referenceId,
+    'upgrade-subscription'
+  )
   if (!authorized) {
     return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
   }

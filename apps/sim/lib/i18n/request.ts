@@ -1,7 +1,7 @@
+import { cookies } from 'next/headers'
 import { hasLocale } from 'next-intl'
 import { getRequestConfig } from 'next-intl/server'
-import { cookies } from 'next/headers'
-import { defaultLocale, LOCALE_COOKIE, locales, type AppLocale } from '@/lib/i18n/config'
+import { type AppLocale, defaultLocale, LOCALE_COOKIE, locales } from '@/lib/i18n/config'
 
 /** Модули перевода — каждый в отдельном файле. Добавляй новые модули сюда. */
 const TRANSLATION_MODULES = [

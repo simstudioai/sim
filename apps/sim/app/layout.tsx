@@ -1,22 +1,21 @@
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
-import { PublicEnvScript } from 'next-runtime-env'
-import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
+import { PublicEnvScript } from 'next-runtime-env'
+import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { BrandedLayout } from '@/components/branded-layout'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
 import '@/app/_styles/globals.css'
 import { isHosted, isReactGrabEnabled, isReactScanEnabled } from '@/lib/core/config/env-flags'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
-import { WorkspaceLayoutDimensionsScriptLoader } from '@/app/_shell/workspace-layout-dimensions-script-loader'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
 import { SessionProvider } from '@/app/_shell/providers/session-provider'
 import { ThemeProvider } from '@/app/_shell/providers/theme-provider'
 import { TooltipProvider } from '@/app/_shell/providers/tooltip-provider'
+import { WorkspaceLayoutDimensionsScriptLoader } from '@/app/_shell/workspace-layout-dimensions-script-loader'
 import { season } from '@/app/_styles/fonts/season/season'
-import { defaultLocale } from '@/lib/i18n/config'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -130,7 +129,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               <QueryProvider>
                 <SessionProvider>
                   <TooltipProvider>
-                    <NextIntlClientProvider messages={messages} locale={locale} defaultLocale={defaultLocale}>
+                    <NextIntlClientProvider messages={messages} locale={locale}>
                       <BrandedLayout>{children}</BrandedLayout>
                     </NextIntlClientProvider>
                   </TooltipProvider>

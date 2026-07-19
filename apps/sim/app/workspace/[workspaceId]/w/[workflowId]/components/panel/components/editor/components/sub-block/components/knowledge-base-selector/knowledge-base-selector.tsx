@@ -4,6 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Combobox, type ComboboxOption } from '@/components/emcn'
 import { PackageSearchIcon } from '@/components/icons'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
@@ -14,7 +15,6 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { fetchKnowledgeBase, knowledgeKeys } from '@/hooks/queries/kb/knowledge'
-import { useTranslations } from 'next-intl'
 
 interface KnowledgeBaseSelectorProps {
   blockId: string

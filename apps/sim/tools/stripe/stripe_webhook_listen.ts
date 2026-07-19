@@ -3,7 +3,8 @@ import type { ToolConfig } from '@/tools/types'
 export const stripeWebhookListenTool: ToolConfig = {
   id: 'stripe_webhook_listen',
   name: 'Listen for Webhook Events (Conceptual)',
-  description: 'This endpoint represents the action of receiving and processing asynchronous events from Stripe (e.g., payment success, refund). Requires setting up a webhook listener.',
+  description:
+    'This endpoint represents the action of receiving and processing asynchronous events from Stripe (e.g., payment success, refund). Requires setting up a webhook listener.',
   version: '1.0.0',
 
   params: {
@@ -11,7 +12,7 @@ export const stripeWebhookListenTool: ToolConfig = {
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The raw JSON payload received from Stripe\'s webhook endpoint.',
+      description: "The raw JSON payload received from Stripe's webhook endpoint.",
     },
   },
 
@@ -28,14 +29,14 @@ export const stripeWebhookListenTool: ToolConfig = {
   },
 
   request: {
-    url: () => `https://api.stripe.com//v1/webhooks`,
+    url: () => `https://api.stripe.com/v1/webhooks`,
     method: () => 'POST',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const { apiKey, ...bodyParams } = params
+      const { apiKey: _apiKey, ...bodyParams } = params
       return bodyParams
     },
   },

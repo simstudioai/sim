@@ -1,0 +1,10 @@
+{
+  "api_key": "API Schlüssel",
+  "enter_your_api_key": "Geben Sie Ihren API Schlüssel ein",
+  "integrate_with_yandex_music_api_to_search_manage": "Integrieren Sie mit der Yandex-Musik-API, um Suchen, Verwaltung von Playlists und Metadaten für Titel/Alben abrufen zu können.",
+  "manage_playlists": "Playlisten verwalten",
+  "operation": "Vorgang",
+  "search_music_catalog": "Musikkatalog suchen",
+  "yandex_music": "Yandex-Musik",
+  "yandex_music_operation": "Operation Yandex-Musik"
+}

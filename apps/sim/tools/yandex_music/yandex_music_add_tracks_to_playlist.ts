@@ -34,10 +34,10 @@ export const yandexMusicAddTracksToPlaylistTool: ToolConfig = {
   },
 
   request: {
-    url: () => `https://api.yandex.ru/music/v1/v1/playlists/${params.playlist_id}/tracks`,
+    url: (params) => `https://api.yandex.ru/music/v1/v1/playlists/${params.playlist_id}/tracks`,
     method: () => 'POST',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

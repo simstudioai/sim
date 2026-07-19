@@ -1,0 +1,19 @@
+{
+  "child_workflow_id": "Воркфлоу ID дочернего воркфлоу",
+  "child_workflow_name": "Имя дочернего воркфлоу",
+  "child_workflow_trace_spans": "Тrace спанов дочернего воркфлоу",
+  "enter_workflow_id": "Введите ID воркфлоу",
+  "error_message": "Сообщение об ошибке",
+  "execute_another_child_workflow_and_map_variables_to": "Выполните еще одно дочернее воркфлоу и сопоставьте переменные с его блоком Start-трейсер.",
+  "execute_another_workflow_and_map_variables_to_its": "Выполните другое воркфлоу и сопоставьте переменные с его блоком Start-трейсер.",
+  "execution_success_status": "Успешное выполнение",
+  "id_of_the_child_workflow": "ID дочернего воркфлоу",
+  "inputs": "Входы",
+  "map_fields_defined_in_the_child_workflow_s": "Сопоставление полей, определенных в блоке Start дочернего воркфлоу, с переменными/значениями этого воркфлоу.",
+  "mapping_of_input_fields_to_values": "Сопоставление входных полей с значениями.",
+  "search_workflows": "Поиск воркерфлоу...",
+  "select_workflow": "Выберите воркфлоу",
+  "workflow": "Воркфлоу",
+  "workflow_execution_result": "Результат выполнения воркфлоу",
+  "workflow_id": "ID воркфлоу"
+}

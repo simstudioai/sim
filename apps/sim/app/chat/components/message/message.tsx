@@ -2,13 +2,13 @@
 
 import { memo, useState } from 'react'
 import { Check, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Duplicate, Tooltip } from '@/components/emcn'
 import {
   ChatFileDownload,
   ChatFileDownloadAll,
 } from '@/app/chat/components/message/components/file-download'
 import MarkdownRenderer from '@/app/chat/components/message/components/markdown-renderer'
-import { useTranslations } from 'next-intl'
 
 export interface ChatAttachment {
   id: string

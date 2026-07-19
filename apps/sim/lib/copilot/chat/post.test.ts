@@ -29,6 +29,7 @@ const {
   finalizeAssistantTurn,
   appendCopilotChatMessages,
   mockPublishStatusChanged,
+  checkActorUsageLimits,
 } = vi.hoisted(() => ({
   getEffectiveDecryptedEnv: vi.fn(),
   generateWorkspaceSnapshot: vi.fn(),
@@ -43,6 +44,7 @@ const {
   finalizeAssistantTurn: vi.fn(),
   appendCopilotChatMessages: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
+  checkActorUsageLimits: vi.fn(),
 }))
 
 const getSession = authMockFns.mockGetSession
@@ -97,6 +99,10 @@ vi.mock('@/lib/copilot/chat-status', () => ({
   },
 }))
 
+vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
+  checkActorUsageLimits,
+}))
+
 vi.mock('@sim/db', () => {
   const update = vi.fn(() => ({
     set: vi.fn(() => ({
@@ -141,6 +147,7 @@ describe('handleUnifiedChatPost', () => {
       workflowName: 'Workflow One',
     })
     getUserEntityPermissions.mockResolvedValue('write')
+    checkActorUsageLimits.mockResolvedValue({ isExceeded: false })
     getEffectiveDecryptedEnv.mockResolvedValue({ API_KEY: 'secret' })
     generateWorkspaceSnapshot.mockResolvedValue({
       markdown: 'workspace context',
@@ -207,6 +214,34 @@ describe('handleUnifiedChatPost', () => {
         }),
       })
     )
+  })
+
+  it('blocks with 402 when the actor has exceeded usage limits', async () => {
+    checkActorUsageLimits.mockResolvedValueOnce({
+      isExceeded: true,
+      message: 'Usage limit exceeded: $5.00 used of $5.00 limit.',
+      scope: 'pooled',
+    })
+
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Hello',
+          workflowId: 'wf-1',
+          workspaceId: 'ws-1',
+        }),
+      })
+    )
+
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Usage limit exceeded: $5.00 used of $5.00 limit.',
+    })
+    // Gate runs before any chat/stream work: no lock, no LLM stream.
+    expect(checkActorUsageLimits).toHaveBeenCalledWith('user-1', 'ws-1')
+    expect(acquirePendingChatStream).not.toHaveBeenCalled()
+    expect(createSSEStream).not.toHaveBeenCalled()
   })
 
   it('routes workspace chat requests through the mothership backend path', async () => {

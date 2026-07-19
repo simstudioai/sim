@@ -1,0 +1,21 @@
+{
+  "attachments": "Вложения",
+  "chat_id_to_continue_generated_when_omitted": "ID чата для продолжения; генерируется при отсутствии значения",
+  "chat_id_used_for_this_request": "Используемый ID чата для этой запроса",
+  "conversation_id": "ID разговора",
+  "cost_of_the_execution": "Стоимость выполнения",
+  "e_g_user_123_session_abc_customer_456": "например, user-123, session-abc, customer-456",
+  "enter_your_prompt_for_sim": "Введите ваш запрос в Sim...",
+  "files_to_send_to_sim_as_attachments": "Файлы для отправки Sim в качестве приложений",
+  "generated_response_content": "Сгенерированный контент ответа",
+  "model_used_for_generation": "Используемый модель для генерации",
+  "prompt": "Предпросмотр",
+  "reference_files_from_previous_blocks": "Референсные файлы из предыдущих блоков",
+  "sim": "Sim",
+  "talk_to_sim": "Поговорите с Sim",
+  "the_prompt_to_send_to_sim": "Здесь должно быть сообщение для отправки Sim.",
+  "the_sim_block_sends_messages_to_sim_which": "вы можете использовать блок Sim для отправки сообщений в Sim, который имеет доступ к подагентам, интеграционным инструментам, памяти и контексту рабочего пространства. Используйте его для выполнения сложных многостадийных рассуждений, запросов между сервисами или любых задач, которые приносят пользу полной интеллектуальной мощи Sim в рамках воркфлоу.",
+  "token_usage_statistics": "Статистика использования токенов",
+  "tool_calls_made_during_execution": "Количество вызовов инструментов во время выполнения",
+  "upload_files_to_attach": "Загрузите файлы для прикрепления"
+}

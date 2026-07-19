@@ -1,0 +1,19 @@
+{
+  "child_workflow_id": "Kind Workflow-ID",
+  "child_workflow_name": "Kind Workflow-Name",
+  "child_workflow_trace_spans": "Kind Workflow-Spanen",
+  "enter_workflow_id": "Workflow-ID eingeben",
+  "error_message": "Fehlermeldung",
+  "execute_another_child_workflow_and_map_variables_to": "Eine weitere Kind-Workflow ausführen und Variablen zu seinem Starttrigger-Schema zuordnen. Hilft bei der Modularisierung von Workflows.",
+  "execute_another_workflow_and_map_variables_to_its": "Workflow ausführen und Variablen zu seinem Starttrigger-Schema mappen.",
+  "execution_success_status": "Ausführung erfolgreich bestätigt.",
+  "id_of_the_child_workflow": "Kind-Workflows' ID.",
+  "inputs": "Eingaben.",
+  "map_fields_defined_in_the_child_workflow_s": "In diesem Workflow die Felder des Kind-Workflows' Startblöcke mit den Variablen/Werten mappen.",
+  "mapping_of_input_fields_to_values": "Eingabe-Felder zum Zuordnen von Werten.",
+  "search_workflows": "Suche Workflow...",
+  "select_workflow": "Wählen Sie Workflow aus",
+  "workflow": "Workflow",
+  "workflow_execution_result": "Ausführungsergebnis des Workflows",
+  "workflow_id": "Workflow-ID"
+}

@@ -21,7 +21,8 @@ const promiseCtor = Promise as typeof Promise & {
 }
 
 if (typeof promiseCtor.withResolvers !== 'function') {
-  promiseCtor.withResolvers = <T>(): PromiseWithResolversResult<T> => {
+  // double-cast-allowed: Node 26 Promise.withResolvers type is a strict intersection
+  promiseCtor.withResolvers = (<T>(): PromiseWithResolversResult<T> => {
     let resolve!: (value: T | PromiseLike<T>) => void
     let reject!: (reason?: unknown) => void
     const promise = new Promise<T>((res, rej) => {
@@ -29,7 +30,7 @@ if (typeof promiseCtor.withResolvers !== 'function') {
       reject = rej
     })
     return { promise, resolve, reject }
-  }
+  }) as any
 }
 
 const urlCtor = URL as typeof URL & {

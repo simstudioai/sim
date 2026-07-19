@@ -9,6 +9,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
@@ -787,6 +788,34 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, branch.status)
         activeOtelRoot.finish('error')
         return branch
+      }
+
+      // Gate the actor on usage limits, billing freezes, and per-member org caps
+      // before creating a chat, acquiring the stream lock, or opening the LLM
+      // stream. Mirrors the workflow chat path (preprocessExecution → STEP 5);
+      // without this, copilot/mothership turns spend past the wallet balance and
+      // only reconcile after the fact. No-ops when billing is disabled.
+      //
+      // Fail-open: if the billing provider is unreachable the gate is skipped so
+      // a transient Lago/Stripe outage does not take down chat.
+      try {
+        const usage = await checkActorUsageLimits(authenticatedUserId, branch.workspaceId)
+        if (usage.isExceeded) {
+          activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, 402)
+          activeOtelRoot.finish('error')
+          return NextResponse.json(
+            {
+              error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+            },
+            { status: 402 }
+          )
+        }
+      } catch (error) {
+        logger.error('Usage limit check failed — allowing chat to proceed', {
+          userId: authenticatedUserId,
+          workspaceId: branch.workspaceId,
+          error: getErrorMessage(error, 'Unknown billing error'),
+        })
       }
 
       let currentChat: ChatLoadResult['chat'] = null

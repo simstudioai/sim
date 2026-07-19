@@ -1,0 +1,21 @@
+{
+  "api_key": "API Key",
+  "email_address": "Email Address",
+  "email_address_to_verify": "Email адрес для подтверждения",
+  "enter_your_neverbounce_api_key": "Введите ваш ключ NeverBounce API",
+  "integrate_neverbounce_to_verify_email_deliverability_in_real": "Интегрируйте NeverBounce, чтобы в реальном времени проверять доставку электронной почты — классифицировать адреса как действительные, недействительные, catch-all, disposable или неизвестные — и проверить оставшиеся кредиты для подтверждения.",
+  "neverbounce": "NeverBounce",
+  "neverbounce_api_key": "Ключ NeverBounce API",
+  "operation": "Операция",
+  "operation_to_perform": "Действие для выполнения",
+  "raw_neverbounce_flags": "Непосредственные флаги NeverBounce",
+  "remaining_free_verification_credits": "Оставшиеся бесплатные кредиты для подтверждения",
+  "remaining_paid_verification_credits": "Оставшиеся оплаченные кредиты для подтверждения",
+  "suggested_correction": "Предложенный исправление",
+  "the_verified_email_address": "Подтвержденный адрес электронной почты",
+  "verification_status": "Статус подтверждения",
+  "verify_email_deliverability_and_check_account_credits": "Подтвердите доставку электронных писем и проверьте кредиты аккаунта",
+  "whether_on_a_free_email_provider": "Вы на бесплатном провайдере электронной почты?",
+  "whether_the_address_is_a_role_account": "Этот адрес является роль-аккаунтом?",
+  "whether_the_email_is_valid_and_safe_to": "Этот email действителен и безопасен для отправки."
+}

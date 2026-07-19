@@ -1,0 +1,5 @@
+{
+  "legacy_manual_start_block_prefer_the_start_block": "Legender Manuell-Start-Schritt. Nutzen Sie den Start-Schritt lieber.",
+  "manual_legacy": "Manuell (Legender)",
+  "trigger_the_workflow_manually_without_defining_an_input": "Führen Sie den Workflow manuell aus, ohne einen Eingabeschlüssel zu definieren. Nutzbar für einfache Laufzeiten, bei denen keine strukturierte Eingabe erforderlich ist."
+}

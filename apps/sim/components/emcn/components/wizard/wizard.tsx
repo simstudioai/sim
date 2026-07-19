@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/core/utils/cn'
 import { Button } from '../button/button'
 import {
@@ -12,7 +13,6 @@ import {
   ModalHeader,
   type ModalSize,
 } from '../modal/modal'
-import { useTranslations } from 'next-intl'
 
 /**
  * A multi-step modal wizard primitive.

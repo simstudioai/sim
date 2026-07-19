@@ -2,9 +2,9 @@
 
 import { useTransition } from 'react'
 import { useLocale } from 'next-intl'
-import { useRouter } from '@/lib/i18n/navigation'
-import { LOCALE_COOKIE, locales, type AppLocale } from '@/lib/i18n/config'
 import { ChipDropdown } from '@/components/emcn'
+import { type AppLocale, LOCALE_COOKIE, locales } from '@/lib/i18n/config'
+import { useRouter } from '@/lib/i18n/navigation'
 
 const LANGUAGE_LABELS: Record<AppLocale, string> = {
   en: 'English',

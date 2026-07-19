@@ -1,5 +1,5 @@
-import { env } from '@/lib/core/config/env'
 import { getLagoProductSlug } from '@/lib/billing/lago/product'
+import { env } from '@/lib/core/config/env'
 
 const productSlug = getLagoProductSlug()
 const defaultFreePlan = productSlug ? `${productSlug}_free` : 'sim_free'

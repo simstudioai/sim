@@ -24,6 +24,8 @@ import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-o
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import { useOperationQueue } from '@/stores/operation-queue/store'
 import {
+  type AcceptDiffOperation,
+  type ApplyDiffOperation,
   type BatchAddBlocksOperation,
   type BatchAddEdgesOperation,
   type BatchMoveBlocksOperation,
@@ -37,6 +39,7 @@ import {
   captureLatestEdges,
   captureLatestSubBlockValues,
   createOperationEntry,
+  type RejectDiffOperation,
   runWithUndoRedoRecordingSuspended,
   type UpdateParentOperation,
   useUndoRedoStore,
@@ -270,7 +273,7 @@ export function useUndoRedo() {
       newParentId: string | undefined,
       oldPosition: { x: number; y: number },
       newPosition: { x: number; y: number },
-      affectedEdges?: any[]
+      affectedEdges?: Edge[]
     ) => {
       if (!activeWorkflowId) return
 
@@ -1937,10 +1940,14 @@ export function useUndoRedo() {
   }, [activeWorkflowId, userId])
 
   const recordApplyDiff = useCallback(
-    (baselineSnapshot: any, proposedState: any, diffAnalysis: any) => {
+    (
+      baselineSnapshot: Record<string, unknown>,
+      proposedState: Record<string, unknown>,
+      diffAnalysis: Record<string, unknown>
+    ) => {
       if (!activeWorkflowId) return
 
-      const operation: any = {
+      const operation: ApplyDiffOperation = {
         id: generateId(),
         type: UNDO_REDO_OPERATIONS.APPLY_DIFF,
         timestamp: Date.now(),
@@ -1953,7 +1960,7 @@ export function useUndoRedo() {
         },
       }
 
-      const inverse: any = {
+      const inverse: ApplyDiffOperation = {
         id: generateId(),
         type: UNDO_REDO_OPERATIONS.APPLY_DIFF,
         timestamp: Date.now(),
@@ -1981,10 +1988,15 @@ export function useUndoRedo() {
   )
 
   const recordAcceptDiff = useCallback(
-    (beforeAccept: any, afterAccept: any, diffAnalysis: any, baselineSnapshot: any) => {
+    (
+      beforeAccept: Record<string, unknown>,
+      afterAccept: Record<string, unknown>,
+      diffAnalysis: Record<string, unknown>,
+      baselineSnapshot: Record<string, unknown>
+    ) => {
       if (!activeWorkflowId) return
 
-      const operation: any = {
+      const operation: AcceptDiffOperation = {
         id: generateId(),
         type: UNDO_REDO_OPERATIONS.ACCEPT_DIFF,
         timestamp: Date.now(),
@@ -1998,7 +2010,7 @@ export function useUndoRedo() {
         },
       }
 
-      const inverse: any = {
+      const inverse: AcceptDiffOperation = {
         id: generateId(),
         type: UNDO_REDO_OPERATIONS.ACCEPT_DIFF,
         timestamp: Date.now(),
@@ -2021,10 +2033,15 @@ export function useUndoRedo() {
   )
 
   const recordRejectDiff = useCallback(
-    (beforeReject: any, afterReject: any, diffAnalysis: any, baselineSnapshot: any) => {
+    (
+      beforeReject: Record<string, unknown>,
+      afterReject: Record<string, unknown>,
+      diffAnalysis: Record<string, unknown>,
+      baselineSnapshot: Record<string, unknown>
+    ) => {
       if (!activeWorkflowId) return
 
-      const operation: any = {
+      const operation: RejectDiffOperation = {
         id: generateId(),
         type: UNDO_REDO_OPERATIONS.REJECT_DIFF,
         timestamp: Date.now(),
@@ -2038,7 +2055,7 @@ export function useUndoRedo() {
         },
       }
 
-      const inverse: any = {
+      const inverse: RejectDiffOperation = {
         id: generateId(),
         type: UNDO_REDO_OPERATIONS.REJECT_DIFF,
         timestamp: Date.now(),

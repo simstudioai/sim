@@ -68,7 +68,8 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
 
   const resolvedIP = validation.resolvedIP!
 
-  const pinnedFetch = async (
+  // double-cast-allowed: Node 26's typeof fetch includes preconnect; the factory accepts it
+  const pinnedFetch = (async (
     input: Parameters<typeof fetch>[0],
     init?: Parameters<typeof fetch>[1]
   ): Promise<Response> => {
@@ -114,14 +115,14 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
       statusText: res.statusText,
       headers: resHeaders,
     })
-  }
+  }) as unknown as typeof fetch
 
   const pinnedTransports = [
-    new JsonRpcTransportFactory({ fetchImpl: pinnedFetch }),
-    new RestTransportFactory({ fetchImpl: pinnedFetch }),
+    new JsonRpcTransportFactory({ fetchImpl: pinnedFetch as any }),
+    new RestTransportFactory({ fetchImpl: pinnedFetch as any }),
   ]
 
-  const pinnedCardResolver = new DefaultAgentCardResolver({ fetchImpl: pinnedFetch })
+  const pinnedCardResolver = new DefaultAgentCardResolver({ fetchImpl: pinnedFetch as any })
 
   const baseOptions = ClientFactoryOptions.createFrom(ClientFactoryOptions.default, {
     transports: pinnedTransports,

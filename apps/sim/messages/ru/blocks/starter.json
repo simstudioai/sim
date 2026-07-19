@@ -1,0 +1,8 @@
+{
+  "initiate_your_workflow_manually_with_optional_structured_input": "Запустите воркфлоу вручную с опциональным структурированным входом.",
+  "input_format": "Формат ввода",
+  "name_and_type_define_your_input_schema_value": "Имя и тип определяют ваш схему входных данных. Значение используется только для тестовых запусков в ручном режиме.",
+  "start_workflow": "Запустите воркфлоу",
+  "starter": "Стартовый",
+  "workflow_input_data": "Данные ввода воркфлоу"
+}

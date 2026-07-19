@@ -1,7 +1,7 @@
 'use client'
 
-import { Badge } from '@/components/emcn'
 import { useTranslations } from 'next-intl'
+import { Badge } from '@/components/emcn'
 
 interface BillingProviderBadgeProps {
   provider: 'stripe' | 'lago' | null

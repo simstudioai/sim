@@ -36,10 +36,9 @@ export const yandexMusicSearchAlbumsTool: ToolConfig = {
     url: () => `https://api.yandex.ru/music/v1/v1/albums/search`,
     method: () => 'GET',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
-
   },
 
   transformResponse: async (response: Response) => {

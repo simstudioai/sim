@@ -1,0 +1,11 @@
+{
+  "api_key": "API ключ",
+  "enter_your_api_key": "Введите ваш API ключ",
+  "manage_customer_details": "Управление деталями клиента",
+  "operation": "Операция",
+  "process_one_time_payment": "Обработка одной-направленной оплаты",
+  "process_payments_manage_subscriptions_and_handle_complex_financi": "Обработка платежей, управления подписками и решения сложных финансовых транзакций на глобальной основе.",
+  "set_up_subscription_billing": "Настройка билинга подписки",
+  "stripe_operation": "Operation Stripe",
+  "stripe_payments_billing": "Stripe: Обработка платежей и билинга"
+}

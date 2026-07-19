@@ -1,0 +1,14 @@
+{
+  "cron_expression": "Cron выражение",
+  "day_of_month": "День месяца",
+  "day_of_week": "День недели",
+  "describe_your_schedule_e_g_every_weekday_at": "Опишите свой график (например, \"ежедневно в 9 утра\")",
+  "integrate_schedule_into_the_workflow_can_trigger_a": "Интегрируйте график с воркфлоу. Может вызывать воркфлоу при настройке графика.",
+  "interval_minutes": "Период (минуты)",
+  "minute": "Минута",
+  "run_frequency": "Периодичность выполнения",
+  "schedule": "График",
+  "time": "Время",
+  "timezone": "Часовой пояс",
+  "trigger_workflow_execution_on_a_schedule": "Запустите выполнение воркфлоу по графику"
+}

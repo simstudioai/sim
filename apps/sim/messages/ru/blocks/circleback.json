@@ -1,0 +1,22 @@
+{
+  "ai_powered_meeting_notes_and_action_items": "AI-предназначенные заседания записи и действия",
+  "array_of_action_items": "Массив действий",
+  "array_of_attendee_objects": "Массив участников мероприятия",
+  "array_of_tags": "Массив тегов",
+  "array_of_transcript_segments": "Массив отрывков транскрибации",
+  "calendar_event_id": "Время в секундах",
+  "circleback": "Круговорот",
+  "circleback_action_item_tracker": "Трекер круговоротов по действиям",
+  "circleback_meeting_id": "ID календарной события",
+  "circleback_notes_to_notion": "Запись в Notion из Circleback",
+  "circleback_recap_to_slack": "Отчет в Slack из Circleback",
+  "duration_in_seconds": "Время в секундах",
+  "full_meeting_payload": "Полный набор данных для заседания",
+  "meeting_creation_timestamp": "Дата и время создания встречи",
+  "meeting_notes_in_markdown": "Заметки встречи в формате Markdown",
+  "meeting_title": "Название встречи",
+  "receive_meeting_notes_action_items_transcripts_and_recordings": "Получение заметок о встрече, пунктов повестки дня, транскриптов и записей при обработке встреч. Circleback использует webhook для отправки данных в ваши воркфлоу.",
+  "recording_url_valid_24_hours": "Ссылка на запись (действительна 24 часа)",
+  "user_created_insights": "Ваша пользовательская интерпретация",
+  "virtual_meeting_url_zoom_meet_teams": "URL виртуальной встречи (Zoom, Meet, Teams)"
+}

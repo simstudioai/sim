@@ -1,0 +1,16 @@
+{
+  "async": "Async",
+  "iso_timestamp_at_which_a_suspended_wait_will": "ISO-Timestamp zur Wiederherstellung einer eingestellten Wartezeit (nur für längere Wartezeiten verfügbar)",
+  "max_5_minutes_300_seconds_enable_async_for": "Maximal 5 Minuten (300 Sekunden). Wenn Async aktiviert ist, können Sie die Wartezeit auf bis zu 30 Tage verlängern.",
+  "pause_workflow_execution_for_a_time_interval": "Werkfluss-Ausführung einzustellen",
+  "pauses_workflow_execution_for_a_specified_time_interval": "Die Ausführung des Workflows wird für eine angegebene Zeitintervall eingestellt. Standardmäßig läuft die Wartezeit in-Process maximal 5 Minuten lang. Wenn Async aktiviert ist, kann die Ausführung auf dem Festplattenlaufwerk pausiert und automatisch wiederhergestellt werden.",
+  "run_the_wait_asynchronously_to_allow_durations_up": "Die Wartezeit wird asynchronous ausgeführt, um Dauerfristen bis zu 30 Tage zu ermöglichen.",
+  "status_of_the_wait_block_waiting_completed_cancelled": "Status der Wartungsblock",
+  "unit": "Einheit",
+  "wait": "Wartezeit",
+  "wait_amount": "Wartezeit-Betrag",
+  "wait_duration_in_milliseconds": "Wenn Async nicht aktiviert ist (in Millisekunden), die Wartezeit in Sekunden oder Minuten angegeben",
+  "wait_duration_unit_when_async_is_off_seconds": "Wartezeit in Millisekunden, wenn Async deaktiviert ist",
+  "wait_duration_unit_when_async_is_on_minutes": "Wartezeit in Einheiten beim Asynchronausf�hrungsmodus (in Minuten, Stunden oder Tagen)",
+  "wait_duration_value": "Wartezeitwert"
+}

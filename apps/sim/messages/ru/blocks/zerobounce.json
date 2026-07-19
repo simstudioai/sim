@@ -1,0 +1,19 @@
+{
+  "api_key": "API Key",
+  "detailed_sub_status": "Подробный подстатус",
+  "email_address": "Электронная почта",
+  "email_address_to_validate": "Адрес электронной почты для валидации",
+  "enter_your_zerobounce_api_key": "Введите ваш ключ API ZeroBounce",
+  "integrate_zerobounce_to_validate_email_deliverability_in_real": "Интегрируйте ZeroBounce для валидации доставки электронных писем в реальном времени — обнаружьте неверные, catch-all, спамтропы, абьюз и неотсылочные адреса электронной почты — и проверьте оставшиеся кредиты для валидации.",
+  "operation": "Операция",
+  "operation_to_perform": "Выполнение операции",
+  "remaining_validation_credits": "Оставшиеся кредиты для валидации",
+  "suggested_correction": "Рекомендуемое исправление",
+  "the_validated_email_address": "Валидированный адрес электронной почты",
+  "validate_email_deliverability_and_check_account_credits": "Проверьте доставку электронных писем и проверьте учетные записи с кредитами",
+  "validation_status": "Статус валидации",
+  "whether_on_a_free_email_provider": "Вы используете бесплатный провайдер электронной почты?",
+  "whether_the_email_is_valid_and_safe_to": "Электронная почта валидна и безопасна для отправки?",
+  "zerobounce": "ZeroBounce",
+  "zerobounce_api_key": "API-ключ ZeroBounce"
+}

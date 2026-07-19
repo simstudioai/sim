@@ -19,7 +19,7 @@ describe('server telemetry helpers', () => {
     process.env.TELEMETRY_ENDPOINT = 'http://localhost:4318/v1/traces'
     expect(resolveTelemetryEndpoint()).toBe('http://localhost:4318/v1/traces')
     if (previous === undefined) {
-      delete process.env.TELEMETRY_ENDPOINT
+      process.env.TELEMETRY_ENDPOINT = undefined
     } else {
       process.env.TELEMETRY_ENDPOINT = previous
     }

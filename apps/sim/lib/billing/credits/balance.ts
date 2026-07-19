@@ -113,10 +113,7 @@ export async function setLocalCreditBalance(
 ): Promise<void> {
   const value = Math.max(0, amount).toString()
   if (entityType === 'organization') {
-    await db
-      .update(organization)
-      .set({ creditBalance: value })
-      .where(eq(organization.id, entityId))
+    await db.update(organization).set({ creditBalance: value }).where(eq(organization.id, entityId))
   } else {
     await db.update(userStats).set({ creditBalance: value }).where(eq(userStats.userId, entityId))
   }

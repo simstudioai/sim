@@ -1,0 +1,8 @@
+{
+  "chat": "Чат",
+  "chat_trigger_to_run_the_workflow_via_deployed": "Триггер чата для выполнения воркфлоу через развернутые интерфейсы чата.",
+  "conversation_id": "ID беседы",
+  "legacy_chat_start_block_prefer_the_unified_start": "Версия старого блока начала чата. Используйте унифицированный Start-блок.",
+  "uploaded_files": "Загруженные файлы",
+  "user_message": "Сообщение пользователя"
+}

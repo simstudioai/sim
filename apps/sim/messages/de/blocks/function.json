@@ -1,0 +1,13 @@
+{
+  "code": "Code",
+  "console_log_output_and_debug_messages_from_function": "Konsole-Logausgabe und Debugnachrichten aus Funktionserstellung",
+  "describe_the_function_you_want_to_create": "Beschreiben Sie die Funktion, die Sie erstellen möchten…",
+  "execution_timeout": "Ausführungszeitüberschreitung",
+  "function": "Funktion",
+  "javascript_or_python_code_to_execute": "JavaScript oder Python-Kode zum Ausführen",
+  "language_javascript_or_python": "Sprache (JavaScript oder Python)",
+  "return_value_from_the_executed_javascript_function": "Ausgeführten JavaScript-Funktionsreturnwert",
+  "run_custom_logic": "Zusätzliche benutzerdefinierte Logik ausführen",
+  "select_language": "Sprache wählen",
+  "this_is_a_core_workflow_block_execute_custom": "Dies ist ein Kernworkflowblatt. In Ihrem Workflow benutzerdefinierten JavaScript- oder Python-Koden ausführen. JavaScript ohne Imports läuft lokal für schnelle Ausführung, während Code mit Imports oder Python in der E2B-Sandbox verwendet wird."
+}

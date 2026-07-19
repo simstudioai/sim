@@ -1,0 +1,7 @@
+{
+  "api_legacy": "API (Altbau)",
+  "api_trigger_to_start_the_workflow_via_authenticated": "API-Triggern zum Starten des Workflows über authentifizierte HTTP-Anfragen mit strukturiertem Eingabedaten.",
+  "define_the_json_input_schema_accepted_by_the": "Definiere den JSON-Eingabe-Schema, das von der API-Endpunkt akzeptiert wird.",
+  "input_format": "Eingabemuster",
+  "legacy_block_for_exposing_http_api_endpoint_prefer": "Altbaublock für die Exposition eines HTTP-API-Endpunkts. Präferiere Startblock."
+}

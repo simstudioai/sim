@@ -240,7 +240,8 @@ export async function runStreamLoop(
   // it would the raw one — no API changes there.
   const IDLE_GAP_EVENT_THRESHOLD_MS = 10000
   const rawReader = response.body.getReader()
-  const reader: ReadableStreamDefaultReader<Uint8Array> = {
+  // double-cast-allowed: Node 26 ReadableStream type expects ArrayBufferLike, runtime returns ArrayBuffer
+  const reader = {
     async read() {
       const result = await rawReader.read()
       if (!result.done && result.value) {
@@ -253,7 +254,7 @@ export async function runStreamLoop(
       }
       return result
     },
-    cancel: (reason) => rawReader.cancel(reason),
+    cancel: (reason?: unknown) => rawReader.cancel(reason),
     releaseLock: () => rawReader.releaseLock(),
     get closed() {
       return rawReader.closed
@@ -269,7 +270,7 @@ export async function runStreamLoop(
   }, timeout)
 
   try {
-    await processSSEStream(reader, decoder, abortSignal, async (raw) => {
+    await processSSEStream(reader as any, decoder, abortSignal, async (raw) => {
       // Track how long THIS handler invocation takes so we can tell
       // apart "Go was silent" from "we were CPU-bound on a handler".
       // `longestInboundGapMs` includes handler time (the next reader.read

@@ -3,7 +3,8 @@ import type { ToolConfig } from '@/tools/types'
 export const stripeRetrieveCustomerTool: ToolConfig = {
   id: 'stripe_retrieve_customer',
   name: 'Retrieve Customer Details',
-  description: 'Fetches detailed information about a specific customer, including payment methods and billing history.',
+  description:
+    'Fetches detailed information about a specific customer, including payment methods and billing history.',
   version: '1.0.0',
 
   params: {
@@ -22,7 +23,7 @@ export const stripeRetrieveCustomerTool: ToolConfig = {
     },
     email: {
       type: 'string',
-      description: 'Customer\'s email address.',
+      description: "Customer's email address.",
       optional: true,
     },
     address: {
@@ -33,13 +34,12 @@ export const stripeRetrieveCustomerTool: ToolConfig = {
   },
 
   request: {
-    url: () => `https://api.stripe.com//v1/customers/${params.customer_id}`,
+    url: (params) => `https://api.stripe.com/v1/customers/${params.customer_id}`,
     method: () => 'GET',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
-
   },
 
   transformResponse: async (response: Response) => {

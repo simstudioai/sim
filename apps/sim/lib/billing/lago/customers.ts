@@ -85,9 +85,8 @@ export async function getLagoPortalUrl(
   const externalId = toLagoCustomerExternalId(entityType, entityId)
   try {
     const response = await lagoRequest<LagoPortalUrlResponse>(
-      'POST',
-      `/customers/${encodeURIComponent(externalId)}/portal_url`,
-      {}
+      'GET',
+      `/customers/${encodeURIComponent(externalId)}/portal_url`
     )
     return response.customer.portal_url ?? null
   } catch (error) {

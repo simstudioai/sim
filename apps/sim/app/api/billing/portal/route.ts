@@ -10,8 +10,8 @@ import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { getLagoPortalUrl } from '@/lib/billing/lago/customers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isBillingEnabled, isLagoBillingProvider } from '@/lib/core/config/env-flags'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('BillingPortal')

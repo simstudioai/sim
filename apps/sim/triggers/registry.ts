@@ -389,6 +389,7 @@ import {
   webflowFormSubmissionTrigger,
 } from '@/triggers/webflow'
 import { whatsappWebhookTrigger } from '@/triggers/whatsapp'
+import { yandex_musicWebhookTrigger } from '@/triggers/yandex_music'
 import {
   zendeskTicketCommentAddedTrigger,
   zendeskTicketCreatedTrigger,
@@ -397,7 +398,6 @@ import {
   zendeskWebhookTrigger,
 } from '@/triggers/zendesk'
 import {
-import { yandex_musicWebhookTrigger } from '@/triggers/yandex_music'
   zoomMeetingEndedTrigger,
   zoomMeetingStartedTrigger,
   zoomParticipantJoinedTrigger,

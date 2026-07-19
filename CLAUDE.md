@@ -93,7 +93,7 @@ Requires PostgreSQL 12+ with the **pgvector** extension. After `bun install`: co
 
 ```
 apps/
-├── sim/                    # Next.js app (UI + API routes + workflow editor)
+├── sim/                    # Next.js app (UI + API routes + workflow editor) — package name `sim`
 │   ├── app/                # Next.js app router (pages, API routes)
 │   ├── blocks/             # Block definitions and registry
 │   ├── components/         # Shared UI (emcn/, ui/)
@@ -104,21 +104,31 @@ apps/
 │   ├── stores/             # Zustand stores
 │   ├── tools/              # Tool definitions
 │   └── triggers/           # Trigger definitions
-└── realtime/               # Bun Socket.IO server (collaborative canvas)
+├── realtime/               # @sim/realtime — Bun Socket.IO server (collaborative canvas)
+├── docs/                   # `docs` — Next.js/Fumadocs documentation site
+└── pii/                    # @sim/pii — Python (FastAPI/Presidio) PII service; container-built, NOT in the JS/turbo build
 
 packages/
 ├── audit/                  # @sim/audit
 ├── auth/                   # @sim/auth — shared Better Auth verifier
+├── cli/                    # `simstudio` — CLI (npx simstudio)
 ├── db/                     # @sim/db — drizzle schema + client
 ├── logger/                 # @sim/logger
 ├── platform-authz/         # @sim/platform-authz — workspace + workflow authz (subpath exports)
+├── python-sdk/             # Python SDK
 ├── realtime-protocol/      # @sim/realtime-protocol — socket op constants + zod schemas
+├── runtime-secrets/        # @sim/runtime-secrets
 ├── security/               # @sim/security — safeCompare
-├── tsconfig/               # shared tsconfig presets
+├── testing/                # @sim/testing — shared mocks/factories for Vitest
+├── ts-sdk/                 # simstudio-ts-sdk — programmatic workflow execution SDK
+├── tsconfig/               # @sim/tsconfig — shared tsconfig presets
+├── universal-integrator/   # @sim/universal-integrator — deterministic integration generator (`bun run integrate`)
 ├── utils/                  # @sim/utils
 ├── workflow-persistence/   # @sim/workflow-persistence
 └── workflow-types/         # @sim/workflow-types — pure BlockState/Loop/Parallel types
 ```
+
+Note: `AGENTS.md` (repo root) mirrors most of these guidelines for other agent tools; keep the two consistent when editing shared standards.
 
 ### Package boundaries
 

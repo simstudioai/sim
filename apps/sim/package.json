@@ -29,7 +29,10 @@
     "lint:check": "biome check .",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "generate-docs": "bun run ../../scripts/generate-docs.ts"
+    "generate-docs": "bun run ../../scripts/generate-docs.ts",
+    "backfill:lago-wallets": "bun run scripts/backfill-lago-wallets.ts",
+    "seed:platform-admin": "bun --env-file=.env run scripts/seed-platform-admin.ts",
+    "seed:super-admin": "bun --env-file=.env run scripts/seed-super-admin-user.ts"
   },
   "dependencies": {
     "@1password/sdk": "0.3.1",

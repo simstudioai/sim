@@ -1,10 +1,10 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/emcn'
 import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { client } from '@/lib/auth/auth-client'
-import { useTranslations } from 'next-intl'
 
 interface SocialLoginButtonsProps {
   githubAvailable: boolean

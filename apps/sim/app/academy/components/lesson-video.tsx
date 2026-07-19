@@ -1,12 +1,13 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 interface LessonVideoProps {
   url: string
   title: string
 }
 
 export function LessonVideo({ url, title }: LessonVideoProps) {
-  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const embedUrl = resolveEmbedUrl(url)
 
@@ -23,7 +24,7 @@ export function LessonVideo({ url, title }: LessonVideoProps) {
       <iframe
         src={embedUrl}
         title={title}
-        allow={tI18n('accelerometer_autoplay_clipboard_write_encrypted')}
+        allow='accelerometer; autoplay; clipboard-write; encrypted-media'
         allowFullScreen
         className='h-full w-full border-0'
       />

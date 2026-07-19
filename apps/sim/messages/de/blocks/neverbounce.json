@@ -1,0 +1,21 @@
+{
+  "api_key": "API Key",
+  "email_address": "Email Address",
+  "email_address_to_verify": "E-Mail-Adresse zum Verifizieren",
+  "enter_your_neverbounce_api_key": "Geben Sie Ihren API Schlüssel für NeverBounce ein",
+  "integrate_neverbounce_to_verify_email_deliverability_in_real": "Integrieren Sie NeverBounce, um die E-Mail-Deliverability in der Realität zu verifizieren — Adresse als gültig, ungültig, catch-all, abboniert oder unbekannt klassifizieren und Ihre verbleibenden Verifizierungskredite überprüfen.",
+  "neverbounce": "NeverBounce",
+  "neverbounce_api_key": "NeverBounce-API-Schlüssel",
+  "operation": "Vorgang",
+  "operation_to_perform": "Ausführen zu performender Operation",
+  "raw_neverbounce_flags": "Nichtsagende NeverBounce-Flags",
+  "remaining_free_verification_credits": "Verbleibende kostenlosen Verifizierungskredite",
+  "remaining_paid_verification_credits": "Verbleibende bezahlte Verifizierungskredite",
+  "suggested_correction": "Vorgeschlagene Korrektur",
+  "the_verified_email_address": "Valideierter E-Mail-Adresse",
+  "verification_status": "Verifizierungsstatus",
+  "verify_email_deliverability_and_check_account_credits": "Überprüfe die Email-Lebensfähigkeit und überprüfe Kontoinhaber-Credits",
+  "whether_on_a_free_email_provider": "Ob auf einem freien E-Mail-Anbieter?",
+  "whether_the_address_is_a_role_account": "Ob der Adresse ein Rollenkonto zugewiesen ist?",
+  "whether_the_email_is_valid_and_safe_to": "Ob die E-Mail gültig und sicher für Absendungen ist."
+}

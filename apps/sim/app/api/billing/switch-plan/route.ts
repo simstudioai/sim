@@ -11,9 +11,9 @@ import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { writeBillingInterval } from '@/lib/billing/core/subscription'
+import { switchLagoSubscriptionPlan } from '@/lib/billing/lago/subscriptions'
 import { getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
-import { switchLagoSubscriptionPlan } from '@/lib/billing/lago/subscriptions'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import {
   hasUsableSubscriptionAccess,
@@ -76,7 +76,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (isOrgScopedSubscription(sub, userId)) {
         const hasPermission = await isOrganizationOwnerOrAdmin(userId, sub.referenceId)
         if (!hasPermission) {
-          return NextResponse.json({ error: 'Only team admins can change the plan' }, { status: 403 })
+          return NextResponse.json(
+            { error: 'Only team admins can change the plan' },
+            { status: 403 }
+          )
         }
       }
 

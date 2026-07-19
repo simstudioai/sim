@@ -138,6 +138,24 @@ bun run dev:full  # Starts Next.js app and realtime socket server
 
 Or run separately: `bun run dev` (Next.js) and `cd apps/sim && bun run dev:sockets` (realtime).
 
+## Admin Login (Local Development)
+
+Seed a platform-admin user, then sign in at [http://localhost:12000](http://localhost:12000):
+
+```bash
+bun run apps/sim/scripts/seed-super-admin-user.ts
+```
+
+The seed script reads admin emails from the `PLATFORM_ADMIN_EMAILS` env var and the password from `SEED_ADMIN_PASSWORD`. Configure these in `apps/sim/.env` before running:
+
+```bash
+# apps/sim/.env
+PLATFORM_ADMIN_EMAILS=admin@example.com
+SEED_ADMIN_PASSWORD=your-secure-password
+```
+
+> **Security:** Use a strong, unique password in every environment — never commit real credentials.
+
 ## Chat API Keys
 
 Chat is a Sim-managed service. To use Chat on a self-hosted instance:

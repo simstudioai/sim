@@ -1,0 +1,18 @@
+{
+  "additional_http_headers_to_include_in_the_response": "Zusätzliche HTTP-Header, die in der Antwort mitgegeben werden",
+  "choose_how_to_define_your_response_data_structure": "Wählen Sie die Datenstruktur Ihrer Antwortdefinition aus",
+  "describe_the_api_response_structure_you_need": "Beschreiben Sie die API-Datenstruktur, die Sie benötigen...",
+  "http_status_code": "HTTP Statuscode",
+  "http_status_code_default_200": "HTTP Statuscode (Standardwert: 200)",
+  "integrate_response_into_the_workflow_can_send_build": "Integrieren Sie die Antwort in den Workflow. Es können Build- oder Edit-strukturelle Antworten in eine finale Antwort des Workflows übermittelt werden.",
+  "json_response_body": "JSON-Antwortkörper",
+  "response": "Antwort",
+  "response_data": "Antwort-Daten",
+  "response_data_definition_mode": "Modus der Definition der Antwortdaten",
+  "response_data_mode": "Datendatendefinitionsmodus",
+  "response_headers": "Antwort-Header",
+  "response_structure": "Antwortstruktur",
+  "send_structured_api_response": "Verstehbare Antwort-API",
+  "status_code": "Statuscode",
+  "structured_response_data": "Strukturierte Antwort-Daten"
+}

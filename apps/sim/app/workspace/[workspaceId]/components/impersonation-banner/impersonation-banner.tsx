@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Banner } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { useStopImpersonating } from '@/hooks/queries/admin-users'
-import { useTranslations } from 'next-intl'
 
 function getImpersonationBannerText(userLabel: string, userEmail?: string) {
   return `Impersonating ${userLabel}${userEmail ? ` (${userEmail})` : ''}. Changes will apply to this account until you switch back.`

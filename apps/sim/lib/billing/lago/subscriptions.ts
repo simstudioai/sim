@@ -6,7 +6,10 @@ import { and, eq } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { LagoApiError, lagoRequest } from '@/lib/billing/lago/client'
 import { mapLagoPlanToSimPlan, mapSimPlanToLagoPlan } from '@/lib/billing/lago/config'
-import { toLagoCustomerExternalId, toLagoSubscriptionExternalId } from '@/lib/billing/lago/external-ids'
+import {
+  toLagoCustomerExternalId,
+  toLagoSubscriptionExternalId,
+} from '@/lib/billing/lago/external-ids'
 import type {
   LagoBillingEntityType,
   LagoSubscriptionPayload,
@@ -83,10 +86,7 @@ export async function upsertLocalSubscriptionFromLago(
   }
 
   if (existing.length > 0) {
-    await db
-      .update(subscription)
-      .set(row)
-      .where(eq(subscription.id, params.subscriptionExternalId))
+    await db.update(subscription).set(row).where(eq(subscription.id, params.subscriptionExternalId))
   } else {
     await db.insert(subscription).values({
       id: params.subscriptionExternalId,

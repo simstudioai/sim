@@ -124,32 +124,32 @@ export interface BatchUpdateSubblocksOperation extends BaseOperation {
   }
 }
 
-interface ApplyDiffOperation extends BaseOperation {
+export interface ApplyDiffOperation extends BaseOperation {
   type: typeof UNDO_REDO_OPERATIONS.APPLY_DIFF
   data: {
-    baselineSnapshot: any // WorkflowState snapshot before diff
-    proposedState: any // WorkflowState with diff applied
-    diffAnalysis: any // DiffAnalysis for re-applying markers
+    baselineSnapshot: Record<string, unknown> // WorkflowState snapshot before diff
+    proposedState: Record<string, unknown> // WorkflowState with diff applied
+    diffAnalysis: Record<string, unknown> // DiffAnalysis for re-applying markers
   }
 }
 
-interface AcceptDiffOperation extends BaseOperation {
+export interface AcceptDiffOperation extends BaseOperation {
   type: typeof UNDO_REDO_OPERATIONS.ACCEPT_DIFF
   data: {
-    beforeAccept: any // WorkflowState with diff markers
-    afterAccept: any // WorkflowState without diff markers
-    diffAnalysis: any // DiffAnalysis to restore markers on undo
-    baselineSnapshot: any // Baseline workflow state
+    beforeAccept: Record<string, unknown> // WorkflowState with diff markers
+    afterAccept: Record<string, unknown> // WorkflowState without diff markers
+    diffAnalysis: Record<string, unknown> // DiffAnalysis to restore markers on undo
+    baselineSnapshot: Record<string, unknown> // Baseline workflow state
   }
 }
 
-interface RejectDiffOperation extends BaseOperation {
+export interface RejectDiffOperation extends BaseOperation {
   type: typeof UNDO_REDO_OPERATIONS.REJECT_DIFF
   data: {
-    beforeReject: any // WorkflowState with diff markers
-    afterReject: any // WorkflowState baseline (after reject)
-    diffAnalysis: any // DiffAnalysis to restore markers on undo
-    baselineSnapshot: any // Baseline workflow state
+    beforeReject: Record<string, unknown> // WorkflowState with diff markers
+    afterReject: Record<string, unknown> // WorkflowState baseline (after reject)
+    diffAnalysis: Record<string, unknown> // DiffAnalysis to restore markers on undo
+    baselineSnapshot: Record<string, unknown> // Baseline workflow state
   }
 }
 

@@ -56,16 +56,16 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     for (const [key, value] of formData.entries()) {
       if (key.startsWith('image_') && typeof value !== 'string') {
-        if (value && 'arrayBuffer' in value) {
-          const buffer = Buffer.from(await value.arrayBuffer())
-          const filename = value.name || `image_${key.split('_')[1]}`
+        // double-cast-allowed: FormDataEntryValue narrows to File after typeof guard but TS doesn't track it
+        const file = value as unknown as File
+        const buffer = Buffer.from(await file.arrayBuffer())
+        const filename = file.name || `image_${key.split('_')[1]}`
 
-          images.push({
-            filename,
-            content: buffer,
-            contentType: value.type || 'application/octet-stream',
-          })
-        }
+        images.push({
+          filename,
+          content: buffer,
+          contentType: file.type || 'application/octet-stream',
+        })
       }
     }
 

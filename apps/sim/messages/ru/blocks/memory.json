@@ -1,0 +1,20 @@
+{
+  "add_memory_store": "Добавить память о хранении",
+  "agent_role": "Роль агента",
+  "content": "Содержимое",
+  "conversation_id": "ID разговора",
+  "conversation_identifier": "Идентификатор разговора",
+  "enter_conversation_id_e_g_user_123": "Введите ID разговора (например, user-123)",
+  "enter_message_content": "Введите содержимое сообщения",
+  "integrate_memory_into_the_workflow_can_add_get": "Интегрируйте память в воркфлоу. Можно добавлять, получать память, получать все памяти и удалять память.",
+  "memory": "Память",
+  "memory_content": "Содержимое памяти",
+  "memory_data": "Данные памяти",
+  "memory_identifier": "Идентификатор памяти",
+  "memory_identifier_conversation_id": "Идентификатор памяти (идентификатор разговора)",
+  "operation": "Операция",
+  "operation_to_perform": "Выполнение операции",
+  "role": "Роль",
+  "select_agent_role": "Выберите роль агента",
+  "select_operation": "Выберите операцию"
+}

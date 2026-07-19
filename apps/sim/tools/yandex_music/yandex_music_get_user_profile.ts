@@ -22,7 +22,7 @@ export const yandexMusicGetUserProfileTool: ToolConfig = {
     },
     display_name: {
       type: 'string',
-      description: 'User\'s chosen display name.',
+      description: "User's chosen display name.",
       optional: true,
     },
     join_date: {
@@ -33,13 +33,12 @@ export const yandexMusicGetUserProfileTool: ToolConfig = {
   },
 
   request: {
-    url: () => `https://api.yandex.ru/music/v1/v1/users/${params.user_id}/profile`,
+    url: (params) => `https://api.yandex.ru/music/v1/v1/users/${params.user_id}/profile`,
     method: () => 'GET',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
-
   },
 
   transformResponse: async (response: Response) => {

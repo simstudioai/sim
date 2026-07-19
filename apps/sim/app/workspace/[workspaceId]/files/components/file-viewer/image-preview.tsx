@@ -1,10 +1,10 @@
 'use client'
 
 import { memo } from 'react'
+import { useTranslations } from 'next-intl'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { ZoomablePreview } from './zoomable-preview'
-import { useTranslations } from 'next-intl'
 
 export const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
   const t = useTranslations('auto')

@@ -1,0 +1,11 @@
+{
+  "api_key": "API Schlüssel",
+  "enter_your_api_key": "Geben Sie Ihren API Schlüssel ein",
+  "manage_customer_details": "Verwaltung von Kundendetails",
+  "operation": "Operation",
+  "process_one_time_payment": "Zahlung verarbeiten, Abonnements verwalten und komplexe finanzielle Transaktionen weltweit handeln",
+  "process_payments_manage_subscriptions_and_handle_complex_financi": "Abonnementabrechnung einrichten",
+  "set_up_subscription_billing": "Stripe-Operation",
+  "stripe_operation": "Stripe-Zahlungen und Abrechnung",
+  "stripe_payments_billing": "Nutzungslimit"
+}

@@ -1,0 +1,7 @@
+{
+  "add_custom_fields_beyond_the_built_in_input": "Fügen Sie benutzerdefachte Felder hinzu außer den integrierten Eingabefelder, Gesprächs-ID und Dateifeldern.",
+  "collect_structured_inputs_and_power_manual_runs_api": "Sammele strukturierte Eingaben und vergrößere die manuelle Ausführung, API-Ausführungen und bereitgestellte Chat-Erlebnisse aus einem einzelnen Startblock.",
+  "inputs": "Eingaben",
+  "start": "Startpunkt für den Workflow der Chat, manuell und API-Ausführungen als Einheit.",
+  "unified_workflow_entry_point_for_chat_manual_and": "Einheitlicher Eingangspunkt für Chat, manuelle Ausführung und API-Ausführung"
+}

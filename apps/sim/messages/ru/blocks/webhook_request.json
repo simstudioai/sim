@@ -1,0 +1,20 @@
+{
+  "additional_headers": "Дополнительные заголовки",
+  "describe_the_webhook_payload_you_need": "Опишите JSON-пакет, который вы хотите получить через вебхук...",
+  "enter_json_payload": "Введите JSON-пакет для отправки...",
+  "http_status_code": "HTTP статус код",
+  "json_payload_to_send": "JSON-пакет для отправки",
+  "optional_additional_headers": "Возможные дополнительные заголовки",
+  "optional_custom_headers_to_include_with_the_webhook": "Возможные дополнительные заголовки к запросу вебхука",
+  "optional_secret_for_hmac_sha256_signature": "Возможный секрет для подтверждения HMAC-SHA256",
+  "optional_secret_for_hmac_signature": "Возможный: Секрет для подтверждения HMAC",
+  "outgoing_webhook": "Выходной вебхук",
+  "payload": "Пакет",
+  "response_data_from_the_webhook_endpoint": "Данные ответа из конечной точки вебхука",
+  "response_headers": "Ответные заголовки",
+  "send_a_webhook_request": "Отправка запроса вебхуком",
+  "send_an_http_post_request_to_a_webhook": "Отправка HTTP POST-запроса на URL вебхука с автоматическими заголовками вебхука. Вы можете подписывать тело пакета HMAC-SHA256 для обеспечения безопасной доставки запроса вебхука.",
+  "signing_secret": "Секретный ключ вебхука",
+  "webhook_url": "URL-адрес вебхука",
+  "webhook_url_to_send_the_request_to": "URL-адрес, на который нужно отправить запрос"
+}

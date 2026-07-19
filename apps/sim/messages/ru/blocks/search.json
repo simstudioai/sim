@@ -1,0 +1,12 @@
+{
+  "cost_information_0_01": "Информация о стоимости ($) 0,01",
+  "enter_your_search_query": "Введите ваш запрос поиска...",
+  "search": "Поиск",
+  "search_query": "Запрос для поиска",
+  "search_results": "Результаты поиска",
+  "search_source_exa": "Источник поиска (exa)",
+  "search_the_web_0_01_per_search": "Поиск на web ($0,01 за каждый поиск)",
+  "search_the_web_using_the_search_tool_each": "Для поиска на web используйте инструмент Поиск. Каждый запрос обойдется в $0,01.",
+  "the_search_query": "Запрос для поиска",
+  "total_number_of_results": "Общее количество результатов"
+}

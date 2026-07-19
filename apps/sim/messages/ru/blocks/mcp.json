@@ -1,0 +1,15 @@
+{
+  "arguments_to_pass_to_the_tool": "Аргументы для передачи в инструмент",
+  "available_tools_from_the_selected_mcp_server": "Доступные инструменты из выбранного сервера MCP",
+  "choose_from_configured_mcp_servers_in_your_workspace": "Выберите из конфигурированных серверов MCP в вашем рабочем пространстве",
+  "content_array_from_mcp_tool_response_the_standard": "Массив содержимого от ответа инструмента MCP - стандартный формат для всех инструментов MCP",
+  "execute_tools_from_model_context_protocol_mcp_servers": "Выполнять инструменты по протоколу модели контекста (MCP) из рабочего процесса. Можно выполнять инструменты из серверов MCP.",
+  "integrate_mcp_into_the_workflow_can_execute_tools": "Интегрировать MCP в воркфлоу. Может выполнять инструменты из серверов MCP. Требуется настройки с рабочим пространством для серверов MCP.",
+  "mcp_server": "Сервер MCP",
+  "mcp_server_id_to_execute_the_tool_on": "ID сервера MCP, на который будет выполнено заданное действие",
+  "mcp_tool": "Инструмент MCP",
+  "name_of_the_tool_to_execute": "Имя инструмента для выполнения",
+  "select_a_tool": "Выберите инструмент",
+  "select_an_mcp_server": "Выберите сервер MCP",
+  "tool": "Инструмент"
+}

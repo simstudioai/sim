@@ -1,0 +1,13 @@
+{
+  "competitor_blog_watcher": "Competitor blog watcher",
+  "item_link": "Item link",
+  "item_title": "Item title",
+  "monitor_rss_feeds_and_trigger_workflows_when_new": "Monitor RSS-Feeds und aktiviere Workflow, wenn neue Inhalte veröffentlicht werden.",
+  "publication_date": "Publication date",
+  "raw_feed_object_with_all_fields": "Raw Feedobjekt mit allen Feldern",
+  "raw_item_object_with_all_fields": "Raw Itemobjekt mit allen Feldern",
+  "rss_feed": "RSS Feed",
+  "rss_feed_to_content_table": "RSS-Feed in die Inhaltstabelle",
+  "rss_post_to_slack": "RSS-Inhaltszeile an Slack senden",
+  "subscribe_to_any_rss_or_atom_feed_and": "Abonnieren Sie beliebige RSS oder Atom-Feeds und aktivieren Sie Ihren Workflow automatisch, wenn neue Inhalte veröffentlicht werden. Perfekt für das Überwachen von Blogs, Nachrichtensitzen, Podcasts und jeglichen Inhalt, der einen RSS-Feed bereitstellt."
+}

@@ -1,0 +1,22 @@
+{
+  "ai_powered_meeting_notes_and_action_items": "AI-Powered meeting notizen und Aktionen",
+  "array_of_action_items": "Ausschnitt aus der Liste von Aktionen",
+  "array_of_attendee_objects": "Ausgabearray von Teilnehmern",
+  "array_of_tags": "Ausgabearray von Tags",
+  "array_of_transcript_segments": "Ausgabearray von Szenariosegmenten",
+  "calendar_event_id": "Kalenderereignis-ID",
+  "circleback": "Zusagen",
+  "circleback_action_item_tracker": "Zusagendienstlese für Aktionen",
+  "circleback_meeting_id": "Zusagenerrechnungsnummer",
+  "circleback_notes_to_notion": "Notion-Zusageneingabe an Notion übertragen",
+  "circleback_recap_to_slack": "Slack-Zusagenergebnis übertragen",
+  "duration_in_seconds": "Sekunden in Sekunden",
+  "full_meeting_payload": "vollständiger Meetingpayload",
+  "meeting_creation_timestamp": "Meeting-Generierungszeitstempel",
+  "meeting_notes_in_markdown": "Meetingnotizen in Markdown",
+  "meeting_title": "Meeting-Titel",
+  "receive_meeting_notes_action_items_transcripts_and_recordings": "Empfange Meetingnotizen, Aktionenpunkte, Transkripte und Aufnahmen, sobald Meetings verarbeitet werden. Circleback verwendet Webhooks, um Daten an deine Workflows zu pushen.",
+  "recording_url_valid_24_hours": "Aufnahmehost (gültig 24 Stunden)",
+  "user_created_insights": "Benutzer erstellte Einsichten",
+  "virtual_meeting_url_zoom_meet_teams": "virtueller Meeting-Host (Zoom, Meet, Teams)"
+}

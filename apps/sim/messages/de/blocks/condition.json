@@ -1,0 +1,8 @@
+{
+  "add_a_condition": "Fügen Sie eine Bedingung hinzu",
+  "condition": "Bedingung",
+  "condition_result": "Bedingungsresultat",
+  "selected_condition_option_id": "Ausgewählte Bedingungsoption-ID",
+  "selected_execution_path": "Ausgewähltes Ausführungspfad",
+  "this_is_a_core_workflow_block_add_a": "Dies ist ein Kernblock des Workflows. Fügen Sie eine Bedingung zum Workflow hinzu, um die Ausführungsbahn basierend auf einer booleschen Ausdruck zu teilen."
+}

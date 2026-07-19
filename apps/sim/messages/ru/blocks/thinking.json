@@ -1,0 +1,9 @@
+{
+  "acknowledged_thought_process": "Уважаемая мысленная процессация",
+  "adds_a_step_where_the_model_explicitly_outlines": "Добавляет шаг, где модель явно описывает свой процесс мысли перед продолжением. Это может улучшить качество рассуждений, стимулируя анализ пошагово.",
+  "describe_the_step_by_step_thinking_process_here": "Здесь вы можете описать процесс шаг за шагом...",
+  "forces_model_to_outline_its_thought_process": "Предназначает модель для описания своего процесса мыслительного пути.",
+  "thinking": "Рассуждение",
+  "thinking_process_instructions": "Инструкции к процессу мысли",
+  "thought_process_instruction": "Процесс мысли / Инструкция"
+}

@@ -1,9 +1,9 @@
-import type { LagoBillingEntityType } from '@/lib/billing/lago/types'
 import {
   getLagoProductSlug,
   inferLagoBillingEntityType,
   usesLagoProductPrefix,
 } from '@/lib/billing/lago/product'
+import type { LagoBillingEntityType } from '@/lib/billing/lago/types'
 
 const USER_PREFIX = 'user:'
 const ORG_PREFIX = 'org:'

@@ -1,0 +1,6 @@
+{
+  "api_key": "API-Schlüssel",
+  "stripe": "Stripe",
+  "stripe_api_key": "Stripe-API-Schlüssel",
+  "stripe_payments_integration": "Integration mit Stripe"
+}

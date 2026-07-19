@@ -4,7 +4,8 @@ export const yandex_musicWebhookTrigger: TriggerConfig = {
   id: 'yandex_music_webhook',
   name: 'Yandex Music Webhook Webhook',
   provider: 'yandex_music',
-  description: 'Triggers when specific events occur within a user\'s Yandex Music account, such as playlist changes or track downloads.',
+  description:
+    "Triggers when specific events occur within a user's Yandex Music account, such as playlist changes or track downloads.",
   version: '1.0.0',
 
   subBlocks: [
@@ -39,9 +40,9 @@ export const yandex_musicWebhookTrigger: TriggerConfig = {
       hideFromPreview: true,
       type: 'text',
       defaultValue: [
-'<div class="mb-3"><strong>1.</strong> Go to the Yandex Music Developer Dashboard.</div>',
-'<div class="mb-3"><strong>2.</strong> Create a new webhook endpoint and paste your system\'s receiving URL.</div>',
-'<div class="mb-3"><strong>3.</strong> Ensure the necessary scopes (e.g., playlist:write) are granted for event triggering.</div>',
+        '<div class="mb-3"><strong>1.</strong> Go to the Yandex Music Developer Dashboard.</div>',
+        '<div class="mb-3"><strong>2.</strong> Create a new webhook endpoint and paste your system\'s receiving URL.</div>',
+        '<div class="mb-3"><strong>3.</strong> Ensure the necessary scopes (e.g., playlist:write) are granted for event triggering.</div>',
       ].join(''),
       mode: 'trigger',
     },

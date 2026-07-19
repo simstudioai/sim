@@ -1,0 +1,20 @@
+{
+  "additional_headers": "Zusätzliche Headers",
+  "describe_the_webhook_payload_you_need": "Beschreiben Sie den webhookpayload, den Sie benötigen...",
+  "enter_json_payload": "Geben Sie das JSONpayload ein...",
+  "http_status_code": "HTTP Statuscode",
+  "json_payload_to_send": "Das zu sendende JSONpayload",
+  "optional_additional_headers": "Optional: Zusätzliche Headers",
+  "optional_custom_headers_to_include_with_the_webhook": "Optional: Header, die mit dem webhookanforderung inkludiert werden sollen",
+  "optional_secret_for_hmac_sha256_signature": "Optional: Geheimnis für HMAC-SHA256-Signatur",
+  "optional_secret_for_hmac_signature": "Optional: Geheimnis für HMAC-Signatur",
+  "outgoing_webhook": "Ausgehender Webhook",
+  "payload": "Payload",
+  "response_data_from_the_webhook_endpoint": "Webhookendpunkt ausgelieferte Antwortdaten",
+  "response_headers": "Antwort-Headers",
+  "send_a_webhook_request": "Senden einer Webhookschreibe-Anfrage",
+  "send_an_http_post_request_to_a_webhook": "Eine HTTP POST-Anfrage an eine Webhookschreibe-URL mit automatischen Webhookschlüssel-Header senden. Die Nachricht können Sie optional mit HMAC-SHA256 signieren, um die Sicherheit der Webhookschreibe zu gewährleisten.",
+  "signing_secret": "Webhookschlüssel",
+  "webhook_url": "Webhookschreibe-URL",
+  "webhook_url_to_send_the_request_to": "Die URL an die Sie die Anfrage senden möchten"
+}

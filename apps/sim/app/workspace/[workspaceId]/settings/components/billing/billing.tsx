@@ -17,6 +17,7 @@ import {
   toast,
 } from '@/components/emcn'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
+import { getBillingPortalLabelKey, isLagoBillingClient } from '@/lib/billing/client/provider'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
 import {
@@ -35,7 +36,6 @@ import {
   hasUsableSubscriptionAccess,
 } from '@/lib/billing/subscriptions/utils'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
-import { getBillingPortalLabelKey, isLagoBillingClient } from '@/lib/billing/client/provider'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'

@@ -3,7 +3,8 @@ import type { ToolConfig } from '@/tools/types'
 export const stripeCreateCheckoutSessionTool: ToolConfig = {
   id: 'stripe_create_checkout_session',
   name: 'Create Checkout Session Link',
-  description: 'Generates a secure, hosted payment link for one-time purchases or subscriptions. This is the recommended method for front-end payments.',
+  description:
+    'Generates a secure, hosted payment link for one-time purchases or subscriptions. This is the recommended method for front-end payments.',
   version: '1.0.0',
 
   params: {
@@ -33,14 +34,14 @@ export const stripeCreateCheckoutSessionTool: ToolConfig = {
   },
 
   request: {
-    url: () => `https://api.stripe.com//v1/checkout/sessions`,
+    url: () => `https://api.stripe.com/v1/checkout/sessions`,
     method: () => 'POST',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const { apiKey, ...bodyParams } = params
+      const { apiKey: _apiKey, ...bodyParams } = params
       return bodyParams
     },
   },

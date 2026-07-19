@@ -1,0 +1,7 @@
+{
+  "api_legacy": "API (Возрастка)",
+  "api_trigger_to_start_the_workflow_via_authenticated": "API-трigger для запуска воркфлоу через аутентифицированные HTTP-запросы с структурированным входным параметром.",
+  "define_the_json_input_schema_accepted_by_the": "Определите схему JSON, принятую API-конечной точкой.",
+  "input_format": "Формат Входных данных",
+  "legacy_block_for_exposing_http_api_endpoint_prefer": "Возрастной блок для экспозиции HTTP API-конечной точки. ПREFERИРУЙТЕ Start-блок."
+}

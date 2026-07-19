@@ -1,0 +1,20 @@
+{
+  "additional_classification_detail": "Zusätzliche Klassifikationsdetails",
+  "api_key": "API Schlüssel",
+  "email_address": "E-Mail-Adresse",
+  "email_address_to_verify": "Validierungs-E-Mail-Adresse zu überprüfen",
+  "enter_your_millionverifier_api_key": "Bitte geben Sie Ihren MillionVerifier-API-Schlüssel ein",
+  "integrate_millionverifier_to_verify_email_deliverability_in_real": "MillionVerifier integrieren, um die Email-Deliverability in der Realität zu überprüfen — E-Mails als gültig, ungültig, Catch-all, verleihbar oder unbekannt klassifizieren und Ihre verbleibenden Überprüfungs-Credits prüfen.",
+  "millionverifier": "MillionVerifier",
+  "millionverifier_api_key": "MillionVerifier-API-Schlüssel",
+  "operation": "Vorgang",
+  "operation_to_perform": "Ausführen zu tun Vorgang",
+  "remaining_verification_credits": "Verbleibende Überprüfungs-Credits",
+  "suggested_correction": "Empfohlene Korrektur",
+  "the_verified_email_address": "Die überprüfte E-Mail-Adresse",
+  "verification_status": "Status der Überprüfung",
+  "verify_email_deliverability_and_check_account_credits": "Überprüfen Sie die Versandfähigkeit Ihrer E-Mail und prüfen Sie Ihre Kreditpunkte",
+  "whether_on_a_free_email_provider": "Sind dies eine kostenlose E-Mail-Anbieter?",
+  "whether_the_address_is_a_role_account": "Ist diese Adresse ein Rollenkonto?",
+  "whether_the_email_is_valid_and_safe_to": "Ist die E-Mail gültig und sicher für den Absendeverkehr?"
+}

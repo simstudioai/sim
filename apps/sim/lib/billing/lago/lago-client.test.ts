@@ -84,9 +84,7 @@ describe('lago client', () => {
       vi.stubEnv('LAGO_API_URL', 'https://api.lago.test/api/v1')
       vi.resetModules()
 
-      const mockFetch = vi.fn().mockResolvedValueOnce(
-        new Response('', { status: 200 })
-      )
+      const mockFetch = vi.fn().mockResolvedValueOnce(new Response('', { status: 200 }))
       vi.stubGlobal('fetch', mockFetch)
 
       const { lagoRequest } = await import('@/lib/billing/lago/client')
@@ -99,9 +97,11 @@ describe('lago client', () => {
       vi.stubEnv('LAGO_API_URL', 'https://api.lago.test/api/v1')
       vi.resetModules()
 
-      const mockFetch = vi.fn().mockImplementation(
-        () => Promise.resolve(new Response('{"error":"Not Found"}', { status: 404 }))
-      )
+      const mockFetch = vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(new Response('{"error":"Not Found"}', { status: 404 }))
+        )
       vi.stubGlobal('fetch', mockFetch)
 
       const { lagoRequest, LagoApiError } = await import('@/lib/billing/lago/client')

@@ -1,6 +1,7 @@
 'use client'
 
 import { FileText } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Plus } from '@/components/emcn'
 import { Database } from '@/components/emcn/icons'
 import {
@@ -8,7 +9,6 @@ import {
   type ChromeActionSpec,
   ResourceChromeFallback,
 } from '@/app/workspace/[workspaceId]/components'
-import { useTranslations } from 'next-intl'
 
 const noop = () => {}
 

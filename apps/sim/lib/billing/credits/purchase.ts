@@ -6,10 +6,7 @@ import { eq } from 'drizzle-orm'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import {
-  canPurchaseCredits,
-  setLocalCreditBalance,
-} from '@/lib/billing/credits/balance'
+import { canPurchaseCredits, setLocalCreditBalance } from '@/lib/billing/credits/balance'
 import { getLagoWalletBalance, topUpLagoWallet } from '@/lib/billing/lago/wallets'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'

@@ -16,11 +16,11 @@ import {
 } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown, Search } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/core/utils/cn'
 import { Loader } from '../../icons'
 import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
-import { useTranslations } from 'next-intl'
 
 const comboboxVariants = cva(
   'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:cursor-not-allowed disabled:opacity-50',
@@ -192,6 +192,7 @@ const Combobox = memo(
       const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null)
       const internalInputRef = useRef<HTMLInputElement>(null)
       const inputRef = externalInputRef || internalInputRef
+      const t = useTranslations('auto')
 
       const effectiveSelectedValue = selectedValue ?? value
 

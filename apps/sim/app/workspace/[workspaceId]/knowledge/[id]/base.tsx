@@ -127,7 +127,7 @@ const AnimatedLoader = ({ className }: { className?: string }) => (
   <Loader className={className} animate />
 )
 
-const getStatusBadge = (doc: DocumentData) => {
+const getStatusBadge = (doc: DocumentData, t: ReturnType<typeof useTranslations>) => {
   switch (doc.processingStatus) {
     case 'pending':
       return (
@@ -1060,7 +1060,7 @@ export function KnowledgeBase({
                 content: (
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
-                      <div className='cursor-help'>{getStatusBadge(doc)}</div>
+                      <div className='cursor-help'>{getStatusBadge(doc, t)}</div>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top' className='max-w-xs'>
                       {doc.processingError}
@@ -1068,7 +1068,7 @@ export function KnowledgeBase({
                   </Tooltip.Root>
                 ),
               }
-            : { content: getStatusBadge(doc) }
+            : { content: getStatusBadge(doc, t) }
 
         const tagsCell: ResourceCell =
           tags.length === 0

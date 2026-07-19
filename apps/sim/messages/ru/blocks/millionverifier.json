@@ -1,0 +1,20 @@
+{
+  "additional_classification_detail": "В дополнительной классификационной детали",
+  "api_key": "API ключ",
+  "email_address": "Электронная почта",
+  "email_address_to_verify": "Адрес электронной почты для подтверждения",
+  "enter_your_millionverifier_api_key": "Введите ваш ключ MillionVerifier API",
+  "integrate_millionverifier_to_verify_email_deliverability_in_real": "Интегрируйте MillionVerifier для проверки доставляемости электронной почты в реальном времени — классифицируйте адреса как действительные, недействительные, адресаты всех, временные или неизвестные — и проверьте оставшиеся ключи подтверждения.",
+  "millionverifier": "MillionVerifier",
+  "millionverifier_api_key": "Ключ MillionVerifier API",
+  "operation": "Операция",
+  "operation_to_perform": "Операцию для выполнения",
+  "remaining_verification_credits": "Оставшиеся ключи подтверждения",
+  "suggested_correction": "Рекомендуемое исправление",
+  "the_verified_email_address": "Подтвержденный адрес электронной почты",
+  "verification_status": "Статус подтверждения",
+  "verify_email_deliverability_and_check_account_credits": "Подтвердите доставку писем и проверьте кредиты аккаунта",
+  "whether_on_a_free_email_provider": "Вы используете бесплатную электронную почту?",
+  "whether_the_address_is_a_role_account": "Этот адрес является роль-аккаунтом?",
+  "whether_the_email_is_valid_and_safe_to": "Этот email действителен и безопасен для отправки."
+}

@@ -41,6 +41,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as TabsPrimitive from '@radix-ui/react-tabs'
 import { X } from 'lucide-react'
 import { usePathname } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/core/utils/cn'
 import { Button } from '../button/button'
 import { focusFirstTextInput, focusFirstTextInputIn } from './auto-focus'
@@ -301,26 +302,29 @@ ModalContent.displayName = 'ModalContent'
  * Modal header component for title and description.
  */
 const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, children, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn('flex min-w-0 items-center justify-between gap-2 px-4 pt-4 pb-2', className)}
-      {...props}
-    >
-      <DialogPrimitive.Title className='min-w-0 font-medium text-[var(--text-primary)] text-base leading-none'>
-        {children}
-      </DialogPrimitive.Title>
-      <DialogPrimitive.Close asChild>
-        <Button
-          variant='ghost'
-          className='relative size-[16px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
-        >
-          <X className='size-[16px]' />
-          <span className='sr-only'>{t('close')}</span>
-        </Button>
-      </DialogPrimitive.Close>
-    </div>
-  )
+  ({ className, children, ...props }, ref) => {
+    const t = useTranslations('auto')
+    return (
+      <div
+        ref={ref}
+        className={cn('flex min-w-0 items-center justify-between gap-2 px-4 pt-4 pb-2', className)}
+        {...props}
+      >
+        <DialogPrimitive.Title className='min-w-0 font-medium text-[var(--text-primary)] text-base leading-none'>
+          {children}
+        </DialogPrimitive.Title>
+        <DialogPrimitive.Close asChild>
+          <Button
+            variant='ghost'
+            className='relative size-[16px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
+          >
+            <X className='size-[16px]' />
+            <span className='sr-only'>{t('close')}</span>
+          </Button>
+        </DialogPrimitive.Close>
+      </div>
+    )
+  }
 )
 
 ModalHeader.displayName = 'ModalHeader'

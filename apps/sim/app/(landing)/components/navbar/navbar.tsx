@@ -6,9 +6,9 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { GithubOutlineIcon } from '@/components/icons'
+import { LanguageSwitcher } from '@/components/ui/language-switcher'
 import { cn } from '@/lib/core/utils/cn'
 import { SessionContext } from '@/app/_shell/providers/session-provider'
-import { LanguageSwitcher } from '@/components/ui/language-switcher'
 import {
   BlogDropdown,
   type NavBlogPost,
@@ -361,7 +361,7 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
                   {t('github')}
                 </a>
               </li>
-              <li className='border-[var(--landing-border)] border-b flex items-center justify-between px-5 py-3.5'>
+              <li className='flex items-center justify-between border-[var(--landing-border)] border-b px-5 py-3.5'>
                 <span className='text-[var(--landing-text)]'>{t('language')}</span>
                 <div className='w-[120px]'>
                   <LanguageSwitcher />

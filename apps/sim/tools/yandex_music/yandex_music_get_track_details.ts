@@ -3,7 +3,8 @@ import type { ToolConfig } from '@/tools/types'
 export const yandexMusicGetTrackDetailsTool: ToolConfig = {
   id: 'yandex_music_get_track_details',
   name: 'Retrieve Specific Track Details',
-  description: 'Fetches comprehensive metadata for a single track, including duration, album association, and genre tags.',
+  description:
+    'Fetches comprehensive metadata for a single track, including duration, album association, and genre tags.',
   version: '1.0.0',
 
   params: {
@@ -36,13 +37,12 @@ export const yandexMusicGetTrackDetailsTool: ToolConfig = {
   },
 
   request: {
-    url: () => `https://api.yandex.ru/music/v1/v1/tracks/${params.track_id}`,
+    url: (params) => `https://api.yandex.ru/music/v1/v1/tracks/${params.track_id}`,
     method: () => 'GET',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
-
   },
 
   transformResponse: async (response: Response) => {

@@ -3,7 +3,8 @@ import type { ToolConfig } from '@/tools/types'
 export const stripeCreateChargeTool: ToolConfig = {
   id: 'stripe_create_charge',
   name: 'Create a Payment Charge',
-  description: 'Creates a charge on behalf of a customer using various payment methods (card, bank account). Use this when you need immediate funds capture.',
+  description:
+    'Creates a charge on behalf of a customer using various payment methods (card, bank account). Use this when you need immediate funds capture.',
   version: '1.0.0',
 
   params: {
@@ -39,14 +40,14 @@ export const stripeCreateChargeTool: ToolConfig = {
   },
 
   request: {
-    url: () => `https://api.stripe.com//v1/charges`,
+    url: () => `https://api.stripe.com/v1/charges`,
     method: () => 'POST',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const { apiKey, ...bodyParams } = params
+      const { apiKey: _apiKey, ...bodyParams } = params
       return bodyParams
     },
   },

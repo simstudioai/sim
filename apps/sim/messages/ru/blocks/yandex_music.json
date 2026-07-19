@@ -1,0 +1,10 @@
+{
+  "api_key": "Workflow",
+  "enter_your_api_key": "Введите ваш ключ API",
+  "integrate_with_yandex_music_api_to_search_manage": "Интегрируйте с API Яндекс.Музыки для поиска, управления плейлистами и получения метаданных треков/альбомов.",
+  "manage_playlists": "Управление Плейлистами",
+  "operation": "Операция",
+  "search_music_catalog": "Поиск в каталоге музыки",
+  "yandex_music": "Яндекс.Музыка",
+  "yandex_music_operation": "Operation Яндекс.Музыки"
+}

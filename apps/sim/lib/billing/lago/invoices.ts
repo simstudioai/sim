@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { InvoiceItem } from '@/lib/api/contracts/subscription'
 import { lagoRequest } from '@/lib/billing/lago/client'
 import { toLagoCustomerExternalId } from '@/lib/billing/lago/external-ids'
 import type { LagoBillingEntityType, LagoInvoicesResponse } from '@/lib/billing/lago/types'
-import type { InvoiceItem } from '@/lib/api/contracts/subscription'
 
 const logger = createLogger('LagoInvoices')
 

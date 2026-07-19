@@ -1,0 +1,14 @@
+{
+  "cron_expression": "Cron Ausdruck",
+  "day_of_month": "Tag des Monats",
+  "day_of_week": "Wochentag",
+  "describe_your_schedule_e_g_every_weekday_at": "Beschreiben Sie Ihre Schichtplanung (z.B. \"Montags- und Dienstagsmorgens um 9 Uhr\")",
+  "integrate_schedule_into_the_workflow_can_trigger_a": "Schichtplan in die Workflow integrieren. Kann einen Workflow auf eine Schichtkonfiguration auslösen.",
+  "interval_minutes": "Intervall (Minuten)",
+  "minute": "Minute",
+  "run_frequency": "Ausführungsfrequenz",
+  "schedule": "Schichtplan",
+  "time": "Zeit",
+  "timezone": "Zeitzone",
+  "trigger_workflow_execution_on_a_schedule": "Workflow-Ausführung auf einer Schicht auslösen"
+}

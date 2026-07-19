@@ -4,7 +4,8 @@ export const stripeWebhookTrigger: TriggerConfig = {
   id: 'stripe_webhook',
   name: 'Stripe Webhook Listener Webhook',
   provider: 'stripe',
-  description: 'Triggers whenever a specified event occurs within your Stripe account (e.g., successful payment, customer creation).',
+  description:
+    'Triggers whenever a specified event occurs within your Stripe account (e.g., successful payment, customer creation).',
   version: '1.0.0',
 
   subBlocks: [
@@ -49,9 +50,9 @@ export const stripeWebhookTrigger: TriggerConfig = {
       hideFromPreview: true,
       type: 'text',
       defaultValue: [
-'<div class="mb-3"><strong>1.</strong> In your Stripe Dashboard, navigate to Webhooks.</div>',
-'<div class="mb-3"><strong>2.</strong> Click \'Add Endpoint\' and paste your system\'s webhook URL.</div>',
-'<div class="mb-3"><strong>3.</strong> Select the required events (e.g., payment_intent.succeeded) to ensure reliable triggering.</div>',
+        '<div class="mb-3"><strong>1.</strong> In your Stripe Dashboard, navigate to Webhooks.</div>',
+        "<div class=\"mb-3\"><strong>2.</strong> Click 'Add Endpoint' and paste your system's webhook URL.</div>",
+        '<div class="mb-3"><strong>3.</strong> Select the required events (e.g., payment_intent.succeeded) to ensure reliable triggering.</div>',
       ].join(''),
       mode: 'trigger',
     },
@@ -68,7 +69,8 @@ export const stripeWebhookTrigger: TriggerConfig = {
     },
     data: {
       type: 'json',
-      description: 'The full object data payload related to the event (e.g., the PaymentIntent object).',
+      description:
+        'The full object data payload related to the event (e.g., the PaymentIntent object).',
     },
   },
 

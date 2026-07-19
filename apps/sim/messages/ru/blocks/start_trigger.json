@@ -1,0 +1,7 @@
+{
+  "add_custom_fields_beyond_the_built_in_input": "Добавьте пользовательские поля за пределами встроенных полей ввода, разговор Id и файлов.",
+  "collect_structured_inputs_and_power_manual_runs_api": "Соберите структурированные входы и укрепите ручные запуски, выполнения API и развернутые чатовые опыты из одного начала блока.",
+  "inputs": "Inputs",
+  "start": "Start",
+  "unified_workflow_entry_point_for_chat_manual_and": "Внешний точка доступа воркфлоу для чата, ручных запусков и API-запусков."
+}
