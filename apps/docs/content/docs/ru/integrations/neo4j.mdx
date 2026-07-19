@@ -75,7 +75,7 @@ Whether building recommendation systems, anti-fraud solutions, knowledge graphs,
 
 | `cypherQuery` | строка | Да | Cypher запрос для выполнения (например, "MATCH (n:Person) RETURN n LIMIT 10", "MATCH (a)-\[r\]-&gt;\(b\) WHERE a.name = $name RETURN a, r, b") |
 
-| `parameters` | объект | Нет | Параметры для Cypher запроса в виде JSON объекта. Используется для любых динамических значений, включая LIMIT (например, запрос: "MATCH (n) RETURN n LIMIT $limit", параметры: {"limit": 100}) |
+| `parameters` | объект | Нет | Параметры для Cypher запроса в виде JSON объекта. Используется для любых динамических значений, включая LIMIT (например, запрос: "MATCH (n) RETURN n LIMIT $limit", параметры: {'{'}"limit": 100{'}'}) |
 
 #### Выходные данные
 
@@ -121,7 +121,7 @@ Whether building recommendation systems, anti-fraud solutions, knowledge graphs,
 
 | `cypherQuery` | строка | Да | Cypher инструкция CREATE для выполнения (например, "CREATE (n:Person \{name: $name, age: $age\})", "CREATE (a)-\[r:KNOWS\]-&gt;\(b\)") |
 
-| `parameters` | объект | Нет | Параметры для Cypher запроса в виде JSON объекта (например, {"name": "Alice", "age": 30}) |
+| `parameters` | объект | Нет | Параметры для Cypher запроса в виде JSON объекта (например, {'{'}"name": "Alice", "age": 30{'}'}) |
 
 #### Выходные данные
 
@@ -163,7 +163,7 @@ Whether building recommendation systems, anti-fraud solutions, knowledge graphs,
 
 | `cypherQuery` | строка | Да | Cypher инструкция MERGE для выполнения (например, "MERGE (n:Person \{name: $name\}) ON CREATE SET n.created = timestamp\(\)", "MERGE (a)-\[r:KNOWS\]-&gt;\(b\)") |
 
-| `parameters` | объект | Нет | Параметры для Cypher запроса в виде JSON объекта (например, {"name": "Alice", "email": "alice@example.com"}) |
+| `parameters` | объект | Нет | Параметры для Cypher запроса в виде JSON объекта (например, {'{'}"name": "Alice", "email": "alice@example.com"{'}'}) |
 
 #### Выходные данные
 
@@ -205,7 +205,7 @@ Whether building recommendation systems, anti-fraud solutions, knowledge graphs,
 
 | `cypherQuery` | строка | Да | Cypher запрос с инструкциями MATCH и SET для обновления свойств (например, "MATCH (n:Person \{name: $name\}) SET n.age = $age", "MATCH (n) WHERE n.id = $id SET n += $props") |
 
-| `parameters` | объект | Нет | Параметры для Cypher запроса в виде JSON объекта (например, {"name": "Alice", "age": 31, "props": {"city": "NYC"}}) |
+| `parameters` | объект | Нет | Параметры для Cypher запроса в виде JSON объекта (например, {'{'}"name": "Alice", "age": 31, "props": {'{'}"city": "NYC"{'}'}{'}'}) |
 
 #### Выходные данные
 
@@ -247,7 +247,7 @@ Whether building recommendation systems, anti-fraud solutions, knowledge graphs,
 
 | `cypherQuery` | строка | Да | Cypher запрос с инструкциями MATCH и DELETE/DETACH DELETE (например, "MATCH (n:Person \{name: $name\}) DELETE n", "MATCH (n) DETACH DELETE n") |
 
-| `parameters` | объект | Нет | Параметры для Cypher запроса в виде JSON объекта (например, {"name": "Alice", "id": 123}) |
+| `parameters` | объект | Нет | Параметры для Cypher запроса в виде JSON объекта (например, {'{'}"name": "Alice", "id": 123{'}'}) |
 
 | `detach` | boolean | Нет | Указывает использовать DETACH DELETE для удаления отношений перед удалением узлов |
 

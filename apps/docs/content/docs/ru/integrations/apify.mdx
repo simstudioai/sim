@@ -35,7 +35,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `actorId` | строка | Да | ID актора или имя пользователя/имя актора. Примеры: "apify/web-scraper", "janedoe/my-actor", "moJRLRc85AitArpNN" |
 
 
-| `input` | строка | Нет | Входные данные для актора в виде строки JSON. Пример: \{"startUrls": [{"url": "https://example.com"}]}, "maxPages": 10\} |
+| `input` | строка | Нет | Входные данные для актора в виде строки JSON. Пример: {'{'}"startUrls": [{'{'}"url": "https://example.com"{'}'}]{'}'}, "maxPages": 10{'}'} |
 
 | `memory` | число | Нет | Выделенная память для выполнения актора в МБ (128-32768). Пример: 1024 для 1 ГБ, 2048 для 2 ГБ |
 
@@ -81,7 +81,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `actorId` | строка | Да | ID актора или имя пользователя/имя актора. Примеры: "apify/web-scraper", "janedoe/my-actor", "moJRLRc85AitArpNN" |
 
 
-| `input` | строка | Нет | Входные данные для актора в виде строки JSON. Пример: \{"startUrls": [{"url": "https://example.com"}]}, "maxPages": 10\} |
+| `input` | строка | Нет | Входные данные для актора в виде строки JSON. Пример: {'{'}"startUrls": [{'{'}"url": "https://example.com"{'}'}]{'}'}, "maxPages": 10{'}'} |
 
 | --------- | ---- | ----------- |
 
@@ -131,7 +131,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | --------- | ---- | ----------- |
 
-| `input` | строка | Нет | Строка JSON, которая переопределяет сохраненные входные данные для задачи. Пример: \{"startUrls": [{"url": "https://example.com"}]},\} |
+| `input` | строка | Нет | Строка JSON, которая переопределяет сохраненные входные данные для задачи. Пример: {'{'}"startUrls": [{'{'}"url": "https://example.com"{'}'}]{'}'},{'}'} |
 
 | `itemLimit` | число | Нет | Максимальное количество элементов набора данных для возврата (1-250000). Пример: 500 |
 

@@ -131,7 +131,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 ### `table_batch_insert_rows`
 
 
-Вставляйте несколько строк в таблицу одновременно (до $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} строк)
+Вставляйте несколько строк в таблицу одновременно (до ${'{'}TABLE_LIMITS.MAX_BATCH_INSERT_SIZE{'}'} строк)
 
 
 #### Входные данные
@@ -143,7 +143,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | `tableId` | строка | Да | ID таблицы |
 
-| `rows` | массив | Да | Массив объектов данных строки (до $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} строк) |
+| `rows` | массив | Да | Массив объектов данных строки (до ${'{'}TABLE_LIMITS.MAX_BATCH_INSERT_SIZE{'}'} строк) |
 
 
 #### Выходные данные
@@ -251,7 +251,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | `data` | объект | Да | Поля для обновления (объединяются с существующими данными) |
 
-| `limit` | число | Нет | Максимальное количество строк для обновления (по умолчанию: нет ограничений, максимум: $\{TABLE_LIMITS.MAX_BULK_OPERATION_SIZE\}) |
+| `limit` | число | Нет | Максимальное количество строк для обновления (по умолчанию: нет ограничений, максимум: ${'{'}TABLE_LIMITS.MAX_BULK_OPERATION_SIZE{'}'}) |
 
 
 #### Выходные данные
@@ -319,7 +319,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | `filter` | объект | Да | Критерии фильтрации с использованием операторов, таких как $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $ncontains, $startsWith, $endsWith, $empty и т.д. |
 
-| `limit` | число | Нет | Максимальное количество строк для удаления (по умолчанию: нет ограничений, максимум: $\{TABLE_LIMITS.MAX_BULK_OPERATION_SIZE\}) |
+| `limit` | число | Нет | Максимальное количество строк для удаления (по умолчанию: нет ограничений, максимум: ${'{'}TABLE_LIMITS.MAX_BULK_OPERATION_SIZE{'}'}) |
 
 
 #### Выходные данные
@@ -355,9 +355,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | `filter` | объект | Нет | Условия фильтрации (операторы MongoDB: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $ncontains, $startsWith, $endsWith, $empty) |
 
-| `sort` | объект | Нет | Порядок сортировки в виде {поле: "asc"\|"desc"} |
+| `sort` | объект | Нет | Порядок сортировки в виде {'{'}поле: "asc"\|"desc"{'}'} |
 
-| `limit` | число | Нет | Максимальное количество строк для возврата (по умолчанию: $\{TABLE_LIMITS.DEFAULT_QUERY_LIMIT}, максимум: $\{TABLE_LIMITS.MAX_QUERY_LIMIT\}) |
+| `limit` | число | Нет | Максимальное количество строк для возврата (по умолчанию: ${'{'}TABLE_LIMITS.DEFAULT_QUERY_LIMIT{'}'}, максимум: ${'{'}TABLE_LIMITS.MAX_QUERY_LIMIT{'}'}) |
 
 | `offset` | число | Нет | Количество строк для пропуска (по умолчанию: 0) |
 
@@ -427,7 +427,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | --------- | ---- | -------- | ----------- |
 
-Вставляйте несколько строк в таблицу одновременно (до $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} строк)
+Вставляйте несколько строк в таблицу одновременно (до ${'{'}TABLE_LIMITS.MAX_BATCH_INSERT_SIZE{'}'} строк)
 
 
 #### Входные данные
@@ -439,7 +439,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | `tableId` | строка | Да | ID таблицы |
 
-| `rows` | массив | Да | Массив объектов данных строки (до $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} строк) |
+| `rows` | массив | Да | Массив объектов данных строки (до ${'{'}TABLE_LIMITS.MAX_BATCH_INSERT_SIZE{'}'} строк) |
 
 #### Выходные данные
 
@@ -571,7 +571,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | `data` | объект | Да | Поля для обновления (объединяются с существующими данными) |
 
-| `limit` | число | Нет | Максимальное количество строк для обновления (по умолчанию: нет ограничений, максимум: $\{TABLE_LIMITS.MAX_BULK_OPERATION_SIZE\}) |
+| `limit` | число | Нет | Максимальное количество строк для обновления (по умолчанию: нет ограничений, максимум: ${'{'}TABLE_LIMITS.MAX_BULK_OPERATION_SIZE{'}'}) |
 
 #### Выходные данные
 
