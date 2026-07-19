@@ -304,9 +304,13 @@ export function useCreateMcpServer() {
   })
 }
 
-/** On `redirect`, the caller must wait for `popup.closed` or the `mcp-oauth` postMessage. */
+/**
+ * On `redirect`, the caller waits for the `mcp-oauth` BroadcastChannel signal (matched on
+ * `state`) or `popup.closed`. `state` is the per-flow OAuth nonce the callback echoes, used to
+ * correlate the eventual result back to this exact flow.
+ */
 export type StartMcpOauthMutationResult =
-  | { status: 'redirect'; popup: Window }
+  | { status: 'redirect'; popup: Window; state: string }
   | { status: 'already_authorized' }
 
 export function useStartMcpOauth() {
@@ -324,6 +328,10 @@ export function useStartMcpOauth() {
         if (parsedUrl.protocol !== 'https:' && !isLoopbackHttp) {
           throw new Error('Authorization URL must use HTTPS')
         }
+        const state = parsedUrl.searchParams.get('state')
+        if (!state) {
+          throw new Error('Authorization URL is missing the OAuth state parameter')
+        }
         const popup = window.open(
           result.authorizationUrl,
           `mcp-oauth-${serverId}`,
@@ -332,7 +340,7 @@ export function useStartMcpOauth() {
         if (!popup) {
           throw new Error('Popup blocked. Please allow popups for this site and retry.')
         }
-        return { status: 'redirect', popup }
+        return { status: 'redirect', popup, state }
       },
     }
   )
