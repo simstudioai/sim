@@ -2,6 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
+vi.mock('@/main/browser-agent/url-guard', () => ({
+  checkAgentUrl: vi.fn(async (url: string) => ({
+    ok: /^https?:\/\//i.test(url) && !url.includes('169.254.169.254'),
+  })),
+  isBlockedRequestUrl: vi.fn((url: string) => url.includes('169.254.169.254')),
+}))
+
 import { BrowserWindow } from 'electron'
 
 type SessionModule = typeof import('@/main/browser-agent/session')
@@ -11,6 +18,7 @@ interface MockView {
     session: {
       setPermissionRequestHandler: ReturnType<typeof vi.fn>
       setPermissionCheckHandler: ReturnType<typeof vi.fn>
+      webRequest: { onBeforeRequest: ReturnType<typeof vi.fn> }
     }
     setWindowOpenHandler: ReturnType<typeof vi.fn>
     loadURL: ReturnType<typeof vi.fn>
@@ -133,12 +141,46 @@ describe('browser-agent session', () => {
     const openHandler = contents.setWindowOpenHandler.mock.calls[0][0] as (details: {
       url: string
     }) => { action: string }
+    // window.open collapses into the same view; the SSRF check runs on the
+    // resulting document request in onBeforeRequest, not here.
     expect(openHandler({ url: 'https://example.com/popup' })).toEqual({ action: 'deny' })
     expect(contents.loadURL).toHaveBeenCalledWith('https://example.com/popup')
     // Non-http(s) popups are denied without navigating anywhere.
     contents.loadURL.mockClear()
     expect(openHandler({ url: 'file:///etc/passwd' })).toEqual({ action: 'deny' })
     expect(contents.loadURL).not.toHaveBeenCalled()
+  })
+
+  it('gates agent-partition requests: DNS-checks documents, literal-checks subresources', async () => {
+    const tab = session.ensureTab()
+    const contents = (tab.view as unknown as MockView).webContents
+    const onBeforeRequest = contents.session.webRequest.onBeforeRequest.mock.calls[0][0] as (
+      details: { url: string; resourceType: string },
+      callback: (response: { cancel?: boolean }) => void
+    ) => void
+
+    // A document navigation to a private host is cancelled by the DNS check.
+    const blockedDoc = vi.fn()
+    onBeforeRequest(
+      { url: 'http://169.254.169.254/latest/meta-data', resourceType: 'mainFrame' },
+      blockedDoc
+    )
+    await vi.waitFor(() => expect(blockedDoc).toHaveBeenCalledWith({ cancel: true }))
+
+    // A document navigation to a public host is allowed.
+    const allowedDoc = vi.fn()
+    onBeforeRequest({ url: 'https://example.com/', resourceType: 'subFrame' }, allowedDoc)
+    await vi.waitFor(() => expect(allowedDoc).toHaveBeenCalledWith({ cancel: false }))
+
+    // A subresource to a literal private IP is cancelled synchronously.
+    const blockedSub = vi.fn()
+    onBeforeRequest({ url: 'http://169.254.169.254/x.js', resourceType: 'image' }, blockedSub)
+    expect(blockedSub).toHaveBeenCalledWith({ cancel: true })
+
+    // A public subresource passes.
+    const allowedSub = vi.fn()
+    onBeforeRequest({ url: 'https://example.com/x.js', resourceType: 'script' }, allowedSub)
+    expect(allowedSub).toHaveBeenCalledWith({ cancel: false })
   })
 
   it('permission handlers deny every request on the agent partition', () => {

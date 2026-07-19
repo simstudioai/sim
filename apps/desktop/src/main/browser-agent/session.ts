@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import type { BrowserWindow, Session, WebContents } from 'electron'
 import { WebContentsView } from 'electron'
 import { registerAgentWebContents } from '@/main/browser-agent/registry'
+import { checkAgentUrl, isBlockedRequestUrl } from '@/main/browser-agent/url-guard'
 
 const logger = createLogger('BrowserAgentSession')
 
@@ -68,6 +69,26 @@ function configureAgentPartition(ses: Session): void {
   partitionConfigured = true
   ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
   ses.setPermissionCheckHandler(() => false)
+  // The SSRF choke point for the agent partition. Document navigations
+  // (top-level + iframes) get the full DNS-resolving check — this is the ONE
+  // seam every navigation passes through, including the page-initiated ones the
+  // driver never sees (server redirects, link clicks, location.href,
+  // meta-refresh), so an internal-resolving hostname can't slip in that way.
+  // Subresources take the cheap synchronous literal-IP backstop instead of a
+  // DNS lookup per asset (a hostname subresource is already gated by its
+  // document's check).
+  ses.webRequest.onBeforeRequest((details, callback) => {
+    if (details.resourceType === 'mainFrame' || details.resourceType === 'subFrame') {
+      void checkAgentUrl(details.url).then((guard) => {
+        if (!guard.ok) {
+          logger.warn('Blocked agent document navigation to a private host')
+        }
+        callback({ cancel: !guard.ok })
+      })
+      return
+    }
+    callback({ cancel: isBlockedRequestUrl(details.url) })
+  })
   ses.on('will-download', (_event, item) => {
     const filename = item.getFilename()
     const url = item.getURL()
@@ -97,7 +118,9 @@ function createTabView(): WebContentsView {
   configureAgentPartition(contents.session)
 
   // Popup-neutralize: window.open and target=_blank navigate the SAME view
-  // instead of spawning windows — the agent browses one page per tab.
+  // instead of spawning windows — the agent browses one page per tab. The
+  // resulting navigation is a document request, so the partition's
+  // onBeforeRequest SSRF check gates it; no per-call guard is needed here.
   contents.setWindowOpenHandler((details) => {
     if (/^https?:\/\//i.test(details.url)) {
       void contents.loadURL(details.url).catch(() => {})

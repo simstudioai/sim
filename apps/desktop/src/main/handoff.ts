@@ -87,7 +87,10 @@ export function createHandoffManager(
       response
         .writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
         .end(CALLBACK_RESPONSE_HTML)
-      stopLoopback()
+      // Do NOT tear the server down here: a request with a format-valid but
+      // wrong state must not kill the one-shot listener before the genuine
+      // callback arrives. `consume()` stops the server once the state actually
+      // validates (via clear()); the TTL timer is the backstop otherwise.
       onCallback({ token, state })
     })
     loopbackServer = server

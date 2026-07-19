@@ -133,6 +133,28 @@ export interface UpdaterDeps {
 }
 
 /**
+ * Loads the electron-updater singleton and (re)applies the channel and safety
+ * invariants — channel scoped to the running build, downgrades refused. Both
+ * the launch wiring and the manual check go through here so neither can run
+ * against a mis-set channel or an allowDowngrade default. `autoInstallOnAppQuit`
+ * is deliberately NOT touched: it is toggled per accepted download and must
+ * survive a manual check.
+ */
+function configureAutoUpdater(): typeof import('electron-updater')['autoUpdater'] | null {
+  try {
+    const { autoUpdater } = require('electron-updater') as typeof import('electron-updater')
+    autoUpdater.channel = resolveUpdateChannel(app.getVersion())
+    autoUpdater.allowDowngrade = false
+    autoUpdater.autoDownload = true
+    autoUpdater.logger = null
+    return autoUpdater
+  } catch (error) {
+    logger.error('electron-updater unavailable', { error })
+    return null
+  }
+}
+
+/**
  * Wires electron-updater against the GitHub Releases feed: channel-scoped
  * checks on launch and every four hours, delta downloads in the background,
  * and install only on user confirmation — never mid-session without consent.
@@ -141,24 +163,17 @@ export function initUpdater(deps: UpdaterDeps): void {
   if (!app.isPackaged) {
     return
   }
-  let autoUpdater: typeof import('electron-updater')['autoUpdater']
-  try {
-    ;({ autoUpdater } = require('electron-updater') as typeof import('electron-updater'))
-  } catch (error) {
-    logger.error('electron-updater unavailable', { error })
+  const autoUpdater = configureAutoUpdater()
+  if (!autoUpdater) {
     return
   }
 
   const currentVersion = app.getVersion()
-  autoUpdater.channel = resolveUpdateChannel(currentVersion)
-  autoUpdater.allowDowngrade = false
-  autoUpdater.autoDownload = true
   // Never install without vetting the downloaded version first. Enabled per
   // download in the update-downloaded handler, but only for accepted updates
   // — so a blocked/downgrade build that was already downloaded is never
   // silently installed on quit.
   autoUpdater.autoInstallOnAppQuit = false
-  autoUpdater.logger = null
 
   autoUpdater.on('update-available', (info) => {
     deps.events.record('update_check', { available: info.version })
@@ -218,14 +233,13 @@ export function checkForUpdatesInteractive(deps: UpdaterDeps): void {
     return
   }
   deps.events.record('update_check', { manual: true })
-  try {
-    const { autoUpdater } = require('electron-updater') as typeof import('electron-updater')
-    void autoUpdater.checkForUpdates().then((result) => {
-      if (!result || result.updateInfo.version === app.getVersion()) {
-        void dialog.showMessageBox({ type: 'info', message: 'Sim is up to date' })
-      }
-    })
-  } catch (error) {
-    logger.error('Manual update check failed', { error })
+  const autoUpdater = configureAutoUpdater()
+  if (!autoUpdater) {
+    return
   }
+  void autoUpdater.checkForUpdates().then((result) => {
+    if (!result || result.updateInfo.version === app.getVersion()) {
+      void dialog.showMessageBox({ type: 'info', message: 'Sim is up to date' })
+    }
+  })
 }

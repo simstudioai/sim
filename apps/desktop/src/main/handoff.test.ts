@@ -79,7 +79,7 @@ describe('createHandoffManager', () => {
     manager.clear()
   })
 
-  it('loopback accepts one valid callback, rejects bad input, then closes', async () => {
+  it('keeps the loopback open past malformed and wrong-state requests, closes on consume', async () => {
     const received: HandoffCallback[] = []
     const deps = makeDeps()
     const manager = createHandoffManager(deps, (callback) => received.push(callback))
@@ -91,14 +91,26 @@ describe('createHandoffManager', () => {
 
     expect((await fetch(`${base}/other`)).status).toBe(404)
 
+    // Malformed input is rejected outright and never fires the callback.
     const badToken = await fetch(`${base}/auth/callback?token=bad token&state=${state}`)
     expect(badToken.status).toBe(400)
     expect(received).toHaveLength(0)
 
+    // A format-valid but WRONG state must NOT tear down the one-shot listener
+    // (self-DoS guard) — the server stays up for the genuine callback.
+    const wrongState = 'z'.repeat(state.length)
+    expect(
+      (await fetch(`${base}/auth/callback?token=${VALID_TOKEN}&state=${wrongState}`)).status
+    ).toBe(200)
+    expect(manager.consume(wrongState)).toBe(false)
+
+    // The genuine callback still lands while the server is up.
     const ok = await fetch(`${base}/auth/callback?token=${VALID_TOKEN}&state=${state}`)
     expect(ok.status).toBe(200)
-    expect(received).toEqual([{ token: VALID_TOKEN, state }])
+    expect(received).toContainEqual({ token: VALID_TOKEN, state })
 
+    // Consuming the real state validates and closes the loopback.
+    expect(manager.consume(state)).toBe(true)
     await expect(
       fetch(`${base}/auth/callback?token=${VALID_TOKEN}&state=${state}`)
     ).rejects.toThrow()

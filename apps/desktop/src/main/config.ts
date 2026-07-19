@@ -6,8 +6,12 @@ const logger = createLogger('DesktopConfig')
 
 export const DEFAULT_ORIGIN = 'https://sim.ai'
 
-/** Loopback hostnames that may use plain HTTP (dev + self-host testing). */
-export const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]', '::1'])
+/**
+ * Loopback hostnames that may use plain HTTP (dev + self-host testing). Matched
+ * against a parsed `URL.hostname`, which brackets IPv6 authorities — so `[::1]`
+ * is the form that appears, never a bare `::1`.
+ */
+export const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
 
 export interface WindowBounds {
   x?: number

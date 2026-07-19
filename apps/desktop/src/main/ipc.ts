@@ -1,5 +1,5 @@
-import type { LauncherShortcutSettings } from '@sim/desktop-bridge'
 import { isBrowserToolName } from '@sim/browser-protocol'
+import type { LauncherShortcutSettings } from '@sim/desktop-bridge'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { app, ipcMain } from 'electron'
 import { executeTool, handlePanelAction, setPanelBounds } from '@/main/browser-agent/driver'

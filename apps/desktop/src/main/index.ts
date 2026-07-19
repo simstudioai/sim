@@ -1,13 +1,14 @@
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import type { BrowserWindow } from 'electron'
-import { app, net, session } from 'electron'
+import { app, crashReporter, net, session } from 'electron'
 import {
   initDriver as initBrowserAgentDriver,
   setPanelBounds as setBrowserAgentPanelBounds,
 } from '@/main/browser-agent/driver'
 import { createConfigStore, partitionForOrigin } from '@/main/config'
 import { attachContextMenu } from '@/main/context-menu'
+import { attachCspFallback } from '@/main/csp'
 import { attachDownloadHandling } from '@/main/downloads'
 import { createAuthFlow, createHandoffManager } from '@/main/handoff'
 import { registerIpcHandlers } from '@/main/ipc'
@@ -100,6 +101,7 @@ function main(): void {
     }
     configuredPartitions.add(partition)
     setupPermissionHandlers(ses, appOrigin)
+    attachCspFallback(ses, appOrigin)
     attachDownloadHandling(ses, events)
     attachTelemetryPolicy(ses, config.get('blockThirdPartyAnalytics') ?? true)
     ses.setSpellCheckerLanguages(['en-US'])
@@ -388,6 +390,13 @@ app.setName('Sim')
 if (process.env.SIM_DESKTOP_USER_DATA) {
   app.setPath('userData', process.env.SIM_DESKTOP_USER_DATA)
 }
+
+// Capture native minidumps for main/renderer/GPU crashes. Local-only: there is
+// no crash-ingest backend, so nothing is uploaded — the dumps land under
+// userData/Crashpad and the event log records where. Must start before the app
+// is ready so Crashpad initializes first. Set after userData so dumps follow
+// any test/instance override.
+crashReporter.start({ uploadToServer: false, compress: true })
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {

@@ -255,7 +255,11 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
     if (details.reason === 'clean-exit') {
       return
     }
-    deps.events.record('renderer_gone', { reason: details.reason, exitCode: details.exitCode })
+    deps.events.record('renderer_gone', {
+      reason: details.reason,
+      exitCode: details.exitCode,
+      crashDumpDir: app.getPath('crashDumps'),
+    })
     setTimeout(() => {
       if (win.isDestroyed()) {
         return

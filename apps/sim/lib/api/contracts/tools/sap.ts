@@ -1,3 +1,4 @@
+import { isPrivateIpHost } from '@sim/security/ssrf'
 import { z } from 'zod'
 import { genericToolResponseSchema } from '@/lib/api/contracts/tools/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
@@ -49,54 +50,6 @@ const FORBIDDEN_SAP_HOSTS = new Set([
   '[fd00:ec2::254]',
 ])
 
-function isPrivateIPv4(host: string): boolean {
-  const match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
-  if (!match) return false
-  const octets = match.slice(1, 5).map(Number) as [number, number, number, number]
-  if (octets.some((octet) => octet < 0 || octet > 255)) return false
-  const [a, b] = octets
-  if (a === 10) return true
-  if (a === 172 && b >= 16 && b <= 31) return true
-  if (a === 192 && b === 168) return true
-  if (a === 127) return true
-  if (a === 169 && b === 254) return true
-  if (a === 0) return true
-  return false
-}
-
-function extractIPv4MappedHost(host: string): string | null {
-  const stripped = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
-  const lower = stripped.toLowerCase()
-  for (const prefix of ['::ffff:', '::']) {
-    if (lower.startsWith(prefix)) {
-      const candidate = lower.slice(prefix.length)
-      if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(candidate)) return candidate
-    }
-  }
-  const hexMatch = lower.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/)
-  if (hexMatch) {
-    const high = Number.parseInt(hexMatch[1] as string, 16)
-    const low = Number.parseInt(hexMatch[2] as string, 16)
-    if (high >= 0 && high <= 0xffff && low >= 0 && low <= 0xffff) {
-      const a = (high >> 8) & 0xff
-      const b = high & 0xff
-      const c = (low >> 8) & 0xff
-      const d = low & 0xff
-      return `${a}.${b}.${c}.${d}`
-    }
-  }
-  return null
-}
-
-function isPrivateOrLoopbackIPv6(host: string): boolean {
-  const stripped = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
-  const lower = stripped.toLowerCase()
-  if (lower === '::' || lower === '::1') return true
-  if (/^fc[0-9a-f]{2}:/.test(lower) || /^fd[0-9a-f]{2}:/.test(lower)) return true
-  if (lower.startsWith('fe80:')) return true
-  return false
-}
-
 export function checkSapExternalUrlSafety(
   rawUrl: string,
   label: string
@@ -114,15 +67,8 @@ export function checkSapExternalUrlSafety(
   if (FORBIDDEN_SAP_HOSTS.has(host) || FORBIDDEN_SAP_HOSTS.has(`[${host}]`)) {
     return { ok: false, message: `${label} host is not allowed` }
   }
-  if (isPrivateIPv4(host)) {
+  if (isPrivateIpHost(host)) {
     return { ok: false, message: `${label} host is not allowed (private/loopback range)` }
-  }
-  const mapped = extractIPv4MappedHost(host)
-  if (mapped && isPrivateIPv4(mapped)) {
-    return { ok: false, message: `${label} host is not allowed (IPv4-mapped private range)` }
-  }
-  if (isPrivateOrLoopbackIPv6(host)) {
-    return { ok: false, message: `${label} host is not allowed (IPv6 private/loopback)` }
   }
   return { ok: true, url: parsed }
 }

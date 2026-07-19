@@ -1,9 +1,9 @@
 import dns from 'dns/promises'
 import { createLogger } from '@sim/logger'
+import { isPrivateIp } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
 import { getAllowedMcpDomainsFromEnv, isHosted } from '@/lib/core/config/env-flags'
-import { isPrivateOrReservedIP } from '@/lib/core/security/input-validation.server'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('McpDomainCheck')
@@ -173,7 +173,7 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<st
   }
 
   if (ipaddr.isValid(cleanHostname)) {
-    if (isPrivateOrReservedIP(cleanHostname)) {
+    if (isPrivateIp(cleanHostname)) {
       throw new McpSsrfError('MCP server URL cannot point to a private or reserved IP address')
     }
     // Public IP literal: pin to this exact address so the caller's pinned fetch
@@ -203,7 +203,7 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<st
       })
       throw new McpSsrfError('MCP server URL resolves to a loopback address')
     }
-  } else if (isPrivateOrReservedIP(address)) {
+  } else if (isPrivateIp(address)) {
     logger.warn('MCP server URL resolves to blocked IP address', {
       hostname,
       resolvedIP: address,

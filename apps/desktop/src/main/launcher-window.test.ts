@@ -2,17 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-// Same module instance the vi.mock factory returns, with mock-typed statics.
-import { BrowserWindow } from '@/test/electron-mock'
 import {
   clampLauncherHeight,
   createLauncherWindow,
   LAUNCHER_MAX_HEIGHT,
   LAUNCHER_MIN_HEIGHT,
   LAUNCHER_WIDTH,
-  launcherBoundsFor,
   type LauncherWindowDeps,
+  launcherBoundsFor,
 } from '@/main/launcher-window'
+// Same module instance the vi.mock factory returns, with mock-typed statics.
+import { BrowserWindow } from '@/test/electron-mock'
 
 type MockWindow = InstanceType<typeof BrowserWindow>
 

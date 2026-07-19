@@ -3,8 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { session } from 'electron'
-// Same module instance the vi.mock factory returns, with mock-typed statics.
-import { Tray } from '@/test/electron-mock'
 import {
   buildTrayMenuTemplate,
   chatRoute,
@@ -13,6 +11,8 @@ import {
   parseRecentChats,
   type TrayDeps,
 } from '@/main/tray'
+// Same module instance the vi.mock factory returns, with mock-typed statics.
+import { Tray } from '@/test/electron-mock'
 
 function makeDeps(overrides: Partial<TrayDeps> = {}): TrayDeps {
   return {

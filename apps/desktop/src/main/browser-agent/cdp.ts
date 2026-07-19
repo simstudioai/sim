@@ -27,7 +27,9 @@ export interface CdpCallbacks {
   onFileChooser: () => void
 }
 
-let callbacks: CdpCallbacks | null = null
+/** Per-tab callbacks, so a background tab's events reach ITS driver, not the
+ * most-recently-instrumented tab's. */
+const callbacksByContents = new WeakMap<WebContents, CdpCallbacks>()
 /** Contents already instrumented (attach survives for the tab's lifetime). */
 const instrumented = new WeakSet<WebContents>()
 
@@ -41,7 +43,7 @@ async function send<T = unknown>(
 
 /** Idempotently instruments a tab's WebContents. */
 export async function ensureInstrumented(contents: WebContents, cb: CdpCallbacks): Promise<void> {
-  callbacks = cb
+  callbacksByContents.set(contents, cb)
   if (instrumented.has(contents) && contents.debugger.isAttached()) return
 
   if (!contents.debugger.isAttached()) {
@@ -65,6 +67,7 @@ function handleDebuggerEvent(
   method: string,
   params: Record<string, unknown>
 ): void {
+  const callbacks = callbacksByContents.get(contents)
   if (method === 'Page.javascriptDialogOpening') {
     const type = String(params.type ?? 'dialog')
     const message = String(params.message ?? '').slice(0, 500)

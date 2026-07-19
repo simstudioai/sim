@@ -39,6 +39,7 @@ import {
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
 import * as session from '@/main/browser-agent/session'
+import { checkAgentUrl } from '@/main/browser-agent/url-guard'
 
 const logger = createLogger('BrowserAgentDriver')
 
@@ -492,8 +493,9 @@ async function executeToolInner(
   switch (tool) {
     case 'browser_navigate': {
       const url = requireStr(params, 'url')
-      if (!/^https?:\/\//i.test(url)) {
-        throw new ToolError('URL must be absolute and start with http:// or https://')
+      const guard = await checkAgentUrl(url)
+      if (!guard.ok) {
+        throw new ToolError(guard.error ?? 'That address was blocked.')
       }
       const tab = session.ensureTab()
       const contents = tab.view.webContents
@@ -521,12 +523,15 @@ async function executeToolInner(
 
     case 'browser_open_tab': {
       const url = str(params, 'url')
+      if (url) {
+        const guard = await checkAgentUrl(url)
+        if (!guard.ok) {
+          throw new ToolError(guard.error ?? 'That address was blocked.')
+        }
+      }
       const tab = session.addTab()
       const contents = tab.view.webContents
       if (url) {
-        if (!/^https?:\/\//i.test(url)) {
-          throw new ToolError('URL must be absolute and start with http:// or https://')
-        }
         void contents.loadURL(url).catch(() => {})
         const result = await navigationResult(contents)
         return { tabId: tab.id, ...result }

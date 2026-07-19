@@ -139,6 +139,12 @@ describe('classifyWindowOpen', () => {
     )
   })
 
+  it('does not let a cross-origin http URL ride the mcp-oauth frame name in-app', () => {
+    expect(classifyWindowOpen('http://mcp.example/authorize', 'mcp-oauth-srv1', APP)).toBe(
+      'external'
+    )
+  })
+
   it('collapses internal new-tab opens into the main window', () => {
     expect(classifyWindowOpen(`${APP}/workspace/ws1/w/wf1`, '', APP)).toBe('popup-internal')
   })
