@@ -17,19 +17,12 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockMcpAuth } = vi.hoisted(() => ({
-  mockMcpAuth: vi.fn(),
-}))
-
 vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@sim/db/schema', () => schemaMock)
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
   eq: vi.fn(),
   isNull: vi.fn(),
-}))
-vi.mock('@modelcontextprotocol/sdk/client/auth.js', () => ({
-  auth: mockMcpAuth,
 }))
 vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
@@ -72,7 +65,25 @@ describe('MCP OAuth start route', () => {
       updatedAt: new Date(),
     })
     mcpOauthMockFns.mockLoadPreregisteredClient.mockResolvedValue(undefined)
-    mockMcpAuth.mockRejectedValue(new McpOauthRedirectRequiredMock('https://mcp.exa.ai/authorize'))
+    mcpOauthMockFns.mockMcpAuthGuarded.mockRejectedValue(
+      new McpOauthRedirectRequiredMock('https://mcp.exa.ai/authorize')
+    )
+  })
+
+  it('routes OAuth discovery through the SSRF-guarded mcpAuthGuarded wrapper', async () => {
+    const request = new NextRequest(
+      'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
+    )
+
+    await GET(request)
+
+    // The route must call the guarded wrapper (which defaults fetchFn to the
+    // SSRF-guarded fetch internally) rather than the raw SDK `auth()` — see
+    // apps/sim/lib/mcp/oauth/auth.test.ts for the wrapper's own fetchFn coverage.
+    expect(mcpOauthMockFns.mockMcpAuthGuarded).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ serverUrl: 'https://mcp.exa.ai/mcp' })
+    )
   })
 
   it('requires workspace write permission via MCP auth middleware', async () => {
@@ -132,7 +143,7 @@ describe('MCP OAuth start route', () => {
 
     expect(response.status).toBe(409)
     expect(body.error).toBe('OAuth authorization already in progress for this server')
-    expect(mockMcpAuth).not.toHaveBeenCalled()
+    expect(mcpOauthMockFns.mockMcpAuthGuarded).not.toHaveBeenCalled()
   })
 
   it('does not leak non-OAuth internal error details to the client', async () => {

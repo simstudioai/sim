@@ -68,8 +68,20 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Credential set not found' }, { status: 404 })
     }
 
+    if (result.role !== 'admin' && result.role !== 'owner') {
+      return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
+    }
+
     const invitations = await db
-      .select()
+      .select({
+        id: credentialSetInvitation.id,
+        credentialSetId: credentialSetInvitation.credentialSetId,
+        email: credentialSetInvitation.email,
+        status: credentialSetInvitation.status,
+        expiresAt: credentialSetInvitation.expiresAt,
+        createdAt: credentialSetInvitation.createdAt,
+        invitedBy: credentialSetInvitation.invitedBy,
+      })
       .from(credentialSetInvitation)
       .where(eq(credentialSetInvitation.credentialSetId, id))
 

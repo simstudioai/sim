@@ -1,5 +1,7 @@
 [install]
 exact = true
+# Supply-chain gate: only install package versions published at least 7 days ago
+# (blocks freshly published, potentially compromised releases).
 minimumReleaseAge = 604800
 
 [run]

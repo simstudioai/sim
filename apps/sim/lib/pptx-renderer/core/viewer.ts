@@ -1,11 +1,11 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import type { ECharts } from 'echarts'
+import { isAllowedExternalUrl } from '@/lib/core/security/url-safety'
 import { buildPresentation, type PresentationData } from '../model/presentation'
 import type { ZipParseLimits } from '../parser/zip-parser'
 import { parseZip } from '../parser/zip-parser'
 import type { SlideHandle } from '../renderer/slide-renderer'
 import { renderSlide as renderSlideInternal } from '../renderer/slide-renderer'
-import { isAllowedExternalUrl } from '../utils/url-safety'
 
 export type { SlideHandle } from '../renderer/slide-renderer'
 

@@ -1,8 +1,10 @@
 import { existsSync } from 'fs'
+import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import * as XLSX from 'xlsx'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
+import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
 const logger = createLogger('XlsxParser')
 
@@ -16,6 +18,10 @@ const CONFIG = {
 }
 
 export class XlsxParser implements FileParser {
+  /**
+   * Read the file into a buffer and delegate to {@link parseBuffer} so the
+   * decompression-bomb guard runs before SheetJS inflates the workbook.
+   */
   async parseFile(filePath: string): Promise<FileParseResult> {
     try {
       if (!filePath) {
@@ -28,13 +34,8 @@ export class XlsxParser implements FileParser {
 
       logger.info(`Parsing XLSX file: ${filePath}`)
 
-      // Read with streaming option for large files
-      const workbook = XLSX.readFile(filePath, {
-        dense: true, // Use dense mode for better memory efficiency
-        sheetStubs: false, // Don't create stub cells
-      })
-
-      return this.processWorkbook(workbook)
+      const buffer = await readFile(filePath)
+      return this.parseBuffer(buffer)
     } catch (error) {
       logger.error('XLSX file parsing error:', error)
       throw new Error(`Failed to parse XLSX file: ${(error as Error).message}`)
@@ -51,6 +52,8 @@ export class XlsxParser implements FileParser {
       if (!buffer || buffer.length === 0) {
         throw new Error('Empty buffer provided')
       }
+
+      assertOoxmlArchiveWithinLimits(buffer)
 
       const workbook = XLSX.read(buffer, {
         type: 'buffer',

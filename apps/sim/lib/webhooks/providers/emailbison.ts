@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import {
+  type SecureFetchResponse,
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -147,7 +152,14 @@ export const emailBisonHandler: WebhookProviderHandler = {
       webhookId: webhook.id,
     })
 
-    const response = await fetch(emailBisonUrl('/api/webhook-url', {}, apiBaseUrl), {
+    const targetUrl = emailBisonUrl('/api/webhook-url', {}, apiBaseUrl)
+    const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl')
+    if (!urlValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid Email Bison Instance URL: ${urlValidation.error}`)
+      throw new Error('Email Bison Instance URL could not be validated.')
+    }
+
+    const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP!, {
       method: 'POST',
       headers: emailBisonHeaders({ apiKey, apiBaseUrl }),
       body: JSON.stringify({
@@ -207,17 +219,30 @@ export const emailBisonHandler: WebhookProviderHandler = {
           hasApiBaseUrl: Boolean(apiBaseUrl),
           hasExternalId: Boolean(externalId),
         })
-        if (ctx.strict) throw new Error('Missing Email Bison webhook cleanup configuration')
+        if (ctx.strict)
+          throw new AlreadyLoggedError('Missing Email Bison webhook cleanup configuration')
         return
       }
 
-      const response = await fetch(
-        emailBisonUrl(`/api/webhook-url/${encodeURIComponent(externalId)}`, {}, apiBaseUrl),
-        {
-          method: 'DELETE',
-          headers: emailBisonHeaders({ apiKey, apiBaseUrl }),
-        }
+      const targetUrl = emailBisonUrl(
+        `/api/webhook-url/${encodeURIComponent(externalId)}`,
+        {},
+        apiBaseUrl
       )
+      const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl')
+      if (!urlValidation.isValid) {
+        logger.warn(`[${requestId}] Invalid Email Bison Instance URL: ${urlValidation.error}`, {
+          webhookId: webhook.id,
+        })
+        if (ctx.strict)
+          throw new AlreadyLoggedError('Email Bison Instance URL could not be validated.')
+        return
+      }
+
+      const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP!, {
+        method: 'DELETE',
+        headers: emailBisonHeaders({ apiKey, apiBaseUrl }),
+      })
 
       if (!response.ok && response.status !== 404) {
         const responseBody = await parseJsonResponse(response)
@@ -225,7 +250,8 @@ export const emailBisonHandler: WebhookProviderHandler = {
           status: response.status,
           response: responseBody,
         })
-        if (ctx.strict) throw new Error(`Failed to delete Email Bison webhook: ${response.status}`)
+        if (ctx.strict)
+          throw new AlreadyLoggedError(`Failed to delete Email Bison webhook: ${response.status}`)
         return
       }
 
@@ -235,15 +261,26 @@ export const emailBisonHandler: WebhookProviderHandler = {
         webhookId: webhook.id,
       })
     } catch (error) {
-      logger.warn(`[${requestId}] Error deleting Email Bison webhook`, {
-        message: toError(error).message,
-      })
+      if (!(error instanceof AlreadyLoggedError)) {
+        logger.warn(`[${requestId}] Error deleting Email Bison webhook`, {
+          message: toError(error).message,
+        })
+      }
       if (ctx.strict) throw error
     }
   },
 }
 
-async function parseJsonResponse(response: Response): Promise<Record<string, unknown> | null> {
+/**
+ * Marks an error whose failure reason has already been logged with full context
+ * at the throw site, so the outer catch in `deleteSubscription` does not emit
+ * a second, redundant warning for the same failure.
+ */
+class AlreadyLoggedError extends Error {}
+
+async function parseJsonResponse(
+  response: SecureFetchResponse
+): Promise<Record<string, unknown> | null> {
   try {
     const body: unknown = await response.json()
     return isRecordLike(body) ? body : null

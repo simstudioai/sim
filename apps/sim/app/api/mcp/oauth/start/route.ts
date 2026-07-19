@@ -1,4 +1,3 @@
-import { auth as mcpAuth } from '@modelcontextprotocol/sdk/client/auth.js'
 import { OAuthError, ServerError } from '@modelcontextprotocol/sdk/server/auth/errors.js'
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
@@ -17,6 +16,7 @@ import {
   loadPreregisteredClient,
   McpOauthInsecureUrlError,
   McpOauthRedirectRequired,
+  mcpAuthGuarded,
   SimMcpOauthProvider,
   setOauthRowUser,
 } from '@/lib/mcp/oauth'
@@ -129,7 +129,9 @@ export const GET = withRouteHandler(
       const provider = new SimMcpOauthProvider({ row, preregistered })
 
       try {
-        const result = await mcpAuth(provider, { serverUrl: server.url })
+        const result = await mcpAuthGuarded(provider, {
+          serverUrl: server.url,
+        })
         if (result === 'AUTHORIZED') {
           return NextResponse.json({ status: 'already_authorized' })
         }

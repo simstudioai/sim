@@ -7,11 +7,25 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
+import {
+  isPayloadSizeLimitError,
+  MAX_MULTIPART_OVERHEAD_BYTES,
+  readFormDataWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+import { MAX_WORKSPACE_FORMDATA_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 const logger = createLogger('HelpAPI')
+
+/**
+ * The form can carry several image attachments with no server-side count
+ * cap, so this reuses the repo's largest existing per-request form-data
+ * bound (see files/upload route) rather than an arbitrary smaller limit
+ * that could reject a legitimate multi-image submission.
+ */
+const MAX_HELP_FORM_BYTES = MAX_WORKSPACE_FORMDATA_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
@@ -25,7 +39,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const email = session.user.email
 
-    const formData = await req.formData()
+    const formData = await readFormDataWithLimit(req, {
+      maxBytes: MAX_HELP_FORM_BYTES,
+      label: 'Help request form data',
+    })
 
     const subject = formData.get('subject') as string
     const message = formData.get('message') as string
@@ -130,6 +147,13 @@ ${message}
       { status: 200 }
     )
   } catch (error) {
+    if (isPayloadSizeLimitError(error)) {
+      logger.warn(`[${requestId}] Help request form data too large`, { message: error.message })
+      return NextResponse.json(
+        { error: `Request body exceeds the maximum allowed size of ${MAX_HELP_FORM_BYTES} bytes` },
+        { status: 413 }
+      )
+    }
     if (error instanceof Error && error.message.includes('not configured')) {
       logger.error(`[${requestId}] Email service configuration error`, error)
       return NextResponse.json(

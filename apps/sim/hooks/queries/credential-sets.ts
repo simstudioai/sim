@@ -12,7 +12,7 @@ import {
   type CreateCredentialSetData,
   type CredentialSet,
   type CredentialSetInvitation,
-  type CredentialSetInvitationDetail,
+  type CredentialSetInvitationListItem,
   type CredentialSetMember,
   type CredentialSetMembership,
   cancelCredentialSetInvitationContract,
@@ -34,7 +34,7 @@ export type {
   CreateCredentialSetData,
   CredentialSet,
   CredentialSetInvitation,
-  CredentialSetInvitationDetail,
+  CredentialSetInvitationListItem,
   CredentialSetMember,
   CredentialSetMembership,
 }
@@ -251,7 +251,7 @@ export function useDeleteCredentialSet() {
 }
 
 export function useCredentialSetInvitationsDetail(credentialSetId?: string) {
-  return useQuery<CredentialSetInvitationDetail[]>({
+  return useQuery<CredentialSetInvitationListItem[]>({
     queryKey: credentialSetKeys.detailInvitations(credentialSetId),
     queryFn: async ({ signal }) => {
       if (!credentialSetId) return []
