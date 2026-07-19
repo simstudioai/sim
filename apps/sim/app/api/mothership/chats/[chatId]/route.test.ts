@@ -16,6 +16,8 @@ const {
   mockReadEvents,
   mockReadFilePreviewSessions,
   mockGetLatestRunForStream,
+  mockGetLinkedAppProjectForChat,
+  mockLoadFullstackLifecycle,
 } = vi.hoisted(() => ({
   mockDbDelete: vi.fn(),
   mockDbReturning: vi.fn(),
@@ -27,6 +29,8 @@ const {
   mockReadEvents: vi.fn(),
   mockReadFilePreviewSessions: vi.fn(),
   mockGetLatestRunForStream: vi.fn(),
+  mockGetLinkedAppProjectForChat: vi.fn(),
+  mockLoadFullstackLifecycle: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -72,6 +76,14 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+
+vi.mock('@/lib/apps/demo/lifecycle-state', () => ({
+  loadFullstackDemoLifecycleSummary: mockLoadFullstackLifecycle,
+}))
+
+vi.mock('@/lib/apps/projects', () => ({
+  getLinkedAppProjectForChat: mockGetLinkedAppProjectForChat,
+}))
 
 vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   getAccessibleCopilotChatAuth: mockGetAccessibleCopilotChat,
@@ -154,6 +166,40 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     mockReadEvents.mockResolvedValue([])
     mockReadFilePreviewSessions.mockResolvedValue([])
     mockGetLatestRunForStream.mockResolvedValue(null)
+    mockGetLinkedAppProjectForChat.mockResolvedValue(null)
+    mockLoadFullstackLifecycle.mockResolvedValue(null)
+  })
+
+  it('hydrates a completed Full-stack credential pause from chat config', async () => {
+    const lifecycle = {
+      version: 1,
+      status: 'credential_selection_required',
+      phase: 'credential_selection_required',
+      chatId: 'chat-fullstack',
+      projectId: 'project-1',
+      originalPrompt: 'Build an app',
+      workflowIds: ['wf-1'],
+      credentialSelections: [],
+      updatedAt: '2026-07-18T00:00:00.000Z',
+    }
+    mockGetAccessibleCopilotChat.mockResolvedValueOnce({
+      id: 'chat-fullstack',
+      type: 'fullstack',
+      title: 'App',
+      messages: [],
+      resources: [],
+      conversationId: null,
+      workspaceId: 'ws-1',
+      createdAt: new Date('2026-07-18T00:00:00.000Z'),
+      updatedAt: new Date('2026-07-18T00:00:00.000Z'),
+    })
+    mockLoadFullstackLifecycle.mockResolvedValueOnce(lifecycle)
+
+    const response = await GET(createRequest('chat-fullstack'), makeContext('chat-fullstack'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.chat.fullstackLifecycle).toEqual(lifecycle)
   })
 
   it('clears activeStreamId when the redis lock has expired (stuck-yellow bug)', async () => {

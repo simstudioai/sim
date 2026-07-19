@@ -35,6 +35,28 @@ function hashManifest(actions: AppActionManifestEntry[]): string {
 export const CHILD_REVISION_FILES_REQUIRED_ERROR =
   'Child revisions must provide source files explicitly'
 
+export class DraftRevisionConflictError extends Error {
+  readonly code = 'DRAFT_REVISION_CONFLICT'
+  readonly status = 409
+
+  constructor(message = 'Draft revision changed; reload before building') {
+    super(message)
+    this.name = 'DraftRevisionConflictError'
+  }
+}
+
+export function assertCurrentDraftRevision(params: {
+  currentDraftRevisionId: string | null
+  revisionId: string
+  expectedRevisionId?: string | null
+}): void {
+  const expectedMatches =
+    params.expectedRevisionId === undefined ||
+    params.currentDraftRevisionId === params.expectedRevisionId
+  if (params.currentDraftRevisionId === params.revisionId && expectedMatches) return
+  throw new DraftRevisionConflictError()
+}
+
 export function assertRevisionSourcePolicy(params: {
   files: Record<string, string> | undefined
   currentDraftRevisionId: string | null

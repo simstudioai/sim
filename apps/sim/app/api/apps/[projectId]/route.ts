@@ -45,6 +45,7 @@ export const GET = withRouteHandler(
             deploymentVersionId: appRevisionAction.deploymentVersionId,
             outputAllowlist: appRevisionAction.outputAllowlist,
             executionPolicy: appRevisionAction.executionPolicy,
+            readOnly: appRevisionAction.readOnly,
           })
           .from(appRevisionAction)
           .where(eq(appRevisionAction.revisionId, project.draftRevisionId))

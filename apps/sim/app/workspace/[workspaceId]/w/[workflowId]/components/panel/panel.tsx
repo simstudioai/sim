@@ -59,6 +59,7 @@ import {
   Editor,
   Toolbar,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components'
+import { BuildInterface } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/build-interface'
 import {
   usePanelResize,
   useUsageLimits,
@@ -738,6 +739,13 @@ export const Panel = memo(function Panel() {
               <Deploy
                 activeWorkflowId={activeWorkflowId}
                 userPermissions={userPermissions}
+                disabled={workflowLocked}
+              />
+              <BuildInterface
+                workspaceId={workspaceId}
+                workflowId={activeWorkflowId}
+                workflowName={(activeWorkflowId && workflows[activeWorkflowId]?.name) || 'Workflow'}
+                canEdit={userPermissions.canEdit}
                 disabled={workflowLocked}
               />
               <Button

@@ -2,15 +2,18 @@
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { Button, Loader } from '@sim/emcn'
+import { createLogger } from '@sim/logger'
 import { requestJson } from '@/lib/api/client/request'
 import { previewExecuteContract, previewHeartbeatContract } from '@/lib/api/contracts/apps'
 import { APP_REQUEST_BODY_MAX_BYTES } from '@/lib/apps/manifest'
 
 const APP_SYNC_TIMEOUT_MS = 120_000
 const PREVIEW_STOP_GRACE_MS = 100
-const PREVIEW_READY_TIMEOUT_MS = 8_000
+const PREVIEW_DOCUMENT_LOAD_TIMEOUT_MS = 20_000
+const PREVIEW_HANDSHAKE_TIMEOUT_MS = 2_000
 const PREVIEW_MAX_RETRIES = 3
 const pendingPreviewStops = new Map<string, number>()
+const logger = createLogger('AppPreviewBridge')
 
 type BridgeRequest = {
   type: 'sim.run'
@@ -76,6 +79,7 @@ export function AppPreviewBridge({
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [loadFailed, setLoadFailed] = useState(false)
   const [iframeLoaded, setIframeLoaded] = useState(false)
+  const readyNotificationRef = useRef<string | null>(null)
   const onReadyEvent = useEffectEvent(() => onReady?.())
   const onFailureEvent = useEffectEvent((message: string) => onFailure?.(message))
   const onSessionStoppedEvent = useEffectEvent((stoppedSessionId: string) =>
@@ -103,21 +107,33 @@ export function AppPreviewBridge({
   }, [loadAttempt, previewSrc])
 
   const onMessage = useEffectEvent(async (event: MessageEvent) => {
-    if (!appOrigin || event.origin !== appOrigin) return
-    if (event.source !== iframeRef.current?.contentWindow) return
-
     const data = event.data as Partial<BridgeRequest> | PreviewReadyMessage | null
     if (data?.type === 'sim.preview.ready') {
-      if (data.nonce !== channelNonce) return
+      const originMatch = Boolean(appOrigin) && event.origin === appOrigin
+      const sourceMatch = event.source === iframeRef.current?.contentWindow
+      const nonceMatch = data.nonce === channelNonce
+      if (!originMatch || !sourceMatch || !nonceMatch) {
+        logger.warn('Rejected preview ready handshake', {
+          sessionId,
+          expectedOrigin: appOrigin,
+          receivedOrigin: event.origin,
+          originMatch,
+          sourceMatch,
+          nonceMatch,
+        })
+        return
+      }
       setReady(true)
       setLoadFailed(false)
       iframeRef.current?.contentWindow?.postMessage(
         { type: 'sim.preview.ack', nonce: channelNonce } satisfies PreviewAckMessage,
         appOrigin
       )
-      onReadyEvent()
       return
     }
+
+    if (!appOrigin || event.origin !== appOrigin) return
+    if (event.source !== iframeRef.current?.contentWindow) return
 
     if (
       !data ||
@@ -202,6 +218,12 @@ export function AppPreviewBridge({
   }, [previewSrc, sessionId])
 
   useEffect(() => {
+    if (!ready || readyNotificationRef.current === sessionId) return
+    readyNotificationRef.current = sessionId
+    onReadyEvent()
+  }, [ready, sessionId])
+
+  useEffect(() => {
     if (!iframeLoaded || ready || loadFailed || error || !appOrigin) return
     const ping = () =>
       iframeRef.current?.contentWindow?.postMessage(
@@ -213,18 +235,46 @@ export function AppPreviewBridge({
     return () => window.clearInterval(id)
   }, [appOrigin, channelNonce, error, iframeLoaded, loadFailed, ready])
 
+  // Give cold Next/Apps Host compilation time to finish before replacing the
+  // iframe. Restarting a still-loading document would reset compilation work.
   useEffect(() => {
-    if (ready || loadFailed || error) return
+    if (iframeLoaded || ready || loadFailed || error) return
     const timer = window.setTimeout(() => {
       if (loadAttempt < PREVIEW_MAX_RETRIES) {
         setLoadAttempt((attempt) => attempt + 1)
       } else {
         setLoadFailed(true)
+        logger.warn('Preview document load timed out', {
+          sessionId,
+          appOrigin,
+          attempts: loadAttempt + 1,
+        })
+        onFailureEvent('The preview document did not finish loading.')
+      }
+    }, PREVIEW_DOCUMENT_LOAD_TIMEOUT_MS)
+    return () => window.clearTimeout(timer)
+  }, [appOrigin, error, iframeLoaded, loadAttempt, loadFailed, ready, sessionId])
+
+  // Once the document has loaded, its injected bridge should answer pings
+  // immediately. Only this shorter phase uses the handshake timeout.
+  useEffect(() => {
+    if (!iframeLoaded || ready || loadFailed || error) return
+    const timer = window.setTimeout(() => {
+      if (loadAttempt < PREVIEW_MAX_RETRIES) {
+        setIframeLoaded(false)
+        setLoadAttempt((attempt) => attempt + 1)
+      } else {
+        setLoadFailed(true)
+        logger.warn('Preview ready handshake timed out', {
+          sessionId,
+          appOrigin,
+          attempts: loadAttempt + 1,
+        })
         onFailureEvent('The secure preview handshake timed out.')
       }
-    }, PREVIEW_READY_TIMEOUT_MS)
+    }, PREVIEW_HANDSHAKE_TIMEOUT_MS)
     return () => window.clearTimeout(timer)
-  }, [error, loadAttempt, loadFailed, ready])
+  }, [appOrigin, error, iframeLoaded, loadAttempt, loadFailed, ready, sessionId])
 
   // Heartbeat renews preview pin TTL; stop on unmount to avoid pin leaks.
   useEffect(() => {

@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
+import type { FullstackWorkflowSeed } from '@/lib/apps/build-interface/types'
 import {
   buildFullstackNarrationPrompt,
   fallbackFullstackFinalResponse,
@@ -118,9 +120,19 @@ function toOrchestratorResult(
   finalEvent: DemoProgressEvent,
   content: string,
   backendResult: OrchestratorResult | undefined,
-  backendSpanId: string
+  backendSpanId: string,
+  frontendSpanId: string,
+  frontendToolCalls: Array<{
+    id: string
+    name: string
+    status: 'success' | 'error'
+    error?: string
+  }>
 ): OrchestratorResult {
-  const contentBlocks = buildBackendPersistenceBlocks(backendResult, backendSpanId)
+  const contentBlocks = [
+    ...buildBackendPersistenceBlocks(backendResult, backendSpanId),
+    ...buildFrontendPersistenceBlocks(frontendToolCalls, frontendSpanId),
+  ]
   if (finalEvent.phase === 'preview_ready') {
     return {
       success: true,
@@ -158,6 +170,47 @@ function toOrchestratorResult(
     chatId: finalEvent.chatId,
     error: finalEvent.error || 'Full-stack generation failed.',
   }
+}
+
+function buildFrontendPersistenceBlocks(
+  toolCalls: Array<{
+    id: string
+    name: string
+    status: 'success' | 'error'
+    error?: string
+  }>,
+  spanId: string
+): ContentBlock[] {
+  if (!toolCalls.length) return []
+  const startedAt = Date.now()
+  return [
+    {
+      type: 'subagent',
+      content: 'fullstack_frontend',
+      timestamp: startedAt,
+      spanId,
+      parentSpanId: 'main',
+      endedAt: startedAt + 1,
+    },
+    ...toolCalls.map(
+      (call): ContentBlock => ({
+        type: 'tool_call',
+        calledBy: 'fullstack_frontend',
+        timestamp: startedAt,
+        spanId,
+        parentSpanId: 'main',
+        toolCall: {
+          id: call.id,
+          name: call.name,
+          status: call.status,
+          result: {
+            success: call.status === 'success',
+            ...(call.error ? { error: call.error } : {}),
+          },
+        },
+      })
+    ),
+  ]
 }
 
 function buildBackendPersistenceBlocks(
@@ -208,6 +261,7 @@ export async function runFullstackDemoChatCoordinator(params: {
   prompt: string
   credentialSelections?: Record<string, string>
   projectId?: string
+  fullstackSeed?: FullstackWorkflowSeed
   abortSignal?: AbortSignal
   onEvent: (event: StreamEvent) => void | Promise<void>
 }): Promise<OrchestratorResult> {
@@ -233,8 +287,131 @@ export async function runFullstackDemoChatCoordinator(params: {
 
   let backendResult: OrchestratorResult | undefined
   const workerBridge = new FullstackWorkerStreamBridge(params.onEvent)
+  const frontendSpanId = `fullstack-frontend:${generateId()}`
+  const generateToolId = `generate-interface:${generateId()}`
+  const buildToolId = `build-preview:${generateId()}`
+  let frontendOpened = false
+  let generateOpened = false
+  let buildOpened = false
+  const frontendToolCalls: Array<{
+    id: string
+    name: string
+    status: 'success' | 'error'
+    error?: string
+  }> = []
+
+  const frontendScope = {
+    lane: 'subagent' as const,
+    agentId: 'fullstack_frontend',
+    spanId: frontendSpanId,
+    parentSpanId: 'main',
+  }
+  const openFrontend = async () => {
+    if (frontendOpened) return
+    frontendOpened = true
+    await params.onEvent({
+      type: 'span',
+      scope: frontendScope,
+      payload: {
+        kind: 'subagent',
+        event: 'start',
+        agent: 'fullstack_frontend',
+      },
+    })
+  }
+  const toolCall = async (toolCallId: string, toolName: string) => {
+    await params.onEvent({
+      type: 'tool',
+      scope: frontendScope,
+      payload: {
+        phase: 'call',
+        toolCallId,
+        toolName,
+        executor: 'sim',
+        mode: 'sync',
+        status: 'executing',
+      },
+    })
+  }
+  const toolResult = async (
+    toolCallId: string,
+    toolName: string,
+    success: boolean,
+    error?: string
+  ) => {
+    frontendToolCalls.push({
+      id: toolCallId,
+      name: toolName,
+      status: success ? 'success' : 'error',
+      ...(error ? { error } : {}),
+    })
+    await params.onEvent({
+      type: 'tool',
+      scope: frontendScope,
+      payload: {
+        phase: 'result',
+        toolCallId,
+        toolName,
+        executor: 'sim',
+        mode: 'sync',
+        success,
+        status: success ? 'success' : 'error',
+        ...(error ? { error } : {}),
+      },
+    })
+  }
+  const closeFrontend = async (success: boolean, error?: string) => {
+    if (!frontendOpened) return
+    if (generateOpened) {
+      generateOpened = false
+      await toolResult(generateToolId, 'generate_interface', success, error)
+    }
+    if (buildOpened) {
+      buildOpened = false
+      await toolResult(buildToolId, 'build_live_preview', success, error)
+    }
+    await params.onEvent({
+      type: 'span',
+      scope: frontendScope,
+      payload: {
+        kind: 'subagent',
+        event: 'end',
+        agent: 'fullstack_frontend',
+        data: success ? {} : { error: error || 'Interface build failed' },
+      },
+    })
+    frontendOpened = false
+  }
+  const publishFrontendProgress = async (event: DemoProgressEvent) => {
+    if (event.phase === 'generating_frontend') {
+      await openFrontend()
+      if (!generateOpened) {
+        generateOpened = true
+        await toolCall(generateToolId, 'generate_interface')
+      }
+    } else if (event.phase === 'frontend_generated') {
+      await openFrontend()
+      if (generateOpened) {
+        generateOpened = false
+        await toolResult(generateToolId, 'generate_interface', true)
+      }
+    } else if (event.phase === 'building_app') {
+      await openFrontend()
+      if (generateOpened) {
+        generateOpened = false
+        await toolResult(generateToolId, 'generate_interface', true)
+      }
+      if (!buildOpened) {
+        buildOpened = true
+        await toolCall(buildToolId, 'build_live_preview')
+      }
+    } else if (event.phase === 'preview_ready' || event.phase === 'failed') {
+      await closeFrontend(event.phase === 'preview_ready', event.error)
+    }
+  }
 
   const publishProgress = async (event: DemoProgressEvent) => {
+    await publishFrontendProgress(event)
     const appEvent = appEventForProgress(event)
     if (event.phase === 'preview_ready' && event.projectId && event.revisionId && event.buildId) {
       await params.onEvent({
@@ -263,6 +440,7 @@ export async function runFullstackDemoChatCoordinator(params: {
       chatId: params.chatId,
       projectId: params.projectId,
       credentialSelections: params.credentialSelections,
+      fullstackSeed: params.fullstackSeed,
       abortSignal: params.abortSignal,
       onEvent: publishProgress,
       onBackendResult: async (result) => {
@@ -274,6 +452,10 @@ export async function runFullstackDemoChatCoordinator(params: {
       },
       onStreamEvent: (event) => workerBridge.forward(event),
     })
+    await closeFrontend(
+      finalEvent.phase === 'preview_ready',
+      finalEvent.error || (finalEvent.code === 'CANCELLED' ? 'Cancelled' : undefined)
+    )
 
     await workerBridge.close({
       ...(finalEvent.phase === 'failed' && finalEvent.error ? { error: finalEvent.error } : {}),
@@ -311,9 +493,17 @@ export async function runFullstackDemoChatCoordinator(params: {
       },
     })
 
-    return toOrchestratorResult(finalEvent, content, backendResult, workerBridge.persistenceSpanId)
+    return toOrchestratorResult(
+      finalEvent,
+      content,
+      backendResult,
+      workerBridge.persistenceSpanId,
+      frontendSpanId,
+      frontendToolCalls
+    )
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
+    await closeFrontend(false, message)
     await workerBridge.close({ error: message })
     logger.error('Full-stack chat coordinator failed', { error: message, chatId: params.chatId })
     await params.onEvent({

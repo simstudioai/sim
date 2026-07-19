@@ -45,6 +45,7 @@ export type ActionIntegrityFields = {
   inputSchema: unknown
   outputAllowlist: unknown
   executionPolicy: string
+  readOnly?: boolean
 }
 
 /**
@@ -78,6 +79,7 @@ export function validateAppActionInput(params: {
         typeof computeActionSchemaHash
       >[0]['outputAllowlist'],
       executionPolicy: params.action.executionPolicy as 'sync' | 'async',
+      readOnly: params.action.readOnly ?? false,
     })
     if (expected !== params.schemaHash) {
       logger.warn('Action schemaHash mismatch after load (continuing with Ajv)', {

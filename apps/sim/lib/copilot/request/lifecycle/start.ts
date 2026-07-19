@@ -283,6 +283,12 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                     typeof requestPayload.credentialSelections === 'object'
                       ? (requestPayload.credentialSelections as Record<string, string>)
                       : undefined,
+                  fullstackSeed:
+                    requestPayload.fullstackSeed && typeof requestPayload.fullstackSeed === 'object'
+                      ? (requestPayload.fullstackSeed as Parameters<
+                          typeof runFullstackDemoChatCoordinator
+                        >[0]['fullstackSeed'])
+                      : undefined,
                   abortSignal: abortController.signal,
                   onEvent: async (event) => {
                     await publisher.publish(event)

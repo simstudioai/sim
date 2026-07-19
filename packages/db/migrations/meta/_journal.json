@@ -1898,6 +1898,20 @@
       "when": 1784340600435,
       "tag": "0271_flawless_toad_men",
       "breakpoints": true
+    },
+    {
+      "idx": 272,
+      "version": "7",
+      "when": 1784421208735,
+      "tag": "0272_app_publish_operation",
+      "breakpoints": true
+    },
+    {
+      "idx": 273,
+      "version": "7",
+      "when": 1784422078714,
+      "tag": "0273_app_preview_promotion_confirmation",
+      "breakpoints": true
     }
   ]
 }

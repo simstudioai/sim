@@ -82,13 +82,15 @@ describe('runE2BViteBuild', () => {
   it('writes trusted source, collects output, and persists a canonical bundle', async () => {
     const index = Buffer.from('<!doctype html><div id="root"></div>')
     const javascript = Buffer.from('console.log("ok")')
+    const preview = Buffer.from('webp-preview')
     const exportPayload = JSON.stringify({
       version: 1,
-      fileCount: 2,
-      totalBytes: index.byteLength + javascript.byteLength,
+      fileCount: 3,
+      totalBytes: index.byteLength + javascript.byteLength + preview.byteLength,
       files: [
         { path: 'index.html', contentBase64: index.toString('base64') },
         { path: 'assets/app.js', contentBase64: javascript.toString('base64') },
+        { path: 'preview.webp', contentBase64: preview.toString('base64') },
       ],
     })
 
@@ -138,10 +140,12 @@ describe('runE2BViteBuild', () => {
       expect(result.diagnostics).toMatchObject({
         mode: 'e2b',
         sandboxId: 'sandbox-1',
-        fileCount: 2,
+        fileCount: 3,
+        thumbnail: { status: 'captured', path: 'preview.webp' },
       })
     }
-    expect(commands.run).toHaveBeenCalledTimes(2)
+    expect(commands.run).toHaveBeenCalledTimes(3)
+    expect(commands.run.mock.calls[1]?.[0]).toContain('capture-thumbnail.mjs')
     const sourceBatch = files.write.mock.calls[0]?.[0] as Array<{ path: string; data: string }>
     expect(sourceBatch).toEqual(
       expect.arrayContaining([
@@ -151,6 +155,69 @@ describe('runE2BViteBuild', () => {
         },
       ])
     )
+    expect(mockPersistArtifactBundle).toHaveBeenCalledOnce()
+    expect(sandbox.kill).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a successful build when thumbnail capture fails', async () => {
+    const index = Buffer.from('<!doctype html><div id="root"></div>')
+    const files = {
+      makeDir: vi.fn(async () => true),
+      write: vi.fn(async () => ({ name: 'written' })),
+      read: vi.fn(async () =>
+        JSON.stringify({
+          version: 1,
+          fileCount: 1,
+          totalBytes: index.byteLength,
+          files: [{ path: 'index.html', contentBase64: index.toString('base64') }],
+        })
+      ),
+    }
+    const commands = {
+      run: vi.fn(async (command: string) =>
+        command.includes('capture-thumbnail.mjs')
+          ? { stdout: '', stderr: 'chromium unavailable', exitCode: 1 }
+          : { stdout: '', stderr: '', exitCode: 0 }
+      ),
+    }
+    const sandbox = {
+      sandboxId: 'sandbox-2',
+      files,
+      commands,
+      kill: vi.fn(async () => undefined),
+    } as unknown as E2BAppSandbox
+
+    const result = await runE2BViteBuild(
+      {
+        projectId: 'project-1',
+        revisionId: 'revision-1',
+        files: {},
+        actions: [
+          {
+            actionId: 'main',
+            workflowId: 'workflow-1',
+            deploymentVersionId: 'version-1',
+            inputSchema: { type: 'object', properties: {} },
+            outputAllowlist: [],
+            executionPolicy: 'sync',
+            schemaHash: 'schema-hash',
+          },
+        ],
+      },
+      { createSandbox: async () => sandbox }
+    )
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.diagnostics).toMatchObject({
+        thumbnail: {
+          status: 'failed',
+          path: 'preview.webp',
+          error: 'chromium unavailable',
+          exitCode: 1,
+        },
+      })
+    }
     expect(mockPersistArtifactBundle).toHaveBeenCalledOnce()
     expect(sandbox.kill).toHaveBeenCalledOnce()
   })

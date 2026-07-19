@@ -33,6 +33,16 @@ function readPackageVersion(monorepoRoot: string, packageName: string): string {
   }
 }
 
+function readToolchainFileHash(monorepoRoot: string, path: string): string {
+  try {
+    return createHash('sha256')
+      .update(readFileSync(join(monorepoRoot, path)))
+      .digest('hex')
+  } catch {
+    return 'missing'
+  }
+}
+
 /**
  * Hash of the local curated toolchain (Node + template/SDK + key package versions).
  * Not a real npm lockfile — detects Vite/React/plugin bumps that should invalidate reuse.
@@ -46,6 +56,8 @@ export function computeLocalViteLockfileHash(monorepoRoot = resolveMonorepoRoot(
     readPackageVersion(monorepoRoot, 'react-dom'),
     readPackageVersion(monorepoRoot, 'vite'),
     readPackageVersion(monorepoRoot, '@vitejs/plugin-react'),
+    readPackageVersion(monorepoRoot, 'playwright'),
+    readToolchainFileHash(monorepoRoot, 'apps/sim/scripts/e2b-app-build/capture-thumbnail.mjs'),
     APP_LOCKFILE_HASH_PLACEHOLDER,
   ]
   return createHash('sha256').update(parts.join('\n')).digest('hex')
@@ -75,5 +87,9 @@ export function getLocalToolchainPaths(monorepoRoot = resolveMonorepoRoot()) {
     reactDir: join(monorepoRoot, 'node_modules/react'),
     reactDomDir: join(monorepoRoot, 'node_modules/react-dom'),
     schedulerDir: join(monorepoRoot, 'node_modules/scheduler'),
+    thumbnailCaptureScript: join(
+      monorepoRoot,
+      'apps/sim/scripts/e2b-app-build/capture-thumbnail.mjs'
+    ),
   }
 }

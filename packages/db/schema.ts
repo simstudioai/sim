@@ -4170,6 +4170,8 @@ export const appRevisionAction = pgTable(
     inputSchema: jsonb('input_schema').notNull(),
     outputAllowlist: jsonb('output_allowlist').notNull().default(sql`'[]'::jsonb`),
     executionPolicy: text('execution_policy').notNull().default('sync'),
+    /** False by default: side-effectful preview actions require explicit confirmation. */
+    readOnly: boolean('read_only').notNull().default(false),
     schemaHash: text('schema_hash').notNull(),
   },
   (table) => ({
@@ -4200,6 +4202,56 @@ export const appBuild = pgTable(
   (table) => ({
     projectCreatedIdx: index('app_build_project_created_idx').on(table.projectId, table.createdAt),
     statusCreatedIdx: index('app_build_status_created_idx').on(table.status, table.createdAt),
+  })
+)
+
+/**
+ * Durable coordinator state for the compound deploy → rebind → build → publish flow.
+ * IDs for the rebound revision and release are allocated before side effects begin,
+ * allowing a retry to recover work committed immediately before a process failure.
+ */
+export const appPublishOperation = pgTable(
+  'app_publish_operation',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => appProject.id, { onDelete: 'cascade' }),
+    requestedBy: text('requested_by').references(() => user.id, { onDelete: 'set null' }),
+    sourceRevisionId: text('source_revision_id')
+      .notNull()
+      .references(() => appSourceRevision.id, { onDelete: 'restrict' }),
+    expectedVersion: integer('expected_version'),
+    stage: text('stage').notNull().default('deploying'),
+    deployments: jsonb('deployments')
+      .$type<Array<{ workflowId: string; deploymentVersionId: string }>>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    /** Preallocated IDs; stage and referenced-row validation determine completion. */
+    reboundRevisionId: text('rebound_revision_id').notNull(),
+    buildId: text('build_id').references(() => appBuild.id, { onDelete: 'set null' }),
+    releaseId: text('release_id').notNull(),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    leaseToken: text('lease_token'),
+    leaseExpiresAt: timestamp('lease_expires_at'),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    projectCreatedIdx: index('app_publish_operation_project_created_idx').on(
+      table.projectId,
+      table.createdAt
+    ),
+    stageUpdatedIdx: index('app_publish_operation_stage_updated_idx').on(
+      table.stage,
+      table.updatedAt
+    ),
+    stageCheck: check(
+      'app_publish_operation_stage_check',
+      sql`${table.stage} IN ('deploying', 'rebinding', 'building', 'preparing', 'publishing', 'published')`
+    ),
   })
 )
 
@@ -4266,6 +4318,7 @@ export const appReleaseAction = pgTable(
     inputSchema: jsonb('input_schema').notNull(),
     outputAllowlist: jsonb('output_allowlist').notNull().default(sql`'[]'::jsonb`),
     executionPolicy: text('execution_policy').notNull().default('sync'),
+    readOnly: boolean('read_only').notNull().default(false),
     schemaHash: text('schema_hash').notNull(),
   },
   (table) => ({
@@ -4294,6 +4347,8 @@ export const appPreviewSession = pgTable(
     buildId: text('build_id').references(() => appBuild.id, { onDelete: 'set null' }),
     /** Frozen content-addressed artifact; null for fixture/diagnostic shell. */
     artifactManifestHash: text('artifact_manifest_hash'),
+    /** Primary is displayed; candidate awaits handshake; displaced remains executable. */
+    lifecycle: text('lifecycle').notNull().default('primary'),
     startedAt: timestamp('started_at').notNull().defaultNow(),
     expiresAt: timestamp('expires_at').notNull(),
     stoppedAt: timestamp('stopped_at'),
@@ -4301,10 +4356,24 @@ export const appPreviewSession = pgTable(
   (table) => ({
     projectIdx: index('app_preview_session_project_idx').on(table.projectId),
     expiresAtIdx: index('app_preview_session_expires_at_idx').on(table.expiresAt),
-    /** At most one live preview session per builder × project. */
+    /** At most one displayed preview session per builder × project. */
     activeUserProjectUnique: uniqueIndex('app_preview_session_active_user_project_unique')
       .on(table.projectId, table.userId)
-      .where(sql`${table.stoppedAt} IS NULL`),
+      .where(sql`${table.stoppedAt} IS NULL AND ${table.lifecycle} = 'primary'`),
+    activeCandidateUserProjectUnique: uniqueIndex(
+      'app_preview_session_active_candidate_user_project_unique'
+    )
+      .on(table.projectId, table.userId)
+      .where(sql`${table.stoppedAt} IS NULL AND ${table.lifecycle} = 'candidate'`),
+    activeDisplacedUserProjectUnique: uniqueIndex(
+      'app_preview_session_active_displaced_user_project_unique'
+    )
+      .on(table.projectId, table.userId)
+      .where(sql`${table.stoppedAt} IS NULL AND ${table.lifecycle} = 'displaced'`),
+    lifecycleCheck: check(
+      'app_preview_session_lifecycle_check',
+      sql`${table.lifecycle} IN ('primary', 'candidate', 'displaced')`
+    ),
   })
 )
 

@@ -23,6 +23,7 @@ export const appActionManifestEntrySchema = z.object({
   inputSchema: jsonSchema202012Schema,
   outputAllowlist: z.array(appOutputAllowlistEntrySchema),
   executionPolicy: z.enum(['sync', 'async']),
+  readOnly: z.boolean().default(false),
   /** Server recomputes; clients may send a placeholder. */
   schemaHash: z.string().min(1).optional().default(''),
 })
@@ -54,7 +55,9 @@ function canonicalizeJson(value: unknown): unknown {
   return sorted
 }
 
-export function computeActionSchemaHash(entry: Omit<AppActionManifestEntry, 'schemaHash'>): string {
+export function computeActionSchemaHash(
+  entry: Omit<AppActionManifestEntry, 'schemaHash' | 'readOnly'> & { readOnly?: boolean }
+): string {
   const canonical = stableStringify({
     actionId: entry.actionId,
     workflowId: entry.workflowId,
@@ -62,13 +65,18 @@ export function computeActionSchemaHash(entry: Omit<AppActionManifestEntry, 'sch
     inputSchema: entry.inputSchema,
     outputAllowlist: entry.outputAllowlist,
     executionPolicy: entry.executionPolicy,
+    readOnly: entry.readOnly ?? false,
   })
   return createHash('sha256').update(canonical).digest('hex')
 }
 
 export function withSchemaHash(
-  entry: Omit<AppActionManifestEntry, 'schemaHash'> & { schemaHash?: string }
+  entry: Omit<AppActionManifestEntry, 'schemaHash' | 'readOnly'> & {
+    readOnly?: boolean
+    schemaHash?: string
+  }
 ): AppActionManifestEntry {
   const { schemaHash: _ignored, ...rest } = entry
-  return { ...rest, schemaHash: computeActionSchemaHash(rest) }
+  const normalized = { ...rest, readOnly: rest.readOnly ?? false }
+  return { ...normalized, schemaHash: computeActionSchemaHash(normalized) }
 }

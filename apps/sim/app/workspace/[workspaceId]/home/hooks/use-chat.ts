@@ -21,6 +21,7 @@ import {
   reorderMothershipChatResourcesContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
+import type { FullstackWorkflowSeed } from '@/lib/apps/build-interface/types'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
@@ -109,6 +110,7 @@ import type {
 export type SendMessageExtras = {
   credentialSelections?: Record<string, string>
   fullstackProjectId?: string
+  fullstackSeed?: FullstackWorkflowSeed
 }
 
 export interface UseChatReturn {
@@ -3293,6 +3295,7 @@ export function useChat(
             ...(sendExtras?.fullstackProjectId
               ? { fullstackProjectId: sendExtras.fullstackProjectId }
               : {}),
+            ...(sendExtras?.fullstackSeed ? { fullstackSeed: sendExtras.fullstackSeed } : {}),
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),

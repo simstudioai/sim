@@ -5,15 +5,17 @@ import {
   type BuildAppRevisionBody,
   bindAppRevisionContract,
   buildAppRevisionContract,
-  type CreateAppProjectBody,
-  createAppProjectContract,
+  type DetachAppRevisionBody,
   deleteAppProjectContract,
+  detachAppRevisionContract,
   getAppProjectContract,
   listAppProjectsContract,
   type PrepareAppReleaseBody,
   type PreviewSessionBody,
   type PublishAppReleaseBody,
   prepareAppReleaseContract,
+  previewAbortCandidateContract,
+  previewPromoteContract,
   previewSessionContract,
   publishAppReleaseContract,
   type RevokeAppReleaseBody,
@@ -21,7 +23,6 @@ import {
   revokeAppReleaseContract,
   rollbackAppReleaseContract,
 } from '@/lib/api/contracts/apps'
-import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 
 export const appKeys = {
   all: ['apps'] as const,
@@ -72,24 +73,6 @@ function useInvalidateAppProject() {
   }
 }
 
-export function useCreateAppProject() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (body: CreateAppProjectBody) => requestJson(createAppProjectContract, { body }),
-    onSuccess: (_data, variables) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: appKeys.list(variables.workspaceId) }),
-        ...(variables.createdFromChatId
-          ? [
-              queryClient.invalidateQueries({
-                queryKey: mothershipChatKeys.detail(variables.createdFromChatId),
-              }),
-            ]
-          : []),
-      ]),
-  })
-}
-
 export function useArchiveAppProject() {
   const invalidate = useInvalidateAppProject()
   return useMutation({
@@ -104,6 +87,15 @@ export function useBindAppRevision(projectId: string, workspaceId?: string) {
   return useMutation({
     mutationFn: (body: BindAppRevisionBody) =>
       requestJson(bindAppRevisionContract, { params: { projectId }, body }),
+    onSuccess: () => invalidate(projectId, workspaceId),
+  })
+}
+
+export function useDetachAppRevision(projectId: string, workspaceId?: string) {
+  const invalidate = useInvalidateAppProject()
+  return useMutation({
+    mutationFn: (body: DetachAppRevisionBody) =>
+      requestJson(detachAppRevisionContract, { params: { projectId }, body }),
     onSuccess: () => invalidate(projectId, workspaceId),
   })
 }
@@ -157,5 +149,25 @@ export function useCreateAppPreviewSession(projectId: string) {
   return useMutation({
     mutationFn: (body: PreviewSessionBody) =>
       requestJson(previewSessionContract, { params: { projectId }, body }),
+  })
+}
+
+export function usePromoteAppPreviewCandidate(projectId: string) {
+  return useMutation({
+    mutationFn: (sessionId: string) =>
+      requestJson(previewPromoteContract, {
+        params: { projectId },
+        body: { sessionId },
+      }),
+  })
+}
+
+export function useAbortAppPreviewCandidate(projectId: string) {
+  return useMutation({
+    mutationFn: (sessionId: string) =>
+      requestJson(previewAbortCandidateContract, {
+        params: { projectId },
+        body: { sessionId },
+      }),
   })
 }

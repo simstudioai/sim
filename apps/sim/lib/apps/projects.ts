@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto'
 import { db } from '@sim/db'
-import { appProject, appRelease } from '@sim/db/schema'
+import { appBuild, appProject, appRelease } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import type { AppInterfaceStatus } from '@/lib/api/contracts/apps'
 import { isValidAppSlug } from '@/lib/apps/reserved-slugs'
 
 function generatePublicId(): string {
@@ -81,12 +82,93 @@ export async function createAppProject(params: {
   }
 }
 
+type AppBuildSummary = Pick<
+  typeof appBuild.$inferSelect,
+  'projectId' | 'revisionId' | 'status' | 'artifactManifestHash'
+>
+
+export function deriveAppInterfaceStatus(
+  draftRevisionId: string | null,
+  latestBuild?: AppBuildSummary
+): AppInterfaceStatus {
+  if (!draftRevisionId || latestBuild?.revisionId !== draftRevisionId) return 'empty'
+  if (latestBuild.status === 'queued' || latestBuild.status === 'running') return 'building'
+  if (latestBuild.status === 'failed') return 'failed'
+  return 'ready'
+}
+
 export async function listAppProjects(workspaceId: string) {
-  return db
+  const projects = await db
     .select()
     .from(appProject)
     .where(and(eq(appProject.workspaceId, workspaceId), isNull(appProject.archivedAt)))
     .orderBy(desc(appProject.updatedAt))
+
+  if (projects.length === 0) return []
+  const projectIds = projects.map((project) => project.id)
+  const draftRevisionIds = projects.flatMap((project) =>
+    project.draftRevisionId ? [project.draftRevisionId] : []
+  )
+  const [latestBuilds, latestSuccessfulBuilds] =
+    draftRevisionIds.length > 0
+      ? await Promise.all([
+          db
+            .selectDistinctOn([appBuild.projectId], {
+              projectId: appBuild.projectId,
+              revisionId: appBuild.revisionId,
+              status: appBuild.status,
+              artifactManifestHash: appBuild.artifactManifestHash,
+            })
+            .from(appBuild)
+            .where(
+              and(
+                inArray(appBuild.projectId, projectIds),
+                inArray(appBuild.revisionId, draftRevisionIds)
+              )
+            )
+            .orderBy(appBuild.projectId, desc(appBuild.createdAt)),
+          db
+            .selectDistinctOn([appBuild.projectId], {
+              projectId: appBuild.projectId,
+              revisionId: appBuild.revisionId,
+              status: appBuild.status,
+              artifactManifestHash: appBuild.artifactManifestHash,
+            })
+            .from(appBuild)
+            .where(
+              and(
+                inArray(appBuild.projectId, projectIds),
+                inArray(appBuild.revisionId, draftRevisionIds),
+                eq(appBuild.status, 'succeeded')
+              )
+            )
+            .orderBy(appBuild.projectId, desc(appBuild.createdAt)),
+        ])
+      : [[], []]
+  const latestByProject = new Map(latestBuilds.map((build) => [build.projectId, build]))
+  const successfulByProject = new Map(
+    latestSuccessfulBuilds.map((build) => [build.projectId, build])
+  )
+
+  return projects.map((project) => {
+    const latestBuild = latestByProject.get(project.id)
+    const successfulBuild = successfulByProject.get(project.id)
+    const hasDraftArtifact =
+      Boolean(project.draftRevisionId) &&
+      successfulBuild?.revisionId === project.draftRevisionId &&
+      Boolean(successfulBuild.artifactManifestHash?.startsWith('sha256:'))
+    const thumbnailVersion = hasDraftArtifact
+      ? successfulBuild?.artifactManifestHash
+      : project.publishedReleaseId
+
+    return {
+      ...project,
+      interfaceStatus: deriveAppInterfaceStatus(project.draftRevisionId, latestBuild),
+      thumbnailUrl: thumbnailVersion
+        ? `/api/apps/${encodeURIComponent(project.id)}/thumbnail?v=${encodeURIComponent(thumbnailVersion)}`
+        : null,
+    }
+  })
 }
 
 export async function getAppProject(projectId: string) {

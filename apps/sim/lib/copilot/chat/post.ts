@@ -137,6 +137,26 @@ const ChatContextSchema = z.object({
   scheduleId: z.string().optional(),
 })
 
+const FullstackSeedSchema = z
+  .object({
+    source: z.literal('existing_workflow'),
+    workflowIds: z.array(z.string().uuid()).min(1).max(8),
+    projectId: z.string().uuid().optional(),
+    design: z
+      .object({
+        appName: z.string().trim().max(60).optional(),
+        instructions: z.string().trim().max(4000).optional(),
+        primaryColor: z
+          .string()
+          .regex(/^#[0-9a-fA-F]{6}$/)
+          .optional(),
+        style: z.enum(['minimal', 'professional', 'playful', 'custom']).optional(),
+        theme: z.enum(['light', 'dark', 'system']).optional(),
+      })
+      .strict(),
+  })
+  .strict()
+
 const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   userMessageId: z.string().optional(),
@@ -153,6 +173,7 @@ const ChatMessageSchema = z.object({
   /** Hosted Full-stack credential resume (creator-selected account IDs). */
   credentialSelections: z.record(z.string().min(1), z.string().min(1)).optional(),
   fullstackProjectId: z.string().min(1).optional(),
+  fullstackSeed: FullstackSeedSchema.optional(),
   implicitFeedback: z.string().optional(),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
   resourceAttachments: z.array(ResourceAttachmentSchema).optional(),
@@ -749,7 +770,13 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     const authenticatedUserName =
       typeof session.user.name === 'string' ? session.user.name : undefined
 
-    const body = ChatMessageSchema.parse(await req.json())
+    let rawBody: unknown
+    try {
+      rawBody = await req.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON request body' }, { status: 400 })
+    }
+    const body = ChatMessageSchema.parse(rawBody)
     const userMetadata = {
       ...(authenticatedUserName ? { name: authenticatedUserName } : {}),
       ...(authenticatedUserEmail ? { email: authenticatedUserEmail } : {}),
@@ -865,6 +892,14 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           : currentChat?.type === 'fullstack'
             ? 'fullstack'
             : 'mothership'
+      if (body.fullstackSeed && effectiveChatType !== 'fullstack') {
+        activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, 400)
+        activeOtelRoot.finish('error')
+        return NextResponse.json(
+          { error: 'fullstackSeed requires a Full-stack chat' },
+          { status: 400 }
+        )
+      }
       if (
         currentChat?.type &&
         ((branch.kind === 'workspace' &&
@@ -1102,6 +1137,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         }
         if (body.fullstackProjectId) {
           requestPayload.fullstackProjectId = body.fullstackProjectId
+        }
+        if (body.fullstackSeed) {
+          requestPayload.fullstackSeed = body.fullstackSeed
         }
       }
 

@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import type { FullstackWorkflowSeed } from '@/lib/apps/build-interface/types'
 import type { ChatContext } from '@/stores/panel'
 
 const logger = createLogger('BrowserStorage')
@@ -105,6 +106,7 @@ export const STORAGE_KEYS = {
   LANDING_PAGE_WORKFLOW_SEED: 'sim_landing_page_workflow_seed',
   WORKSPACE_RECENCY: 'sim_workspace_recency',
   MOTHERSHIP_HANDOFF: 'sim_mothership_handoff',
+  FULLSTACK_WORKFLOW_HANDOFF: 'sim_fullstack_workflow_handoff',
 } as const
 
 export class WorkspaceRecencyStorage {
@@ -378,5 +380,63 @@ export class MothershipHandoffStorage {
 
   static clear(): boolean {
     return BrowserStorage.removeItem(MothershipHandoffStorage.KEY)
+  }
+}
+
+export interface FullstackWorkflowHandoff {
+  chatId: string
+  message: string
+  seed: FullstackWorkflowSeed
+}
+
+export class FullstackWorkflowHandoffStorage {
+  private static readonly KEY = STORAGE_KEYS.FULLSTACK_WORKFLOW_HANDOFF
+
+  static store(handoff: FullstackWorkflowHandoff, workspaceId: string): boolean {
+    if (
+      !workspaceId ||
+      !handoff.chatId ||
+      !handoff.message.trim() ||
+      handoff.seed.workflowIds.length === 0
+    ) {
+      return false
+    }
+    return BrowserStorage.setItem(FullstackWorkflowHandoffStorage.KEY, {
+      ...handoff,
+      message: handoff.message.trim(),
+      workspaceId,
+      timestamp: Date.now(),
+    })
+  }
+
+  static peek(
+    workspaceId: string,
+    chatId: string,
+    maxAge = 60_000
+  ): FullstackWorkflowHandoff | null {
+    const data = BrowserStorage.getItem<
+      (FullstackWorkflowHandoff & { workspaceId: string; timestamp: number }) | null
+    >(FullstackWorkflowHandoffStorage.KEY, null)
+    if (!data) return null
+    if (data.workspaceId !== workspaceId || data.chatId !== chatId) return null
+    if (Date.now() - data.timestamp > maxAge) {
+      FullstackWorkflowHandoffStorage.clear()
+      return null
+    }
+    return { chatId: data.chatId, message: data.message, seed: data.seed }
+  }
+
+  static consume(
+    workspaceId: string,
+    chatId: string,
+    maxAge = 60_000
+  ): FullstackWorkflowHandoff | null {
+    const handoff = FullstackWorkflowHandoffStorage.peek(workspaceId, chatId, maxAge)
+    if (handoff) FullstackWorkflowHandoffStorage.clear()
+    return handoff
+  }
+
+  static clear(): boolean {
+    return BrowserStorage.removeItem(FullstackWorkflowHandoffStorage.KEY)
   }
 }

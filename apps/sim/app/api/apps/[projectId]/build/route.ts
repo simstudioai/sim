@@ -24,12 +24,13 @@ export const POST = withRouteHandler(
     if (!parsed.success) return parsed.response
 
     const { projectId } = parsed.data.params
-    const { revisionId } = parsed.data.body
+    const { revisionId, expectedRevisionId } = parsed.data.body
 
     const result = await buildProjectRevision({
       projectId,
       revisionId,
       userId: session.user.id,
+      expectedRevisionId,
     })
     if (!result.ok) {
       return createErrorResponse(result.error, result.status, result.code)

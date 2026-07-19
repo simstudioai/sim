@@ -6,6 +6,7 @@ import { buildArtifactManifest } from '@/lib/apps/artifacts/manifest'
 import {
   assertArtifactBundleInputs,
   loadArtifactManifest,
+  readArtifactFile,
   writeContentAddressedFile,
 } from '@/lib/apps/artifacts/store'
 
@@ -120,6 +121,11 @@ describe('content-addressed filesystem', () => {
     const corrupt = await writeContentAddressedFile(path, Buffer.from('other'))
     expect(corrupt.ok).toBe(false)
     expect(await readFile(path, 'utf8')).toBe('hello')
+  })
+
+  it('rejects artifact reads outside the verified manifest path space', async () => {
+    expect(await readArtifactFile(`sha256:${'a'.repeat(64)}`, '../preview.webp', root)).toBeNull()
+    expect(await readArtifactFile('fixture:not-real', 'preview.webp', root)).toBeNull()
   })
 
   it('loadArtifactManifest verifies digest and rejects tampering', async () => {

@@ -4,6 +4,7 @@ import { assertSafeArtifactPath, buildArtifactManifest } from '@/lib/apps/artifa
 import { persistArtifactBundle, requireAppsArtifactRoot } from '@/lib/apps/artifacts/store'
 import { currentE2BBuildIdentity } from '@/lib/apps/build/build-identity'
 import { platformViteConfig, prepareTrustedSourceTree } from '@/lib/apps/build/prepare-source'
+import { thumbnailDiagnosticsFromCommand } from '@/lib/apps/build/thumbnail'
 import type { AppBuildRequest, AppBuildResult } from '@/lib/apps/build/types'
 import { env, getEnv } from '@/lib/core/config/env'
 
@@ -14,6 +15,7 @@ const TMP_ROOT = '/home/user/tmp'
 const ARTIFACT_EXPORT_PATH = '/home/user/artifacts.json'
 const TOOLCHAIN_ROOT = '/opt/sim-app'
 const BUILD_TIMEOUT_MS = 5 * 60 * 1000
+const THUMBNAIL_TIMEOUT_MS = 30_000
 const SANDBOX_TIMEOUT_MS = BUILD_TIMEOUT_MS + 60_000
 const MAX_EXPORT_JSON_BYTES = 30_000_000
 const MAX_EXPORTED_FILES = 500
@@ -137,6 +139,7 @@ async function runCommand(
         TMP: TMP_ROOT,
         TEMP: TMP_ROOT,
         XDG_CACHE_HOME: `${APP_ROOT}/.cache`,
+        PLAYWRIGHT_BROWSERS_PATH: `${TOOLCHAIN_ROOT}/ms-playwright`,
         NODE_ENV: 'production',
         PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
       },
@@ -224,6 +227,24 @@ export async function runE2BViteBuild(
       }
     }
 
+    const thumbnailResult = await runCommand(
+      sandbox,
+      `node ${TOOLCHAIN_ROOT}/capture-thumbnail.mjs ${APP_ROOT}/dist`,
+      THUMBNAIL_TIMEOUT_MS
+    )
+    const thumbnail = thumbnailDiagnosticsFromCommand({
+      exitCode: thumbnailResult.exitCode,
+      stdout: thumbnailResult.stdout,
+      stderr: thumbnailResult.stderr,
+    })
+    if (thumbnail.status === 'failed') {
+      logger.warn('E2B artifact thumbnail capture failed', {
+        projectId: request.projectId,
+        revisionId: request.revisionId,
+        error: thumbnail.error,
+      })
+    }
+
     const collectResult = await runCommand(
       sandbox,
       `node ${TOOLCHAIN_ROOT}/collect-artifacts.mjs ${APP_ROOT}/dist ${ARTIFACT_EXPORT_PATH}`,
@@ -282,6 +303,7 @@ export async function runE2BViteBuild(
         fileCount: built.manifest.files.length,
         manifestHash: built.manifestHash,
         sandboxId: sandbox.sandboxId,
+        thumbnail,
       },
     }
   } catch (error) {

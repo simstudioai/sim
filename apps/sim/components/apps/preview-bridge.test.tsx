@@ -92,6 +92,34 @@ describe('AppPreviewBridge lifecycle', () => {
     act(() => root.unmount())
   })
 
+  it('does not reveal a browser error document from heartbeat and onLoad alone', async () => {
+    requestJson.mockResolvedValue({ expiresAt: new Date().toISOString() })
+    const onReady = vi.fn()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    await act(async () => {
+      root.render(
+        <AppPreviewBridge
+          projectId='project-1'
+          sessionId='session-1'
+          channelNonce='nonce-1'
+          previewSrc='http://apps.localhost:3005/__sim/preview/session-1/nonce-1/'
+          onReady={onReady}
+        />
+      )
+    })
+    const iframe = container.querySelector('iframe') as HTMLIFrameElement
+
+    await act(async () => iframe.dispatchEvent(new Event('load')))
+
+    expect(iframe.className).toContain('opacity-0')
+    expect(container.textContent).toContain('Loading preview…')
+    expect(onReady).not.toHaveBeenCalled()
+    act(() => root.unmount())
+  })
+
   it('accepts only well-formed messages from the exact iframe origin and source', async () => {
     requestJson.mockResolvedValue({ executionId: 'exec-1', outputs: {} })
     const container = document.createElement('div')
@@ -271,7 +299,7 @@ describe('AppPreviewBridge lifecycle', () => {
     act(() => vi.advanceTimersByTime(200))
   })
 
-  it('automatically retries an iframe that never announces readiness', () => {
+  it('does not restart a cold iframe before the document load timeout', () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
@@ -287,7 +315,34 @@ describe('AppPreviewBridge lifecycle', () => {
       )
     })
 
-    act(() => vi.advanceTimersByTime(8_000))
+    act(() => vi.advanceTimersByTime(10_000))
+
+    expect(container.textContent).toContain('Loading preview…')
+    expect(container.querySelector('iframe')?.src).not.toContain('__simPreviewAttempt')
+
+    act(() => root.unmount())
+    act(() => vi.advanceTimersByTime(200))
+  })
+
+  it('retries the handshake shortly after the document has loaded', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    act(() => {
+      root.render(
+        <AppPreviewBridge
+          projectId='project-1'
+          sessionId='session-1'
+          channelNonce='nonce-1'
+          previewSrc='http://apps.localhost:3005/__sim/preview/session-1/nonce-1/'
+        />
+      )
+    })
+    act(() =>
+      (container.querySelector('iframe') as HTMLIFrameElement).dispatchEvent(new Event('load'))
+    )
+    act(() => vi.advanceTimersByTime(2_000))
 
     expect(container.textContent).toContain('Retrying preview (1/3)…')
     expect(container.querySelector('iframe')?.src).toContain('__simPreviewAttempt=1')
@@ -315,7 +370,10 @@ describe('AppPreviewBridge lifecycle', () => {
     })
 
     for (let attempt = 0; attempt < 4; attempt++) {
-      await act(async () => vi.advanceTimersByTime(8_000))
+      act(() =>
+        (container.querySelector('iframe') as HTMLIFrameElement).dispatchEvent(new Event('load'))
+      )
+      await act(async () => vi.advanceTimersByTime(2_000))
     }
 
     expect(onFailure).toHaveBeenCalledWith('The secure preview handshake timed out.')

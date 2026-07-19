@@ -2,7 +2,8 @@ import { db } from '@sim/db'
 import { copilotChats, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
+import type { FullstackWorkflowSeed } from '@/lib/apps/build-interface/types'
 import type { BackendHandoff } from '@/lib/apps/demo/backend-handoff'
 import {
   buildBackendHandoff,
@@ -619,6 +620,97 @@ async function runBackendThenFrontend(params: {
   })
 }
 
+async function runExistingWorkflowThenFrontend(params: {
+  userId: string
+  workspaceId: string
+  prompt: string
+  project: DemoProject
+  chatId: string
+  workflowIds: string[]
+  abortSignal?: AbortSignal
+  onStreamEvent?: (event: StreamEvent) => void | Promise<void>
+  onEvent: (event: DemoProgressEvent) => void | Promise<void>
+}): Promise<DemoProgressEvent> {
+  const validRows = await db
+    .select({ id: workflow.id })
+    .from(workflow)
+    .where(
+      and(
+        inArray(workflow.id, params.workflowIds),
+        eq(workflow.workspaceId, params.workspaceId),
+        isNull(workflow.archivedAt)
+      )
+    )
+  if (new Set(validRows.map((row) => row.id)).size !== new Set(params.workflowIds).size) {
+    const failed: DemoProgressEvent = {
+      phase: 'failed',
+      projectId: params.project.id,
+      chatId: params.chatId,
+      error: 'One or more seeded workflows are unavailable in this workspace',
+      code: 'NO_VALID_WORKFLOWS',
+    }
+    await params.onEvent(failed)
+    return failed
+  }
+  await params.onEvent({
+    phase: 'building_backend',
+    message: 'Validating existing backend workflow…',
+    projectId: params.project.id,
+    chatId: params.chatId,
+    workflowCount: params.workflowIds.length,
+  })
+  await emitWorkflowResourceReconciliation({
+    chatId: params.chatId,
+    workflowIds: params.workflowIds,
+    onEvent: params.onStreamEvent,
+  })
+  const bound = await resolveAndBindOAuthCredentials({
+    userId: params.userId,
+    workspaceId: params.workspaceId,
+    workflowIds: params.workflowIds,
+  })
+  if (!bound.ok) {
+    if (bound.code === 'SELECTION_REQUIRED') {
+      const selection: DemoProgressEvent = {
+        phase: 'credential_selection_required',
+        message: bound.error,
+        projectId: params.project.id,
+        chatId: params.chatId,
+        code: bound.code,
+        credentialSelections: bound.selections,
+      }
+      await params.onEvent(selection)
+      return selection
+    }
+    const failed: DemoProgressEvent = {
+      phase: 'failed',
+      projectId: params.project.id,
+      chatId: params.chatId,
+      error: bound.error,
+      code: bound.code,
+    }
+    await params.onEvent(failed)
+    return failed
+  }
+  const currentFiles = params.project.draftRevisionId
+    ? filterAllowedUserFiles(
+        (await loadRevisionSnapshot(params.project.id, params.project.draftRevisionId)).files
+      )
+    : undefined
+  return continueAfterCredentials({
+    userId: params.userId,
+    workspaceId: params.workspaceId,
+    prompt: params.prompt,
+    project: params.project,
+    chatId: params.chatId,
+    workflowIds: params.workflowIds,
+    toolCalls: [],
+    currentFiles,
+    abortSignal: params.abortSignal,
+    onEvent: params.onEvent,
+  })
+}
+
 /**
  * Sim-owned demo coordinator. Streams deterministic phases via the provided emitter.
  * Callers (the SSE route / chat lifecycle) are responsible for assertHostedDemoRuntime before invoking.
@@ -638,6 +730,7 @@ export async function runFullstackDemoOrchestration(params: {
   onBackendResult?: (
     result: Awaited<ReturnType<typeof runDemoMothershipPass>>
   ) => void | Promise<void>
+  fullstackSeed?: FullstackWorkflowSeed
   onEvent: (event: DemoProgressEvent) => void | Promise<void>
 }): Promise<DemoProgressEvent> {
   if (!isFullstackDemoModeEnabled()) {
@@ -795,6 +888,48 @@ export async function runFullstackDemoOrchestration(params: {
 
   const linked = await getLinkedAppProjectForChat(chatId, params.workspaceId)
   let project: DemoProject | null = linked ? toDemoProject(linked) : null
+
+  if (params.fullstackSeed?.source === 'existing_workflow') {
+    if (!project) {
+      const name =
+        params.fullstackSeed.design.appName || normalizeAppDisplayName(null, params.prompt)
+      const projectResult = await createAppProject({
+        workspaceId: params.workspaceId,
+        name,
+        slug: slugFromPrompt(name),
+        userId: params.userId,
+        createdFromChatId: chatId,
+      })
+      if (!projectResult.success) {
+        const failed: DemoProgressEvent = {
+          phase: 'failed',
+          chatId,
+          error: projectResult.error,
+          code: 'PROJECT_CREATE_FAILED',
+        }
+        await params.onEvent(failed)
+        return failed
+      }
+      project = toDemoProject(projectResult.project)
+    }
+    const designPrompt = [
+      params.prompt,
+      '',
+      `Validated design preferences:\n${JSON.stringify(params.fullstackSeed.design, null, 2)}`,
+      'Reuse the seeded workflow backend exactly as-is. Do not create or edit workflows.',
+    ].join('\n')
+    return runExistingWorkflowThenFrontend({
+      userId: params.userId,
+      workspaceId: params.workspaceId,
+      prompt: designPrompt,
+      project,
+      chatId,
+      workflowIds: params.fullstackSeed.workflowIds,
+      abortSignal: params.abortSignal,
+      onStreamEvent: params.onStreamEvent,
+      onEvent: params.onEvent,
+    })
+  }
 
   // Follow-up turns against an existing draft revision.
   if (project?.draftRevisionId) {

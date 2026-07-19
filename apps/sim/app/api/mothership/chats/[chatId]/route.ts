@@ -10,6 +10,7 @@ import {
   updateMothershipChatContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
+import { loadFullstackDemoLifecycleSummary } from '@/lib/apps/demo/lifecycle-state'
 import { getLinkedAppProjectForChat } from '@/lib/apps/projects'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { buildEffectiveChatTranscript } from '@/lib/copilot/chat/effective-transcript'
@@ -115,10 +116,13 @@ export const GET = withRouteHandler(
         activeStreamId: liveStreamId,
         ...(streamSnapshot ? { streamSnapshot } : {}),
       })
-      const linkedAppProject =
+      const [linkedAppProject, fullstackLifecycle] =
         chat.type === 'fullstack' && chat.workspaceId
-          ? await getLinkedAppProjectForChat(chat.id, chat.workspaceId)
-          : null
+          ? await Promise.all([
+              getLinkedAppProjectForChat(chat.id, chat.workspaceId),
+              loadFullstackDemoLifecycleSummary(chat.id, userId),
+            ])
+          : [null, null]
 
       return NextResponse.json({
         success: true,
@@ -132,6 +136,7 @@ export const GET = withRouteHandler(
           createdAt: chat.createdAt,
           updatedAt: chat.updatedAt,
           linkedAppProject,
+          ...(fullstackLifecycle ? { fullstackLifecycle } : {}),
           ...(streamSnapshot ? { streamSnapshot } : {}),
         },
       })

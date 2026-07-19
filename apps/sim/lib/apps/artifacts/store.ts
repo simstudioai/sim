@@ -7,6 +7,7 @@ import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import {
   type ArtifactManifest,
+  assertSafeArtifactPath,
   canonicalManifestBytes,
   hashArtifactManifest,
   isRealArtifactHash,
@@ -271,12 +272,12 @@ export async function loadArtifactManifest(
   }
 }
 
-async function verifyBlobOnDisk(
+async function readVerifiedBlob(
   contentHash: string,
   expectedByteSize: number,
   root = getAppsArtifactRoot()
-): Promise<boolean> {
-  if (!/^[0-9a-f]{64}$/.test(contentHash)) return false
+): Promise<Buffer | null> {
+  if (!/^[0-9a-f]{64}$/.test(contentHash)) return null
   // Publish/rollback call this from inside db.transaction; blob registry reads must
   // use the global pool via the tripwire escape hatch (not a second checkout by accident).
   const rows = await runOutsideTransactionContext(() =>
@@ -290,15 +291,38 @@ async function verifyBlobOnDisk(
       .limit(1)
   )
   const row = rows[0]
-  if (!row || row.byteSize !== expectedByteSize) return false
+  if (!row || row.byteSize !== expectedByteSize) return null
 
   try {
     const buf = await readFile(blobPath(root, contentHash))
-    if (buf.byteLength !== expectedByteSize) return false
+    if (buf.byteLength !== expectedByteSize) return null
     const digest = createHash('sha256').update(buf).digest('hex')
-    return digest === contentHash
+    return digest === contentHash ? buf : null
   } catch {
-    return false
+    return null
+  }
+}
+
+/**
+ * Read one manifest-addressed file only after verifying the manifest, registry row,
+ * byte size, and on-disk content hash. Callers must still constrain the requested path.
+ */
+export async function readArtifactFile(
+  manifestHash: string,
+  path: string,
+  root = getAppsArtifactRoot()
+): Promise<{ content: Buffer; contentType: string; etag: string } | null> {
+  if (assertSafeArtifactPath(path)) return null
+  const manifest = await loadArtifactManifest(manifestHash, root)
+  const entry = manifest?.files.find((file) => file.path === path)
+  if (!entry) return null
+
+  const content = await readVerifiedBlob(entry.hash, entry.byteSize, root)
+  if (!content) return null
+  return {
+    content,
+    contentType: entry.contentType,
+    etag: `"${entry.hash}"`,
   }
 }
 
@@ -317,8 +341,8 @@ export async function assertArtifactBundleReady(
     }
   }
   for (const file of manifest.files) {
-    const ok = await verifyBlobOnDisk(file.hash, file.byteSize, root)
-    if (!ok) {
+    const content = await readVerifiedBlob(file.hash, file.byteSize, root)
+    if (!content) {
       return {
         ok: false,
         code: 'ARTIFACT_MISSING',

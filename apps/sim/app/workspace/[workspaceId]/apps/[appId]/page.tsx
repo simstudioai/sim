@@ -379,7 +379,7 @@ export default function AppBuilderPage() {
       } else {
         await archiveProject.mutateAsync({ projectId: appId, workspaceId })
         setConfirmAction(null)
-        router.push(`/workspace/${workspaceId}/apps`)
+        router.push(`/workspace/${workspaceId}/home?mode=fullstack`)
         return
       }
       setConfirmAction(null)
@@ -443,7 +443,7 @@ export default function AppBuilderPage() {
                 router.push(
                   builderChatId
                     ? `/workspace/${workspaceId}/chat/${builderChatId}`
-                    : `/workspace/${workspaceId}/home`
+                    : `/workspace/${workspaceId}/home?mode=fullstack`
                 )
               }}
             >

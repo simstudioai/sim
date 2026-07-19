@@ -1,4 +1,17 @@
-import { parseAsString } from 'nuqs/server'
+import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
+
+export const HOME_MODES = ['backend', 'fullstack'] as const
+export type HomeMode = (typeof HOME_MODES)[number]
+
+export const homeModeParam = {
+  key: 'mode',
+  parser: parseAsStringLiteral(HOME_MODES).withDefault('backend'),
+} as const
+
+export const homeModeUrlKeys = {
+  history: 'replace',
+  clearOnDefault: true,
+} as const
 
 /**
  * Co-located, typed URL query-param definition for the home/Chat surface.

@@ -17,10 +17,12 @@ vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
 vi.mock('@/lib/core/utils/request', () => ({ getClientIp: mockGetClientIp }))
 
 import {
+  APPS_PREVIEW_ACTION_LIMIT,
   APPS_PUBLIC_ACTION_LIMIT,
   APPS_PUBLIC_IP_LIMIT,
   enforceAppsActionRateLimit,
   enforceAppsIpRateLimit,
+  enforceAppsPreviewActionRateLimit,
 } from '@/lib/apps/rate-limit'
 
 const request = new NextRequest('http://localhost/api/apps/gateway')
@@ -76,6 +78,22 @@ describe('apps rate limits', () => {
     expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
       'apps:action:release-1:submit:ip:203.0.113.5',
       APPS_PUBLIC_ACTION_LIMIT,
+      { failClosed: true }
+    )
+  })
+
+  it('keys preview limits by authenticated user, project, and action', async () => {
+    mockCheckRateLimitDirect.mockResolvedValue({
+      allowed: false,
+      resetAt: new Date(Date.now() + 1_000),
+    })
+
+    const response = await enforceAppsPreviewActionRateLimit('user-1', 'project-1', 'submit')
+
+    expect(response?.status).toBe(429)
+    expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
+      'apps:preview:user-1:project-1:submit',
+      APPS_PREVIEW_ACTION_LIMIT,
       { failClosed: true }
     )
   })

@@ -171,4 +171,5 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   file: 'File Agent',
   media: 'Media Agent',
   fullstack_backend: 'Backend Builder',
+  fullstack_frontend: 'Interface Builder',
 } as const

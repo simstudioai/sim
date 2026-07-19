@@ -34,7 +34,7 @@ vi.mock('@sim/audit', () => ({
   recordAudit: mockRecordAudit,
 }))
 
-import { POST } from '@/app/api/apps/route'
+import { GET, POST } from '@/app/api/apps/route'
 
 function createRequest() {
   return new NextRequest('http://localhost/api/apps', {
@@ -94,6 +94,43 @@ describe('POST /api/apps', () => {
       slug: 'example-app',
       userId: 'user-1',
       createdFromChatId: undefined,
+    })
+  })
+})
+
+describe('GET /api/apps', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockAssertAppPermission.mockResolvedValue({ ok: true })
+    mockListAppProjects.mockResolvedValue([
+      {
+        id: 'project-1',
+        name: 'Example App',
+        interfaceStatus: 'ready',
+        thumbnailUrl: '/api/apps/project-1/thumbnail',
+      },
+    ])
+  })
+
+  it('returns enriched gallery list items after workspace permission check', async () => {
+    const response = await GET(
+      new NextRequest('http://localhost/api/apps?workspaceId=ws-1'),
+      undefined as never
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockAssertAppPermission).toHaveBeenCalledWith('user-1', 'ws-1', 'edit')
+    expect(mockListAppProjects).toHaveBeenCalledWith('ws-1')
+    expect(await response.json()).toEqual({
+      projects: [
+        {
+          id: 'project-1',
+          name: 'Example App',
+          interfaceStatus: 'ready',
+          thumbnailUrl: '/api/apps/project-1/thumbnail',
+        },
+      ],
     })
   })
 })

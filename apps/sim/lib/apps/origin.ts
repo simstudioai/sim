@@ -124,3 +124,27 @@ export function getAppsFrameSrcSources(): string[] {
   if (!status.enabled) return []
   return [status.appPublicOrigin]
 }
+
+/** Exact parent-origin allowlist shared with Apps Host preview framing. */
+export function isAllowedAppPreviewParentOrigin(candidate: string): boolean {
+  let origin: string
+  try {
+    origin = new URL(candidate).origin
+  } catch {
+    return false
+  }
+  const configured = [
+    getEnv('NEXT_PUBLIC_APP_URL') || env.NEXT_PUBLIC_APP_URL,
+    process.env.BETTER_AUTH_URL,
+    process.env.APPS_PREVIEW_PARENT_ORIGINS,
+  ]
+    .filter(Boolean)
+    .flatMap((value) => String(value).split(','))
+  return configured.some((value) => {
+    try {
+      return new URL(value.trim()).origin === origin
+    } catch {
+      return false
+    }
+  })
+}

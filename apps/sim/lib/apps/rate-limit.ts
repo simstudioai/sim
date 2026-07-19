@@ -20,6 +20,12 @@ export const APPS_PUBLIC_ACTION_LIMIT: TokenBucketConfig = {
   refillIntervalMs: 60_000,
 }
 
+export const APPS_PREVIEW_ACTION_LIMIT: TokenBucketConfig = {
+  maxTokens: 30,
+  refillRate: 15,
+  refillIntervalMs: 60_000,
+}
+
 function buildRateLimitResponse(resetAt: Date): NextResponse {
   const retryAfterSec = Math.max(1, Math.ceil((resetAt.getTime() - Date.now()) / 1000))
   return NextResponse.json(
@@ -65,5 +71,25 @@ export async function enforceAppsActionRateLimit(
   )
   if (allowed) return null
   logger.warn('Apps action rate limit exceeded', { releaseId, actionId, ip })
+  return buildRateLimitResponse(resetAt)
+}
+
+export async function enforceAppsPreviewActionRateLimit(
+  userId: string,
+  projectId: string,
+  actionId: string
+): Promise<NextResponse | null> {
+  const key = `apps:preview:${userId}:${projectId}:${actionId}`
+  const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(
+    key,
+    APPS_PREVIEW_ACTION_LIMIT,
+    { failClosed: true }
+  )
+  if (allowed) return null
+  logger.warn('Apps preview action rate limit exceeded (fail-closed)', {
+    userId,
+    projectId,
+    actionId,
+  })
   return buildRateLimitResponse(resetAt)
 }

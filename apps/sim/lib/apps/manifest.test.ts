@@ -25,4 +25,18 @@ describe('stableStringify / computeActionSchemaHash', () => {
     })
     expect(hashA).toBe(hashB)
   })
+
+  it('binds read-only metadata into the schema hash', () => {
+    const base = {
+      actionId: 'main',
+      workflowId: 'wf',
+      deploymentVersionId: 'dv',
+      inputSchema: { type: 'object' },
+      outputAllowlist: [],
+      executionPolicy: 'sync' as const,
+    }
+    expect(computeActionSchemaHash({ ...base, readOnly: true })).not.toBe(
+      computeActionSchemaHash({ ...base, readOnly: false })
+    )
+  })
 })

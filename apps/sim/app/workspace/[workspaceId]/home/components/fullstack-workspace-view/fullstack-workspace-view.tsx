@@ -99,6 +99,7 @@ export const FullstackWorkspaceView = memo(
     const [displayedPreview, setDisplayedPreview] = useState<typeof lifecycle.preview>(null)
     const [candidatePreview, setCandidatePreview] = useState<typeof lifecycle.preview>(null)
     const [candidateError, setCandidateError] = useState<string | null>(null)
+    const [previewRetryEpoch, setPreviewRetryEpoch] = useState(0)
     const hydratedRevisionRef = useRef<string | null>(null)
 
     const destination = lifecycle.destination
@@ -197,6 +198,7 @@ export const FullstackWorkspaceView = memo(
       createPreview,
       detailQuery.data?.latestBuild,
       detailQuery.data?.project,
+      previewRetryEpoch,
       projectId,
     ])
 
@@ -236,6 +238,9 @@ export const FullstackWorkspaceView = memo(
 
     function handlePreviewFailure(sessionId: string, message: string) {
       setCandidateError(message)
+      if (candidatePreview?.sessionId === sessionId) {
+        setCandidatePreview(null)
+      }
       clearFullstackPreviewSession(sessionId)
     }
 
@@ -245,6 +250,7 @@ export const FullstackWorkspaceView = memo(
       hydratedRevisionRef.current = null
       setCandidatePreview(null)
       setCandidateError(null)
+      setPreviewRetryEpoch((epoch) => epoch + 1)
     }
 
     return (
@@ -380,6 +386,19 @@ export const FullstackWorkspaceView = memo(
                 onFailure={(message) => handlePreviewFailure(displayedPreview.sessionId, message)}
                 onSessionStopped={clearFullstackPreviewSession}
               />
+            ) : candidateError ? (
+              <div
+                className='flex h-full flex-col items-center justify-center gap-3 px-6 text-center'
+                role='alert'
+              >
+                <p className='font-medium text-[var(--text-primary)] text-sm'>
+                  Preview could not be opened
+                </p>
+                <p className='max-w-sm text-[var(--text-tertiary)] text-xs'>{candidateError}</p>
+                <Button type='button' variant='default' onClick={retryWithFreshPreview}>
+                  Retry preview
+                </Button>
+              </div>
             ) : showGenerating || candidatePreview ? (
               <div className='flex h-full flex-col items-center justify-center gap-3 px-6 text-center'>
                 <Loader animate className='size-5' />

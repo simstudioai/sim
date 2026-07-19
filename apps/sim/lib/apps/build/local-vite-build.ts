@@ -1,20 +1,18 @@
 import { spawn } from 'node:child_process'
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { buildArtifactManifest } from '@/lib/apps/artifacts/manifest'
 import { persistArtifactBundle, requireAppsArtifactRoot } from '@/lib/apps/artifacts/store'
-import type { AppActionManifestEntry } from '@/lib/apps/manifest'
 import {
   currentLocalViteBuildIdentity,
   getLocalToolchainPaths,
 } from '@/lib/apps/build/local-toolchain'
-import {
-  platformViteConfig,
-  prepareTrustedSourceTree,
-} from '@/lib/apps/build/prepare-source'
+import { platformViteConfig, prepareTrustedSourceTree } from '@/lib/apps/build/prepare-source'
+import { captureLocalArtifactThumbnail } from '@/lib/apps/build/thumbnail'
 import type { AppBuildRequest, AppBuildResult } from '@/lib/apps/build/types'
+import type { AppActionManifestEntry } from '@/lib/apps/manifest'
 import { isProd } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('LocalViteAppBuild')
@@ -50,20 +48,24 @@ function runViteBuild(params: {
   tmpDir: string
 }): Promise<{ code: number | null; stdout: string; stderr: string; timedOut: boolean }> {
   return new Promise((resolvePromise) => {
-    const child = spawn(process.execPath, [params.viteCli, 'build', '--config', 'vite.config.mjs'], {
-      cwd: params.workRoot,
-      env: {
-        PATH: process.env.PATH,
-        HOME: process.env.HOME,
-        // Keep Vite/config loader temps inside the work root — never host node_modules.
-        TMPDIR: params.tmpDir,
-        TMP: params.tmpDir,
-        TEMP: params.tmpDir,
-        XDG_CACHE_HOME: join(params.workRoot, '.cache'),
-        NODE_ENV: 'production',
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
+    const child = spawn(
+      process.execPath,
+      [params.viteCli, 'build', '--config', 'vite.config.mjs'],
+      {
+        cwd: params.workRoot,
+        env: {
+          PATH: process.env.PATH,
+          HOME: process.env.HOME,
+          // Keep Vite/config loader temps inside the work root — never host node_modules.
+          TMPDIR: params.tmpDir,
+          TMP: params.tmpDir,
+          TEMP: params.tmpDir,
+          XDG_CACHE_HOME: join(params.workRoot, '.cache'),
+          NODE_ENV: 'production',
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }
+    )
 
     let stdout = ''
     let stderr = ''
@@ -184,6 +186,18 @@ export async function runLocalViteBuild(
     }
 
     const distDir = join(workRoot, 'dist')
+    const thumbnail = await captureLocalArtifactThumbnail({
+      scriptPath: toolchain.thumbnailCaptureScript,
+      distDir,
+    })
+    if (thumbnail.status === 'failed') {
+      logger.warn('Local artifact thumbnail capture failed', {
+        projectId: request.projectId,
+        revisionId: request.revisionId,
+        error: thumbnail.error,
+      })
+    }
+
     const relPaths = await walkFiles(distDir)
     const buffers: Array<{ path: string; content: Buffer }> = []
     for (const rel of relPaths) {
@@ -231,6 +245,7 @@ export async function runLocalViteBuild(
         lockfileHash: identity.lockfileHash,
         /** Guardrails only — Rolldown may still resolve transitive CJS deps. */
         importPlugins: 'esm-guardrails',
+        thumbnail,
       },
     }
   } catch (error) {

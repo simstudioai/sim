@@ -194,6 +194,20 @@ describe('handleUnifiedChatPost', () => {
     })
   })
 
+  it('returns 400 for a truncated JSON request body', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{"message":',
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Invalid JSON request body' })
+    expect(createSSEStream).not.toHaveBeenCalled()
+  })
+
   it('routes workflow-attached chat requests through the copilot backend path', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {
@@ -317,6 +331,34 @@ describe('handleUnifiedChatPost', () => {
     )
   })
 
+  it('rejects a workflow seed on a normal mothership chat', async () => {
+    resolveOrCreateChat.mockResolvedValueOnce({
+      chatId: 'chat-mothership',
+      chat: { id: 'chat-mothership', type: 'mothership', workspaceId: 'ws-1' },
+      conversationHistory: [],
+      isNew: false,
+    })
+
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Build an interface',
+          workspaceId: 'ws-1',
+          chatId: 'chat-mothership',
+          fullstackSeed: {
+            source: 'existing_workflow',
+            workflowIds: ['00000000-0000-4000-8000-000000000001'],
+            design: {},
+          },
+        }),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(createSSEStream).not.toHaveBeenCalled()
+  })
+
   it('preserves fullstack type in the Go payload and Sim execution context', async () => {
     getLinkedAppProjectForChat.mockResolvedValueOnce({
       id: 'app-1',
@@ -344,6 +386,15 @@ describe('handleUnifiedChatPost', () => {
           message: 'Build my app',
           workspaceId: 'ws-1',
           chatId: 'chat-fullstack',
+          fullstackSeed: {
+            source: 'existing_workflow',
+            workflowIds: ['00000000-0000-4000-8000-000000000001'],
+            design: {
+              primaryColor: '#2563eb',
+              style: 'professional',
+              theme: 'dark',
+            },
+          },
         }),
       })
     )
@@ -356,6 +407,10 @@ describe('handleUnifiedChatPost', () => {
           appProject: expect.objectContaining({
             id: 'app-1',
             draftRevisionId: 'revision-1',
+          }),
+          fullstackSeed: expect.objectContaining({
+            source: 'existing_workflow',
+            workflowIds: ['00000000-0000-4000-8000-000000000001'],
           }),
         }),
         orchestrateOptions: expect.objectContaining({

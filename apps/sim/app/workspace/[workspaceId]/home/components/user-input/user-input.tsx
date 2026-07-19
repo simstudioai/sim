@@ -60,6 +60,7 @@ interface UserInputProps {
 
 export interface UserInputHandle {
   loadQueuedMessage: (msg: QueuedMessage) => void
+  clearPrompt: () => void
   /** Populates the textarea with a CURATED prompt (suggested action, template,
    * etc. — never free-form user prose), running it through `mentionifyIntegrations`
    * (bare `Slack` → `@Slack`) and then auto-mention chipification so integration
@@ -300,6 +301,13 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   useImperativeHandle(
     ref,
     () => ({
+      clearPrompt: () => {
+        editorRef.current.clear()
+        sttPrefixRef.current = ''
+        if (draftScopeKeyRef.current) {
+          useMothershipDraftsStore.getState().clearDraft(draftScopeKeyRef.current)
+        }
+      },
       loadQueuedMessage: (msg: QueuedMessage) => {
         const currentEditor = editorRef.current
         currentEditor.setValue(msg.content)

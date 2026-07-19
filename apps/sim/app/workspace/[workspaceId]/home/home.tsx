@@ -14,11 +14,12 @@ import {
 import { Button } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
+import type { FullstackWorkflowSeed } from '@/lib/apps/build-interface/types'
 import { isFullstackDemoModeClient } from '@/lib/apps/demo/flags'
 import { FULLSTACK_CREDENTIAL_RESUME_MESSAGE } from '@/lib/apps/demo/resume-prompt'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
@@ -28,6 +29,7 @@ import {
   resolveWorkspacePlanAliasPath,
 } from '@/lib/copilot/vfs/workflow-aliases'
 import {
+  FullstackWorkflowHandoffStorage,
   LandingPromptStorage,
   type LandingWorkflowSeed,
   LandingWorkflowSeedStorage,
@@ -39,7 +41,12 @@ import {
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
-import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
+import {
+  homeModeParam,
+  homeModeUrlKeys,
+  resourceParam,
+  resourceUrlKeys,
+} from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
 import {
   useMarkMothershipChatRead,
@@ -59,6 +66,7 @@ import {
   type UserInputHandle,
 } from './components'
 import { FullstackChatStatus } from './components/fullstack-chat-status'
+import { FullstackHome } from './components/fullstack-home'
 import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
 import { resetFullstackLifecycleForChat } from './hooks/fullstack-lifecycle-store'
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
@@ -91,7 +99,6 @@ interface HomeProps {
 export function Home({ chatId, userName, userId }: HomeProps) {
   useOAuthReturnRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const router = useRouter()
   /**
    * URL is the single source of truth for the selected resource. `Home` renders
    * client-side, so nuqs reads `?resource=` from the URL on mount — the same
@@ -140,6 +147,11 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
   const [initialPrompt, setInitialPrompt] = useState('')
+  const [pendingFullstackSeed, setPendingFullstackSeed] = useState<FullstackWorkflowSeed | null>(
+    null
+  )
+  const [pendingFullstackMessage, setPendingFullstackMessage] = useState<string | null>(null)
+  const fullstackAutoSendChatRef = useRef<string | null>(null)
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
   const initialViewUserInputRef = useRef<UserInputHandle>(null)
@@ -205,13 +217,16 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const { data: routeChatHistory, isPending: isChatHistoryPending } =
     useMothershipChatHistory(chatId)
   const { mutate: markRead } = useMarkMothershipChatRead(workspaceId)
-  const [homeMode, setHomeMode] = useState<'backend' | 'fullstack'>('backend')
+  const [homeMode, setHomeMode] = useQueryState(homeModeParam.key, {
+    ...homeModeParam.parser,
+    ...homeModeUrlKeys,
+  })
   const isFullstackDemoMode = isFullstackDemoModeClient()
 
   useEffect(() => {
     if (!chatId || !routeChatHistory) return
-    setHomeMode(routeChatHistory.type === 'fullstack' ? 'fullstack' : 'backend')
-  }, [routeChatHistory, chatId])
+    void setHomeMode(routeChatHistory.type === 'fullstack' ? 'fullstack' : 'backend')
+  }, [routeChatHistory, chatId, setHomeMode])
 
   const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
 
@@ -263,6 +278,12 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       onResourceEvent: handleResourceEvent,
       activeResourceState,
       onRequestStarted: ({ requestId, userMessageId }) => {
+        if (pendingFullstackSeed) {
+          FullstackWorkflowHandoffStorage.clear()
+          setInitialPrompt('')
+          setPendingFullstackSeed(null)
+          setPendingFullstackMessage(null)
+        }
         captureEvent(posthogRef.current, 'task_request_started', {
           workspace_id: workspaceId,
           view: 'mothership',
@@ -344,12 +365,27 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       if (initialViewInputRef.current) {
         setIsInputEntering(true)
       }
+      if (pendingFullstackSeed) {
+        fullstackAutoSendChatRef.current = resolvedChatId ?? chatId ?? null
+      }
 
       // Full-stack (including hosted demo) uses the normal chat shell so the
       // split layout opens immediately with streamed backend + App lifecycle.
-      sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
+      sendMessage(
+        trimmed || 'Analyze the attached file(s).',
+        fileAttachments,
+        contexts,
+        pendingFullstackSeed
+          ? {
+              ...(pendingFullstackSeed.projectId
+                ? { fullstackProjectId: pendingFullstackSeed.projectId }
+                : {}),
+              fullstackSeed: pendingFullstackSeed,
+            }
+          : undefined
+      )
     },
-    [workspaceId, chatId, sendMessage]
+    [workspaceId, chatId, resolvedChatId, sendMessage, pendingFullstackSeed]
   )
 
   const handleCredentialResume = useCallback(
@@ -398,6 +434,65 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     const handoff = MothershipHandoffStorage.consume(workspaceId)
     if (handoff) sendMessage(handoff.message, undefined, handoff.contexts)
   }, [chatId, workspaceId, sendMessage])
+
+  useEffect(() => {
+    const targetChatId = resolvedChatId ?? chatId
+    if (!targetChatId || isSending || pendingFullstackSeed || chatHistory?.type !== 'fullstack') {
+      return
+    }
+    const handoff = FullstackWorkflowHandoffStorage.peek(workspaceId, targetChatId)
+    if (!handoff) return
+    void setHomeMode('fullstack')
+    setInitialPrompt(handoff.message)
+    setPendingFullstackSeed(handoff.seed)
+    setPendingFullstackMessage(handoff.message)
+    const frame = requestAnimationFrame(() => {
+      initialViewUserInputRef.current?.populatePrompt(handoff.message)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [
+    chatHistory?.type,
+    chatId,
+    isSending,
+    pendingFullstackSeed,
+    resolvedChatId,
+    setHomeMode,
+    workspaceId,
+  ])
+
+  useEffect(() => {
+    const targetChatId = resolvedChatId ?? chatId
+    if (
+      !targetChatId ||
+      !pendingFullstackSeed ||
+      !pendingFullstackMessage ||
+      isSending ||
+      chatHistory?.type !== 'fullstack' ||
+      fullstackAutoSendChatRef.current === targetChatId
+    ) {
+      return
+    }
+    const timer = window.setTimeout(() => {
+      fullstackAutoSendChatRef.current = targetChatId
+      setInitialPrompt('')
+      initialViewUserInputRef.current?.clearPrompt()
+      void sendMessage(pendingFullstackMessage, undefined, undefined, {
+        ...(pendingFullstackSeed.projectId
+          ? { fullstackProjectId: pendingFullstackSeed.projectId }
+          : {}),
+        fullstackSeed: pendingFullstackSeed,
+      })
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [
+    chatHistory?.type,
+    chatId,
+    isSending,
+    pendingFullstackMessage,
+    pendingFullstackSeed,
+    resolvedChatId,
+    sendMessage,
+  ])
 
   function resolveResourceFromContext(
     context: ChatContext
@@ -507,7 +602,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
               type='button'
               aria-pressed={homeMode === 'backend'}
               className={`rounded px-2 py-1 ${homeMode === 'backend' ? 'bg-[var(--surface-2)]' : 'opacity-60'}`}
-              onClick={() => setHomeMode('backend')}
+              onClick={() => void setHomeMode('backend')}
             >
               Backend
             </button>
@@ -515,52 +610,40 @@ export function Home({ chatId, userName, userId }: HomeProps) {
               type='button'
               aria-pressed={homeMode === 'fullstack'}
               className={`rounded px-2 py-1 ${homeMode === 'fullstack' ? 'bg-[var(--surface-2)]' : 'opacity-60'}`}
-              onClick={() => setHomeMode('fullstack')}
+              onClick={() => void setHomeMode('fullstack')}
             >
               Full-stack
             </button>
           </div>
           <CreditsChip />
         </div>
-        {/* Asymmetric padding biases the group up so the full cluster (heading + input + suggestions) sits at the optical center */}
-        <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
+        <div className='min-h-full'>
           {homeMode === 'fullstack' ? (
-            <div className='mb-7 flex w-full max-w-[48rem] flex-col items-center gap-4 text-center'>
-              <h1 className='text-balance font-season text-[30px] text-[var(--text-primary)]'>
-                Full-stack apps
-              </h1>
-              <p className='text-[var(--text-secondary)] text-sm'>
-                {isFullstackDemoMode
-                  ? 'Describe an app. Hosted Mothership builds workflows on the left, then opens a live preview on the right.'
-                  : 'Build, preview, and publish React apps backed by existing deployed workflows.'}
-              </p>
-              <div ref={initialViewInputRef} className='relative w-full max-w-[48rem] text-left'>
-                <ChatSurfaceProvider
-                  userId={userId}
-                  onContextAdd={handleContextAdd}
-                  onContextRemove={handleInitialContextRemove}
-                >
-                  <UserInput
-                    ref={initialViewUserInputRef}
-                    defaultValue={initialPrompt}
-                    draftScopeKey={draftScopeKey}
-                    onSubmit={handleSubmit}
-                    isSending={isSending}
-                    onStopGeneration={handleStopGeneration}
-                  />
-                </ChatSurfaceProvider>
-              </div>
-              <Button
-                type='button'
-                variant='default'
-                onClick={() => router.push(`/workspace/${workspaceId}/apps`)}
-              >
-                Open Apps
-              </Button>
-            </div>
+            <FullstackHome
+              workspaceId={workspaceId}
+              isDemoMode={isFullstackDemoMode}
+              prompt={
+                <div ref={initialViewInputRef}>
+                  <ChatSurfaceProvider
+                    userId={userId}
+                    onContextAdd={handleContextAdd}
+                    onContextRemove={handleInitialContextRemove}
+                  >
+                    <UserInput
+                      ref={initialViewUserInputRef}
+                      defaultValue={initialPrompt}
+                      draftScopeKey={draftScopeKey}
+                      onSubmit={handleSubmit}
+                      isSending={isSending}
+                      onStopGeneration={handleStopGeneration}
+                    />
+                  </ChatSurfaceProvider>
+                </div>
+              }
+            />
           ) : null}
           {homeMode === 'backend' ? (
-            <>
+            <div className='flex min-h-full flex-col items-center justify-start px-6 pt-[30vh] pb-12'>
               <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
                 What should we get done{firstName ? `, ${firstName}` : ''}?
               </h1>
@@ -588,7 +671,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
                   />
                 </div>
               </div>
-            </>
+            </div>
           ) : null}
         </div>
       </div>

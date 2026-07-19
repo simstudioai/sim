@@ -2,7 +2,11 @@
  * @vitest-environment jsdom
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MothershipHandoffStorage, STORAGE_KEYS } from '@/lib/core/utils/browser-storage'
+import {
+  FullstackWorkflowHandoffStorage,
+  MothershipHandoffStorage,
+  STORAGE_KEYS,
+} from '@/lib/core/utils/browser-storage'
 import type { ChatContext } from '@/stores/panel'
 
 const WS = 'ws-1'
@@ -84,5 +88,28 @@ describe('MothershipHandoffStorage', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('FullstackWorkflowHandoffStorage', () => {
+  beforeEach(() => localStorage.clear())
+
+  const handoff = {
+    chatId: 'chat-1',
+    message: 'Build an interface',
+    seed: {
+      source: 'existing_workflow' as const,
+      workflowIds: ['workflow-1'],
+      design: { primaryColor: '#2563eb', style: 'professional' as const },
+    },
+  }
+
+  it('is scoped to workspace and chat and consumed once', () => {
+    expect(FullstackWorkflowHandoffStorage.store(handoff, WS)).toBe(true)
+    expect(FullstackWorkflowHandoffStorage.consume(WS, 'wrong-chat')).toBeNull()
+    expect(FullstackWorkflowHandoffStorage.peek(WS, 'chat-1')).toEqual(handoff)
+    expect(FullstackWorkflowHandoffStorage.peek(WS, 'chat-1')).toEqual(handoff)
+    expect(FullstackWorkflowHandoffStorage.consume(WS, 'chat-1')).toEqual(handoff)
+    expect(FullstackWorkflowHandoffStorage.consume(WS, 'chat-1')).toBeNull()
   })
 })

@@ -21,6 +21,7 @@ const REPOSITORY_ROOT = resolve(fileURLToPath(new URL('../../../', import.meta.u
 const TEMPLATE_INPUTS = [
   'apps/sim/scripts/e2b-app-build/package.json',
   'apps/sim/scripts/e2b-app-build/collect-artifacts.mjs',
+  'apps/sim/scripts/e2b-app-build/capture-thumbnail.mjs',
   'packages/app-sdk/src/index.ts',
 ] as const
 const appSdkEntries = readdirSync(resolve(REPOSITORY_ROOT, 'packages/app-sdk/src'), {
@@ -54,10 +55,17 @@ const appBuildTemplate = Template({ fileContextPath: REPOSITORY_ROOT })
     'apps/sim/scripts/e2b-app-build/collect-artifacts.mjs',
     '/opt/sim-app/collect-artifacts.mjs'
   )
+  .copy(
+    'apps/sim/scripts/e2b-app-build/capture-thumbnail.mjs',
+    '/opt/sim-app/capture-thumbnail.mjs'
+  )
   .copy('packages/app-sdk/src/index.ts', '/opt/sim-app/vendor/app-sdk/index.ts')
   .setWorkdir('/opt/sim-app')
   // Dependencies are fully curated above. No user package file reaches this layer.
   .npmInstall()
+  .runCmd(
+    'PLAYWRIGHT_BROWSERS_PATH=/opt/sim-app/ms-playwright npx playwright install --with-deps chromium'
+  )
   .runCmd('npm cache clean --force')
   .setWorkdir('/home/user')
   .setUser('user')

@@ -20,7 +20,11 @@ function request() {
   return new NextRequest('http://localhost/api/apps/project-1/releases/prepare', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ revisionId: 'revision-1', buildId: 'build-1' }),
+    body: JSON.stringify({
+      revisionId: 'revision-1',
+      buildId: 'build-1',
+      expectedRevisionId: 'revision-1',
+    }),
   })
 }
 
@@ -71,6 +75,7 @@ describe('POST /api/apps/[projectId]/releases/prepare', () => {
       revisionId: 'revision-1',
       buildId: 'build-1',
       userId: 'user-1',
+      expectedRevisionId: 'revision-1',
     })
   })
 })

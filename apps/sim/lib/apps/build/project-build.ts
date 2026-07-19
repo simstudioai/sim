@@ -21,6 +21,7 @@ import { finalizeStaleRunningBuilds } from '@/lib/apps/build/stale-builds'
 import { assertBuildQuota } from '@/lib/apps/governance'
 import type { AppActionManifestEntry } from '@/lib/apps/manifest'
 import { assertAppPermission } from '@/lib/apps/permissions'
+import { assertCurrentDraftRevision, DraftRevisionConflictError } from '@/lib/apps/revisions'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/env-flags'
 
@@ -41,6 +42,7 @@ export async function buildProjectRevision(params: {
   projectId: string
   revisionId: string
   userId: string
+  expectedRevisionId?: string
 }): Promise<ProjectBuildResult> {
   const { projectId, revisionId, userId } = params
   const [project] = await db
@@ -58,6 +60,19 @@ export async function buildProjectRevision(params: {
       code: 'PERMISSION_DENIED',
       status: permission.status,
     }
+  }
+
+  try {
+    assertCurrentDraftRevision({
+      currentDraftRevisionId: project.draftRevisionId,
+      revisionId,
+      expectedRevisionId: params.expectedRevisionId,
+    })
+  } catch (error) {
+    if (error instanceof DraftRevisionConflictError) {
+      return { ok: false, error: error.message, code: error.code, status: error.status }
+    }
+    throw error
   }
 
   const [revision] = await db
@@ -144,18 +159,25 @@ export async function buildProjectRevision(params: {
     inputSchema: row.inputSchema as AppActionManifestEntry['inputSchema'],
     outputAllowlist: row.outputAllowlist as AppActionManifestEntry['outputAllowlist'],
     executionPolicy: (row.executionPolicy as 'sync' | 'async') || 'sync',
+    readOnly: row.readOnly,
     schemaHash: row.schemaHash,
   }))
 
   const buildId = generateId()
   try {
     await db.transaction(async (tx) => {
-      await tx
-        .select({ id: appProject.id })
+      const [lockedProject] = await tx
+        .select({ id: appProject.id, draftRevisionId: appProject.draftRevisionId })
         .from(appProject)
         .where(eq(appProject.id, projectId))
         .for('update')
         .limit(1)
+      if (!lockedProject) throw new Error('PROJECT_NOT_FOUND')
+      assertCurrentDraftRevision({
+        currentDraftRevisionId: lockedProject.draftRevisionId,
+        revisionId,
+        expectedRevisionId: params.expectedRevisionId,
+      })
       const [running] = await tx
         .select({ id: appBuild.id })
         .from(appBuild)
@@ -170,6 +192,12 @@ export async function buildProjectRevision(params: {
       })
     })
   } catch (error) {
+    if (error instanceof DraftRevisionConflictError) {
+      return { ok: false, error: error.message, code: error.code, status: error.status }
+    }
+    if (error instanceof Error && error.message === 'PROJECT_NOT_FOUND') {
+      return { ok: false, error: 'Project not found', code: 'NOT_FOUND', status: 404 }
+    }
     if (error instanceof Error && error.message === 'BUILD_IN_PROGRESS') {
       return {
         ok: false,

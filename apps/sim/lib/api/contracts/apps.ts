@@ -65,14 +65,24 @@ export const appDraftActionSchema = z.object({
     })
   ),
   executionPolicy: z.string(),
+  readOnly: z.boolean(),
 })
 export type AppDraftAction = z.output<typeof appDraftActionSchema>
 
 export const createAppProjectResponseSchema = z.object({ project: appProjectSchema })
 export type CreateAppProjectResponse = z.output<typeof createAppProjectResponseSchema>
 
+export const appInterfaceStatusSchema = z.enum(['ready', 'building', 'failed', 'empty'])
+export type AppInterfaceStatus = z.output<typeof appInterfaceStatusSchema>
+
+export const appProjectListItemSchema = appProjectSchema.extend({
+  interfaceStatus: appInterfaceStatusSchema,
+  thumbnailUrl: z.string().nullable(),
+})
+export type AppProjectListItem = z.output<typeof appProjectListItemSchema>
+
 export const listAppProjectsResponseSchema = z.object({
-  projects: z.array(appProjectSchema),
+  projects: z.array(appProjectListItemSchema),
 })
 export type ListAppProjectsResponse = z.output<typeof listAppProjectsResponseSchema>
 
@@ -121,6 +131,13 @@ export const getAppProjectContract = defineRouteContract({
   response: { mode: 'json', schema: getAppProjectResponseSchema },
 })
 
+export const appProjectThumbnailContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/apps/[projectId]/thumbnail',
+  params: appProjectParamsSchema,
+  response: { mode: 'binary' },
+})
+
 export const deleteAppProjectContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/apps/[projectId]',
@@ -143,6 +160,59 @@ export const publishAppReleaseContract = defineRouteContract({
     mode: 'json',
     schema: z.object({ releaseId: z.string(), state: z.literal('published') }),
   },
+})
+
+export const appPublishDeploymentSchema = z.object({
+  workflowId: z.string(),
+  deploymentVersionId: z.string(),
+})
+
+export const publishAppWithDeployRecoverySchema = z.object({
+  resumed: z.boolean(),
+  reusedDeployments: z.array(z.string()),
+  reusedReboundRevision: z.boolean(),
+  reusedBuild: z.boolean(),
+  reusedRelease: z.boolean(),
+  reusedPublication: z.boolean(),
+})
+
+export const publishAppWithDeployBodySchema = z.object({
+  /** Optional for compatibility; current clients always generate and reuse one. */
+  operationId: z.string().uuid().optional(),
+  expectedVersion: z.number().int().nonnegative().optional(),
+})
+export type PublishAppWithDeployBody = z.input<typeof publishAppWithDeployBodySchema>
+
+export const publishAppWithDeployResponseSchema = z.object({
+  operationId: z.string(),
+  stage: z.literal('published'),
+  releaseId: z.string(),
+  revisionId: z.string(),
+  buildId: z.string(),
+  deployments: z.array(appPublishDeploymentSchema),
+  state: z.literal('published'),
+  recovery: publishAppWithDeployRecoverySchema,
+})
+export type PublishAppWithDeployResponse = z.output<typeof publishAppWithDeployResponseSchema>
+
+export const publishAppWithDeployErrorSchema = z.object({
+  error: z.string(),
+  code: z.string(),
+  operationId: z.string(),
+  stage: z.enum(['deploying', 'rebinding', 'building', 'preparing', 'publishing', 'published']),
+  recoverable: z.boolean(),
+  retryAfterMs: z.number().int().positive().optional(),
+  partialDeployments: z.array(appPublishDeploymentSchema).optional(),
+  recovery: publishAppWithDeployRecoverySchema,
+})
+export type PublishAppWithDeployError = z.output<typeof publishAppWithDeployErrorSchema>
+
+export const publishAppWithDeployContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/apps/[projectId]/releases/publish-with-deploy',
+  params: appProjectParamsSchema,
+  body: publishAppWithDeployBodySchema,
+  response: { mode: 'json', schema: publishAppWithDeployResponseSchema },
 })
 
 export const revokeAppReleaseBodySchema = z.object({
@@ -185,6 +255,7 @@ export const rollbackAppReleaseContract = defineRouteContract({
 export const prepareAppReleaseBodySchema = z.object({
   revisionId: z.string().min(1),
   buildId: z.string().min(1),
+  expectedRevisionId: z.string().min(1).optional(),
 })
 export type PrepareAppReleaseBody = z.input<typeof prepareAppReleaseBodySchema>
 
@@ -215,11 +286,13 @@ export const bindAppActionRequestSchema = z.object({
     .default([]),
   /** Phase 1 only supports sync — reject async at the boundary. */
   executionPolicy: z.literal('sync').default('sync'),
+  readOnly: z.boolean().default(false),
 })
 
 export const bindAppRevisionBodySchema = z
   .object({
     actions: z.array(bindAppActionRequestSchema).min(1),
+    expectedRevisionId: z.string().min(1).optional(),
   })
   .superRefine((body, ctx) => {
     const actionIds = new Set<string>()
@@ -256,8 +329,26 @@ export const bindAppRevisionContract = defineRouteContract({
   response: { mode: 'json', schema: z.object({ revisionId: z.string() }) },
 })
 
+export const detachAppRevisionBodySchema = z.object({
+  actionId: z.string().min(1).max(128),
+  expectedRevisionId: z.string().min(1).optional(),
+})
+export type DetachAppRevisionBody = z.input<typeof detachAppRevisionBodySchema>
+
+export const detachAppRevisionContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/apps/[projectId]/revisions',
+  params: appProjectParamsSchema,
+  body: detachAppRevisionBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ revisionId: z.string(), detachedActionId: z.string() }),
+  },
+})
+
 export const buildAppRevisionBodySchema = z.object({
   revisionId: z.string().min(1),
+  expectedRevisionId: z.string().min(1).optional(),
 })
 export type BuildAppRevisionBody = z.input<typeof buildAppRevisionBodySchema>
 
@@ -280,6 +371,7 @@ export const buildAppRevisionContract = defineRouteContract({
 
 export const previewSessionBodySchema = z.object({
   revisionId: z.string().min(1),
+  mode: z.enum(['replace', 'supersede']).default('replace'),
 })
 export type PreviewSessionBody = z.input<typeof previewSessionBodySchema>
 
@@ -298,6 +390,7 @@ export const previewSessionContract = defineRouteContract({
       buildId: z.string(),
       artifactManifestHash: z.string().nullable(),
       artifactPreview: z.boolean(),
+      actions: z.array(z.object({ actionId: z.string(), readOnly: z.boolean() })),
     }),
   },
 })
@@ -326,10 +419,31 @@ export const previewStopContract = defineRouteContract({
   response: { mode: 'json', schema: z.object({ stopped: z.boolean() }) },
 })
 
+export const previewCandidateBodySchema = z.object({
+  sessionId: z.string().min(1),
+})
+
+export const previewPromoteContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/apps/[projectId]/preview/promote',
+  params: appProjectParamsSchema,
+  body: previewCandidateBodySchema,
+  response: { mode: 'json', schema: z.object({ promoted: z.boolean() }) },
+})
+
+export const previewAbortCandidateContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/apps/[projectId]/preview/abort-candidate',
+  params: appProjectParamsSchema,
+  body: previewCandidateBodySchema,
+  response: { mode: 'json', schema: z.object({ aborted: z.boolean() }) },
+})
+
 export const previewExecuteBodySchema = z.object({
   sessionId: z.string().min(1),
   actionId: z.string().min(1),
   input: z.record(z.string(), z.unknown()).default({}),
+  confirmed: z.boolean().default(false),
 })
 
 export const previewExecuteContract = defineRouteContract({

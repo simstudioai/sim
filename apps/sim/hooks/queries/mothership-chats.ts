@@ -20,6 +20,7 @@ import {
   reorderMothershipChatResourcesContract,
   updateMothershipChatContract,
 } from '@/lib/api/contracts/mothership-chats'
+import type { FullstackDemoLifecycleSummary } from '@/lib/apps/demo/types'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import {
@@ -59,6 +60,7 @@ export interface MothershipChatHistory {
     publicId: string
     publishedReleaseId: string | null
   } | null
+  fullstackLifecycle?: FullstackDemoLifecycleSummary | null
 }
 
 export const mothershipChatKeys = {
@@ -161,6 +163,21 @@ function parseStrictStreamSnapshot(
   return snapshot
 }
 
+function parseFullstackLifecycle(value: unknown): FullstackDemoLifecycleSummary | null {
+  if (!isRecordLike(value)) return null
+  if (
+    value.version !== 1 ||
+    typeof value.status !== 'string' ||
+    typeof value.phase !== 'string' ||
+    typeof value.chatId !== 'string' ||
+    typeof value.originalPrompt !== 'string' ||
+    typeof value.updatedAt !== 'string'
+  ) {
+    return null
+  }
+  return value as FullstackDemoLifecycleSummary
+}
+
 function parseChatHistory(value: unknown): MothershipChatHistory {
   const responseContext = 'Invalid chat response'
   const chatContext = `${responseContext}: chat`
@@ -190,6 +207,7 @@ function parseChatHistory(value: unknown): MothershipChatHistory {
     activeStreamId: chat.activeStreamId,
     resources: parseResources(chat.resources, `${chatContext}.resources`),
     streamSnapshot: parseStrictStreamSnapshot(chat.streamSnapshot, `${chatContext}.streamSnapshot`),
+    fullstackLifecycle: parseFullstackLifecycle(chat.fullstackLifecycle),
     linkedAppProject:
       chat.linkedAppProject === null || chat.linkedAppProject === undefined
         ? null
