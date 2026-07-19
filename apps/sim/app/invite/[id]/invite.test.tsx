@@ -46,6 +46,13 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => mockSearchParams,
 }))
 
+vi.mock('next-intl', async () => {
+  const messages = (await import('@/messages/en/auto.json')).default as Record<string, string>
+  return {
+    useTranslations: () => (key: string) => messages[key] ?? key,
+  }
+})
+
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({
     cancelQueries: mockCancelQueries,

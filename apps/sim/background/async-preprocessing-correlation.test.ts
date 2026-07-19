@@ -54,6 +54,7 @@ vi.mock('@/lib/core/execution-limits', () => ({
     timeoutMs: undefined,
   })),
   getTimeoutErrorMessage: vi.fn(),
+  getMaxExecutionTimeout: vi.fn(() => 120_000),
 }))
 
 vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({

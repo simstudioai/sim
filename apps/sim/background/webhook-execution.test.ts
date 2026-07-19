@@ -95,6 +95,7 @@ vi.mock('@/lib/core/execution-limits', () => ({
     timeoutMs: 120_000,
   })),
   getTimeoutErrorMessage: vi.fn(() => 'timed out'),
+  getMaxExecutionTimeout: vi.fn(() => 120_000),
 }))
 
 vi.mock('@/lib/workflows/executor/pause-persistence', () => ({

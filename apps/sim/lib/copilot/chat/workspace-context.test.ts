@@ -6,6 +6,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({ db: {} }))
 vi.mock('@sim/db/schema', () => ({
+  account: {},
+  credential: {},
+  credentialTypeEnum: { enumValues: ['oauth', 'secret', 'api_key'] },
   knowledgeBase: {},
   knowledgeConnector: {},
   mcpServers: {},

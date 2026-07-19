@@ -79,6 +79,10 @@ vi.mock('@/lib/core/config/env', () => ({
   getEnv: vi.fn((key: string) => (key === 'NEXT_PUBLIC_APP_URL' ? 'http://localhost:3000' : '')),
   isTruthy: vi.fn((value: string | undefined) => value === 'true'),
   isFalsy: vi.fn((value: string | undefined) => value === 'false'),
+  envNumber: (val: unknown, fallback: number) => {
+    const n = typeof val === 'string' ? Number(val) : (val as number)
+    return Number.isFinite(n) ? n : fallback
+  },
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => ({

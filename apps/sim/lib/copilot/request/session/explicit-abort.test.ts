@@ -21,6 +21,10 @@ vi.mock('@/lib/core/config/env', () => ({
   getEnv: vi.fn().mockReturnValue(undefined),
   isTruthy: (value: unknown) => Boolean(value),
   isFalsy: (value: unknown) => value === false,
+  envNumber: (val: unknown, fallback: number) => {
+    const n = typeof val === 'string' ? Number(val) : (val as number)
+    return Number.isFinite(n) ? n : fallback
+  },
 }))
 
 import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'

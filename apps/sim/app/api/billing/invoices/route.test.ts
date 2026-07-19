@@ -22,6 +22,10 @@ vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: mockGetStripeClient,
 }))
 
+vi.mock('@/lib/core/config/env-flags', () => ({
+  isLagoBillingProvider: false,
+}))
+
 import { GET } from '@/app/api/billing/invoices/route'
 
 function makeInvoice(overrides: Record<string, unknown> = {}) {

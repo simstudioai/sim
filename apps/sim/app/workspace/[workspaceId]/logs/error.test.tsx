@@ -5,6 +5,13 @@ import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('next-intl', async () => {
+  const messages = (await import('@/messages/en/auto.json')).default as Record<string, string>
+  return {
+    useTranslations: () => (key: string) => messages[key] ?? key,
+  }
+})
+
 vi.mock('@sim/emcn', () => ({
   Button: ({ children, ...props }: { children: ReactNode } & Record<string, unknown>) => (
     <button {...props}>{children}</button>

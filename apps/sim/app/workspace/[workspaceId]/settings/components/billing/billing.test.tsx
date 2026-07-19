@@ -5,6 +5,13 @@ import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('next-intl', async () => {
+  const messages = (await import('@/messages/en/auto.json')).default as Record<string, string>
+  return {
+    useTranslations: () => (key: string) => messages[key] ?? key,
+  }
+})
+
 const {
   mockOrganizationQuery,
   mockPersonalQuery,
@@ -23,8 +30,15 @@ const {
   mockUseUsageLimitData: vi.fn(),
 }))
 
+vi.mock('@/lib/billing/client/provider', () => ({
+  isLagoBillingClient: () => false,
+  getBillingPortalLabelKey: () => 'manage_in_stripe',
+}))
+
 vi.mock('@sim/emcn', () => ({
   ArrowRight: () => <span />,
+  ChipInput: (props: Record<string, unknown>) => <input {...(props as object)} />,
+  toast: { success: () => undefined, error: () => undefined },
   Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Chip: ({
     children,
@@ -104,6 +118,7 @@ vi.mock('@/hooks/queries/organization', () => ({
 
 vi.mock('@/hooks/queries/subscription', () => ({
   useInvoices: () => ({ data: { invoices: [], hasMore: false } }),
+  usePurchaseCredits: () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() }),
   useOpenBillingPortal: () => ({ isPending: false, mutate: vi.fn() }),
   useSubscriptionData: (...args: unknown[]) => {
     mockUseSubscriptionData(...args)

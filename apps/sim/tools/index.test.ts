@@ -71,6 +71,10 @@ vi.mock('@/lib/core/config/env', () => ({
   getEnv: (key: string) => mockEnv[key],
   isTruthy: (val: unknown) => val === true || val === 'true' || val === '1',
   isFalsy: (val: unknown) => val === false || val === 'false' || val === '0',
+  envNumber: (val: unknown, fallback: number) => {
+    const n = typeof val === 'string' ? Number(val) : (val as number)
+    return Number.isFinite(n) ? n : fallback
+  },
 }))
 
 // Mock getBYOKKey

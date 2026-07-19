@@ -259,7 +259,7 @@ describe('handleUnifiedChatPost', () => {
       error: 'Usage limit exceeded: $5.00 used of $5.00 limit.',
     })
     // Gate runs before any chat/stream work: no lock, no LLM stream.
-    expect(checkActorUsageLimits).toHaveBeenCalledWith('user-1', 'ws-1')
+    expect(checkActorUsageLimits).toHaveBeenCalledWith('user-1')
     expect(acquirePendingChatStream).not.toHaveBeenCalled()
     expect(createSSEStream).not.toHaveBeenCalled()
   })

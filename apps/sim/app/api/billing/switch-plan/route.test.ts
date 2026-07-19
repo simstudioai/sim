@@ -50,6 +50,12 @@ vi.mock('@/lib/billing/workspace-permissions', () => ({
 
 vi.mock('@/lib/core/config/env-flags', () => ({
   isBillingEnabled: true,
+  isLagoBillingProvider: false,
+  isStripeBillingProvider: true,
+}))
+
+vi.mock('@/lib/billing/lago/subscriptions', () => ({
+  switchLagoSubscriptionPlan: vi.fn(),
 }))
 
 vi.mock('@/lib/posthog/server', () => ({

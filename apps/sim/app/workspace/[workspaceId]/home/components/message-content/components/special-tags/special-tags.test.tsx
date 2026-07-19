@@ -18,6 +18,13 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
 }))
 
+vi.mock('next-intl', async () => {
+  const messages = (await import('@/messages/en/auto.json')).default as Record<string, string>
+  return {
+    useTranslations: () => (key: string) => messages[key] ?? key,
+  }
+})
+
 vi.mock('@/hooks/queries/credentials', () => ({
   useWorkspaceCredential: mockUseWorkspaceCredential,
 }))
