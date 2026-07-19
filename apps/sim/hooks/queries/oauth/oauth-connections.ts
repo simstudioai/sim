@@ -155,6 +155,21 @@ export function useConnectOAuthService() {
         return { success: true }
       }
 
+      // Desktop app: OAuth cannot run in the embedded window (Google/Microsoft
+      // block embedded user agents, and better-auth binds the flow's state to
+      // the initiating browser's cookies), so the whole flow is handed to the
+      // system browser and returns via the app's loopback. Completion arrives
+      // through onOAuthConnectComplete (see useDesktopOAuthConnectListener),
+      // which refreshes caches and shows the connected toast.
+      const desktopBridge = typeof window !== 'undefined' ? window.simDesktop : undefined
+      if (desktopBridge?.beginOAuthConnect) {
+        const opened = await desktopBridge.beginOAuthConnect(providerId)
+        if (!opened) {
+          throw new Error('Could not open your browser to connect this account.')
+        }
+        return { success: true }
+      }
+
       await client.oauth2.link({
         providerId,
         callbackURL,

@@ -164,10 +164,28 @@ export interface SimDesktopLauncherApi {
   onShown(callback: (payload: { voice: boolean }) => void): () => void
 }
 
+/** Outcome of an OAuth connect handoff, pushed when the browser flow finishes. */
+export interface DesktopOAuthConnectResult {
+  ok: boolean
+  /** OAuth error slug forwarded from the provider callback, when the flow failed. */
+  error?: string
+}
+
 export interface SimDesktopApi {
   getAppVersion(): Promise<string>
   openExternal(url: string): Promise<boolean>
   requestMicrophonePermission(): Promise<boolean>
+  /**
+   * Start the OAuth connect handoff for a provider: the whole flow runs in
+   * the system browser and returns via loopback. Resolves false when the
+   * browser could not be opened.
+   */
+  beginOAuthConnect(providerId: string): Promise<boolean>
+  /**
+   * Subscribe to connect-handoff completions (the app is refocused just
+   * before this fires). Returns an unsubscribe function.
+   */
+  onOAuthConnectComplete(callback: (result: DesktopOAuthConnectResult) => void): () => void
   onUpdateStatus(callback: (status: DesktopUpdateStatus) => void): () => void
   offlineRetry(): void
   openSettings(): void

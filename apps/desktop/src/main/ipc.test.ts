@@ -42,6 +42,7 @@ describe('registerIpcHandlers', () => {
       appOrigin: () => APP,
       allowHttpLocalhost: () => false,
       retryLoad: vi.fn(),
+    beginOAuthConnect: vi.fn(async () => true),
       openSettings: vi.fn(),
       closeSettings: vi.fn(),
       applyOrigin: vi.fn(async () => ({ ok: true as const, origin: 'https://sim.ai' })),

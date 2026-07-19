@@ -14,6 +14,11 @@ const STATE_PATTERN = /^[A-Za-z0-9_-]{16,256}$/
 const STATE_LENGTH = 32
 const REDEEM_PATH = '/api/auth/one-time-token/verify'
 const CALLBACK_PATH = '/auth/callback'
+const CONNECT_CALLBACK_PATH = '/connect/callback'
+/** OAuth providerIds are kebab-case service slugs (e.g. "google-email"). */
+const PROVIDER_ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,63}$/
+/** OAuth error codes forwarded by the connect complete page. */
+const ERROR_SLUG_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 // Measured from begin() (when the browser opens) so it comfortably covers a
 // full interactive login — email/OTP round-trips or OAuth consent — not just
 // the redirect back. Bounds how long the loopback listener and the CSRF state
@@ -26,9 +31,27 @@ const CALLBACK_RESPONSE_HTML = `<!doctype html>
 <p>You’re signed in — return to the Sim app. You can close this tab.</p>
 </body></html>`
 
+const CONNECT_RESPONSE_HTML = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Sim</title></head>
+<body style="font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+<p>Connection finished — return to the Sim app. You can close this tab.</p>
+</body></html>`
+
+export type HandoffKind = 'login' | 'connect'
+
 export interface HandoffCallback {
   token: string
   state: string
+}
+
+export interface ConnectHandoffCallback {
+  state: string
+  error?: string
+}
+
+export interface HandoffCallbacks {
+  onLogin: (callback: HandoffCallback) => void
+  onConnect: (callback: ConnectHandoffCallback) => void
 }
 
 export interface HandoffManagerDeps {
@@ -40,26 +63,28 @@ export interface HandoffManagerDeps {
 
 export interface HandoffManager {
   begin(): Promise<boolean>
-  consume(state: string): boolean
+  beginConnect(providerId: string): Promise<boolean>
+  consume(state: string, kind: HandoffKind): boolean
   clear(): void
 }
 
 /**
- * Owns the system-browser login handoff. The only callback channel is a
- * one-shot 127.0.0.1 loopback server (RFC 8252 §7.3) — no OS scheme
- * registration, works identically in dev and packaged builds. Because the app
- * is always running when the browser redirects back (it started the loopback),
- * the pending state lives in memory: single-use, constant-time compared,
- * TTL-bounded. There is no second delivery mechanism and nothing to persist.
+ * Owns the system-browser handoffs — login and OAuth connect. The only
+ * callback channel is a one-shot 127.0.0.1 loopback server (RFC 8252 §7.3) —
+ * no OS scheme registration, works identically in dev and packaged builds.
+ * Because the app is always running when the browser redirects back (it
+ * started the loopback), the pending state lives in memory: single-flight,
+ * single-use, constant-time compared, TTL-bounded. Starting a new handoff of
+ * either kind supersedes the previous pending one.
  */
 export function createHandoffManager(
   deps: HandoffManagerDeps,
-  onCallback: (callback: HandoffCallback) => void
+  callbacks: HandoffCallbacks
 ): HandoffManager {
   const now = deps.now ?? Date.now
   let loopbackServer: Server | null = null
   let loopbackTimer: NodeJS.Timeout | undefined
-  let pending: { state: string; createdAt: number } | null = null
+  let pending: { state: string; createdAt: number; kind: HandoffKind } | null = null
 
   const stopLoopback = () => {
     clearTimeout(loopbackTimer)
@@ -74,21 +99,39 @@ export function createHandoffManager(
     stopLoopback()
     const server = createServer((request, response) => {
       const url = new URL(request.url ?? '/', 'http://127.0.0.1')
-      if (request.method !== 'GET' || url.pathname !== CALLBACK_PATH) {
+      if (request.method !== 'GET') {
         response.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found')
         return
       }
-      const token = url.searchParams.get('token') ?? ''
-      const state = url.searchParams.get('state') ?? ''
-      if (!TOKEN_PATTERN.test(token) || !STATE_PATTERN.test(state)) {
-        response.writeHead(400, { 'Content-Type': 'text/plain' }).end('Invalid request')
+      if (url.pathname === CALLBACK_PATH) {
+        const token = url.searchParams.get('token') ?? ''
+        const state = url.searchParams.get('state') ?? ''
+        if (!TOKEN_PATTERN.test(token) || !STATE_PATTERN.test(state)) {
+          response.writeHead(400, { 'Content-Type': 'text/plain' }).end('Invalid request')
+          return
+        }
+        response
+          .writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+          .end(CALLBACK_RESPONSE_HTML)
+        stopLoopback()
+        callbacks.onLogin({ token, state })
         return
       }
-      response
-        .writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-        .end(CALLBACK_RESPONSE_HTML)
-      stopLoopback()
-      onCallback({ token, state })
+      if (url.pathname === CONNECT_CALLBACK_PATH) {
+        const state = url.searchParams.get('state') ?? ''
+        const error = url.searchParams.get('error')
+        if (!STATE_PATTERN.test(state) || (error !== null && !ERROR_SLUG_PATTERN.test(error))) {
+          response.writeHead(400, { 'Content-Type': 'text/plain' }).end('Invalid request')
+          return
+        }
+        response
+          .writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+          .end(CONNECT_RESPONSE_HTML)
+        stopLoopback()
+        callbacks.onConnect({ state, ...(error !== null ? { error } : {}) })
+        return
+      }
+      response.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found')
     })
     loopbackServer = server
     try {
@@ -111,26 +154,44 @@ export function createHandoffManager(
     pending = null
   }
 
+  const beginFlow = async (
+    kind: HandoffKind,
+    landingPath: string,
+    params: Record<string, string>
+  ): Promise<boolean> => {
+    const state = generateShortId(STATE_LENGTH)
+    const port = await startLoopback()
+    if (!port) {
+      return false
+    }
+    pending = { state, createdAt: now(), kind }
+    const landing = new URL(landingPath, deps.origin())
+    for (const [key, value] of Object.entries(params)) {
+      landing.searchParams.set(key, value)
+    }
+    landing.searchParams.set('state', state)
+    landing.searchParams.set('port', String(port))
+    deps.events.record(kind === 'login' ? 'handoff_started' : 'connect_handoff_started')
+    const opened = await deps.openExternal(landing.toString())
+    if (!opened) {
+      clear()
+    }
+    return opened
+  }
+
   return {
-    async begin() {
-      const state = generateShortId(STATE_LENGTH)
-      const port = await startLoopback()
-      if (!port) {
-        return false
-      }
-      pending = { state, createdAt: now() }
-      const landing = new URL('/desktop/auth', deps.origin())
-      landing.searchParams.set('state', state)
-      landing.searchParams.set('port', String(port))
-      deps.events.record('handoff_started')
-      const opened = await deps.openExternal(landing.toString())
-      if (!opened) {
-        clear()
-      }
-      return opened
+    begin() {
+      return beginFlow('login', '/desktop/auth', {})
     },
-    consume(state: string) {
-      if (!pending) {
+    beginConnect(providerId: string) {
+      if (!PROVIDER_ID_PATTERN.test(providerId)) {
+        logger.warn('Rejected connect handoff for invalid providerId')
+        return Promise.resolve(false)
+      }
+      return beginFlow('connect', '/desktop/connect', { provider: providerId })
+    },
+    consume(state: string, kind: HandoffKind) {
+      if (!pending || pending.kind !== kind) {
         return false
       }
       if (now() - pending.createdAt > HANDOFF_TTL_MS) {
@@ -257,7 +318,7 @@ export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
     },
     async handleCallback(callback: HandoffCallback) {
       const win = await deps.ensureMainWindow()
-      if (!deps.handoff.consume(callback.state)) {
+      if (!deps.handoff.consume(callback.state, 'login')) {
         await failInWindow(win, 'state')
         return
       }
@@ -274,6 +335,60 @@ export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
       win.show()
       win.focus()
       app.focus({ steal: true })
+    },
+  }
+}
+
+/** Outcome pushed to the renderer when an OAuth connect handoff finishes. */
+export interface ConnectHandoffResult {
+  ok: boolean
+  error?: string
+}
+
+export interface ConnectFlowDeps {
+  handoff: HandoffManager
+  events: EventRecorder
+  focusMainWindow: () => void
+  notifyRenderer: (result: ConnectHandoffResult) => void
+}
+
+export interface ConnectFlow {
+  beginConnectHandoff(providerId: string): Promise<boolean>
+  handleCallback(callback: ConnectHandoffCallback): void
+}
+
+/**
+ * Orchestrates the OAuth connect handoff: the whole OAuth flow — initiation,
+ * consent, callback — runs in the system browser (better-auth binds state to
+ * the initiating user agent's cookies, so the flow cannot be split between
+ * app and browser). The browser's /desktop/connect/complete page bounces to
+ * the loopback; this flow then refocuses the app and notifies the renderer,
+ * which refreshes its credential caches and shows the standard connected
+ * toast.
+ */
+export function createConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
+  return {
+    async beginConnectHandoff(providerId: string) {
+      const opened = await deps.handoff.beginConnect(providerId)
+      if (!opened) {
+        deps.events.record('connect_handoff_open_fail')
+      }
+      return opened
+    },
+    handleCallback(callback: ConnectHandoffCallback) {
+      if (!deps.handoff.consume(callback.state, 'connect')) {
+        deps.events.record('connect_handoff_state_fail')
+        return
+      }
+      if (callback.error === undefined) {
+        deps.events.record('connect_handoff_ok')
+        deps.focusMainWindow()
+        deps.notifyRenderer({ ok: true })
+        return
+      }
+      deps.events.record('connect_handoff_error', { error: callback.error })
+      deps.focusMainWindow()
+      deps.notifyRenderer({ ok: false, error: callback.error })
     },
   }
 }

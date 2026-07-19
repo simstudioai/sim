@@ -1,5 +1,5 @@
-import type { LauncherShortcutSettings } from '@sim/desktop-bridge'
 import { isBrowserToolName } from '@sim/browser-protocol'
+import type { LauncherShortcutSettings } from '@sim/desktop-bridge'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { app, ipcMain } from 'electron'
 import { executeTool, handlePanelAction, setPanelBounds } from '@/main/browser-agent/driver'
@@ -45,6 +45,7 @@ export interface IpcDeps {
   closeSettings: () => void
   applyOrigin: (raw: string) => Promise<OriginValidation>
   localFilesystem: LocalFilesystemService
+  beginOAuthConnect: (providerId: string) => Promise<boolean>
   launcher: {
     openChat: (target: LauncherOpenChatTarget) => void
     openApp: () => void
@@ -79,6 +80,18 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return false
     }
     return openExternalSafe(url, deps.allowHttpLocalhost())
+  })
+
+  // OAuth connect handoff: the whole flow runs in the system browser (state
+  // is cookie-bound to the initiating user agent), returning via loopback.
+  ipcMain.handle('desktop:oauth-connect', (event, providerId: unknown) => {
+    if (!isAppOriginSender(event, deps.appOrigin())) {
+      return false
+    }
+    if (typeof providerId !== 'string') {
+      return false
+    }
+    return deps.beginOAuthConnect(providerId)
   })
 
   ipcMain.handle('desktop:request-mic-permission', (event) => {

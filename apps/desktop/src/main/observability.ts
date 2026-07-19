@@ -21,6 +21,11 @@ export type DesktopEventName =
   | 'sign_out'
   | 'origin_changed'
   | 'handoff_started'
+  | 'connect_handoff_started'
+  | 'connect_handoff_open_fail'
+  | 'connect_handoff_state_fail'
+  | 'connect_handoff_ok'
+  | 'connect_handoff_error'
   | 'launcher_load_failed'
 
 export interface EventRecorder {

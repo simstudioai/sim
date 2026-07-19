@@ -9,7 +9,7 @@ import {
 import { createConfigStore, partitionForOrigin } from '@/main/config'
 import { attachContextMenu } from '@/main/context-menu'
 import { attachDownloadHandling } from '@/main/downloads'
-import { createAuthFlow, createHandoffManager } from '@/main/handoff'
+import { createAuthFlow, createConnectFlow, createHandoffManager } from '@/main/handoff'
 import { registerIpcHandlers } from '@/main/ipc'
 import { createLauncherWindow } from '@/main/launcher-window'
 import { attachLoadHealth, type LoadHealthHandle } from '@/main/load-health'
@@ -63,7 +63,10 @@ function main(): void {
       openExternal: (url) => openExternalSafe(url, allowHttpLocalhost()),
       events,
     },
-    (callback) => void authFlow.handleCallback(callback)
+    {
+      onLogin: (callback) => void authFlow.handleCallback(callback),
+      onConnect: (callback) => connectFlow.handleCallback(callback),
+    }
   )
 
   const authFlow = createAuthFlow({
@@ -80,6 +83,25 @@ function main(): void {
         throw new Error('Main window unavailable')
       }
       return win
+    },
+  })
+
+  const connectFlow = createConnectFlow({
+    handoff,
+    events,
+    focusMainWindow: () => {
+      const win = getMainWindow()
+      if (win) {
+        if (win.isMinimized()) {
+          win.restore()
+        }
+        win.show()
+        win.focus()
+      }
+      app.focus({ steal: true })
+    },
+    notifyRenderer: (result) => {
+      getMainWindow()?.webContents.send('desktop:oauth-connect-complete', result)
     },
   })
 
@@ -311,6 +333,7 @@ function main(): void {
       closeSettings: closeSettingsWindow,
       applyOrigin,
       localFilesystem,
+      beginOAuthConnect: (providerId) => connectFlow.beginConnectHandoff(providerId),
       launcher: {
         openChat: (target) => {
           launcher.hide()

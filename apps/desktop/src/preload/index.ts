@@ -6,6 +6,7 @@ import type {
   BrowserToolResponse,
 } from '@sim/browser-protocol'
 import type {
+  DesktopOAuthConnectResult,
   DesktopUpdateStatus,
   LauncherShortcutSettings,
   LocalFilesystemRequest,
@@ -23,6 +24,15 @@ const api: SimDesktopApi = {
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('desktop:open-external', url),
   requestMicrophonePermission: (): Promise<boolean> =>
     ipcRenderer.invoke('desktop:request-mic-permission'),
+  beginOAuthConnect: (providerId: string): Promise<boolean> =>
+    ipcRenderer.invoke('desktop:oauth-connect', providerId),
+  onOAuthConnectComplete: (callback: (result: DesktopOAuthConnectResult) => void): (() => void) => {
+    const listener = (_event: unknown, result: DesktopOAuthConnectResult) => callback(result)
+    ipcRenderer.on('desktop:oauth-connect-complete', listener)
+    return () => {
+      ipcRenderer.removeListener('desktop:oauth-connect-complete', listener)
+    }
+  },
   onUpdateStatus: (callback: (status: DesktopUpdateStatus) => void): (() => void) => {
     const listener = (_event: unknown, status: DesktopUpdateStatus) => callback(status)
     ipcRenderer.on('desktop:update-status', listener)
