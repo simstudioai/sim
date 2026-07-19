@@ -73,7 +73,7 @@ describe('MCP OAuth callback route', () => {
     )
   })
 
-  it('signals success over a same-origin BroadcastChannel carrying the server id', async () => {
+  it('signals success over a same-origin BroadcastChannel carrying the state nonce', async () => {
     const request = new NextRequest(
       'http://localhost:3000/api/mcp/oauth/callback?state=state-1&code=auth-code-1'
     )
@@ -82,10 +82,11 @@ describe('MCP OAuth callback route', () => {
 
     // The completion is delivered over a BroadcastChannel (not window.opener.postMessage)
     // so a COOP `same-origin` provider that severs the opener can't strand the parent. The
-    // server id lets the hook react only in the tab that opened this flow's popup.
+    // `state` nonce lets the hook react only in the tab that started this exact flow.
     expect(body).toContain("new BroadcastChannel('mcp-oauth')")
     expect(body).toContain('ok: true')
     expect(body).toContain('"server-1"')
+    expect(body).toContain('"state-1"')
   })
 
   it('reports an early failure over the channel without attempting token exchange', async () => {
@@ -96,5 +97,20 @@ describe('MCP OAuth callback route', () => {
 
     expect(body).toContain('ok: false')
     expect(mcpOauthMockFns.mockMcpAuthGuarded).not.toHaveBeenCalled()
+  })
+
+  it('echoes the state on a serverless invalid_state failure so the initiating tab can react', async () => {
+    // No row loads for the state -> failure with no serverId. The state must still be echoed,
+    // or the initiating tab would sit on "Connecting…" until its safety timeout.
+    mcpOauthMockFns.mockLoadOauthRowByState.mockResolvedValueOnce(null)
+    const request = new NextRequest(
+      'http://localhost:3000/api/mcp/oauth/callback?state=state-1&code=auth-code-1'
+    )
+
+    const body = await (await GET(request)).text()
+
+    expect(body).toContain('ok: false')
+    expect(body).toContain('"state-1"')
+    expect(body).toContain('serverId: undefined')
   })
 })

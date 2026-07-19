@@ -43,7 +43,8 @@ function htmlClose(
   message: string,
   ok: boolean,
   reason: McpOauthCallbackReason,
-  serverId?: string
+  serverId?: string,
+  state?: string
 ): NextResponse {
   if (!ok) {
     logger.warn(
@@ -56,9 +57,10 @@ function htmlClose(
   // `window.opener.postMessage`: a provider whose authorize page sets COOP
   // `same-origin` severs `window.opener`, which would silently drop the result and
   // leave the parent stuck on "Connecting…". A BroadcastChannel is origin-scoped and
-  // unaffected by opener severance; the hook ignores results for popups it did not open.
+  // unaffected by opener severance; the hook correlates on `state` and ignores flows it
+  // did not start.
   const body = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body style="font-family: system-ui; padding: 24px"><p>${safeMessage}</p><script>
-    try { var ch = new BroadcastChannel('mcp-oauth'); ch.postMessage({ type: 'mcp-oauth', ok: ${ok ? 'true' : 'false'}, serverId: ${jsonLiteral(serverId)}, reason: ${jsonLiteral(reason)} }); ch.close() } catch (e) {}
+    try { var ch = new BroadcastChannel('mcp-oauth'); ch.postMessage({ type: 'mcp-oauth', ok: ${ok ? 'true' : 'false'}, serverId: ${jsonLiteral(serverId)}, state: ${jsonLiteral(state)}, reason: ${jsonLiteral(reason)} }); ch.close() } catch (e) {}
     setTimeout(function () { window.close() }, 800)
   </script></body></html>`
   return new NextResponse(body, {
@@ -73,21 +75,26 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
   const { state, code, error: errorParam } = parsed.data.query
 
+  // Echo the flow's `state` on every result so the opener can correlate a broadcast back to
+  // the exact flow it started — including failures (e.g. `invalid_state`) that never resolve
+  // a serverId. Without it those results would strand the initiating tab on "Connecting…".
+  const respond = (
+    message: string,
+    ok: boolean,
+    reason: McpOauthCallbackReason,
+    serverId?: string
+  ) => htmlClose(message, ok, reason, serverId, state)
+
   const initialRow = state ? await loadOauthRowByState(state).catch(() => null) : null
   const stateRowServerId = initialRow?.mcpServerId
 
   if (errorParam) {
     logger.warn(`MCP OAuth callback received error: ${errorParam}`)
     if (initialRow) await clearState(initialRow.id).catch(() => {})
-    return htmlClose(
-      `Authorization failed: ${errorParam}`,
-      false,
-      'provider_error',
-      stateRowServerId
-    )
+    return respond(`Authorization failed: ${errorParam}`, false, 'provider_error', stateRowServerId)
   }
   if (!state || !code) {
-    return htmlClose(
+    return respond(
       'Missing state or code in callback URL.',
       false,
       'missing_params',
@@ -99,7 +106,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      return htmlClose(
+      return respond(
         'You must be signed in to complete authorization.',
         false,
         'unauthenticated',
@@ -109,12 +116,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const row = initialRow
     if (!row) {
-      return htmlClose('Invalid or expired authorization state.', false, 'invalid_state')
+      return respond('Invalid or expired authorization state.', false, 'invalid_state')
     }
     serverId = row.mcpServerId
 
     if (session.user.id !== row.userId) {
-      return htmlClose(
+      return respond(
         'You must be signed in as the same user that initiated the flow.',
         false,
         'user_mismatch',
@@ -128,10 +135,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .where(and(eq(mcpServers.id, row.mcpServerId), isNull(mcpServers.deletedAt)))
       .limit(1)
     if (!server || !server.url) {
-      return htmlClose('Server no longer exists.', false, 'server_gone', serverId)
+      return respond('Server no longer exists.', false, 'server_gone', serverId)
     }
     if (server.workspaceId !== row.workspaceId) {
-      return htmlClose(
+      return respond(
         'Workspace mismatch on authorization callback.',
         false,
         'invalid_state',
@@ -141,7 +148,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     try {
       assertSafeOauthServerUrl(server.url)
     } catch {
-      return htmlClose(
+      return respond(
         'MCP OAuth requires https (or http://localhost for development).',
         false,
         'insecure_url',
@@ -162,7 +169,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     } catch (e) {
       logger.error('Token exchange failed during MCP OAuth callback', e)
-      return htmlClose(
+      return respond(
         'Token exchange failed. Please try again.',
         false,
         'token_exchange_failed',
@@ -173,7 +180,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (result !== 'AUTHORIZED') {
-      return htmlClose('Authorization did not complete.', false, 'token_exchange_failed', server.id)
+      return respond('Authorization did not complete.', false, 'token_exchange_failed', server.id)
     }
 
     try {
@@ -183,9 +190,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       logger.warn('Post-auth tools refresh failed', toError(e).message)
     }
 
-    return htmlClose('Connected. You can close this window.', true, 'authorized', server.id)
+    return respond('Connected. You can close this window.', true, 'authorized', server.id)
   } catch (error) {
     logger.error('MCP OAuth callback failed', error)
-    return htmlClose('Authorization failed. Please try again.', false, 'unknown', serverId)
+    return respond('Authorization failed. Please try again.', false, 'unknown', serverId)
   }
 })

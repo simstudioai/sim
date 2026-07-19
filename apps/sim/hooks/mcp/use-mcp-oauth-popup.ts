@@ -49,11 +49,12 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
   const { mutateAsync: startOauth } = useStartMcpOauth()
 
   const [connectingServers, setConnectingServers] = useState<Set<string>>(() => new Set())
-  // serverId -> safety timeout. This is the correlation source of truth for the
-  // BroadcastChannel gate: it is cleared only when the flow completes or times out, never by
-  // popup.closed polling — COOP can make popup.closed misreport, and clearing it early would
-  // drop the genuine completion this fix exists to deliver.
-  const pendingFlowsRef = useRef<Map<string, number>>(new Map())
+  // OAuth `state` nonce -> { serverId, safety timeout }. The state keys the BroadcastChannel
+  // correlation: the callback echoes it on every result (even failures that can't resolve a
+  // serverId), so the tab that started this exact flow matches it while other same-origin tabs
+  // ignore it. Cleared only when the flow completes or times out, never by popup.closed polling
+  // — COOP can make popup.closed misreport, and clearing early would drop a genuine completion.
+  const pendingFlowsRef = useRef<Map<string, { serverId: string; timeout: number }>>(new Map())
   // serverId -> popup.closed poll. Best-effort fast "Connecting…" clear when the user
   // abandons the popup; never used to correlate a result.
   const popupPollsRef = useRef<Map<string, number>>(new Map())
@@ -75,14 +76,15 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
     }
   }, [])
 
-  /** End a flow entirely: stop the spinner, its safety timeout, and its popup poll. */
+  /** End a flow entirely (by its state nonce): stop the spinner, safety timeout, and popup poll. */
   const settleFlow = useCallback(
-    (serverId: string) => {
-      const timeout = pendingFlowsRef.current.get(serverId)
-      if (timeout !== undefined) window.clearTimeout(timeout)
-      pendingFlowsRef.current.delete(serverId)
-      stopPopupPoll(serverId)
-      stopConnecting(serverId)
+    (state: string) => {
+      const flow = pendingFlowsRef.current.get(state)
+      if (!flow) return
+      window.clearTimeout(flow.timeout)
+      pendingFlowsRef.current.delete(state)
+      stopPopupPoll(flow.serverId)
+      stopConnecting(flow.serverId)
     },
     [stopConnecting, stopPopupPoll]
   )
@@ -91,7 +93,7 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
     const pending = pendingFlowsRef.current
     const polls = popupPollsRef.current
     return () => {
-      for (const t of pending.values()) window.clearTimeout(t)
+      for (const { timeout } of pending.values()) window.clearTimeout(timeout)
       for (const p of polls.values()) window.clearInterval(p)
       pending.clear()
       polls.clear()
@@ -107,15 +109,18 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
     channel.onmessage = (event) => {
       const data = event.data as Partial<McpOauthCallbackMessage> | null
       if (data?.type !== 'mcp-oauth') return
-      // A BroadcastChannel reaches every same-origin tab, so react only to a result for a
-      // flow THIS tab started. A result without a serverId can't be correlated to a flow, so
-      // it's ignored here — the initiating tab's safety timeout clears its own "Connecting…".
-      if (!data.serverId || !pendingFlowsRef.current.has(data.serverId)) return
-      settleFlow(data.serverId)
+      // A BroadcastChannel reaches every same-origin tab, so react only to a result for a flow
+      // THIS tab started, matched on the OAuth `state` nonce. Every result (success or failure)
+      // carries it, so unrelated tabs — and unrelated flows in this tab — ignore the broadcast.
+      if (!data.state) return
+      const flow = pendingFlowsRef.current.get(data.state)
+      if (!flow) return
+      const { serverId } = flow
+      settleFlow(data.state)
       if (data.ok) {
         queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
         queryClient.invalidateQueries({
-          queryKey: mcpKeys.serverToolsList(workspaceId, data.serverId),
+          queryKey: mcpKeys.serverToolsList(workspaceId, serverId),
         })
         queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
         toast.success('Server authorized')
@@ -132,19 +137,19 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
       try {
         const result = await startOauth({ serverId, workspaceId })
         if (result.status === 'already_authorized') {
-          settleFlow(serverId)
+          stopConnecting(serverId)
           return
         }
-        const { popup } = result
-        // Track this in-flight flow for the BroadcastChannel gate, bounded by a safety
-        // timeout in case no result ever arrives (popup abandoned, or a callback failure
-        // that couldn't carry a serverId).
-        const existingTimeout = pendingFlowsRef.current.get(serverId)
-        if (existingTimeout !== undefined) window.clearTimeout(existingTimeout)
-        pendingFlowsRef.current.set(
+        const { popup, state } = result
+        // Track this in-flight flow keyed by its `state` nonce for the BroadcastChannel gate,
+        // bounded by a safety timeout in case no result ever arrives (popup abandoned, or a
+        // callback failure the client can't otherwise clear).
+        const existing = pendingFlowsRef.current.get(state)
+        if (existing !== undefined) window.clearTimeout(existing.timeout)
+        pendingFlowsRef.current.set(state, {
           serverId,
-          window.setTimeout(() => settleFlow(serverId), OAUTH_FLOW_TIMEOUT_MS)
-        )
+          timeout: window.setTimeout(() => settleFlow(state), OAUTH_FLOW_TIMEOUT_MS),
+        })
         // Best-effort: clear "Connecting…" quickly when the user closes the popup without
         // finishing. popup.closed can misreport under COOP, so this only stops the spinner —
         // it never touches `pendingFlowsRef`, so it can't drop a real result.
@@ -159,7 +164,8 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
           }, 500)
         )
       } catch (e) {
-        settleFlow(serverId)
+        stopPopupPoll(serverId)
+        stopConnecting(serverId)
         logger.error('Failed to start MCP OAuth', e)
         toast.error(toError(e).message || 'Failed to start authorization')
       }
