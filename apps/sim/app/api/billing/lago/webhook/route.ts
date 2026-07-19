@@ -37,6 +37,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   let payload: LagoWebhookEnvelope
+  // boundary-raw-json: Lago webhook signature verification requires raw body before parsing
   try {
     payload = JSON.parse(rawBody) as LagoWebhookEnvelope
   } catch (error) {

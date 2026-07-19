@@ -4,8 +4,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { mcpServerIdParamsSchema } from '@/lib/api/contracts/mcp'
-import { validationErrorResponse } from '@/lib/api/server'
+import { refreshMcpServerContract } from '@/lib/api/contracts/mcp'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
@@ -159,9 +159,9 @@ export const POST = withRouteHandler(
   withMcpAuth<{ id: string }>('read')(
     async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
       try {
-        const paramsValidation = mcpServerIdParamsSchema.safeParse(await params)
-        if (!paramsValidation.success) return validationErrorResponse(paramsValidation.error)
-        const { id: serverId } = paramsValidation.data
+        const parsed = await parseRequest(refreshMcpServerContract, request, { id: (await params).id })
+        if (!parsed.success) return parsed.response
+        const { id: serverId } = parsed.data.params
         logger.info(`[${requestId}] Refreshing MCP server: ${serverId}`)
 
         const [server] = await db

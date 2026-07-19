@@ -401,6 +401,47 @@ export const billingUpdateCostContract = defineRouteContract({
   },
 })
 
+export const billingCheckoutBodySchema = z.object({
+  planName: z.string().min(1, 'Plan name is required'),
+  referenceId: z.string().min(1, 'Reference ID is required'),
+  successUrl: z.string().url('Invalid success URL').optional(),
+  cancelUrl: z.string().url('Invalid cancel URL').optional(),
+  seats: z.number().int().min(1).optional(),
+})
+export type BillingCheckoutBody = z.input<typeof billingCheckoutBodySchema>
+
+export const billingCheckoutResponseSchema = z.object({
+  url: z.string().min(1),
+  subscriptionExternalId: z.string().min(1),
+})
+
+export const createBillingCheckoutContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/billing/checkout',
+  body: billingCheckoutBodySchema,
+  response: {
+    mode: 'json',
+    schema: billingCheckoutResponseSchema,
+  },
+})
+
+export const lagoWebhookBodySchema = z.object({}).passthrough()
+export type LagoWebhookBody = z.input<typeof lagoWebhookBodySchema>
+
+export const lagoWebhookResponseSchema = z.object({
+  received: z.boolean(),
+})
+
+export const lagoWebhookContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/billing/lago/webhook',
+  body: lagoWebhookBodySchema,
+  response: {
+    mode: 'json',
+    schema: lagoWebhookResponseSchema,
+  },
+})
+
 export type BillingUsageData = z.infer<typeof billingUsageDataSchema>
 export type SubscriptionBillingData = z.infer<typeof subscriptionBillingDataSchema>
 export type SubscriptionApiResponse = z.infer<typeof subscriptionApiResponseSchema>
