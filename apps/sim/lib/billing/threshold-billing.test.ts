@@ -124,6 +124,9 @@ vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
 vi.mock('@/lib/core/config/env', () => ({
   env: {},
   envNumber: vi.fn((_value: string | undefined, fallback: number) => fallback),
+  getEnv: vi.fn(() => undefined),
+  isTruthy: (val: unknown) => val === true || val === 'true' || val === '1',
+  isFalsy: (val: unknown) => val === false || val === 'false' || val === '0',
 }))
 
 vi.mock('@/lib/core/outbox/service', () => ({

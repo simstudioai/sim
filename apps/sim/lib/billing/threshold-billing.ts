@@ -22,7 +22,7 @@ import {
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { env, envNumber } from '@/lib/core/config/env'
-import { isStripeBillingProvider } from '@/lib/core/config/env-flags'
+import { isLagoBillingProvider } from '@/lib/core/config/env-flags'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -219,7 +219,7 @@ export async function checkAndBillPayerOverageThreshold(
   billingEntity: BillingEntity,
   options: ThresholdBillingOptions = {}
 ): Promise<ThresholdSettlementOutcome | undefined> {
-  if (!isStripeBillingProvider) {
+  if (isLagoBillingProvider) {
     return noOp(options, 'billing-ineligible')
   }
 

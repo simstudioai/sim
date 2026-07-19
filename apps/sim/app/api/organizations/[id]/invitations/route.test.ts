@@ -50,6 +50,9 @@ vi.mock('@sim/db', () => ({
 }))
 
 vi.mock('@sim/db/schema', () => ({
+  account: {},
+  credential: {},
+  credentialTypeEnum: { enumValues: ['oauth', 'secret', 'api_key'] },
   invitation: {
     id: 'invitation.id',
     organizationId: 'invitation.organizationId',
