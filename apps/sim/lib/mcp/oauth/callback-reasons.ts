@@ -22,7 +22,5 @@ export interface McpOauthCallbackMessage {
   type: 'mcp-oauth'
   ok: boolean
   serverId?: string
-  /** Scopes the broadcast so other open workspaces ignore it. Absent on early failures. */
-  workspaceId?: string
   reason?: McpOauthCallbackReason
 }

@@ -73,7 +73,7 @@ describe('MCP OAuth callback route', () => {
     )
   })
 
-  it('signals success over a same-origin BroadcastChannel scoped to the server and workspace', async () => {
+  it('signals success over a same-origin BroadcastChannel carrying the server id', async () => {
     const request = new NextRequest(
       'http://localhost:3000/api/mcp/oauth/callback?state=state-1&code=auth-code-1'
     )
@@ -81,18 +81,16 @@ describe('MCP OAuth callback route', () => {
     const body = await (await GET(request)).text()
 
     // The completion is delivered over a BroadcastChannel (not window.opener.postMessage)
-    // so a COOP `same-origin` provider that severs the opener can't strand the parent.
+    // so a COOP `same-origin` provider that severs the opener can't strand the parent. The
+    // server id lets the hook react only in the tab that opened this flow's popup.
     expect(body).toContain("new BroadcastChannel('mcp-oauth')")
     expect(body).toContain('ok: true')
     expect(body).toContain('"server-1"')
-    expect(body).toContain('"workspace-1"')
   })
 
   it('reports an early failure over the channel without attempting token exchange', async () => {
     // Missing `code` fails at the param gate, before any network work.
-    const request = new NextRequest(
-      'http://localhost:3000/api/mcp/oauth/callback?state=state-1'
-    )
+    const request = new NextRequest('http://localhost:3000/api/mcp/oauth/callback?state=state-1')
 
     const body = await (await GET(request)).text()
 

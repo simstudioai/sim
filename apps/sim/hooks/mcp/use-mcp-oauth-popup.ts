@@ -61,9 +61,14 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
     channel.onmessage = (event) => {
       const data = event.data as Partial<McpOauthCallbackMessage> | null
       if (data?.type !== 'mcp-oauth') return
-      // Ignore results for a different workspace open in another tab. Early failures
-      // carry no workspaceId and clear this tab's in-flight popups regardless.
-      if (data.workspaceId && data.workspaceId !== workspaceId) return
+      // A BroadcastChannel reaches every same-origin tab, so only the tab that actually
+      // opened this flow's popup should react — otherwise an unrelated tab (any workspace)
+      // would clear state, refetch, and show a spurious toast. `popupIntervalsRef` holds
+      // this tab's in-flight popups; a result for a server it never opened is not ours.
+      const initiatedHere = data.serverId
+        ? popupIntervalsRef.current.has(data.serverId)
+        : popupIntervalsRef.current.size > 0
+      if (!initiatedHere) return
       if (data.serverId) {
         const serverId = data.serverId
         const interval = popupIntervalsRef.current.get(serverId)
