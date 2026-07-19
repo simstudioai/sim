@@ -323,7 +323,12 @@ export const workflowExecutionLogs = pgTable(
 
     level: text('level').notNull(), // 'info' | 'error'
     status: text('status').notNull().default('running'), // 'running' | 'pending' | 'completed' | 'failed' | 'cancelled'
-    trigger: text('trigger').notNull(), // 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
+    /**
+     * A `CORE_TRIGGER_TYPES` value (apps/sim/stores/logs/filters/types.ts) or an
+     * executor-internal trigger type not in that list (e.g. 'table' from table
+     * column executions).
+     */
+    trigger: text('trigger').notNull(),
 
     startedAt: timestamp('started_at').notNull(),
     endedAt: timestamp('ended_at'),
@@ -3995,5 +4000,47 @@ export const dataDrainRuns = pgTable(
   },
   (table) => ({
     drainStartedIdx: index('data_drain_runs_drain_started_idx').on(table.drainId, table.startedAt),
+  })
+)
+
+/**
+ * Workspace interfaces — user-composed grid pages combining chat, form, table,
+ * and file modules wired to workspace resources.
+ */
+export const workspaceInterface = pgTable(
+  'workspace_interface',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    /**
+     * @remarks
+     * Versioned layout envelope. The grid travels with the document, so the
+     * page shape is described by the row rather than assumed by the reader:
+     * { version: 1, grid: { rows, cols },
+     *   modules: [{ id, type, placement: { row, col, rowSpan, colSpan }, config }] }
+     */
+    layout: jsonb('layout')
+      .notNull()
+      .default(sql`'{"version":1,"grid":{"rows":2,"cols":2},"modules":[]}'::jsonb`),
+    archivedAt: timestamp('archived_at'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('workspace_interface_workspace_id_idx').on(table.workspaceId),
+    workspaceNameUnique: uniqueIndex('workspace_interface_workspace_name_unique')
+      .on(table.workspaceId, table.name)
+      .where(sql`${table.archivedAt} IS NULL`),
+    archivedAtIdx: index('workspace_interface_archived_at_idx').on(table.archivedAt),
+    workspaceArchivedAtPartialIdx: index('workspace_interface_workspace_archived_partial_idx')
+      .on(table.workspaceId, table.archivedAt)
+      .where(sql`${table.archivedAt} IS NOT NULL`),
   })
 )

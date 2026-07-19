@@ -6,6 +6,7 @@ import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
+  formatServerToolError,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
@@ -2068,14 +2069,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return { success: false, message: `Unknown operation: ${operation}` }
       }
     } catch (error) {
-      const errorMessage = toError(error).message
-      const cause = error instanceof Error && error.cause ? toError(error.cause).message : undefined
+      const { errorMessage, cause, displayMessage } = formatServerToolError(error)
       logger.error('Table operation failed', {
         operation,
         error: errorMessage,
         cause,
       })
-      const displayMessage = cause ? `${errorMessage} (${cause})` : errorMessage
       return { success: false, message: `Operation failed: ${displayMessage}` }
     }
   },

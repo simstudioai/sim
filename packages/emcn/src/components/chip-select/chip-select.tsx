@@ -78,6 +78,19 @@ export interface ChipSelectProps {
   /** Accessible label for the trigger. */
   'aria-label'?: string
   /**
+   * Id applied to the trigger button, so a visible `<Label htmlFor>` can point
+   * at it — `button` is a labelable element.
+   */
+  id?: string
+  /** Id of the element that names the trigger, when a visible label exists. */
+  'aria-labelledby'?: string
+  /** Id of the hint/error text describing the trigger. */
+  'aria-describedby'?: string
+  /** Marks the trigger as a required field. */
+  'aria-required'?: boolean
+  /** Marks the trigger's current value as invalid. */
+  'aria-invalid'?: boolean
+  /**
    * Forwarded to the underlying `DropdownMenu`'s Radix `modal` prop
    * (default `true`, matching Radix). Set `false` when an `onChange` handler
    * opens a second overlay (e.g. a `Popover`) in the same tick a selection is
@@ -129,6 +142,11 @@ export function ChipSelect({
   className,
   contentClassName,
   'aria-label': ariaLabel,
+  id,
+  'aria-labelledby': ariaLabelledby,
+  'aria-describedby': ariaDescribedby,
+  'aria-required': ariaRequired,
+  'aria-invalid': ariaInvalid,
   modal,
 }: ChipSelectProps) {
   const [query, setQuery] = React.useState('')
@@ -225,7 +243,12 @@ export function ChipSelect({
         <button
           type='button'
           disabled={disabled}
+          id={id}
           aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledby}
+          aria-describedby={ariaDescribedby}
+          aria-required={ariaRequired}
+          aria-invalid={ariaInvalid}
           className={cn(
             chipVariants({ variant: 'filled', flush: true, fullWidth }),
             TRIGGER_BORDER_CLASS,

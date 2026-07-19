@@ -14,6 +14,7 @@ vi.mock('@sim/db/schema', () => ({
   workflow: {},
   workflowFolder: {},
   workflowSchedule: {},
+  workspaceInterface: {},
 }))
 
 import { canonicalWorkflowVfsDir } from '@/lib/copilot/vfs/path-utils'
@@ -26,6 +27,7 @@ function baseData(overrides: Partial<WorkspaceMdData> = {}): WorkspaceMdData {
     workflows: [],
     knowledgeBases: [],
     tables: [],
+    interfaces: [],
     files: [],
     oauthIntegrations: [],
     envVariables: [],
@@ -316,5 +318,41 @@ describe('custom blocks', () => {
     const without = buildVfsSnapshot(baseData())
     expect('customBlocks' in withBlocks).toBe(false)
     expect(JSON.stringify(withBlocks)).toBe(JSON.stringify(without))
+  })
+})
+
+describe('interfaces', () => {
+  const interfaces = [
+    { id: 'iface-2', name: 'Support Desk', description: 'Triage inbound requests' },
+    { id: 'iface-1', name: 'Ops Console', description: null },
+  ]
+
+  it('renders an Interfaces section sorted by name, and (none) when there are none', () => {
+    const md = buildWorkspaceMd(baseData({ interfaces }))
+
+    expect(md).toContain('## Interfaces (2)')
+    expect(md).toContain('- **Support Desk** (iface-2) — Triage inbound requests')
+    expect(md).toContain('- **Ops Console** (iface-1)')
+    expect(md.indexOf('Ops Console')).toBeLessThan(md.indexOf('Support Desk'))
+    expect(buildWorkspaceMd(baseData())).toContain('## Interfaces (0)\n(none)')
+  })
+
+  // Go diffs each snapshot item's JSON byte-wise, so an emitted
+  // `description: undefined` — or any volatile extra field such as the module
+  // layout — would churn the prompt cache on turns where nothing changed.
+  it('emits structural fields only, dropping an absent description', () => {
+    const snapshot = buildVfsSnapshot(baseData({ interfaces }))
+    const nulled = buildVfsSnapshot(
+      baseData({ interfaces: [{ id: 'iface-1', name: 'Ops Console', description: null }] })
+    )
+    const omitted = buildVfsSnapshot(
+      baseData({ interfaces: [{ id: 'iface-1', name: 'Ops Console' }] })
+    )
+
+    expect(snapshot.interfaces).toStrictEqual([
+      { id: 'iface-2', name: 'Support Desk', description: 'Triage inbound requests' },
+      { id: 'iface-1', name: 'Ops Console' },
+    ])
+    expect(JSON.stringify(nulled)).toBe(JSON.stringify(omitted))
   })
 })

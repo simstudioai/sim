@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
-import Link from 'next/link'
-import { LogoMark, SimWordmark } from '@/app/(landing)/components/navbar/components'
+import { Navbar } from '@/app/(landing)/components/navbar'
 
 interface AuthShellProps {
   /** Centered content column (the form, status copy, etc.). */
@@ -15,22 +14,14 @@ interface AuthShellProps {
  *
  * Mirrors the landing chrome: it pins the `light` token layer (so the platform's
  * light-mode `var(--*)` tokens resolve regardless of the visitor's theme), uses
- * the canvas/`--text-primary` surface, and renders a logo-only header that reuses
- * the landing {@link LogoMark} + {@link SimWordmark} at the same nav gutters. The
- * single content column is centered and capped for a calm single-form layout.
+ * the canvas/`--text-primary` surface, and renders the shared {@link Navbar} in
+ * `logoOnly` mode — the same wordmark, geometry, and hover as the landing bar.
+ * The single content column is centered and capped for a calm single-form layout.
  */
 export function AuthShell({ children, footer }: AuthShellProps) {
   return (
     <div className='light relative flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
-      <header>
-        <nav className='mx-auto flex w-full max-w-[1446px] items-center px-12 py-4 max-sm:px-5 max-lg:px-8'>
-          <Link href='/' aria-label='Sim home' className='flex h-[30px] items-center'>
-            <LogoMark>
-              <SimWordmark />
-            </LogoMark>
-          </Link>
-        </nav>
-      </header>
+      <Navbar logoOnly />
       <div className='flex flex-1 items-center justify-center px-4 pb-16'>
         <div className='w-full max-w-[400px]'>{children}</div>
       </div>

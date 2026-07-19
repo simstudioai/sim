@@ -27,6 +27,7 @@ import type {
   S3PartUploadUrl,
 } from '@/lib/uploads/providers/s3/types'
 import type { FileInfo } from '@/lib/uploads/shared/types'
+import type { ByteRange } from '@/lib/uploads/utils/byte-range'
 import {
   sanitizeFilenameForMetadata,
   sanitizeStorageMetadata,
@@ -221,14 +222,22 @@ export async function downloadFromS3(
 /**
  * Stream an object out of S3 without buffering it. The caller MUST fully consume or
  * `destroy()` the returned stream. Used by the large-CSV import worker so a 1M-row file is
- * never resident in memory.
+ * never resident in memory, and by the media byte-serving path.
+ *
+ * `range` issues a partial read, so seeking in a video costs one short request
+ * rather than a full download.
  */
 export async function downloadFromS3Stream(
   key: string,
-  customConfig?: S3Config
+  customConfig?: S3Config,
+  range?: ByteRange
 ): Promise<Readable> {
   const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
-  const command = new GetObjectCommand({ Bucket: config.bucket, Key: key })
+  const command = new GetObjectCommand({
+    Bucket: config.bucket,
+    Key: key,
+    Range: range ? `bytes=${range.start}-${range.end}` : undefined,
+  })
   const response = await getS3Client().send(command)
   if (!response.Body) {
     throw new Error(`S3 object has no body: ${key}`)

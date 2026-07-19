@@ -1,0 +1,99 @@
+---
+description: Resource views — one view per resource, many consumers, no wrappers
+globs: ["apps/sim/resources/**/*.ts", "apps/sim/components/resources/**/*.ts", "apps/sim/components/resources/**/*.tsx", "apps/sim/app/workspace/[workspaceId]/**/*.tsx", "apps/sim/app/f/**/*.tsx", "apps/sim/app/i/**/*.tsx", "apps/sim/app/(interfaces)/**/*.tsx"]
+---
+# Resource Views
+
+A **resource** is a thing a workspace holds that can also be shared: a file, a table, an interface, a knowledge base, a log, a scheduled task. A resource with a canonical view has **exactly one**, and every consumer mounts that one — the workspace page, the mothership panel, an interface module, the public share page.
+
+**One view per resource. Consumers construct the axes and mount it. They never wrap it.**
+
+Enforced by `bun run check:resources`; strict gate `bun run check:resources:strict`.
+
+## Three axes, nothing else
+
+| Axis | Type | Replaces |
+| --- | --- | --- |
+| `source` | `WorkspaceSource<K> \| ShareSource<K>`, discriminated on `via` | `workspaceId`, `token`, `contentSource`, `isPublic` |
+| `grants` | `{ write: boolean; run: 'none'\|'deployed'\|'draft' }` | `canEdit`, `canRun`, `canAdmin`, `disableEdit/Insert/Delete` |
+| `host` | `'page' \| 'panel' \| 'public'` | `embedded`, `isEmbedded`, `compact`, `minimal` |
+
+There is no fourth axis. Agent streaming is one optional prop on `FileView` (`streaming?`), because only files stream.
+
+`ShareSource` declares `workspaceId?: never`; `WorkspaceSource` declares `token?: never`. A share source cannot carry a workspace id — compile error, not convention.
+
+```
+apps/sim/resources/                    # kinds/source/grants/host — pure TS, NO 'use client'
+apps/sim/components/resources/<unit>/  # 'use client' — THE view, one per resource
+```
+
+A kind with no canonical view yet (`table`, `knowledge`, `log`, `schedule`) is simply absent from the check's `CANONICAL_UNITS`. Do not add a flag, shim, or placeholder for it.
+
+## Consume: construct, then mount
+
+```typescript
+// Anonymous share
+const source = shareSource({ kind: 'file', token, grantId: token, seed })
+return <FileView source={source} grants={grantsForShare('file')} host='public' readOnly />
+
+// Panel — same view, same props
+const source = workspaceSource({ kind: 'file', workspaceId, resourceId: file.id })
+return <FileView source={source} grants={grantsFromPermissions(permissions)} host='panel' />
+```
+
+Import from the unit barrel (`@/components/resources/file-view`), never a file inside it. Scope-dependent copy lives on `source.unavailableCopy`; links on `source.hrefFor(link)` (which returns `null` in share scope). `hostOwnsUrl(host)` is the one place the "embedded views do not write nuqs keys" rule lives.
+
+## Never
+
+```typescript
+// ✗ Wrapper — adds a name, a file, an import hop; adds no behavior. Fails check:resources.
+export function EmbeddedFilePanel({ source, grants, host }: EmbeddedFilePanelProps) {
+  return <FileView source={source} grants={grants} host={host} />
+}
+
+// ✓ The consumer constructs the axes and mounts the view itself
+const source = workspaceSource({ kind: 'file', workspaceId, resourceId })
+return <FileView source={source} grants={grants} host='panel' />
+```
+
+```typescript
+// ✗ A fourth spelling for capability / chrome / address
+<FileView workspaceId={id} canEdit embedded streamingContent={text} isAgentEditing />
+
+// ✓
+<FileView source={source} grants={grants} host='panel' streaming={{ content: text, isAgentEditing }} />
+```
+
+```typescript
+// ✗ Reaching past the barrel
+import { resolveFileCategory } from '@/components/resources/file-view/file-category'
+
+// ✓
+import { resolveFileCategory } from '@/components/resources/file-view'
+```
+
+- **Never reimplement** a resource's UI because the view has no seam — add the seam. A hand-rolled mini-table loses booleans, JSON, dates, links, chips, pinned columns and windowing.
+- **Never import `@/app/workspace/[workspaceId]/**`** from `app/f/**`, `app/i/**`, `app/(interfaces)/**`, `app/(shared)/**`, or a public API route. Shared units live in `apps/sim/components/resources/**`.
+- **Never** use `useRouter` / `useParams` / `useSearchParams` / `usePathname` / `useQueryState(s)` / `useUserPermissionsContext` inside `apps/sim/components/resources/**`. Addressing is `source`, navigation is `source.hrefFor`, capability is `grants`, URL ownership is `host`.
+- **Never** put `'use client'` in `apps/sim/resources/**` — a Server Component builds a share source from it during SSR.
+
+## Escape hatch
+
+Reason mandatory, on the line directly above the offending mount / import / attribute:
+
+```typescript
+// boundary-resource-wrapper:  <reason>
+// boundary-resource-internal: <reason>
+// boundary-resource-tree:     <reason>
+// boundary-resource-prop:     <reason>
+```
+
+An empty reason is still a finding. Whole-file exceptions go in `INTERNAL_IMPORT_ALLOWLIST` / `CROSS_TREE_ALLOWLIST` in `scripts/check-resource-views.ts`. The only sanctioned deep import is a `lazy()` split point, where the barrel would re-attach the split chunk.
+
+## Before adding a component near a resource
+
+1. Does a canonical view exist for this kind? Mount it.
+2. Exists but lacks a seam? Add the seam in the unit — do not fork.
+3. Only forwarding props into a view? Delete it; mount the view at the call site.
+4. About to write `embedded` / `canEdit` / `canRun` / `isPublic` / `token` / `workspaceId` on a view? Map it to `source` / `grants` / `host`.
+5. Run `bun run check:resources`. Success is consumers-per-view up, component count down.

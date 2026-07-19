@@ -19,7 +19,7 @@ export interface ExecuteWorkflowOptions {
   enabled: boolean
   selectedOutputs?: string[]
   isSecureMode?: boolean
-  workflowTriggerType?: 'api' | 'chat' | 'copilot' | 'table'
+  workflowTriggerType?: 'api' | 'chat' | 'copilot' | 'table' | 'form'
   /**
    * If set, the executor enters the workflow at this block instead of resolving a Start block.
    * Use for trigger-originated runs (webhooks, table triggers, schedules) where the entry point

@@ -5,25 +5,36 @@ import {
   type AuthenticatePublicFileResponse,
   authenticatePublicFileContract,
   getFileShareContract,
+  getInterfaceShareContract,
   requestPublicFileOtpContract,
   type ShareRecord,
+  type ShareResourceType,
   type UpsertFileShareBody,
   upsertFileShareContract,
+  upsertInterfaceShareContract,
   type VerifyPublicFileOtpResponse,
   verifyPublicFileOtpContract,
 } from '@/lib/api/contracts/public-shares'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
-export const FILE_SHARE_STALE_TIME = 30 * 1000
+export const RESOURCE_SHARE_STALE_TIME = 30 * 1000
+
+/** The resource families the share modal can publish. Folders ride the file page and have no share UI. */
+export type ShareableResourceType = Extract<ShareResourceType, 'file' | 'interface'>
 
 /**
- * Query key factories for public shares
+ * Query key factories for public shares.
+ *
+ * One namespace covers every shared resource family: `scopeId` is the workspace
+ * the resource belongs to and `resourceId` the resource itself, so a workspace's
+ * shares invalidate together under a single prefix.
  */
 export const shareKeys = {
   all: ['publicShares'] as const,
+  lists: () => [...shareKeys.all, 'list'] as const,
   details: () => [...shareKeys.all, 'detail'] as const,
-  detail: (workspaceId: string, fileId: string) =>
-    [...shareKeys.details(), workspaceId, fileId] as const,
+  detail: (resourceType: ShareResourceType, scopeId: string, resourceId: string) =>
+    [...shareKeys.details(), resourceType, scopeId, resourceId] as const,
 }
 
 async function fetchFileShare(
@@ -38,31 +49,77 @@ async function fetchFileShare(
   return data.share
 }
 
-export function useFileShare(workspaceId: string, fileId: string, options?: { enabled?: boolean }) {
+async function fetchInterfaceShare(
+  workspaceId: string,
+  interfaceId: string,
+  signal?: AbortSignal
+): Promise<ShareRecord | null> {
+  const data = await requestJson(getInterfaceShareContract, {
+    params: { interfaceId },
+    query: { workspaceId },
+    signal,
+  })
+  return data.share
+}
+
+/**
+ * The share record for any shareable resource. One hook serves every resource
+ * family so the shared share modal cannot fork per resource: the query key and
+ * the fetch both branch on the same `resourceType`, which is part of the key.
+ */
+export function useResourceShare(
+  resourceType: ShareableResourceType,
+  workspaceId: string,
+  resourceId: string,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
-    queryKey: shareKeys.detail(workspaceId, fileId),
-    queryFn: ({ signal }) => fetchFileShare(workspaceId, fileId, signal),
-    enabled: Boolean(workspaceId) && Boolean(fileId) && (options?.enabled ?? true),
-    staleTime: FILE_SHARE_STALE_TIME,
+    queryKey: shareKeys.detail(resourceType, workspaceId, resourceId),
+    queryFn: ({ signal }) =>
+      resourceType === 'file'
+        ? fetchFileShare(workspaceId, resourceId, signal)
+        : fetchInterfaceShare(workspaceId, resourceId, signal),
+    enabled: Boolean(workspaceId) && Boolean(resourceId) && (options?.enabled ?? true),
+    staleTime: RESOURCE_SHARE_STALE_TIME,
   })
 }
 
-interface UpsertFileShareVariables extends UpsertFileShareBody {
+interface UpsertResourceShareVariables extends UpsertFileShareBody {
+  resourceType: ShareableResourceType
   workspaceId: string
-  fileId: string
+  resourceId: string
 }
 
-export function useUpsertFileShare() {
+/**
+ * Saves a share for any shareable resource. Both routes accept the same body
+ * shape ({@link UpsertFileShareBody}); the interface route additionally carries
+ * `workspaceId` in the body. On success the detail cache is seeded with the
+ * saved record; file saves also refresh the files list, whose rows carry a
+ * share badge (the interfaces list carries none, so it needs no invalidation).
+ */
+export function useUpsertResourceShare() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ workspaceId, fileId, ...body }: UpsertFileShareVariables) =>
-      requestJson(upsertFileShareContract, {
-        params: { id: workspaceId, fileId },
-        body,
-      }),
-    onSuccess: (data, { workspaceId, fileId }) => {
-      queryClient.setQueryData(shareKeys.detail(workspaceId, fileId), data.share)
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
+    mutationFn: ({
+      resourceType,
+      workspaceId,
+      resourceId,
+      ...body
+    }: UpsertResourceShareVariables) =>
+      resourceType === 'file'
+        ? requestJson(upsertFileShareContract, {
+            params: { id: workspaceId, fileId: resourceId },
+            body,
+          })
+        : requestJson(upsertInterfaceShareContract, {
+            params: { interfaceId: resourceId },
+            body: { ...body, workspaceId },
+          }),
+    onSuccess: (data, { resourceType, workspaceId, resourceId }) => {
+      queryClient.setQueryData(shareKeys.detail(resourceType, workspaceId, resourceId), data.share)
+      if (resourceType === 'file') {
+        queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
+      }
     },
     onError: (error) => {
       toast.error(error.message)

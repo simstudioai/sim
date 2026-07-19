@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, type ReactNode } from 'react'
 import type { ResourceCell } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import type { WorkspaceMember } from '@/hooks/queries/workspace'
 
@@ -25,6 +25,26 @@ const OwnerAvatar = memo(function OwnerAvatar({ name, image }: OwnerAvatarProps)
     </span>
   )
 })
+
+/** Owner-filter picker option — structurally compatible with both `ChipDropdownOption` and `ComboboxOption`. */
+export interface MemberFilterOption {
+  value: string
+  label: string
+  iconElement: ReactNode
+}
+
+/**
+ * Maps workspace members to owner-filter picker options with avatar icons —
+ * the shared Owner filter used by the resource list pages (tables, files,
+ * knowledge, interfaces).
+ */
+export function memberFilterOptions(members: WorkspaceMember[] | undefined): MemberFilterOption[] {
+  return (members ?? []).map((member) => ({
+    value: member.userId,
+    label: member.name,
+    iconElement: <OwnerAvatar name={member.name} image={member.image} />,
+  }))
+}
 
 /**
  * Resolves a user ID into a ResourceCell with an avatar icon and display name.

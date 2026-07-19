@@ -18,7 +18,8 @@ export const revalidate = 0
  * GET /api/logs/triggers
  *
  * Returns unique trigger types from workflow execution logs
- * Only includes integration triggers (excludes core types: api, manual, webhook, chat, schedule)
+ * Only includes integration triggers (excludes core types: api, manual, webhook, chat, schedule,
+ * form)
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -55,7 +56,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         and(
           eq(workflowExecutionLogs.workspaceId, params.workspaceId),
           isNotNull(workflowExecutionLogs.trigger),
-          sql`${workflowExecutionLogs.trigger} NOT IN ('api', 'manual', 'webhook', 'chat', 'schedule')`
+          sql`${workflowExecutionLogs.trigger} NOT IN ('api', 'manual', 'webhook', 'chat', 'schedule', 'form')`
         )
       )
 

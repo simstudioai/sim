@@ -561,6 +561,17 @@ export const schemaMock = {
     deletedAt: 'deletedAt',
     uploadedAt: 'uploadedAt',
   },
+  workspaceInterface: {
+    id: 'id',
+    workspaceId: 'workspaceId',
+    name: 'name',
+    description: 'description',
+    layout: 'layout',
+    archivedAt: 'archivedAt',
+    createdBy: 'createdBy',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  },
   permissionTypeEnum: 'permissionTypeEnum',
   workspaceInvitationStatusEnum: 'workspaceInvitationStatusEnum',
   workspaceInvitation: {

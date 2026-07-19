@@ -19,7 +19,13 @@ import type {
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
+import {
+  memberFilterOptions,
+  ownerCell,
+  Resource,
+  timeCell,
+  useBackgroundContextMenu,
+} from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ImportCsvDialog,
@@ -277,26 +283,7 @@ export function Tables() {
     return `${ownerFilter.length} members`
   }, [ownerFilter, members])
 
-  const memberOptions: ComboboxOption[] = useMemo(
-    () =>
-      (members ?? []).map((m) => ({
-        value: m.userId,
-        label: m.name,
-        iconElement: m.image ? (
-          <img
-            src={m.image}
-            alt={m.name}
-            referrerPolicy='no-referrer'
-            className='size-[14px] rounded-full border border-[var(--border)] object-cover'
-          />
-        ) : (
-          <span className='flex size-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
-            {m.name.charAt(0).toUpperCase()}
-          </span>
-        ),
-      })),
-    [members]
-  )
+  const memberOptions: ComboboxOption[] = useMemo(() => memberFilterOptions(members), [members])
 
   const hasActiveFilters = rowCountFilter.length > 0 || ownerFilter.length > 0
 
@@ -385,19 +372,7 @@ export function Tables() {
     return tags
   }, [rowCountFilter, ownerFilter, members])
 
-  const handleContentContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (
-        target.closest('[data-resource-row]') ||
-        target.closest('button, input, a, [role="button"]')
-      ) {
-        return
-      }
-      handleListContextMenu(e)
-    },
-    [handleListContextMenu]
-  )
+  const handleContentContextMenu = useBackgroundContextMenu(handleListContextMenu)
 
   const handleRowClick = useCallback(
     (rowId: string) => {

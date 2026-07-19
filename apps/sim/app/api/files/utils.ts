@@ -1,6 +1,15 @@
+import { Readable } from 'node:stream'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
-import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
+import type { ByteRange } from '@/lib/uploads/utils/byte-range'
+import {
+  byteRangeLength,
+  contentRangeHeader,
+  isMediaContentType,
+  parseByteRange,
+  unsatisfiableContentRangeHeader,
+} from '@/lib/uploads/utils/byte-range'
+import { getMimeTypeFromExtension, sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilesUtils')
 
@@ -80,9 +89,19 @@ export const binaryExtensions = [
   'pdf',
 ]
 
+/**
+ * Content type for a stored file, by extension.
+ *
+ * {@link contentTypeMap} is consulted first because it carries entries the
+ * extension map has no notion of (the Google Workspace pseudo-types), then the
+ * canonical {@link getMimeTypeFromExtension} covers everything else — audio and
+ * video included. Keeping only the local map meant `.mp4` resolved to
+ * `application/octet-stream`, which silently disabled byte-range serving and
+ * left media unseekable.
+ */
 export function getContentType(filename: string): string {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
-  return contentTypeMap[extension] || 'application/octet-stream'
+  return contentTypeMap[extension] || getMimeTypeFromExtension(extension)
 }
 
 export function extractFilename(path: string): string {
@@ -183,7 +202,10 @@ function getSecureFileHeaders(filename: string, originalContentType: string) {
     safeContentType = 'text/plain'
   }
 
-  const disposition = SAFE_INLINE_TYPES.has(safeContentType) ? 'inline' : 'attachment'
+  const disposition =
+    SAFE_INLINE_TYPES.has(safeContentType) || isMediaContentType(safeContentType)
+      ? 'inline'
+      : 'attachment'
 
   return {
     contentType: safeContentType,
@@ -220,6 +242,79 @@ export function createFileResponse(file: FileResponse): NextResponse {
   }
 
   return new NextResponse(file.buffer as BodyInit, { status: 200, headers })
+}
+
+export interface ByteServeOptions {
+  /**
+   * Opens the bytes for a slice, or the whole object when no range is given.
+   *
+   * A function rather than a storage key so the same response builder serves
+   * cloud objects (`downloadFileStream`) and local dev files (`createReadStream`)
+   * — the two resolve a path differently, and forcing one shape on both is how
+   * local storage ends up quietly without range support.
+   */
+  openStream: (range?: ByteRange) => Promise<Readable> | Readable
+  /** Authoritative object size, from the storage layer — never a client-supplied number. */
+  size: number
+  contentType: string
+  filename: string
+  cacheControl?: string
+  /** The request's raw `Range` header, if any. */
+  rangeHeader: string | null
+}
+
+/**
+ * Serves an object by streaming it, honouring a single HTTP `Range`.
+ *
+ * This is what makes a `<video>`/`<audio>` element usable: the browser fetches
+ * the slice it needs and seeks with a short request, instead of the whole file
+ * being downloaded (and, before this existed, held in the JS heap as a blob just
+ * so the scrubber worked). Nothing is buffered server-side either.
+ *
+ * `Accept-Ranges: bytes` is always advertised, including on a full response —
+ * browsers disable seeking without it.
+ *
+ * Offsets come from {@link parseByteRange}, which clamps every interval to
+ * `size`, so a crafted header can neither read past the object nor reveal
+ * anything about one the caller was not granted.
+ */
+export async function createByteRangeResponse(options: ByteServeOptions): Promise<NextResponse> {
+  const { contentType, disposition } = getSecureFileHeaders(options.filename, options.contentType)
+  const range = parseByteRange(options.rangeHeader, options.size)
+
+  const headers: Record<string, string> = {
+    'Content-Type': contentType,
+    'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(options.filename)}`,
+    'Cache-Control': options.cacheControl || 'public, max-age=31536000',
+    'X-Content-Type-Options': 'nosniff',
+    'Accept-Ranges': 'bytes',
+  }
+
+  if (range === 'unsatisfiable') {
+    return new NextResponse(null, {
+      status: 416,
+      headers: { ...headers, 'Content-Range': unsatisfiableContentRangeHeader(options.size) },
+    })
+  }
+
+  const stream = await options.openStream(range ?? undefined)
+  const body = Readable.toWeb(stream) as ReadableStream
+
+  if (!range) {
+    return new NextResponse(body, {
+      status: 200,
+      headers: { ...headers, 'Content-Length': String(options.size) },
+    })
+  }
+
+  return new NextResponse(body, {
+    status: 206,
+    headers: {
+      ...headers,
+      'Content-Range': contentRangeHeader(range, options.size),
+      'Content-Length': String(byteRangeLength(range)),
+    },
+  })
 }
 
 export function createErrorResponse(error: Error, status = 500): NextResponse {

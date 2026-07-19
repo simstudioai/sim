@@ -18,12 +18,12 @@ import {
 } from '@/lib/execution/payloads/materialization.server'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
-import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
+import { completeLoggingSession } from '@/lib/workflows/streaming/logging-session-completion'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 
@@ -44,7 +44,7 @@ const SELECTED_OUTPUT_TOO_LARGE_MESSAGE =
 interface StreamingConfig {
   selectedOutputs?: string[]
   isSecureMode?: boolean
-  workflowTriggerType?: 'api' | 'chat'
+  workflowTriggerType?: 'api' | 'chat' | 'form'
   includeFileBase64?: boolean
   base64MaxBytes?: number
   timeoutMs?: number
@@ -329,24 +329,18 @@ function updateLogsWithStreamedContent(
   })
 }
 
-async function completeLoggingSession(result: ExecutionResult): Promise<void> {
-  if (!result._streamingMetadata?.loggingSession) {
-    return
-  }
-
-  const { traceSpans, totalDuration } = buildTraceSpans(result)
-
-  await result._streamingMetadata.loggingSession.safeComplete({
-    endedAt: new Date().toISOString(),
-    totalDurationMs: totalDuration || 0,
-    finalOutput: result.output || {},
-    traceSpans: (traceSpans || []) as any,
-    workflowInput: result._streamingMetadata.processedInput,
-  })
-
-  result._streamingMetadata = undefined
-}
-
+/**
+ * Streams a workflow run as the **deployed-chat / public-API** SSE dialect:
+ * bare `{ blockId, chunk }` frames, `{ event: 'error' | 'stream_error' }`, a
+ * terminal `{ event: 'final', data }`, then `[DONE]`. Its consumers are the
+ * deployed chat client (`use-chat-streaming`) and external callers of the
+ * public execute API.
+ *
+ * It is **not** interchangeable with
+ * {@link createExecutionEventStream}, which emits the typed `ExecutionEvent`
+ * dialect that `processSSEStream` decodes. A frame from one is silently dropped
+ * by the other's decoder, so a route must pick the dialect its client speaks.
+ */
 export async function createStreamingResponse(
   options: StreamingResponseOptions
 ): Promise<ReadableStream> {

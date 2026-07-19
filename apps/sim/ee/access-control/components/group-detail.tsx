@@ -70,7 +70,7 @@ const logger = createLogger('AccessControlGroupDetail')
 
 type ConfigTab = 'general' | 'providers' | 'blocks' | 'platform'
 
-/** Public-file-share auth modes an admin can allow/disallow. `null` config = all allowed. */
+/** Public-share auth modes an admin can allow/disallow. `null` config = all allowed. */
 const FILE_SHARE_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] = [
   { value: 'public', label: 'Anyone with link' },
   { value: 'password', label: 'Password' },
@@ -1114,6 +1114,19 @@ export function GroupDetail({
     }))
   }, [])
 
+  const interfaceShareAuthValue = useMemo(
+    () => editingConfig.allowedInterfaceShareAuthTypes ?? ALL_FILE_SHARE_AUTH_TYPES,
+    [editingConfig.allowedInterfaceShareAuthTypes]
+  )
+
+  const setInterfaceShareAuthTypes = useCallback((values: string[]) => {
+    setEditingConfig((prev) => ({
+      ...prev,
+      allowedInterfaceShareAuthTypes:
+        values.length === ALL_FILE_SHARE_AUTH_TYPES.length ? null : (values as ShareAuthType[]),
+    }))
+  }, [])
+
   /** Persists the editing buffer. */
   const handleSaveConfig = useCallback(async () => {
     try {
@@ -1629,6 +1642,47 @@ export function GroupDetail({
                     onChange={setFileShareAuthTypes}
                     options={FILE_SHARE_AUTH_TYPE_OPTIONS}
                     disabled={editingConfig.disablePublicFileSharing}
+                    matchTriggerWidth={false}
+                    className='w-[200px]'
+                  />
+                </div>
+              </div>
+            </SettingsSection>
+            <SettingsSection label='Interfaces'>
+              <div className='flex flex-col gap-1.5'>
+                <label
+                  htmlFor='disable-public-interface-sharing'
+                  className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                >
+                  <Checkbox
+                    id='disable-public-interface-sharing'
+                    checked={!editingConfig.disablePublicInterfaceSharing}
+                    onCheckedChange={(checked) =>
+                      setEditingConfig((prev) => ({
+                        ...prev,
+                        disablePublicInterfaceSharing: checked !== true,
+                      }))
+                    }
+                  />
+                  <span className='font-normal text-sm'>Public Sharing</span>
+                </label>
+                <div
+                  className={cn(
+                    'flex flex-col gap-1.5 px-2 pt-1',
+                    editingConfig.disablePublicInterfaceSharing && 'opacity-50'
+                  )}
+                >
+                  <span className='text-[var(--text-secondary)] text-xs'>
+                    Auth modes public interface-share links may use
+                  </span>
+                  <ChipDropdown
+                    multiple
+                    showAllOption={false}
+                    allLabel='None'
+                    value={interfaceShareAuthValue}
+                    onChange={setInterfaceShareAuthTypes}
+                    options={FILE_SHARE_AUTH_TYPE_OPTIONS}
+                    disabled={editingConfig.disablePublicInterfaceSharing}
                     matchTriggerWidth={false}
                     className='w-[200px]'
                   />

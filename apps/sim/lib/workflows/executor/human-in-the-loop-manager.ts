@@ -53,6 +53,7 @@ import type {
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import type { SerializedConnection } from '@/serializer/types'
+import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('HumanInTheLoopManager')
 const RUN_BUFFER_UNAVAILABLE_ERROR = 'Run buffer temporarily unavailable'
@@ -1178,9 +1179,7 @@ export class PauseResumeManager {
       pendingQueue: stateCopy?.pendingQueue,
     })
 
-    const triggerType =
-      (metadata.triggerType as 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | undefined) ??
-      'manual'
+    const triggerType = (metadata.triggerType as CoreTriggerType | undefined) ?? 'manual'
     const loggingSession = new LoggingSession(
       metadata.workflowId,
       parentExecutionId,

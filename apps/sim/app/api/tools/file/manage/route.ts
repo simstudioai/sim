@@ -19,7 +19,7 @@ import {
   getShareForResource,
   getSharesForResources,
   ShareValidationError,
-  upsertFileShare,
+  upsertResourceShare,
 } from '@/lib/public-shares/share-manager'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -649,7 +649,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         // Enabling a share is gated by the org's access-control policy; disabling
         // is always allowed so users can un-share after the policy is turned on.
         if (isActive) {
-          // Resolve the auth type the same way upsertFileShare will (falling back
+          // Resolve the auth type the same way upsertResourceShare will (falling back
           // to the existing share's type) so the policy gate can't be bypassed by
           // re-enabling a pre-existing restricted share without an explicit authType.
           const existingShare = await getShareForResource('file', resolvedFileId)
@@ -664,9 +664,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           }
         }
 
-        const share = await upsertFileShare({
+        const share = await upsertResourceShare({
+          resourceType: 'file',
+          resourceId: resolvedFileId,
           workspaceId,
-          fileId: resolvedFileId,
           userId,
           isActive,
           authType,

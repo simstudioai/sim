@@ -312,6 +312,40 @@ function userTableTitle(args: ToolArgs): string {
   }
 }
 
+function userInterfaceTitle(args: ToolArgs): string {
+  const operation = stringArg(args, 'operation')
+  const operationArgs = recordArg(args, 'args')
+  const name = stringArg(operationArgs, 'name')
+  const moduleType = stringArg(operationArgs, 'moduleType')
+
+  switch (operation) {
+    case 'create':
+      return `Creating ${name || 'interface'}`
+    case 'get':
+      return 'Reading interface'
+    case 'list':
+      return 'Listing interfaces'
+    case 'rename':
+      return name ? `Renaming interface to ${name}` : 'Renaming interface'
+    case 'set_description':
+      return 'Updating interface description'
+    case 'delete':
+      return 'Deleting interface'
+    case 'restore':
+      return 'Restoring interface'
+    case 'add_module':
+      return moduleType ? `Adding ${moduleType} module` : 'Adding interface module'
+    case 'update_module':
+      return 'Updating interface module'
+    case 'move_module':
+      return 'Moving interface module'
+    case 'remove_module':
+      return 'Removing interface module'
+    default:
+      return 'Managing interface'
+  }
+}
+
 function materializeFileTitle(args: ToolArgs): string {
   const operation = stringArg(args, 'operation') || 'save'
   const targets = stringArrayArg(args, 'fileNames').map(pathLeaf)
@@ -408,6 +442,7 @@ const TOOL_TITLES: Record<string, string> = {
   read: 'Reading file',
   search_library_docs: 'Searching library docs',
   user_table: 'Managing table',
+  user_interface: 'Managing interface',
   run_code: 'Running code',
   query_user_table: 'Querying table',
   workspace_file: 'Editing file',
@@ -480,6 +515,7 @@ const TOOL_TITLES: Record<string, string> = {
   auth: 'Auth Agent',
   knowledge: 'Knowledge Agent',
   table: 'Table Agent',
+  interface: 'Interface Agent',
   scheduled_task: 'Scheduled Task Agent',
   agent: 'Tools Agent',
   research: 'Research Agent',
@@ -558,6 +594,8 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return queryUserTableTitle(args)
     case 'search_knowledge_base':
       return searchKnowledgeBaseTitle(args)
+    case 'user_interface':
+      return userInterfaceTitle(args)
     case 'user_table':
       return userTableTitle(args)
     case 'materialize_file':
@@ -855,6 +893,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Querying: 'Queried',
   Reading: 'Read',
   Redeploying: 'Redeployed',
+  Removing: 'Removed',
   Renaming: 'Renamed',
   Requesting: 'Requested',
   Resizing: 'Resized',

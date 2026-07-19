@@ -10,6 +10,7 @@ import {
   SearchKnowledgeBaseOperationValues,
   TOOL_CATALOG,
   type ToolCatalogEntry,
+  UserInterfaceOperationValues,
   UserTableOperationValues,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { getHiddenToolNames } from '@/lib/copilot/tools/client/hidden-tools'
@@ -111,6 +112,7 @@ describe('getToolDisplayTitle natural-language coverage', () => {
       'Editing file',
       'Folder action',
       'MCP server action',
+      'Managing interface',
       'Managing knowledge base',
       'Managing table',
       'Preparing file',
@@ -386,6 +388,30 @@ describe('getToolDisplayTitle for operation-driven tools', () => {
     expect(getToolDisplayTitle('user_table', { operation: 'cancel_table_runs' })).toBe(
       'Cancelling table runs'
     )
+  })
+
+  it('covers every interface operation with a specific activity', () => {
+    for (const operation of UserInterfaceOperationValues) {
+      const title = getToolDisplayTitle('user_interface', { operation })
+      expect(title).not.toBe('Managing interface')
+      expect(getToolCompletedTitle(title)).toBeDefined()
+    }
+    expect(
+      getToolDisplayTitle('user_interface', { operation: 'create', args: { name: 'Support desk' } })
+    ).toBe('Creating Support desk')
+    expect(
+      getToolDisplayTitle('user_interface', { operation: 'rename', args: { name: 'Front desk' } })
+    ).toBe('Renaming interface to Front desk')
+    expect(
+      getToolDisplayTitle('user_interface', {
+        operation: 'add_module',
+        args: { moduleType: 'form' },
+      })
+    ).toBe('Adding form module')
+    expect(getToolDisplayTitle('user_interface', { operation: 'remove_module' })).toBe(
+      'Removing interface module'
+    )
+    expect(getToolDisplayTitle('user_interface')).toBe('Managing interface')
   })
 
   it('distinguishes saving uploads from importing workflows', () => {

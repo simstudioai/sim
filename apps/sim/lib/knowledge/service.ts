@@ -20,7 +20,7 @@ import {
   resolveStorageBillingContext,
   type StorageBillingContext,
 } from '@/lib/billing/storage'
-import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { generateRestoreName, restoreWithUniqueName } from '@/lib/core/utils/restore-name'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -751,21 +751,14 @@ export async function restoreKnowledgeBase(
     }
   }
 
-  /**
-   * A concurrent create/rename can commit the same active name after `generateRestoreName`'s check
-   * (MVCC) and before this transaction commits. Retries pick a new random suffix; 23505 is still
-   * mapped to {@link KnowledgeBaseConflictError} if exhaustion occurs.
-   */
-  const maxUniqueViolationRetries = 8
-  let attemptedRestoreName = ''
-
-  for (let attempt = 0; attempt < maxUniqueViolationRetries; attempt++) {
-    attemptedRestoreName = ''
-    try {
-      await db.transaction(async (tx) => {
+  const attemptedRestoreName = await restoreWithUniqueName(
+    kb.name,
+    (attemptedName) => new KnowledgeBaseConflictError(attemptedName),
+    (reportAttemptedName) =>
+      db.transaction(async (tx) => {
         await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
-        attemptedRestoreName = await generateRestoreName(kb.name, async (candidate) => {
+        const name = await generateRestoreName(kb.name, async (candidate) => {
           if (!kb.workspaceId) return false
           const [match] = await tx
             .select({ id: knowledgeBase.id })
@@ -780,12 +773,13 @@ export async function restoreKnowledgeBase(
             .limit(1)
           return !!match
         })
+        reportAttemptedName(name)
 
         const now = new Date()
 
         await tx
           .update(knowledgeBase)
-          .set({ deletedAt: null, updatedAt: now, name: attemptedRestoreName })
+          .set({ deletedAt: null, updatedAt: now, name })
           .where(eq(knowledgeBase.id, knowledgeBaseId))
 
         await tx
@@ -809,17 +803,9 @@ export async function restoreKnowledgeBase(
               isNull(knowledgeConnector.deletedAt)
             )
           )
+        return name
       })
-      break
-    } catch (error: unknown) {
-      if (getPostgresErrorCode(error) !== '23505') {
-        throw error
-      }
-      if (attempt === maxUniqueViolationRetries - 1) {
-        throw new KnowledgeBaseConflictError(attemptedRestoreName || kb.name)
-      }
-    }
-  }
+  )
 
   logger.info(
     `[${requestId}] Restored knowledge base: ${knowledgeBaseId} as "${attemptedRestoreName}"`

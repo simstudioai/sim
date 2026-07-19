@@ -34,6 +34,11 @@ interface FileRowContextMenuProps {
   selectedCount: number
 }
 
+/**
+ * Right-click menu for file/folder rows. Canonical resource-menu structure:
+ * navigation actions (Open, Move to) above a single separator, then the item
+ * actions in the shared order — Rename, Share, Download, Delete.
+ */
 export const FileRowContextMenu = memo(function FileRowContextMenu({
   isOpen,
   position,
@@ -49,6 +54,9 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
   selectedCount,
 }: FileRowContextMenuProps) {
   const isMultiSelect = selectedCount > 1
+  const hasMove = canEdit && !!onMove && !!moveOptions && moveOptions.length > 0
+  const hasNavigationSection = !isMultiSelect || hasMove
+  const hasActionsSection = !!onDownload || canEdit
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -72,6 +80,35 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
             Open
           </DropdownMenuItem>
         )}
+        {hasMove && onMove && moveOptions && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <FolderInput />
+              {isMultiSelect ? `Move ${selectedCount} items` : 'Move to'}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem onSelect={() => onMove(moveOptions[0].value)}>
+                <Folder />
+                {moveOptions[0].label}
+              </DropdownMenuItem>
+              {moveOptions.length > 1 && <DropdownMenuSeparator />}
+              {moveOptions.slice(1).map((option) => renderMoveOption(option, onMove))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
+        {hasNavigationSection && hasActionsSection && <DropdownMenuSeparator />}
+        {canEdit && !isMultiSelect && (
+          <DropdownMenuItem onSelect={onRename}>
+            <Pencil />
+            Rename
+          </DropdownMenuItem>
+        )}
+        {canEdit && !isMultiSelect && onShare && (
+          <DropdownMenuItem onSelect={onShare}>
+            <Link />
+            Share
+          </DropdownMenuItem>
+        )}
         {onDownload && (
           <DropdownMenuItem onSelect={onDownload}>
             <Download />
@@ -79,41 +116,10 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
           </DropdownMenuItem>
         )}
         {canEdit && (
-          <>
-            <DropdownMenuSeparator />
-            {!isMultiSelect && (
-              <DropdownMenuItem onSelect={onRename}>
-                <Pencil />
-                Rename
-              </DropdownMenuItem>
-            )}
-            {!isMultiSelect && onShare && (
-              <DropdownMenuItem onSelect={onShare}>
-                <Link />
-                Share
-              </DropdownMenuItem>
-            )}
-            {onMove && moveOptions && moveOptions.length > 0 && (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <FolderInput />
-                  {isMultiSelect ? `Move ${selectedCount} items` : 'Move to'}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem onSelect={() => onMove(moveOptions[0].value)}>
-                    <Folder />
-                    {moveOptions[0].label}
-                  </DropdownMenuItem>
-                  {moveOptions.length > 1 && <DropdownMenuSeparator />}
-                  {moveOptions.slice(1).map((option) => renderMoveOption(option, onMove))}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            )}
-            <DropdownMenuItem onSelect={onDelete}>
-              <Trash />
-              {isMultiSelect ? `Delete ${selectedCount} items` : 'Delete'}
-            </DropdownMenuItem>
-          </>
+          <DropdownMenuItem onSelect={onDelete}>
+            <Trash />
+            {isMultiSelect ? `Delete ${selectedCount} items` : 'Delete'}
+          </DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

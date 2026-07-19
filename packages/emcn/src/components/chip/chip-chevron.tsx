@@ -2,7 +2,12 @@ import { ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
 
 interface ChipChevronDownProps {
-  /** Layout-only extras (e.g. `ml-auto` to push the chevron flush right). Never chrome. */
+  /**
+   * Layout-only extras (e.g. `ml-auto` to push the chevron flush right). Never
+   * chrome — with one sanctioned exception: an inverse (`primary`/`destructive`)
+   * chip trigger passes `text-current` so the chevron follows the chip's
+   * inverted text color, exactly as `Chip` does for its own icon and label.
+   */
   className?: string
 }
 

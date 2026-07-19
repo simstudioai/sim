@@ -25,7 +25,16 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import type { PreviewMode } from '@/components/resources/file-view'
+import {
+  FileView,
+  isCsvStreamOnly,
+  isMarkdownFile,
+  isPreviewable,
+  isTextEditable,
+} from '@/components/resources/file-view'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
+import { generateUniqueName } from '@/lib/core/utils/unique-name'
 import { captureEvent } from '@/lib/posthog/client'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -57,23 +66,17 @@ import type {
 } from '@/app/workspace/[workspaceId]/components'
 import {
   EMPTY_CELL_PLACEHOLDER,
+  memberFilterOptions,
   ownerCell,
   Resource,
+  ShareModal,
   timeCell,
+  useBackgroundContextMenu,
 } from '@/app/workspace/[workspaceId]/components'
 import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
-import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import {
-  FileViewer,
-  isCsvStreamOnly,
-  isMarkdownFile,
-  isPreviewable,
-  isTextEditable,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
-import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import {
   filesFilterParsers,
@@ -104,6 +107,7 @@ import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useUrlSort } from '@/hooks/use-url-sort'
+import { grantsFromPermissions, workspaceSource } from '@/resources'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type FileResourceItem =
@@ -189,6 +193,8 @@ export function Files() {
 
   const params = useParams()
   const router = useRouter()
+  /** The host owns the router; the file view asks for a move, never holds one. */
+  const navigate = useCallback((path: string) => router.push(path), [router])
   const [{ folderId: currentFolderId, new: isNewFile, shareFileId }, setFilesParams] =
     useQueryStates(filesParsers, filesUrlKeys)
   const workspaceId = params?.workspaceId as string
@@ -201,6 +207,7 @@ export function Files() {
     typeof params?.fileId === 'string' && params.fileId.length > 0 ? params.fileId : null
   const userPermissions = useUserPermissionsContext()
   const canEdit = userPermissions.canEdit === true
+  const grants = useMemo(() => grantsFromPermissions(userPermissions), [userPermissions])
   const { config: permissionConfig } = usePermissionConfig()
 
   useEffect(() => {
@@ -348,6 +355,14 @@ export function Files() {
   const selectedFileRef = useRef(selectedFile)
   selectedFileRef.current = selectedFile
 
+  const selectedFileSource = useMemo(
+    () =>
+      selectedFile
+        ? workspaceSource({ kind: 'file', workspaceId, resourceId: selectedFile.id })
+        : null,
+    [selectedFile, workspaceId]
+  )
+
   const shareFile = shareFileId ? (files.find((f) => f.id === shareFileId) ?? null) : null
   const shareModal = shareFile ? (
     <ShareModal
@@ -356,8 +371,9 @@ export function Files() {
         !open && setFilesParams({ shareFileId: null }, { history: 'replace' })
       }
       workspaceId={workspaceId}
-      fileId={shareFile.id}
-      fileName={shareFile.name}
+      resourceType='file'
+      resourceId={shareFile.id}
+      resourceName={shareFile.name}
       initialShare={shareFile.share ?? null}
     />
   ) : null
@@ -1128,15 +1144,16 @@ export function Files() {
               onCancel: headerRename.cancelRename,
             }
           : undefined,
+        /** Canonical item-action order shared by every resource menu: Rename, Share, Download, Delete. */
         dropdownItems: [
-          { label: 'Download', icon: Download, onClick: handleDownloadSelected },
           ...(canEdit
             ? [
                 { label: 'Rename', icon: Pencil, onClick: handleStartHeaderRename },
                 { label: 'Share', icon: Send, onClick: handleShareSelected },
-                { label: 'Delete', icon: Trash, onClick: handleDeleteSelected },
               ]
             : []),
+          { label: 'Download', icon: Download, onClick: handleDownloadSelected },
+          ...(canEdit ? [{ label: 'Delete', icon: Trash, onClick: handleDeleteSelected }] : []),
         ],
       },
     ]
@@ -1181,12 +1198,9 @@ export function Files() {
       const existingNames = new Set(
         filesRef.current.filter((f) => (f.folderId ?? null) === currentFolderId).map((f) => f.name)
       )
-      let name = 'untitled.md'
-      let counter = 1
-      while (existingNames.has(name)) {
-        name = `untitled (${counter}).md`
-        counter++
-      }
+      const name = generateUniqueName(existingNames, (attempt) =>
+        attempt === 0 ? 'untitled.md' : `untitled (${attempt}).md`
+      )
 
       const mimeType = getMimeTypeFromExtension('md')
       const blob = new Blob([''], { type: mimeType })
@@ -1218,12 +1232,9 @@ export function Files() {
         .filter((folder) => (folder.parentId ?? null) === currentFolderId)
         .map((folder) => folder.name)
     )
-    let name = 'New folder'
-    let counter = 1
-    while (existingNames.has(name)) {
-      name = `New folder (${counter})`
-      counter++
-    }
+    const name = generateUniqueName(existingNames, (attempt) =>
+      attempt === 0 ? 'New folder' : `New folder (${attempt})`
+    )
 
     try {
       const folder = await createFolder.mutateAsync({
@@ -1344,19 +1355,7 @@ export function Files() {
     [workspaceId, selectedFileIds, selectedFolderIds, closeContextMenu]
   )
 
-  const handleContentContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (
-        target.closest('[data-resource-row]') ||
-        target.closest('button, input, a, [role="button"]')
-      ) {
-        return
-      }
-      handleListContextMenu(e)
-    },
-    [handleListContextMenu]
-  )
+  const handleContentContextMenu = useBackgroundContextMenu(handleListContextMenu)
 
   const handleListUploadFile = useCallback(() => {
     if (!canEdit || uploading) return
@@ -1484,7 +1483,17 @@ export function Files() {
     const nextModeIcon =
       previewMode === 'editor' ? Columns2 : previewMode === 'split' ? Eye : Pencil
 
+    /** Delete sits alone on the left, away from the routine actions; Share is the primary CTA on the far right. */
     return [
+      ...(canEdit
+        ? [
+            {
+              text: 'Delete',
+              icon: Trash,
+              onSelect: handleDeleteSelected,
+            },
+          ]
+        : []),
       ...(hasSplitView
         ? [
             {
@@ -1512,12 +1521,8 @@ export function Files() {
             {
               text: 'Share',
               icon: Send,
+              variant: 'primary' as const,
               onSelect: handleShareSelected,
-            },
-            {
-              text: 'Delete',
-              icon: Trash,
-              onSelect: handleDeleteSelected,
             },
           ]
         : []),
@@ -1680,26 +1685,7 @@ export function Files() {
     breadcrumbRename.editValue,
   ])
 
-  const memberOptions: ComboboxOption[] = useMemo(
-    () =>
-      (members ?? []).map((m) => ({
-        value: m.userId,
-        label: m.name,
-        iconElement: m.image ? (
-          <img
-            src={m.image}
-            alt={m.name}
-            referrerPolicy='no-referrer'
-            className='size-[14px] rounded-full border border-[var(--border)] object-cover'
-          />
-        ) : (
-          <span className='flex size-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
-            {m.name.charAt(0).toUpperCase()}
-          </span>
-        ),
-      })),
-    [members]
-  )
+  const memberOptions: ComboboxOption[] = useMemo(() => memberFilterOptions(members), [members])
 
   const contextMenuMoveOptions = useMemo((): MoveOptionNode[] => {
     const buildSubtree = (parentId: string | null): MoveOptionNode[] =>
@@ -1897,7 +1883,7 @@ export function Files() {
     )
   }
 
-  if (selectedFile) {
+  if (selectedFile && selectedFileSource) {
     return (
       <>
         <Resource>
@@ -1906,11 +1892,12 @@ export function Files() {
             breadcrumbs={fileDetailBreadcrumbs}
             actions={fileActions}
           />
-          <FileViewer
+          <FileView
             key={selectedFile.id}
-            file={selectedFile}
-            workspaceId={workspaceId}
-            canEdit={canEdit}
+            source={selectedFileSource}
+            grants={grants}
+            host='page'
+            onNavigate={navigate}
             previewMode={previewMode}
             autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
             onDirtyChange={setIsDirty}

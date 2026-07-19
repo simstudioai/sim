@@ -12,4 +12,7 @@ export const CHAT_ERROR_MESSAGES = {
 
 export const CHAT_REQUEST_TIMEOUT_MS = 300000 // 5 minutes (same as in chat.tsx)
 
+/** Markdown note appended to a partial answer when the user stops a streaming run. */
+export const CHAT_STOPPED_NOTE = '_Response stopped by user._'
+
 export type ChatErrorType = keyof typeof CHAT_ERROR_MESSAGES

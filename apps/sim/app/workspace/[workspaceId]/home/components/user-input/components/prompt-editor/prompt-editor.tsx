@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { cn } from '@sim/emcn'
-import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
+import { ContextMentionIcon } from '@/components/chat/context-mention-icon'
 import {
   OVERLAY_CLASSES,
   SCROLLER_CLASSES,

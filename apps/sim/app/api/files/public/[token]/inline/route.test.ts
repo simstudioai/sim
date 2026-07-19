@@ -1,22 +1,32 @@
 /**
  * @vitest-environment node
  */
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveShare, mockRateLimit, mockValidateAuth, mockDownloadFile, mockResolveImage } =
-  vi.hoisted(() => ({
-    mockResolveShare: vi.fn(),
-    mockRateLimit: vi.fn(),
-    mockValidateAuth: vi.fn(),
-    mockDownloadFile: vi.fn(),
-    mockResolveImage: vi.fn(),
-  }))
+const {
+  mockResolveShare,
+  mockEnforcePerIp,
+  mockEnforcePerShare,
+  mockValidateAuth,
+  mockDownloadFile,
+  mockResolveImage,
+} = vi.hoisted(() => ({
+  mockResolveShare: vi.fn(),
+  mockEnforcePerIp: vi.fn(),
+  mockEnforcePerShare: vi.fn(),
+  mockValidateAuth: vi.fn(),
+  mockDownloadFile: vi.fn(),
+  mockResolveImage: vi.fn(),
+}))
 
 vi.mock('@/lib/public-shares/share-manager', () => ({
   resolveActiveShareByToken: mockResolveShare,
 }))
-vi.mock('@/lib/public-shares/rate-limit', () => ({ enforcePublicFileRateLimit: mockRateLimit }))
+vi.mock('@/lib/public-shares/rate-limit', () => ({
+  enforcePerIpRateLimit: mockEnforcePerIp,
+  enforcePerShareRateLimit: mockEnforcePerShare,
+}))
 vi.mock('@/lib/core/security/deployment-auth', () => ({ validateDeploymentAuth: mockValidateAuth }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFile: mockDownloadFile }))
 vi.mock('@/lib/uploads/server/inline-image', () => ({
@@ -50,7 +60,8 @@ function downloadByKey(docContent = `![a](/api/files/view/${FILE_ID})`) {
 describe('GET /api/files/public/[token]/inline', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockRateLimit.mockResolvedValue(null)
+    mockEnforcePerIp.mockResolvedValue(null)
+    mockEnforcePerShare.mockResolvedValue(null)
     mockResolveShare.mockResolvedValue(share)
     mockValidateAuth.mockResolvedValue({ authorized: true })
     mockResolveImage.mockResolvedValue({
@@ -111,6 +122,38 @@ describe('GET /api/files/public/[token]/inline', () => {
     mockResolveShare.mockResolvedValue(null)
     const res = await GET(req(`fileId=${FILE_ID}`), params)
     expect(res.status).toBe(404)
+    expect(mockDownloadFile).not.toHaveBeenCalled()
+  })
+
+  it('charges the per-IP content bucket exactly once', async () => {
+    await GET(req(`fileId=${FILE_ID}`), params)
+    expect(mockEnforcePerIp).toHaveBeenCalledTimes(1)
+    expect(mockEnforcePerIp).toHaveBeenCalledWith(expect.anything(), 'content')
+  })
+
+  /**
+   * One page of a shared document fans out to many inline requests, so the
+   * aggregate per-share ceiling matters most here — the per-IP bucket alone does
+   * not bound a link that is passed around.
+   */
+  it('enforces the per-share content bucket with the resolved share id', async () => {
+    await GET(req(`fileId=${FILE_ID}`), params)
+    expect(mockEnforcePerShare).toHaveBeenCalledTimes(1)
+    expect(mockEnforcePerShare).toHaveBeenCalledWith('content', 'sh_1')
+  })
+
+  it('never charges the per-share bucket for a request that fails the auth gate', async () => {
+    mockValidateAuth.mockResolvedValue({ authorized: false, error: 'auth_required_password' })
+    await GET(req(`fileId=${FILE_ID}`), params)
+    expect(mockEnforcePerShare).not.toHaveBeenCalled()
+  })
+
+  it('stops on the per-share bucket before any storage read', async () => {
+    mockEnforcePerShare.mockResolvedValueOnce(
+      NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+    )
+    const res = await GET(req(`fileId=${FILE_ID}`), params)
+    expect(res.status).toBe(429)
     expect(mockDownloadFile).not.toHaveBeenCalled()
   })
 })

@@ -11,7 +11,7 @@ import {
 import { validateDeploymentAuth } from '@/lib/core/security/deployment-auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
+import { enforcePerIpRateLimit, enforcePerShareRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveWorkspaceInlineImage } from '@/lib/uploads/server/inline-image'
@@ -43,7 +43,7 @@ export const GET = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
-      const limited = await enforcePublicFileRateLimit(request, 'content')
+      const limited = await enforcePerIpRateLimit(request, 'content')
       if (limited) return limited
 
       const parsed = await parseRequest(getPublicInlineFileContract, request, context)
@@ -66,6 +66,18 @@ export const GET = withRouteHandler(
       if (!auth.authorized) {
         return NextResponse.json({ error: auth.error ?? 'auth_required_password' }, { status: 401 })
       }
+
+      /**
+       * The share is only known after the token resolves, so the aggregate
+       * per-share ceiling is enforced here rather than alongside the per-IP
+       * bucket above, and after the auth gate so a caller holding the token but
+       * failing the gate cannot drain the ceiling for everyone else. Both apply,
+       * and this runs before the document and its embedded image are pulled from
+       * storage — one page of a shared document fans out to many inline
+       * requests.
+       */
+      const shareLimited = await enforcePerShareRateLimit('content', resolved.share.id)
+      if (shareLimited) return shareLimited
 
       const { file: doc } = resolved
       if (!doc.workspaceId) {

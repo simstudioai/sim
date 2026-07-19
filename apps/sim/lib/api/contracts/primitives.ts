@@ -1,8 +1,23 @@
+import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import { PII_LANGUAGE_CODES, stripNerEntities } from '@/lib/guardrails/pii-entities'
 import { validateRegexPattern } from '@/lib/guardrails/validate_regex'
 
 export const unknownRecordSchema = z.record(z.string(), z.unknown())
+
+/**
+ * Typed passthrough for a domain object whose shape the service layer already
+ * guarantees — validates only that the value is a plain record, keeping the
+ * response type precise without re-encoding the domain model as zod.
+ */
+export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
+
+/** Canonical `{ success: true, data }` response envelope. */
+export const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
+  z.object({
+    success: z.literal(true),
+    data: dataSchema,
+  })
 
 export function flattenFieldErrors<TFields extends string>(
   error: z.ZodError

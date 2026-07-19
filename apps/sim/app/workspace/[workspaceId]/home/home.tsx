@@ -62,7 +62,7 @@ import type { FileAttachmentForApi, MothershipResource, MothershipResourceType }
 const logger = createLogger('Home')
 
 /**
- * The resource preview panel pulls in the file-viewer stack (rich-markdown
+ * The resource preview panel pulls in the file-view stack (rich-markdown
  * editor, CSV/PDF viewers). It only renders once a chat has messages, so it is
  * code-split out of the initial `/chat` bundle and loaded on demand.
  */

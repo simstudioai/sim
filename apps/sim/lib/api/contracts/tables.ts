@@ -1,5 +1,5 @@
-import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
+import { domainObjectSchema, successResponseSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import type {
@@ -15,8 +15,6 @@ import type {
 } from '@/lib/table'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
-
-export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
 
 /**
  * Column types are a fixed enum derived from `COLUMN_TYPES` so callers cannot
@@ -341,12 +339,6 @@ export const updateRowsByFilterBodySchema = z.object({
   data: rowDataSchema,
   limit: optionalPositiveLimit(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit').optional(),
 })
-
-const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
-  z.object({
-    success: z.literal(true),
-    data: dataSchema,
-  })
 
 const tableColumnsResponseDataSchema = z.object({
   columns: z.array(tableColumnSchema),

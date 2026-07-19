@@ -3,12 +3,34 @@
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import {
+  formatChatOutputValue,
+  resolveChatOutputValue,
+  toChatFileMetadata,
+} from '@/lib/core/utils/chat-outputs'
 import { readSSEEvents } from '@/lib/core/utils/sse'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import type { ChatFile, ChatMessage } from '@/app/(interfaces)/chat/components/message/message'
-import { CHAT_ERROR_MESSAGES } from '@/app/(interfaces)/chat/constants'
+import { CHAT_ERROR_MESSAGES, CHAT_STOPPED_NOTE } from '@/app/(interfaces)/chat/constants'
 
 const logger = createLogger('UseChatStreaming')
+
+/**
+ * Deployed chat's deep-path fallback for {@link resolveChatOutputValue}: a
+ * plain dot-segment walk over the raw block output. Deliberately narrower than
+ * the interface chat's `traverseObjectPath` — it neither parses JSON `content`
+ * nor materializes large-value refs — preserving this surface's long-standing
+ * rendering.
+ */
+function resolveDotPath(output: Record<string, unknown>, path: string): unknown {
+  if (!path.includes('.')) return undefined
+  return path.split('.').reduce<unknown>((current, segment) => {
+    if (current && typeof current === 'object' && segment in current) {
+      return (current as Record<string, unknown>)[segment]
+    }
+    return undefined
+  }, output)
+}
 
 function extractFilesFromData(
   data: any,
@@ -22,15 +44,7 @@ function extractFilesFromData(
   if (isUserFileWithMetadata(data)) {
     if (!seenIds.has(data.id)) {
       seenIds.add(data.id)
-      files.push({
-        id: data.id,
-        name: data.name,
-        url: data.url,
-        key: data.key,
-        size: data.size,
-        type: data.type,
-        context: data.context,
-      })
+      files.push(toChatFileMetadata(data))
     }
     return files
   }
@@ -87,8 +101,7 @@ export function useChatStreaming() {
 
         if (lastMessage && lastMessage.type === 'assistant') {
           const content = latestContent || lastMessage.content
-          const updatedContent =
-            content + (content ? '\n\n_Response stopped by user._' : '_Response stopped by user._')
+          const updatedContent = content ? `${content}\n\n${CHAT_STOPPED_NOTE}` : CHAT_STOPPED_NOTE
 
           return [
             ...prev.slice(0, -1),
@@ -239,74 +252,15 @@ export function useChatStreaming() {
             const formattedOutputs: string[] = []
             let extractedFiles: ChatFile[] = []
 
-            const formatValue = (value: any): string | null => {
-              if (value === null || value === undefined) {
-                return null
-              }
-
-              if (isUserFileWithMetadata(value)) {
-                return null
-              }
-
-              if (Array.isArray(value) && value.length === 0) {
-                return null
-              }
-
-              if (typeof value === 'string') {
-                return value
-              }
-
-              if (typeof value === 'object') {
-                try {
-                  return `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``
-                } catch {
-                  return String(value)
-                }
-              }
-
-              return String(value)
-            }
-
-            const getOutputValue = (blockOutputs: Record<string, any>, path?: string) => {
-              if (!path || path === 'content') {
-                if (blockOutputs.content !== undefined) return blockOutputs.content
-                if (blockOutputs.result !== undefined) return blockOutputs.result
-                return blockOutputs
-              }
-
-              if (blockOutputs[path] !== undefined) {
-                return blockOutputs[path]
-              }
-
-              if (path.includes('.')) {
-                return path.split('.').reduce<any>((current, segment) => {
-                  if (current && typeof current === 'object' && segment in current) {
-                    return current[segment]
-                  }
-                  return undefined
-                }, blockOutputs)
-              }
-
-              return undefined
-            }
-
             if (outputConfigs?.length && finalData.output) {
               for (const config of outputConfigs) {
                 const blockOutputs = finalData.output[config.blockId]
                 if (!blockOutputs) continue
 
-                const value = getOutputValue(blockOutputs, config.path)
+                const value = resolveChatOutputValue(blockOutputs, config.path, resolveDotPath)
 
                 if (isUserFileWithMetadata(value)) {
-                  extractedFiles.push({
-                    id: value.id,
-                    name: value.name,
-                    url: value.url,
-                    key: value.key,
-                    size: value.size,
-                    type: value.type,
-                    context: value.context,
-                  })
+                  extractedFiles.push(toChatFileMetadata(value))
                   continue
                 }
 
@@ -316,7 +270,7 @@ export function useChatStreaming() {
                   continue
                 }
 
-                const formatted = formatValue(value)
+                const formatted = formatChatOutputValue(value)
                 if (formatted) {
                   formattedOutputs.push(formatted)
                 }
@@ -344,7 +298,7 @@ export function useChatStreaming() {
                 }
               } else if (finalData.success && finalData.output) {
                 const fallbackOutput = Object.values(finalData.output)
-                  .map((block) => formatValue(block)?.trim())
+                  .map((block) => formatChatOutputValue(block)?.trim())
                   .filter(Boolean)[0]
                 if (fallbackOutput) {
                   finalContent = fallbackOutput

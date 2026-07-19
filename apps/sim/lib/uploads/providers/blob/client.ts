@@ -14,6 +14,7 @@ import type {
   BlobConfig,
 } from '@/lib/uploads/providers/blob/types'
 import type { FileInfo } from '@/lib/uploads/shared/types'
+import { type ByteRange, byteRangeLength } from '@/lib/uploads/utils/byte-range'
 import { sanitizeStorageMetadata } from '@/lib/uploads/utils/file-utils'
 import { sanitizeFileName } from '@/executor/constants'
 
@@ -348,7 +349,8 @@ export async function downloadFromBlob(
  */
 export async function downloadFromBlobStream(
   key: string,
-  customConfig?: BlobConfig
+  customConfig?: BlobConfig,
+  range?: ByteRange
 ): Promise<Readable> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientType
@@ -378,7 +380,9 @@ export async function downloadFromBlobStream(
   const containerClient = blobServiceClient.getContainerClient(containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
-  const downloadBlockBlobResponse = await blockBlobClient.download()
+  const downloadBlockBlobResponse = range
+    ? await blockBlobClient.download(range.start, byteRangeLength(range))
+    : await blockBlobClient.download()
   if (!downloadBlockBlobResponse.readableStreamBody) {
     throw new Error('Failed to get readable stream from blob download')
   }

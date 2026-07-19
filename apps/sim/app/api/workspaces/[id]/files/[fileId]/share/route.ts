@@ -10,7 +10,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   getShareForResource,
   ShareValidationError,
-  upsertFileShare,
+  upsertResourceShare,
 } from '@/lib/public-shares/share-manager'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -115,9 +115,10 @@ export const PUT = withRouteHandler(
         }
       }
 
-      const share = await upsertFileShare({
+      const share = await upsertResourceShare({
+        resourceType: 'file',
+        resourceId: fileId,
         workspaceId,
-        fileId,
         userId: session.user.id,
         isActive,
         authType,

@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { cn } from '@sim/emcn'
-import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
+import { ContextMentionIcon } from '@/components/chat/context-mention-icon'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'

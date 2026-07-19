@@ -1,4 +1,5 @@
-import { readFile } from 'fs/promises'
+import { createReadStream } from 'fs'
+import { readFile, stat } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -12,10 +13,12 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { downloadFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
+import { isMediaContentType } from '@/lib/uploads/utils/byte-range'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
+  createByteRangeResponse,
   createErrorResponse,
   createFileResponse,
   FileNotFoundError,
@@ -132,10 +135,24 @@ export const GET = withRouteHandler(
       const userId = authResult.userId
 
       if (isUsingCloudStorage()) {
-        return await handleCloudProxy(cloudKey, userId, raw, versioned, request.signal)
+        return await handleCloudProxy(
+          cloudKey,
+          userId,
+          raw,
+          versioned,
+          request.signal,
+          request.headers.get('range')
+        )
       }
 
-      return await handleLocalFile(cloudKey, userId, raw, versioned, request.signal)
+      return await handleLocalFile(
+        cloudKey,
+        userId,
+        raw,
+        versioned,
+        request.signal,
+        request.headers.get('range')
+      )
     } catch (error) {
       // An in-progress/incomplete doc source fails to compile — this is expected
       // mid-generation, not a server fault. Return 409 (not 500) so it isn't an
@@ -164,7 +181,8 @@ async function handleLocalFile(
   userId: string,
   raw: boolean,
   versioned: boolean,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  rangeHeader: string | null = null
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
@@ -191,9 +209,29 @@ async function handleLocalFile(
       throw new FileNotFoundError(`File not found: ${filename}`)
     }
 
-    const rawBuffer = await readFile(filePath)
     const segment = filename.split('/').pop() || filename
     const displayName = stripStorageKeyPrefix(segment)
+
+    /**
+     * Media is byte-served here too. Local dev resolves a filesystem path rather
+     * than a storage key, so it opens its own stream — without this branch the
+     * scrubber works against cloud storage and silently dies on a dev machine.
+     */
+    if (isMediaContentType(getContentType(displayName))) {
+      const { size } = await stat(filePath)
+      logger.info('Local media served', { userId, filename, size })
+
+      return await createByteRangeResponse({
+        openStream: (range) => createReadStream(filePath, range),
+        size,
+        contentType: getContentType(displayName),
+        filename: displayName,
+        cacheControl: resolveServeCacheControl(versioned, contextParam),
+        rangeHeader,
+      })
+    }
+
+    const rawBuffer = await readFile(filePath)
     const workspaceId = getWorkspaceIdForCompile(filename)
     const { buffer: fileBuffer, contentType } = await compileDocumentIfNeeded(
       rawBuffer,
@@ -223,7 +261,8 @@ async function handleCloudProxy(
   userId: string,
   raw = false,
   versioned = false,
-  signal: AbortSignal | undefined = undefined
+  signal: AbortSignal | undefined = undefined,
+  rangeHeader: string | null = null
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
@@ -243,6 +282,32 @@ async function handleCloudProxy(
       throw new FileNotFoundError(`File not found: ${cloudKey}`)
     }
 
+    const segment = cloudKey.split('/').pop() || 'download'
+    const displayName = stripStorageKeyPrefix(segment)
+
+    /**
+     * Media is byte-served: the player fetches the slice it needs and seeks with
+     * a short request, and neither side holds the file in memory. Decided from
+     * the name before any download, since the buffered path below exists for the
+     * generated-document compile, which no media file is subject to. `copilot`
+     * keeps the buffered path — its bytes come from a different reader.
+     */
+    if (context !== 'copilot' && isMediaContentType(getContentType(displayName))) {
+      const head = await headObject(cloudKey, context)
+      if (!head) throw new FileNotFoundError(`File not found: ${cloudKey}`)
+
+      logger.info('Cloud media served', { userId, key: cloudKey, size: head.size, context })
+
+      return await createByteRangeResponse({
+        openStream: (range) => downloadFileStream({ key: cloudKey, context, range }),
+        size: head.size,
+        contentType: getContentType(displayName),
+        filename: displayName,
+        cacheControl: resolveServeCacheControl(versioned, context),
+        rangeHeader,
+      })
+    }
+
     let rawBuffer: Buffer
 
     if (context === 'copilot') {
@@ -254,8 +319,6 @@ async function handleCloudProxy(
       })
     }
 
-    const segment = cloudKey.split('/').pop() || 'download'
-    const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(cloudKey)
     const { buffer: fileBuffer, contentType } = await compileDocumentIfNeeded(
       rawBuffer,

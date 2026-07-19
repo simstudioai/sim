@@ -1,8 +1,9 @@
 'use client'
 
 import { memo } from 'react'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@sim/emcn'
+import { DropdownMenuItem } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
+import { AnchoredContextMenu } from '@/components/anchored-context-menu'
 
 interface KnowledgeListContextMenuProps {
   isOpen: boolean
@@ -24,34 +25,13 @@ export const KnowledgeListContextMenu = memo(function KnowledgeListContextMenu({
   disableAdd = false,
 }: KnowledgeListContextMenuProps) {
   return (
-    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
-      <DropdownMenuTrigger asChild>
-        <div
-          style={{
-            position: 'fixed',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
-          tabIndex={-1}
-          aria-hidden
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align='start'
-        side='bottom'
-        sideOffset={4}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        {onAddKnowledgeBase && (
-          <DropdownMenuItem disabled={disableAdd} onSelect={onAddKnowledgeBase}>
-            <Plus />
-            Add knowledge base
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <AnchoredContextMenu isOpen={isOpen} position={position} onClose={onClose}>
+      {onAddKnowledgeBase && (
+        <DropdownMenuItem disabled={disableAdd} onSelect={onAddKnowledgeBase}>
+          <Plus />
+          Add knowledge base
+        </DropdownMenuItem>
+      )}
+    </AnchoredContextMenu>
   )
 })

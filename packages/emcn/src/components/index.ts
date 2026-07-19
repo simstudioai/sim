@@ -71,6 +71,10 @@ export {
   ChipModalTabs,
   type ChipModalTabsProps,
 } from './chip-modal/chip-modal'
+export {
+  ChipPasswordInput,
+  type ChipPasswordInputProps,
+} from './chip-password-input/chip-password-input'
 export { ChipSelect, type ChipSelectOption, type ChipSelectProps } from './chip-select/chip-select'
 export {
   ChipSwitch,

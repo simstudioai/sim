@@ -2,7 +2,7 @@
 
 import type { ComponentType } from 'react'
 import { memo } from 'react'
-import { Database, Table } from '@sim/emcn/icons'
+import { Database, Panels, Table } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
 import {
   MemoizedActionItem,
@@ -302,6 +302,7 @@ export const PagesGroup = memo(function PagesGroup({
   )
 })
 
+export const InterfacesGroup = createIconGroup('Interfaces', 'interface', Panels)
 export const TablesGroup = createIconGroup('Tables', 'table', Table)
 export const KnowledgeBasesGroup = createIconGroup('Knowledge bases', 'knowledge-base', Database)
 

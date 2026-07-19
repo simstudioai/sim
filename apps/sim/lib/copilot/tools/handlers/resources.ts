@@ -4,6 +4,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { getInterfaceById } from '@/lib/interfaces'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { getLogById } from '@/lib/logs/service'
 import { getTableById } from '@/lib/table/service'
@@ -60,6 +61,15 @@ async function resolveResource(
       return { error: `Table not found in the current workspace.` }
     resourceId = tbl.id
     title = tbl.name
+  }
+  if (resourceType === 'interface') {
+    if (!item.id) return { error: 'interface resources require `id`.' }
+    const definition = await getInterfaceById(item.id)
+    if (!definition) return { error: `No interface with id "${item.id}".` }
+    if (context.workspaceId && definition.workspaceId !== context.workspaceId)
+      return { error: `Interface not found in the current workspace.` }
+    resourceId = definition.id
+    title = definition.name
   }
   if (resourceType === 'knowledgebase') {
     if (!item.id) return { error: 'knowledgebase resources require `id`.' }

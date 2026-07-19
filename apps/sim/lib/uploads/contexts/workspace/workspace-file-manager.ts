@@ -21,7 +21,7 @@ import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
 import { isReservedWorkflowAliasBackingDisplayPath } from '@/lib/copilot/vfs/workflow-aliases'
-import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { generateRestoreName, restoreWithUniqueName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
@@ -1327,22 +1327,16 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
     throw new Error('Cannot restore file into an archived workspace')
   }
 
-  /**
-   * A concurrent upload/rename can claim the chosen name after `generateRestoreName`'s check (MVCC).
-   * Retries pick a new random suffix; 23505 maps to {@link FileConflictError} after exhaustion.
-   */
-  const maxUniqueViolationRetries = 8
-  let attemptedRestoreName = ''
-
-  for (let attempt = 0; attempt < maxUniqueViolationRetries; attempt++) {
-    attemptedRestoreName = ''
-    try {
+  await restoreWithUniqueName(
+    fileRecord.originalName,
+    (attemptedName) => new FileConflictError(attemptedName),
+    async (reportAttemptedName) => {
       const newName = await generateRestoreName(
         fileRecord.originalName,
         (candidate) => fileExistsInWorkspace(workspaceId, candidate, null),
         { hasExtension: true }
       )
-      attemptedRestoreName = newName
+      reportAttemptedName(newName)
 
       const [restored] = await db
         .update(workspaceFiles)
@@ -1359,14 +1353,6 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
       if (!restored) return
 
       logger.info(`Successfully restored workspace file: ${newName}`)
-      return
-    } catch (error: unknown) {
-      if (getPostgresErrorCode(error) !== '23505') {
-        throw error
-      }
-      if (attempt === maxUniqueViolationRetries - 1) {
-        throw new FileConflictError(attemptedRestoreName || fileRecord.originalName)
-      }
     }
-  }
+  )
 }

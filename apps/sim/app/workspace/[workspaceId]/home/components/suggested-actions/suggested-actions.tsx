@@ -1,12 +1,13 @@
 'use client'
 
 import { type ComponentType, type CSSProperties, useMemo, useState } from 'react'
-import { ArrowRight, ChevronDown, chipVariants, cn, Expandable, ExpandableContent } from '@sim/emcn'
+import { ChevronDown, chipVariants, cn, Expandable, ExpandableContent } from '@sim/emcn'
 import { Shuffle, Table } from '@sim/emcn/icons'
 import { randomFloat } from '@sim/utils/random'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { ActionRow } from '@/components/action-row'
 import { GmailIcon, SlackIcon } from '@/components/icons'
 import {
   getAllBlockMeta,
@@ -388,29 +389,16 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
       <Expandable expanded={expanded}>
         <ExpandableContent className={cn('mt-2', !animationsEnabled && '!animate-none')}>
           <div className='flex flex-col'>
-            {actions.map((action, i) => {
-              const Icon = action.icon
-              return (
-                <button
-                  key={action.id}
-                  type='button'
-                  onClick={() => handleSelect(action, i)}
-                  className={cn(
-                    'flex items-center gap-2 border-[var(--divider)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
-                    i > 0 && 'border-t'
-                  )}
-                >
-                  <Icon
-                    className='size-[16px] flex-shrink-0 text-[var(--text-icon)]'
-                    style={getBareIconStyle(Icon)}
-                  />
-                  <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
-                    {action.label}
-                  </span>
-                  <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
-                </button>
-              )
-            })}
+            {actions.map((action, i) => (
+              <ActionRow
+                key={action.id}
+                icon={action.icon}
+                iconStyle={getBareIconStyle(action.icon)}
+                label={action.label}
+                onClick={() => handleSelect(action, i)}
+                divider={i > 0}
+              />
+            ))}
           </div>
         </ExpandableContent>
       </Expandable>

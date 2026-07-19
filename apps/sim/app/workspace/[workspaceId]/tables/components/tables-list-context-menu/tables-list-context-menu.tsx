@@ -1,13 +1,8 @@
 'use client'
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  Upload,
-} from '@sim/emcn'
+import { DropdownMenuItem, Upload } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
+import { AnchoredContextMenu } from '@/components/anchored-context-menu'
 
 interface TablesListContextMenuProps {
   isOpen: boolean
@@ -29,40 +24,19 @@ export function TablesListContextMenu({
   disableUpload = false,
 }: TablesListContextMenuProps) {
   return (
-    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
-      <DropdownMenuTrigger asChild>
-        <div
-          style={{
-            position: 'fixed',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
-          tabIndex={-1}
-          aria-hidden
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align='start'
-        side='bottom'
-        sideOffset={4}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        {onCreateTable && (
-          <DropdownMenuItem disabled={disableCreate} onSelect={onCreateTable}>
-            <Plus />
-            Create table
-          </DropdownMenuItem>
-        )}
-        {onUploadCsv && (
-          <DropdownMenuItem disabled={disableUpload} onSelect={onUploadCsv}>
-            <Upload />
-            Import CSV
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <AnchoredContextMenu isOpen={isOpen} position={position} onClose={onClose}>
+      {onCreateTable && (
+        <DropdownMenuItem disabled={disableCreate} onSelect={onCreateTable}>
+          <Plus />
+          Create table
+        </DropdownMenuItem>
+      )}
+      {onUploadCsv && (
+        <DropdownMenuItem disabled={disableUpload} onSelect={onUploadCsv}>
+          <Upload />
+          Import CSV
+        </DropdownMenuItem>
+      )}
+    </AnchoredContextMenu>
   )
 }

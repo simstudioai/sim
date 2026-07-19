@@ -71,6 +71,20 @@ interface ChipDropdownBaseProps extends VariantProps<typeof chipVariants> {
   leftIcon?: ChipIcon
   /** Forwarded class for the trigger button. */
   className?: string
+  /**
+   * Accessible name for the trigger. Required whenever no visible `<label>`
+   * points at it — the trigger is a `<button>` whose text is the selected
+   * option, which rarely names the field on its own.
+   */
+  'aria-label'?: string
+  /** Id of the element that names the trigger, when a visible label exists. */
+  'aria-labelledby'?: string
+  /** Id of the hint/error text describing the trigger. */
+  'aria-describedby'?: string
+  /** Marks the trigger as a required field. */
+  'aria-required'?: boolean
+  /** Marks the trigger's current value as invalid. */
+  'aria-invalid'?: boolean
 }
 
 /**
@@ -168,6 +182,11 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       active,
       fullWidth,
       flush,
+      'aria-label': ariaLabel,
+      'aria-labelledby': ariaLabelledby,
+      'aria-describedby': ariaDescribedby,
+      'aria-required': ariaRequired,
+      'aria-invalid': ariaInvalid,
     } = props
 
     const isMultiple = props.multiple === true
@@ -287,6 +306,11 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             ref={ref}
             type='button'
             disabled={disabled}
+            aria-label={ariaLabel}
+            aria-labelledby={ariaLabelledby}
+            aria-describedby={ariaDescribedby}
+            aria-required={ariaRequired}
+            aria-invalid={ariaInvalid}
             className={cn(
               chipVariants({ variant, active, fullWidth, flush }),
               hasTriggerBorder && TRIGGER_BORDER_CLASS,

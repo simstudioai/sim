@@ -129,6 +129,27 @@ export function formatFieldValues(extractedValues: Record<string, any>): string 
 }
 
 /**
+ * Serializes one output config onto the `selectedOutputs` wire format that
+ * `extractBlockIdFromOutputId`/`extractPathFromOutputId` decode —
+ * `${blockId}_${path}`, where an empty path means the block's `content` field.
+ */
+export function serializeOutputId(config: { blockId: string; path?: string | null }): string {
+  return config.path ? `${config.blockId}_${config.path}` : `${config.blockId}_content`
+}
+
+/**
+ * Serializes a list of output configs onto the `selectedOutputs` wire, in
+ * config order. The single source of the format — every producer (deployed
+ * chat, interface chat, module pickers) must go through this rather than
+ * hand-rolling the template.
+ */
+export function serializeSelectedOutputs(
+  outputConfigs: readonly { blockId: string; path?: string | null }[]
+): string[] {
+  return outputConfigs.map(serializeOutputId)
+}
+
+/**
  * Extract block ID from output ID
  * Handles both formats: "blockId" and "blockId_path" or "blockId.path"
  */

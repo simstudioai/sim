@@ -80,7 +80,7 @@ export function validateAuthToken(
 }
 
 /** The kind of deployed resource an auth cookie/token belongs to. */
-export type DeploymentAuthKind = 'chat' | 'file'
+export type DeploymentAuthKind = 'chat' | 'file' | 'interface'
 
 /** Canonical auth cookie name for a deployed resource (`{kind}_auth_{id}`). */
 export function deploymentAuthCookieName(cookiePrefix: DeploymentAuthKind, id: string): string {

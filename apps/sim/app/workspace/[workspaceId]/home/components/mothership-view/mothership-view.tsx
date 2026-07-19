@@ -2,14 +2,14 @@
 
 import { forwardRef, memo, useState } from 'react'
 import { cn } from '@sim/emcn'
-import type { FilePreviewSession } from '@/lib/copilot/request/session'
-import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import type { PreviewMode } from '@/components/resources/file-view'
 import {
   isCsvStreamOnly,
   isMarkdownFile,
   RICH_PREVIEWABLE_EXTENSIONS,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+} from '@/components/resources/file-view'
+import type { FilePreviewSession } from '@/lib/copilot/request/session'
+import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {

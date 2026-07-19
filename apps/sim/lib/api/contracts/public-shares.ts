@@ -2,7 +2,19 @@ import { z } from 'zod'
 import { inlineFileRefQuerySchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const shareResourceTypeSchema = z.enum(['file', 'folder'])
+/**
+ * What a `public_share` row points at. The DB column is free-form text and the
+ * composite unique index is `(resourceType, resourceId)`, so widening this enum
+ * is the designed extension point — no migration is involved.
+ */
+export const shareResourceTypeSchema = z.enum(['file', 'folder', 'interface'])
+
+/**
+ * Exported so server helpers (`share-manager`), client-safe helpers (`urls`),
+ * and query hooks can all name the same union instead of re-deriving it with
+ * `z.infer`, which clients are forbidden from writing.
+ */
+export type ShareResourceType = z.output<typeof shareResourceTypeSchema>
 
 /** How a public share is gated. */
 export const shareAuthTypeSchema = z.enum(['public', 'password', 'email', 'sso'])
@@ -236,5 +248,163 @@ export const publicFileSSOContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: publicFileSSOResponseSchema,
+  },
+})
+
+const interfaceShareParamsSchema = z.object({
+  interfaceId: z.string().min(1, 'Interface ID is required'),
+})
+
+/**
+ * `getInterfaceById` is not workspace-scoped, so the authed share routes
+ * authorize the caller against the record's own workspace and 404 when the
+ * client-supplied workspace disagrees.
+ */
+const interfaceShareQuerySchema = z.object({
+  workspaceId: workspaceIdSchema,
+})
+
+/** Same body shape as the file share; the token regex/bounds are unchanged. */
+export const upsertInterfaceShareBodySchema = upsertFileShareBodySchema.extend({
+  workspaceId: workspaceIdSchema,
+})
+
+export type UpsertInterfaceShareBody = z.input<typeof upsertInterfaceShareBodySchema>
+
+const getInterfaceShareResponseSchema = z.object({
+  share: shareRecordSchema.nullable(),
+})
+
+export type GetInterfaceShareResponse = z.output<typeof getInterfaceShareResponseSchema>
+
+export const getInterfaceShareContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/interfaces/[interfaceId]/share',
+  params: interfaceShareParamsSchema,
+  query: interfaceShareQuerySchema,
+  response: {
+    mode: 'json',
+    schema: getInterfaceShareResponseSchema,
+  },
+})
+
+const upsertInterfaceShareResponseSchema = z.object({
+  share: shareRecordSchema,
+})
+
+export type UpsertInterfaceShareResponse = z.output<typeof upsertInterfaceShareResponseSchema>
+
+export const upsertInterfaceShareContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/interfaces/[interfaceId]/share',
+  params: interfaceShareParamsSchema,
+  body: upsertInterfaceShareBodySchema,
+  response: {
+    mode: 'json',
+    schema: upsertInterfaceShareResponseSchema,
+  },
+})
+
+export const publicInterfaceTokenParamsSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+})
+
+const authenticatePublicInterfaceBodySchema = z.object({
+  password: z.string().min(1, 'Password is required').max(1024, 'Password is too long'),
+})
+
+export type AuthenticatePublicInterfaceBody = z.input<typeof authenticatePublicInterfaceBodySchema>
+
+const authenticatePublicInterfaceResponseSchema = z.object({
+  authType: shareAuthTypeSchema,
+})
+
+export type AuthenticatePublicInterfaceResponse = z.output<
+  typeof authenticatePublicInterfaceResponseSchema
+>
+
+/**
+ * Exchanges a share password for an `interface_auth_{shareId}` cookie. IP
+ * rate-limited; returns 401 (`Invalid password`) on mismatch and 429 when
+ * throttled. The route refuses any share whose `authType` is not `password`, so
+ * a public share can never be used to mint a cookie that would later satisfy an
+ * email/SSO gate.
+ */
+export const authenticatePublicInterfaceContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/interfaces/public/[token]',
+  params: publicInterfaceTokenParamsSchema,
+  body: authenticatePublicInterfaceBodySchema,
+  response: {
+    mode: 'json',
+    schema: authenticatePublicInterfaceResponseSchema,
+  },
+})
+
+const publicInterfaceEmailBodySchema = z.object({
+  email: z.string().email('Invalid email address'),
+})
+
+export type RequestPublicInterfaceOtpBody = z.input<typeof publicInterfaceEmailBodySchema>
+
+const requestPublicInterfaceOtpResponseSchema = z.object({
+  message: z.string(),
+})
+
+/** Sends a 6-digit verification code to an allow-listed email for an email-gated share. */
+export const requestPublicInterfaceOtpContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/interfaces/public/[token]/otp',
+  params: publicInterfaceTokenParamsSchema,
+  body: publicInterfaceEmailBodySchema,
+  response: {
+    mode: 'json',
+    schema: requestPublicInterfaceOtpResponseSchema,
+  },
+})
+
+const verifyPublicInterfaceOtpBodySchema = publicInterfaceEmailBodySchema.extend({
+  otp: z.string().length(6, 'Verification code must be 6 digits'),
+})
+
+export type VerifyPublicInterfaceOtpBody = z.input<typeof verifyPublicInterfaceOtpBodySchema>
+
+const verifyPublicInterfaceOtpResponseSchema = z.object({
+  authType: shareAuthTypeSchema,
+})
+
+export type VerifyPublicInterfaceOtpResponse = z.output<
+  typeof verifyPublicInterfaceOtpResponseSchema
+>
+
+/** Verifies the OTP and, on success, sets the `interface_auth_{shareId}` cookie. */
+export const verifyPublicInterfaceOtpContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/interfaces/public/[token]/otp',
+  params: publicInterfaceTokenParamsSchema,
+  body: verifyPublicInterfaceOtpBodySchema,
+  response: {
+    mode: 'json',
+    schema: verifyPublicInterfaceOtpResponseSchema,
+  },
+})
+
+export type PublicInterfaceSSOBody = z.input<typeof publicInterfaceEmailBodySchema>
+
+const publicInterfaceSSOResponseSchema = z.object({
+  eligible: z.boolean(),
+})
+
+export type PublicInterfaceSSOResponse = z.output<typeof publicInterfaceSSOResponseSchema>
+
+/** Reports whether an email is on the allow-list for an SSO-gated interface share. */
+export const publicInterfaceSSOContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/interfaces/public/[token]/sso',
+  params: publicInterfaceTokenParamsSchema,
+  body: publicInterfaceEmailBodySchema,
+  response: {
+    mode: 'json',
+    schema: publicInterfaceSSOResponseSchema,
   },
 })

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import type { InterfaceDefinition, InterfaceModule } from '@/lib/interfaces'
 import type { BlockConfig } from '@/blocks/types'
 import { hostedKeyEnabledWhen } from '@/tools/hosting'
 import type { ToolConfig } from '@/tools/types'
@@ -10,6 +11,7 @@ import {
   serializeBlockSchema,
   serializeFileMeta,
   serializeIntegrationSchema,
+  serializeInterfaceMeta,
   serializeKBMeta,
   serializeTableMeta,
   serializeWorkflowMeta,
@@ -106,6 +108,81 @@ describe('VFS metadata serializers', () => {
 
     expect(metadata).not.toHaveProperty('description')
     expect(JSON.stringify(metadata)).not.toContain('PRIVATE WORKFLOW DESCRIPTION')
+  })
+})
+
+describe('serializeInterfaceMeta', () => {
+  const modules: InterfaceModule[] = [
+    {
+      id: 'mod-chat',
+      type: 'chat',
+      placement: { row: 0, col: 0, rowSpan: 1, colSpan: 1 },
+      config: {
+        workflowId: 'wf-1',
+        outputConfigs: [{ blockId: 'blk-1', path: 'content' }],
+        showThinking: true,
+        welcomeMessage: 'How can I help?',
+      },
+    },
+    {
+      id: 'mod-form',
+      type: 'form',
+      placement: { row: 1, col: 1, rowSpan: 1, colSpan: 1 },
+      config: {
+        workflowId: 'wf-2',
+        submitLabel: 'Send',
+        fields: [
+          { id: 'fld-1', name: 'email', label: 'Email', type: 'short-text', required: true },
+        ],
+      },
+    },
+  ]
+
+  const baseInterface: InterfaceDefinition = {
+    id: 'iface-1',
+    workspaceId: 'ws-1',
+    name: 'Support Desk',
+    description: 'Triage inbound requests',
+    layout: { version: 1, grid: { rows: 2, cols: 2 }, modules },
+    createdBy: 'user-1',
+    createdAt: '2026-07-01T00:00:00.000Z',
+    updatedAt: '2026-07-09T12:34:56.000Z',
+    archivedAt: null,
+  }
+
+  const emptyLayout = { version: 1, grid: { rows: 2, cols: 2 }, modules: [] } as const
+
+  // The agent addresses update_module / move_module / remove_module by module id
+  // and cell, and meta.json is the ONLY place either is published (the typed
+  // workspace snapshot carries structural fields only).
+  it('publishes every module id, cell, and config so module operations can be targeted', () => {
+    const metadata = JSON.parse(serializeInterfaceMeta(baseInterface))
+
+    expect(metadata.modules).toEqual(modules)
+    expect(metadata.id).toBe('iface-1')
+    expect(metadata.description).toBe('Triage inbound requests')
+  })
+
+  it('omits an empty description and keeps an empty grid as an empty array', () => {
+    const nulled = JSON.parse(
+      serializeInterfaceMeta({ ...baseInterface, description: null, layout: emptyLayout })
+    )
+    const blank = JSON.parse(
+      serializeInterfaceMeta({ ...baseInterface, description: '', layout: emptyLayout })
+    )
+
+    expect(nulled).not.toHaveProperty('description')
+    expect(blank).not.toHaveProperty('description')
+    expect(nulled.modules).toEqual([])
+  })
+
+  // The definition's timestamps are already ISO strings (toDefinition
+  // serializes the row), so they publish verbatim.
+  it('publishes the definition timestamps verbatim', () => {
+    const metadata = JSON.parse(serializeInterfaceMeta(baseInterface))
+
+    expect(metadata.createdAt).toBe('2026-07-01T00:00:00.000Z')
+    expect(metadata.updatedAt).toBe('2026-07-09T12:34:56.000Z')
   })
 })
 

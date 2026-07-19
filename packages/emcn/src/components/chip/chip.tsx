@@ -38,6 +38,8 @@ import {
  * `active` renders the default/filled chip in its selected state — `--surface-active` at rest, one surface darker
  * (`--surface-6`) on hover. `fullWidth` swaps `inline-flex` for block-level `flex`. `flush` removes the default
  * `mx-0.5` cluster margin — use when a single chip sits in its own layout slot (grid/table cell).
+ * `centered` groups the icon and label in the middle instead of letting the label span the remaining width —
+ * only meaningful with `fullWidth`, where the label would otherwise stretch and pin the icon to the left edge.
  *
  * The default/filled hover lives in `active`-keyed compound variants (not the base variant string) so the
  * rest/hover classes are mutually exclusive — a chip renders exactly ONE `hover-hover:bg-*`. This keeps raw
@@ -63,6 +65,7 @@ const chipVariants = cva(
       active: { true: '', false: '' },
       fullWidth: { true: 'flex', false: 'inline-flex' },
       flush: { true: 'mx-0', false: 'mx-0.5' },
+      centered: { true: 'justify-center', false: '' },
     },
     compoundVariants: [
       {
@@ -86,7 +89,13 @@ const chipVariants = cva(
         className: 'bg-[var(--surface-active)] hover-hover:bg-[var(--surface-6)]',
       },
     ],
-    defaultVariants: { variant: 'default', active: false, fullWidth: false, flush: false },
+    defaultVariants: {
+      variant: 'default',
+      active: false,
+      fullWidth: false,
+      flush: false,
+      centered: false,
+    },
   }
 )
 
@@ -113,16 +122,22 @@ interface ChipBaseProps extends Omit<VariantProps<typeof chipVariants>, 'variant
  * `primary` and `destructive` set text color on the chip itself — their icon
  * and label inherit via `currentColor`. The default and `filled` chips need
  * explicit icon (`--text-icon`) and label (`--text-body`) colors.
+ *
+ * The label takes the remaining width by default, which is what left-aligns a
+ * full-width chip's icon and text. `centered` drops that so the icon↔label pair
+ * keeps its natural width — and therefore the canonical `chipContentGap` — and
+ * the root's `justify-center` can center the pair as one unit.
  */
 function ChipContent({
   variant,
+  centered,
   leftIcon: LeftIcon,
   rightIcon: RightIcon,
   children,
 }: ChipBaseProps) {
   const isInverse = variant === 'primary' || variant === 'destructive'
   const iconClass = cn(chipContentIconClass, isInverse && 'text-current')
-  const labelClass = cn(chipContentLabelClass, 'flex-1', isInverse && 'text-current')
+  const labelClass = cn(chipContentLabelClass, !centered && 'flex-1', isInverse && 'text-current')
   return (
     <>
       {LeftIcon ? <LeftIcon className={iconClass} /> : null}
@@ -142,17 +157,29 @@ interface ChipProps
  * @example <Chip leftIcon={Credit} onClick={openBilling}>{balance}</Chip>
  */
 const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
-  { className, variant, active, fullWidth, flush, leftIcon, rightIcon, children, type, ...props },
+  {
+    className,
+    variant,
+    active,
+    fullWidth,
+    flush,
+    centered,
+    leftIcon,
+    rightIcon,
+    children,
+    type,
+    ...props
+  },
   ref
 ) {
   return (
     <button
       ref={ref}
       type={type ?? 'button'}
-      className={cn(chipVariants({ variant, active, fullWidth, flush }), className)}
+      className={cn(chipVariants({ variant, active, fullWidth, flush, centered }), className)}
       {...props}
     >
-      <ChipContent variant={variant} leftIcon={leftIcon} rightIcon={rightIcon}>
+      <ChipContent variant={variant} centered={centered} leftIcon={leftIcon} rightIcon={rightIcon}>
         {children}
       </ChipContent>
     </button>
@@ -168,16 +195,27 @@ interface ChipLinkProps
  * @example <ChipLink href='/integrations' active={isCurrent} leftIcon={ArrowLeft}>Integrations</ChipLink>
  */
 const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
-  { className, variant, active, fullWidth, flush, leftIcon, rightIcon, children, ...props },
+  {
+    className,
+    variant,
+    active,
+    fullWidth,
+    flush,
+    centered,
+    leftIcon,
+    rightIcon,
+    children,
+    ...props
+  },
   ref
 ) {
   return (
     <Link
       ref={ref}
-      className={cn(chipVariants({ variant, active, fullWidth, flush }), className)}
+      className={cn(chipVariants({ variant, active, fullWidth, flush, centered }), className)}
       {...props}
     >
-      <ChipContent variant={variant} leftIcon={leftIcon} rightIcon={rightIcon}>
+      <ChipContent variant={variant} centered={centered} leftIcon={leftIcon} rightIcon={rightIcon}>
         {children}
       </ChipContent>
     </Link>

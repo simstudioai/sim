@@ -19,7 +19,7 @@ import {
   TerminalWindow,
   Wrench,
 } from '@sim/emcn'
-import { Calendar, Table as TableIcon } from '@sim/emcn/icons'
+import { Calendar, Panels, Table as TableIcon } from '@sim/emcn/icons'
 import { AgentIcon, ImageIcon, TTSIcon, VideoIcon } from '@/components/icons'
 import type { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -44,6 +44,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   run_code: TerminalWindow,
   superagent: Blimp,
   user_table: TableIcon,
+  user_interface: Panels,
   workspace_file: File,
   edit_content: File,
   create_workflow: Layout,
@@ -57,6 +58,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   knowledge_base: Database,
   search_knowledge_base: Database,
   table: TableIcon,
+  interface: Panels,
   query_user_table: TableIcon,
   scheduled_task: Calendar,
   job: Calendar,

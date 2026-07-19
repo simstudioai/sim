@@ -19,7 +19,6 @@ import { CHAT_ERROR_MESSAGES, CHAT_REQUEST_TIMEOUT_MS } from '@/app/(interfaces)
 import { useAudioStreaming, useChatStreaming } from '@/app/(interfaces)/chat/hooks'
 import SSOAuth from '@/ee/sso/components/sso-auth'
 import { useDeployedChatConfig } from '@/hooks/queries/chats'
-import { useGitHubStars } from '@/hooks/queries/github-stars'
 import { useVoiceSettings } from '@/hooks/queries/voice-settings'
 
 const logger = createLogger('ChatClient')
@@ -102,7 +101,6 @@ export default function ChatClient({ identifier }: { identifier: string }) {
 
   const { data: chatConfigResult, error: chatConfigError } = useDeployedChatConfig(identifier)
   const { data: voiceSettings } = useVoiceSettings()
-  const { data: starCount } = useGitHubStars()
 
   const sttAvailable = voiceSettings?.sttAvailable === true
   const authRequired = chatConfigResult?.kind === 'auth' ? chatConfigResult.authType : null
@@ -428,7 +426,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   return (
     <div className='light fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
       {/* Header component */}
-      <ChatHeader chatConfig={chatConfig} starCount={starCount} />
+      <ChatHeader chatConfig={chatConfig} />
 
       {/* Message Container component */}
       <ChatMessageContainer

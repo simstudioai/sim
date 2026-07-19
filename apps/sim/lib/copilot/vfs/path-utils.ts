@@ -126,6 +126,11 @@ export function canonicalTableVfsPath(name: string): string {
   return `tables/${encodeVfsSegment(name)}/meta.json`
 }
 
+/** Canonical VFS path for an interface's metadata file (`interfaces/{name}/meta.json`). */
+export function canonicalInterfaceVfsPath(name: string): string {
+  return `interfaces/${encodeVfsSegment(name)}/meta.json`
+}
+
 /** Canonical VFS directory for a knowledge base (`knowledgebases/{name}`). */
 export function canonicalKnowledgeBaseVfsDir(name: string): string {
   return `knowledgebases/${encodeVfsSegment(name)}`

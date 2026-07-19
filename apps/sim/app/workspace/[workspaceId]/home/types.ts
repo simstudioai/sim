@@ -1,15 +1,23 @@
+import type { ChatMessageAttachment, ChatMessageContext } from '@/components/chat/types'
 import type { ChatContext } from '@/stores/panel'
 
 const EDIT_CONTENT_TOOL_ID = 'edit_content'
 const RUN_SUBAGENT_ID = 'run'
 
+/**
+ * The turn-shaped types live in `@/components/chat` because both this chat and
+ * an interface's chat module render them; they are re-exported here so the
+ * Sim chat keeps one types module to import from.
+ */
+export type {
+  ChatContextKind,
+  ChatMessageAttachment,
+  ChatMessageContext,
+} from '@/components/chat/types'
 export type {
   MothershipResource,
   MothershipResourceType,
 } from '@/lib/copilot/resources/types'
-
-/** Union of all valid context kind strings, derived from {@link ChatContext}. */
-export type ChatContextKind = ChatContext['kind']
 
 export interface FileAttachmentForApi {
   id: string
@@ -117,28 +125,6 @@ export interface ContentBlock {
    */
   spanId?: string
   parentSpanId?: string
-}
-
-export interface ChatMessageAttachment {
-  id: string
-  filename: string
-  media_type: string
-  size: number
-  previewUrl?: string
-}
-
-export interface ChatMessageContext {
-  kind: ChatContextKind
-  label: string
-  workflowId?: string
-  knowledgeId?: string
-  tableId?: string
-  fileId?: string
-  folderId?: string
-  chatId?: string
-  blockType?: string
-  skillId?: string
-  serverId?: string
 }
 
 export interface ChatMessage {

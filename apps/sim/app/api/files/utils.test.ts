@@ -1,5 +1,12 @@
+import { Readable } from 'node:stream'
 import { describe, expect, it } from 'vitest'
-import { createFileResponse, extractFilename, findLocalFile } from '@/app/api/files/utils'
+import {
+  createByteRangeResponse,
+  createFileResponse,
+  extractFilename,
+  findLocalFile,
+  getContentType,
+} from '@/app/api/files/utils'
 
 describe('extractFilename', () => {
   describe('legitimate file paths', () => {
@@ -416,5 +423,118 @@ describe('findLocalFile - Path Traversal Security Tests', () => {
         }
       }
     )
+  })
+})
+
+describe('getContentType', () => {
+  /**
+   * Regression: the local map carried no media entries, so `.mp4` resolved to
+   * `application/octet-stream`. That silently disabled byte-range serving —
+   * the routes only range-serve `audio/*` and `video/*` — leaving every video
+   * unseekable while still appearing to play.
+   */
+  it('resolves video and audio extensions to real media types', () => {
+    expect(getContentType('Sim Flash.mp4')).toBe('video/mp4')
+    expect(getContentType('clip.mov')).toBe('video/quicktime')
+    expect(getContentType('song.mp3')).toBe('audio/mpeg')
+    expect(getContentType('voice.m4a')).toBe('audio/mp4')
+  })
+
+  it('still resolves the types the local map owns', () => {
+    expect(getContentType('a.pdf')).toBe('application/pdf')
+    expect(getContentType('a.csv')).toBe('text/csv')
+    expect(getContentType('a.png')).toBe('image/png')
+  })
+
+  it('falls back to octet-stream for an unknown extension', () => {
+    expect(getContentType('mystery.zzz')).toBe('application/octet-stream')
+    expect(getContentType('noextension')).toBe('application/octet-stream')
+  })
+})
+
+describe('media disposition', () => {
+  it('serves media inline so it plays instead of downloading', () => {
+    const response = createFileResponse({
+      buffer: Buffer.from('fake'),
+      contentType: 'video/mp4',
+      filename: 'clip.mp4',
+    })
+    expect(response.headers.get('Content-Disposition')).toContain('inline')
+  })
+
+  it('keeps executable-ish types as attachments', () => {
+    const response = createFileResponse({
+      buffer: Buffer.from('fake'),
+      contentType: 'text/html',
+      filename: 'page.html',
+    })
+    expect(response.headers.get('Content-Disposition')).toContain('attachment')
+  })
+})
+
+describe('createByteRangeResponse', () => {
+  const BODY = Buffer.from('0123456789')
+
+  function open(range?: { start: number; end: number }) {
+    const slice = range ? BODY.subarray(range.start, range.end + 1) : BODY
+    return Readable.from([slice])
+  }
+
+  function serve(rangeHeader: string | null) {
+    return createByteRangeResponse({
+      openStream: open,
+      size: BODY.length,
+      contentType: 'video/mp4',
+      filename: 'clip.mp4',
+      rangeHeader,
+    })
+  }
+
+  it('always advertises range support, even on a full response', async () => {
+    const response = await serve(null)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Accept-Ranges')).toBe('bytes')
+    expect(response.headers.get('Content-Length')).toBe('10')
+    expect(await response.text()).toBe('0123456789')
+  })
+
+  it('answers a range with 206 and the exact slice', async () => {
+    const response = await serve('bytes=2-5')
+    expect(response.status).toBe(206)
+    expect(response.headers.get('Content-Range')).toBe('bytes 2-5/10')
+    expect(response.headers.get('Content-Length')).toBe('4')
+    expect(await response.text()).toBe('2345')
+  })
+
+  it('serves the tail for an open-ended range', async () => {
+    const response = await serve('bytes=7-')
+    expect(response.status).toBe(206)
+    expect(response.headers.get('Content-Range')).toBe('bytes 7-9/10')
+    expect(await response.text()).toBe('789')
+  })
+
+  it('clamps an end past the object instead of reading beyond it', async () => {
+    const response = await serve('bytes=8-9999')
+    expect(response.status).toBe(206)
+    expect(response.headers.get('Content-Range')).toBe('bytes 8-9/10')
+    expect(await response.text()).toBe('89')
+  })
+
+  it('refuses a range starting past the object with 416', async () => {
+    const response = await serve('bytes=50-60')
+    expect(response.status).toBe(416)
+    expect(response.headers.get('Content-Range')).toBe('bytes */10')
+  })
+
+  it('ignores a malformed range and serves the whole object', async () => {
+    const response = await serve('bytes=abc-def')
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('0123456789')
+  })
+
+  it('serves media inline so a player renders it', async () => {
+    const response = await serve('bytes=0-1')
+    expect(response.headers.get('Content-Disposition')).toContain('inline')
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
   })
 })

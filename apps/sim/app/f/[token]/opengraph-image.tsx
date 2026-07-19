@@ -1,6 +1,6 @@
+import { buildProvenance } from '@/lib/public-shares/provenance'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { createLandingOgImage } from '@/app/(landing)/og-utils'
-import { buildProvenance } from '@/app/f/[token]/utils'
 
 export const dynamic = 'force-dynamic'
 export const contentType = 'image/png'

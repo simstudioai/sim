@@ -16,6 +16,10 @@ interface FilesListContextMenuProps {
   disableUpload?: boolean
 }
 
+/**
+ * Background right-click menu for the files list. Items mirror the page-header
+ * actions in the same order: Upload file, New folder, New file.
+ */
 export const FilesListContextMenu = memo(function FilesListContextMenu({
   isOpen,
   position,
@@ -43,10 +47,10 @@ export const FilesListContextMenu = memo(function FilesListContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        {onCreateFile && (
-          <DropdownMenuItem disabled={disableCreate} onSelect={onCreateFile}>
-            <Plus />
-            New file
+        {onUploadFile && (
+          <DropdownMenuItem disabled={disableUpload} onSelect={onUploadFile}>
+            <Upload />
+            Upload file
           </DropdownMenuItem>
         )}
         {onCreateFolder && (
@@ -55,10 +59,10 @@ export const FilesListContextMenu = memo(function FilesListContextMenu({
             New folder
           </DropdownMenuItem>
         )}
-        {onUploadFile && (
-          <DropdownMenuItem disabled={disableUpload} onSelect={onUploadFile}>
-            <Upload />
-            Upload file
+        {onCreateFile && (
+          <DropdownMenuItem disabled={disableCreate} onSelect={onCreateFile}>
+            <Plus />
+            New file
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

@@ -42,6 +42,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { Paperclip, Plus, X } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { handleKeyboardActivation } from '../../lib/keyboard'
+import { chipFieldSurfaceClass } from '../chip/chip-chrome'
 import { ChipTag, chipTagVariants } from '../chip-tag/chip-tag'
 import { Tooltip } from '../tooltip/tooltip'
 
@@ -49,26 +50,24 @@ import { Tooltip } from '../tooltip/tooltip'
  * Variant styles for the TagInput container.
  *
  * @remarks
- * - `default` matches the standard Input component styling for consistent height.
- *   Like `ChipInput`, it shows no focus ring — the surface stays calm and the
- *   caret carries focus.
- * - `block` matches the multi-row "Description" textarea pattern: larger radius,
- *   top-aligned items, and taller min-height — for use inside
- *   form sections where the tag input visually pairs with textarea fields.
- *   Uses `content-start` so wrapped flex lines pack tightly at `h-5` (20px) row
- *   pitch instead of being stretched by the `min-h-[112px]` floor; unused
- *   vertical space stays at the bottom of the container, and content beyond
- *   `max-h` scrolls vertically.
+ * - `default` wears the canonical chip-field surface ({@link chipFieldSurfaceClass})
+ *   so a single-row tag input is indistinguishable from a `ChipInput` at rest —
+ *   same 30px height, radius, border, and fill. Like `ChipInput`, it shows no
+ *   focus ring — the surface stays calm and the caret carries focus.
+ * - `block` matches the multi-row "Description" textarea pattern: top-aligned
+ *   items and taller min-height — for use inside form sections where the tag
+ *   input visually pairs with textarea fields. Uses `content-start` so wrapped
+ *   flex lines pack tightly at `h-5` (20px) row pitch instead of being stretched
+ *   by the `min-h-[112px]` floor; unused vertical space stays at the bottom of
+ *   the container, and content beyond `max-h` scrolls vertically.
  */
 const tagInputVariants = cva(
-  'flex w-full cursor-text flex-wrap gap-2 overflow-y-auto border border-[var(--border-1)] bg-[var(--surface-5)] px-2 transition-colors',
+  `flex w-full cursor-text flex-wrap gap-2 overflow-y-auto px-2 ${chipFieldSurfaceClass}`,
   {
     variants: {
       variant: {
-        default:
-          'items-center rounded-sm py-1.5 focus-within:outline-none dark:bg-[var(--surface-5)]',
-        block:
-          'min-h-[112px] content-start items-start rounded-lg py-2 focus-within:outline-none dark:bg-[var(--surface-4)]',
+        default: 'min-h-[30px] items-center py-1 focus-within:outline-none',
+        block: 'min-h-[112px] content-start items-start py-2 focus-within:outline-none',
       },
     },
     defaultVariants: {
@@ -396,7 +395,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           />
         )}
         {isDragging && (
-          <div className='absolute inset-0 flex items-center justify-center rounded-sm bg-[color-mix(in_srgb,var(--surface-5)_90%,transparent)]'>
+          <div className='absolute inset-0 flex items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--surface-5)_90%,transparent)]'>
             <span className='text-[var(--text-tertiary)] text-small'>Drop file here</span>
           </div>
         )}

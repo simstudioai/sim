@@ -7,10 +7,11 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { getStorageMethod } from '@/lib/core/storage'
 
-export type DeploymentKind = 'chat' | 'file'
+export type DeploymentKind = 'chat' | 'file' | 'interface'
 
 /**
- * Shared OTP configuration for deployment email-auth gates (chat + public file shares).
+ * Shared OTP configuration for deployment email-auth gates (chat + public file
+ * and interface shares).
  */
 export const OTP_EXPIRY_SECONDS = 15 * 60
 export const OTP_EXPIRY_MS = OTP_EXPIRY_SECONDS * 1000
@@ -41,6 +42,10 @@ const OTP_KEYS = {
   file: {
     redisKey: (email: string, deploymentId: string) => `otp:file:${email}:${deploymentId}`,
     dbIdentifier: (email: string, deploymentId: string) => `file-otp:${deploymentId}:${email}`,
+  },
+  interface: {
+    redisKey: (email: string, deploymentId: string) => `otp:interface:${email}:${deploymentId}`,
+    dbIdentifier: (email: string, deploymentId: string) => `interface-otp:${deploymentId}:${email}`,
   },
 } as const satisfies Record<
   DeploymentKind,

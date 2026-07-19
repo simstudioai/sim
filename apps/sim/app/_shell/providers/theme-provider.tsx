@@ -24,6 +24,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
     pathname.startsWith('/resume') ||
     pathname.startsWith('/oauth') ||
     pathname.startsWith('/f/') ||
+    pathname.startsWith('/i/') ||
     pathname.startsWith('/unsubscribe')
 
   const forcedTheme = isLightModePage ? 'light' : undefined

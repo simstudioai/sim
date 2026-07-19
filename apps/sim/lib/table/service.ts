@@ -14,7 +14,7 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, isNull, sql } from 'drizzle-orm'
-import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { generateRestoreName, restoreWithUniqueName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
@@ -699,21 +699,15 @@ export async function restoreTable(tableId: string, requestId: string): Promise<
     }
   }
 
-  /**
-   * A concurrent rename/create can claim the chosen name after `generateRestoreName`'s check (MVCC).
-   * Retries pick a new random suffix; 23505 maps to {@link TableConflictError} after exhaustion.
-   */
-  const maxUniqueViolationRetries = 8
-  let attemptedRestoreName = ''
-
-  for (let attempt = 0; attempt < maxUniqueViolationRetries; attempt++) {
-    attemptedRestoreName = ''
-    try {
-      await db.transaction(async (tx) => {
+  const restoredName = await restoreWithUniqueName(
+    table.name,
+    (attemptedName) => new TableConflictError(attemptedName),
+    (reportAttemptedName) =>
+      db.transaction(async (tx) => {
         await setTableTxTimeouts(tx)
         await tx.execute(sql`SELECT 1 FROM user_table_definitions WHERE id = ${tableId} FOR UPDATE`)
 
-        attemptedRestoreName = await generateRestoreName(table.name, async (candidate) => {
+        const name = await generateRestoreName(table.name, async (candidate) => {
           const [match] = await tx
             .select({ id: userTableDefinitions.id })
             .from(userTableDefinitions)
@@ -727,23 +721,15 @@ export async function restoreTable(tableId: string, requestId: string): Promise<
             .limit(1)
           return !!match
         })
+        reportAttemptedName(name)
 
-        const now = new Date()
         await tx
           .update(userTableDefinitions)
-          .set({ archivedAt: null, updatedAt: now, name: attemptedRestoreName })
+          .set({ archivedAt: null, updatedAt: new Date(), name })
           .where(eq(userTableDefinitions.id, tableId))
+        return name
       })
-      break
-    } catch (error: unknown) {
-      if (getPostgresErrorCode(error) !== '23505') {
-        throw error
-      }
-      if (attempt === maxUniqueViolationRetries - 1) {
-        throw new TableConflictError(attemptedRestoreName || table.name)
-      }
-    }
-  }
+  )
 
-  logger.info(`[${requestId}] Restored table ${tableId} as "${attemptedRestoreName}"`)
+  logger.info(`[${requestId}] Restored table ${tableId} as "${restoredName}"`)
 }

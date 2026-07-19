@@ -1,6 +1,8 @@
 'use client'
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { ChatContent } from '@/components/chat/chat-content'
+import { PendingTagIndicator } from '@/components/chat/pending-tag-indicator'
 import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
@@ -14,7 +16,7 @@ import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/ch
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
 import type { AgentGroupItem } from './components'
-import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
+import { AgentGroup, CircleStop, Options, SpecialTags } from './components'
 import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 
 const FILE_SUBAGENT_ID = 'file'
@@ -874,6 +876,7 @@ function MessageContentInner({
                 onStreamActivityChange={
                   i === segments.length - 1 ? handleTrailingStreamActivityChange : undefined
                 }
+                renderSpecialTags={SpecialTags}
               />
             )
           case 'agent_group': {

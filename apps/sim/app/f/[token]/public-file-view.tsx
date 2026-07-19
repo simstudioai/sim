@@ -1,15 +1,17 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip, TRIGGER_BORDER_CLASS } from '@sim/emcn'
 import { Download } from '@sim/emcn/icons'
-import Link from 'next/link'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { SimWordmark } from '@/app/(landing)/components/navbar/components'
-import { buildProvenance } from '@/app/f/[token]/utils'
-import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { FileView } from '@/components/resources/file-view'
+import { buildSharedByLabel } from '@/lib/public-shares/provenance'
+import { Navbar } from '@/app/(landing)/components/navbar'
+import { ShareLinkButton } from '@/app/(landing)/components/share-link-button'
 import { useBrandConfig } from '@/ee/whitelabeling'
-import { createPublicFileContentSource } from '@/hooks/use-file-content-source'
+import { fileContentUrl, grantsForShare, shareSource } from '@/resources'
+
+/** A share visitor reads the file and nothing else. */
+const SHARE_GRANTS = grantsForShare('file')
 
 interface PublicFileViewProps {
   token: string
@@ -18,7 +20,7 @@ interface PublicFileViewProps {
   size: number
   /** Content version (the file's `updatedAt`, epoch ms) — busts the viewer's caches when the file changes. */
   version: number
-  workspaceName: string | null
+  /** Display name of the share's owner, for the "Shared by" credit. */
   ownerName: string | null
 }
 
@@ -28,91 +30,64 @@ export function PublicFileView({
   type,
   size,
   version,
-  workspaceName,
   ownerName,
 }: PublicFileViewProps) {
-  const contentUrl = `/api/files/public/${token}/content`
   const brand = useBrandConfig()
-  const provenance = buildProvenance(workspaceName, ownerName)
 
-  // The public viewer reuses the in-app FileViewer; the content source seam swaps
-  // the auth-gated workspace serve URL for the token-scoped public endpoint, and a
-  // synthetic record carries the metadata the renderers/query keys need. `key` and
-  // `updatedAt` fold in the content version so the React Query caches (keyed on the
-  // storage key + `updatedAt`) refetch when the shared file changes — even when its
-  // size is unchanged.
-  // Embedded images route through the token-scoped cascade endpoint, which serves them only when the
-  // shared document actually references them and they live in its workspace.
+  /**
+   * A file share exposes exactly one file, so the grant is the token itself. The
+   * page already resolved and authorized the file's metadata, so it seeds the
+   * view rather than making the anonymous visitor fetch a record they have no
+   * endpoint for.
+   */
   const source = useMemo(
-    () => createPublicFileContentSource(token, contentUrl),
-    [token, contentUrl]
+    () => shareSource({ kind: 'file', token, grantId: token, seed: { name, type, size, version } }),
+    [token, name, type, size, version]
   )
-  const file = useMemo<WorkspaceFileRecord>(
-    () => ({
-      id: token,
-      workspaceId: token,
-      name,
-      key: `${token}@${version}`,
-      path: contentUrl,
-      size,
-      type,
-      uploadedBy: '',
-      folderId: null,
-      uploadedAt: new Date(version),
-      updatedAt: new Date(version),
-    }),
-    [token, name, type, size, version, contentUrl]
-  )
+  /** The share's own bytes, from the source — links are never hand-built. */
+  const contentUrl = fileContentUrl(source, '')
 
+  /**
+   * The root is the page's scroll port, exactly like the landing shell
+   * (`overflow-y-auto` + `overscroll-y-none`): the document body never
+   * overflows, so the sticky navbar cannot be rubber-banded past the edges,
+   * and the navbar's frost sentinel observes this port — the bar frosts to
+   * the same glass as the landing bar once content scrolls beneath it.
+   * `h-dvh` (not `h-screen`) because iOS Safari's `100vh` overshoots by the
+   * URL bar. `main` has no `min-h-0`, so flowing renderers (text/markdown)
+   * grow the port and scroll under the bar, while `h-full` renderers
+   * (PDF/CSV/media) keep the leftover height and scroll internally.
+   */
   return (
-    <div className='light flex min-h-screen flex-col bg-[var(--bg)]'>
-      <header className='sticky top-0 z-10 flex items-center justify-between gap-4 border-[var(--border)] border-b bg-[var(--bg)] px-4 py-3'>
-        <div className='flex min-w-0 items-center gap-3'>
-          {!brand.logoUrl && (
-            <>
-              <Link
-                href='https://sim.ai'
-                target='_blank'
-                rel='noopener noreferrer'
-                aria-label='Sim home'
-                className='flex shrink-0 items-center'
-              >
-                <SimWordmark />
-              </Link>
-              <div className='h-5 w-px shrink-0 bg-[var(--border)]' />
-            </>
-          )}
-          <div className='flex min-w-0 flex-col'>
-            <span className='truncate font-medium text-[14px] text-[var(--text-body)]'>{name}</span>
-            {provenance ? (
-              <span className='truncate text-[12px] text-[var(--text-muted)]'>{provenance}</span>
-            ) : null}
-          </div>
-        </div>
-        <Chip
-          variant='primary'
-          leftIcon={Download}
-          onClick={() => {
-            const anchor = document.createElement('a')
-            anchor.href = contentUrl
-            anchor.download = name
-            document.body.appendChild(anchor)
-            anchor.click()
-            anchor.remove()
-          }}
-        >
-          Download
-        </Chip>
-      </header>
+    <div className='light flex h-dvh flex-col overflow-y-auto overscroll-y-none bg-[var(--bg)]'>
+      <Navbar
+        logoOnly
+        name={name}
+        meta={buildSharedByLabel(ownerName)}
+        hideBrand={Boolean(brand.logoUrl)}
+        actions={
+          <>
+            <Chip
+              className={TRIGGER_BORDER_CLASS}
+              leftIcon={Download}
+              onClick={() => {
+                const anchor = document.createElement('a')
+                anchor.href = contentUrl
+                anchor.download = name
+                document.body.appendChild(anchor)
+                anchor.click()
+                anchor.remove()
+              }}
+            >
+              Download
+            </Chip>
+            <ShareLinkButton title={name} kind='File' />
+          </>
+        }
+      />
 
-      <main className='flex min-h-0 flex-1 flex-col'>
-        <FileViewer
-          file={file}
-          workspaceId={token}
-          contentSource={source}
-          canEdit={false}
-          readOnly
-        />
+      <main className='flex flex-1 flex-col'>
+        <FileView source={source} grants={SHARE_GRANTS} host='public' readOnly />
       </main>
     </div>
   )

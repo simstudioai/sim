@@ -1,5 +1,26 @@
+import { toError } from '@sim/utils/errors'
 import type { z } from 'zod'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+
+/**
+ * Normalizes an unexpected tool failure for logging and for the model:
+ * `errorMessage`/`cause` feed the tool's structured `logger.error`, and
+ * `displayMessage` (message with its `cause` appended when present) goes into
+ * the `Operation failed:` envelope returned to the model.
+ */
+export function formatServerToolError(error: unknown): {
+  errorMessage: string
+  cause?: string
+  displayMessage: string
+} {
+  const errorMessage = toError(error).message
+  const cause = error instanceof Error && error.cause ? toError(error.cause).message : undefined
+  return {
+    errorMessage,
+    cause,
+    displayMessage: cause ? `${errorMessage} (${cause})` : errorMessage,
+  }
+}
 
 export interface ServerToolContext {
   userId: string

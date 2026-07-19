@@ -4,10 +4,12 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getWorkspaceFileMock, resolveWorkspaceFileReferenceMock } = vi.hoisted(() => ({
-  getWorkspaceFileMock: vi.fn(),
-  resolveWorkspaceFileReferenceMock: vi.fn(),
-}))
+const { getInterfaceByIdMock, getWorkspaceFileMock, resolveWorkspaceFileReferenceMock } =
+  vi.hoisted(() => ({
+    getInterfaceByIdMock: vi.fn(),
+    getWorkspaceFileMock: vi.fn(),
+    resolveWorkspaceFileReferenceMock: vi.fn(),
+  }))
 
 vi.mock('@sim/db', () => ({
   db: {},
@@ -26,6 +28,10 @@ vi.mock('@/lib/workflows/utils', () => ({
 
 vi.mock('@/lib/table/service', () => ({
   getTableById: vi.fn(),
+}))
+
+vi.mock('@/lib/interfaces', () => ({
+  getInterfaceById: getInterfaceByIdMock,
 }))
 
 vi.mock('@/lib/knowledge/service', () => ({
@@ -160,6 +166,45 @@ describe('executeOpenResource', () => {
           path: 'files/system/.plans/root.md',
         },
       ],
+    })
+  })
+
+  it('opens a workspace interface by id', async () => {
+    getInterfaceByIdMock.mockResolvedValue({
+      id: 'int_1',
+      name: 'Support desk',
+      workspaceId: 'workspace-1',
+    })
+
+    const result = await executeOpenResource(
+      { resources: [{ type: 'interface', id: 'int_1' }] },
+      { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(getInterfaceByIdMock).toHaveBeenCalledWith('int_1')
+    expect(result).toMatchObject({
+      success: true,
+      output: { opened: 1, errors: [] },
+      resources: [{ type: 'interface', id: 'int_1', title: 'Support desk' }],
+    })
+  })
+
+  it('refuses an interface from another workspace', async () => {
+    getInterfaceByIdMock.mockResolvedValue({
+      id: 'int_1',
+      name: 'Support desk',
+      workspaceId: 'workspace-2',
+    })
+
+    const result = await executeOpenResource(
+      { resources: [{ type: 'interface', id: 'int_1' }] },
+      { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      output: { opened: 0, errors: ['Interface not found in the current workspace.'] },
+      resources: [],
     })
   })
 })

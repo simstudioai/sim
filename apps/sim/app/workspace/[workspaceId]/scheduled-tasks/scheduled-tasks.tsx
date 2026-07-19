@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { Calendar, Plus } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import type { ResourceAction } from '@/app/workspace/[workspaceId]/components'
-import { Resource } from '@/app/workspace/[workspaceId]/components'
+import { Resource, useBackgroundContextMenu } from '@/app/workspace/[workspaceId]/components'
 import { ScheduleCalendar } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-calendar'
 import { ScheduleListContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-list-context-menu'
 import { TaskContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/task-context-menu'
@@ -123,19 +123,7 @@ export function ScheduledTasks() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextTask])
 
-  const handleContentContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (
-        target.closest('[data-resource-row]') ||
-        target.closest('button, input, a, [role="button"]')
-      ) {
-        return
-      }
-      handleListContextMenu(e)
-    },
-    [handleListContextMenu]
-  )
+  const handleContentContextMenu = useBackgroundContextMenu(handleListContextMenu)
 
   const headerActions: ResourceAction[] = useMemo(
     () => [

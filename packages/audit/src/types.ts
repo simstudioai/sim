@@ -82,6 +82,14 @@ export const AuditAction = {
   FOLDER_DUPLICATED: 'folder.duplicated',
   FOLDER_RESTORED: 'folder.restored',
 
+  // Interfaces
+  INTERFACE_CREATED: 'interface.created',
+  INTERFACE_UPDATED: 'interface.updated',
+  INTERFACE_DELETED: 'interface.deleted',
+  INTERFACE_RESTORED: 'interface.restored',
+  INTERFACE_SHARED: 'interface.shared',
+  INTERFACE_SHARE_DISABLED: 'interface.share_disabled',
+
   // Invitations
   INVITATION_ACCEPTED: 'invitation.accepted',
   INVITATION_REJECTED: 'invitation.rejected',
@@ -222,6 +230,7 @@ export const AuditResourceType = {
   ENVIRONMENT: 'environment',
   FILE: 'file',
   FOLDER: 'folder',
+  INTERFACE: 'interface',
   KNOWLEDGE_BASE: 'knowledge_base',
   MCP_SERVER: 'mcp_server',
   OAUTH: 'oauth',

@@ -12,6 +12,7 @@ import {
   Home,
   Integration,
   Key,
+  Panels,
   Play,
   Plus,
   Search,
@@ -27,6 +28,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { captureEvent } from '@/lib/posthog/client'
+import type { PostHogEventMap } from '@/lib/posthog/events'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import {
@@ -51,6 +53,7 @@ import {
   DocsGroup,
   FilesGroup,
   IntegrationsGroup,
+  InterfacesGroup,
   KnowledgeBasesGroup,
   PagesGroup,
   TablesGroup,
@@ -60,16 +63,7 @@ import {
   WorkflowsGroup,
   WorkspacesGroup,
 } from './components/search-groups'
-import type {
-  ActionItem,
-  FileItem,
-  IntegrationSearchItem,
-  PageItem,
-  SearchModalProps,
-  TaskItem,
-  WorkflowItem,
-  WorkspaceItem,
-} from './utils'
+import type { ActionItem, PageItem, SearchModalProps, WorkflowItem, WorkspaceItem } from './utils'
 import { filterAndCap, filterAndSort } from './utils'
 
 const logger = createLogger('SearchModal')
@@ -82,6 +76,7 @@ export function SearchModal({
   workflows = [],
   workspaces = [],
   chats = [],
+  interfaces = [],
   tables = [],
   files = [],
   knowledgeBases = [],
@@ -136,6 +131,12 @@ export function SearchModal({
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
           hidden: permissionConfig.hideIntegrationsTab,
+        },
+        {
+          id: 'interfaces',
+          name: 'Interfaces',
+          icon: Panels,
+          href: `/workspace/${workspaceId}/interfaces`,
         },
         {
           id: 'tables',
@@ -420,57 +421,34 @@ export function SearchModal({
     [workspaceId]
   )
 
-  const handleChatSelect = useCallback(
-    (chat: TaskItem) => {
-      routerRef.current.push(chat.href)
-      captureEvent(posthogRef.current, 'search_result_selected', {
-        result_type: 'task',
-        query_length: deferredSearchRef.current.length,
-        workspace_id: workspaceId,
-      })
-      onOpenChangeRef.current(false)
-    },
-    [workspaceId]
-  )
-
-  const handleTableSelect = useCallback(
-    (item: TaskItem) => {
-      routerRef.current.push(item.href)
-      captureEvent(posthogRef.current, 'search_result_selected', {
-        result_type: 'table',
-        query_length: deferredSearchRef.current.length,
-        workspace_id: workspaceId,
-      })
-      onOpenChangeRef.current(false)
-    },
-    [workspaceId]
-  )
-
-  const handleFileSelect = useCallback(
-    (item: FileItem) => {
-      routerRef.current.push(item.href)
-      captureEvent(posthogRef.current, 'search_result_selected', {
-        result_type: 'file',
-        query_length: deferredSearchRef.current.length,
-        workspace_id: workspaceId,
-      })
-      onOpenChangeRef.current(false)
-    },
-    [workspaceId]
-  )
-
-  const handleKbSelect = useCallback(
-    (item: TaskItem) => {
-      routerRef.current.push(item.href)
-      captureEvent(posthogRef.current, 'search_result_selected', {
-        result_type: 'knowledge_base',
-        query_length: deferredSearchRef.current.length,
-        workspace_id: workspaceId,
-      })
-      onOpenChangeRef.current(false)
-    },
-    [workspaceId]
-  )
+  /**
+   * The navigate-and-track result groups differ only in the tracked
+   * `result_type` — one factory builds every handler so the flow lives in one
+   * place. Handler identities are stable across renders (refs inside, only
+   * `workspaceId` as a dep).
+   */
+  const navSelectHandlers = useMemo(() => {
+    const make =
+      (resultType: PostHogEventMap['search_result_selected']['result_type']) =>
+      (item: { href: string }) => {
+        routerRef.current.push(item.href)
+        captureEvent(posthogRef.current, 'search_result_selected', {
+          result_type: resultType,
+          query_length: deferredSearchRef.current.length,
+          workspace_id: workspaceId,
+        })
+        onOpenChangeRef.current(false)
+      }
+    return {
+      chat: make('task'),
+      interface: make('interface'),
+      table: make('table'),
+      file: make('file'),
+      kb: make('knowledge_base'),
+      connectedAccount: make('connected_account'),
+      integration: make('integration'),
+    }
+  }, [workspaceId])
 
   const handlePageSelect = useCallback(
     (page: PageItem) => {
@@ -498,32 +476,6 @@ export function SearchModal({
       window.open(doc.href, '_blank', 'noopener,noreferrer')
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'docs',
-        query_length: deferredSearchRef.current.length,
-        workspace_id: workspaceId,
-      })
-      onOpenChangeRef.current(false)
-    },
-    [workspaceId]
-  )
-
-  const handleConnectedAccountSelect = useCallback(
-    (item: IntegrationSearchItem) => {
-      routerRef.current.push(item.href)
-      captureEvent(posthogRef.current, 'search_result_selected', {
-        result_type: 'connected_account',
-        query_length: deferredSearchRef.current.length,
-        workspace_id: workspaceId,
-      })
-      onOpenChangeRef.current(false)
-    },
-    [workspaceId]
-  )
-
-  const handleIntegrationSelect = useCallback(
-    (item: IntegrationSearchItem) => {
-      routerRef.current.push(item.href)
-      captureEvent(posthogRef.current, 'search_result_selected', {
-        result_type: 'integration',
         query_length: deferredSearchRef.current.length,
         workspace_id: workspaceId,
       })
@@ -617,6 +569,10 @@ export function SearchModal({
     return filterAndCap(docs, (d) => `${d.name} docs documentation`, deferredSearch)
   }, [isOnWorkflowPage, docs, deferredSearch])
 
+  const filteredInterfaces = useMemo(
+    () => filterAndCap(interfaces, (i) => i.name, deferredSearch),
+    [interfaces, deferredSearch]
+  )
   const filteredTables = useMemo(
     () => filterAndCap(tables, (t) => t.name, deferredSearch),
     [tables, deferredSearch]
@@ -721,14 +677,14 @@ export function SearchModal({
               {showSection('connectedAccounts') && (
                 <ConnectedAccountsGroup
                   items={filteredConnectedAccounts}
-                  onSelect={handleConnectedAccountSelect}
+                  onSelect={navSelectHandlers.connectedAccount}
                   query={deferredSearch}
                 />
               )}
               {showSection('integrations') && (
                 <IntegrationsGroup
                   items={filteredIntegrations}
-                  onSelect={handleIntegrationSelect}
+                  onSelect={navSelectHandlers.integration}
                   query={deferredSearch}
                 />
               )}
@@ -756,7 +712,7 @@ export function SearchModal({
               {showSection('chats') && (
                 <ChatsGroup
                   items={filteredChats}
-                  onSelect={handleChatSelect}
+                  onSelect={navSelectHandlers.chat}
                   query={deferredSearch}
                 />
               )}
@@ -770,21 +726,28 @@ export function SearchModal({
               {showSection('tables') && (
                 <TablesGroup
                   items={filteredTables}
-                  onSelect={handleTableSelect}
+                  onSelect={navSelectHandlers.table}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('interfaces') && (
+                <InterfacesGroup
+                  items={filteredInterfaces}
+                  onSelect={navSelectHandlers.interface}
                   query={deferredSearch}
                 />
               )}
               {showSection('files') && (
                 <FilesGroup
                   items={filteredFiles}
-                  onSelect={handleFileSelect}
+                  onSelect={navSelectHandlers.file}
                   query={deferredSearch}
                 />
               )}
               {showSection('knowledgeBases') && (
                 <KnowledgeBasesGroup
                   items={filteredKnowledgeBases}
-                  onSelect={handleKbSelect}
+                  onSelect={navSelectHandlers.kb}
                   query={deferredSearch}
                 />
               )}

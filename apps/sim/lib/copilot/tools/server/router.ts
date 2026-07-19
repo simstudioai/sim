@@ -15,6 +15,7 @@ import {
   ManageCustomTool,
   ManageMcpTool,
   ManageSkill,
+  UserInterface,
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -43,6 +44,10 @@ import { renameFileServerTool } from '@/lib/copilot/tools/server/files/rename-fi
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
+import {
+  USER_INTERFACE_WRITE_OPERATIONS,
+  userInterfaceServerTool,
+} from '@/lib/copilot/tools/server/interfaces/user-interface'
 import { getJobLogsServerTool } from '@/lib/copilot/tools/server/jobs/get-job-logs'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
 import { searchKnowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/search-knowledge-base'
@@ -120,6 +125,7 @@ const WRITE_ACTIONS: Record<string, string[]> = {
     'update_column',
     'add_enrichment',
   ],
+  [UserInterface.id]: [...USER_INTERFACE_WRITE_OPERATIONS],
   [ManageCustomTool.id]: ['add', 'edit', 'delete'],
   [ManageMcpTool.id]: ['add', 'edit', 'delete'],
   [ManageSkill.id]: ['add', 'edit', 'delete'],
@@ -171,6 +177,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [enrichmentRunServerTool.name]: enrichmentRunServerTool,
   [userTableServerTool.name]: userTableServerTool,
   [queryUserTableServerTool.name]: queryUserTableServerTool,
+  [userInterfaceServerTool.name]: userInterfaceServerTool,
   [workspaceFileServerTool.name]: workspaceFileServerTool,
   [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,

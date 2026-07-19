@@ -6,6 +6,7 @@ import {
   ButtonGroupItem,
   ChipConfirmModal,
   ChipInput,
+  ChipPasswordInput,
   cn,
   Input,
   Label,
@@ -20,8 +21,8 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
 import { AlertTriangle, Check } from 'lucide-react'
-import { GeneratedPasswordInput } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { generatePassword } from '@/lib/core/security/encryption'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
@@ -700,9 +701,10 @@ function AuthSelector({
           <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Password
           </Label>
-          <GeneratedPasswordInput
+          <ChipPasswordInput
             value={password}
             onChange={onPasswordChange}
+            onGenerate={() => generatePassword(24)}
             disabled={disabled}
             placeholder={getPasswordPlaceholder(hasExistingPassword)}
             required={!hasExistingPassword}

@@ -101,6 +101,8 @@ export const deployedChatConfigSchema = z.object({
     (value) => value ?? undefined,
     z.array(deployedChatOutputConfigSchema).optional()
   ),
+  /** Display name of the deployer, for the header's "Shared by" credit. Omitted when unknown. */
+  sharedByName: z.string().min(1).optional(),
 })
 export type DeployedChatConfig = z.output<typeof deployedChatConfigSchema>
 

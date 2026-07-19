@@ -136,6 +136,20 @@ export interface ComboboxProps
   maxHeight?: number
   /** Empty state message when no options match the search */
   emptyMessage?: string
+  /**
+   * Accessible name for the control. Required whenever no visible `<label>`
+   * names it — a `<label htmlFor>` cannot target `div[role="combobox"]`, so a
+   * labelled field must pass its title here.
+   *
+   * Routed to the `role="combobox"` element (the editable `<input>` in
+   * `editable` mode) rather than to the layout wrapper that takes the rest of
+   * the spread props, so it resolves as the control's accessible name.
+   */
+  'aria-label'?: string
+  /** Id of the element that names the control. Routed like `aria-label`. */
+  'aria-labelledby'?: string
+  /** Id of the hint/error text describing the control. Routed like `aria-label`. */
+  'aria-describedby'?: string
 }
 
 /**
@@ -177,6 +191,9 @@ const Combobox = memo(
         groups,
         maxHeight = 192,
         emptyMessage,
+        'aria-label': ariaLabel,
+        'aria-labelledby': ariaLabelledby,
+        'aria-describedby': ariaDescribedby,
         ...props
       },
       ref
@@ -550,6 +567,9 @@ const Combobox = memo(
                       onBlur={handleBlur}
                       onKeyDown={handleKeyDown}
                       disabled={disabled}
+                      aria-label={ariaLabel}
+                      aria-labelledby={ariaLabelledby}
+                      aria-describedby={ariaDescribedby}
                       {...inputProps}
                     />
                     {(overlayContent || SelectedIcon) && (
@@ -593,6 +613,9 @@ const Combobox = memo(
                     aria-haspopup='listbox'
                     aria-controls={listboxId}
                     aria-disabled={disabled}
+                    aria-label={ariaLabel}
+                    aria-labelledby={ariaLabelledby}
+                    aria-describedby={ariaDescribedby}
                     tabIndex={disabled ? -1 : 0}
                     className={cn(
                       comboboxVariants({ variant, size }),

@@ -99,6 +99,13 @@ export class PublicFileSharingNotAllowedError extends Error {
   }
 }
 
+export class PublicInterfaceSharingNotAllowedError extends Error {
+  constructor() {
+    super('Public interface sharing is not allowed based on your permission group settings')
+    this.name = 'PublicInterfaceSharingNotAllowedError'
+  }
+}
+
 /**
  * Merges the env allowlist into a permission config.
  * If `config` is null and no env allowlist is set, returns null.
@@ -261,37 +268,88 @@ export async function getUserPermissionConfig(
   return mergeEnvAllowlist(resolved?.config ?? null)
 }
 
+interface PublicSharingPolicy {
+  /** Config key for the master on/off switch. */
+  disableKey: 'disablePublicFileSharing' | 'disablePublicInterfaceSharing'
+  /** Config key for the per-auth-mode allow-list; `null` allows every mode. */
+  allowKey: 'allowedFileShareAuthTypes' | 'allowedInterfaceShareAuthTypes'
+  /** Thrown on either denial. */
+  ErrorClass: new () => Error
+  /** Resource family, for the denial log. */
+  resource: 'file' | 'interface'
+}
+
+/**
+ * Shared body behind {@link validatePublicFileSharing} and
+ * {@link validatePublicInterfaceSharing} so the two gates cannot drift. No-op
+ * when access control doesn't apply (non-enterprise / disabled), so non-governed
+ * orgs are unaffected.
+ */
+async function validatePublicSharing(
+  userId: string,
+  workspaceId: string,
+  authType: ShareAuthType | undefined,
+  policy: PublicSharingPolicy
+): Promise<void> {
+  const config = await getUserPermissionConfig(userId, workspaceId)
+  if (!config) {
+    return
+  }
+  if (config[policy.disableKey]) {
+    throw new policy.ErrorClass()
+  }
+  const allowedAuthTypes = config[policy.allowKey]
+  if (authType && allowedAuthTypes !== null && !allowedAuthTypes.includes(authType)) {
+    logger.warn('Share auth type blocked by permission group', {
+      resource: policy.resource,
+      userId,
+      workspaceId,
+      authType,
+    })
+    throw new policy.ErrorClass()
+  }
+}
+
+const FILE_SHARING_POLICY: PublicSharingPolicy = {
+  disableKey: 'disablePublicFileSharing',
+  allowKey: 'allowedFileShareAuthTypes',
+  ErrorClass: PublicFileSharingNotAllowedError,
+  resource: 'file',
+}
+
+const INTERFACE_SHARING_POLICY: PublicSharingPolicy = {
+  disableKey: 'disablePublicInterfaceSharing',
+  allowKey: 'allowedInterfaceShareAuthTypes',
+  ErrorClass: PublicInterfaceSharingNotAllowedError,
+  resource: 'interface',
+}
+
 /**
  * Throws {@link PublicFileSharingNotAllowedError} if the user's effective permission
  * group for the workspace disables public file sharing, or — when `authType` is
  * given — if that auth mode isn't in the group's `allowedFileShareAuthTypes`
- * allow-list (`null` allows all). No-op when access control doesn't apply
- * (non-enterprise / disabled), so non-governed orgs are unaffected.
+ * allow-list (`null` allows all).
  */
 export async function validatePublicFileSharing(
   userId: string,
   workspaceId: string,
   authType?: ShareAuthType
 ): Promise<void> {
-  const config = await getUserPermissionConfig(userId, workspaceId)
-  if (!config) {
-    return
-  }
-  if (config.disablePublicFileSharing) {
-    throw new PublicFileSharingNotAllowedError()
-  }
-  if (
-    authType &&
-    config.allowedFileShareAuthTypes !== null &&
-    !config.allowedFileShareAuthTypes.includes(authType)
-  ) {
-    logger.warn('File share auth type blocked by permission group', {
-      userId,
-      workspaceId,
-      authType,
-    })
-    throw new PublicFileSharingNotAllowedError()
-  }
+  return validatePublicSharing(userId, workspaceId, authType, FILE_SHARING_POLICY)
+}
+
+/**
+ * Interface counterpart of {@link validatePublicFileSharing}, gated on its own
+ * config keys. A public interface runs workflows and accepts form submissions on
+ * the workspace's compute and billing account, so it carries a switch separate
+ * from the file one rather than inheriting an admin's file-only decision.
+ */
+export async function validatePublicInterfaceSharing(
+  userId: string,
+  workspaceId: string,
+  authType?: ShareAuthType
+): Promise<void> {
+  return validatePublicSharing(userId, workspaceId, authType, INTERFACE_SHARING_POLICY)
 }
 
 /**

@@ -49,7 +49,7 @@ import {
 } from '@/providers/models'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
 import { useProvidersStore } from '@/stores/providers/store'
-import { mergeToolParameters } from '@/tools/params'
+import { mergeToolParameters } from '@/tools/merge-params'
 
 const logger = createLogger('ProviderUtils')
 

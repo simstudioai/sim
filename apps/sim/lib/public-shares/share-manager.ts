@@ -1,16 +1,16 @@
 import { db } from '@sim/db'
-import { publicShare, user, workspace, workspaceFiles } from '@sim/db/schema'
+import { publicShare, user, workspace, workspaceFiles, workspaceInterface } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import type { z } from 'zod'
 import type {
   ShareAuthType,
   ShareRecord,
-  shareResourceTypeSchema,
+  ShareResourceType,
 } from '@/lib/api/contracts/public-shares'
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import type { InterfaceDefinition, InterfaceLayout } from '@/lib/interfaces/types'
+import { buildShareUrl } from '@/lib/public-shares/urls'
 
 const logger = createLogger('PublicShareManager')
 
@@ -22,22 +22,16 @@ export class ShareValidationError extends Error {
   }
 }
 
-type ShareResourceType = z.infer<typeof shareResourceTypeSchema>
-
 type PublicShareRow = typeof publicShare.$inferSelect
 
-/** Public share URL for a token: `{baseUrl}/f/{token}`. */
-export function buildShareUrl(token: string): string {
-  return `${getBaseUrl()}/f/${token}`
-}
-
 function mapShareRecord(row: PublicShareRow): ShareRecord {
+  const resourceType = row.resourceType as ShareResourceType
   return {
     id: row.id,
     token: row.token,
-    url: buildShareUrl(row.token),
+    url: buildShareUrl(resourceType, row.token),
     isActive: row.isActive,
-    resourceType: row.resourceType as ShareResourceType,
+    resourceType,
     resourceId: row.resourceId,
     authType: row.authType as ShareAuthType,
     hasPassword: Boolean(row.password),
@@ -82,9 +76,11 @@ export async function getSharesForResources(
   return result
 }
 
-interface UpsertFileShareInput {
+export interface UpsertResourceShareInput {
+  /** Which resource family the share points at; pins both the lookup and the link prefix. */
+  resourceType: ShareResourceType
+  resourceId: string
   workspaceId: string
-  fileId: string
   userId: string
   isActive: boolean
   /** Defaults to the existing share's authType (or `'public'` for a new share). */
@@ -98,9 +94,10 @@ interface UpsertFileShareInput {
 }
 
 /**
- * Enable or disable the public share for a file. First enable inserts a row with
- * a fresh unguessable token; subsequent calls flip `isActive`/`authType` and keep
- * the token stable (so an existing link resolves again after re-enable).
+ * Enable or disable the public share for a resource. First enable inserts a row
+ * with a fresh unguessable token; subsequent calls flip `isActive`/`authType`
+ * and keep the token stable (so an existing link resolves again after
+ * re-enable).
  *
  * Auth validation only applies when **enabling** (`isActive: true`): `password`
  * requires a plaintext `password` unless one is already stored (encrypted via
@@ -108,20 +105,21 @@ interface UpsertFileShareInput {
  * Disabling (going Private) always succeeds and preserves the stored config so a
  * later re-enable restores it. Validation failures throw {@link ShareValidationError}.
  */
-export async function upsertFileShare({
+export async function upsertResourceShare({
+  resourceType,
+  resourceId,
   workspaceId,
-  fileId,
   userId,
   isActive,
   authType,
   password,
   allowedEmails,
   token,
-}: UpsertFileShareInput): Promise<ShareRecord> {
+}: UpsertResourceShareInput): Promise<ShareRecord> {
   const [existing] = await db
     .select()
     .from(publicShare)
-    .where(and(eq(publicShare.resourceType, 'file'), eq(publicShare.resourceId, fileId)))
+    .where(and(eq(publicShare.resourceType, resourceType), eq(publicShare.resourceId, resourceId)))
     .limit(1)
 
   const finalAuthType: ShareAuthType =
@@ -162,8 +160,8 @@ export async function upsertFileShare({
     .insert(publicShare)
     .values({
       id: generateId(),
-      resourceType: 'file',
-      resourceId: fileId,
+      resourceType,
+      resourceId,
       workspaceId,
       createdBy: userId,
       token: token ?? generateShortId(),
@@ -184,12 +182,15 @@ export async function upsertFileShare({
     })
     .returning()
 
-  logger.info('Upserted file share', {
-    fileId,
+  // `shareId` is the correlation key; the token is bearer material for the share
+  // and must never be reconstructable from logs.
+  logger.info('Upserted resource share', {
+    shareId: row.id,
+    resourceType,
+    resourceId,
     workspaceId,
     isActive,
     authType: finalAuthType,
-    token: row.token,
   })
   return mapShareRecord(row)
 }
@@ -236,6 +237,84 @@ export async function resolveActiveShareByToken(token: string): Promise<Resolved
   return {
     share: row.share,
     file: row.file,
+    workspaceName: row.workspaceName,
+    ownerName: row.ownerName,
+  }
+}
+
+type WorkspaceInterfaceRow = typeof workspaceInterface.$inferSelect
+
+/**
+ * Mirrors the interface service's private row mapper so the token resolve stays
+ * a single query. TypeScript enforces completeness, so a new
+ * {@link InterfaceDefinition} field cannot silently go missing here.
+ */
+function toInterfaceDefinition(row: WorkspaceInterfaceRow): InterfaceDefinition {
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    name: row.name,
+    description: row.description,
+    layout: row.layout as InterfaceLayout,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
+  }
+}
+
+export interface ResolvedInterfaceShare {
+  share: PublicShareRow
+  /** The interface's stored definition — the only authority for what a token grants. */
+  definition: InterfaceDefinition
+  /** The interface's own workspace, re-asserted against every resolved resource. */
+  workspaceId: string
+  /** Owning workspace name, for provenance on the public page. */
+  workspaceName: string | null
+  /** Display name of the interface's creator. */
+  ownerName: string | null
+}
+
+/**
+ * Resolve a public token to its active share and the underlying (non-archived)
+ * interface.
+ *
+ * `resourceType` is pinned to `'interface'` in the WHERE clause, so a file
+ * token can never resolve through this path. Returns null when the token is
+ * unknown, the share is inactive, or the interface is archived — the caller
+ * treats all three identically as a 404, so the existence of an interface is
+ * never leaked.
+ */
+export async function resolveActiveInterfaceShareByToken(
+  token: string
+): Promise<ResolvedInterfaceShare | null> {
+  const [row] = await db
+    .select({
+      share: publicShare,
+      definition: workspaceInterface,
+      workspaceName: workspace.name,
+      ownerName: user.name,
+    })
+    .from(publicShare)
+    .innerJoin(workspaceInterface, eq(workspaceInterface.id, publicShare.resourceId))
+    .leftJoin(workspace, eq(workspace.id, workspaceInterface.workspaceId))
+    .leftJoin(user, eq(user.id, workspaceInterface.createdBy))
+    .where(
+      and(
+        eq(publicShare.token, token),
+        eq(publicShare.isActive, true),
+        eq(publicShare.resourceType, 'interface'),
+        isNull(workspaceInterface.archivedAt)
+      )
+    )
+    .limit(1)
+
+  if (!row) return null
+
+  return {
+    share: row.share,
+    definition: toInterfaceDefinition(row.definition),
+    workspaceId: row.definition.workspaceId,
     workspaceName: row.workspaceName,
     ownerName: row.ownerName,
   }
