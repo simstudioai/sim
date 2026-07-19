@@ -760,11 +760,20 @@ class McpService {
           return
         }
         if (outcome.kind === 'oauth-pending') {
-          // Mark disconnected so the UI surfaces the re-auth button.
+          // Mark disconnected so the UI surfaces the re-auth button, and drop the positive
+          // tool cache so a follow-up force-refresh can't serve tools for a server that now
+          // needs re-auth (mirrors the single-server discovery path).
           logger.info(`[${requestId}] Skipping server ${server.name}: OAuth authorization pending`)
           deferredSideEffects.push(
             this.markServerOauthPending(server.id, workspaceId, discoveryStartedAt).then(
-              () => undefined
+              async (statusApplied) => {
+                if (!statusApplied) return
+                await this.cacheAdapter
+                  .delete(serverCacheKey(workspaceId, server.id))
+                  .catch((err) =>
+                    logger.warn(`[${requestId}] Cache delete failed for ${server.name}:`, err)
+                  )
+              }
             )
           )
           return

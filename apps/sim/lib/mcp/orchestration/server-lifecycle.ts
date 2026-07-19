@@ -169,7 +169,10 @@ export async function performCreateMcpServer(
         currentEncryptedClientSecret: existingServer.oauthClientSecret,
       })
       const isRevival = existingServer.deletedAt !== null
-      const shouldClearOauth = urlChanged || credsChanged || isRevival
+      const authTypeChanged = existingServer.authType !== resolvedAuthType
+      // Turning OAuth off orphans its tokens; revoke and delete them, mirroring the update path.
+      const oauthDisabled = existingServer.authType === 'oauth' && resolvedAuthType !== 'oauth'
+      const shouldClearOauth = urlChanged || credsChanged || isRevival || oauthDisabled
 
       if (shouldClearOauth) await revokeMcpOauthTokens(serverId)
 
@@ -191,9 +194,13 @@ export async function performCreateMcpServer(
           deletedAt: null,
         }
         if (resolvedAuthType === 'oauth') {
-          if (shouldClearOauth) {
+          // A flip to OAuth (headers→OAuth carries no tokens to clear) or an OAuth URL/creds
+          // change leaves no valid session: reset to disconnected so the UI shows
+          // "authorization required" instead of a stale connected state until the flow completes.
+          if (authTypeChanged || shouldClearOauth) {
             updateValues.connectionStatus = 'disconnected'
             updateValues.lastConnected = null
+            updateValues.lastError = null
           }
         } else {
           updateValues.connectionStatus = 'connected'
