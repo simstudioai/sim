@@ -125,6 +125,18 @@ function isDeadConnectionError(error: unknown): boolean {
   )
 }
 
+/**
+ * An auth failure (401) from a rotated/revoked credential. Safe for `executeTool`
+ * to retry — auth is rejected *before* the tool runs, so re-acquiring on a fresh
+ * connection (which re-resolves the credential) can't double-execute a tool.
+ */
+function isAuthError(error: unknown): boolean {
+  return (
+    error instanceof UnauthorizedError ||
+    (error instanceof StreamableHTTPError && error.code === 401)
+  )
+}
+
 /** Transient failures a read-only `tools/list` may safely retry (idempotent, unlike `tools/call`); excludes OAuth and terminal 4xx. */
 function isRetryableDiscoveryError(error: unknown): boolean {
   if (isTimeoutError(error)) return true
@@ -435,9 +447,12 @@ class McpService {
         logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)
         return result
       } catch (error) {
-        if (this.isSessionError(error) && attempt < maxRetries - 1) {
+        // A stale session (400/404) or a rotated/revoked credential (401) is rejected
+        // before the tool runs, so retrying on a fresh connection is safe and recovers
+        // the request. Timeouts/resets are NOT retried — the tool may have executed.
+        if ((this.isSessionError(error) || isAuthError(error)) && attempt < maxRetries - 1) {
           logger.warn(
-            `[${requestId}] Session error executing tool ${toolCall.name}, retrying (attempt ${attempt + 1}):`,
+            `[${requestId}] Retryable connection error executing tool ${toolCall.name}, retrying (attempt ${attempt + 1}):`,
             error
           )
           await sleep(100)

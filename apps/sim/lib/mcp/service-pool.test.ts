@@ -180,4 +180,23 @@ describe('McpService connection reuse wiring', () => {
 
     expect(mockRelease).toHaveBeenCalledWith(true)
   })
+
+  it('retries and recovers when a rotated credential causes a one-off auth failure', async () => {
+    mockCallTool
+      .mockRejectedValueOnce(new UnauthorizedError('stale key'))
+      .mockResolvedValueOnce({ content: [] })
+
+    const result = await mcpService.executeTool(
+      USER_ID,
+      'server-1',
+      { name: 'do', arguments: {} },
+      WORKSPACE_ID
+    )
+
+    expect(result).toEqual({ content: [] })
+    expect(mockCallTool).toHaveBeenCalledTimes(2)
+    // First attempt poisoned the stale lease; the retry re-acquired a fresh one.
+    expect(mockRelease).toHaveBeenCalledWith(true)
+    expect(mockAcquire).toHaveBeenCalledTimes(2)
+  })
 })

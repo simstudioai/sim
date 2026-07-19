@@ -9,7 +9,7 @@
  * ping-cached; reconnect is demand-driven (callers' retries re-acquire).
  *
  * Connections are ref-counted. Eviction *retires* an entry — removes it from the
- * pool so no new borrower can take it — but the socket is closed only once the
+ * pool so later acquires stop reusing it — but the socket is closed only once the
  * last in-flight borrower releases, so a sibling failure, idle sweep, or config
  * change never tears down a connection mid-request. Retirement is identity-checked,
  * so a stale `onClose` can't disconnect a replacement stored under the same key.
@@ -78,30 +78,29 @@ export class McpConnectionPool {
       const client = await params.create()
       return { client, release: () => client.disconnect().catch(() => {}) }
     }
-    const entry = await this.resolveEntry(params)
-    // A concurrent evict/release/idle could have retired + started disconnecting
-    // this entry during the resolve's `await` gap; `closing` (not `retired`, which
-    // a usable one-shot also sets) means the socket is going away — get a fresh one.
-    if (entry.closing) return this.acquire(params)
+    // A concurrent evict/release/idle could have started disconnecting the resolved
+    // entry during an `await` gap; `closing` (not `retired`, which a usable one-shot
+    // also sets) means the socket is going away, so resolve again.
+    let entry = await this.resolveEntry(params)
+    while (entry.closing) entry = await this.resolveEntry(params)
     entry.borrowers++
     entry.lastActivityAt = Date.now()
     return { client: entry.client, release: (poison) => this.release(entry, poison ?? false) }
   }
 
   private async resolveEntry(params: AcquireParams): Promise<PoolEntry> {
-    const pending = this.pending.get(params.key)
-    if (pending) return pending
+    while (true) {
+      const pending = this.pending.get(params.key)
+      if (pending) return pending
 
-    const current = this.entries.get(params.key)
-    if (current) {
+      const current = this.entries.get(params.key)
+      if (!current) return this.createEntry(params)
+
       const reusable = await this.tryReuse(current)
       if (reusable) return reusable
-      // tryReuse awaited a ping and retired `current`; a concurrent acquire may
-      // have pooled a replacement meanwhile, so re-resolve rather than blindly
-      // creating (which would overwrite and leak that replacement).
-      return this.resolveEntry(params)
+      // tryReuse awaited a ping and retired `current`; loop to re-check pending/entries —
+      // a concurrent acquire may have pooled a replacement we must reuse, not overwrite.
     }
-    return this.createEntry(params)
   }
 
   /** Return `entry` if in-age, connected, and live; else retire it and return null. */
@@ -258,6 +257,7 @@ export class McpConnectionPool {
     for (const entry of entries) entry.retired = true
     this.entries.clear()
     this.pending.clear()
+    this.serverGenerations.clear()
     void Promise.allSettled(entries.map((entry) => entry.client.disconnect()))
   }
 }

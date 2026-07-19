@@ -54,6 +54,11 @@ function params(key: string, create: () => Promise<McpClient>): AcquireParams {
   return { key, serverId: key.split(':')[0], create }
 }
 
+/** Drain the microtask queue so an in-flight acquire fully settles before the next step. */
+async function flushMicrotasks(turns = 50): Promise<void> {
+  for (let i = 0; i < turns; i++) await Promise.resolve()
+}
+
 describe('McpConnectionPool', () => {
   let pool: McpConnectionPool
 
@@ -310,7 +315,7 @@ describe('McpConnectionPool', () => {
 
     // A's ping fails → A retires stale, rebuilds `fresh`, pools it, clears pending.
     releasePing[0](false)
-    for (let i = 0; i < 20; i++) await Promise.resolve()
+    await flushMicrotasks()
     // B's ping fails → B must reuse the pooled `fresh`, not create a third client.
     releasePing[1](false)
 
