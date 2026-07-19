@@ -74,7 +74,7 @@ Amazon Simple Queue Service (SQS) — это полностью управляе
 
 | `queueUrl` | строка | Да | URL очереди SQS (например, https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 
-| `data` | объект | Да | Тело сообщения для отправки в виде объекта JSON (например, { "action": "process", "payload": {...} }) |
+| `data` | объект | Да | Тело сообщения для отправки в виде объекта JSON (например, {'{'}  "action": "process", "payload": {'{'}...{'}'} {'}'}  ) |
 
 | `messageGroupId` | строка | Нет | Идентификатор группы сообщений для очередей FIFO (например, "order-processing-group") |
 
