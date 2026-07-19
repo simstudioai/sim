@@ -373,6 +373,36 @@ class McpService {
   }
 
   /**
+   * Pooled `tools/list` for one server, with a single retry on a non-OAuth auth
+   * failure: a rotated header key throws 401, which retires the pooled connection,
+   * so the retry re-acquires a fresh one that re-resolves the credential. (OAuth
+   * 401s are left to the caller's oauth-pending handling.) `listTools` is
+   * idempotent, so the retry is always safe.
+   */
+  private async fetchServerTools(
+    config: McpServerConfig,
+    userId: string,
+    workspaceId: string
+  ): Promise<McpTool[]> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.withServerClient(
+          {
+            key: this.poolKey(config.id, workspaceId, userId),
+            serverId: config.id,
+            allowPool: true,
+          },
+          this.buildClient(config, userId, workspaceId),
+          (client) => client.listTools()
+        )
+      } catch (error) {
+        if (attempt === 0 && isAuthError(error) && config.authType !== 'oauth') continue
+        throw error
+      }
+    }
+  }
+
+  /**
    * Run `fn` against a connected client. When `allowPool`, borrow from the warm
    * pool (`create` runs only on a miss, so a hit skips env resolution + DNS); a
    * dead-connection error retires it, benign tool/consent errors keep it warm.
@@ -676,15 +706,7 @@ class McpService {
           }
 
           try {
-            const tools = await this.withServerClient(
-              {
-                key: this.poolKey(config.id, workspaceId, userId),
-                serverId: config.id,
-                allowPool: true,
-              },
-              this.buildClient(config, userId, workspaceId),
-              (client) => client.listTools()
-            )
+            const tools = await this.fetchServerTools(config, userId, workspaceId)
             logger.debug(
               `[${requestId}] Discovered ${tools.length} tools from server ${config.name}`
             )
@@ -889,15 +911,7 @@ class McpService {
         }
         authType = config.authType
 
-        const tools = await this.withServerClient(
-          {
-            key: this.poolKey(serverId, workspaceId, userId),
-            serverId,
-            allowPool: true,
-          },
-          this.buildClient(config, userId, workspaceId),
-          (client) => client.listTools()
-        )
+        const tools = await this.fetchServerTools(config, userId, workspaceId)
         logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
         await Promise.allSettled([
           this.cacheAdapter
@@ -957,15 +971,7 @@ class McpService {
 
       for (const config of servers) {
         try {
-          const tools = await this.withServerClient(
-            {
-              key: this.poolKey(config.id, workspaceId, userId),
-              serverId: config.id,
-              allowPool: true,
-            },
-            this.buildClient(config, userId, workspaceId),
-            (client) => client.listTools()
-          )
+          const tools = await this.fetchServerTools(config, userId, workspaceId)
 
           summaries.push({
             id: config.id,
