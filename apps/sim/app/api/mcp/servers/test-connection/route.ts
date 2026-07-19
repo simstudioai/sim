@@ -66,9 +66,7 @@ export const POST = withRouteHandler(
   withMcpAuth('write')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const parsed = await parseRequest(testMcpServerConnectionContract, request, {})
-      if (!parsed.success) {
-        return createMcpErrorResponse(parsed.error ?? new Error('Invalid request'), 'Invalid request format', 400)
-      }
+      if (!parsed.success) return parsed.response
 
       const body = parsed.data.body
 

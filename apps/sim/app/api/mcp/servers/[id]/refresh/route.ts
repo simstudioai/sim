@@ -159,7 +159,9 @@ export const POST = withRouteHandler(
   withMcpAuth<{ id: string }>('read')(
     async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
       try {
-        const parsed = await parseRequest(refreshMcpServerContract, request, { id: (await params).id })
+        const parsed = await parseRequest(refreshMcpServerContract, request, {
+          id: (await params).id,
+        })
         if (!parsed.success) return parsed.response
         const { id: serverId } = parsed.data.params
         logger.info(`[${requestId}] Refreshing MCP server: ${serverId}`)

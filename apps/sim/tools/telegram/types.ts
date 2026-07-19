@@ -628,7 +628,8 @@ export interface VideoChatScheduled {
   start_date: number
 }
 
-export type VideoChatStarted = {}
+/** Telegram sends this as an empty object — the event carries no fields of its own. */
+export type VideoChatStarted = Record<string, never>
 
 export interface VideoChatEnded {
   duration: number
@@ -662,13 +663,17 @@ export interface ForumTopicEdited {
   icon_custom_emoji_id?: string
 }
 
-export type ForumTopicClosed = {}
+/** Telegram sends this as an empty object — the event carries no fields of its own. */
+export type ForumTopicClosed = Record<string, never>
 
-export type ForumTopicReopened = {}
+/** Telegram sends this as an empty object — the event carries no fields of its own. */
+export type ForumTopicReopened = Record<string, never>
 
-export type GeneralForumTopicHidden = {}
+/** Telegram sends this as an empty object — the event carries no fields of its own. */
+export type GeneralForumTopicHidden = Record<string, never>
 
-export type GeneralForumTopicUnhidden = {}
+/** Telegram sends this as an empty object — the event carries no fields of its own. */
+export type GeneralForumTopicUnhidden = Record<string, never>
 
 export interface GiveawayCreated {
   prize_star_count?: number
