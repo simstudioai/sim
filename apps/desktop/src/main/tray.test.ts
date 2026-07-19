@@ -3,8 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { session } from 'electron'
-// Same module instance the vi.mock factory returns, with mock-typed statics.
-import { Tray } from '@/test/electron-mock'
 import {
   buildTrayMenuTemplate,
   chatRoute,
@@ -13,20 +11,22 @@ import {
   parseRecentChats,
   type TrayDeps,
 } from '@/main/tray'
+// Same module instance the vi.mock factory returns, with mock-typed statics.
+import { Tray } from '@/test/electron-mock'
 
 function makeDeps(overrides: Partial<TrayDeps> = {}): TrayDeps {
   return {
     partition: () => 'persist:sim',
     appOrigin: () => 'https://sim.ai',
     lastRoute: () => '/workspace/ws1/home',
-    launcherShortcut: () => 'Alt+Space',
     openMainWindow: vi.fn(),
-    toggleLauncher: vi.fn(),
-    toggleLauncherVoice: vi.fn(),
     openSettings: vi.fn(),
-    checkForUpdates: vi.fn(),
     ...overrides,
   }
+}
+
+function chat(id: number): { id: string; title: string; workspaceId: string } {
+  return { id: `c${id}`, title: `Chat ${id}`, workspaceId: 'ws1' }
 }
 
 describe('parseRecentChats', () => {
@@ -43,7 +43,7 @@ describe('parseRecentChats', () => {
         { id: 'c7', title: 'Seven', workspaceId: 'ws2' },
       ],
     }
-    const chats = parseRecentChats(payload)
+    const chats = parseRecentChats(payload, 5)
     expect(chats.map((chat) => chat.id)).toEqual(['c1', 'c2', 'c4', 'c5', 'c6'])
     expect(chats[1].title).toBe('Untitled chat')
   })
@@ -56,6 +56,10 @@ describe('parseRecentChats', () => {
 })
 
 describe('routes', () => {
+  it('deep-links chats into their workspace', () => {
+    expect(chatRoute({ id: 'c1', title: 't', workspaceId: 'ws9' })).toBe('/workspace/ws9/chat/c1')
+  })
+
   it('derives the new-chat route from the last workspace route', () => {
     expect(newChatRoute('/workspace/ws1/w/wf2')).toBe('/workspace/ws1/home')
     expect(newChatRoute('/workspace/ws1/home?resource=r1')).toBe('/workspace/ws1/home')
@@ -63,48 +67,75 @@ describe('routes', () => {
     expect(newChatRoute(undefined)).toBe('/workspace')
     expect(newChatRoute('//evil.example')).toBe('/workspace')
   })
-
-  it('deep-links chats into their workspace', () => {
-    expect(chatRoute({ id: 'c1', title: 't', workspaceId: 'ws9' })).toBe('/workspace/ws9/chat/c1')
-  })
 })
 
 describe('buildTrayMenuTemplate', () => {
-  it('includes actions, recents, and quit', () => {
+  it('shows recents inline, then actions, settings, and quit', () => {
     const deps = makeDeps()
     const template = buildTrayMenuTemplate(deps, [
       { id: 'c1', title: 'Fix the sync', workspaceId: 'ws1' },
     ])
     const labels = template.map((item) => item.label ?? item.role ?? item.type)
     expect(labels).toEqual([
-      'Open Sim',
-      'New Chat',
-      'Quick Ask',
-      'Voice Mode',
-      'separator',
-      'Recent Chats',
+      'Recent',
       'Fix the sync',
       'separator',
-      'Settings…',
-      'Check for Updates…',
+      'New Chat',
+      'Open Sim',
       'separator',
+      'Settings…',
       'Quit Sim',
     ])
 
-    const quickAsk = template.find((item) => item.label === 'Quick Ask')
-    expect(quickAsk?.accelerator).toBe('Alt+Space')
-    ;(quickAsk?.click as () => void)()
-    expect(deps.toggleLauncher).toHaveBeenCalledTimes(1)
-
-    const chat = template.find((item) => item.label === 'Fix the sync')
-    ;(chat?.click as () => void)()
+    const chatItem = template.find((item) => item.label === 'Fix the sync')
+    ;(chatItem?.click as () => void)()
     expect(deps.openMainWindow).toHaveBeenCalledWith('/workspace/ws1/chat/c1')
+
+    const newChat = template.find((item) => item.label === 'New Chat')
+    ;(newChat?.click as () => void)()
+    expect(deps.openMainWindow).toHaveBeenCalledWith('/workspace/ws1/home')
+
+    const settings = template.find((item) => item.label === 'Settings…')
+    ;(settings?.click as () => void)()
+    expect(deps.openSettings).toHaveBeenCalledTimes(1)
+
+    // Quit is a plain item (role:'quit' would get a system icon on macOS 26).
+    const quit = template.find((item) => item.label === 'Quit Sim')
+    expect(quit?.role).toBeUndefined()
+    ;(quit?.click as () => void)()
   })
 
-  it('omits the recents section when empty and the hint when disabled', () => {
-    const template = buildTrayMenuTemplate(makeDeps({ launcherShortcut: () => 'disabled' }), [])
-    expect(template.some((item) => item.label === 'Recent Chats')).toBe(false)
-    expect(template.find((item) => item.label === 'Quick Ask')?.accelerator).toBeUndefined()
+  it('overflows chats beyond the inline count into a More submenu', () => {
+    const deps = makeDeps()
+    const chats = Array.from({ length: 9 }, (_, i) => chat(i + 1))
+    const template = buildTrayMenuTemplate(deps, chats)
+
+    const inlineLabels = template
+      .filter((item) => item.label?.startsWith('Chat '))
+      .map((item) => item.label)
+    expect(inlineLabels).toEqual(['Chat 1', 'Chat 2', 'Chat 3', 'Chat 4', 'Chat 5'])
+
+    const more = template.find((item) => item.label === 'More')
+    expect(more).toBeDefined()
+    const submenu = more?.submenu as { label?: string; click?: () => void }[]
+    expect(submenu.map((item) => item.label)).toEqual(['Chat 6', 'Chat 7', 'Chat 8', 'Chat 9'])
+    submenu[0].click?.()
+    expect(deps.openMainWindow).toHaveBeenCalledWith('/workspace/ws1/chat/c6')
+  })
+
+  it('omits More when everything fits inline and recents when empty', () => {
+    const fits = buildTrayMenuTemplate(makeDeps(), [chat(1), chat(2)])
+    expect(fits.some((item) => item.label === 'More')).toBe(false)
+
+    const empty = buildTrayMenuTemplate(makeDeps(), [])
+    expect(empty.some((item) => item.label === 'Recent')).toBe(false)
+    expect(empty.map((item) => item.label ?? item.role ?? item.type)).toEqual([
+      'New Chat',
+      'Open Sim',
+      'separator',
+      'Settings…',
+      'Quit Sim',
+    ])
   })
 })
 

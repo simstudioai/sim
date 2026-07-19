@@ -10,9 +10,13 @@ import { processSSEStream } from '@/lib/copilot/request/go/parser'
 // Deep import (not the session barrel): the barrel re-exports the Redis-backed
 // abort module, which cannot be bundled into a client component.
 import { parsePersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+// Deep import (not the tool-executor barrel) to keep server-only executor code
+// out of the launcher bundle; the router is a pure catalog lookup.
+import { isSimExecuted } from '@/lib/copilot/tool-executor/router'
 import { executeBrowserToolOnClient } from '@/lib/copilot/tools/client/browser-tool-execution'
 import { executeLocalFilesystemTool } from '@/lib/copilot/tools/client/local-filesystem'
 import { isLocalFilesystemToolName } from '@/lib/copilot/tools/local-filesystem'
+import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 
 const logger = createLogger('LauncherChat')
 
@@ -72,11 +76,17 @@ function workingLabelFor(event: EnvelopeLike): string | null {
  * Inline-lite chat for the desktop Quick Ask panel. Sends through the same
  * unified chat endpoint as the home surface and renders only the main-lane
  * assistant text from the stream; tool calls, subagents, and thinking
- * collapse into a one-line "working" label. It deliberately implements no
- * tool executor: a `checkpoint_pause` (a tool that must run client-side)
- * flips the state to `needs-app` so the UI can hand off to the full app.
- * Abandoning the stream (panel dismissed, page gone) is safe — execution is
- * detached server-side and the chat is persisted.
+ * collapse into a one-line "working" label.
+ *
+ * Tool handling: the panel is a live desktop client, so client-routed tools
+ * it can run (browser, local filesystem) are executed inline — their results
+ * go to `/api/copilot/confirm`, which wakes the server's still-open resume
+ * loop and the SAME stream continues. Sim-routed tools are executed by the
+ * Next server inside the request, so their `checkpoint_pause` frames are
+ * bookkeeping, not a handoff. Only a pause that is genuinely waiting on a
+ * client tool this surface can't run (e.g. a workflow run) flips the state
+ * to `needs-app`. Abandoning the stream (panel dismissed, page gone) is
+ * safe — execution is detached server-side and the chat is persisted.
  */
 export function useLauncherChat() {
   const [state, setState] = useState<LauncherChatState>(INITIAL_STATE)
@@ -84,11 +94,15 @@ export function useLauncherChat() {
   const streamingRef = useRef(false)
   // Client-executed tool calls dispatched this session (exactly-once guard).
   const dispatchedToolIdsRef = useRef<Set<string>>(new Set())
+  // Every tool call seen on the stream, so a checkpoint_pause's pending ids
+  // can be classified (server-handled vs dispatched here vs needs the app).
+  const seenToolCallsRef = useRef<Map<string, { toolName: string; executor?: string }>>(new Map())
 
   const reset = useCallback(() => {
     chatIdRef.current = null
     streamingRef.current = false
     dispatchedToolIdsRef.current.clear()
+    seenToolCallsRef.current.clear()
     setState(INITIAL_STATE)
   }, [])
 
@@ -126,6 +140,20 @@ export function useLauncherChat() {
     },
     []
   )
+
+  /**
+   * Whether a checkpoint-paused tool call will complete without the full app:
+   * either we dispatched it here, or the Next server executes it inside this
+   * same request (sim-routed tools, minus workflow runs which the server
+   * delegates to the client).
+   */
+  const isPauseCovered = useCallback((toolCallId: string): boolean => {
+    if (dispatchedToolIdsRef.current.has(toolCallId)) return true
+    const seen = seenToolCallsRef.current.get(toolCallId)
+    if (!seen) return false
+    if (isWorkflowToolName(seen.toolName)) return false
+    return seen.executor === 'sim' || isSimExecuted(seen.toolName)
+  }, [])
 
   const send = useCallback(
     async (message: string, workspaceId: string) => {
@@ -229,26 +257,57 @@ export function useLauncherChat() {
             // Client-routed tool call: run it here in the panel and let the
             // still-open stream continue. Only tools this surface can execute
             // are dispatched; anything else falls through to the checkpoint
-            // handoff below.
+            // handoff below. Partial frames (args still streaming) are only
+            // recorded — dispatch waits for the final frame's complete args.
             if (event.type === 'tool' && event.payload.phase === 'call') {
               const toolName = event.payload.toolName
               const toolCallId = event.payload.toolCallId
               if (typeof toolName === 'string' && typeof toolCallId === 'string') {
-                const args = (event.payload.arguments as Record<string, unknown> | undefined) ?? {}
-                const eventTs =
-                  typeof (parsed.event as { ts?: unknown }).ts === 'string'
-                    ? (parsed.event as { ts: string }).ts
-                    : undefined
-                if (dispatchClientTool(toolCallId, toolName, args, workspaceId, eventTs)) {
-                  setWorking('Working…')
+                const executor =
+                  typeof event.payload.executor === 'string' ? event.payload.executor : undefined
+                seenToolCallsRef.current.set(toolCallId, { toolName, executor })
+                const isPartial =
+                  event.payload.partial === true || event.payload.status === 'generating'
+                if (!isPartial) {
+                  const args =
+                    (event.payload.arguments as Record<string, unknown> | undefined) ?? {}
+                  const eventTs =
+                    typeof (parsed.event as { ts?: unknown }).ts === 'string'
+                      ? (parsed.event as { ts: string }).ts
+                      : undefined
+                  if (dispatchClientTool(toolCallId, toolName, args, workspaceId, eventTs)) {
+                    setWorking('Working…')
+                  }
                 }
               }
               return undefined
             }
 
             if (event.type === 'run' && event.payload.kind === 'checkpoint_pause') {
-              // The server checkpointed a tool this surface couldn't run inline
-              // (e.g. a workflow run) — that genuinely needs the full app.
+              // The pause is bookkeeping unless it's waiting on a client tool
+              // this surface can't run. Sim-routed tools are executed by the
+              // Next server inside this same request, and tools we dispatched
+              // above resume the stream via /api/copilot/confirm — in both
+              // cases the stream continues, so keep reading.
+              const topLevel = Array.isArray(event.payload.pendingToolCallIds)
+                ? (event.payload.pendingToolCallIds as unknown[])
+                : []
+              const frames = Array.isArray(event.payload.frames)
+                ? (event.payload.frames as Array<{ pendingToolIds?: unknown }>)
+                : []
+              const pendingIds = [
+                ...topLevel,
+                ...frames.flatMap((f) => (Array.isArray(f.pendingToolIds) ? f.pendingToolIds : [])),
+              ].filter((id): id is string => typeof id === 'string')
+
+              const uncovered = pendingIds.filter((id) => !isPauseCovered(id))
+              if (uncovered.length === 0) {
+                setWorking('Working…')
+                return undefined
+              }
+              logger.info('Checkpoint pause needs the full app', {
+                uncovered: uncovered.map((id) => seenToolCallsRef.current.get(id)?.toolName ?? id),
+              })
               sawTerminal = true
               finish({ status: 'needs-app' })
               return true
@@ -290,7 +349,7 @@ export function useLauncherChat() {
         finish({ status: 'error', error: getErrorMessage(error, 'Something went wrong') })
       }
     },
-    [dispatchClientTool]
+    [dispatchClientTool, isPauseCovered]
   )
 
   return { state, send, reset }

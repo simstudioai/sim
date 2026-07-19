@@ -48,11 +48,8 @@ export interface LauncherWindowDeps {
 }
 
 export interface LauncherWindowHandle {
-  /**
-   * Summon (on the display with the cursor) or dismiss the panel. Pass
-   * `voice` to open it in voice mode (mic focused, replies spoken aloud).
-   */
-  toggle(options?: { voice?: boolean }): void
+  /** Summon (on the display with the cursor) or dismiss the panel. */
+  toggle(): void
   hide(): void
   /**
    * Create and load the panel offscreen without showing it, so the first
@@ -166,15 +163,14 @@ export function createLauncherWindow(deps: LauncherWindowDeps): LauncherWindowHa
     void panel.webContents.loadURL(`${deps.appOrigin()}${LAUNCHER_ROUTE}`).catch(() => {})
   }
 
-  const show = (panel: BrowserWindow, voice: boolean) => {
+  const show = (panel: BrowserWindow) => {
     panel.setBounds(launcherBoundsFor(activeDisplay().workArea, LAUNCHER_MIN_HEIGHT))
     panel.show()
-    panel.webContents.send('launcher:shown', { voice })
+    panel.webContents.send('launcher:shown')
   }
 
   return {
-    toggle(options?: { voice?: boolean }) {
-      const voice = options?.voice === true
+    toggle() {
       if (win && !win.isDestroyed()) {
         if (win.isVisible()) {
           win.hide()
@@ -183,12 +179,12 @@ export function createLauncherWindow(deps: LauncherWindowDeps): LauncherWindowHa
         if (loadFailed) {
           load(win)
         }
-        show(win, voice)
+        show(win)
         return
       }
       win = create()
       load(win)
-      show(win, voice)
+      show(win)
     },
     prewarm() {
       if (win && !win.isDestroyed()) {

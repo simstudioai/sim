@@ -231,11 +231,6 @@ function main(): void {
     launcher.toggle()
   }
 
-  function toggleLauncherVoice(): void {
-    configureSessionForOrigin(appOrigin())
-    launcher.toggle({ voice: true })
-  }
-
   const launcherShortcut = createLauncherShortcutManager(toggleLauncher)
 
   async function applyOrigin(raw: string) {
@@ -384,12 +379,8 @@ function main(): void {
         partition: () => partitionForOrigin(appOrigin()),
         appOrigin,
         lastRoute: () => config.get('lastRoute'),
-        launcherShortcut: () => launcherShortcut.current(),
         openMainWindow: (route) => void openMainWindowAt(route),
-        toggleLauncher,
-        toggleLauncherVoice,
         openSettings,
-        checkForUpdates: () => checkForUpdatesInteractive({ getWindow: getMainWindow, events }),
       })
     }
     initUpdater({ getWindow: getMainWindow, events })
