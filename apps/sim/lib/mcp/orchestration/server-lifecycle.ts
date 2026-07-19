@@ -207,6 +207,7 @@ export async function performCreateMcpServer(
       })
 
       await mcpService.clearCache(params.workspaceId)
+      await mcpService.evictServerConnections(serverId, 'config changed')
       return { success: true, serverId, updated: true, authType: resolvedAuthType }
     }
 
@@ -396,7 +397,10 @@ export async function performUpdateMcpServer(
       params.timeout !== undefined ||
       params.retries !== undefined
 
-    if (shouldClearCache) await mcpService.clearCache(params.workspaceId)
+    if (shouldClearCache) {
+      await mcpService.clearCache(params.workspaceId)
+      await mcpService.evictServerConnections(params.serverId, 'config changed')
+    }
 
     recordAudit({
       workspaceId: params.workspaceId,
@@ -439,6 +443,7 @@ export async function performDeleteMcpServer(
     if (!server) return { success: false, error: 'Server not found', errorCode: 'not_found' }
 
     await mcpService.clearCache(params.workspaceId)
+    await mcpService.evictServerConnections(params.serverId, 'server deleted')
     const source =
       params.source === 'settings' || params.source === 'tool_input' ? params.source : undefined
 
