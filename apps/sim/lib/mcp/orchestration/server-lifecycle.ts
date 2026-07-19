@@ -193,16 +193,16 @@ export async function performCreateMcpServer(
           updatedAt: new Date(),
           deletedAt: null,
         }
-        if (resolvedAuthType === 'oauth') {
-          // A flip to OAuth (headers→OAuth carries no tokens to clear) or an OAuth URL/creds
-          // change leaves no valid session: reset to disconnected so the UI shows
-          // "authorization required" instead of a stale connected state until the flow completes.
-          if (authTypeChanged || shouldClearOauth) {
-            updateValues.connectionStatus = 'disconnected'
-            updateValues.lastConnected = null
-            updateValues.lastError = null
-          }
-        } else {
+        if (authTypeChanged || (shouldClearOauth && resolvedAuthType === 'oauth')) {
+          // An auth-type flip, or an OAuth URL/creds change, invalidates any prior connection:
+          // reset to disconnected and clear the stale error so the UI never shows
+          // connected-with-error until re-discovery. Mirrors performUpdateMcpServer.
+          updateValues.connectionStatus = 'disconnected'
+          updateValues.lastConnected = null
+          updateValues.lastError = null
+        } else if (resolvedAuthType !== 'oauth') {
+          // A non-OAuth (re-)registration with unchanged auth optimistically marks the server
+          // reachable; discovery corrects it if the endpoint is unhealthy.
           updateValues.connectionStatus = 'connected'
           updateValues.lastConnected = new Date()
         }

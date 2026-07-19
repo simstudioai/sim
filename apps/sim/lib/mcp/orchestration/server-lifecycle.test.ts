@@ -14,13 +14,19 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockClearCache, mockOauthCredsChanged, mockRevokeOauthTokens, mockEvictServerConnections } =
-  vi.hoisted(() => ({
-    mockClearCache: vi.fn(),
-    mockOauthCredsChanged: vi.fn(),
-    mockRevokeOauthTokens: vi.fn(),
-    mockEvictServerConnections: vi.fn(),
-  }))
+const {
+  mockClearCache,
+  mockOauthCredsChanged,
+  mockRevokeOauthTokens,
+  mockEvictServerConnections,
+  mockGenerateMcpServerId,
+} = vi.hoisted(() => ({
+  mockClearCache: vi.fn(),
+  mockOauthCredsChanged: vi.fn(),
+  mockRevokeOauthTokens: vi.fn(),
+  mockEvictServerConnections: vi.fn(),
+  mockGenerateMcpServerId: vi.fn(),
+}))
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@sim/db', () => ({
@@ -52,10 +58,11 @@ vi.mock('@/lib/mcp/service', () => ({
     evictServerConnections: mockEvictServerConnections,
   },
 }))
-vi.mock('@/lib/mcp/utils', () => ({ generateMcpServerId: vi.fn() }))
+vi.mock('@/lib/mcp/utils', () => ({ generateMcpServerId: mockGenerateMcpServerId }))
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
+  performCreateMcpServer,
   performDeleteMcpServer,
   performUpdateMcpServer,
 } from '@/lib/mcp/orchestration/server-lifecycle'
@@ -146,6 +153,42 @@ describe('MCP server lifecycle orchestration', () => {
       })
     )
     // ...and revoke the now-orphaned OAuth tokens rather than leaving them stored and valid.
+    expect(mockRevokeOauthTokens).toHaveBeenCalledWith('server-1')
+  })
+
+  it('resets to disconnected when a create/upsert flips an existing OAuth server to headers', async () => {
+    mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        deletedAt: null,
+        url: 'https://example.com/mcp',
+        authType: 'oauth',
+        oauthClientId: 'client-1',
+        oauthClientSecret: 'secret-1',
+      },
+    ])
+
+    const result = await performCreateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Example',
+      url: 'https://example.com/mcp',
+      authType: 'headers',
+    })
+
+    expect(result.success).toBe(true)
+    // Upsert must mirror the update path: an auth-type flip resets to disconnected and clears the
+    // stale error instead of optimistically marking the server connected.
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authType: 'headers',
+        connectionStatus: 'disconnected',
+        lastConnected: null,
+        lastError: null,
+      })
+    )
+    // ...and revoke the now-orphaned OAuth tokens.
     expect(mockRevokeOauthTokens).toHaveBeenCalledWith('server-1')
   })
 
