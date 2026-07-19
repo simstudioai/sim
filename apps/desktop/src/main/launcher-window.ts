@@ -8,19 +8,22 @@ import { backgroundColorFor, createSecureWebPreferences } from '@/main/window'
 const logger = createLogger('DesktopLauncher')
 
 export const LAUNCHER_ROUTE = '/desktop/launcher'
-export const LAUNCHER_WIDTH = 680
+export const LAUNCHER_WIDTH = 420
 export const LAUNCHER_MIN_HEIGHT = 96
 export const LAUNCHER_MAX_HEIGHT = 600
+/** Gap from the work-area edges when the card is pinned to the corner. */
+const LAUNCHER_EDGE_GAP = 16
 
 /**
- * Spotlight placement: horizontally centered on the given display, top edge
- * about a quarter of the way down the work area.
+ * Card placement: pinned to the TOP-RIGHT corner of the active display's work
+ * area (below the menu bar, inset from the right edge) — a compact overlay
+ * that stays out of the way while you talk to it.
  */
 export function launcherBoundsFor(workArea: Rectangle, height: number): Rectangle {
   const clamped = clampLauncherHeight(height)
   return {
-    x: Math.round(workArea.x + (workArea.width - LAUNCHER_WIDTH) / 2),
-    y: Math.round(workArea.y + workArea.height * 0.25),
+    x: Math.round(workArea.x + workArea.width - LAUNCHER_WIDTH - LAUNCHER_EDGE_GAP),
+    y: Math.round(workArea.y + LAUNCHER_EDGE_GAP),
     width: LAUNCHER_WIDTH,
     height: clamped,
   }
@@ -45,8 +48,11 @@ export interface LauncherWindowDeps {
 }
 
 export interface LauncherWindowHandle {
-  /** Summon (on the display with the cursor) or dismiss the panel. */
-  toggle(): void
+  /**
+   * Summon (on the display with the cursor) or dismiss the panel. Pass
+   * `voice` to open it in voice mode (mic focused, replies spoken aloud).
+   */
+  toggle(options?: { voice?: boolean }): void
   hide(): void
   /**
    * Create and load the panel offscreen without showing it, so the first
@@ -160,14 +166,15 @@ export function createLauncherWindow(deps: LauncherWindowDeps): LauncherWindowHa
     void panel.webContents.loadURL(`${deps.appOrigin()}${LAUNCHER_ROUTE}`).catch(() => {})
   }
 
-  const show = (panel: BrowserWindow) => {
+  const show = (panel: BrowserWindow, voice: boolean) => {
     panel.setBounds(launcherBoundsFor(activeDisplay().workArea, LAUNCHER_MIN_HEIGHT))
     panel.show()
-    panel.webContents.send('launcher:shown')
+    panel.webContents.send('launcher:shown', { voice })
   }
 
   return {
-    toggle() {
+    toggle(options?: { voice?: boolean }) {
+      const voice = options?.voice === true
       if (win && !win.isDestroyed()) {
         if (win.isVisible()) {
           win.hide()
@@ -176,12 +183,12 @@ export function createLauncherWindow(deps: LauncherWindowDeps): LauncherWindowHa
         if (loadFailed) {
           load(win)
         }
-        show(win)
+        show(win, voice)
         return
       }
       win = create()
       load(win)
-      show(win)
+      show(win, voice)
     },
     prewarm() {
       if (win && !win.isDestroyed()) {
