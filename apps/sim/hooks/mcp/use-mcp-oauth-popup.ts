@@ -141,11 +141,17 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
           return
         }
         const { popup, state } = result
+        // Drop any prior in-flight flow for this server (e.g. an abandoned attempt now being
+        // retried) so its stale safety timeout can't later clear this new flow's state.
+        for (const [prevState, flow] of pendingFlowsRef.current) {
+          if (flow.serverId === serverId) {
+            window.clearTimeout(flow.timeout)
+            pendingFlowsRef.current.delete(prevState)
+          }
+        }
         // Track this in-flight flow keyed by its `state` nonce for the BroadcastChannel gate,
         // bounded by a safety timeout in case no result ever arrives (popup abandoned, or a
         // callback failure the client can't otherwise clear).
-        const existing = pendingFlowsRef.current.get(state)
-        if (existing !== undefined) window.clearTimeout(existing.timeout)
         pendingFlowsRef.current.set(state, {
           serverId,
           timeout: window.setTimeout(() => settleFlow(state), OAUTH_FLOW_TIMEOUT_MS),
