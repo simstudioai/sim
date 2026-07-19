@@ -191,7 +191,7 @@ export class BrowserWindow {
   isMaximized = vi.fn(() => false)
   isVisible = vi.fn(() => false)
   getNormalBounds = vi.fn(() => ({ x: 0, y: 0, width: 1360, height: 860 }))
-  getBounds = vi.fn(() => ({ x: 524, y: 298, width: 680, height: 150 }))
+  getBounds = vi.fn(() => ({ x: 1292, y: 41, width: 420, height: 150 }))
   setBounds = vi.fn()
   loadURL = vi.fn(() => Promise.resolve())
   loadFile = vi.fn(() => Promise.resolve())

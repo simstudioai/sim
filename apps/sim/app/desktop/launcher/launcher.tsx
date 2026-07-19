@@ -12,6 +12,7 @@ import {
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
+import { splitCompleteSentences, toSpeakableText, useSpeakBack } from '@/hooks/use-speak-back'
 import { useSpeechToText } from '@/hooks/use-speech-to-text'
 
 const RECENT_CHATS_SHOWN = 5
@@ -64,6 +65,13 @@ function LauncherPanel() {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const transcriptRef = useRef<HTMLDivElement>(null)
+  // sendMessage is defined above useSpeakBack; a ref bridges the cancel call
+  // so a new turn can stop in-progress read-back without a declaration cycle.
+  const cancelSpeakingRef = useRef<() => void>(() => {})
+  // submit() is defined above the STT hook; these refs let it stop listening
+  // on manual send without a declaration cycle.
+  const isListeningRef = useRef(false)
+  const rawToggleListeningRef = useRef<() => void>(() => {})
 
   const workspaces = workspacesData?.workspaces ?? []
   const workspaceId = useMemo(() => {
@@ -146,6 +154,8 @@ function LauncherPanel() {
     (text: string) => {
       const trimmed = text.trim()
       if (!trimmed || !workspaceId) return
+      // Stop any in-progress read-back before the next turn starts.
+      cancelSpeakingRef.current()
       void send(trimmed, workspaceId)
     },
     [workspaceId, send]
@@ -153,6 +163,11 @@ function LauncherPanel() {
 
   const submit = useCallback(() => {
     if (!draft.trim()) return
+    // Manual send ends the listening turn (no automatic turn detection): stop
+    // capturing voice the moment the message goes out, then it responds back.
+    if (isListeningRef.current) {
+      rawToggleListeningRef.current()
+    }
     sendMessage(draft)
     setDraft('')
   }, [draft, sendMessage])
@@ -174,6 +189,9 @@ function LauncherPanel() {
     workspaceId: workspaceId ?? undefined,
   })
 
+  isListeningRef.current = isListening
+  rawToggleListeningRef.current = rawToggleListening
+
   const toggleListening = useCallback(() => {
     if (!isListening) {
       sttPrefixRef.current = draft.trim()
@@ -181,6 +199,96 @@ function LauncherPanel() {
     }
     rawToggleListening()
   }, [isListening, draft, rawToggleListening])
+
+  // Speak-back: reads assistant replies aloud (OS speech synthesis — like
+  // macOS read-back). Enabled by default when the panel is opened via Voice
+  // Mode; toggleable from the speaker button.
+  const {
+    isSupported: isSpeakSupported,
+    isSpeaking,
+    speak,
+    cancel: cancelSpeaking,
+  } = useSpeakBack()
+  const [speakEnabled, setSpeakEnabled] = useState(false)
+  // True when this panel was summoned as Voice Mode (tray → Voice Mode). In
+  // voice mode read-back is always on and the text-mode chrome (speaker
+  // toggle, Open in Sim) is hidden — it's a dedicated voice surface.
+  const [voiceMode, setVoiceMode] = useState(false)
+  // Per-assistant-turn read-back progress: how much of the turn's text has
+  // already been spoken (offset), keyed by turn id so a new turn resets it.
+  const speakProgressRef = useRef<{ turnId: string | null; offset: number }>({
+    turnId: null,
+    offset: 0,
+  })
+  cancelSpeakingRef.current = cancelSpeaking
+
+  // Voice Mode summon (tray) enables speak-back and focuses the input so the
+  // user can immediately hit the mic.
+  useEffect(() => {
+    const bridge = launcherBridge()
+    if (!bridge) return
+    return bridge.onShown(({ voice }) => {
+      if (voice) {
+        setVoiceMode(true)
+        setSpeakEnabled(true)
+      }
+      inputRef.current?.focus()
+    })
+  }, [])
+
+  // Conversational read-back: speak the latest assistant turn sentence by
+  // sentence AS it streams (queued in useSpeakBack), so the natural voice
+  // starts almost immediately instead of after the whole message. Progress
+  // is tracked per turn id; on completion any trailing remainder is flushed.
+  useEffect(() => {
+    if (!speakEnabled) return
+    const lastAssistant = [...state.turns].reverse().find((t) => t.role === 'assistant')
+    if (!lastAssistant) return
+
+    const progress = speakProgressRef.current
+    if (progress.turnId !== lastAssistant.id) {
+      speakProgressRef.current = { turnId: lastAssistant.id, offset: 0 }
+    }
+
+    const spoken = toSpeakableText(lastAssistant.text)
+    const unspoken = spoken.slice(speakProgressRef.current.offset)
+    if (!unspoken) return
+
+    if (isStreaming) {
+      // Only emit complete sentences mid-stream; hold the trailing fragment.
+      const { complete, rest } = splitCompleteSentences(unspoken)
+      for (const sentence of complete) speak(sentence)
+      if (complete.length > 0) {
+        speakProgressRef.current.offset = spoken.length - rest.length
+      }
+    } else {
+      // Turn settled — flush whatever remains (last sentence / no punctuation).
+      speak(unspoken)
+      speakProgressRef.current.offset = spoken.length
+    }
+  }, [speakEnabled, isStreaming, state.turns, speak])
+
+  // Stop any read-back when the user starts a new turn or disables speak-back.
+  useEffect(() => {
+    if (!speakEnabled) cancelSpeaking()
+  }, [speakEnabled, cancelSpeaking])
+
+  const toggleSpeak = useCallback(() => {
+    setSpeakEnabled((prev) => {
+      if (prev) cancelSpeaking()
+      return !prev
+    })
+  }, [cancelSpeaking])
+
+  // Auto-grow the input to fit its content (up to the max height) so a
+  // multi-line transcript is never clipped — the panel window follows via its
+  // ResizeObserver.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  }, [draft])
 
   const openInSim = useCallback(() => {
     if (!workspaceId) return
@@ -210,7 +318,7 @@ function LauncherPanel() {
   return (
     <Shell>
       <div ref={rootRef} className='flex flex-col'>
-        <div className='flex items-center gap-2 px-4 pt-3 pb-2'>
+        <div className='flex items-start gap-2 px-4 pt-3 pb-2'>
           <textarea
             ref={inputRef}
             value={draft}
@@ -222,20 +330,31 @@ function LauncherPanel() {
               }
             }}
             rows={1}
-            placeholder={hasConversation ? 'Reply…' : 'Ask Sim anything…'}
+            placeholder={
+              voiceMode
+                ? 'Tap the mic and speak…'
+                : hasConversation
+                  ? 'Reply…'
+                  : 'Ask Sim anything…'
+            }
             spellCheck={false}
-            className='max-h-24 min-h-10 flex-1 resize-none rounded-[10px] border border-[var(--border)] bg-transparent px-3 py-2 text-[15px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-subtle)] focus:border-[var(--border-1)]'
+            className='max-h-40 min-h-10 flex-1 resize-none rounded-[10px] border border-[var(--border)] bg-transparent px-3 py-2 text-[15px] text-[var(--text-primary)] leading-snug outline-none placeholder:text-[var(--text-subtle)] focus:border-[var(--border-1)]'
           />
-          {isSttSupported && (
-            <div className='shrink-0 self-end pb-1'>
+          {isSpeakSupported && !voiceMode && (
+            <div className='shrink-0 pt-1'>
+              <SpeakToggle enabled={speakEnabled} speaking={isSpeaking} onToggle={toggleSpeak} />
+            </div>
+          )}
+          {isSttSupported && workspaceId && (
+            <div className='shrink-0 pt-1'>
               <MicButton isListening={isListening} onToggle={toggleListening} />
             </div>
           )}
-          {hasConversation && (
+          {hasConversation && !voiceMode && (
             <button
               type='button'
               onClick={openInSim}
-              className='shrink-0 rounded-[8px] border border-[var(--border)] px-2.5 py-1.5 font-medium text-[var(--text-secondary)] text-xs hover:bg-[var(--surface-3)]'
+              className='shrink-0 self-start rounded-[8px] border border-[var(--border)] px-2.5 py-1.5 font-medium text-[var(--text-secondary)] text-xs hover:bg-[var(--surface-3)]'
             >
               Open in Sim
             </button>
@@ -394,6 +513,73 @@ function AssistantText({ text }: { text: string }) {
         </p>
       ))}
     </div>
+  )
+}
+
+/**
+ * Speaker toggle for read-back. Filled/accented when enabled; a subtle pulse
+ * while actively speaking.
+ */
+function SpeakToggle({
+  enabled,
+  speaking,
+  onToggle,
+}: {
+  enabled: boolean
+  speaking: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type='button'
+      onClick={onToggle}
+      aria-label={enabled ? 'Turn off read-back' : 'Read replies aloud'}
+      aria-pressed={enabled}
+      className={`flex h-[28px] w-[28px] items-center justify-center rounded-full transition-colors ${
+        enabled
+          ? 'bg-[var(--brand-primary-hex,#701ffc)] text-white'
+          : 'text-[var(--text-icon)] hover:bg-[var(--surface-3)]'
+      } ${speaking ? 'animate-pulse' : ''}`}
+    >
+      <svg
+        className='h-[16px] w-[16px]'
+        viewBox='0 0 16 16'
+        fill='none'
+        xmlns='http://www.w3.org/2000/svg'
+        aria-hidden='true'
+      >
+        <path
+          d='M8.5 2.5 4.75 5.5H2.5v5h2.25L8.5 13.5v-11z'
+          fill='currentColor'
+          stroke='currentColor'
+          strokeWidth='1'
+          strokeLinejoin='round'
+        />
+        {enabled ? (
+          <>
+            <path
+              d='M11 5.5a3.2 3.2 0 0 1 0 5'
+              stroke='currentColor'
+              strokeWidth='1.2'
+              strokeLinecap='round'
+            />
+            <path
+              d='M12.6 3.8a5.6 5.6 0 0 1 0 8.4'
+              stroke='currentColor'
+              strokeWidth='1.2'
+              strokeLinecap='round'
+            />
+          </>
+        ) : (
+          <path
+            d='m11 6 3 4M14 6l-3 4'
+            stroke='currentColor'
+            strokeWidth='1.2'
+            strokeLinecap='round'
+          />
+        )}
+      </svg>
+    </button>
   )
 }
 

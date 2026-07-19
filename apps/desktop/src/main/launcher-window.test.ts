@@ -39,8 +39,9 @@ describe('launcherBoundsFor', () => {
 
   it('centers horizontally and sits a quarter down the work area', () => {
     const bounds = launcherBoundsFor(workArea, LAUNCHER_MIN_HEIGHT)
-    expect(bounds.x).toBe(Math.round((1728 - LAUNCHER_WIDTH) / 2))
-    expect(bounds.y).toBe(Math.round(25 + 1092 * 0.25))
+    // Pinned to the top-right corner, inset by the edge gap (16).
+    expect(bounds.x).toBe(1728 - LAUNCHER_WIDTH - 16)
+    expect(bounds.y).toBe(25 + 16)
     expect(bounds.width).toBe(LAUNCHER_WIDTH)
     expect(bounds.height).toBe(LAUNCHER_MIN_HEIGHT)
   })
@@ -81,7 +82,7 @@ describe('createLauncherWindow', () => {
     expect(win.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
     expect(win.webContents.loadURL).toHaveBeenCalledWith('https://sim.ai/desktop/launcher')
     expect(win.show).toHaveBeenCalledTimes(1)
-    expect(win.webContents.send).toHaveBeenCalledWith('launcher:shown')
+    expect(win.webContents.send).toHaveBeenCalledWith('launcher:shown', { voice: false })
   })
 
   it('toggle hides a visible panel and re-shows a hidden one without recreating', () => {

@@ -84,6 +84,8 @@ export interface TrayDeps {
   launcherShortcut: () => string
   openMainWindow: (route?: string) => void
   toggleLauncher: () => void
+  /** Open Quick Ask in voice mode (mic focused, replies spoken aloud). */
+  toggleLauncherVoice: () => void
   openSettings: () => void
   checkForUpdates: () => void
 }
@@ -102,6 +104,10 @@ export function buildTrayMenuTemplate(
       // registration; tray menu accelerators on macOS render but never fire.
       ...(shortcut !== 'disabled' ? { accelerator: shortcut } : {}),
       click: () => deps.toggleLauncher(),
+    },
+    {
+      label: 'Voice Mode',
+      click: () => deps.toggleLauncherVoice(),
     },
     { type: 'separator' },
   ]
