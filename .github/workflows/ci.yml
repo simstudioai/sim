@@ -470,7 +470,10 @@ jobs:
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
       needs.promote-images.outputs.promoted == 'true'
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 75
+    # Must exceed the poll script's OVERALL_TIMEOUT (70 min, covering a prod deploy
+    # queued behind a ~50-min bake) PLUS runner setup + the final promote step, so
+    # the Actions timeout never kills the job before the script's own deadline.
+    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
