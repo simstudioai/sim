@@ -1,5 +1,6 @@
 export const MothershipResourceType = {
   table: 'table',
+  interface: 'interface',
   file: 'file',
   workflow: 'workflow',
   knowledgebase: 'knowledgebase',
@@ -28,6 +29,7 @@ export function isEphemeralResource(resource: MothershipResource): boolean {
 /** Placeholder resource titles that a more specific title may overwrite during dedup. */
 export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Table',
+  'Interface',
   'File',
   'Workflow',
   'Knowledge Base',
@@ -38,6 +40,7 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
 
 export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   tables: 'table',
+  interfaces: 'interface',
   files: 'file',
   workflows: 'workflow',
   knowledgebases: 'knowledgebase',

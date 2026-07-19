@@ -379,6 +379,64 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(findStartBlockMock).toHaveBeenCalledWith(expect.anything(), 'external', false)
   })
 
+  it('uses api start resolution for form executions without an explicit triggerBlockId', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: {
+        ...createSnapshot(),
+        metadata: {
+          ...createSnapshot().metadata,
+          triggerType: 'form',
+        },
+      } as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(findStartBlockMock).toHaveBeenCalledWith(expect.anything(), 'api', false)
+  })
+
+  it('hands form submissions to the executor as a flat field-name-keyed input', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    const formInput = { email: 'ada@sim.ai', subscribed: false, plan: 'pro' }
+
+    await executeWorkflowCore({
+      snapshot: {
+        ...createSnapshot(),
+        metadata: {
+          ...createSnapshot().metadata,
+          triggerType: 'form',
+        },
+        input: formInput,
+      } as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(executorConstructorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowInput: formInput,
+        contextExtensions: expect.objectContaining({
+          metadata: expect.objectContaining({ triggerType: 'form' }),
+        }),
+      })
+    )
+  })
+
   it('preserves manifest-backed workflow variables during execution setup', async () => {
     const manifest = {
       __simLargeArrayManifest: true,

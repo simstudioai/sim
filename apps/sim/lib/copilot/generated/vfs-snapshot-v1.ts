@@ -9,6 +9,7 @@ export interface VfsSnapshotV1 {
   envVars?: string[]
   files?: VfsSnapshotV1File[]
   integrations?: VfsSnapshotV1Integration[]
+  interfaces?: VfsSnapshotV1InterfaceDef[]
   jobs?: VfsSnapshotV1Job[]
   knowledgeBases?: VfsSnapshotV1KnowledgeBase[]
   mcpServers?: VfsSnapshotV1McpServer[]
@@ -47,6 +48,15 @@ export interface VfsSnapshotV1Integration {
   id: string
   providerId: string
   role?: string
+}
+/**
+ * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
+ * via the `definition` "VfsSnapshotV1InterfaceDef".
+ */
+export interface VfsSnapshotV1InterfaceDef {
+  description?: string
+  id: string
+  name: string
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema

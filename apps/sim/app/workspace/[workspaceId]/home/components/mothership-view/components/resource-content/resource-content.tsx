@@ -44,6 +44,7 @@ import type {
   GenericResourceData,
   MothershipResource,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { Interface } from '@/app/workspace/[workspaceId]/interfaces/[interfaceId]/interface'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import { LogDetailsContent } from '@/app/workspace/[workspaceId]/logs/components'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -215,6 +216,11 @@ export const ResourceContent = memo(function ResourceContent({
     case 'table':
       return <Table key={resource.id} workspaceId={workspaceId} tableId={resource.id} embedded />
 
+    case 'interface':
+      return (
+        <Interface key={resource.id} workspaceId={workspaceId} interfaceId={resource.id} embedded />
+      )
+
     case 'file':
       return (
         <EmbeddedFile
@@ -309,6 +315,8 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
           tableName={resource.title}
         />
       )
+    case 'interface':
+      return <EmbeddedInterfaceActions workspaceId={workspaceId} interfaceId={resource.id} />
     case 'log':
       return <EmbeddedLogActions workspaceId={workspaceId} logId={resource.id} />
     case 'scheduledtask':
@@ -454,6 +462,37 @@ export function EmbeddedKnowledgeBaseActions({
       </Tooltip.Trigger>
       <Tooltip.Content side='bottom'>
         <p>Open knowledge base</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
+interface EmbeddedInterfaceActionsProps {
+  workspaceId: string
+  interfaceId: string
+}
+
+function EmbeddedInterfaceActions({ workspaceId, interfaceId }: EmbeddedInterfaceActionsProps) {
+  const router = useRouter()
+
+  const handleOpenInterface = () => {
+    router.push(`/workspace/${workspaceId}/interfaces/${interfaceId}`)
+  }
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='subtle'
+          onClick={handleOpenInterface}
+          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+          aria-label='Open interface'
+        >
+          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Open interface</p>
       </Tooltip.Content>
     </Tooltip.Root>
   )

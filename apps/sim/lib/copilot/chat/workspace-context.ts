@@ -7,6 +7,7 @@ import {
   workflow,
   workflowFolder,
   workflowSchedule,
+  workspaceInterface,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -70,6 +71,10 @@ export interface WorkspaceMdData {
   // materializer via listTables) need not change, while generateWorkspaceContext
   // skips the per-table COUNT query entirely.
   tables: Array<{ id: string; name: string; description?: string | null; rowCount?: number }>
+  // Structural fields only. The 2x2 module layout is deliberately absent: it is
+  // verbose, changes on every canvas edit, and would bust the cached prompt
+  // prefix. The agent reads it from interfaces/{name}/meta.json.
+  interfaces: Array<{ id: string; name: string; description?: string | null }>
   files: Array<{ id: string; name: string; type: string; size: number; folderPath?: string | null }>
   oauthIntegrations: Array<{
     id: string
@@ -211,6 +216,19 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
     sections.push('## Tables (0)\n(none)')
   }
 
+  if (data.interfaces.length > 0) {
+    // Module layout is omitted: it changes on every canvas edit and would bust
+    // the cached prompt prefix. It lives in interfaces/{name}/meta.json.
+    const lines = [...data.interfaces].sort(byNameThenId).map((iface) => {
+      let line = `- **${iface.name}** (${iface.id})`
+      if (iface.description) line += ` — ${iface.description}`
+      return line
+    })
+    sections.push(`## Interfaces (${data.interfaces.length})\n${lines.join('\n')}`)
+  } else {
+    sections.push('## Interfaces (0)\n(none)')
+  }
+
   if (data.files.length > 0) {
     const rootFiles: typeof data.files = []
     const folderFiles = new Map<string, typeof data.files>()
@@ -349,6 +367,7 @@ async function buildWorkspaceMdData(
       folderRows,
       kbs,
       tables,
+      interfaces,
       files,
       credentials,
       envCredentials,
@@ -400,6 +419,23 @@ async function buildWorkspaceMdData(
           and(
             eq(userTableDefinitions.workspaceId, workspaceId),
             isNull(userTableDefinitions.archivedAt)
+          )
+        ),
+
+      // Narrow select on purpose: the `layout` jsonb is never rendered here and
+      // would be pulled over the wire on every chat turn. The VFS materializer
+      // (which does publish the layout) reads it via listInterfaces instead.
+      db
+        .select({
+          id: workspaceInterface.id,
+          name: workspaceInterface.name,
+          description: workspaceInterface.description,
+        })
+        .from(workspaceInterface)
+        .where(
+          and(
+            eq(workspaceInterface.workspaceId, workspaceId),
+            isNull(workspaceInterface.archivedAt)
           )
         ),
 
@@ -501,6 +537,11 @@ async function buildWorkspaceMdData(
         connectorTypes: connectorTypesByKb.get(kb.id)?.sort(stableCompare),
       })),
       tables: tables.map((t) => ({ id: t.id, name: t.name, description: t.description })),
+      interfaces: interfaces.map((iface) => ({
+        id: iface.id,
+        name: iface.name,
+        description: iface.description,
+      })),
       files: files.map((f) => ({
         id: f.id,
         name: f.name,
@@ -547,7 +588,7 @@ async function buildWorkspaceMdData(
 }
 
 const WORKSPACE_CONTEXT_UNAVAILABLE_MD =
-  '## Workspace\n(unavailable)\n\n## Workflows\n(unavailable)\n\n## Knowledge Bases\n(unavailable)\n\n## Tables\n(unavailable)\n\n## Files\n(unavailable)\n\n## Connected Integrations\n(unavailable)'
+  '## Workspace\n(unavailable)\n\n## Workflows\n(unavailable)\n\n## Knowledge Bases\n(unavailable)\n\n## Tables\n(unavailable)\n\n## Interfaces\n(unavailable)\n\n## Files\n(unavailable)\n\n## Connected Integrations\n(unavailable)'
 
 /**
  * Generate WORKSPACE.md markdown from current DB state (primary db). The LLM
@@ -628,6 +669,11 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
       id: t.id,
       name: t.name,
       ...(t.description ? { description: t.description } : {}),
+    })),
+    interfaces: data.interfaces.map((iface) => ({
+      id: iface.id,
+      name: iface.name,
+      ...(iface.description ? { description: iface.description } : {}),
     })),
     files: data.files.map((f) => ({
       id: f.id,

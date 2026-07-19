@@ -142,7 +142,7 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizeCss: !isDev,
-    turbopackFileSystemCacheForDev: false,
+    turbopackFileSystemCacheForDev: isDev,
     preloadEntriesOnStart: false,
     optimizePackageImports: [
       'lodash',

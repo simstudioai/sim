@@ -1416,6 +1416,16 @@ async function handleExecutePost(
     } else {
       reqLogger.info('Using streaming API response')
 
+      /**
+       * Trigger type carried into the streamed run. `chat` and `form` are
+       * first-class execution trigger types that must survive to the logging
+       * session; every other trigger reaching this branch streams as an API
+       * execution. Declared once so the streamConfig and executeWorkflow call
+       * below cannot drift apart.
+       */
+      const streamingTriggerType =
+        triggerType === 'chat' || triggerType === 'form' ? triggerType : 'api'
+
       const resolvedSelectedOutputs = resolveOutputIds(
         selectedOutputs,
         cachedWorkflowData?.blocks || {}
@@ -1433,7 +1443,7 @@ async function handleExecutePost(
         streamConfig: {
           selectedOutputs: resolvedSelectedOutputs,
           isSecureMode: false,
-          workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
+          workflowTriggerType: streamingTriggerType,
           includeFileBase64,
           base64MaxBytes,
           timeoutMs: preprocessResult.executionTimeout?.sync,
@@ -1456,7 +1466,7 @@ async function handleExecutePost(
               enabled: true,
               selectedOutputs: resolvedSelectedOutputs,
               isSecureMode: false,
-              workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
+              workflowTriggerType: streamingTriggerType,
               onStream,
               onBlockComplete,
               skipLoggingComplete: true,

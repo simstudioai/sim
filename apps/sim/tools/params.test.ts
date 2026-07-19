@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { mergeToolParameters } from '@/tools/merge-params'
 import {
   createExecutionToolSchema,
   createLLMToolSchema,
@@ -7,7 +8,6 @@ import {
   formatParameterLabel,
   getToolParametersConfig,
   isPasswordParameter,
-  mergeToolParameters,
   type ToolParameterConfig,
   type ToolSchema,
   type ValidationResult,

@@ -28,6 +28,7 @@ import type {
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { listIntegrations } from '@/blocks/integration-matcher'
 import { useFolders } from '@/hooks/queries/folders'
+import { useInterfacesList } from '@/hooks/queries/interfaces'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
@@ -74,6 +75,7 @@ export function useAvailableResources(
 ): AvailableItemsByType[] {
   const { data: workflows = [] } = useWorkflows(workspaceId)
   const { data: tables = [] } = useTablesList(workspaceId)
+  const { data: interfaces = [] } = useInterfacesList(workspaceId)
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId)
   const { data: folders = [] } = useFolders(workspaceId)
@@ -112,6 +114,14 @@ export function useAvailableResources(
           id: t.id,
           name: t.name,
           isOpen: existingKeys.has(`table:${t.id}`),
+        })),
+      },
+      {
+        type: 'interface' as const,
+        items: interfaces.map((i) => ({
+          id: i.id,
+          name: i.name,
+          isOpen: existingKeys.has(`interface:${i.id}`),
         })),
       },
       {
@@ -189,6 +199,7 @@ export function useAvailableResources(
     folders,
     fileFolders,
     tables,
+    interfaces,
     files,
     knowledgeBases,
     tasks,

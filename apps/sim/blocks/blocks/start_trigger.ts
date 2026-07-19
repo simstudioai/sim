@@ -42,6 +42,6 @@ export const StartTriggerBlock: BlockConfig = {
   outputs: {},
   triggers: {
     enabled: true,
-    available: ['chat', 'manual', 'api'],
+    available: ['chat', 'manual', 'api', 'form'],
   },
 }

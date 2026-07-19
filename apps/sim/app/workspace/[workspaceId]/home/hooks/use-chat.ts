@@ -298,6 +298,8 @@ function isChatContext(value: unknown): value is ChatContext {
       return value.knowledgeId === undefined || typeof value.knowledgeId === 'string'
     case 'table':
       return typeof value.tableId === 'string'
+    case 'interface':
+      return typeof value.interfaceId === 'string'
     case 'file':
       return typeof value.fileId === 'string'
     case 'folder':

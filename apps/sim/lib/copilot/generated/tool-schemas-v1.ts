@@ -2072,6 +2072,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  interface: {
+    parameters: {
+      properties: {
+        request: {
+          description: 'What interface action is needed.',
+          type: 'string',
+        },
+      },
+      required: ['request'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   knowledge: {
     parameters: {
       properties: {
@@ -2783,7 +2796,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: {
                 type: 'string',
                 description: 'The resource type.',
-                enum: ['workflow', 'table', 'knowledgebase', 'file', 'log', 'scheduledtask'],
+                enum: [
+                  'workflow',
+                  'table',
+                  'interface',
+                  'knowledgebase',
+                  'file',
+                  'log',
+                  'scheduledtask',
+                ],
               },
             },
             required: ['type'],
@@ -3134,7 +3155,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         type: {
           type: 'string',
           description: 'The resource type to restore.',
-          enum: ['workflow', 'table', 'file', 'knowledgebase', 'folder', 'file_folder'],
+          enum: [
+            'workflow',
+            'table',
+            'interface',
+            'file',
+            'knowledgebase',
+            'folder',
+            'file_folder',
+          ],
         },
       },
       required: ['type', 'id'],
@@ -3799,6 +3828,100 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['serverId'],
     },
     resultSchema: undefined,
+  },
+  user_interface: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description: 'Arguments for the operation',
+          properties: {
+            cell: {
+              type: 'object',
+              description:
+                'Grid cell position on the 2x2 grid. Required for add_module (must be empty) and move_module (moving onto an occupied cell swaps the two modules).',
+              properties: {
+                col: {
+                  type: 'integer',
+                  description: 'Column index: 0 or 1.',
+                },
+                row: {
+                  type: 'integer',
+                  description: 'Row index: 0 or 1.',
+                },
+              },
+              required: ['row', 'col'],
+            },
+            config: {
+              type: 'object',
+              description:
+                "Module config. Optional for add_module (omit to apply the type's defaults); required for update_module (FULL replacement — send the complete config). Shape per module type — chat: { workflowId, outputConfigs: [{ blockId, path }], showThinking, welcomeMessage }; table: { tableId }; file: { fileId }; form: { workflowId, submitLabel, fields: [{ id?, name, label, type: short-text|long-text|dropdown|switch, required, placeholder?, hint?, options?, defaultValue? }] }.",
+            },
+            description: {
+              type: 'string',
+              description:
+                "Interface description. Optional for 'create'; required for 'set_description' (the new description).",
+            },
+            interfaceId: {
+              type: 'string',
+              description:
+                "Interface ID (required for all operations except 'create' and 'list'). Read it from interfaces/*/meta.json — never pass a VFS path.",
+            },
+            moduleId: {
+              type: 'string',
+              description:
+                'Module ID within the interface. Required for update_module, move_module, remove_module.',
+            },
+            moduleType: {
+              type: 'string',
+              description: 'Module type to add (required for add_module).',
+              enum: ['chat', 'table', 'file', 'form'],
+            },
+            name: {
+              type: 'string',
+              description: "Interface name. Required for 'create' and 'rename' (the new name).",
+            },
+          },
+        },
+        operation: {
+          type: 'string',
+          description: 'The operation to perform',
+          enum: [
+            'create',
+            'get',
+            'list',
+            'rename',
+            'set_description',
+            'delete',
+            'restore',
+            'add_module',
+            'update_module',
+            'move_module',
+            'remove_module',
+          ],
+        },
+      },
+      required: ['operation', 'args'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Operation-specific result payload.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome summary.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the operation succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
   },
   user_table: {
     parameters: {

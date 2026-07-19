@@ -188,6 +188,16 @@ export interface ExecuteStreamOptions {
     parallels?: Record<string, any>
   }
   stopAfterBlockId?: string
+  /**
+   * Isolates this run from other runs of the same workflow. Streams are keyed
+   * per workflow by default, so a second `execute` for the same workflow aborts
+   * the first — correct for the editor, where one workflow has one run, but
+   * wrong for surfaces that mount several independent runners against the same
+   * workflow (e.g. two interface chat modules wired to it with different output
+   * selections). Supplying a key confines both the pre-flight abort and
+   * {@link useExecutionStream.cancelExecute} to that key alone.
+   */
+  streamKey?: string
   onExecutionId?: (executionId: string) => void
   callbacks?: ExecutionStreamCallbacks
 }
@@ -216,8 +226,8 @@ export interface ReconnectStreamOptions {
  */
 const sharedAbortControllers = new Map<string, AbortController>()
 
-function executeStreamKey(workflowId: string): string {
-  return `${workflowId}:execute`
+function executeStreamKey(workflowId: string, streamKey?: string): string {
+  return `${workflowId}:execute:${streamKey ?? 'default'}`
 }
 
 function reconnectStreamKey(workflowId: string, executionId: string): string {
@@ -246,13 +256,17 @@ function abortWorkflowStreams(workflowId: string): void {
  */
 export function useExecutionStream() {
   const execute = useCallback(async (options: ExecuteStreamOptions) => {
-    const { workflowId, callbacks = {}, onExecutionId, ...payload } = options
+    const { workflowId, streamKey, callbacks = {}, onExecutionId, ...payload } = options
 
-    abortWorkflowStreams(workflowId)
+    const controllerKey = executeStreamKey(workflowId, streamKey)
+    if (streamKey) {
+      abortStream(controllerKey)
+    } else {
+      abortWorkflowStreams(workflowId)
+    }
 
     const abortController = new AbortController()
-    const streamKey = executeStreamKey(workflowId)
-    sharedAbortControllers.set(streamKey, abortController)
+    sharedAbortControllers.set(controllerKey, abortController)
     let serverExecutionId: string | undefined
 
     try {
@@ -322,8 +336,8 @@ export function useExecutionStream() {
       }
       throw error
     } finally {
-      if (sharedAbortControllers.get(streamKey) === abortController) {
-        sharedAbortControllers.delete(streamKey)
+      if (sharedAbortControllers.get(controllerKey) === abortController) {
+        sharedAbortControllers.delete(controllerKey)
       }
     }
   }, [])
@@ -467,8 +481,12 @@ export function useExecutionStream() {
     abortStream(reconnectStreamKey(workflowId, executionId))
   }, [])
 
-  const cancelExecute = useCallback((workflowId: string) => {
-    abortStream(executeStreamKey(workflowId))
+  /**
+   * Aborts one execute stream. Pass the same `streamKey` the run was started
+   * with; omit it to abort the default (unkeyed) run.
+   */
+  const cancelExecute = useCallback((workflowId: string, streamKey?: string) => {
+    abortStream(executeStreamKey(workflowId, streamKey))
   }, [])
 
   return {

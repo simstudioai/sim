@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
+import { getInterfaceById, restoreInterface } from '@/lib/interfaces'
 import {
   getRestorableKnowledgeBase,
   performRestoreKnowledgeBase,
@@ -23,6 +24,7 @@ const logger = createLogger('RestoreResourceOrchestration')
 export type RestorableResourceType =
   | 'workflow'
   | 'table'
+  | 'interface'
   | 'file'
   | 'knowledgebase'
   | 'folder'
@@ -92,6 +94,23 @@ export async function performRestoreResource(
         logger.info('Table restored via restore_resource', { tableId: id, name: result.table.name })
         return success({ type, id, name: result.table.name }, [
           { type: 'table', id, title: result.table.name },
+        ])
+      }
+
+      case 'interface': {
+        const existing = await getInterfaceById(id, { includeArchived: true })
+        if (!existing || !(await hasWriteAccess(userId, workspaceId, existing.workspaceId))) {
+          return { success: false, error: 'Interface not found' }
+        }
+
+        const restored = await restoreInterface(id)
+
+        logger.info('Interface restored via restore_resource', {
+          interfaceId: id,
+          name: restored.name,
+        })
+        return success({ type, id, name: restored.name }, [
+          { type: 'interface', id, title: restored.name },
         ])
       }
 

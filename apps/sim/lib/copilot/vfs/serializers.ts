@@ -1,5 +1,6 @@
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/env-flags'
+import type { InterfaceModule } from '@/lib/interfaces'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
@@ -409,6 +410,42 @@ export function serializeTableMeta(table: {
       maxRows: table.maxRows,
       createdAt: table.createdAt instanceof Date ? table.createdAt.toISOString() : table.createdAt,
       updatedAt: table.updatedAt instanceof Date ? table.updatedAt.toISOString() : table.updatedAt,
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * Serialize interface metadata for VFS interfaces/{name}/meta.json
+ *
+ * Carries the full authored 2x2 grid: the agent needs each module's `id`,
+ * `cell`, and `config` to target a `user_interface` module operation. The typed
+ * workspace snapshot deliberately omits the layout (structural fields only), so
+ * this file is the only place it is published.
+ */
+export function serializeInterfaceMeta(definition: {
+  id: string
+  name: string
+  description?: string | null
+  modules: InterfaceModule[]
+  createdAt: Date | string
+  updatedAt: Date | string
+}): string {
+  return JSON.stringify(
+    {
+      id: definition.id,
+      name: definition.name,
+      description: definition.description || undefined,
+      modules: definition.modules,
+      createdAt:
+        definition.createdAt instanceof Date
+          ? definition.createdAt.toISOString()
+          : definition.createdAt,
+      updatedAt:
+        definition.updatedAt instanceof Date
+          ? definition.updatedAt.toISOString()
+          : definition.updatedAt,
     },
     null,
     2

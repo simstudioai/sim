@@ -332,6 +332,7 @@ export const executeWorkflowTriggerTypeSchema = z.enum([
   'copilot',
   'mothership',
   'workflow',
+  'form',
 ])
 
 export const executeWorkflowHeadersSchema = z.object({

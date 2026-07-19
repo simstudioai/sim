@@ -22,6 +22,7 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
+import { useInterfacesList, useRestoreInterface } from '@/hooks/queries/interfaces'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
 import { useRestoreWorkflow, useWorkflows } from '@/hooks/queries/workflows'
@@ -38,6 +39,7 @@ import type { WorkflowFolder } from '@/stores/folders/types'
 type ResourceType =
   | 'all'
   | 'workflow'
+  | 'interface'
   | 'table'
   | 'knowledge'
   | 'file'
@@ -53,6 +55,8 @@ function getResourceHref(
   switch (type) {
     case 'workflow':
       return `${base}/w/${id}`
+    case 'interface':
+      return `${base}/interfaces/${id}`
     case 'table':
       return `${base}/tables/${id}`
     case 'knowledge':
@@ -78,6 +82,7 @@ const RESOURCE_TYPE_TO_MOTHERSHIP: Record<Exclude<ResourceType, 'all'>, Mothersh
   workflow: 'workflow',
   folder: 'folder',
   workspace_folder: 'filefolder',
+  interface: 'interface',
   table: 'table',
   knowledge: 'knowledgebase',
   file: 'file',
@@ -100,6 +105,7 @@ const TABS: { id: ResourceType; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'workflow', label: 'Workflows' },
   { id: 'folder', label: 'Folders' },
+  { id: 'interface', label: 'Interfaces' },
   { id: 'table', label: 'Tables' },
   { id: 'knowledge', label: 'Knowledge Bases' },
   { id: 'file', label: 'Files' },
@@ -109,6 +115,7 @@ const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {
   workflow: 'Workflow',
   folder: 'Folder',
   workspace_folder: 'File Folder',
+  interface: 'Interface',
   table: 'Table',
   knowledge: 'Knowledge Base',
   file: 'File',
@@ -163,6 +170,7 @@ export function RecentlyDeleted() {
   const workflowsQuery = useWorkflows(workspaceId, { scope: 'archived' })
   const foldersQuery = useFolders(workspaceId, { scope: 'archived' })
   const activeFoldersQuery = useFolders(workspaceId)
+  const interfacesQuery = useInterfacesList(workspaceId, 'archived')
   const tablesQuery = useTablesList(workspaceId, 'archived')
   const knowledgeQuery = useKnowledgeBasesQuery(workspaceId, { scope: 'archived' })
   const filesQuery = useWorkspaceFiles(workspaceId, 'archived')
@@ -170,6 +178,7 @@ export function RecentlyDeleted() {
 
   const restoreWorkflow = useRestoreWorkflow()
   const restoreFolder = useRestoreFolder()
+  const restoreInterface = useRestoreInterface(workspaceId)
   const restoreTable = useRestoreTable()
   const restoreKnowledgeBase = useRestoreKnowledgeBase()
   const restoreWorkspaceFile = useRestoreWorkspaceFile()
@@ -178,6 +187,7 @@ export function RecentlyDeleted() {
   const isLoading =
     workflowsQuery.isLoading ||
     foldersQuery.isLoading ||
+    interfacesQuery.isLoading ||
     tablesQuery.isLoading ||
     knowledgeQuery.isLoading ||
     filesQuery.isLoading ||
@@ -186,6 +196,7 @@ export function RecentlyDeleted() {
   const error =
     workflowsQuery.error ||
     foldersQuery.error ||
+    interfacesQuery.error ||
     tablesQuery.error ||
     knowledgeQuery.error ||
     filesQuery.error ||
@@ -211,6 +222,16 @@ export function RecentlyDeleted() {
         type: 'folder',
         deletedAt: folder.archivedAt ? new Date(folder.archivedAt) : new Date(folder.updatedAt),
         workspaceId: folder.workspaceId,
+      })
+    }
+
+    for (const definition of interfacesQuery.data ?? []) {
+      items.push({
+        id: definition.id,
+        name: definition.name,
+        type: 'interface',
+        deletedAt: new Date(definition.archivedAt ?? definition.updatedAt),
+        workspaceId: definition.workspaceId,
       })
     }
 
@@ -258,6 +279,7 @@ export function RecentlyDeleted() {
   }, [
     workflowsQuery.data,
     foldersQuery.data,
+    interfacesQuery.data,
     tablesQuery.data,
     knowledgeQuery.data,
     filesQuery.data,
@@ -340,6 +362,9 @@ export function RecentlyDeleted() {
             folderId: resource.id,
             workspaceId: resource.workspaceId,
           })
+          break
+        case 'interface':
+          await restoreInterface.mutateAsync(resource.id)
           break
         case 'table':
           await restoreTable.mutateAsync(resource.id)

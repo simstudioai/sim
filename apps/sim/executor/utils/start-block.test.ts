@@ -119,6 +119,41 @@ describe('start-block utilities', () => {
     expect(output.files).toEqual(files)
   })
 
+  it.concurrent(
+    'resolves the unified start block for form submissions and coerces values per inputFormat',
+    () => {
+      const startBlock = createBlock('start_trigger', 'start', {
+        subBlocks: {
+          inputFormat: {
+            value: [
+              { name: 'quantity', type: 'number' },
+              { name: 'subscribed', type: 'boolean' },
+              { name: 'notes', type: 'string' },
+            ],
+          },
+        },
+      })
+
+      const resolution = resolveExecutorStartBlock([startBlock], {
+        execution: 'api',
+        isChildWorkflow: false,
+      })
+
+      expect(resolution?.blockId).toBe('start')
+      expect(resolution?.path).toBe(StartBlockPath.UNIFIED)
+      if (!resolution) return
+
+      const output = buildStartBlockOutput({
+        resolution,
+        workflowInput: { quantity: '5', subscribed: 'true', notes: 'hello' },
+      })
+
+      expect(output.quantity).toBe(5)
+      expect(output.subscribed).toBe(true)
+      expect(output.notes).toBe('hello')
+    }
+  )
+
   it.concurrent('buildStartBlockOutput normalizes Start files from internal serve URLs', () => {
     const block = createBlock('start_trigger', 'start')
     const resolution = {
@@ -488,6 +523,93 @@ describe('start-block utilities', () => {
         expect(output.extra).toBe('keep-me')
       }
     )
+  })
+
+  describe('form trigger submissions', () => {
+    it.concurrent('lands every submitted field as a top-level Start output', () => {
+      const block = createBlock('start_trigger', 'start')
+      const resolution = {
+        blockId: 'start',
+        block,
+        path: StartBlockPath.UNIFIED,
+      } as const
+
+      const output = buildStartBlockOutput({
+        resolution,
+        workflowInput: { email: 'ada@sim.ai', message: 'hello', subscribed: false },
+      })
+
+      expect(output.email).toBe('ada@sim.ai')
+      expect(output.message).toBe('hello')
+      expect(output.subscribed).toBe(false)
+      expect(output.input).toBeUndefined()
+      expect(output).not.toHaveProperty('conversationId')
+    })
+
+    it.concurrent('passes undeclared fields through alongside inputFormat-coerced ones', () => {
+      const block = createBlock('start_trigger', 'start', {
+        subBlocks: {
+          inputFormat: {
+            value: [{ name: 'quantity', type: 'number' }],
+          },
+        },
+      })
+      const resolution = {
+        blockId: 'start',
+        block,
+        path: StartBlockPath.UNIFIED,
+      } as const
+
+      const output = buildStartBlockOutput({
+        resolution,
+        workflowInput: { quantity: '7', notes: 'ship fast', subscribed: false },
+      })
+
+      expect(output.quantity).toBe(7)
+      expect(output.notes).toBe('ship fast')
+      expect(output.subscribed).toBe(false)
+    })
+
+    it.concurrent('keeps a submitted false switch value over the inputFormat default', () => {
+      const block = createBlock('start_trigger', 'start', {
+        subBlocks: {
+          inputFormat: {
+            value: [{ name: 'subscribed', type: 'boolean', value: true }],
+          },
+        },
+      })
+      const resolution = {
+        blockId: 'start',
+        block,
+        path: StartBlockPath.UNIFIED,
+      } as const
+
+      const output = buildStartBlockOutput({
+        resolution,
+        workflowInput: { subscribed: false },
+      })
+
+      expect(output.subscribed).toBe(false)
+    })
+
+    it.concurrent('enters a legacy API-trigger workflow at its API trigger', () => {
+      const resolution = resolveExecutorStartBlock([createBlock('api_trigger', 'api')], {
+        execution: 'api',
+        isChildWorkflow: false,
+      })
+
+      expect(resolution?.blockId).toBe('api')
+      expect(resolution?.path).toBe(StartBlockPath.SPLIT_API)
+    })
+
+    it.concurrent('resolves no start block for a chat-only workflow', () => {
+      const resolution = resolveExecutorStartBlock([createBlock('chat_trigger', 'chat')], {
+        execution: 'api',
+        isChildWorkflow: false,
+      })
+
+      expect(resolution).toBeNull()
+    })
   })
 
   describe('EXTERNAL_TRIGGER path', () => {

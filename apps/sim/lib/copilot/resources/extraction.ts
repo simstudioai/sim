@@ -15,6 +15,7 @@ import {
   KnowledgeBase,
   ManageFolder,
   ManageScheduledTask,
+  UserInterface,
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -25,6 +26,7 @@ type ResourceType = MothershipResourceType
 
 const RESOURCE_TOOL_NAMES: Set<string> = new Set([
   UserTable.id,
+  UserInterface.id,
   CreateFile.id,
   WorkspaceFile.id,
   DownloadToWorkspaceFile.id,
@@ -60,6 +62,7 @@ function getWorkspaceFileTarget(
 }
 
 const READ_ONLY_TABLE_OPS = new Set(['get', 'get_schema', 'get_row', 'query_rows'])
+const READ_ONLY_INTERFACE_OPS = new Set(['get', 'list'])
 const READ_ONLY_KB_OPS = new Set(['get', 'query', 'list_tags', 'get_tag_usage'])
 const READ_ONLY_KNOWLEDGE_ACTIONS = new Set(['listed', 'queried'])
 
@@ -111,6 +114,27 @@ export function extractResourcesFromToolResult(
         return [
           { type: 'table', id: tableId as string, title: (data.tableName as string) || 'Table' },
         ]
+      }
+      return []
+    }
+
+    case UserInterface.id: {
+      if (READ_ONLY_INTERFACE_OPS.has(getOperation(params) ?? '')) return []
+
+      const definition = asRecord(data.interface)
+      if (definition.id) {
+        return [
+          {
+            type: 'interface',
+            id: definition.id as string,
+            title: (definition.name as string) || 'Interface',
+          },
+        ]
+      }
+      const args = asRecord(params?.args)
+      const interfaceId = (data.interfaceId as string) ?? (args.interfaceId as string)
+      if (interfaceId) {
+        return [{ type: 'interface', id: interfaceId, title: (data.name as string) || 'Interface' }]
       }
       return []
     }
@@ -248,6 +272,7 @@ const DELETE_CAPABLE_TOOL_RESOURCE_TYPE: Record<string, ResourceType> = {
   [DeleteFileFolder.id]: 'filefolder',
   [WorkspaceFile.id]: 'file',
   [UserTable.id]: 'table',
+  [UserInterface.id]: 'interface',
   [KnowledgeBase.id]: 'knowledgebase',
   [ManageFolder.id]: 'folder',
   [ManageScheduledTask.id]: 'scheduledtask',
@@ -348,6 +373,17 @@ export function extractDeletedResourcesFromToolResult(
       const tableId = (args.tableId as string) ?? (params?.tableId as string)
       if (tableId) {
         return [{ type: resourceType, id: tableId, title: 'Table' }]
+      }
+      return []
+    }
+
+    case UserInterface.id: {
+      if (operation !== 'delete') return []
+      const interfaceId = (data.interfaceId as string) ?? (args.interfaceId as string)
+      if (interfaceId) {
+        return [
+          { type: resourceType, id: interfaceId, title: (data.name as string) || 'Interface' },
+        ]
       }
       return []
     }

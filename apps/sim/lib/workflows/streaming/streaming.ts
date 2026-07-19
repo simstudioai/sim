@@ -44,7 +44,7 @@ const SELECTED_OUTPUT_TOO_LARGE_MESSAGE =
 interface StreamingConfig {
   selectedOutputs?: string[]
   isSecureMode?: boolean
-  workflowTriggerType?: 'api' | 'chat'
+  workflowTriggerType?: 'api' | 'chat' | 'form'
   includeFileBase64?: boolean
   base64MaxBytes?: number
   timeoutMs?: number

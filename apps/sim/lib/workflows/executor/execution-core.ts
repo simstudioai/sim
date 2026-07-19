@@ -495,9 +495,11 @@ async function executeWorkflowCoreImpl(
       const executionKind =
         triggerType === 'api' || triggerType === 'chat'
           ? (triggerType as 'api' | 'chat')
-          : triggerType === 'webhook' || triggerType === 'schedule'
-            ? 'external'
-            : 'manual'
+          : triggerType === 'form'
+            ? 'api'
+            : triggerType === 'webhook' || triggerType === 'schedule'
+              ? 'external'
+              : 'manual'
 
       const startBlock = TriggerUtils.findStartBlock(mergedStates, executionKind, false)
 

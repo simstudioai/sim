@@ -4,6 +4,7 @@ import {
   Database,
   Folder as FolderIcon,
   Library,
+  Panels,
   Table as TableIcon,
   Task,
   Workflow,
@@ -64,6 +65,10 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
   table: {
     label: 'Table',
     renderIcon: ({ className }) => <TableIcon className={className} />,
+  },
+  interface: {
+    label: 'Interface',
+    renderIcon: ({ className }) => <Panels className={className} />,
   },
   file: {
     label: 'File',

@@ -24,6 +24,7 @@ export type ChatContext =
   | { kind: 'workflow_block'; workflowId: string; blockId: string; label: string }
   | { kind: 'knowledge'; knowledgeId?: string; label: string }
   | { kind: 'table'; tableId: string; label: string }
+  | { kind: 'interface'; interfaceId: string; label: string }
   | { kind: 'file'; fileId: string; label: string }
   | { kind: 'folder'; folderId: string; label: string }
   | { kind: 'filefolder'; fileFolderId: string; label: string }

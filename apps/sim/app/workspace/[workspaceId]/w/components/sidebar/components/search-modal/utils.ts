@@ -72,6 +72,7 @@ export interface SearchModalProps {
   workflows?: WorkflowItem[]
   workspaces?: WorkspaceItem[]
   chats?: TaskItem[]
+  interfaces?: TaskItem[]
   tables?: TaskItem[]
   files?: FileItem[]
   knowledgeBases?: TaskItem[]

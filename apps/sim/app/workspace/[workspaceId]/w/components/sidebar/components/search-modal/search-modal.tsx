@@ -12,6 +12,7 @@ import {
   Home,
   Integration,
   Key,
+  Panels,
   Play,
   Plus,
   Search,
@@ -51,6 +52,7 @@ import {
   DocsGroup,
   FilesGroup,
   IntegrationsGroup,
+  InterfacesGroup,
   KnowledgeBasesGroup,
   PagesGroup,
   TablesGroup,
@@ -82,6 +84,7 @@ export function SearchModal({
   workflows = [],
   workspaces = [],
   chats = [],
+  interfaces = [],
   tables = [],
   files = [],
   knowledgeBases = [],
@@ -136,6 +139,12 @@ export function SearchModal({
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
           hidden: permissionConfig.hideIntegrationsTab,
+        },
+        {
+          id: 'interfaces',
+          name: 'Interfaces',
+          icon: Panels,
+          href: `/workspace/${workspaceId}/interfaces`,
         },
         {
           id: 'tables',
@@ -433,6 +442,19 @@ export function SearchModal({
     [workspaceId]
   )
 
+  const handleInterfaceSelect = useCallback(
+    (item: TaskItem) => {
+      routerRef.current.push(item.href)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'interface',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
   const handleTableSelect = useCallback(
     (item: TaskItem) => {
       routerRef.current.push(item.href)
@@ -617,6 +639,10 @@ export function SearchModal({
     return filterAndCap(docs, (d) => `${d.name} docs documentation`, deferredSearch)
   }, [isOnWorkflowPage, docs, deferredSearch])
 
+  const filteredInterfaces = useMemo(
+    () => filterAndCap(interfaces, (i) => i.name, deferredSearch),
+    [interfaces, deferredSearch]
+  )
   const filteredTables = useMemo(
     () => filterAndCap(tables, (t) => t.name, deferredSearch),
     [tables, deferredSearch]
@@ -771,6 +797,13 @@ export function SearchModal({
                 <TablesGroup
                   items={filteredTables}
                   onSelect={handleTableSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('interfaces') && (
+                <InterfacesGroup
+                  items={filteredInterfaces}
+                  onSelect={handleInterfaceSelect}
                   query={deferredSearch}
                 />
               )}

@@ -63,8 +63,8 @@
   "overrides": {
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "next": "16.2.6",
-    "@next/env": "16.2.6",
+    "next": "16.3.0-preview.6",
+    "@next/env": "16.3.0-preview.6",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5",
     "minimatch": "^10.2.5",
@@ -89,6 +89,7 @@
     "sharp"
   ],
   "dependencies": {
-    "@aws-sdk/client-appconfig": "3.1032.0"
+    "@aws-sdk/client-appconfig": "3.1032.0",
+    "next": "16.3.0-preview.6"
   }
 }

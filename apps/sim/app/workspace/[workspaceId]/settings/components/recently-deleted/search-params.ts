@@ -6,6 +6,7 @@ export const RECENTLY_DELETED_TABS = [
   'all',
   'workflow',
   'folder',
+  'interface',
   'table',
   'knowledge',
   'file',
