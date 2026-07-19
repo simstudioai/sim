@@ -112,6 +112,8 @@ i18n.cache
 .claude/scheduled_tasks.lock
 .deepseek/
 .deepsec/
+.leankg/
+.omo/
 
 # Local caches & machine-specific dirs
 .bun/

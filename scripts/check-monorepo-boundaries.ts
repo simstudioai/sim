@@ -13,6 +13,21 @@ const FORBIDDEN_PATTERNS: Array<{ pattern: RegExp; description: string }> = [
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.next', '.turbo', 'coverage'])
 
+/**
+ * Code-generator sources whose `@/` occurrences live inside template-literal
+ * strings that become the CONTENT of generated `apps/sim/{tools,blocks,triggers}/**`
+ * files — not real imports of `packages/universal-integrator` into `apps/sim`.
+ * Those generated files correctly use `@/` per the apps/sim absolute-import
+ * convention; rewriting the generator's output to relative imports would make
+ * it emit non-conforming code instead.
+ */
+const GENERATED_CODE_TEMPLATE_FILES = new Set([
+  'packages/universal-integrator/src/agent-sdk.ts',
+  'packages/universal-integrator/src/block-generator.ts',
+  'packages/universal-integrator/src/tool-generator.ts',
+  'packages/universal-integrator/src/trigger-generator.ts',
+])
+
 async function walk(dir: string, results: string[] = []): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true })
   for (const entry of entries) {
@@ -38,6 +53,9 @@ async function main() {
   for (const dir of packageDirs) {
     const files = await walk(dir)
     for (const file of files) {
+      const relativePath = path.relative(ROOT, file)
+      if (GENERATED_CODE_TEMPLATE_FILES.has(relativePath)) continue
+
       const content = await readFile(file, 'utf8')
       const lines = content.split('\n')
       for (let i = 0; i < lines.length; i++) {
@@ -46,7 +64,7 @@ async function main() {
           pattern.lastIndex = 0
           if (pattern.test(line)) {
             offenders.push({
-              file: path.relative(ROOT, file),
+              file: relativePath,
               line: i + 1,
               description,
               snippet: line.trim(),
