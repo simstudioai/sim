@@ -18,7 +18,6 @@ export function getEmailSubjectRu(type: EmailSubjectType): string {
     invitation: `Вас пригласили в команду на ${brandName}`,
     'batch-invitation': `Вас пригласили в команду и воркспейсы на ${brandName}`,
     'workspace-added': `Вас добавили в воркспейс на ${brandName}`,
-    'polling-group-invitation': `Приглашение в группу email-опроса на ${brandName}`,
     'help-confirmation': 'Ваш запрос получен',
     'enterprise-subscription': `Ваш план Enterprise активирован на ${brandName}`,
     'usage-threshold': `Вы приближаетесь к месячному лимиту на ${brandName}`,

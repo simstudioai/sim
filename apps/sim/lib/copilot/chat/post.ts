@@ -9,8 +9,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
@@ -817,7 +817,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       // Fail-open: if the billing provider is unreachable the gate is skipped so
       // a transient Lago/Stripe outage does not take down chat.
       try {
-        const usage = await checkActorUsageLimits(authenticatedUserId, branch.workspaceId)
+        const usage = await checkActorUsageLimits(authenticatedUserId)
         if (usage.isExceeded) {
           activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, 402)
           activeOtelRoot.finish('error')

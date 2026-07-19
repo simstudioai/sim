@@ -14,6 +14,7 @@ import {
   toast,
 } from '@sim/emcn'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
@@ -563,9 +564,10 @@ export function SpecialTags({
  * Renders a "Thinking" shimmer while a special tag is still streaming in.
  */
 export function PendingTagIndicator() {
+  const t = useTranslations('auto')
   return (
     <div className='animate-stream-fade-in py-2'>
-      <ThinkingLoader size={20} startVariant='corners' label='Thinking…' labelRatio={0.7} />
+      <ThinkingLoader size={20} startVariant='corners' label={t('thinking')} labelRatio={0.7} />
     </div>
   )
 }
@@ -576,6 +578,7 @@ interface OptionsDisplayProps {
 }
 
 function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
+  const t = useTranslations('auto')
   const disabled = !onSelect
   const [collapsedByUser, setCollapsedByUser] = useState(false)
   // When interactive (not disabled), always expanded. When disabled, the user can toggle.
@@ -593,7 +596,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
           aria-expanded={expanded}
           className='flex items-center gap-2'
         >
-          <span className='text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
+          <span className='text-[var(--text-body)] text-sm'>{t('suggested_follow_ups')}</span>
           <ChevronDown
             className={cn(
               'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
@@ -602,7 +605,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
           />
         </button>
       ) : (
-        <span className='text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
+        <span className='text-[var(--text-body)] text-sm'>{t('suggested_follow_ups')}</span>
       )}
       <Expandable expanded={expanded}>
         <ExpandableContent className='mt-1.5'>
@@ -866,6 +869,7 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
 }
 
 function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
+  const t = useTranslations('auto')
   const { canEdit } = useUserPermissionsContext()
 
   // A connect URL carrying a credentialId re-authorizes that existing
@@ -892,7 +896,7 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
     data.provider
   const label = reconnectCredentialId
     ? `Reconnect ${reconnectCredential?.displayName ?? integrationName}`
-    : `Connect ${integrationName}`
+    : `${t('connect')} ${integrationName}`
   return (
     <a
       href={data.value}
@@ -933,6 +937,7 @@ function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
 }
 
 function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
+  const t = useTranslations('auto')
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
   const { getSettingsHref } = useSettingsNavigation()
@@ -962,7 +967,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
           <circle cx='8' cy='11.5' r='0.75' fill='currentColor' />
         </svg>
         <span className='font-[500] text-amber-800 text-sm leading-5 dark:text-amber-300'>
-          Usage Limit Reached
+          {t('usage_limit_reached')}
         </span>
       </div>
       <p className='mt-1.5 text-amber-700/90 text-small leading-[20px] dark:text-amber-400/80'>

@@ -13,6 +13,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { requestJson } from '@/lib/api/client/request'
 import { forgetPasswordContract } from '@/lib/api/contracts'
 import { client } from '@/lib/auth/auth-client'
@@ -92,6 +93,7 @@ export default function LoginPage({
   microsoftAvailable: boolean
   isProduction: boolean
 }) {
+  const t = useTranslations('auto')
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
@@ -353,18 +355,18 @@ export default function LoginPage({
   return (
     <>
       <div className='space-y-6'>
-        <AuthHeader title='Sign in' description='Enter your details' />
+        <AuthHeader title={t('sign_in')} description={t('enter_your_details')} />
 
         {showTopSSO && <SSOLoginButton callbackURL={callbackUrl} variant='primary' />}
 
         {emailEnabled && (
           <form onSubmit={onSubmit} className='space-y-6'>
             <div className='space-y-5'>
-              <AuthField htmlFor='email' label='Email' errors={emailFieldErrors}>
+              <AuthField htmlFor='email' label={t('email')} errors={emailFieldErrors}>
                 <AuthInput
                   id='email'
                   name='email'
-                  placeholder='Enter your email'
+                  placeholder={t('enter_your_email')}
                   required
                   autoCapitalize='none'
                   autoComplete='email'
@@ -376,14 +378,14 @@ export default function LoginPage({
               </AuthField>
               <AuthField
                 htmlFor='password'
-                label='Password'
+                label={t('password')}
                 errors={passwordFieldErrors}
                 action={
                   <AuthTextLink
                     onClick={() => setForgotPasswordOpen(true)}
                     className='text-caption'
                   >
-                    Forgot password?
+                    {t('forgot_password')}
                   </AuthTextLink>
                 }
               >
@@ -394,7 +396,7 @@ export default function LoginPage({
                   autoCapitalize='none'
                   autoComplete='current-password'
                   autoCorrect='off'
-                  placeholder='Enter your password'
+                  placeholder={t('enter_your_password')}
                   value={password}
                   onChange={handlePasswordChange}
                   error={passwordFieldErrors.length > 0}
@@ -408,13 +410,17 @@ export default function LoginPage({
               </AuthFormMessage>
             )}
 
-            <AuthSubmitButton loading={isLoading} loadingLabel='Signing in…' disabled={!canSubmit}>
-              Sign in
+            <AuthSubmitButton
+              loading={isLoading}
+              loadingLabel={t('signing_in')}
+              disabled={!canSubmit}
+            >
+              {t('sign_in')}
             </AuthSubmitButton>
           </form>
         )}
 
-        {showDivider && <AuthDivider label='Or continue with' />}
+        {showDivider && <AuthDivider label={t('or_continue_with')} />}
 
         {showBottomSection && (
           <SocialLoginButtons
@@ -432,9 +438,9 @@ export default function LoginPage({
 
         {emailEnabled && (
           <AuthNavPrompt
-            prompt="Don't have an account?"
+            prompt={t('don_t_have_an_account')}
             href={isInviteFlow ? `/signup?invite_flow=true&callbackUrl=${callbackUrl}` : '/signup'}
-            linkLabel='Sign up'
+            linkLabel={t('sign_up')}
           />
         )}
 
@@ -444,26 +450,25 @@ export default function LoginPage({
       <ChipModal
         open={forgotPasswordOpen}
         onOpenChange={setForgotPasswordOpen}
-        srTitle='Reset Password'
+        srTitle={t('reset_password')}
       >
         <ChipModalHeader onClose={() => setForgotPasswordOpen(false)}>
-          Reset Password
+          {t('reset_password')}
         </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            Enter your email address and we'll send you a link to reset your password if your
-            account exists.
+            {t('enter_your_email_address_and_we')}
           </p>
           <ChipModalField
             type='email'
-            title='Email'
+            title={t('email')}
             value={forgotPasswordEmail}
             onChange={(value) => setForgotPasswordEmail(value)}
             onSubmit={() => {
               if (!isSubmittingReset) void handleForgotPassword()
             }}
             required
-            placeholder='you@example.com'
+            placeholder={t('you_example_com')}
           />
           {resetStatus.type === 'success' && (
             <p className='px-2 text-[var(--text-secondary)] text-sm'>{resetStatus.message}</p>

@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useTranslations } from 'next-intl'
 import {
   Avatar,
   AvatarFallback,
@@ -14,6 +13,7 @@ import {
   Search,
   Skeleton,
 } from '@sim/emcn'
+import { useTranslations } from 'next-intl'
 import { getBillingPortalLabelKey } from '@/lib/billing/client/provider'
 import { getUserColor } from '@/lib/workspaces/colors'
 import type { RosterMember } from '@/hooks/queries/organization'

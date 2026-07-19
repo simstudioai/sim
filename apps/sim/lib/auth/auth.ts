@@ -72,6 +72,7 @@ import {
 import { env } from '@/lib/core/config/env'
 import {
   isAuthDisabled,
+  isBillingEnabled,
   isEmailPasswordEnabled,
   isEmailSignupDisabled,
   isEmailVerificationEnabled,

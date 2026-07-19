@@ -2,8 +2,8 @@ import { db } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, ne } from 'drizzle-orm'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { provisionLagoBillingForOrganization } from '@/lib/billing/lago/provision'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { isLagoBillingProvider } from '@/lib/core/config/env-flags'
 
 const ORGANIZATION_SLUG_REGEX = /^[a-z0-9-_]+$/

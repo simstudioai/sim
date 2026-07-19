@@ -28,6 +28,7 @@ export async function listLagoInvoices(
       number: invoice.number,
       created: Math.floor(new Date(invoice.issuing_date).getTime() / 1000),
       total: invoice.total_amount_cents,
+      description: null,
       amountPaid: invoice.payment_status === 'succeeded' ? invoice.total_amount_cents : 0,
       currency: invoice.currency,
       status: invoice.payment_status || invoice.status,

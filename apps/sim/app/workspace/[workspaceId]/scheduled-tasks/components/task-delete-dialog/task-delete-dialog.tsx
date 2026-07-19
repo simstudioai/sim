@@ -1,6 +1,5 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
 import {
   ChipConfirmModal,
   ChipModal,
@@ -9,6 +8,7 @@ import {
   ChipModalHeader,
 } from '@sim/emcn'
 import { Calendar } from '@sim/emcn/icons'
+import { useTranslations } from 'next-intl'
 import type { ScheduledTask } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
 
 interface TaskDeleteDialogProps {

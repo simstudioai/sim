@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslations } from 'next-intl'
 import {
   cn,
   DropdownMenu,
@@ -14,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@sim/emcn'
 import { Workflow } from '@sim/emcn/icons'
+import { useTranslations } from 'next-intl'
 import {
   buildFileFolderTree,
   buildWorkflowFolderTree,

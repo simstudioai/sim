@@ -1,8 +1,8 @@
 'use client'
 
 import { useTransition } from 'react'
+import { ChipDropdown } from '@sim/emcn'
 import { useLocale } from 'next-intl'
-import { ChipDropdown } from '@/components/emcn'
 import { type AppLocale, LOCALE_COOKIE, locales } from '@/lib/i18n/config'
 import { useRouter } from '@/lib/i18n/navigation'
 
@@ -34,7 +34,7 @@ export function LanguageSwitcher() {
       value={locale}
       placeholder={LANGUAGE_EMOJI[locale]}
       disabled={isPending}
-      onChange={(value) => {
+      onChange={(value: string) => {
         document.cookie = `${LOCALE_COOKIE}=${value}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
         startTransition(() => {
           router.refresh()

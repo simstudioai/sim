@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Chip, ChipInput, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useTranslations } from 'next-intl'
-import { Chip, ChipInput, toast } from '@/components/emcn'
 import { creditsToDollars, dollarsToCredits, formatCredits } from '@/lib/billing/credits/conversion'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { usePurchaseCredits } from '@/hooks/queries/subscription'
@@ -82,7 +82,7 @@ export function WalletSection({ creditBalance, canManage, organizationId }: Wall
               inputMode='numeric'
               min={minCredits}
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft(e.target.value)}
               placeholder={`${minCredits.toLocaleString()}–${maxCredits.toLocaleString()} credits`}
               disabled={purchaseCredits.isPending}
               className='min-w-0 flex-1'

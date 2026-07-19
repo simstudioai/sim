@@ -1,7 +1,6 @@
 'use client'
 
 import { memo } from 'react'
-import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@sim/emcn'
 import { Duplicate, Pencil, SquareArrowUpRight, TagIcon, Trash } from '@sim/emcn/icons'
+import { useTranslations } from 'next-intl'
 
 interface KnowledgeBaseContextMenuProps {
   isOpen: boolean

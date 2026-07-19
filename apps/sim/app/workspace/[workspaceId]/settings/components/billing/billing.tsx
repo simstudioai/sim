@@ -488,7 +488,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       </div>
 
       <WalletSection
-        creditBalance={subscriptionData.data.creditBalance ?? 0}
+        creditBalance={subscriptionData?.data.creditBalance ?? 0}
         canManage={canManageBilling}
         organizationId={subscription.isOrgScoped ? (billingOrganizationId ?? undefined) : undefined}
       />
