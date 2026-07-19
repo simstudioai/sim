@@ -8,13 +8,26 @@ authors:
   - sid
 readingTime: 12
 tags: [Executor, Architecture, DAG, Orchestration]
-ogImage: /blog/executor/cover.png
+ogImage: /blog/executor/cover.jpg
 ogAlt: 'Sim Executor technical overview'
 about: ['Execution', 'Workflow Orchestration']
 timeRequired: PT12M
 canonical: https://www.sim.ai/blog/executor
 featured: false
 draft: false
+faq:
+  - q: "How does Sim's executor handle true parallel execution instead of just interleaving branches?"
+    a: "The executor uses an event-driven ready queue: when a parallel block expands into branch-indexed nodes, all entry nodes across every branch enter the queue simultaneously and launch concurrently rather than one after another. Sim doesn't distinguish parallel branches from any other independent nodes that happen to be ready at the same time — concurrency simply emerges from the DAG structure."
+  - q: "How does Sim implement loops in a DAG, which is acyclic by definition?"
+    a: "Sim expands each loop into a sentinel start and sentinel end node during compilation. The backward edge from end to start doesn't count as a dependency initially — it only activates if the loop condition says to continue — which preserves the DAG's acyclic property while still allowing iteration."
+  - q: "Can a Sim workflow pause for human approval in the middle of a loop or across parallel branches?"
+    a: "Yes. When a block returns pause metadata, the executor stops processing its outgoing edges and captures the full execution state, including loop iteration and parallel branch progress. Each pause point gets a unique context ID based on its position, so multiple simultaneous pauses (e.g. three parallel branches each hitting an approval block) can each resume independently."
+  - q: "What gets saved when a Sim workflow pauses, and is it enough to resume later without losing state?"
+    a: "The snapshot serializes block states, execution logs, loop and parallel scopes, routing decisions, and workflow variables to JSON. The critical piece is the DAG's incoming edge state — which dependencies each node still has outstanding — so partially completed loops and in-flight parallel branches can be resumed exactly where they left off."
+  - q: "How does AI-driven routing (a router block choosing a path) stay deterministic and debuggable in Sim?"
+    a: "When a router block returns its chosen block ID, the edge manager activates only the matching outgoing edge and deactivates all others, with deactivation cascading recursively to unreachable downstream blocks. This means you can inspect the execution log afterward and see exactly which path the model chose and which alternatives were pruned."
+  - q: "How does the Sim executor know when a block is ready to run without re-scanning all connections?"
+    a: "Each node tracks its own incoming edges in a set; when a dependency completes, one element is removed from that set, and the node becomes ready the moment the set hits zero. This replaced an earlier approach that rescanned the full connection array after every block execution, which degraded as the graph grew larger."
 ---
 
 Modern workflows aren't just linear automations anymore. They involve a variety of APIs and services, loop over a model's output, pause for human decisions, and resume hours or days later exactly where they left off.

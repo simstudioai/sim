@@ -9,6 +9,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
@@ -26,6 +27,7 @@ import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { generateWorkspaceSnapshot } from '@/lib/copilot/chat/workspace-context'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
+import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import {
   CopilotChatFinalizeOutcome,
   CopilotChatPersistOutcome,
@@ -46,6 +48,7 @@ import type { ExecutionContext, OrchestratorResult } from '@/lib/copilot/request
 import { persistChatResources } from '@/lib/copilot/resources/persistence'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import {
   getUserEntityPermissions,
@@ -116,6 +119,7 @@ const ChatContextSchema = z.object({
     'scheduledtask',
     'integration',
     'skill',
+    'mcp',
   ]),
   label: z.string(),
   chatId: z.string().optional(),
@@ -129,6 +133,7 @@ const ChatContextSchema = z.object({
   folderId: z.string().optional(),
   fileFolderId: z.string().optional(),
   skillId: z.string().optional(),
+  serverId: z.string().optional(),
   scheduleId: z.string().optional(),
 })
 
@@ -173,8 +178,10 @@ type UnifiedChatBranch =
         userMessageId: string
         chatId?: string
         contexts: Array<{ type: string; content: string; tag?: string; path?: string }>
+        mcpServerIds?: string[]
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
+        entitlements?: string[]
         userTimezone?: string
         userMetadata?: { name?: string; email?: string; timezone?: string }
         workflowId: string
@@ -210,8 +217,10 @@ type UnifiedChatBranch =
         userMessageId: string
         chatId?: string
         contexts: Array<{ type: string; content: string; tag?: string; path?: string }>
+        mcpServerIds?: string[]
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
+        entitlements?: string[]
         userTimezone?: string
         userMetadata?: { name?: string; email?: string; timezone?: string }
         workspaceContext?: string
@@ -403,13 +412,19 @@ async function buildInitialExecutionContext(params: {
     }
   }
 
-  const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
+  const [decryptedEnvVars, billingAttribution] = await Promise.all([
+    getEffectiveDecryptedEnv(userId, workspaceId),
+    workspaceId
+      ? resolveBillingAttribution({ actorUserId: userId, workspaceId })
+      : Promise.resolve(undefined),
+  ])
   return {
     userId,
     workflowId: workflowId ?? '',
     workspaceId,
     chatId,
     decryptedEnvVars,
+    billingAttribution,
     messageId,
     userTimezone,
     requestMode,
@@ -616,6 +631,7 @@ async function resolveBranch(params: {
             model: selectedModel,
             provider: payloadParams.provider,
             contexts: payloadParams.contexts,
+            mcpServerIds: payloadParams.mcpServerIds,
             fileAttachments: payloadParams.fileAttachments,
             commands: payloadParams.commands,
             chatId: payloadParams.chatId,
@@ -624,6 +640,7 @@ async function resolveBranch(params: {
             workspaceContext: payloadParams.workspaceContext,
             vfs: payloadParams.vfs,
             userPermission: payloadParams.userPermission,
+            entitlements: payloadParams.entitlements,
             userTimezone: payloadParams.userTimezone,
             userMetadata: payloadParams.userMetadata,
           },
@@ -674,14 +691,15 @@ async function resolveBranch(params: {
           mode: 'agent',
           model: '',
           contexts: payloadParams.contexts,
+          mcpServerIds: payloadParams.mcpServerIds,
           fileAttachments: payloadParams.fileAttachments,
           chatId: payloadParams.chatId,
           workspaceContext: payloadParams.workspaceContext,
           vfs: payloadParams.vfs,
           userPermission: payloadParams.userPermission,
+          entitlements: payloadParams.entitlements,
           userTimezone: payloadParams.userTimezone,
           userMetadata: payloadParams.userMetadata,
-          includeMothershipTools: true,
         },
         { selectedModel: '' }
       ),
@@ -927,6 +945,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 }
               )
             : Promise.resolve(null)
+      const entitlementsPromise = workspaceId
+        ? computeWorkspaceEntitlements(workspaceId, authenticatedUserId)
+        : Promise.resolve([])
       // Wrap the pre-LLM prep work in spans so the trace waterfall shows
       // where time is going between "request received" and "llm.stream
       // opens". Previously these ran bare under the root and inflated the
@@ -981,10 +1002,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.context
       )
 
-      const [agentContexts, userPermission, workspaceSnapshot, , executionContext] =
+      const [agentContexts, userPermission, entitlements, workspaceSnapshot, , executionContext] =
         await Promise.all([
           agentContextsPromise,
           userPermissionPromise,
+          entitlementsPromise,
           workspaceContextPromise,
           persistUserMessagePromise,
           executionContextPromise,
@@ -1009,16 +1031,21 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           [TraceAttr.CopilotFileAttachmentsCount]: body.fileAttachments?.length ?? 0,
           [TraceAttr.CopilotContextsCount]: normalizedContexts.length,
         },
-        () =>
-          branch.kind === 'workflow'
+        () => {
+          const mcpServerIds = normalizedContexts.flatMap((context) =>
+            context.kind === 'mcp' && context.serverId ? [context.serverId] : []
+          )
+          return branch.kind === 'workflow'
             ? branch.buildPayload({
                 message: body.message,
                 userId: authenticatedUserId,
                 userMessageId,
                 chatId: actualChatId,
                 contexts: agentContexts,
+                mcpServerIds,
                 fileAttachments: body.fileAttachments,
                 userPermission: userPermission ?? undefined,
+                entitlements,
                 userTimezone: body.userTimezone,
                 userMetadata,
                 workflowId: branch.workflowId,
@@ -1038,13 +1065,16 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 userMessageId,
                 chatId: actualChatId,
                 contexts: agentContexts,
+                mcpServerIds,
                 fileAttachments: body.fileAttachments,
                 userPermission: userPermission ?? undefined,
+                entitlements,
                 userTimezone: body.userTimezone,
                 userMetadata,
                 workspaceContext,
                 vfs,
-              }),
+              })
+        },
         activeOtelRoot.context
       )
 
@@ -1098,6 +1128,19 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           }),
         },
       })
+
+      captureServerEvent(
+        authenticatedUserId,
+        'copilot_chat_sent',
+        {
+          ...(branch.kind === 'workflow' ? { workflow_id: branch.workflowId } : {}),
+          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          has_file_attachments: (body.fileAttachments?.length ?? 0) > 0,
+          has_contexts: normalizedContexts.length > 0,
+          mode: branch.kind === 'workflow' ? branch.mode : 'agent',
+        },
+        workspaceId ? { groups: { workspace: workspaceId } } : undefined
+      )
 
       // Expose the root gen_ai.agent.execute span's trace identity to
       // the browser so subsequent HTTP calls (stop, abort, confirm,

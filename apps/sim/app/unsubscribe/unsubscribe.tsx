@@ -1,18 +1,16 @@
 'use client'
 
 import { Suspense } from 'react'
+import { Chip, cn, Loader } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSearchParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Loader } from '@/components/emcn'
 import type { UnsubscribeType } from '@/lib/api/contracts/user'
-import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
+import { AuthSubmitButton } from '@/app/(auth)/components'
+import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 import { InviteLayout } from '@/app/invite/components'
 import { useUnsubscribe, useUnsubscribeMutation } from '@/hooks/queries/unsubscribe'
 
 function UnsubscribeContent() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const searchParams = useSearchParams()
   const email = searchParams.get('email')
   const token = searchParams.get('token')
@@ -42,15 +40,15 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
-            {t('loading')}
+          <h1 className={'font-medium text-[32px] text-[var(--text-primary)] tracking-tight'}>
+            Loading
           </h1>
-          <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
-            {t('validating_your_unsubscribe_link')}
+          <p className={'font-[380] text-[var(--text-muted)] text-md'}>
+            Validating your unsubscribe link…
           </p>
         </div>
         <div className={'mt-8 flex w-full items-center justify-center py-8'}>
-          <Loader className='size-8 text-[var(--landing-text-muted)]' animate />
+          <Loader className='size-8 text-[var(--text-muted)]' animate />
         </div>
       </InviteLayout>
     )
@@ -60,16 +58,16 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
-            {t('invalid_unsubscribe_link')}
+          <h1 className={'font-medium text-[32px] text-[var(--text-primary)] tracking-tight'}>
+            Invalid Unsubscribe Link
           </h1>
-          <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>{error}</p>
+          <p className={'font-[380] text-[var(--text-muted)] text-md'}>{error}</p>
         </div>
 
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
-          <button onClick={() => window.history.back()} className={AUTH_SUBMIT_BTN}>
-            {t('go_back')}
-          </button>
+          <AuthSubmitButton type='button' onClick={() => window.history.back()} loadingLabel=''>
+            Go Back
+          </AuthSubmitButton>
         </div>
       </InviteLayout>
     )
@@ -79,18 +77,19 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
-            {t('important_account_emails')}
+          <h1 className={'font-medium text-[32px] text-[var(--text-primary)] tracking-tight'}>
+            Important Account Emails
           </h1>
-          <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
-            {t('transactional_emails_like_password_resets_accoun')}
+          <p className={'font-[380] text-[var(--text-muted)] text-md'}>
+            Transactional emails like password resets, account confirmations, and security alerts
+            cannot be unsubscribed from as they contain essential information for your account.
           </p>
         </div>
 
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
-          <button onClick={() => window.close()} className={AUTH_SUBMIT_BTN}>
-            {t('close')}
-          </button>
+          <AuthSubmitButton type='button' onClick={() => window.close()} loadingLabel=''>
+            Close
+          </AuthSubmitButton>
         </div>
       </InviteLayout>
     )
@@ -100,18 +99,19 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
-            {t('successfully_unsubscribed')}
+          <h1 className={'font-medium text-[32px] text-[var(--text-primary)] tracking-tight'}>
+            Successfully Unsubscribed
           </h1>
-          <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
-            {t('you_have_been_unsubscribed_from_our')}
+          <p className={'font-[380] text-[var(--text-muted)] text-md'}>
+            You have been unsubscribed from our emails. You will stop receiving emails within 48
+            hours.
           </p>
         </div>
 
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
-          <button onClick={() => window.close()} className={AUTH_SUBMIT_BTN}>
-            {t('close')}
-          </button>
+          <AuthSubmitButton type='button' onClick={() => window.close()} loadingLabel=''>
+            Close
+          </AuthSubmitButton>
         </div>
       </InviteLayout>
     )
@@ -122,85 +122,87 @@ function UnsubscribeContent() {
   return (
     <InviteLayout>
       <div className='space-y-1 text-center'>
-        <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
-          {t('email_preferences')}
+        <h1 className={'font-medium text-[32px] text-[var(--text-primary)] tracking-tight'}>
+          Email Preferences
         </h1>
-        <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
-          {t('choose_which_emails_you_d_like')}
+        <p className={'font-[380] text-[var(--text-muted)] text-md'}>
+          Choose which emails you'd like to stop receiving.
         </p>
-        <p className={'mt-2 font-[380] text-[var(--landing-text-muted)] text-sm'}>{data?.email}</p>
+        <p className={'mt-2 font-[380] text-[var(--text-muted)] text-sm'}>{data?.email}</p>
       </div>
 
       <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
-        <button
+        <AuthSubmitButton
+          type='button'
           onClick={() => handleUnsubscribe('all')}
-          disabled={processing || isAlreadyUnsubscribedFromAll}
-          className={AUTH_SUBMIT_BTN}
+          disabled={isAlreadyUnsubscribedFromAll}
+          loading={processing}
+          loadingLabel='Unsubscribing…'
         >
-          {processing ? (
-            <span className='flex items-center gap-2'>
-              <Loader className='size-4' animate />
-              {t('unsubscribing')}
-            </span>
-          ) : isAlreadyUnsubscribedFromAll ? (
-            tI18n('unsubscribed_from_all_emails')
-          ) : (
-            tI18n('unsubscribe_from_all_marketing_emails')
-          )}
-        </button>
+          {isAlreadyUnsubscribedFromAll
+            ? 'Unsubscribed from All Emails'
+            : 'Unsubscribe from All Marketing Emails'}
+        </AuthSubmitButton>
 
         <div className='py-2 text-center'>
-          <span className={'font-[380] text-[var(--landing-text-muted)] text-sm'}>
-            {t('or_choose_specific_types')}
+          <span className={'font-[380] text-[var(--text-muted)] text-sm'}>
+            or choose specific types
           </span>
         </div>
 
-        <button
+        <Chip
+          fullWidth
+          flush
           onClick={() => handleUnsubscribe('marketing')}
           disabled={
             processing ||
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeMarketing
           }
-          className={AUTH_SUBMIT_BTN}
+          className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
         >
           {data?.currentPreferences.unsubscribeMarketing
-            ? tI18n('unsubscribed_from_marketing')
-            : tI18n('unsubscribe_from_marketing_emails')}
-        </button>
+            ? 'Unsubscribed from Marketing'
+            : 'Unsubscribe from Marketing Emails'}
+        </Chip>
 
-        <button
+        <Chip
+          fullWidth
+          flush
           onClick={() => handleUnsubscribe('updates')}
           disabled={
             processing ||
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeUpdates
           }
-          className={AUTH_SUBMIT_BTN}
+          className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
         >
           {data?.currentPreferences.unsubscribeUpdates
-            ? tI18n('unsubscribed_from_updates')
-            : tI18n('unsubscribe_from_product_updates')}
-        </button>
+            ? 'Unsubscribed from Updates'
+            : 'Unsubscribe from Product Updates'}
+        </Chip>
 
-        <button
+        <Chip
+          fullWidth
+          flush
           onClick={() => handleUnsubscribe('notifications')}
           disabled={
             processing ||
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeNotifications
           }
-          className={AUTH_SUBMIT_BTN}
+          className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
         >
           {data?.currentPreferences.unsubscribeNotifications
-            ? tI18n('unsubscribed_from_notifications')
-            : tI18n('unsubscribe_from_notifications')}
-        </button>
+            ? 'Unsubscribed from Notifications'
+            : 'Unsubscribe from Notifications'}
+        </Chip>
       </div>
 
       <div className={'mt-6 max-w-[410px] text-center'}>
-        <p className='font-[380] text-[var(--landing-text-muted)] text-small'>
-          {t('you_ll_continue_receiving_important_account')}
+        <p className='font-[380] text-[var(--text-muted)] text-small'>
+          You'll continue receiving important account emails like password resets and security
+          alerts.
         </p>
       </div>
     </InviteLayout>
@@ -208,21 +210,20 @@ function UnsubscribeContent() {
 }
 
 export default function Unsubscribe() {
-  const t = useTranslations('auto')
   return (
     <Suspense
       fallback={
         <InviteLayout>
           <div className='space-y-1 text-center'>
-            <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
-              {t('loading')}
+            <h1 className={'font-medium text-[32px] text-[var(--text-primary)] tracking-tight'}>
+              Loading
             </h1>
-            <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
-              {t('validating_your_unsubscribe_link')}
+            <p className={'font-[380] text-[var(--text-muted)] text-md'}>
+              Validating your unsubscribe link…
             </p>
           </div>
           <div className={'mt-8 flex w-full items-center justify-center py-8'}>
-            <Loader className='size-8 text-[var(--landing-text-muted)]' animate />
+            <Loader className='size-8 text-[var(--text-muted)]' animate />
           </div>
         </InviteLayout>
       }

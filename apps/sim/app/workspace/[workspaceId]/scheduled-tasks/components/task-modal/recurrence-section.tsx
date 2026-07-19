@@ -1,15 +1,14 @@
 'use client'
 
 import { useRef } from 'react'
-import { format } from 'date-fns'
-import { useTranslations } from 'next-intl'
 import {
   CalendarDayCell,
   ChipDatePicker,
   ChipModalField,
   ChipModalSeparator,
   Switch,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { format } from 'date-fns'
 import type {
   MonthlyMode,
   Recurrence,
@@ -105,7 +104,6 @@ interface RecurrenceSectionProps {
  * primitives.
  */
 export function RecurrenceSection({ recurrence, onChange, launchDate }: RecurrenceSectionProps) {
-  const t = useTranslations('auto')
   /**
    * The cadence to reinstate when recurrence is toggled back on. Toggling off
    * collapses `frequency` to `once`, dropping which preset was active, so the
@@ -211,7 +209,7 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
     <div className='flex flex-col'>
       <ChipModalSeparator />
       <div className='flex flex-col gap-4 px-2 pt-4 pb-4.5'>
-        <ChipModalField type='custom' title={t('recurring')}>
+        <ChipModalField type='custom' title='Recurring'>
           <Switch checked={isRecurring} onCheckedChange={handleRecurringToggle} />
         </ChipModalField>
 
@@ -219,14 +217,14 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
           <>
             <ChipModalField
               type='dropdown'
-              title={t('frequency')}
+              title='Frequency'
               value={frequencyOptionFor(recurrence)}
               options={frequencyOptions}
               onChange={handleFrequencyChange}
             />
 
             {recurrence.frequency === 'weekly' && (
-              <ChipModalField type='custom' title={t('repeat_on')}>
+              <ChipModalField type='custom' title='Repeat on'>
                 {/* A one-row extract of the calendar: seven equal day cells built
                     from the same {@link CalendarDayCell} the date picker uses, so
                     the weekday toggles read as a sibling of the calendar rather than
@@ -254,7 +252,7 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
             {recurrence.frequency === 'monthly' && (
               <ChipModalField
                 type='dropdown'
-                title={t('on')}
+                title='On'
                 value={monthlyValue}
                 options={monthlyOptions}
                 onChange={(value) => onChange({ ...recurrence, monthlyMode: value as MonthlyMode })}
@@ -263,7 +261,7 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
 
             <ChipModalField
               type='dropdown'
-              title={t('ends')}
+              title='Ends'
               value={recurrence.end.type}
               options={[
                 { value: 'never', label: 'No end' },
@@ -274,7 +272,7 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
             />
 
             {recurrence.end.type === 'on' && (
-              <ChipModalField type='custom' title={t('end_date')}>
+              <ChipModalField type='custom' title='End date'>
                 <ChipDatePicker
                   value={recurrence.end.date}
                   onChange={(date) => onChange({ ...recurrence, end: { type: 'on', date } })}
@@ -286,7 +284,7 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
             {recurrence.end.type === 'after' && (
               <ChipModalField
                 type='input'
-                title={t('number_of_runs')}
+                title='Number of runs'
                 value={String(recurrence.end.count)}
                 onChange={(value) => {
                   const count = Math.max(1, Math.floor(Number(value) || 1))

@@ -1,10 +1,6 @@
 'use client'
 
 import { type ComponentType, useCallback, useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import {
   Chip,
   ChipConfirmModal,
@@ -14,8 +10,11 @@ import {
   ChipTextarea,
   Send,
   toast,
-} from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { useRouter } from 'next/navigation'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { INTEGRATIONS, resolveOAuthServiceForIntegration } from '@/lib/integrations'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
@@ -28,6 +27,10 @@ import {
   UnsavedChangesModal,
   useCredentialDetailForm,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import {
+  ConnectServiceAccountModal,
+  type ServiceAccountProviderId,
+} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
   useCreateCredentialDraft,
@@ -53,8 +56,6 @@ export function ConnectedCredentialDetail({
   workspaceId,
   credentialId,
 }: ConnectedCredentialDetailProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const router = useRouter()
   const integrationsHref = `/workspace/${workspaceId}/integrations`
 
@@ -80,6 +81,7 @@ export function ConnectedCredentialDetail({
 
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false)
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+  const [reconnectOpen, setReconnectOpen] = useState(false)
 
   const form = useCredentialDetailForm({ credential, isAdmin, backHref: integrationsHref })
 
@@ -189,33 +191,37 @@ export function ConnectedCredentialDetail({
 
   const back = (
     <ChipLink href={integrationsHref} onClick={form.handleBackClick} leftIcon={ArrowLeft}>
-      {t('integrations')}
+      Integrations
     </ChipLink>
   )
 
   const actions =
     credential && isAdmin ? (
       <>
-        {serviceConfig?.authType !== 'service_account' && (
+        {(credential.type === 'oauth' || credential.type === 'service_account') && (
           <Chip
-            onClick={handleReconnectOAuth}
+            onClick={
+              credential.type === 'service_account'
+                ? () => setReconnectOpen(true)
+                : handleReconnectOAuth
+            }
             disabled={connectOAuthService.isPending}
             leftIcon={serviceConfig?.icon}
           >
-            {t('reconnect')}
+            Reconnect
           </Chip>
         )}
         <Chip leftIcon={Send} onClick={() => setIsShareModalOpen(true)}>
-          {t('share')}
+          Share
         </Chip>
         <Chip
           onClick={() => setShowDeleteConfirmDialog(true)}
           disabled={disconnectOAuthService.isPending || deleteCredential.isPending}
         >
-          {t('disconnect')}
+          Disconnect
         </Chip>
         <Chip onClick={form.save} disabled={!form.isDirty || form.isSaving}>
-          {form.isSaving ? 'Saving...' : tI18n('save')}
+          {form.isSaving ? 'Saving...' : 'Save'}
         </Chip>
       </>
     ) : null
@@ -223,7 +229,7 @@ export function ConnectedCredentialDetail({
   if (credentialsLoading && !credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>{t('loading')}</p>
+        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Loading…</p>
       </CredentialDetailLayout>
     )
   }
@@ -231,9 +237,7 @@ export function ConnectedCredentialDetail({
   if (!credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>
-          {t('credential_not_found')}
-        </p>
+        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Credential not found.</p>
       </CredentialDetailLayout>
     )
   }
@@ -260,18 +264,14 @@ export function ConnectedCredentialDetail({
             )
           }
           title={serviceLabel}
-          subtitle={serviceConfig?.description || tI18n('connected_service')}
+          subtitle={serviceConfig?.description || 'Connected service'}
         />
 
-        <DetailSection title={t('credential_id')}>
-          <ChipCopyInput
-            id='credential-id'
-            value={credential.id}
-            copyLabel={tI18n('copy_credential_id')}
-          />
+        <DetailSection title='Credential ID'>
+          <ChipCopyInput id='credential-id' value={credential.id} copyLabel='Copy credential ID' />
         </DetailSection>
 
-        <DetailSection title={t('display_name')}>
+        <DetailSection title='Display Name'>
           <ChipInput
             id='credential-display-name'
             value={form.displayNameDraft}
@@ -282,13 +282,13 @@ export function ConnectedCredentialDetail({
           />
         </DetailSection>
 
-        <DetailSection title={t('description')}>
+        <DetailSection title='Description'>
           <ChipTextarea
             id='credential-description'
             rows={4}
             value={form.descriptionDraft}
             onChange={(event) => form.setDescriptionDraft(event.target.value)}
-            placeholder={t('add_a_description')}
+            placeholder='Add a description...'
             maxLength={500}
             autoComplete='off'
             data-lpignore='true'
@@ -302,8 +302,8 @@ export function ConnectedCredentialDetail({
       <ChipConfirmModal
         open={showDeleteConfirmDialog}
         onOpenChange={setShowDeleteConfirmDialog}
-        srTitle={tI18n('disconnect_integration')}
-        title={t('disconnect_integration')}
+        srTitle='Disconnect Integration'
+        title='Disconnect Integration'
         text={[
           'Are you sure you want to disconnect ',
           { text: credential.displayName, bold: true },
@@ -328,6 +328,20 @@ export function ConnectedCredentialDetail({
         onOpenChange={form.setShowUnsavedAlert}
         onDiscard={form.confirmDiscard}
       />
+
+      {credential.type === 'service_account' && credential.providerId && (
+        <ConnectServiceAccountModal
+          open={reconnectOpen}
+          onOpenChange={setReconnectOpen}
+          workspaceId={workspaceId}
+          serviceAccountProviderId={credential.providerId as ServiceAccountProviderId}
+          serviceName={serviceConfig?.name || credential.displayName}
+          serviceIcon={serviceConfig?.icon as ComponentType<{ className?: string }>}
+          credentialId={credential.id}
+          credentialDisplayName={credential.displayName}
+          credentialDescription={credential.description ?? undefined}
+        />
+      )}
     </>
   )
 }

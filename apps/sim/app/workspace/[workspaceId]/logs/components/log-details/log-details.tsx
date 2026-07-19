@@ -1,16 +1,14 @@
 'use client'
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { formatDuration } from '@sim/utils/formatting'
-import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
-import { useTranslations } from 'next-intl'
-import { useQueryState } from 'nuqs'
-import { createPortal } from 'react-dom'
 import {
+  Badge,
   Button,
+  Chip,
   ChipInput,
   ChipModalTabs,
   Code,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -18,18 +16,25 @@ import {
   DropdownMenuTrigger,
   Duplicate,
   Eye,
+  handleKeyboardActivation,
   Redo,
   Search as SearchIcon,
   Tooltip,
-} from '@/components/emcn'
-import { Workflow } from '@/components/emcn/icons'
+  useCopyToClipboard,
+} from '@sim/emcn'
+import { Workflow, Wrench } from '@sim/emcn/icons'
+import { formatDuration } from '@sim/utils/formatting'
+import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { useQueryState } from 'nuqs'
+import { createPortal } from 'react-dom'
 import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
+import { sendMothershipMessage } from '@/lib/mothership/events'
 import {
   ExecutionSnapshot,
   FileCards,
@@ -48,11 +53,11 @@ import {
   TriggerBadge,
 } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
+import type { ChatContext } from '@/stores/panel'
 
 /**
  * Renders an already-apportioned integer credit value. `dollars` is only used
@@ -66,8 +71,6 @@ function creditLabel(credits: number, dollars: number): string {
 
 export const WorkflowOutputSection = memo(
   function WorkflowOutputSection({ output }: { output: Record<string, unknown> }) {
-    const tI18n = useTranslations('auto')
-    const t = useTranslations('auto')
     const contentRef = useRef<HTMLDivElement>(null)
     const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
 
@@ -140,9 +143,7 @@ export const WorkflowOutputSection = memo(
                     )}
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content side='top'>
-                  {copied ? tI18n('copied') : tI18n('copy')}
-                </Tooltip.Content>
+                <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy'}</Tooltip.Content>
               </Tooltip.Root>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -158,7 +159,7 @@ export const WorkflowOutputSection = memo(
                     <Search className='size-[10px]' />
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content side='top'>{t('search')}</Tooltip.Content>
+                <Tooltip.Content side='top'>Search</Tooltip.Content>
               </Tooltip.Root>
             </div>
           )}
@@ -176,7 +177,7 @@ export const WorkflowOutputSection = memo(
               type='text'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('search_2')}
+              placeholder='Search...'
               className='mr-0.5 w-[94px]'
             />
             <span
@@ -192,7 +193,7 @@ export const WorkflowOutputSection = memo(
               className='!p-1'
               onClick={goToPreviousMatch}
               disabled={matchCount === 0}
-              aria-label={t('previous_match')}
+              aria-label='Previous match'
             >
               <ArrowUp className='size-[12px]' />
             </Button>
@@ -201,7 +202,7 @@ export const WorkflowOutputSection = memo(
               className='!p-1'
               onClick={goToNextMatch}
               disabled={matchCount === 0}
-              aria-label={t('next_match')}
+              aria-label='Next match'
             >
               <ArrowDown className='size-[12px]' />
             </Button>
@@ -209,7 +210,7 @@ export const WorkflowOutputSection = memo(
               variant='ghost'
               className='!p-1'
               onClick={closeSearch}
-              aria-label={t('close_search')}
+              aria-label='Close search'
             >
               <X className='size-[12px]' />
             </Button>
@@ -246,12 +247,12 @@ export const WorkflowOutputSection = memo(
               >
                 <DropdownMenuItem onSelect={handleCopy}>
                   <Duplicate />
-                  {t('copy')}
+                  Copy
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={handleSearch}>
                   <SearchIcon />
-                  {t('search')}
+                  Search
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>,
@@ -271,8 +272,6 @@ interface LogDetailsContentProps {
 }
 
 export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const [activeTab, setActiveTab] = useQueryState(logDetailsTabParam.key, {
     ...logDetailsTabParam.parser,
@@ -281,6 +280,9 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
   const { copied: copiedRunId, copy: copyRunId } = useCopyToClipboard({ resetMs: 1500 })
 
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+
+  const router = useRouter()
+  const { workspaceId } = useParams<{ workspaceId: string }>()
 
   const { config: permissionConfig } = usePermissionConfig()
 
@@ -389,6 +391,38 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
   const formattedTimestamp = formatDate(log.createdAt)
   const logStatus = getDisplayStatus(log.status)
 
+  /**
+   * Troubleshooting hands the failed run off to Chat, tagging it by
+   * `executionId`. A real Chat run can't be debugged from inside itself, so
+   * mothership-triggered logs are excluded — `isLikelyExecution` already encodes
+   * "has an executionId and isn't a mothership run".
+   */
+  const canTroubleshoot = log.status === 'failed' && isLikelyExecution
+
+  /**
+   * Hands the failed run to Chat. When a chat is already mounted (e.g. the run
+   * is being viewed inside Chat's resource panel) it consumes the tagged
+   * message directly; otherwise a one-shot handoff is persisted and we navigate
+   * to a fresh chat that picks it up on mount. Navigation is gated on a
+   * successful store, so a failed write never strands the user on an empty chat.
+   */
+  const handleTroubleshoot = useCallback(() => {
+    if (!log.executionId) return
+    const workflowName = log.workflow?.name?.trim() || null
+    const context: ChatContext = {
+      kind: 'logs',
+      executionId: log.executionId,
+      label: workflowName ?? 'this run',
+    }
+    const message = workflowName
+      ? `The "${workflowName}" workflow run failed. Investigate the error in this run and help me fix it.`
+      : 'This workflow run failed. Investigate the error in this run and help me fix it.'
+    if (sendMothershipMessage(message, [context])) return
+    if (MothershipHandoffStorage.store({ message, contexts: [context] }, workspaceId)) {
+      router.push(`/workspace/${workspaceId}/home`)
+    }
+  }, [log.executionId, log.workflow?.name, workspaceId, router])
+
   return (
     <>
       <div className='mt-4 flex min-h-0 flex-1 flex-col'>
@@ -409,7 +443,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
               <div className='grid grid-cols-2 gap-x-3 pb-0.5'>
                 <div className='flex min-w-0 flex-col gap-0.5'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    {t('timestamp')}
+                    Timestamp
                   </span>
                   <span className='font-medium text-[var(--text-secondary)] text-sm tabular-nums'>
                     {formattedTimestamp
@@ -419,15 +453,15 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 </div>
                 <div className='flex min-w-0 flex-col gap-0.5'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    {log.trigger === 'mothership' ? tI18n('job') : tI18n('workflow')}
+                    {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
                   </span>
                   <div className='flex min-w-0 items-center gap-1.5'>
                     <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                     <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm'>
                       {log.trigger === 'mothership'
-                        ? log.jobTitle || tI18n('untitled_job')
+                        ? log.jobTitle || 'Untitled Job'
                         : log.workflow?.name ||
-                          (!log.workflowId ? DELETED_WORKFLOW_LABEL : tI18n('unknown'))}
+                          (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}
                     </span>
                   </div>
                 </div>
@@ -440,15 +474,15 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                   <div
                     role='button'
                     tabIndex={0}
-                    aria-label={t('copy_run_id')}
-                    className='flex h-10 min-w-0 cursor-pointer items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'
+                    aria-label='Copy run ID'
+                    className='flex h-10 min-w-0 cursor-pointer items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-active)]'
                     onClick={() => copyRunId(log.executionId!)}
                     onKeyDown={(event) =>
                       handleKeyboardActivation(event, () => copyRunId(log.executionId!))
                     }
                   >
                     <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
-                      {t('run_id')}
+                      Run ID
                     </span>
                     <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
                       {copiedRunId ? 'Copied!' : log.executionId}
@@ -457,31 +491,31 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 )}
 
                 {/* Level */}
-                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                <div className='flex h-10 items-center justify-between px-3'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    {t('level')}
+                    Level
                   </span>
                   <StatusBadge status={logStatus} />
                 </div>
 
                 {/* Trigger */}
-                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                <div className='flex h-10 items-center justify-between px-3'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    {t('trigger')}
+                    Trigger
                   </span>
                   {log.trigger ? (
                     <TriggerBadge trigger={log.trigger} />
                   ) : (
                     <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                      {t('none')}
+                      None
                     </span>
                   )}
                 </div>
 
                 {/* Duration */}
-                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                <div className='flex h-10 items-center justify-between px-3'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    {t('duration')}
+                    Duration
                   </span>
                   <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
                     {formatDuration(log.duration, { precision: 2 }) || '—'}
@@ -490,33 +524,39 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
                 {/* Version */}
                 {log.deploymentVersion && (
-                  <div className='flex h-10 items-center gap-2 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <div className='flex h-10 items-center gap-2 px-3'>
                     <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
-                      {t('version')}
+                      Version
                     </span>
                     <div className='flex w-0 flex-1 justify-end'>
-                      <span className='max-w-full truncate rounded-md bg-[var(--badge-success-bg)] px-[9px] py-0.5 font-medium text-[var(--badge-success-text)] text-caption'>
+                      <Badge variant='green' size='sm' className='max-w-full truncate'>
                         {log.deploymentVersionName || `v${log.deploymentVersion}`}
-                      </span>
+                      </Badge>
                     </div>
                   </div>
                 )}
 
                 {/* Snapshot */}
                 {showWorkflowState && (
-                  <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <div className='flex h-10 items-center justify-between px-3'>
                     <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                      {t('snapshot')}
+                      Snapshot
                     </span>
-                    <Button
-                      variant='default'
-                      size='sm'
-                      className='gap-1'
-                      onClick={() => setIsExecutionSnapshotOpen(true)}
-                    >
-                      <Eye className='size-3' />
-                      {t('view_snapshot')}
-                    </Button>
+                    <Chip leftIcon={Eye} flush onClick={() => setIsExecutionSnapshotOpen(true)}>
+                      View Snapshot
+                    </Chip>
+                  </div>
+                )}
+
+                {/* Troubleshoot */}
+                {canTroubleshoot && (
+                  <div className='flex h-10 items-center justify-between px-3'>
+                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                      Troubleshoot
+                    </span>
+                    <Chip leftIcon={Wrench} flush onClick={handleTroubleshoot}>
+                      Troubleshoot in Chat
+                    </Chip>
                   </div>
                 )}
               </div>
@@ -525,7 +565,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
               {isWorkflowExecutionLog && workflowInput && !permissionConfig.hideTraceSpans && (
                 <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    {t('workflow_input')}
+                    Workflow Input
                   </span>
                   <WorkflowOutputSection output={workflowInput} />
                 </div>
@@ -542,7 +582,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                         : 'text-[var(--text-tertiary)]'
                     )}
                   >
-                    {t('workflow_output')}
+                    Workflow Output
                   </span>
                   <WorkflowOutputSection output={workflowOutput} />
                 </div>
@@ -555,10 +595,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
               {hasCostInfo && costBreakdown && (
                 <div className='divide-y divide-[var(--border)] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
                   {costBreakdown.rows.map((row) => (
-                    <div
-                      key={row.key}
-                      className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'
-                    >
+                    <div key={row.key} className='flex h-10 items-center justify-between px-3'>
                       <span className='min-w-0 truncate font-medium text-[var(--text-tertiary)] text-caption'>
                         {row.label}
                       </span>
@@ -567,29 +604,28 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                       </span>
                     </div>
                   ))}
-                  <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <div className='flex h-10 items-center justify-between px-3'>
                     <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                      {t('total')}
+                      Total
                     </span>
                     <span className='font-semibold text-[var(--text-primary)] text-caption tabular-nums'>
                       {creditLabel(costBreakdown.totalCredits, costBreakdown.totalDollars)}
                     </span>
                   </div>
                   {(costBreakdown.tokens.input > 0 || costBreakdown.tokens.output > 0) && (
-                    <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                    <div className='flex h-10 items-center justify-between px-3'>
                       <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                        {t('tokens')}
+                        Tokens
                       </span>
                       <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                        {costBreakdown.tokens.input} {t('in')} {costBreakdown.tokens.output}{' '}
-                        {t('out')}
+                        {costBreakdown.tokens.input} in · {costBreakdown.tokens.output} out
                       </span>
                     </div>
                   )}
                   <div className='px-3 py-2'>
                     <p className='font-medium text-[var(--text-tertiary)] text-xs'>
-                      {t('total_includes_a')} {formatCost(BASE_EXECUTION_CHARGE)}{' '}
-                      {t('base_charge_plus_model_and_tool')}
+                      Total includes a {formatCost(BASE_EXECUTION_CHARGE)} base charge plus model
+                      and tool usage.
                     </p>
                   </div>
                 </div>
@@ -606,13 +642,13 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
             ) : log.executionData ? (
               <div className='flex h-full items-center justify-center px-4 text-center'>
                 <span className='font-medium text-[var(--text-tertiary)] text-sm'>
-                  {t('no_trace_data_available_for_this')}
+                  No trace data available for this run
                 </span>
               </div>
             ) : (
               <div className='flex h-full items-center justify-center px-4 text-center'>
                 <span className='font-medium text-[var(--text-tertiary)] text-sm'>
-                  {t('loading_trace')}
+                  Loading trace…
                 </span>
               </div>
             )}
@@ -659,7 +695,6 @@ export const LogDetails = memo(function LogDetails({
   isRetryPending = false,
   onActiveTabChange,
 }: LogDetailsProps) {
-  const t = useTranslations('auto')
   const activeTabRef = useRef<LogDetailsTab>('overview')
 
   const handleActiveTabChange = useCallback(
@@ -711,7 +746,7 @@ export const LogDetails = memo(function LogDetails({
           style={{ right: `calc(${effectiveWidth} - 4px)` }}
           onMouseDown={handleMouseDown}
           role='separator'
-          aria-label={t('resize_log_details_panel')}
+          aria-label='Resize log details panel'
           aria-orientation='vertical'
         />
       )}
@@ -722,13 +757,13 @@ export const LogDetails = memo(function LogDetails({
           isOpen ? 'translate-x-0' : 'translate-x-full'
         )}
         style={{ width: effectiveWidth }}
-        aria-label={t('log_details_sidebar')}
+        aria-label='Log details sidebar'
       >
         {log && (
           <div className='flex h-full flex-col px-3.5 pt-3'>
             {/* Header */}
             <div className='flex items-center justify-between'>
-              <h2 className='font-medium text-[var(--text-primary)] text-sm'>{t('log_details')}</h2>
+              <h2 className='font-medium text-[var(--text-primary)] text-sm'>Log Details</h2>
               <div className='flex items-center gap-[1px]'>
                 {log.status === 'failed' &&
                   (log.workflow?.id || log.workflowId) &&
@@ -740,12 +775,12 @@ export const LogDetails = memo(function LogDetails({
                           className='!p-1'
                           onClick={() => onRetryExecution?.()}
                           disabled={isRetryPending}
-                          aria-label={t('retry_execution')}
+                          aria-label='Retry execution'
                         >
                           <Redo className='size-[14px]' />
                         </Button>
                       </Tooltip.Trigger>
-                      <Tooltip.Content side='bottom'>{t('retry')}</Tooltip.Content>
+                      <Tooltip.Content side='bottom'>Retry</Tooltip.Content>
                     </Tooltip.Root>
                   )}
                 <Button
@@ -753,7 +788,7 @@ export const LogDetails = memo(function LogDetails({
                   className='!p-1'
                   onClick={() => hasPrev && onNavigatePrev?.()}
                   disabled={!hasPrev}
-                  aria-label={t('previous_log')}
+                  aria-label='Previous log'
                 >
                   <ChevronUp className='size-[14px]' />
                 </Button>
@@ -762,11 +797,11 @@ export const LogDetails = memo(function LogDetails({
                   className='!p-1'
                   onClick={() => hasNext && onNavigateNext?.()}
                   disabled={!hasNext}
-                  aria-label={t('next_log')}
+                  aria-label='Next log'
                 >
                   <ChevronUp className='size-[14px] rotate-180' />
                 </Button>
-                <Button variant='ghost' className='!p-1' onClick={onClose} aria-label={t('close')}>
+                <Button variant='ghost' className='!p-1' onClick={onClose} aria-label='Close'>
                   <X className='size-[14px]' />
                 </Button>
               </div>

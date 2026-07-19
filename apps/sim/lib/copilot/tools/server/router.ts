@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { z } from 'zod'
+import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
   CreateFile,
-  CreateFileFolder,
   DeleteFile,
   DeleteFileFolder,
   DownloadToWorkspaceFile,
@@ -15,10 +15,6 @@ import {
   ManageCustomTool,
   ManageMcpTool,
   ManageSkill,
-  MoveFile,
-  MoveFileFolder,
-  RenameFile,
-  RenameFileFolder,
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -49,15 +45,20 @@ import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generat
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
 import { getJobLogsServerTool } from '@/lib/copilot/tools/server/jobs/get-job-logs'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
+import { searchKnowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/search-knowledge-base'
 import { ffmpegServerTool } from '@/lib/copilot/tools/server/media/ffmpeg'
 import { generateAudioServerTool } from '@/lib/copilot/tools/server/media/generate-audio'
 import { generateVideoServerTool } from '@/lib/copilot/tools/server/media/generate-video'
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
+import { queryUserTableServerTool } from '@/lib/copilot/tools/server/table/query-user-table'
 import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { queryLogsServerTool } from '@/lib/copilot/tools/server/workflow/query-logs'
+import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
+import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
+import { withBlockVisibility } from '@/blocks/visibility/server-context'
 
 export type ExecuteResponseSuccess = z.output<typeof ExecuteResponseSuccessSchema>
 
@@ -67,6 +68,22 @@ const ExecuteResponseSuccessSchema = z.object({
 })
 
 const logger = createLogger('ServerToolRouter')
+
+/**
+ * Tools that resolve blocks through the registry (`getBlock`/`getAllBlocks`) and
+ * must run inside the custom-block overlay so `custom_block_*` types resolve.
+ */
+const CUSTOM_BLOCK_OVERLAY_TOOLS = new Set(['edit_workflow', 'get_blocks_metadata'])
+
+/**
+ * DISCOVERY tools that must run inside the viewer's block-visibility context so
+ * gated (preview / kill-switched) blocks disappear from what the agent can
+ * list. Deliberately a DIFFERENT set from {@link CUSTOM_BLOCK_OVERLAY_TOOLS}:
+ * `edit_workflow` is excluded because its registry use is functional
+ * (find-by-type over clones, never a discovery listing) and gating it would
+ * only risk leaking display projections into persisted state.
+ */
+const VISIBILITY_GATED_TOOLS = new Set(['get_blocks_metadata', 'get_trigger_blocks'])
 
 const WRITE_ACTIONS: Record<string, string[]> = {
   [KnowledgeBase.id]: [
@@ -110,12 +127,12 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [WorkspaceFile.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
   [editContentServerTool.name]: ['*'],
   [CreateFile.id]: ['*'],
-  [RenameFile.id]: ['*'],
+  rename_file: ['*'],
   [DeleteFile.id]: ['*'],
-  [MoveFile.id]: ['*'],
-  [CreateFileFolder.id]: ['*'],
-  [RenameFileFolder.id]: ['*'],
-  [MoveFileFolder.id]: ['*'],
+  move_file: ['*'],
+  create_file_folder: ['*'],
+  rename_file_folder: ['*'],
+  move_file_folder: ['*'],
   [DeleteFileFolder.id]: ['*'],
   [DownloadToWorkspaceFile.id]: ['*'],
   [GenerateImage.id]: ['generate'],
@@ -150,8 +167,10 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [setEnvironmentVariablesServerTool.name]: setEnvironmentVariablesServerTool,
   [getCredentialsServerTool.name]: getCredentialsServerTool,
   [knowledgeBaseServerTool.name]: knowledgeBaseServerTool,
+  [searchKnowledgeBaseServerTool.name]: searchKnowledgeBaseServerTool,
   [enrichmentRunServerTool.name]: enrichmentRunServerTool,
   [userTableServerTool.name]: userTableServerTool,
+  [queryUserTableServerTool.name]: queryUserTableServerTool,
   [workspaceFileServerTool.name]: workspaceFileServerTool,
   [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,
@@ -232,8 +251,25 @@ export async function routeExecution(
 
   assertServerToolNotAborted(context, `User stop signal aborted ${toolName} after validation`)
 
-  // Execute
-  const result = await tool.execute(args, context)
+  // Execute. The registry-dependent tools resolve blocks via getBlock/getAllBlocks;
+  // wrap them in the custom-block overlay for the workspace's org so `custom_block_*`
+  // types resolve (metadata lookup + edit-workflow validation) instead of being
+  // rejected as unknown, and wrap discovery tools in the viewer's block-visibility
+  // context so gated blocks stay hidden. The two ALS scopes are independent and
+  // nest in either order. Other tools skip the extra queries.
+  let run = () => tool.execute(args, context)
+  if (VISIBILITY_GATED_TOOLS.has(toolName) && context?.userId) {
+    // Memoized per (userId, workspaceId) ~30s — a multi-tool turn resolves once.
+    const vis = await getBlockVisibilityForCopilot(context.userId, context.workspaceId)
+    const inner = run
+    run = () => withBlockVisibility(vis, inner)
+  }
+  if (CUSTOM_BLOCK_OVERLAY_TOOLS.has(toolName) && context?.workspaceId) {
+    const rows = await listCustomBlocksWithInputsForWorkspace(context.workspaceId)
+    const inner = run
+    run = () => withCustomBlockOverlay(rows, inner)
+  }
+  const result = await run()
 
   // Validate output if tool declares a schema; otherwise fall back to the
   // generated JSON schema contract emitted from Go.

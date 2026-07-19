@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
-import { generateId } from '@sim/utils/id'
-import { Plus } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
   Combobox,
   type ComboboxOption,
+  cn,
+  handleKeyboardActivation,
   Input,
   Label,
   Textarea,
-} from '@/components/emcn'
-import { Trash } from '@/components/emcn/icons/trash'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+  Tooltip,
+} from '@sim/emcn'
+import { Trash } from '@sim/emcn/icons'
+import { generateId } from '@sim/utils/id'
+import { ArrowLeftRight, Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   checkTagTrigger,
@@ -61,6 +62,12 @@ const BOOLEAN_OPTIONS: ComboboxOption[] = [
   { label: 'true', value: 'true' },
   { label: 'false', value: 'false' },
 ]
+
+/**
+ * Values representable by the boolean selector; anything else (e.g. a block
+ * reference) requires the manual input.
+ */
+const BOOLEAN_LITERALS = new Set(['', 'true', 'false'])
 
 /**
  * Parses a value that might be a JSON string or already an array of VariableAssignment.
@@ -116,6 +123,7 @@ export function VariablesInput({
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const [dragHighlight, setDragHighlight] = useState<Record<string, boolean>>({})
   const [collapsedAssignments, setCollapsedAssignments] = useState<Record<string, boolean>>({})
+  const [manualBooleanModes, setManualBooleanModes] = useState<Record<string, boolean>>({})
 
   const currentWorkflowVariables = Object.values(workflowVariables).filter(
     (v: Variable) => v.workflowId === workflowId
@@ -375,6 +383,9 @@ export function VariablesInput({
               valuePath: [index, 'variableName'],
               label: variableLabel,
             })
+            const isManualBoolean =
+              assignment.type === 'boolean' &&
+              (manualBooleanModes[assignment.id] ?? !BOOLEAN_LITERALS.has(assignment.value ?? ''))
             const booleanLabelHighlight = getWorkflowSearchLabelHighlight({
               activeSearchTarget,
               blockId,
@@ -467,8 +478,44 @@ export function VariablesInput({
                     </div>
 
                     <div className='flex flex-col gap-1.5'>
-                      <Label className='text-small'>Value</Label>
-                      {assignment.type === 'boolean' ? (
+                      <div className='flex items-center justify-between'>
+                        <Label className='text-small'>Value</Label>
+                        {assignment.type === 'boolean' && (
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
+                              <button
+                                type='button'
+                                className='flex size-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
+                                onClick={() =>
+                                  setManualBooleanModes((prev) => ({
+                                    ...prev,
+                                    [assignment.id]: !isManualBoolean,
+                                  }))
+                                }
+                                disabled={isReadOnly}
+                                aria-label={
+                                  isManualBoolean ? 'Switch to selector' : 'Switch to manual value'
+                                }
+                              >
+                                <ArrowLeftRight
+                                  className={cn(
+                                    '!h-[12px] !w-[12px]',
+                                    isManualBoolean
+                                      ? 'text-[var(--text-primary)]'
+                                      : 'text-[var(--text-secondary)]'
+                                  )}
+                                />
+                              </button>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content side='top'>
+                              <p>
+                                {isManualBoolean ? 'Switch to selector' : 'Switch to manual value'}
+                              </p>
+                            </Tooltip.Content>
+                          </Tooltip.Root>
+                        )}
+                      </div>
+                      {assignment.type === 'boolean' && !isManualBoolean ? (
                         <Combobox
                           options={BOOLEAN_OPTIONS}
                           value={assignment.value ?? ''}

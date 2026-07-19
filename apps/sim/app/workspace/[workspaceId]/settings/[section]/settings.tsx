@@ -5,12 +5,13 @@ import dynamic from 'next/dynamic'
 import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
 import { captureEvent } from '@/lib/posthog/client'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
 import { SettingsSectionProvider } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
+  getSettingsSectionMeta,
   isBillingEnabled,
-  isCredentialSetsEnabled,
+  type SettingsSection,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 
 const Admin = dynamic(() =>
@@ -27,11 +28,7 @@ const BYOK = dynamic(() =>
 const Copilot = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/copilot/copilot').then((m) => m.Copilot)
 )
-const CredentialSets = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/credential-sets/credential-sets').then(
-    (m) => m.CredentialSets
-  )
-)
+const Forks = dynamic(() => import('@/ee/workspace-forking/components/forks').then((m) => m.Forks))
 const Secrets = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then((m) => m.Secrets)
 )
@@ -77,6 +74,9 @@ const WorkflowMcpServers = dynamic(() =>
 const AccessControl = dynamic(() =>
   import('@/ee/access-control/components/access-control').then((m) => m.AccessControl)
 )
+const CustomBlocks = dynamic(() =>
+  import('@/ee/custom-blocks/components/custom-blocks').then((m) => m.CustomBlocks)
+)
 const AuditLogs = dynamic(() =>
   import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs)
 )
@@ -103,6 +103,7 @@ interface SettingsPageProps {
 
 export function SettingsPage({ section }: SettingsPageProps) {
   const { data: session, isPending: sessionLoading } = useSession()
+  const hostContext = useWorkspaceHostContext()
   const posthog = usePostHog()
 
   const isAdminRole = session?.user?.role === 'admin'
@@ -111,45 +112,71 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const effectiveSection =
     !isBillingEnabled && (normalizedSection === 'billing' || normalizedSection === 'organization')
       ? 'general'
-      : normalizedSection === 'credential-sets' && !isCredentialSetsEnabled
+      : normalizedSection === 'admin' && !sessionLoading && !isAdminRole
         ? 'general'
-        : normalizedSection === 'admin' && !sessionLoading && !isAdminRole
+        : normalizedSection === 'mothership' && !sessionLoading && !isAdminRole
           ? 'general'
-          : normalizedSection === 'mothership' && !sessionLoading && !isAdminRole
-            ? 'general'
-            : normalizedSection
+          : normalizedSection
+  const organizationId = hostContext.hostOrganizationId
+  const meta = getSettingsSectionMeta(effectiveSection)
 
   useEffect(() => {
     if (sessionLoading) return
-    captureEvent(posthog, 'settings_tab_viewed', { section: effectiveSection })
+    captureEvent(posthog, 'settings_tab_viewed', {
+      plane: 'workspace',
+      section: effectiveSection,
+    })
   }, [effectiveSection, sessionLoading, posthog])
 
   return (
-    <SettingsSectionProvider section={effectiveSection}>
-      <div className='flex h-full flex-col'>
-        {effectiveSection === 'general' && <General />}
-        {effectiveSection === 'secrets' && <Secrets />}
-        {effectiveSection === 'credential-sets' && <CredentialSets />}
-        {effectiveSection === 'access-control' && <AccessControl />}
-        {effectiveSection === 'audit-logs' && <AuditLogs />}
-        {effectiveSection === 'apikeys' && <ApiKeys />}
-        {isBillingEnabled && effectiveSection === 'billing' && <Billing />}
-        {effectiveSection === 'teammates' && <Teammates />}
-        {isBillingEnabled && effectiveSection === 'organization' && <TeamManagement />}
-        {effectiveSection === 'sso' && <SSO />}
-        {effectiveSection === 'data-retention' && <DataRetentionSettings />}
-        {effectiveSection === 'data-drains' && <DataDrainsSettings />}
-        {effectiveSection === 'whitelabeling' && <WhitelabelingSettings />}
-        {effectiveSection === 'byok' && <BYOK />}
-        {effectiveSection === 'copilot' && <Copilot />}
-        {effectiveSection === 'mcp' && <MCP />}
-        {effectiveSection === 'custom-tools' && <CustomTools />}
-        {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
-        {effectiveSection === 'inbox' && <Inbox />}
-        {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
-        {effectiveSection === 'admin' && <Admin />}
-        {effectiveSection === 'mothership' && <Mothership />}
-      </div>
+    <SettingsSectionProvider section={effectiveSection} meta={meta ?? undefined}>
+      {effectiveSection === 'general' && <General />}
+      {effectiveSection === 'secrets' && <Secrets />}
+      {effectiveSection === 'access-control' && organizationId && (
+        <AccessControl
+          organizationId={organizationId}
+          isOrganizationAdmin={hostContext.viewer.isHostOrganizationAdmin}
+        />
+      )}
+      {effectiveSection === 'custom-blocks' && <CustomBlocks />}
+      {effectiveSection === 'audit-logs' && organizationId && (
+        <AuditLogs organizationId={organizationId} />
+      )}
+      {effectiveSection === 'apikeys' && <ApiKeys scope='combined' />}
+      {isBillingEnabled && effectiveSection === 'billing' && (
+        <Billing
+          scope={organizationId ? 'organization' : 'account'}
+          organizationId={organizationId ?? undefined}
+          creditUsageHref={`/workspace/${hostContext.workspace.id}/settings/billing/credit-usage`}
+        />
+      )}
+      {effectiveSection === 'teammates' && <Teammates />}
+      {isBillingEnabled && effectiveSection === 'organization' && organizationId && (
+        <TeamManagement
+          organizationId={organizationId}
+          billingHref={`/workspace/${hostContext.workspace.id}/settings/billing`}
+        />
+      )}
+      {effectiveSection === 'sso' && organizationId && <SSO organizationId={organizationId} />}
+      {effectiveSection === 'data-retention' && organizationId && (
+        <DataRetentionSettings organizationId={organizationId} />
+      )}
+      {effectiveSection === 'data-drains' && organizationId && (
+        <DataDrainsSettings organizationId={organizationId} />
+      )}
+      {effectiveSection === 'whitelabeling' && organizationId && (
+        <WhitelabelingSettings organizationId={organizationId} />
+      )}
+      {effectiveSection === 'byok' && <BYOK />}
+      {effectiveSection === 'copilot' && <Copilot />}
+      {effectiveSection === 'mcp' && <MCP />}
+      {effectiveSection === 'forks' && <Forks />}
+      {effectiveSection === 'custom-tools' && <CustomTools />}
+      {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
+      {effectiveSection === 'inbox' && <Inbox />}
+      {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
+      {effectiveSection === 'admin' && <Admin />}
+      {effectiveSection === 'mothership' && <Mothership />}
     </SettingsSectionProvider>
   )
 }

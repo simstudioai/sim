@@ -25,7 +25,7 @@ export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabList
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project ID or URL-encoded path',
+      description: 'Project ID or path (e.g. mygroup/myproject)',
     },
     state: {
       type: 'string',
@@ -61,7 +61,8 @@ export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabList
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Order by field (created_at, updated_at)',
+      description:
+        'Order by field (created_at, updated_at, priority, due_date, relative_position, label_priority, milestone_due, popularity, weight)',
     },
     sort: {
       type: 'string',

@@ -10,6 +10,19 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#EAB308"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+The Logs block gives agents programmatic access to workflow run history in the current workspace. It queries the same run data shown on the Logs page and can fetch full execution detail for any individual run.
+
+With Logs, you can:
+
+- **Query run history**: Filter runs by workflow, folder, status, trigger type, date range, cost, and duration, with sorting and free-text search
+- **Fetch run details**: Retrieve a specific run's status, trigger, timing, cost, and final output by run ID
+- **Inspect execution traces**: Pull the full trace spans for a run to see how it executed step by step
+
+In Sim, the Logs block allows your agents to search and filter workflow run history using the same filters available on the Logs page, then drill into a specific run to retrieve its status, cost, duration, final output, and full trace spans. This lets agents monitor other workflows, audit past executions, and pull execution details programmatically as part of a larger workflow.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Query workflow run logs in the current workspace with the same filters as the Logs page, returning matching run IDs. Fetch full details for a single run, including its trace spans.
@@ -29,7 +42,7 @@ Query workflow run logs in the current workspace with the full Logs-page filter 
 | `workflowIds` | string | No | Comma-separated workflow IDs to filter by |
 | `folderIds` | string | No | Comma-separated folder IDs to filter by \(descendants included\) |
 | `level` | string | No | Comma-separated statuses: 'info', 'error', 'running', 'pending', 'cancelled'. Omit for all. |
-| `triggers` | string | No | Comma-separated trigger types \(api, webhook, schedule, manual, chat, mcp, a2a, workflow, sim, …\) |
+| `triggers` | string | No | Comma-separated trigger types \(api, webhook, schedule, manual, chat, mcp, workflow, sim, …\) |
 | `startDate` | string | No | ISO 8601 timestamp; only runs at or after this time |
 | `endDate` | string | No | ISO 8601 timestamp; only runs at or before this time |
 | `search` | string | No | Free-text search across log fields |

@@ -10,13 +10,11 @@ import {
   useRef,
   useState,
 } from 'react'
+import { Button, cn, Paperclip, Plus, Slash, Tooltip, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Button, Paperclip, Plus, Slash, Tooltip, toast } from '@/components/emcn'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
@@ -88,7 +86,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   },
   ref
 ) {
-  const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
   const { userId, onContextAdd, onContextRemove } = useChatSurface()
@@ -533,7 +530,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
       <PromptEditor
         editor={editor}
-        placeholder={t('ask_sim_to')}
+        placeholder='Ask Sim to '
         onSubmit={handleEnterSubmit}
         onArrowUpOnEmpty={handleArrowUpOnEmpty}
         className={isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]'}
@@ -547,13 +544,13 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
                 type='button'
                 variant='ghost'
                 onClick={handlePlusClick}
-                aria-label={t('add_resources')}
+                aria-label='Add resources'
                 className='size-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
               >
                 <Plus className='size-[16px] text-[var(--text-icon)]' />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>{t('add_resources')}</Tooltip.Content>
+            <Tooltip.Content side='top'>Add resources</Tooltip.Content>
           </Tooltip.Root>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
@@ -561,13 +558,13 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
                 type='button'
                 variant='ghost'
                 onClick={handleFileSelectStable}
-                aria-label={t('attach_file')}
+                aria-label='Attach file'
                 className='size-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
               >
                 <Paperclip className='size-[16px] text-[var(--text-icon)]' />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>{t('attach_file')}</Tooltip.Content>
+            <Tooltip.Content side='top'>Attach file</Tooltip.Content>
           </Tooltip.Root>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
@@ -575,13 +572,13 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
                 type='button'
                 variant='ghost'
                 onClick={handleSlashTriggerClick}
-                aria-label={t('skills')}
+                aria-label='Skills'
                 className='size-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
               >
                 <Slash className='size-[16px] text-[var(--text-icon)]' />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>{t('skills')}</Tooltip.Content>
+            <Tooltip.Content side='top'>Skills</Tooltip.Content>
           </Tooltip.Root>
         </div>
         <div className='flex items-center gap-1.5'>

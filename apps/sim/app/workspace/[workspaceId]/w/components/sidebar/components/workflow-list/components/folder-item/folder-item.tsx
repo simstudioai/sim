@@ -1,16 +1,14 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { chipVariants, cn } from '@sim/emcn'
+import { Lock } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { chipVariants } from '@/components/emcn'
-import { Lock } from '@/components/emcn/icons'
+import { useRouter } from 'next/navigation'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { cn } from '@/lib/core/utils/cn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
@@ -51,16 +49,20 @@ import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
 const logger = createLogger('FolderItem')
 
 interface FolderItemProps {
+  workspaceId: string
   folder: FolderTreeNode
 }
 
-export function FolderItem({ folder }: FolderItemProps) {
-  const t = useTranslations('auto')
-  const { isAnyDragActive, dragDisabled, onFolderClick, onItemDragStart, onItemDragEnd } =
-    useSidebarListContext()
-  const params = useParams()
+export const FolderItem = memo(function FolderItem({ workspaceId, folder }: FolderItemProps) {
+  const {
+    isAnyDragActive,
+    dragDisabled,
+    activeWorkflowIdRef,
+    onFolderClick,
+    onItemDragStart,
+    onItemDragEnd,
+  } = useSidebarListContext()
   const router = useRouter()
-  const workspaceId = params.workspaceId as string
   const updateFolderMutation = useUpdateFolder()
   const createWorkflowMutation = useCreateWorkflow()
   const createFolderMutation = useCreateFolder()
@@ -98,7 +100,7 @@ export function FolderItem({ folder }: FolderItemProps) {
     workspaceId,
     workflowIds: capturedSelectionRef.current?.workflowIds || [],
     folderIds: capturedSelectionRef.current?.folderIds || [],
-    isActiveWorkflow: (id) => id === params.workflowId,
+    isActiveWorkflow: (id) => id === activeWorkflowIdRef.current,
     onSuccess: () => setIsDeleteModalOpen(false),
   })
 
@@ -120,10 +122,13 @@ export function FolderItem({ folder }: FolderItemProps) {
     hasWorkflows,
     handleExportFolder: handleExportThisFolder,
   } = useExportFolder({
+    workspaceId,
     folderId: folder.id,
   })
 
-  const { isExporting: isExportingSelection, handleExportSelection } = useExportSelection()
+  const { isExporting: isExportingSelection, handleExportSelection } = useExportSelection({
+    workspaceId,
+  })
 
   const isExporting = isExportingThisFolder || isExportingSelection
 
@@ -536,7 +541,7 @@ export function FolderItem({ folder }: FolderItemProps) {
               {folder.locked && (
                 <span
                   role='img'
-                  aria-label={t('folder_is_locked')}
+                  aria-label='Folder is locked'
                   className={clsx(
                     'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
                     !isAnyDragActive && 'group-hover:opacity-0',
@@ -548,7 +553,7 @@ export function FolderItem({ folder }: FolderItemProps) {
               )}
               <button
                 type='button'
-                aria-label={t('folder_options')}
+                aria-label='Folder options'
                 onPointerDown={handleMorePointerDown}
                 onClick={handleMoreClick}
                 className={clsx(
@@ -570,6 +575,7 @@ export function FolderItem({ folder }: FolderItemProps) {
         menuRef={menuRef}
         onClose={closeMenu}
         onRename={handleStartEdit}
+        renameInputRef={inputRef}
         onCreate={handleCreateWorkflowInFolder}
         onCreateFolder={handleCreateFolderInFolder}
         onDuplicate={handleDuplicate}
@@ -609,4 +615,4 @@ export function FolderItem({ folder }: FolderItemProps) {
       />
     </>
   )
-}
+})

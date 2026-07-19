@@ -1,9 +1,8 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
+import { Button } from '@sim/emcn'
 import { Plus } from 'lucide-react'
-import { useTranslations } from 'next-intl'
-import { Button } from '@/components/emcn'
 import { useTableColumns } from '@/lib/table/hooks'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { useFilterBuilder } from '@/lib/table/query-builder/use-query-builder'
@@ -33,7 +32,6 @@ export function FilterBuilder({
   columns: propColumns,
   tableIdSubBlockId = 'tableId',
 }: FilterBuilderProps) {
-  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<FilterRule[]>(blockId, subBlockId)
   const tableIdValue = useCanonicalSubBlockValue<string>(blockId, tableIdSubBlockId)
@@ -92,7 +90,7 @@ export function FilterBuilder({
         className='h-7 w-full justify-start gap-1.5 border border-[var(--border-1)] border-dashed text-[var(--text-muted)] text-small'
       >
         <Plus className='size-[14px]' />
-        {t('add_filter_condition')}
+        Add filter condition
       </Button>
     )
   }

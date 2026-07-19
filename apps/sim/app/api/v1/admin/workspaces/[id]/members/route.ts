@@ -30,6 +30,7 @@
  * Response: AdminSingleResponse<{ removed: true }>
  */
 
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { permissions, user, workspace, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -199,6 +200,21 @@ export const POST = withRouteHandler(
             newPermissions: permissionLevel,
           })
 
+          recordAudit({
+            workspaceId,
+            actorId: 'admin-api',
+            action: AuditAction.MEMBER_ROLE_CHANGED,
+            resourceType: AuditResourceType.WORKSPACE,
+            resourceId: workspaceId,
+            description: `Admin API changed workspace member permissions to ${permissionLevel}`,
+            metadata: {
+              targetUserId: userId,
+              previousPermissions: existingPermission.permissionType,
+              permissions: permissionLevel,
+            },
+            request,
+          })
+
           return singleResponse({
             id: existingPermission.id,
             workspaceId,
@@ -243,6 +259,17 @@ export const POST = withRouteHandler(
       logger.info(`Admin API: Added user ${userId} to workspace ${workspaceId}`, {
         permissions: permissionLevel,
         permissionId,
+      })
+
+      recordAudit({
+        workspaceId,
+        actorId: 'admin-api',
+        action: AuditAction.MEMBER_ADDED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: workspaceId,
+        description: `Admin API added member to workspace with ${permissionLevel} permissions`,
+        metadata: { targetUserId: userId, permissions: permissionLevel },
+        request,
       })
 
       const [wsEnvRow] = await db
@@ -347,6 +374,17 @@ export const DELETE = withRouteHandler(
       })
 
       logger.info(`Admin API: Removed user ${userId} from workspace ${workspaceId}`)
+
+      recordAudit({
+        workspaceId,
+        actorId: 'admin-api',
+        action: AuditAction.MEMBER_REMOVED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: workspaceId,
+        description: 'Admin API removed member from workspace',
+        metadata: { targetUserId: userId },
+        request,
+      })
 
       return singleResponse({ removed: true, userId, workspaceId })
     } catch (error) {

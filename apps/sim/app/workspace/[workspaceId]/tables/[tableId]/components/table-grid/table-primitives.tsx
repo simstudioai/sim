@@ -1,10 +1,8 @@
 'use client'
 
 import React from 'react'
-import { useTranslations } from 'next-intl'
-import { Button, Checkbox } from '@/components/emcn'
-import { Plus } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+import { Button, Checkbox, cn } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { ADD_COL_WIDTH, CELL_HEADER_CHECKBOX, COL_WIDTH } from './constants'
 import type { DisplayColumn } from './types'
 
@@ -61,7 +59,6 @@ export const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
 })
 
 export const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: () => void }) {
-  const t = useTranslations('auto')
   return (
     <div className='px-2 py-[7px]'>
       <Button
@@ -72,7 +69,7 @@ export const AddRowButton = React.memo(function AddRowButton({ onClick }: { onCl
         onClick={onClick}
       >
         <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='font-medium text-small'>{t('new_row')}</span>
+        <span className='font-medium text-small'>New row</span>
       </Button>
     </div>
   )

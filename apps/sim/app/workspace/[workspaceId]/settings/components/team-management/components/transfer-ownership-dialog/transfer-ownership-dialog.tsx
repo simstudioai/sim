@@ -10,11 +10,11 @@ import {
   Banner,
   ChipConfirmModal,
   ChipInput,
+  cn,
   Search,
   Skeleton,
-} from '@/components/emcn'
+} from '@sim/emcn'
 import { getBillingPortalLabelKey } from '@/lib/billing/client/provider'
-import { cn } from '@/lib/core/utils/cn'
 import { getUserColor } from '@/lib/workspaces/colors'
 import type { RosterMember } from '@/hooks/queries/organization'
 

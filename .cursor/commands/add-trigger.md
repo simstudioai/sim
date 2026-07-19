@@ -9,6 +9,21 @@ You are an expert at creating webhook and polling triggers for Sim. You understa
 3. Create a provider handler (webhook) or polling handler (polling)
 4. Register triggers and connect them to the block
 
+## Hard Rule: No Guessed Webhook Payload Schemas
+
+If the service docs do not clearly show the webhook payload JSON for an event, you MUST tell the user instead of guessing trigger outputs or `formatInput` mappings.
+
+- Do NOT invent payload field names
+- Do NOT guess nested event object paths
+- Do NOT infer output fields from the UI or marketing docs
+- Do NOT write `formatInput` against unverified webhook bodies
+
+If the payload shape is unknown, do one of these instead:
+1. Ask the user for sample webhook payloads
+2. Ask the user for a test webhook source so you can inspect a real event
+3. Implement only the event registration/setup portions whose payloads are documented
+4. Leave the trigger unimplemented and explicitly say which payload fields are unknown
+
 ## Directory Structure
 
 ```
@@ -369,7 +384,7 @@ export const {service}PollingHandler: PollingProviderHandler = {
 
     try {
       // For OAuth services:
-      const accessToken = await resolveOAuthCredential(webhookData, '{service}', requestId, logger)
+      const accessToken = await resolveOAuthCredential(webhookData, '{service}', requestId)
       const config = webhookData.providerConfig as unknown as {Service}WebhookConfig
 
       // First poll: seed state, emit nothing
@@ -416,7 +431,7 @@ export const {service}PollingTrigger: TriggerConfig = {
   polling: true,               // REQUIRED — routes to polling infrastructure
 
   subBlocks: [
-    { id: 'triggerCredentials', type: 'oauth-input', title: 'Credentials', serviceId: '{service}', requiredScopes: [], required: true, mode: 'trigger', supportsCredentialSets: true },
+    { id: 'triggerCredentials', type: 'oauth-input', title: 'Credentials', serviceId: '{service}', requiredScopes: [], required: true, mode: 'trigger' },
     // ... service-specific config fields (dropdowns, inputs, switches) ...
     { id: 'triggerInstructions', type: 'text', title: 'Setup Instructions', hideFromPreview: true, mode: 'trigger', defaultValue: '...' },
   ],

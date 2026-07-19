@@ -23,7 +23,7 @@ export const getCollectionTool: ToolConfig<HexGetCollectionParams, HexGetCollect
   },
 
   request: {
-    url: (params) => `https://app.hex.tech/api/v1/collections/${params.collectionId}`,
+    url: (params) => `https://app.hex.tech/api/v1/collections/${params.collectionId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -1,9 +1,8 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { Chip, ChipInput, ChipModalField, Loader } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useTranslations } from 'next-intl'
-import { Chip, ChipInput, ChipModalField, Loader } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { importSkillContract } from '@/lib/api/contracts'
 import {
@@ -31,8 +30,6 @@ function isAcceptedFile(file: File): boolean {
 }
 
 export function SkillImport({ onImport }: SkillImportProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [githubUrl, setGithubUrl] = useState('')
   const [githubState, setGithubState] = useState<ImportState>('idle')
   const [githubError, setGithubError] = useState('')
@@ -110,14 +107,10 @@ export function SkillImport({ onImport }: SkillImportProps) {
 
   return (
     <div className='flex flex-col gap-4'>
-      <ChipModalField
-        type='custom'
-        title={t('import_from_github')}
-        error={githubError || undefined}
-      >
+      <ChipModalField type='custom' title='Import from GitHub' error={githubError || undefined}>
         <div className='flex gap-2'>
           <ChipInput
-            placeholder={t('https_github_com_owner_repo_blob')}
+            placeholder='https://github.com/owner/repo/blob/main/SKILL.md'
             value={githubUrl}
             onChange={(e) => {
               setGithubUrl(e.target.value)
@@ -131,11 +124,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
             onClick={handleGithubImport}
             disabled={githubState === 'loading' || !githubUrl.trim()}
           >
-            {githubState === 'loading' ? (
-              <Loader className='size-[14px]' animate />
-            ) : (
-              tI18n('fetch')
-            )}
+            {githubState === 'loading' ? <Loader className='size-[14px]' animate /> : 'Fetch'}
           </Chip>
         </div>
       </ChipModalField>
@@ -144,12 +133,12 @@ export function SkillImport({ onImport }: SkillImportProps) {
 
       <ChipModalField
         type='file'
-        title={t('upload_file')}
+        title='Upload File'
         accept='.md,.zip'
         onChange={handleFiles}
         loading={fileState === 'loading'}
         label={fileState === 'loading' ? 'Importing…' : undefined}
-        description={t('md_file_with_yaml_frontmatter_or')}
+        description='.md file with YAML frontmatter, or .zip containing a SKILL.md'
         error={fileError || undefined}
       />
     </div>
@@ -157,11 +146,10 @@ export function SkillImport({ onImport }: SkillImportProps) {
 }
 
 function ImportDivider() {
-  const t = useTranslations('auto')
   return (
     <div className='flex items-center gap-3 px-2'>
       <div className='h-px flex-1 bg-[var(--border)]' />
-      <span className='text-[11px] text-[var(--text-muted)]'>{t('or')}</span>
+      <span className='text-[11px] text-[var(--text-muted)]'>or</span>
       <div className='h-px flex-1 bg-[var(--border)]' />
     </div>
   )

@@ -3,21 +3,26 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
-import { Eye, EyeOff } from 'lucide-react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import { usePostHog } from 'posthog-js/react'
-import { Input, Label, Loader } from '@/components/emcn'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
-import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent, captureEvent } from '@/lib/posthog/client'
-import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
-import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
-import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
+import {
+  AuthDivider,
+  AuthField,
+  AuthFormMessage,
+  AuthHeader,
+  AuthInput,
+  AuthLegalFooter,
+  AuthNavPrompt,
+  AuthSubmitButton,
+  PasswordInput,
+  SocialLoginButtons,
+  SSOLoginButton,
+} from '@/app/(auth)/components'
 
 const logger = createLogger('SignupForm')
 
@@ -88,8 +93,6 @@ function SignupFormContent({
   isProduction,
   emailSignupEnabled,
 }: SignupFormProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const router = useRouter()
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
@@ -99,7 +102,6 @@ function SignupFormContent({
   useEffect(() => {
     captureClientEvent('signup_page_viewed', {})
   }, [])
-  const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
@@ -119,10 +121,7 @@ function SignupFormContent({
   }
   const redirectUrl = isValidRedirectUrl ? rawRedirectUrl : ''
   const isInviteFlow = useMemo(
-    () =>
-      searchParams.get('invite_flow') === 'true' ||
-      redirectUrl.startsWith('/invite/') ||
-      redirectUrl.startsWith('/credential-account/'),
+    () => searchParams.get('invite_flow') === 'true' || redirectUrl.startsWith('/invite/'),
     [searchParams, redirectUrl]
   )
 
@@ -365,163 +364,66 @@ function SignupFormContent({
   const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
   const showDivider = (emailEnabled || hasOnlySSO) && showBottomSection
 
-  return (
-    <>
-      <div className='space-y-1 text-center'>
-        <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
-          {t('create_an_account')}
-        </h1>
-        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-          {t('create_an_account_or_log_in')}
-        </p>
-      </div>
+  const nameFieldErrors = showNameValidationError && nameErrors.length > 0 ? nameErrors : []
+  const emailHasError = Boolean(emailError) || (showEmailValidationError && emailErrors.length > 0)
+  const emailFieldErrors =
+    showEmailValidationError && emailErrors.length > 0
+      ? emailErrors
+      : emailError && !showEmailValidationError
+        ? [emailError]
+        : []
+  const passwordFieldErrors = showValidationError && passwordErrors.length > 0 ? passwordErrors : []
+  const canSubmit = name.trim().length > 0 && email.trim().length > 0 && password.length > 0
 
-      {hasOnlySSO && (
-        <div className='mt-8'>
-          <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='primary' />
-        </div>
-      )}
+  return (
+    <div className='space-y-6'>
+      <AuthHeader title='Create an account' description='Create an account or log in' />
+
+      {hasOnlySSO && <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='primary' />}
 
       {emailEnabled && (
-        <form onSubmit={onSubmit} className='mt-8 space-y-10'>
-          <div className='space-y-6'>
-            <div className='space-y-2'>
-              <div className='flex items-center justify-between'>
-                <Label htmlFor='name'>{t('full_name')}</Label>
-              </div>
-              <div className='relative'>
-                <Input
-                  id='name'
-                  name='name'
-                  placeholder={t('enter_your_name')}
-                  type='text'
-                  autoCapitalize='words'
-                  autoComplete='name'
-                  title={t('name_can_only_contain_letters_spaces')}
-                  value={name}
-                  onChange={handleNameChange}
-                  className={cn(
-                    showNameValidationError &&
-                      nameErrors.length > 0 &&
-                      'border-red-500 focus:border-red-500'
-                  )}
-                />
-                <div
-                  className={cn(
-                    'grid transition-[grid-template-rows] duration-200 ease-out',
-                    showNameValidationError && nameErrors.length > 0
-                      ? 'grid-rows-[1fr]'
-                      : 'grid-rows-[0fr]'
-                  )}
-                  aria-live={showNameValidationError && nameErrors.length > 0 ? 'polite' : 'off'}
-                >
-                  <div className='overflow-hidden'>
-                    <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                      {nameErrors.map((error) => (
-                        <p key={error}>{error}</p>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className='space-y-2'>
-              <div className='flex items-center justify-between'>
-                <Label htmlFor='email'>{t('email')}</Label>
-              </div>
-              <div className='relative'>
-                <Input
-                  id='email'
-                  name='email'
-                  placeholder={t('enter_your_email')}
-                  autoCapitalize='none'
-                  autoComplete='email'
-                  autoCorrect='off'
-                  value={email}
-                  onChange={handleEmailChange}
-                  className={cn(
-                    (emailError || (showEmailValidationError && emailErrors.length > 0)) &&
-                      'border-red-500 focus:border-red-500'
-                  )}
-                />
-                <div
-                  className={cn(
-                    'grid transition-[grid-template-rows] duration-200 ease-out',
-                    (showEmailValidationError && emailErrors.length > 0) ||
-                      (emailError && !showEmailValidationError)
-                      ? 'grid-rows-[1fr]'
-                      : 'grid-rows-[0fr]'
-                  )}
-                  aria-live={
-                    (showEmailValidationError && emailErrors.length > 0) ||
-                    (emailError && !showEmailValidationError)
-                      ? 'polite'
-                      : 'off'
-                  }
-                >
-                  <div className='overflow-hidden'>
-                    <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                      {showEmailValidationError && emailErrors.length > 0 ? (
-                        emailErrors.map((error) => <p key={error}>{error}</p>)
-                      ) : emailError && !showEmailValidationError ? (
-                        <p>{emailError}</p>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className='space-y-2'>
-              <div className='flex items-center justify-between'>
-                <Label htmlFor='password'>{t('password')}</Label>
-              </div>
-              <div className='relative'>
-                <div className='relative'>
-                  <Input
-                    id='password'
-                    name='password'
-                    type={showPassword ? 'text' : 'password'}
-                    autoCapitalize='none'
-                    autoComplete='new-password'
-                    placeholder={t('enter_your_password')}
-                    autoCorrect='off'
-                    value={password}
-                    onChange={handlePasswordChange}
-                    className={cn(
-                      'pr-10',
-                      showValidationError &&
-                        passwordErrors.length > 0 &&
-                        'border-red-500 focus:border-red-500'
-                    )}
-                  />
-                  <button
-                    type='button'
-                    onClick={() => setShowPassword(!showPassword)}
-                    className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] transition hover:text-[var(--landing-text)]'
-                    aria-label={showPassword ? tI18n('hide_password') : tI18n('show_password')}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                <div
-                  className={cn(
-                    'grid transition-[grid-template-rows] duration-200 ease-out',
-                    showValidationError && passwordErrors.length > 0
-                      ? 'grid-rows-[1fr]'
-                      : 'grid-rows-[0fr]'
-                  )}
-                  aria-live={showValidationError && passwordErrors.length > 0 ? 'polite' : 'off'}
-                >
-                  <div className='overflow-hidden'>
-                    <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                      {passwordErrors.map((error) => (
-                        <p key={error}>{error}</p>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <form onSubmit={onSubmit} className='space-y-6'>
+          <div className='space-y-5'>
+            <AuthField htmlFor='name' label='Full name' errors={nameFieldErrors}>
+              <AuthInput
+                id='name'
+                name='name'
+                placeholder='Enter your name'
+                type='text'
+                autoCapitalize='words'
+                autoComplete='name'
+                title='Name can only contain letters, spaces, hyphens, and apostrophes'
+                value={name}
+                onChange={handleNameChange}
+                error={nameFieldErrors.length > 0}
+              />
+            </AuthField>
+            <AuthField htmlFor='email' label='Email' errors={emailFieldErrors}>
+              <AuthInput
+                id='email'
+                name='email'
+                placeholder='Enter your email'
+                autoCapitalize='none'
+                autoComplete='email'
+                autoCorrect='off'
+                value={email}
+                onChange={handleEmailChange}
+                error={emailHasError}
+              />
+            </AuthField>
+            <AuthField htmlFor='password' label='Password' errors={passwordFieldErrors}>
+              <PasswordInput
+                id='password'
+                name='password'
+                autoCapitalize='none'
+                autoComplete='new-password'
+                placeholder='Enter your password'
+                autoCorrect='off'
+                value={password}
+                onChange={handlePasswordChange}
+                error={passwordFieldErrors.length > 0}
+              />
+            </AuthField>
           </div>
 
           {turnstileSiteKey && (
@@ -533,84 +435,45 @@ function SignupFormContent({
           )}
 
           {formError && (
-            <div className='text-red-400 text-xs'>
+            <AuthFormMessage type='error'>
               <p>{formError}</p>
-            </div>
+            </AuthFormMessage>
           )}
 
-          <button type='submit' disabled={isLoading} className={cn('!mt-6', AUTH_SUBMIT_BTN)}>
-            {isLoading ? (
-              <span className='flex items-center gap-2'>
-                <Loader className='size-4' animate />
-                {t('creating_account')}
-              </span>
-            ) : (
-              tI18n('create_account')
-            )}
-          </button>
+          <AuthSubmitButton
+            loading={isLoading}
+            loadingLabel='Creating account…'
+            disabled={!canSubmit}
+          >
+            Create account
+          </AuthSubmitButton>
         </form>
       )}
 
-      {showDivider && (
-        <div className='relative my-6 font-light'>
-          <div className='absolute inset-0 flex items-center'>
-            <div className='w-full border-[var(--landing-bg-elevated)] border-t' />
-          </div>
-          <div className='relative flex justify-center text-sm'>
-            <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--landing-text-muted)]'>
-              {t('or_continue_with')}
-            </span>
-          </div>
-        </div>
-      )}
+      {showDivider && <AuthDivider label='Or continue with' />}
 
       {showBottomSection && (
-        <div className={cn(!emailEnabled ? 'mt-8' : undefined)}>
-          <SocialLoginButtons
-            githubAvailable={githubAvailable}
-            googleAvailable={googleAvailable}
-            microsoftAvailable={microsoftAvailable}
-            callbackURL={redirectUrl || '/workspace'}
-            isProduction={isProduction}
-          >
-            {ssoEnabled && !hasOnlySSO && (
-              <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='outline' />
-            )}
-          </SocialLoginButtons>
-        </div>
+        <SocialLoginButtons
+          githubAvailable={githubAvailable}
+          googleAvailable={googleAvailable}
+          microsoftAvailable={microsoftAvailable}
+          callbackURL={redirectUrl || '/workspace'}
+          isProduction={isProduction}
+        >
+          {ssoEnabled && !hasOnlySSO && (
+            <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='outline' />
+          )}
+        </SocialLoginButtons>
       )}
 
-      <div className='pt-6 text-center font-light text-sm'>
-        <span className='font-normal'>{t('already_have_an_account')} </span>
-        <Link
-          href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
-          className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
-        >
-          {t('sign_in')}
-        </Link>
-      </div>
+      <AuthNavPrompt
+        prompt='Already have an account?'
+        href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
+        linkLabel='Sign in'
+      />
 
-      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[var(--landing-text-muted)] text-small leading-relaxed sm:px-8 md:px-11'>
-        {t('by_creating_an_account_you_agree')}{' '}
-        <Link
-          href='/terms'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
-        >
-          {t('terms_of_service')}
-        </Link>{' '}
-        {t('and')}{' '}
-        <Link
-          href='/privacy'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
-        >
-          {t('privacy_policy')}
-        </Link>
-      </div>
-    </>
+      <AuthLegalFooter action='creating an account' />
+    </div>
   )
 }
 
@@ -621,11 +484,8 @@ export default function SignupPage({
   isProduction,
   emailSignupEnabled,
 }: SignupFormProps) {
-  const t = useTranslations('auto')
   return (
-    <Suspense
-      fallback={<div className='flex h-screen items-center justify-center'>{t('loading')}</div>}
-    >
+    <Suspense fallback={<div className='flex h-screen items-center justify-center'>Loading…</div>}>
       <SignupFormContent
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}

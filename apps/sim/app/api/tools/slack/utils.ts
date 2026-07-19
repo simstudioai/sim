@@ -1,7 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { FileAccessDeniedError, verifyFileAccess } from '@/app/api/files/authorization'
 import type { ToolFileData } from '@/tools/types'
 
@@ -89,7 +89,11 @@ async function uploadFilesToSlack(
       throw new FileAccessDeniedError()
     }
 
-    const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+    const { buffer, contentType } = await downloadServableFileFromStorage(
+      userFile,
+      requestId,
+      logger
+    )
 
     const getUrlResponse = await fetch('https://slack.com/api/files.getUploadURLExternal', {
       method: 'POST',
@@ -131,7 +135,7 @@ async function uploadFilesToSlack(
     // Only add to uploadedFiles after successful upload to keep arrays in sync
     uploadedFiles.push({
       name: userFile.name,
-      mimeType: userFile.type || 'application/octet-stream',
+      mimeType: contentType || userFile.type || 'application/octet-stream',
       data: buffer.toString('base64'),
       size: buffer.length,
     })

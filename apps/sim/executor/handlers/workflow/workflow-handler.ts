@@ -1,30 +1,168 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
+import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
+import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
+import { getUserEmailById } from '@/lib/users/queries'
+import { getCustomBlockAuthority } from '@/lib/workflows/custom-blocks/operations'
+import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
+import { type CustomBlockOutput, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import { BlockType, DEFAULTS, HTTP } from '@/executor/constants'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
 import type { WorkflowNodeMetadata } from '@/executor/execution/types'
-import type {
-  BlockHandler,
-  ExecutionContext,
-  ExecutionResult,
-  StreamingExecution,
+import {
+  type BlockHandler,
+  type ExecutionContext,
+  type ExecutionResult,
+  START_BLOCK_METADATA_FIELD,
+  type StartBlockRunMetadata,
+  type StreamingExecution,
 } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { getIterationContext } from '@/executor/utils/iteration-context'
 import { parseJSON } from '@/executor/utils/json'
 import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
+import { isRunMetadataEnabled, resolveExecutorStartBlock } from '@/executor/utils/start-block'
 import { Serializer } from '@/serializer'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('WorkflowBlockHandler')
+
+/** Read a dot-path (e.g. `content.text`) out of a block output object. */
+function getValueAtPath(source: unknown, path: string): unknown {
+  return path.split('.').reduce<unknown>((acc, key) => {
+    if (acc && typeof acc === 'object') return (acc as Record<string, unknown>)[key]
+    return undefined
+  }, source)
+}
+
+/**
+ * Recover the trusted run metadata from the executing workflow's seeded
+ * start-block output. Resume restores block states from the snapshot but never
+ * rebuilds `ctx.startRunMetadata`, so the seeded output is the surviving copy.
+ */
+function readSeededStartRunMetadata(ctx: ExecutionContext): StartBlockRunMetadata | undefined {
+  const resolution = resolveExecutorStartBlock(ctx.workflow?.blocks ?? [], {
+    execution: 'manual',
+    isChildWorkflow: false,
+  })
+  if (!resolution || !isRunMetadataEnabled(resolution.block)) return undefined
+
+  const seeded = ctx.blockStates.get(resolution.blockId)?.output?.[START_BLOCK_METADATA_FIELD]
+  return isRecordLike(seeded) ? (seeded as StartBlockRunMetadata) : undefined
+}
+
+/**
+ * Remap a custom block's resolved input mapping from source-field ids to the
+ * child workflow's current field names. The consumer's sub-block values are keyed
+ * by the stable field id (so renames don't cook them); the child is addressed by
+ * name. Legacy fields without an id are keyed by name and pass through unchanged.
+ * Keys that match no current field are dropped.
+ */
+/**
+ * A consumer left a publisher-required custom block input empty. The message is
+ * consumer-safe (it names only the block's own input labels), so the catch's
+ * custom-block sanitizer rethrows it verbatim instead of the generic failure.
+ */
+export class CustomBlockMissingInputsError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CustomBlockMissingInputsError'
+  }
+}
+
+/**
+ * Names of publisher-required custom block inputs the consumer left empty, checked
+ * against the child's LIVE deployed Start fields — a required override whose field
+ * was removed is inert, and a field added after publish has no override, so schema
+ * drift can never block a run. `childWorkflowInput` is the post-remap mapping
+ * (keyed by field name). Same empty semantics as the serializer's required check.
+ */
+export function findMissingRequiredCustomBlockInputs(
+  requiredInputIds: string[],
+  childBlocks: Record<string, unknown>,
+  childWorkflowInput: Record<string, unknown>
+): string[] {
+  if (requiredInputIds.length === 0) return []
+  const requiredIds = new Set(requiredInputIds)
+  return extractInputFieldsFromBlocks(childBlocks)
+    .filter((field) => requiredIds.has(field.id ?? field.name))
+    .filter((field) => {
+      const value = childWorkflowInput[field.name]
+      return value === undefined || value === null || value === ''
+    })
+    .map((field) => field.name)
+}
+
+export function remapCustomBlockInputKeys(
+  mapping: Record<string, unknown>,
+  childBlocks: Record<string, unknown>
+): Record<string, unknown> {
+  const fields = extractInputFieldsFromBlocks(childBlocks)
+  const remapped: Record<string, unknown> = {}
+  for (const field of fields) {
+    const key =
+      field.id && field.id in mapping ? field.id : field.name in mapping ? field.name : null
+    if (key === null) continue
+    let value = mapping[key]
+    // object/array inputs are authored in a JSON code editor, so their value is a
+    // JSON *string*. Decode it against the child's real Start field type so the
+    // child receives the actual object/array (or primitive) — not the string
+    // re-encoded by the mapping's `JSON.stringify` (`"Theodore"` → `\"Theodore\"`).
+    if ((field.type === 'object' || field.type === 'array') && typeof value === 'string') {
+      try {
+        value = JSON.parse(value)
+      } catch {
+        // Not valid JSON — pass the raw string through unchanged.
+      }
+    }
+    remapped[field.name] = value
+  }
+  return remapped
+}
+
+/**
+ * Canonical hosted-key spend of a child run: the model/tool cost the way the
+ * parent bills it (recursing nested/iteration spans and de-duping model
+ * breakdowns), minus the base execution charge the parent applies once itself.
+ * A naive top-level `cost.total` sum undercounts when spend sits on nested children.
+ */
+function aggregateChildCost(childTraceSpans: TraceSpan[]): number {
+  if (childTraceSpans.length === 0) return 0
+  const summary = calculateCostSummary(childTraceSpans)
+  return Math.max(0, summary.totalCost - summary.baseExecutionCharge)
+}
+
+/**
+ * A single cost-only span so a FAILED custom block still bills the hosted-key spend
+ * its child already consumed (`block-executor` bills `error.childTraceSpans`),
+ * without exposing any of the source workflow's internal spans. Empty when free.
+ */
+function buildCostCarrierSpans(childCost: number, blockName: string, type: string): TraceSpan[] {
+  if (childCost <= 0) return []
+  const now = new Date().toISOString()
+  return [
+    {
+      id: generateId(),
+      name: blockName,
+      type,
+      duration: 0,
+      startTime: now,
+      endTime: now,
+      status: 'error',
+      cost: { total: childCost },
+    },
+  ]
+}
 
 type WorkflowTraceSpan = TraceSpan & {
   metadata?: Record<string, unknown>
@@ -41,7 +179,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
   canHandle(block: SerializedBlock): boolean {
     const id = block.metadata?.id
-    return id === BlockType.WORKFLOW || id === BlockType.WORKFLOW_INPUT
+    return id === BlockType.WORKFLOW || id === BlockType.WORKFLOW_INPUT || isCustomBlockType(id)
   }
 
   async execute(
@@ -69,11 +207,36 @@ export class WorkflowBlockHandler implements BlockHandler {
   ): Promise<BlockOutput | StreamingExecution> {
     logger.info(`Executing workflow block: ${block.id}`)
 
-    const workflowId = inputs.workflowId
+    const blockTypeId = block.metadata?.id
+    const isCustomBlock = isCustomBlockType(blockTypeId)
+
+    // Custom (deploy-as-block) blocks are an invocation boundary: resolve the bound
+    // workflow + authority from the DB (never trust the serialized value) and run the
+    // source workflow's LATEST deployment under its OWNER's authority — the same
+    // identity a normal deployed API/schedule/webhook run uses — so a cross-workspace
+    // consumer needs no permission on the source workflow. Owner deletion cascade-
+    // deletes the workflow → the custom_block row, so the block never orphans.
+    let workflowId = inputs.workflowId
+    let loadUserId = ctx.userId
+    let exposedOutputs: CustomBlockOutput[] = []
+    let requiredInputIds: string[] = []
+    if (isCustomBlock) {
+      const authority = await getCustomBlockAuthority(blockTypeId as string, ctx.workspaceId)
+      if (!authority) {
+        throw new Error('This custom block is no longer available')
+      }
+      workflowId = authority.workflowId
+      loadUserId = authority.ownerUserId
+      exposedOutputs = authority.exposedOutputs
+      requiredInputIds = authority.requiredInputIds
+    }
 
     if (!workflowId) {
       throw new Error('No workflow selected for execution')
     }
+
+    // Always run the latest deployment for custom blocks, even from a draft-context parent run.
+    const useDeployed = isCustomBlock || ctx.isDeployedContext
 
     let childWorkflowName = workflowId
 
@@ -90,10 +253,22 @@ export class WorkflowBlockHandler implements BlockHandler {
       })
     }
 
+    // A custom block runs the source's latest deployment; if the source has been
+    // undeployed there's nothing to run. Check + throw a clear, consumer-safe
+    // reason BEFORE the try so the catch's generic sanitizer doesn't mask it (the
+    // message names no source internals). The block still renders (its schema comes
+    // from stored curated inputs), so this is the only failure mode to surface.
+    if (isCustomBlock) {
+      const deployed = await this.checkChildDeployment(workflowId, loadUserId)
+      if (!deployed) {
+        throw new Error('This block’s workflow is not deployed. Redeploy it to use this block.')
+      }
+    }
+
     let childWorkflowSnapshotId: string | undefined
     try {
-      if (ctx.isDeployedContext) {
-        const hasActiveDeployment = await this.checkChildDeployment(workflowId, ctx.userId)
+      if (useDeployed && !isCustomBlock) {
+        const hasActiveDeployment = await this.checkChildDeployment(workflowId, loadUserId)
         if (!hasActiveDeployment) {
           throw new Error(
             `Child workflow is not deployed. Please deploy the workflow before invoking it.`
@@ -101,12 +276,21 @@ export class WorkflowBlockHandler implements BlockHandler {
         }
       }
 
-      const childWorkflow = ctx.isDeployedContext
-        ? await this.loadChildWorkflowDeployed(workflowId, ctx.userId)
+      const childWorkflow = useDeployed
+        ? await this.loadChildWorkflowDeployed(workflowId, loadUserId)
         : await this.loadChildWorkflow(workflowId, ctx.userId)
 
       if (!childWorkflow) {
         throw new Error(`Child workflow ${workflowId} not found`)
+      }
+
+      // Custom blocks are org-scoped and deliberately cross-workspace: the source
+      // workflow lives in the publisher's workspace, not the consumer's. Their
+      // boundary is the org overlay + `getCustomBlockAuthority`, so the
+      // same-workspace assert (which guards regular workflow blocks) must be
+      // skipped or every custom-block invocation from another workspace throws.
+      if (!isCustomBlock) {
+        this.assertChildWorkflowInWorkspace(workflowId, childWorkflow.workspaceId, ctx.workspaceId)
       }
 
       childWorkflowName = childWorkflow.name || 'Unknown Workflow'
@@ -121,10 +305,20 @@ export class WorkflowBlockHandler implements BlockHandler {
         const normalized = parseJSON(inputs.inputMapping, inputs.inputMapping)
 
         if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
+          // Custom blocks key their mapping by the source field's stable id so a
+          // rename never orphans the consumer's value; remap id → current name
+          // before the child (which is addressed by name) receives it.
+          const remapped = isCustomBlock
+            ? remapCustomBlockInputKeys(
+                normalized as Record<string, unknown>,
+                childWorkflow.rawBlocks || {}
+              )
+            : (normalized as Record<string, unknown>)
+
           const cleanedMapping = await lazyCleanupInputMapping(
             ctx.workflowId || 'unknown',
             block.id,
-            normalized,
+            remapped,
             childWorkflow.rawBlocks || {}
           )
           childWorkflowInput = cleanedMapping as Record<string, any>
@@ -133,6 +327,19 @@ export class WorkflowBlockHandler implements BlockHandler {
         }
       } else if (inputs.input !== undefined) {
         childWorkflowInput = inputs.input
+      }
+
+      if (isCustomBlock) {
+        const missing = findMissingRequiredCustomBlockInputs(
+          requiredInputIds,
+          childWorkflow.rawBlocks || {},
+          childWorkflowInput
+        )
+        if (missing.length > 0) {
+          throw new CustomBlockMissingInputsError(
+            `${block.metadata?.name || 'Custom block'} is missing required fields: ${missing.join(', ')}`
+          )
+        }
       }
 
       const childSnapshotResult = await snapshotService.createSnapshotWithDeduplication(
@@ -166,19 +373,98 @@ export class WorkflowBlockHandler implements BlockHandler {
         )
       }
 
+      // A custom block is an invocation boundary: the child runs under the SOURCE
+      // workflow owner's identity, workspace, and environment — not the consumer's —
+      // so it resolves credentials/integrations/env exactly as published and the
+      // consumer needs no access to any of them. (Billing still lands on the
+      // consumer's org, aggregated onto the block above.) Regular workflow blocks
+      // keep running in the parent's context.
+      let childUserId = ctx.userId
+      let childWorkspaceId = ctx.workspaceId
+      let childEnvVarValues = ctx.environmentVariables
+      let childBillingAttribution = ctx.metadata.billingAttribution
+      if (isCustomBlock) {
+        if (!loadUserId) {
+          throw new Error('Custom block source workflow has no owner')
+        }
+        if (!childWorkflow.workspaceId) {
+          throw new Error('Custom block source workflow has no workspace')
+        }
+        childUserId = loadUserId
+        childWorkspaceId = childWorkflow.workspaceId
+        const ownerEnv = await getPersonalAndWorkspaceEnv(loadUserId, childWorkflow.workspaceId)
+        childEnvVarValues = { ...ownerEnv.personalDecrypted, ...ownerEnv.workspaceDecrypted }
+        // Custom-block children authenticate internal tool calls as the source
+        // owner in the source workspace, so the consumer's snapshot would fail
+        // the internal routes' actor/workspace scope match. Resolve the
+        // source-scoped payer instead — the same decision those routes made
+        // themselves before attribution headers became required.
+        childBillingAttribution = await resolveBillingAttribution({
+          actorUserId: loadUserId,
+          workspaceId: childWorkflow.workspaceId,
+        })
+      }
+
+      // Trusted run metadata for the child's Start block. Every field describes
+      // the INVOKING run (the caller's email, workspace, and workflow — never the
+      // child's own static, authoring-time-known identity), delivered on a
+      // server-verified channel a consumer's inputs can never spoof.
+      let childStartRunMetadata: StartBlockRunMetadata | undefined
+      const childStartResolution = resolveExecutorStartBlock(childWorkflow.serializedState.blocks, {
+        execution: 'manual',
+        isChildWorkflow: false,
+      })
+      // Resumed executions never rebuild `ctx.startRunMetadata`, so fall back to
+      // the parent's own seeded start-block output — the persisted copy of the
+      // same trusted object, restored from the snapshot on resume.
+      const inherited = ctx.startRunMetadata ?? readSeededStartRunMetadata(ctx)
+      if (childStartResolution && isRunMetadataEnabled(childStartResolution.block)) {
+        // When the parent run already carries trusted metadata, propagate ALL of
+        // it so nested children see one consistent invoking identity (the
+        // original consumer) instead of a mix of original and intermediate.
+        // Inherited email is taken verbatim — a fail-soft null must stay null,
+        // not be re-resolved to the intermediate (publisher) identity.
+        childStartRunMetadata = {
+          userEmail: inherited
+            ? (inherited.userEmail ?? null)
+            : ctx.userId
+              ? await getUserEmailById(ctx.userId)
+              : null,
+          workspaceId: inherited?.workspaceId ?? ctx.workspaceId ?? null,
+          workflowId: inherited?.workflowId ?? ctx.workflowId ?? null,
+          executionId: ctx.executionId,
+          executionType: 'workflow',
+          executionMode: inherited?.executionMode ?? ctx.metadata.executionMode,
+          startTime: new Date().toISOString(),
+        }
+      }
+
       const subExecutor = new Executor({
         workflow: childWorkflow.serializedState,
         workflowInput: childWorkflowInput,
-        envVarValues: ctx.environmentVariables,
+        envVarValues: childEnvVarValues,
         workflowVariables: childWorkflow.variables || {},
         contextExtensions: {
           isChildExecution: true,
-          isDeployedContext: ctx.isDeployedContext === true,
+          // Custom blocks always run the source's latest deployment, so the child
+          // context must be deployed too — otherwise its metadata treats the
+          // deployed graph as draft. `useDeployed` folds in the custom-block case.
+          isDeployedContext: useDeployed,
           enforceCredentialAccess: ctx.enforceCredentialAccess,
-          workspaceId: ctx.workspaceId,
-          userId: ctx.userId,
+          workspaceId: childWorkspaceId,
+          userId: childUserId,
           executionId: ctx.executionId,
+          // Same-workspace children share the parent's frozen payer decision so
+          // internal tool calls (knowledge, guardrails, MCP, Mothership) can
+          // attach the required billing attribution header.
+          billingAttribution: childBillingAttribution,
+          // Fall back to the inherited metadata so a toggle-off intermediate
+          // child still carries the trusted identity chain to deeper children.
+          startRunMetadata: childStartRunMetadata ?? inherited,
           abortSignal: ctx.abortSignal,
+          // Propagate in-flight block-output redaction into child workflows so
+          // nested blocks mask outputs too (recurses: each child forwards it).
+          piiBlockOutputRedaction: ctx.piiBlockOutputRedaction,
           callChain: childCallChain,
           ...(shouldPropagateCallbacks && {
             onBlockStart: ctx.onBlockStart,
@@ -218,9 +504,63 @@ export class WorkflowBlockHandler implements BlockHandler {
         childWorkflowSnapshotId
       )
 
+      // Custom blocks expose only curated outputs — never the child workflow id,
+      // name, or trace spans. `mapChildOutputToParent` above still runs so failures
+      // surface identically; we just reshape the successful output.
+      if (isCustomBlock) {
+        // The child's spans are stripped for privacy, but they're the only carrier
+        // of the run's cost into billing — so roll their aggregate cost onto the
+        // block itself. Custom blocks are org-scoped, so this bills the same org the
+        // source workflow would bill if run directly, exactly as if it ran the key.
+        const childCost = aggregateChildCost(childTraceSpans)
+        return this.projectCustomBlockOutput(executionResult, exposedOutputs, childCost)
+      }
+
       return mappedResult
     } catch (error: unknown) {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
+
+      // Custom blocks are an invocation boundary: on failure the consumer must not
+      // see the source workflow's name, nested error text (which names internal
+      // blocks), trace spans, or execution result — the success path hides all of
+      // these too. The real error is logged above for the publisher/ops; the
+      // consumer gets only a generic failure attributed to the block they placed.
+      // But a child that failed AFTER consuming hosted keys still owes that spend,
+      // so capture the child's spans server-side, distill to the aggregate cost, and
+      // carry only that (no internals) so `block-executor` still bills it.
+      if (isCustomBlock) {
+        // Missing-required-inputs is the consumer's own mistake and its message
+        // names only the block's input labels — surface it instead of the generic
+        // failure so they can actually fix it. The child never ran: no spend.
+        if (error instanceof CustomBlockMissingInputsError) {
+          throw new ChildWorkflowError({
+            message: error.message,
+            childWorkflowName: block.metadata?.name || 'Custom block',
+            childWorkflowInstanceId: instanceId,
+          })
+        }
+        let failedChildSpans: WorkflowTraceSpan[] = []
+        if (hasExecutionResult(error) && error.executionResult.logs) {
+          failedChildSpans = this.captureChildWorkflowLogs(
+            error.executionResult,
+            childWorkflowName,
+            ctx
+          )
+        } else if (ChildWorkflowError.isChildWorkflowError(error)) {
+          failedChildSpans = error.childTraceSpans
+        }
+        const blockName = block.metadata?.name || 'Custom block'
+        throw new ChildWorkflowError({
+          message: 'Custom block execution failed',
+          childWorkflowName: blockName,
+          childTraceSpans: buildCostCarrierSpans(
+            aggregateChildCost(failedChildSpans),
+            blockName,
+            block.metadata?.id ?? 'custom_block'
+          ),
+          childWorkflowInstanceId: instanceId,
+        })
+      }
 
       let childTraceSpans: WorkflowTraceSpan[] = []
       let executionResult: ExecutionResult | undefined
@@ -321,6 +661,34 @@ export class WorkflowBlockHandler implements BlockHandler {
     return { chain, rootError: rootError.trim() || 'Unknown error' }
   }
 
+  /**
+   * Ensures the child workflow belongs to the same workspace as the executing
+   * context before any child execution starts. Blocks silent cross-workspace
+   * execution (e.g. a manual workflow id still pointing at the source
+   * workspace after a fork), which would otherwise run the foreign workflow
+   * with the parent workspace's environment and billing. Fails closed when the
+   * executing context carries no workspace id: every server execution path
+   * populates it via execution-core, so a missing value indicates a context
+   * that must not silently bypass the check. The error message intentionally
+   * omits the foreign workspace id.
+   */
+  private assertChildWorkflowInWorkspace(
+    childWorkflowId: string,
+    childWorkspaceId: string | null | undefined,
+    parentWorkspaceId: string | undefined
+  ): void {
+    if (!parentWorkspaceId) {
+      throw new Error(
+        `Cannot execute child workflow ${childWorkflowId}: executing context has no workspace`
+      )
+    }
+    if (childWorkspaceId !== parentWorkspaceId) {
+      throw new Error(
+        `Child workflow ${childWorkflowId} belongs to a different workspace and cannot be executed`
+      )
+    }
+  }
+
   private async loadChildWorkflow(workflowId: string, userId?: string) {
     const headers = await buildAuthHeaders(userId)
     const url = buildAPIUrl(`/api/workflows/${workflowId}`)
@@ -375,6 +743,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
     return {
       name: workflowData.name,
+      workspaceId: (workflowData.workspaceId ?? null) as string | null,
       serializedState: serializedWorkflow,
       variables: workflowVariables,
       workflowState: workflowStateWithVariables,
@@ -458,6 +827,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
     return {
       name: childName,
+      workspaceId: (wfData?.workspaceId ?? null) as string | null,
       serializedState: serializedWorkflow,
       variables: workflowVariables,
       workflowState: workflowStateWithVariables,
@@ -556,6 +926,35 @@ export class WorkflowBlockHandler implements BlockHandler {
   private isSyntheticWorkflowWrapper(span: TraceSpan | undefined): boolean {
     if (!span || span.type !== 'workflow') return false
     return !span.blockId
+  }
+
+  /**
+   * Shape a custom block's successful output. With curated `exposedOutputs`, each
+   * maps a child block output (blockId + dot-path, read from the child's per-block
+   * logs) to a named top-level field. With none, exposes the child's whole
+   * `result`. Never leaks child workflow id/name/trace spans.
+   */
+  private projectCustomBlockOutput(
+    executionResult: ExecutionResult,
+    exposedOutputs: CustomBlockOutput[],
+    childCost: number
+  ): BlockOutput {
+    // Aggregate child cost only (never the child's spans/model breakdown) so the
+    // run is billed while the source workflow's internals stay hidden.
+    const cost = childCost > 0 ? { cost: { total: childCost } } : {}
+    if (exposedOutputs.length === 0) {
+      return { success: true, result: executionResult.output ?? {}, ...cost }
+    }
+    const logs = executionResult.logs ?? []
+    const output: Record<string, unknown> = {}
+    for (const { blockId, path, name } of exposedOutputs) {
+      const log =
+        [...logs].reverse().find((l) => l.blockId === blockId && l.success) ??
+        [...logs].reverse().find((l) => l.blockId === blockId)
+      output[name] = log ? getValueAtPath(log.output, path) : undefined
+    }
+    // System fields spread last — pre-validation rows may still name an output cost/success.
+    return { ...output, success: true, ...cost } as BlockOutput
   }
 
   private mapChildOutputToParent(

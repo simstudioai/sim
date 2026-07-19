@@ -45,7 +45,7 @@ Sim is the open-source AI workspace where teams build, deploy, and manage AI age
 
 ## Documentation Overview
 
-This file provides an overview of our documentation. For full content of all pages, see ${baseUrl}/llms-full.txt
+This file provides an overview of our documentation. For full content of all pages, see [llms-full.txt](${baseUrl}/llms-full.txt).
 
 ## Main Sections
 
@@ -55,16 +55,16 @@ ${Object.entries(sections)
       .split('-')
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ')
-    return `### ${sectionTitle}\n\n${items.map((item) => `- ${item.title}: ${item.url}${item.description ? `\n  ${item.description}` : ''}`).join('\n')}`
+    return `### ${sectionTitle}\n\n${items.map((item) => `- [${item.title}](${item.url})${item.description ? `\n  ${item.description}` : ''}`).join('\n')}`
   })
   .join('\n\n')}
 
 ## Additional Resources
 
-- Full documentation content: ${baseUrl}/llms-full.txt
+- [Full documentation content](${baseUrl}/llms-full.txt)
 - Individual page content: ${baseUrl}/llms.mdx/[page-path]
-- API documentation: ${baseUrl}/api-reference/
-- Tool integrations: ${baseUrl}/tools/
+- [API documentation](${baseUrl}/api-reference/)
+- [Tool integrations](${baseUrl}/tools/)
 
 ## Statistics
 

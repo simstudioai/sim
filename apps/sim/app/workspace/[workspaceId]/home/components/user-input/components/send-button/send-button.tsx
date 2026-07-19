@@ -1,9 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useTranslations } from 'next-intl'
-import { ArrowUp, Button } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { ArrowUp, Button, cn } from '@sim/emcn'
 import {
   SEND_BUTTON_ACTIVE,
   SEND_BUTTON_BASE,
@@ -23,14 +21,13 @@ export const SendButton = React.memo(function SendButton({
   onSubmit,
   onStopGeneration,
 }: SendButtonProps) {
-  const t = useTranslations('auto')
   if (isSending) {
     return (
       <Button
         onClick={onStopGeneration}
         variant='ghost'
         className={cn(SEND_BUTTON_BASE, SEND_BUTTON_ACTIVE)}
-        title={t('stop_generation')}
+        title='Stop generation'
       >
         <svg
           className='block h-[14px] w-[14px] fill-white dark:fill-black'

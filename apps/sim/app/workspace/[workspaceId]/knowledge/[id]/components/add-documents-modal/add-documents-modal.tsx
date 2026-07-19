@@ -1,10 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { RotateCcw, X } from 'lucide-react'
-import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import {
   Button,
   ChipModal,
@@ -13,9 +9,12 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  cn,
   Loader,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { RotateCcw, X } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
@@ -39,8 +38,6 @@ export function AddDocumentsModal({
   knowledgeBaseId,
   chunkingConfig,
 }: AddDocumentsModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [files, setFiles] = useState<File[]>([])
@@ -149,29 +146,22 @@ export function AddDocumentsModal({
   }
 
   return (
-    <ChipModal
-      open={open}
-      onOpenChange={handleOpenChange}
-      srTitle={tI18n('new_documents')}
-      size='md'
-    >
-      <ChipModalHeader onClose={() => handleOpenChange(false)}>
-        {t('new_documents')}
-      </ChipModalHeader>
+    <ChipModal open={open} onOpenChange={handleOpenChange} srTitle='New Documents' size='md'>
+      <ChipModalHeader onClose={() => handleOpenChange(false)}>New Documents</ChipModalHeader>
 
       <ChipModalBody>
         <ChipModalField
           type='file'
-          title={t('upload_documents')}
+          title='Upload Documents'
           accept={ACCEPT_ATTRIBUTE}
           multiple
           onChange={processFiles}
-          description={t('pdf_doc_docx_txt_csv_xls')}
+          description='PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB each)'
           error={fileError}
         />
 
         {files.length > 0 && (
-          <ChipModalField type='custom' title={t('selected_files')}>
+          <ChipModalField type='custom' title='Selected Files'>
             <div className='flex flex-col gap-2'>
               {files.map((file, index) => {
                 const fileStatus = uploadProgress.fileStatuses?.[index]

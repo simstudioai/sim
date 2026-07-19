@@ -1,7 +1,5 @@
 'use client'
 
-import { Sparkles } from 'lucide-react'
-import { useTranslations } from 'next-intl'
 import {
   ChipChevronDown,
   chipContentIconClass,
@@ -13,7 +11,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Plus,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { Sparkles } from 'lucide-react'
 import type { ColumnDefinition } from '@/lib/table'
 import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
 
@@ -42,14 +41,13 @@ export function NewColumnDropdown({
   onPickWorkflow,
   onPickEnrichment,
 }: NewColumnDropdownProps) {
-  const t = useTranslations('auto')
   const menu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {trigger === 'header' ? (
           <button type='button' className={chipVariants()} disabled={disabled}>
             <Plus className={chipContentIconClass} />
-            <span className={chipContentLabelClass}>{t('new_column')}</span>
+            <span className={chipContentLabelClass}>New column</span>
             <ChipChevronDown />
           </button>
         ) : (
@@ -59,9 +57,7 @@ export function NewColumnDropdown({
             disabled={disabled}
           >
             <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-            <span className='font-medium text-[var(--text-body)] text-small'>
-              {t('new_column')}
-            </span>
+            <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
           </button>
         )}
       </DropdownMenuTrigger>
@@ -69,7 +65,7 @@ export function NewColumnDropdown({
         <>
           <DropdownMenuItem onSelect={onPickEnrichment}>
             <Sparkles className='size-[14px] text-[var(--text-icon)]' />
-            {t('enrichments')}
+            Enrichments
           </DropdownMenuItem>
           <DropdownMenuSeparator />
         </>

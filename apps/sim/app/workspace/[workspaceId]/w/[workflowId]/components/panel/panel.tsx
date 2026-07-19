@@ -1,14 +1,6 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
-import { useQueryClient } from '@tanstack/react-query'
-import { History, Plus, Square } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { usePostHog } from 'posthog-js/react'
-import { useShallow } from 'zustand/react/shallow'
 import {
   BubbleChatClose,
   BubbleChatPreview,
@@ -30,8 +22,15 @@ import {
   PopoverTrigger,
   Trash,
   toast,
-} from '@/components/emcn'
-import { Download, Lock, Unlock } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Download, Lock, Unlock } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { useQueryClient } from '@tanstack/react-query'
+import { History, Plus, Square } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
+import { useShallow } from 'zustand/react/shallow'
 import { VariableIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -40,6 +39,7 @@ import {
 } from '@/lib/api/contracts/copilot'
 import { getWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
 import { useSession } from '@/lib/auth/auth-client'
+import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
 import {
   MOTHERSHIP_SEND_MESSAGE_EVENT,
   type MothershipSendMessageDetail,
@@ -51,6 +51,7 @@ import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components'
 import { getWorkflowCopilotUseChatOptions, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
 import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
@@ -111,28 +112,20 @@ const EMPTY_COPILOT_CHATS: readonly CopilotChatListItem[] = []
  *
  * @returns Panel on the right side of the workflow
  */
-interface PanelProps {
-  /** Override workspaceId when rendered outside a workspace route (e.g. sandbox mode) */
-  workspaceId?: string
-}
-
-export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: PanelProps = {}) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
+export const Panel = memo(function Panel() {
   const router = useRouter()
   const params = useParams()
-  const workspaceId = propWorkspaceId ?? (params.workspaceId as string)
+  const workspaceId = params.workspaceId as string
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
 
   const panelRef = useRef<HTMLElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { activeTab, setActiveTab, panelWidth, _hasHydrated, setHasHydrated } = usePanelStore(
+  const { activeTab, setActiveTab, _hasHydrated, setHasHydrated } = usePanelStore(
     useShallow((state) => ({
       activeTab: state.activeTab,
       setActiveTab: state.setActiveTab,
-      panelWidth: state.panelWidth,
       _hasHydrated: state._hasHydrated,
       setHasHydrated: state.setHasHydrated,
     }))
@@ -141,6 +134,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     focusSearch: () => void
   } | null>(null)
   const { data: session } = useSession()
+  const hostContext = useWorkspaceHostContext()
 
   // State
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -156,13 +150,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const duplicateWorkflowMutation = useDuplicateWorkflowMutation()
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const { data: folders = {} } = useFolderMap(workspaceId)
-  const { activeWorkflowId, hydration } = useWorkflowRegistry(
-    useShallow((state) => ({
-      activeWorkflowId: state.activeWorkflowId,
-      hydration: state.hydration,
-    }))
-  )
-  const isRegistryLoading = hydration.phase === 'idle' || hydration.phase === 'state-loading'
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
 
   // Check for locked blocks (disables auto-layout)
@@ -189,16 +177,18 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   })
 
   // Usage limits hook
-  const { usageExceeded } = useUsageLimits({
-    context: 'user',
-    autoRefresh: !isRegistryLoading,
-  })
+  const {
+    usageExceeded,
+    message: usageLimitMessage,
+    scope: usageLimitScope,
+    isLoading: isUsageGateLoading,
+  } = useUsageLimits({ workspaceId })
 
   // Workflow execution hook
   const { handleRunWorkflow, handleCancelExecution, isExecuting } = useWorkflowExecution()
 
   // Panel resize hook
-  const { handleMouseDown } = usePanelResize()
+  const { handlePointerDown } = usePanelResize()
 
   /**
    * Opens subscription settings modal
@@ -218,12 +208,30 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
    * Runs the workflow with usage limit check
    */
   const runWorkflow = useCallback(async () => {
+    if (isUsageGateLoading) return
+
     if (usageExceeded) {
-      openSubscriptionSettings()
+      const action = getWorkspaceUsageLimitAction(hostContext, session?.user?.id, {
+        message: usageLimitMessage,
+        scope: usageLimitScope,
+      })
+      if (action.type === 'manage-billing') {
+        openSubscriptionSettings()
+      } else {
+        toast.error(action.message)
+      }
       return
     }
     await handleRunWorkflow()
-  }, [usageExceeded, handleRunWorkflow])
+  }, [
+    usageExceeded,
+    usageLimitMessage,
+    usageLimitScope,
+    isUsageGateLoading,
+    hostContext,
+    session?.user?.id,
+    handleRunWorkflow,
+  ])
 
   // Chat state
   const { isChatOpen, setIsChatOpen } = useChatStore(
@@ -606,7 +614,8 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const isLoadingPermissions = userPermissions.isLoading
   const hasValidationErrors = false // TODO: Add validation logic if needed
   const isWorkflowBlocked = isExecuting || hasValidationErrors
-  const isButtonDisabled = !isExecuting && (isWorkflowBlocked || (!canRun && !isLoadingPermissions))
+  const isButtonDisabled =
+    !isExecuting && (isUsageGateLoading || isWorkflowBlocked || (!canRun && !isLoadingPermissions))
 
   /**
    * Register global keyboard shortcuts using the central commands registry.
@@ -647,7 +656,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       <aside
         ref={panelRef}
         className='panel-container relative shrink-0 overflow-hidden bg-[var(--bg)]'
-        aria-label={t('workflow_panel')}
+        aria-label='Workflow panel'
       >
         <div className='flex h-full flex-col border-[var(--border)] border-l pt-3.5'>
           {/* Header */}
@@ -666,23 +675,27 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     disabled={
                       isExecuting || !canMutateWorkflow || isAutoLayouting || hasLockedBlocks
                     }
-                    title={hasLockedBlocks ? tI18n('unlock_blocks_to_use_auto_layout') : undefined}
+                    title={hasLockedBlocks ? 'Unlock blocks to use auto-layout' : undefined}
                   >
                     <Layout animate={isAutoLayouting} variant='clockwise' />
-                    {t('auto_layout')}
+                    Auto layout
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setVariablesOpen(!isVariablesOpen)}>
                     <VariableIcon />
-                    {t('variables')}
+                    Variables
                   </DropdownMenuItem>
                   {userPermissions.canAdmin && !isSnapshotView && (
                     <DropdownMenuItem
                       onSelect={handleToggleWorkflowLock}
                       disabled={!hasBlocks || workflowLocked}
-                      title={workflowLocked ? tI18n('workflow_is_locked_at_the_row') : undefined}
+                      title={
+                        workflowLocked
+                          ? 'Workflow is locked at the row or folder level — release it from the workflow notification or folder menu'
+                          : undefined
+                      }
                     >
                       {allBlocksLocked ? <Unlock /> : <Lock />}
-                      {allBlocksLocked ? tI18n('unlock_workflow') : tI18n('lock_workflow')}
+                      {allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem
@@ -690,14 +703,14 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     disabled={!userPermissions.canEdit || isExporting || !currentWorkflow}
                   >
                     <Download />
-                    {t('export_workflow')}
+                    Export workflow
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={handleDuplicateWorkflow}
                     disabled={!userPermissions.canEdit || isDuplicating}
                   >
                     <Duplicate />
-                    {t('duplicate_workflow')}
+                    Duplicate workflow
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
@@ -706,7 +719,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     disabled={!canMutateWorkflow || Object.keys(workflows).length <= 1}
                   >
                     <Trash />
-                    {t('delete_workflow')}
+                    Delete workflow
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -737,7 +750,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 ) : (
                   <Play className='h-[11.5px] w-[11.5px]' />
                 )}
-                {isExecuting ? tI18n('stop') : tI18n('run')}
+                {isExecuting ? 'Stop' : 'Run'}
               </Button>
             </div>
           </div>
@@ -756,7 +769,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   onClick={() => handleTabClick('copilot')}
                   data-tab-button='copilot'
                 >
-                  {t('chat')}
+                  Chat
                 </Button>
               )}
               <Button
@@ -769,7 +782,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
               >
-                {t('toolbar')}
+                Toolbar
               </Button>
               <Button
                 className={`h-[28px] rounded-md border px-2 py-[5px] text-[12.5px] ${
@@ -781,7 +794,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
               >
-                {t('editor')}
+                Editor
               </Button>
             </div>
           </div>
@@ -802,7 +815,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 {/* Copilot Header */}
                 <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between gap-2 border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
                   <h2 className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
-                    {copilotChatTitle || tI18n('new_chat')}
+                    {copilotChatTitle || 'New Chat'}
                   </h2>
                   <div className='flex items-center gap-2'>
                     <Button variant='ghost' className='p-0' onClick={handleCopilotNewChat}>
@@ -823,11 +836,11 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                       <PopoverContent align='end' side='bottom' sideOffset={8} maxHeight={280}>
                         {copilotChatList.length === 0 ? (
                           <div className='px-1.5 py-4 text-center text-[12px] text-muted-foreground'>
-                            {t('no_chats_yet')}
+                            No chats yet
                           </div>
                         ) : (
                           <PopoverScrollArea>
-                            <PopoverSection className='pt-0'>{t('recent')}</PopoverSection>
+                            <PopoverSection className='pt-0'>Recent</PopoverSection>
                             <div className='flex flex-col gap-0.5'>
                               {copilotChatList.map((chat) => (
                                 <div key={chat.id} className='group'>
@@ -836,7 +849,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                                     onClick={() => handleCopilotSelectChat(chat)}
                                   >
                                     <ConversationListItem
-                                      title={chat.title || tI18n('new_chat')}
+                                      title={chat.title || 'New Chat'}
                                       isActive={Boolean(chat.activeStreamId)}
                                       titleClassName='text-[13px]'
                                       actions={
@@ -850,7 +863,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                                               e.stopPropagation()
                                               handleCopilotDeleteChat(chat.id)
                                             }}
-                                            aria-label={t('delete_chat')}
+                                            aria-label='Delete chat'
                                           >
                                             <Trash className='size-[10px]' />
                                           </Button>
@@ -918,10 +931,10 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         {/* Resize Handle */}
         <div
           className='absolute top-0 bottom-0 left-[-4px] z-20 w-[8px] cursor-ew-resize'
-          onMouseDown={handleMouseDown}
+          onPointerDown={handlePointerDown}
           role='separator'
           aria-orientation='vertical'
-          aria-label={t('resize_panel')}
+          aria-label='Resize panel'
         />
       </aside>
 
@@ -929,8 +942,8 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       <ChipConfirmModal
         open={isDeleteModalOpen}
         onOpenChange={setIsDeleteModalOpen}
-        srTitle={tI18n('delete_workflow')}
-        title={t('delete_workflow_2')}
+        srTitle='Delete Workflow'
+        title='Delete Workflow'
         text={[
           'Are you sure you want to delete ',
           { text: currentWorkflow?.name ?? 'this workflow', bold: true },

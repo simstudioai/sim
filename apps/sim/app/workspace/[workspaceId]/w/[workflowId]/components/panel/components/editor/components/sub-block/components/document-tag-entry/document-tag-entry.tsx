@@ -1,20 +1,19 @@
 'use client'
 
 import { useMemo, useRef } from 'react'
-import { generateId } from '@sim/utils/id'
-import { Plus } from 'lucide-react'
-import { useTranslations } from 'next-intl'
 import {
   Badge,
   Button,
   Combobox,
   type ComboboxOption,
+  cn,
+  handleKeyboardActivation,
   Input,
   Label,
   Trash,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+} from '@sim/emcn'
+import { generateId } from '@sim/utils/id'
+import { Plus } from 'lucide-react'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -22,6 +21,7 @@ import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { parseJsonArrayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -65,8 +65,6 @@ export function DocumentTagEntry({
   previewValue,
   previewContextValues,
 }: DocumentTagEntryProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlock.id)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
@@ -101,22 +99,14 @@ export function DocumentTagEntry({
 
   const currentValue = isPreview ? previewValue : storeValue
 
-  const parseTags = (tagValue: string | null): DocumentTag[] => {
-    if (!tagValue) return []
-    try {
-      const parsed = JSON.parse(tagValue)
-      if (!Array.isArray(parsed)) return []
-      return parsed.map((t: DocumentTag) => ({
-        ...t,
-        fieldType: t.fieldType || 'text',
-        collapsed: t.collapsed ?? false,
-      }))
-    } catch {
-      return []
-    }
-  }
+  const parseTags = (tagValue: unknown): DocumentTag[] =>
+    parseJsonArrayValue<DocumentTag>(tagValue).map((t) => ({
+      ...t,
+      fieldType: t.fieldType || 'text',
+      collapsed: t.collapsed ?? false,
+    }))
 
-  const parsedTags = parseTags(currentValue || null)
+  const parsedTags = parseTags(currentValue)
   const tags: DocumentTag[] = parsedTags.length > 0 ? parsedTags : [createDefaultTag()]
   const isReadOnly = isPreview || disabled
 
@@ -221,9 +211,9 @@ export function DocumentTagEntry({
     const tagCount = tags.filter((t) => t.tagName?.trim()).length
     return (
       <div className='space-y-1'>
-        <Label className='font-medium text-muted-foreground text-xs'>{t('document_tags')}</Label>
+        <Label className='font-medium text-muted-foreground text-xs'>Document Tags</Label>
         <div className='text-muted-foreground text-sm'>
-          {tagCount > 0 ? `${tagCount} tag(s) configured` : tI18n('no_tags')}
+          {tagCount > 0 ? `${tagCount} tag(s) configured` : 'No tags'}
         </div>
       </div>
     )
@@ -234,10 +224,10 @@ export function DocumentTagEntry({
       <div className='flex h-32 items-center justify-center rounded-sm border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] dark:bg-[var(--code-bg)]'>
         <div className='text-center'>
           <p className='font-medium text-[var(--text-secondary)] text-sm'>
-            {t('no_tags_defined_for_this_knowledge')}
+            No tags defined for this knowledge base
           </p>
           <p className='mt-1 text-[var(--text-muted)] text-xs'>
-            {t('define_tags_at_the_knowledge_base')}
+            Define tags at the knowledge base level first
           </p>
         </div>
       </div>
@@ -265,7 +255,7 @@ export function DocumentTagEntry({
         </span>
         {tag.collapsed && tag.tagName && (
           <Badge variant='type' size='sm'>
-            {FIELD_TYPE_LABELS[tag.fieldType] || tI18n('text')}
+            {FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}
           </Badge>
         )}
       </div>
@@ -281,7 +271,7 @@ export function DocumentTagEntry({
           className='h-auto p-0'
         >
           <Plus className='size-[14px]' />
-          <span className='sr-only'>{t('add_tag')}</span>
+          <span className='sr-only'>Add Tag</span>
         </Button>
         <Button
           variant='ghost'
@@ -290,7 +280,7 @@ export function DocumentTagEntry({
           className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
         >
           <Trash className='size-[14px]' />
-          <span className='sr-only'>{t('delete_tag')}</span>
+          <span className='sr-only'>Delete Tag</span>
         </Button>
       </div>
     </div>
@@ -397,18 +387,18 @@ export function DocumentTagEntry({
     return (
       <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
         <div className='flex flex-col gap-1.5'>
-          <Label className='text-small'>{t('tag')}</Label>
+          <Label className='text-small'>Tag</Label>
           <Combobox
             options={tagOptions}
             value={tag.tagName}
             onChange={(value) => updateTag(tag.id, 'tagName', value)}
             disabled={isReadOnly || isLoading}
-            placeholder={t('select_tag')}
+            placeholder='Select tag'
           />
         </div>
 
         <div className='flex flex-col gap-1.5'>
-          <Label className='text-small'>{t('value')}</Label>
+          <Label className='text-small'>Value</Label>
           {renderValueInput(tag)}
         </div>
       </div>

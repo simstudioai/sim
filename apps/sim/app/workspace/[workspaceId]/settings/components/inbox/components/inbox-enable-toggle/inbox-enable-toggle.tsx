@@ -1,9 +1,6 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import {
   ChipConfirmModal,
   ChipModal,
@@ -11,15 +8,16 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  Label,
   Switch,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
 import { useInboxConfig, useToggleInbox } from '@/hooks/queries/inbox'
 
 const logger = createLogger('InboxEnableToggle')
 
 export function InboxEnableToggle() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -30,16 +28,13 @@ export function InboxEnableToggle() {
   const [isDisableOpen, setIsDisableOpen] = useState(false)
   const [enableUsername, setEnableUsername] = useState('')
 
-  const handleToggle = useCallback(
-    async (checked: boolean) => {
-      if (checked) {
-        setIsEnableOpen(true)
-        return
-      }
-      setIsDisableOpen(true)
-    },
-    [workspaceId]
-  )
+  const handleToggle = useCallback(async (checked: boolean) => {
+    if (checked) {
+      setIsEnableOpen(true)
+      return
+    }
+    setIsDisableOpen(true)
+  }, [])
 
   const handleDisable = useCallback(async () => {
     try {
@@ -48,7 +43,7 @@ export function InboxEnableToggle() {
     } catch (error) {
       logger.error('Failed to disable inbox', { error })
     }
-  }, [workspaceId])
+  }, [workspaceId, toggleInbox.mutateAsync])
 
   const handleEnable = useCallback(async () => {
     try {
@@ -62,45 +57,41 @@ export function InboxEnableToggle() {
     } catch (error) {
       logger.error('Failed to enable inbox', { error })
     }
-  }, [workspaceId, enableUsername])
+  }, [workspaceId, enableUsername, toggleInbox.mutateAsync])
 
   return (
     <>
       <div className='flex items-center justify-between'>
         <div className='flex flex-col gap-1'>
-          <span className='text-[13px] text-[var(--text-primary)]'>{t('enable_email_inbox')}</span>
-          <span className='text-[12px] text-[var(--text-muted)]'>
-            {t('allow_this_workspace_to_receive_tasks')}
-          </span>
+          <Label htmlFor='inbox-enabled'>Enable email inbox</Label>
+          <p className='text-[var(--text-muted)] text-caption'>
+            Allow this workspace to receive tasks via email
+          </p>
         </div>
         <Switch
+          id='inbox-enabled'
           checked={config?.enabled ?? false}
           onCheckedChange={handleToggle}
           disabled={toggleInbox.isPending}
         />
       </div>
 
-      <ChipModal
-        open={isEnableOpen}
-        onOpenChange={setIsEnableOpen}
-        srTitle={tI18n('enable_email_inbox')}
-      >
-        <ChipModalHeader onClose={() => setIsEnableOpen(false)}>
-          {t('enable_email_inbox')}
-        </ChipModalHeader>
+      <ChipModal open={isEnableOpen} onOpenChange={setIsEnableOpen} srTitle='Enable email inbox'>
+        <ChipModalHeader onClose={() => setIsEnableOpen(false)}>Enable email inbox</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            {t('an_email_address_will_be_created')}
+            An email address will be created for this workspace. Anyone in the allowed senders list
+            can email it to create tasks.
           </p>
           <ChipModalField
             type='input'
-            title={t('email_prefix')}
+            title='Email prefix'
             value={enableUsername}
             onChange={setEnableUsername}
-            placeholder={t('optional_leave_blank_to_auto_generate')}
+            placeholder='Optional — leave blank to auto-generate'
           />
           <p className='px-2 text-[var(--text-muted)] text-sm'>
-            {t('leave_blank_for_an_auto_generated')}
+            Leave blank for an auto-generated address.
           </p>
         </ChipModalBody>
         <ChipModalFooter
@@ -116,8 +107,8 @@ export function InboxEnableToggle() {
       <ChipConfirmModal
         open={isDisableOpen}
         onOpenChange={setIsDisableOpen}
-        srTitle={tI18n('disable_email_inbox')}
-        title={t('disable_email_inbox')}
+        srTitle='Disable email inbox'
+        title='Disable email inbox'
         text={[
           'Are you sure you want to disable the inbox',
           config?.address && ' ',
@@ -132,7 +123,7 @@ export function InboxEnableToggle() {
         }}
       >
         <p className='px-2 text-[var(--text-secondary)] text-sm'>
-          {t('your_existing_conversations_and_task_history')}
+          Your existing conversations and task history will be preserved.
         </p>
       </ChipConfirmModal>
     </>

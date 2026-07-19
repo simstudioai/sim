@@ -3,8 +3,11 @@ import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/sc
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike, omit } from '@sim/utils/object'
 import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
+import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import {
   createExecutionEventWriter,
@@ -23,6 +26,15 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
+import {
+  createPausedExecutionResumeMetadata,
+  parsePausedExecutionResumeMetadata,
+} from '@/lib/workflows/executor/paused-execution-metadata'
+import {
+  type AutomaticResumeWaitingMetadata,
+  normalizeAutomaticResumeWaitingReason,
+  resolveAutomaticResumeAdmissionFailure,
+} from '@/lib/workflows/executor/resume-policy'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
   ChildWorkflowContext,
@@ -47,15 +59,23 @@ const RUN_BUFFER_UNAVAILABLE_ERROR = 'Run buffer temporarily unavailable'
 const TERMINAL_PUBLISH_ERROR = 'Run buffer terminal event publish failed'
 const RESUMABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
 const CANCELLABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
+const AUTOMATIC_RESUME_INTERVENTION_PREFIX = 'Automatic resume requires manual intervention: '
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
+class ResumeAdmissionError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: number,
+    readonly retryable: boolean
+  ) {
+    super(message)
+    this.name = 'ResumeAdmissionError'
+  }
 }
 
 function isPausedOutputForContext(output: unknown, contextId: string): boolean {
-  if (!isRecord(output)) return false
+  if (!isRecordLike(output)) return false
   const metadata = output._pauseMetadata
-  return isRecord(metadata) && metadata.contextId === contextId
+  return isRecordLike(metadata) && metadata.contextId === contextId
 }
 
 export function updateResumeOutputInAggregationBuffers(
@@ -66,7 +86,7 @@ export function updateResumeOutputInAggregationBuffers(
   mergedOutput: Record<string, unknown>
 ): void {
   for (const scope of Object.values(state.loopExecutions ?? {})) {
-    if (!isRecord(scope) || !isRecord(scope.currentIterationOutputs)) continue
+    if (!isRecordLike(scope) || !isRecordLike(scope.currentIterationOutputs)) continue
 
     const outputs = scope.currentIterationOutputs
     const pausedEntry =
@@ -85,7 +105,7 @@ export function updateResumeOutputInAggregationBuffers(
   }
 
   for (const scope of Object.values(state.parallelExecutions ?? {})) {
-    if (!isRecord(scope) || !isRecord(scope.branchOutputs)) continue
+    if (!isRecordLike(scope) || !isRecordLike(scope.branchOutputs)) continue
 
     for (const [branchIndex, branchOutputs] of Object.entries(scope.branchOutputs)) {
       if (!Array.isArray(branchOutputs)) continue
@@ -113,14 +133,82 @@ function parseSnapshotForReferenceTracking(snapshotSeed: SerializedSnapshot): un
 }
 
 function getSnapshotWorkspaceId(snapshotValue: unknown): string | undefined {
-  if (!isRecord(snapshotValue)) return undefined
+  if (!isRecordLike(snapshotValue)) return undefined
   const metadata = snapshotValue.metadata
-  if (!isRecord(metadata)) return undefined
+  if (!isRecordLike(metadata)) return undefined
   return typeof metadata.workspaceId === 'string' ? metadata.workspaceId : undefined
 }
 
 function isResumablePausedStatus(status: string): boolean {
   return RESUMABLE_PAUSED_STATUSES.includes(status as (typeof RESUMABLE_PAUSED_STATUSES)[number])
+}
+
+function updatePausePointResumeStateSql(
+  contextId: string,
+  resumeStatus: PausePoint['resumeStatus'],
+  automaticResumeWaitingReason?: string
+): SQL {
+  if (automaticResumeWaitingReason) {
+    return sql`jsonb_set(
+      jsonb_set(${pausedExecutions.pausePoints}, ARRAY[${contextId}, 'resumeStatus'], ${JSON.stringify(resumeStatus)}::jsonb),
+      ARRAY[${contextId}, 'automaticResumeWaitingReason'],
+      ${JSON.stringify(automaticResumeWaitingReason)}::jsonb,
+      true
+    )`
+  }
+
+  return sql`jsonb_set(
+    ${pausedExecutions.pausePoints} #- ARRAY[${contextId}, 'automaticResumeWaitingReason'],
+    ARRAY[${contextId}, 'resumeStatus'],
+    ${JSON.stringify(resumeStatus)}::jsonb
+  )`
+}
+
+function setPausePointAutomaticResumeWaitingReasonSql(contextId: string, reason: string): SQL {
+  return sql`jsonb_set(
+    ${pausedExecutions.pausePoints},
+    ARRAY[${contextId}, 'automaticResumeWaitingReason'],
+    ${JSON.stringify(reason)}::jsonb,
+    true
+  )`
+}
+
+function setAutomaticResumeWaitingMetadataSql(waiting: AutomaticResumeWaitingMetadata): SQL {
+  return sql`jsonb_set(
+    ${pausedExecutions.metadata},
+    '{automaticResumeWaiting}',
+    ${JSON.stringify(waiting)}::jsonb,
+    true
+  )`
+}
+
+function clearAutomaticResumeWaitingMetadataSql(contextId: string): SQL {
+  return sql`CASE
+    WHEN ${pausedExecutions.metadata}->'automaticResumeWaiting'->>'contextId' = ${contextId}
+      THEN ${pausedExecutions.metadata} - 'automaticResumeWaiting'
+    ELSE ${pausedExecutions.metadata}
+  END`
+}
+
+function withoutAutomaticResumeWaitingReason(
+  point: Record<string, unknown>
+): Record<string, unknown> {
+  return omit(point, ['automaticResumeWaitingReason'])
+}
+
+function withoutAutomaticResumeWaitingMetadata(
+  metadata: Record<string, unknown>
+): Record<string, unknown> {
+  return omit(metadata, ['automaticResumeWaiting'])
+}
+
+function getAutomaticResumeAdmissionReason(
+  reason: string,
+  state: AutomaticResumeWaitingMetadata['state']
+): string {
+  return normalizeAutomaticResumeWaitingReason(
+    state === 'intervention_required' ? `${AUTOMATIC_RESUME_INTERVENTION_PREFIX}${reason}` : reason
+  )
 }
 
 interface ResumeQueueEntrySummary {
@@ -172,6 +260,8 @@ interface PauseContextDetail {
 interface PersistPauseResultArgs {
   workflowId: string
   executionId: string
+  /** Initial execution id or durable resume-queue id that owns the reservation. */
+  reservationId?: string
   pausePoints: PausePoint[]
   snapshotSeed: SerializedSnapshot
   executorUserId?: string
@@ -239,11 +329,20 @@ export function computeEarliestResumeAt(
 
 export class PauseResumeManager {
   static async persistPauseResult(args: PersistPauseResultArgs): Promise<void> {
-    const { workflowId, executionId, pausePoints, snapshotSeed, executorUserId } = args
+    const {
+      workflowId,
+      executionId,
+      reservationId = executionId,
+      pausePoints,
+      snapshotSeed,
+      executorUserId,
+    } = args
     const snapshotReferenceValue = parseSnapshotForReferenceTracking(snapshotSeed)
-    const snapshotWorkspaceId = getSnapshotWorkspaceId(
-      isRecord(snapshotReferenceValue) ? snapshotReferenceValue.snapshot : undefined
-    )
+    const snapshotValue = isRecordLike(snapshotReferenceValue)
+      ? snapshotReferenceValue.snapshot
+      : undefined
+    const resumeMetadata = createPausedExecutionResumeMetadata(snapshotValue, executorUserId)
+    const snapshotWorkspaceId = resumeMetadata.workspaceId
     const snapshotReferenceKeys = snapshotWorkspaceId
       ? collectLargeValueReferenceKeys(snapshotReferenceValue, snapshotWorkspaceId)
       : []
@@ -271,7 +370,7 @@ export class PauseResumeManager {
     const metadata = {
       pauseScope: 'execution',
       triggerIds: snapshotSeed.triggerIds,
-      executorUserId: executorUserId ?? null,
+      ...resumeMetadata,
     }
 
     await db.transaction(async (tx) => {
@@ -292,6 +391,7 @@ export class PauseResumeManager {
           pausePoints: pausePointsRecord,
           totalPauseCount: pausePoints.length,
           resumedCount: 0,
+          automaticResumeRetryCount: 0,
           status: 'paused',
           metadata,
           pausedAt: now,
@@ -318,7 +418,11 @@ export class PauseResumeManager {
         Object.entries(existingPausePoints).map(([contextId, point]) => [
           contextId,
           point?.resumeStatus === 'resuming'
-            ? { ...point, resumeStatus: 'resumed', resumedAt: now.toISOString() }
+            ? {
+                ...withoutAutomaticResumeWaitingReason(point),
+                resumeStatus: 'resumed',
+                resumedAt: now.toISOString(),
+              }
             : point,
         ])
       )
@@ -348,11 +452,17 @@ export class PauseResumeManager {
           pausePoints: mergedPausePoints,
           totalPauseCount,
           resumedCount,
+          automaticResumeRetryCount: 0,
           status: nextStatus,
           // Merge rather than replace: foreign keys like `cellContext` (stashed
           // by the table cell task) live on the same metadata column and must
           // survive a re-pause so chained-wait resumes can still write the row back.
-          metadata: { ...((existing.metadata as Record<string, unknown>) ?? {}), ...metadata },
+          metadata: {
+            ...(isRecordLike(existing.metadata)
+              ? withoutAutomaticResumeWaitingMetadata(existing.metadata)
+              : {}),
+            ...metadata,
+          },
           updatedAt: now,
           nextResumeAt: mergedNextResumeAt,
         })
@@ -372,6 +482,7 @@ export class PauseResumeManager {
       }
     })
 
+    await releaseExecutionSlot(reservationId)
     await PauseResumeManager.processQueuedResumes(executionId, workflowId)
   }
 
@@ -452,11 +563,13 @@ export class PauseResumeManager {
         await tx
           .update(pausedExecutions)
           .set({
-            pausePoints: sql`jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"queued"'::jsonb)`,
+            pausePoints: updatePausePointResumeStateSql(contextId, 'queued'),
+            metadata: clearAutomaticResumeWaitingMetadataSql(contextId),
           })
           .where(eq(pausedExecutions.id, pausedExecution.id))
 
         pausePoint.resumeStatus = 'queued'
+        pausePoint.automaticResumeWaitingReason = undefined
 
         const [positionRow = { position: 0 }] = await tx
           .select({ position: sql<number>`count(*)` })
@@ -492,11 +605,13 @@ export class PauseResumeManager {
       await tx
         .update(pausedExecutions)
         .set({
-          pausePoints: sql`jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"resuming"'::jsonb)`,
+          pausePoints: updatePausePointResumeStateSql(contextId, 'resuming'),
+          metadata: clearAutomaticResumeWaitingMetadataSql(contextId),
         })
         .where(eq(pausedExecutions.id, pausedExecution.id))
 
       pausePoint.resumeStatus = 'resuming'
+      pausePoint.automaticResumeWaitingReason = undefined
 
       return {
         status: 'starting',
@@ -532,6 +647,7 @@ export class PauseResumeManager {
 
     try {
       const result = await PauseResumeManager.runResumeExecution({
+        reservationId: resumeEntryId,
         resumeExecutionId,
         pausedExecution,
         contextId,
@@ -555,11 +671,13 @@ export class PauseResumeManager {
             undefined,
             pausedExecution.workflowId
           )
+          await releaseExecutionSlot(resumeEntryId)
         } else {
           try {
             await PauseResumeManager.persistPauseResult({
               workflowId: pausedExecution.workflowId,
               executionId: effectiveExecutionId,
+              reservationId: resumeEntryId,
               pausePoints: result.pausePoints || [],
               snapshotSeed: result.snapshotSeed,
               executorUserId: result.metadata?.userId,
@@ -575,6 +693,7 @@ export class PauseResumeManager {
               undefined,
               pausedExecution.workflowId
             )
+            await releaseExecutionSlot(resumeEntryId)
           }
         }
       } else {
@@ -626,7 +745,18 @@ export class PauseResumeManager {
       return result
     } catch (error) {
       const message = toError(error).message
-      if (message === RUN_BUFFER_UNAVAILABLE_ERROR || message === TERMINAL_PUBLISH_ERROR) {
+      await releaseExecutionSlot(resumeEntryId)
+      if (error instanceof ResumeAdmissionError) {
+        await PauseResumeManager.markResumeAttemptFailed({
+          resumeEntryId,
+          pausedExecutionId: pausedExecution.id,
+          parentExecutionId: pausedExecution.executionId,
+          contextId,
+          failureReason: message,
+          preserveForRetry: true,
+          retryable: error.retryable,
+        })
+      } else if (message === RUN_BUFFER_UNAVAILABLE_ERROR || message === TERMINAL_PUBLISH_ERROR) {
         await PauseResumeManager.markResumeAttemptFailed({
           resumeEntryId,
           pausedExecutionId: pausedExecution.id,
@@ -649,15 +779,18 @@ export class PauseResumeManager {
         contextId,
         error,
       })
-      await PauseResumeManager.processQueuedResumes(
-        pausedExecution.executionId,
-        pausedExecution.workflowId
-      )
+      if (!(error instanceof ResumeAdmissionError)) {
+        await PauseResumeManager.processQueuedResumes(
+          pausedExecution.executionId,
+          pausedExecution.workflowId
+        )
+      }
       throw error
     }
   }
 
   private static async runResumeExecution(args: {
+    reservationId: string
     resumeExecutionId: string
     pausedExecution: typeof pausedExecutions.$inferSelect
     contextId: string
@@ -669,6 +802,7 @@ export class PauseResumeManager {
     abortSignal?: AbortSignal
   }): Promise<ExecutionResult> {
     const {
+      reservationId,
       resumeExecutionId,
       pausedExecution,
       contextId,
@@ -695,6 +829,15 @@ export class PauseResumeManager {
 
     const serializedSnapshot = pausedExecution.executionSnapshot as SerializedSnapshot
     const baseSnapshot = ExecutionSnapshot.fromJSON(serializedSnapshot.snapshot)
+    const billingAttribution = assertBillingAttributionSnapshot(
+      baseSnapshot.metadata.billingAttribution
+    )
+    const effectiveUserId =
+      userId.trim() ||
+      (typeof baseSnapshot.metadata.userId === 'string'
+        ? baseSnapshot.metadata.userId.trim()
+        : '') ||
+      billingAttribution.actorUserId
 
     logger.info('Loaded snapshot from paused execution', {
       workflowId: baseSnapshot.workflow?.version,
@@ -1010,7 +1153,7 @@ export class PauseResumeManager {
       executionId: resumeExecutionId,
       requestId: baseSnapshot.metadata.requestId,
       startTime: new Date().toISOString(),
-      userId,
+      userId: effectiveUserId,
       sessionUserId: baseSnapshot.metadata.sessionUserId,
       workflowUserId: baseSnapshot.metadata.workflowUserId,
       useDraftState: baseSnapshot.metadata.useDraftState,
@@ -1042,26 +1185,29 @@ export class PauseResumeManager {
       metadata.workflowId,
       parentExecutionId,
       triggerType,
-      metadata.requestId
+      metadata.requestId,
+      reservationId
     )
 
     logger.info('Running preprocessing checks for resume', {
       resumeExecutionId,
       workflowId: pausedExecution.workflowId,
-      userId,
+      userId: effectiveUserId,
     })
 
     const preprocessingResult = await preprocessExecution({
       workflowId: pausedExecution.workflowId,
-      userId,
+      userId: effectiveUserId,
       triggerType: 'manual', // Resume is manual
-      executionId: resumeExecutionId,
+      executionId: parentExecutionId,
+      reservationId,
       requestId: metadata.requestId,
       checkRateLimit: false, // Manual actions bypass rate limits
       checkDeployment: false, // Resuming existing execution
-      skipUsageLimits: true, // Resume is continuation of authorized execution - don't recheck limits
+      logPreprocessingErrors: false,
       workspaceId: baseSnapshot.metadata.workspaceId,
       loggingSession,
+      billingAttribution,
     })
 
     if (!preprocessingResult.success) {
@@ -1070,11 +1216,15 @@ export class PauseResumeManager {
       logger.error('Resume preprocessing failed', {
         resumeExecutionId,
         workflowId: pausedExecution.workflowId,
-        userId,
+        userId: effectiveUserId,
         error: errorMessage,
       })
 
-      throw new Error(errorMessage)
+      throw new ResumeAdmissionError(
+        errorMessage,
+        preprocessingResult.error?.statusCode ?? 500,
+        preprocessingResult.error?.retryable ?? false
+      )
     }
 
     logger.info('Preprocessing checks passed for resume', {
@@ -1257,7 +1407,7 @@ export class PauseResumeManager {
           return
         }
 
-        const blockIdValue = isRecord(streamingExec.execution)
+        const blockIdValue = isRecordLike(streamingExec.execution)
           ? streamingExec.execution.blockId
           : undefined
         const blockId = typeof blockIdValue === 'string' ? blockIdValue : ''
@@ -1480,6 +1630,13 @@ export class PauseResumeManager {
       void cleanupExecutionBase64Cache(resumeExecutionId)
     }
 
+    /**
+     * The durable queue entry is also the reservation identity. Settle the
+     * attempt's logging finalizer before the queue can retry that same entry or
+     * claim the next one, so an older release cannot race a renewed reservation.
+     */
+    await loggingSession.waitForPostExecution()
+
     if (executionError || !result) {
       throw executionError ?? new Error('Resume execution did not produce a result')
     }
@@ -1509,8 +1666,14 @@ export class PauseResumeManager {
       await tx
         .update(pausedExecutions)
         .set({
-          pausePoints: sql`jsonb_set(jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"resumed"'::jsonb), ARRAY[${contextId}, 'resumedAt'], ${JSON.stringify(now.toISOString())}::jsonb)`,
+          pausePoints: sql`jsonb_set(
+            ${updatePausePointResumeStateSql(contextId, 'resumed')},
+            ARRAY[${contextId}, 'resumedAt'],
+            ${JSON.stringify(now.toISOString())}::jsonb
+          )`,
+          metadata: clearAutomaticResumeWaitingMetadataSql(contextId),
           resumedCount: sql`resumed_count + 1`,
+          automaticResumeRetryCount: 0,
           status: sql`CASE WHEN status = 'cancelling' THEN 'cancelling' WHEN resumed_count + 1 >= total_pause_count THEN 'fully_resumed' ELSE 'partially_resumed' END`,
           updatedAt: now,
         })
@@ -1566,7 +1729,8 @@ export class PauseResumeManager {
       await tx
         .update(pausedExecutions)
         .set({
-          pausePoints: sql`jsonb_set(pause_points, ARRAY[${args.contextId}, 'resumeStatus'], '"failed"'::jsonb)`,
+          pausePoints: updatePausePointResumeStateSql(args.contextId, 'failed'),
+          metadata: clearAutomaticResumeWaitingMetadataSql(args.contextId),
         })
         .where(eq(pausedExecutions.id, args.pausedExecutionId))
 
@@ -1583,21 +1747,75 @@ export class PauseResumeManager {
     parentExecutionId: string
     contextId: string
     failureReason: string
+    preserveForRetry?: boolean
+    retryable?: boolean
   }): Promise<void> {
     const now = new Date()
 
     await db.transaction(async (tx) => {
+      const pausedExecution = args.preserveForRetry
+        ? await tx
+            .select({
+              automaticResumeRetryCount: pausedExecutions.automaticResumeRetryCount,
+              status: pausedExecutions.status,
+            })
+            .from(pausedExecutions)
+            .where(eq(pausedExecutions.id, args.pausedExecutionId))
+            .for('update')
+            .limit(1)
+            .then((rows) => rows[0])
+        : undefined
+      const admissionDecision = pausedExecution
+        ? resolveAutomaticResumeAdmissionFailure({
+            currentRetryCount: pausedExecution.automaticResumeRetryCount,
+            retryable: args.retryable === true,
+            now,
+          })
+        : undefined
+      const canRetry = admissionDecision?.state === 'waiting'
+      const automaticResumeWaitingReason = admissionDecision
+        ? getAutomaticResumeAdmissionReason(args.failureReason, admissionDecision.state)
+        : undefined
+
       await tx
         .update(resumeQueue)
-        .set({ status: 'failed', failureReason: args.failureReason, completedAt: now })
+        .set(
+          canRetry
+            ? {
+                status: 'pending',
+                failureReason: args.failureReason,
+                claimedAt: null,
+                completedAt: null,
+              }
+            : { status: 'failed', failureReason: args.failureReason, completedAt: now }
+        )
         .where(eq(resumeQueue.id, args.resumeEntryId))
 
       await tx
         .update(pausedExecutions)
         .set({
-          pausePoints: sql`jsonb_set(pause_points, ARRAY[${args.contextId}, 'resumeStatus'], '"paused"'::jsonb)`,
+          pausePoints: updatePausePointResumeStateSql(
+            args.contextId,
+            canRetry ? 'queued' : 'paused',
+            automaticResumeWaitingReason
+          ),
+          metadata: automaticResumeWaitingReason
+            ? setAutomaticResumeWaitingMetadataSql({
+                contextId: args.contextId,
+                reason: automaticResumeWaitingReason,
+                recordedAt: now.toISOString(),
+                state: admissionDecision!.state,
+                retryCount: admissionDecision!.retryCount,
+              })
+            : clearAutomaticResumeWaitingMetadataSql(args.contextId),
           status: sql`CASE WHEN status = 'cancelling' THEN 'cancelling' ELSE status END`,
           updatedAt: now,
+          ...(admissionDecision
+            ? {
+                automaticResumeRetryCount: admissionDecision.retryCount,
+                nextResumeAt: admissionDecision.retryAt,
+              }
+            : {}),
         })
         .where(eq(pausedExecutions.id, args.pausedExecutionId))
 
@@ -1721,7 +1939,7 @@ export class PauseResumeManager {
 
     return await db.transaction(async (tx) => {
       const pausedExecution = await tx
-        .select({ id: pausedExecutions.id })
+        .select({ id: pausedExecutions.id, status: pausedExecutions.status })
         .from(pausedExecutions)
         .where(
           and(
@@ -1748,17 +1966,21 @@ export class PauseResumeManager {
         .then((rows) => rows[0])
 
       if (activeResume) {
+        if (pausedExecution.status !== 'cancelling') {
+          await tx
+            .update(pausedExecutions)
+            .set({ status: 'cancelling', updatedAt: now })
+            .where(eq(pausedExecutions.id, pausedExecution.id))
+        }
+        return false
+      }
+
+      if (pausedExecution.status !== 'cancelling') {
         await tx
           .update(pausedExecutions)
           .set({ status: 'cancelling', updatedAt: now })
           .where(eq(pausedExecutions.id, pausedExecution.id))
-        return false
       }
-
-      await tx
-        .update(pausedExecutions)
-        .set({ status: 'cancelling', updatedAt: now })
-        .where(eq(pausedExecutions.id, pausedExecution.id))
 
       return true
     })
@@ -1902,6 +2124,97 @@ export class PauseResumeManager {
       return pausedExecution.status
     }
     return null
+  }
+
+  static async setAutomaticResumeWaiting(args: {
+    pausedExecutionId: string
+    contextId: string
+    reason: string
+    retryAt?: Date | null
+    retryable: boolean
+  }): Promise<void> {
+    const now = new Date()
+
+    await db.transaction(async (tx) => {
+      const pausedExecution = await tx
+        .select({
+          automaticResumeRetryCount: pausedExecutions.automaticResumeRetryCount,
+          status: pausedExecutions.status,
+        })
+        .from(pausedExecutions)
+        .where(eq(pausedExecutions.id, args.pausedExecutionId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+      if (!pausedExecution || !isResumablePausedStatus(pausedExecution.status)) {
+        return
+      }
+
+      const decision = resolveAutomaticResumeAdmissionFailure({
+        currentRetryCount: pausedExecution.automaticResumeRetryCount,
+        retryable: args.retryable,
+        now,
+        ...(args.retryAt ? { retryAt: args.retryAt } : {}),
+      })
+      const reason = getAutomaticResumeAdmissionReason(args.reason, decision.state)
+      const activeResume =
+        decision.state === 'intervention_required'
+          ? await tx
+              .select({ id: resumeQueue.id })
+              .from(resumeQueue)
+              .where(
+                and(
+                  eq(resumeQueue.pausedExecutionId, args.pausedExecutionId),
+                  eq(resumeQueue.contextId, args.contextId),
+                  eq(resumeQueue.status, 'claimed')
+                )
+              )
+              .limit(1)
+              .then((rows) => rows[0])
+          : undefined
+
+      if (decision.state === 'intervention_required') {
+        await tx
+          .update(resumeQueue)
+          .set({
+            status: 'failed',
+            failureReason: reason,
+            completedAt: now,
+          })
+          .where(
+            and(
+              eq(resumeQueue.pausedExecutionId, args.pausedExecutionId),
+              eq(resumeQueue.contextId, args.contextId),
+              eq(resumeQueue.status, 'pending')
+            )
+          )
+      }
+
+      await tx
+        .update(pausedExecutions)
+        .set({
+          pausePoints:
+            decision.state === 'intervention_required' && !activeResume
+              ? updatePausePointResumeStateSql(args.contextId, 'paused', reason)
+              : setPausePointAutomaticResumeWaitingReasonSql(args.contextId, reason),
+          metadata: setAutomaticResumeWaitingMetadataSql({
+            contextId: args.contextId,
+            reason,
+            recordedAt: now.toISOString(),
+            state: decision.state,
+            retryCount: decision.retryCount,
+          }),
+          automaticResumeRetryCount: decision.retryCount,
+          nextResumeAt: decision.retryAt,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(pausedExecutions.id, args.pausedExecutionId),
+            inArray(pausedExecutions.status, ['paused', 'partially_resumed'])
+          )
+        )
+    })
   }
 
   /**
@@ -2048,8 +2361,18 @@ export class PauseResumeManager {
         entry.contextId === contextId && (entry.status === 'claimed' || entry.status === 'pending')
     )
 
+    // The selected pause point's full `response.data` is already returned via
+    // `pausePoint` below; strip it from `execution.pausePoints` so a large
+    // HITL display payload isn't duplicated in full within the same response.
+    const execution: PausedExecutionDetail = {
+      ...detail,
+      pausePoints: detail.pausePoints.map((point) =>
+        point.response ? { ...point, response: { ...point.response, data: undefined } } : point
+      ),
+    }
+
     return {
-      execution: detail,
+      execution,
       pausePoint,
       queue: detail.queue,
       activeResumeEntry,
@@ -2137,7 +2460,8 @@ export class PauseResumeManager {
         await tx
           .update(pausedExecutions)
           .set({
-            pausePoints: sql`jsonb_set(pause_points, ARRAY[${entry.contextId}, 'resumeStatus'], '"resuming"'::jsonb)`,
+            pausePoints: updatePausePointResumeStateSql(entry.contextId, 'resuming'),
+            metadata: clearAutomaticResumeWaitingMetadataSql(entry.contextId),
           })
           .where(eq(pausedExecutions.id, pausedExecution.id))
 
@@ -2159,8 +2483,8 @@ export class PauseResumeManager {
     }
 
     const { entry, pausedExecution } = pendingEntry
-
-    const pausedMetadata = (pausedExecution.metadata as Record<string, any>) || {}
+    const resumeMetadata = parsePausedExecutionResumeMetadata(pausedExecution.metadata)
+    const pausedMetadata = isRecordLike(pausedExecution.metadata) ? pausedExecution.metadata : {}
 
     PauseResumeManager.startResumeExecution({
       resumeEntryId: entry.id,
@@ -2168,7 +2492,9 @@ export class PauseResumeManager {
       pausedExecution,
       contextId: entry.contextId,
       resumeInput: entry.resumeInput,
-      userId: pausedMetadata.executorUserId ?? '',
+      userId:
+        resumeMetadata?.executorUserId ??
+        (typeof pausedMetadata.executorUserId === 'string' ? pausedMetadata.executorUserId : ''),
     }).catch((error) => {
       logger.error('Failed to start queued resume execution', {
         parentExecutionId,
@@ -2248,6 +2574,10 @@ export class PauseResumeManager {
         response: point.response,
         registeredAt: point.registeredAt,
         resumeStatus: point.resumeStatus || 'paused',
+        automaticResumeWaitingReason:
+          typeof point.automaticResumeWaitingReason === 'string'
+            ? point.automaticResumeWaitingReason
+            : undefined,
         snapshotReady: Boolean(point.snapshotReady),
         parallelScope: point.parallelScope,
         loopScope: point.loopScope,

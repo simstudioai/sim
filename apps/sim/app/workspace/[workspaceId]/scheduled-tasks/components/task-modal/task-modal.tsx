@@ -1,11 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { format } from 'date-fns'
-import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import {
-  Calendar,
   ChipDatePicker,
   ChipModal,
   ChipModalFooter,
@@ -13,7 +9,10 @@ import {
   ChipModalHeader,
   ChipModalPromptBody,
   ChipTimePicker,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { Calendar } from '@sim/emcn/icons'
+import { format } from 'date-fns'
+import { useParams } from 'next/navigation'
 import { wallClockNow, zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 import {
   PromptEditor,
@@ -132,7 +131,6 @@ export function TaskModal({
   onSubmit,
   onRequestDelete,
 }: TaskModalProps) {
-  const tI18n = useTranslations('auto')
   const [submitting, setSubmitting] = useState(false)
 
   /**
@@ -158,7 +156,7 @@ export function TaskModal({
       open={open}
       onOpenChange={handleOpenChange}
       size='lg'
-      srTitle={edit ? tI18n('edit_scheduled_task') : tI18n('new_scheduled_task')}
+      srTitle={edit ? 'Edit scheduled task' : 'New scheduled task'}
     >
       <TaskModalContent
         onOpenChange={handleOpenChange}
@@ -195,8 +193,6 @@ function TaskModalContent({
   submitting,
   setSubmitting,
 }: TaskModalContentProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const source = edit ?? prefill
   const accountTimezone = useTimezone()
@@ -324,12 +320,12 @@ function TaskModalContent({
   return (
     <>
       <ChipModalHeader icon={Calendar} onClose={close}>
-        {edit ? tI18n('edit_scheduled_task') : tI18n('new_scheduled_task')}
+        {edit ? 'Edit scheduled task' : 'New scheduled task'}
       </ChipModalHeader>
       <ChipModalPromptBody>
         <PromptEditor
           editor={editor}
-          placeholder={t('use_and_launch_sim_to')}
+          placeholder='Use @ and launch Sim to...'
           autoFocus
           onSubmit={handleSubmit}
         />

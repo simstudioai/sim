@@ -1,14 +1,14 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { Badge, DocumentAttachment, Tooltip } from '@sim/emcn'
 import { formatAbsoluteDate, formatRelativeTime } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Badge, DocumentAttachment, Tooltip } from '@/components/emcn'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import type { ConnectorMeta } from '@/connectors/types'
 import { DeleteKnowledgeBaseModal } from '../delete-knowledge-base-modal/delete-knowledge-base-modal'
 import { EditKnowledgeBaseModal } from '../edit-knowledge-base-modal/edit-knowledge-base-modal'
 import { KnowledgeBaseContextMenu } from '../knowledge-base-context-menu/knowledge-base-context-menu'
@@ -86,7 +86,6 @@ export function BaseCard({
   onUpdate,
   onDelete,
 }: BaseCardProps) {
-  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = params?.workspaceId as string
@@ -106,9 +105,11 @@ export function BaseCard({
   const [isDeleting, setIsDeleting] = useState(false)
   const connectorEntries = useMemo(
     () =>
-      connectorTypes
-        .map((type) => ({ type, config: CONNECTOR_META_REGISTRY[type] }))
-        .filter((entry) => Boolean(entry.config?.icon)),
+      connectorTypes.reduce<{ type: string; config: ConnectorMeta }[]>((acc, type) => {
+        const config = CONNECTOR_META_REGISTRY[type]
+        if (config?.icon) acc.push({ type, config })
+        return acc
+      }, []),
     [connectorTypes]
   )
   const visibleConnectorEntries = useMemo(() => connectorEntries.slice(0, 3), [connectorEntries])
@@ -210,7 +211,7 @@ export function BaseCard({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <span className='text-[var(--text-tertiary)] text-caption'>
-                      {t('last_updated')} {formatRelativeTime(updatedAt)}
+                      last updated: {formatRelativeTime(updatedAt)}
                     </span>
                   </Tooltip.Trigger>
                   <Tooltip.Content>{formatAbsoluteDate(updatedAt)}</Tooltip.Content>

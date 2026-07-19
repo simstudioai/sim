@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevScrapeImagesParams,
   ContextDevScrapeImagesResponse,
@@ -21,6 +22,8 @@ export const contextDevScrapeImagesTool: ToolConfig<
   name: 'Context.dev Scrape Images',
   description: 'Discover every image asset on a page, with optional dimension and type enrichment.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevScrapeImagesParams>(),
 
   params: {
     url: {

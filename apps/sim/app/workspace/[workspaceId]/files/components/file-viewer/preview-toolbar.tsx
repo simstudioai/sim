@@ -1,6 +1,5 @@
+import { Chip, cn } from '@sim/emcn'
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
-import { Chip } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 
 interface PreviewNavigationControls {
   current: number

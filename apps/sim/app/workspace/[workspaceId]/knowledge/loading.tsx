@@ -1,8 +1,7 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
-import { Plus } from '@/components/emcn'
-import { Database } from '@/components/emcn/icons'
+import { Plus } from '@sim/emcn'
+import { Database } from '@sim/emcn/icons'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,
@@ -21,15 +20,13 @@ const COLUMNS = [
 const ACTIONS: ChromeActionSpec[] = [{ text: 'New base', icon: Plus, variant: 'primary' }]
 
 export default function KnowledgeLoading() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   return (
     <ResourceChromeFallback
       icon={Database}
-      title={t('knowledge_base')}
+      title='Knowledge Base'
       columns={COLUMNS}
       actions={ACTIONS}
-      searchPlaceholder={tI18n('search_knowledge_bases')}
+      searchPlaceholder='Search knowledge bases...'
       hasSort
       hasFilter
     />

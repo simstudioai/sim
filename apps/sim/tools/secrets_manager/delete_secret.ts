@@ -11,7 +11,7 @@ export const deleteSecretTool: ToolConfig<
   id: 'secrets_manager_delete_secret',
   name: 'Secrets Manager Delete Secret',
   description: 'Delete a secret from AWS Secrets Manager',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {

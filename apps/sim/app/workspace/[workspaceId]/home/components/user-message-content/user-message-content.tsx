@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { getIntegrationMatcher } from '@/blocks/integration-matcher'
@@ -52,7 +52,7 @@ function computeMentionRanges(text: string, contexts: ChatMessageContext[]): Men
   for (const rawCtx of contexts) {
     if (!rawCtx.label) continue
     const ctx = withResolvedBlockType(rawCtx)
-    const prefix = ctx.kind === 'skill' ? '/' : '@'
+    const prefix = ctx.kind === 'skill' || ctx.kind === 'mcp' ? '/' : '@'
     const token = `${prefix}${ctx.label}`
     const pattern = new RegExp(`(^|\\s)(${escapeRegex(token)})(\\s|$)`, 'g')
     let match: RegExpExecArray | null

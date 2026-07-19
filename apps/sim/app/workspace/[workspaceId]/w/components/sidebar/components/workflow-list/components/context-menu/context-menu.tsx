@@ -1,14 +1,13 @@
 'use client'
 
-import { Pin, PinOff } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { useRef } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/emcn'
+} from '@sim/emcn'
 import {
   Download,
   Duplicate,
@@ -23,7 +22,8 @@ import {
   SquareArrowUpRight,
   Trash,
   Unlock,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
+import { Pin, PinOff } from 'lucide-react'
 
 interface ContextMenuProps {
   isOpen: boolean
@@ -35,6 +35,18 @@ interface ContextMenuProps {
   onMarkAsUnread?: () => void
   onTogglePin?: () => void
   onRename?: () => void
+  /**
+   * Ref to the rename input rendered by the "Rename" action, if any. Radix's
+   * FocusScope defers its close-time focus teardown to a `setTimeout(0)`, which
+   * can run after the rename input's own mount-time `focus()`/`select()` and
+   * clobber the selection (the "rename deselects the text" bug). Focusing from
+   * `onCloseAutoFocus` runs synchronously inside that same deferred teardown, so
+   * it always wins the race regardless of scheduler timing. Only applied when
+   * this specific close was caused by selecting "Rename" (see
+   * `justSelectedRenameRef`) — an unrelated action closing the menu while an
+   * earlier rename is still live must not steal focus back into it.
+   */
+  renameInputRef?: React.RefObject<HTMLInputElement | null>
   onCreate?: () => void
   onCreateFolder?: () => void
   onDuplicate?: () => void
@@ -85,6 +97,7 @@ export function ContextMenu({
   onMarkAsUnread,
   onTogglePin,
   onRename,
+  renameInputRef,
   onCreate,
   onCreateFolder,
   onDuplicate,
@@ -120,8 +133,6 @@ export function ContextMenu({
   showUploadLogo = false,
   disableUploadLogo = false,
 }: ContextMenuProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
   const hasStatusSection =
     (showMarkAsRead && onMarkAsRead) ||
@@ -134,6 +145,13 @@ export function ContextMenu({
     (showLock && onToggleLock) ||
     (showUploadLogo && onUploadLogo)
   const hasCopySection = (showDuplicate && onDuplicate) || (showExport && onExport)
+
+  /**
+   * Only the "Rename" item should trigger the `onCloseAutoFocus` refocus below —
+   * an unrelated action (Delete, Duplicate, ...) closing this menu while a rename
+   * from an earlier interaction is still live must not steal focus back into it.
+   */
+  const justSelectedRenameRef = useRef(false)
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -155,7 +173,16 @@ export function ContextMenu({
         side='bottom'
         sideOffset={4}
         className='max-h-[var(--radix-dropdown-menu-content-available-height,400px)]'
-        onCloseAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => {
+          e.preventDefault()
+          const shouldFocusRenameInput = justSelectedRenameRef.current
+          justSelectedRenameRef.current = false
+          const input = shouldFocusRenameInput ? renameInputRef?.current : null
+          if (input) {
+            input.focus()
+            input.select()
+          }
+        }}
       >
         {showOpenInNewTab && onOpenInNewTab && (
           <DropdownMenuItem
@@ -165,7 +192,7 @@ export function ContextMenu({
             }}
           >
             <SquareArrowUpRight />
-            {t('open_in_new_tab')}
+            Open in new tab
           </DropdownMenuItem>
         )}
         {hasNavigationSection && (hasStatusSection || hasEditSection || hasCopySection) && (
@@ -181,7 +208,7 @@ export function ContextMenu({
             }}
           >
             <Eye />
-            {t('mark_as_read')}
+            Mark as read
           </DropdownMenuItem>
         )}
         {showMarkAsUnread && onMarkAsUnread && (
@@ -193,7 +220,7 @@ export function ContextMenu({
             }}
           >
             <Mail />
-            {t('mark_as_unread')}
+            Mark as unread
           </DropdownMenuItem>
         )}
         {showPin && onTogglePin && (
@@ -204,7 +231,7 @@ export function ContextMenu({
             }}
           >
             {isPinned ? <PinOff className='size-[14px]' /> : <Pin className='size-[14px]' />}
-            {isPinned ? tI18n('unpin') : tI18n('pin')}
+            {isPinned ? 'Unpin' : 'Pin'}
           </DropdownMenuItem>
         )}
         {hasStatusSection && (hasEditSection || hasCopySection) && <DropdownMenuSeparator />}
@@ -213,12 +240,13 @@ export function ContextMenu({
           <DropdownMenuItem
             disabled={disableRename}
             onSelect={() => {
+              justSelectedRenameRef.current = true
               onRename()
               onClose()
             }}
           >
             <Pencil />
-            {t('rename')}
+            Rename
           </DropdownMenuItem>
         )}
         {showCreate && onCreate && (
@@ -230,7 +258,7 @@ export function ContextMenu({
             }}
           >
             <Plus />
-            {t('create_workflow')}
+            Create workflow
           </DropdownMenuItem>
         )}
         {showCreateFolder && onCreateFolder && (
@@ -242,7 +270,7 @@ export function ContextMenu({
             }}
           >
             <FolderPlus />
-            {t('create_folder')}
+            Create folder
           </DropdownMenuItem>
         )}
         {showUploadLogo && onUploadLogo && (
@@ -254,7 +282,7 @@ export function ContextMenu({
             }}
           >
             <ImageUp />
-            {t('upload_logo')}
+            Upload logo
           </DropdownMenuItem>
         )}
         {showLock && onToggleLock && (
@@ -266,7 +294,7 @@ export function ContextMenu({
             }}
           >
             {isLocked ? <Unlock /> : <Lock />}
-            {isLocked ? tI18n('unlock') : tI18n('lock')}
+            {isLocked ? 'Unlock' : 'Lock'}
           </DropdownMenuItem>
         )}
 
@@ -280,7 +308,7 @@ export function ContextMenu({
             }}
           >
             <Duplicate />
-            {t('duplicate')}
+            Duplicate
           </DropdownMenuItem>
         )}
         {showExport && onExport && (
@@ -292,7 +320,7 @@ export function ContextMenu({
             }}
           >
             <Download />
-            {t('export')}
+            Export
           </DropdownMenuItem>
         )}
 
@@ -307,7 +335,7 @@ export function ContextMenu({
             }}
           >
             <LogOut />
-            {t('leave')}
+            Leave
           </DropdownMenuItem>
         )}
         {showDelete && (
@@ -319,7 +347,7 @@ export function ContextMenu({
             }}
           >
             <Trash />
-            {t('delete')}
+            Delete
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

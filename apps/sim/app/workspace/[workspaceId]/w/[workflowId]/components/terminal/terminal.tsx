@@ -2,24 +2,23 @@
 
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { formatDuration } from '@sim/utils/formatting'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import clsx from 'clsx'
-import { ArrowDown, ArrowUp, Database, MoreHorizontal, Palette, Pause, Trash2 } from 'lucide-react'
-import Link from 'next/link'
-import { useTranslations } from 'next-intl'
 import {
   Button,
   ChevronDown,
+  handleKeyboardActivation,
   Popover,
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
   Tooltip,
-} from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Download } from '@sim/emcn/icons'
+import { formatDuration } from '@sim/utils/formatting'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import clsx from 'clsx'
+import { ArrowDown, ArrowUp, Database, MoreHorizontal, Palette, Pause, Trash2 } from 'lucide-react'
+import Link from 'next/link'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -50,6 +49,7 @@ import {
   type VisibleTerminalRow,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { useShowTrainingControls } from '@/hooks/queries/general-settings'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
@@ -127,7 +127,9 @@ const BlockRow = memo(function BlockRow({
           className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
           style={{ background: bgColor }}
         >
-          {BlockIcon && <BlockIcon className='size-[10px] text-white' />}
+          {BlockIcon && (
+            <BlockIcon className={clsx('size-[10px]', getTileIconColorClass(bgColor))} />
+          )}
         </div>
         <span
           className={clsx(
@@ -301,7 +303,9 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
             className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className='size-[10px] text-white' />}
+            {BlockIcon && (
+              <BlockIcon className={clsx('size-[10px]', getTileIconColorClass(bgColor))} />
+            )}
           </div>
           <span
             className={clsx(
@@ -426,7 +430,9 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
             className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className='size-[10px] text-white' />}
+            {BlockIcon && (
+              <BlockIcon className={clsx('size-[10px]', getTileIconColorClass(bgColor))} />
+            )}
           </div>
           <span
             className={clsx(
@@ -664,8 +670,6 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
  * Terminal component with resizable height that persists across page refreshes.
  */
 export const Terminal = memo(function Terminal() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const terminalRef = useRef<HTMLElement>(null)
   const prevWorkflowEntriesLengthRef = useRef(0)
   const hasInitializedEntriesRef = useRef(false)
@@ -716,8 +720,8 @@ export const Terminal = memo(function Terminal() {
 
   const [isPlaygroundEnabled] = useState(() => isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
 
-  const { handleMouseDown } = useTerminalResize()
-  const { handleMouseDown: handleOutputPanelResizeMouseDown } = useOutputPanelResize()
+  const { handlePointerDown } = useTerminalResize()
+  const { handlePointerDown: handleOutputPanelResizePointerDown } = useOutputPanelResize()
 
   const {
     filters,
@@ -1251,6 +1255,15 @@ export const Terminal = memo(function Terminal() {
   /**
    * Adjust output panel width on resize.
    * Closes the output panel if there's not enough space for the minimum width.
+   *
+   * An active output-panel drag owns clamping — its own compute clamps every
+   * frame against the live terminal rect, and its scoped inline override on
+   * `.terminal-container` (present only while that drag runs) would mask a
+   * store-driven `:root` write here anyway — so this skips while it is active.
+   * Otherwise the width is read from the committed `--output-panel-width` on
+   * `:root`, which the store setter writes synchronously and is therefore
+   * fresher than the React store value (a render behind the commit), falling
+   * back to the store value before any commit exists.
    */
   useEffect(() => {
     const el = terminalRef.current
@@ -1258,6 +1271,8 @@ export const Terminal = memo(function Terminal() {
 
     const handleResize = () => {
       if (!selectedEntry) return
+
+      if (el.style.getPropertyValue('--output-panel-width')) return
 
       const maxWidth = el.getBoundingClientRect().width - TERMINAL_CONFIG.BLOCK_COLUMN_WIDTH_PX
 
@@ -1267,7 +1282,11 @@ export const Terminal = memo(function Terminal() {
         return
       }
 
-      if (outputPanelWidth > maxWidth) {
+      const committed = Number.parseFloat(
+        document.documentElement.style.getPropertyValue('--output-panel-width')
+      )
+      const currentWidth = Number.isNaN(committed) ? outputPanelWidth : committed
+      if (currentWidth > maxWidth) {
         setOutputPanelWidth(Math.max(maxWidth, MIN_OUTPUT_PANEL_WIDTH_PX))
       }
     }
@@ -1292,22 +1311,22 @@ export const Terminal = memo(function Terminal() {
         onFocus={handleTerminalFocus}
         onBlur={handleTerminalBlur}
         tabIndex={-1}
-        aria-label={t('terminal')}
+        aria-label='Terminal'
       >
         {/* Resize Handle */}
         <div
           className='absolute top-[-4px] right-0 left-0 z-20 h-[8px] cursor-ns-resize'
-          onMouseDown={handleMouseDown}
+          onPointerDown={handlePointerDown}
           role='separator'
           aria-orientation='horizontal'
-          aria-label={t('resize_terminal')}
+          aria-label='Resize terminal'
         />
 
         <div className='relative flex h-full'>
           {/* Left Section - Logs */}
           <div
             className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
-            style={selectedEntry ? { width: `calc(100% - ${outputPanelWidth}px)` } : undefined}
+            style={selectedEntry ? { width: 'calc(100% - var(--output-panel-width))' } : undefined}
           >
             {/* Header */}
             <div
@@ -1315,7 +1334,7 @@ export const Terminal = memo(function Terminal() {
               onClick={handleHeaderClick}
             >
               {/* Left side - Logs label */}
-              <span className={TERMINAL_CONFIG.HEADER_TEXT_CLASS}>{t('logs')}</span>
+              <span className={TERMINAL_CONFIG.HEADER_TEXT_CLASS}>Logs</span>
 
               {/* Right side - Icons and options */}
               {!selectedEntry && (
@@ -1330,7 +1349,7 @@ export const Terminal = memo(function Terminal() {
                             e.stopPropagation()
                             toggleSort()
                           }}
-                          aria-label={t('sort_by_timestamp')}
+                          aria-label='Sort by timestamp'
                           className='!p-1.5 -m-1.5'
                         >
                           {sortConfig.direction === 'desc' ? (
@@ -1341,7 +1360,7 @@ export const Terminal = memo(function Terminal() {
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
-                        <span>{t('sort_by_time')}</span>
+                        <span>Sort by time</span>
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
@@ -1352,7 +1371,7 @@ export const Terminal = memo(function Terminal() {
                         <Link href='/playground'>
                           <Button
                             variant='ghost'
-                            aria-label={t('component_playground')}
+                            aria-label='Component Playground'
                             className='!p-1.5 -m-1.5'
                           >
                             <Palette className='h-3.5 w-3.5' />
@@ -1360,7 +1379,7 @@ export const Terminal = memo(function Terminal() {
                         </Link>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
-                        <span>{t('component_playground')}</span>
+                        <span>Component Playground</span>
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
@@ -1371,7 +1390,7 @@ export const Terminal = memo(function Terminal() {
                         <Button
                           variant='ghost'
                           onClick={handleTrainingClick}
-                          aria-label={isTraining ? tI18n('stop_training') : tI18n('train_sim')}
+                          aria-label={isTraining ? 'Stop training' : 'Train Sim'}
                           className={clsx(
                             '!p-1.5 -m-1.5',
                             isTraining && 'text-orange-600 dark:text-orange-400'
@@ -1385,7 +1404,7 @@ export const Terminal = memo(function Terminal() {
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
-                        <span>{isTraining ? tI18n('stop_training_2') : tI18n('train_sim')}</span>
+                        <span>{isTraining ? 'Stop Training' : 'Train Sim'}</span>
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
@@ -1397,14 +1416,14 @@ export const Terminal = memo(function Terminal() {
                           <Button
                             variant='ghost'
                             onClick={handleExportConsole}
-                            aria-label={t('export_console_csv')}
+                            aria-label='Export console CSV'
                             className='!p-1.5 -m-1.5'
                           >
                             <Download className='h-3.5 w-3.5' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
-                          <span>{t('export_csv')}</span>
+                          <span>Export CSV</span>
                         </Tooltip.Content>
                       </Tooltip.Root>
                       <Tooltip.Root>
@@ -1412,14 +1431,14 @@ export const Terminal = memo(function Terminal() {
                           <Button
                             variant='ghost'
                             onClick={handleClearConsole}
-                            aria-label={t('clear_console')}
+                            aria-label='Clear console'
                             className='!p-1.5 -m-1.5'
                           >
                             <Trash2 className='h-3.5 w-3.5' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
-                          <Tooltip.Shortcut keys='⌘D'>{t('clear_console')}</Tooltip.Shortcut>
+                          <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
                         </Tooltip.Content>
                       </Tooltip.Root>
                     </>
@@ -1432,7 +1451,7 @@ export const Terminal = memo(function Terminal() {
                         onClick={(e) => {
                           e.stopPropagation()
                         }}
-                        aria-label={t('terminal_options')}
+                        aria-label='Terminal options'
                         className='!p-1.5 -m-1.5'
                       >
                         <MoreHorizontal className='h-3.5 w-3.5' />
@@ -1455,7 +1474,7 @@ export const Terminal = memo(function Terminal() {
                           setOpenOnRun(!openOnRun)
                         }}
                       >
-                        <span>{t('open_on_run')}</span>
+                        <span>Open on run</span>
                       </PopoverItem>
                     </PopoverContent>
                   </Popover>
@@ -1475,7 +1494,7 @@ export const Terminal = memo(function Terminal() {
             <div className='flex-1 overflow-hidden'>
               {executionGroups.length === 0 ? (
                 <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
-                  {t('no_logs_yet')}
+                  No logs yet
                 </div>
               ) : (
                 <TerminalLogsPane
@@ -1493,7 +1512,7 @@ export const Terminal = memo(function Terminal() {
           {selectedEntry && (
             <OutputPanel
               selectedEntry={selectedEntry}
-              handleOutputPanelResizeMouseDown={handleOutputPanelResizeMouseDown}
+              handleOutputPanelResizePointerDown={handleOutputPanelResizePointerDown}
               handleHeaderClick={handleHeaderClick}
               isExpanded={isExpanded}
               expandToLastHeight={expandToLastHeight}

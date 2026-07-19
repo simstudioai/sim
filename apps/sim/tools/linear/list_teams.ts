@@ -1,5 +1,6 @@
 import type { LinearListTeamsParams, LinearListTeamsResponse } from '@/tools/linear/types'
 import { PAGE_INFO_OUTPUT, TEAM_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListTeamsTool: ToolConfig<LinearListTeamsParams, LinearListTeamsResponse> = {
@@ -37,7 +38,7 @@ export const linearListTeamsTool: ToolConfig<LinearListTeamsParams, LinearListTe
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => ({

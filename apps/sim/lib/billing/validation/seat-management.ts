@@ -1,8 +1,10 @@
 import { db } from '@sim/db'
 import { invitation, member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, count, eq, gt, ne } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import { resolveEnterpriseMetadataIntent } from '@/lib/billing/enterprise-outbox'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
@@ -97,7 +99,11 @@ export async function validateSeatAvailability(
 
     const currentSeats = (memberCount?.count ?? 0) + (pendingCount?.count ?? 0)
 
-    const maxSeats = getEffectiveSeats(subscription)
+    const canonicalSeats = getEffectiveSeats(subscription)
+    const intent = isEnterprise(subscription.plan)
+      ? await resolveEnterpriseMetadataIntent(db, subscription.id, subscription.metadata)
+      : null
+    const maxSeats = intent?.effectiveSeatCapacity ?? canonicalSeats
     const availableSeats = Math.max(0, maxSeats - currentSeats)
     const canInvite = availableSeats >= additionalSeats
 
@@ -192,7 +198,11 @@ export async function getOrganizationSeatInfo(
       return null
     }
 
-    const maxSeats = getEffectiveSeats(subscription)
+    const canonicalSeats = getEffectiveSeats(subscription)
+    const intent = isEnterprise(subscription.plan)
+      ? await resolveEnterpriseMetadataIntent(db, subscription.id, subscription.metadata)
+      : null
+    const maxSeats = intent?.effectiveSeatCapacity ?? canonicalSeats
 
     const canAddSeats = !isEnterprise(subscription.plan)
 
@@ -231,7 +241,7 @@ export async function validateBulkInvitations(
   try {
     const uniqueEmails = [...new Set(emailList)]
     const validEmails = uniqueEmails.filter(
-      (email) => quickValidateEmail(email.trim().toLowerCase()).isValid
+      (email) => quickValidateEmail(normalizeEmail(email)).isValid
     )
     const duplicateEmails = emailList.filter((email, index) => emailList.indexOf(email) !== index)
 

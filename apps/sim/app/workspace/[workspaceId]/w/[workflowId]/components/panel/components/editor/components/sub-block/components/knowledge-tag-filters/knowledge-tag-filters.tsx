@@ -1,20 +1,19 @@
 'use client'
 
 import { useRef } from 'react'
-import { generateId } from '@sim/utils/id'
-import { Plus } from 'lucide-react'
-import { useTranslations } from 'next-intl'
 import {
   Badge,
   Button,
   Combobox,
   type ComboboxOption,
+  cn,
+  handleKeyboardActivation,
   Input,
   Label,
   Trash,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+} from '@sim/emcn'
+import { generateId } from '@sim/utils/id'
+import { Plus } from 'lucide-react'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -22,6 +21,7 @@ import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
+import { parseJsonArrayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -69,8 +69,6 @@ export function KnowledgeTagFilters({
   previewValue,
   previewContextValues,
 }: KnowledgeTagFiltersProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
   const emitTagSelection = useTagSelection(blockId, subBlock.id)
@@ -103,24 +101,16 @@ export function KnowledgeTagFilters({
     disabled,
   })
 
-  const parseFilters = (filterValue: string | null): TagFilter[] => {
-    if (!filterValue) return []
-    try {
-      const parsed = JSON.parse(filterValue)
-      if (!Array.isArray(parsed)) return []
-      return parsed.map((f: TagFilter) => ({
-        ...f,
-        fieldType: f.fieldType || 'text',
-        operator: f.operator || 'eq',
-        collapsed: f.collapsed ?? false,
-      }))
-    } catch {
-      return []
-    }
-  }
+  const parseFilters = (filterValue: unknown): TagFilter[] =>
+    parseJsonArrayValue<TagFilter>(filterValue).map((f) => ({
+      ...f,
+      fieldType: f.fieldType || 'text',
+      operator: f.operator || 'eq',
+      collapsed: f.collapsed ?? false,
+    }))
 
   const currentValue = isPreview ? previewValue : storeValue
-  const parsedFilters = parseFilters(currentValue || null)
+  const parsedFilters = parseFilters(currentValue)
   const filters: TagFilter[] = parsedFilters.length > 0 ? parsedFilters : [createDefaultFilter()]
   const isReadOnly = isPreview || disabled
 
@@ -229,9 +219,9 @@ export function KnowledgeTagFilters({
 
     return (
       <div className='space-y-1'>
-        <Label className='font-medium text-muted-foreground text-xs'>{t('tag_filters')}</Label>
+        <Label className='font-medium text-muted-foreground text-xs'>Tag Filters</Label>
         <div className='text-muted-foreground text-sm'>
-          {appliedFilters > 0 ? `${appliedFilters} filter(s) applied` : tI18n('no_filters')}
+          {appliedFilters > 0 ? `${appliedFilters} filter(s) applied` : 'No filters'}
         </div>
       </div>
     )
@@ -258,7 +248,7 @@ export function KnowledgeTagFilters({
         </span>
         {filter.collapsed && filter.tagName && (
           <Badge variant='type' size='sm'>
-            {FIELD_TYPE_LABELS[filter.fieldType] || tI18n('text')}
+            {FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}
           </Badge>
         )}
       </div>
@@ -273,7 +263,7 @@ export function KnowledgeTagFilters({
           className='h-auto p-0'
         >
           <Plus className='size-[14px]' />
-          <span className='sr-only'>{t('add_filter')}</span>
+          <span className='sr-only'>Add Filter</span>
         </Button>
         <Button
           variant='ghost'
@@ -285,7 +275,7 @@ export function KnowledgeTagFilters({
           className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
         >
           <Trash className='size-[14px]' />
-          <span className='sr-only'>{t('delete_filter')}</span>
+          <span className='sr-only'>Delete Filter</span>
         </Button>
       </div>
     </div>
@@ -395,33 +385,33 @@ export function KnowledgeTagFilters({
     return (
       <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
         <div className='flex flex-col gap-1.5'>
-          <Label className='text-small'>{t('tag')}</Label>
+          <Label className='text-small'>Tag</Label>
           <Combobox
             options={tagOptions}
             value={filter.tagName}
             onChange={(value) => updateFilter(filter.id, 'tagName', value)}
             disabled={isReadOnly || isLoading}
-            placeholder={t('select_tag')}
+            placeholder='Select tag'
           />
         </div>
 
         <div className='flex flex-col gap-1.5'>
-          <Label className='text-small'>{t('operator')}</Label>
+          <Label className='text-small'>Operator</Label>
           <Combobox
             options={operatorOptions}
             value={filter.operator}
             onChange={(value) => updateFilter(filter.id, 'operator', value)}
             disabled={isReadOnly}
-            placeholder={t('select_operator')}
+            placeholder='Select operator'
           />
         </div>
 
         <div className='flex flex-col gap-1.5'>
-          <Label className='text-small'>{t('value')}</Label>
+          <Label className='text-small'>Value</Label>
           {isBetween ? (
             <div className='flex items-center gap-2'>
               <div className='flex-1'>{renderValueInput(filter, 'tagValue')}</div>
-              <span className='flex-shrink-0 text-muted-foreground text-xs'>{t('to')}</span>
+              <span className='flex-shrink-0 text-muted-foreground text-xs'>to</span>
               <div className='flex-1'>{renderValueInput(filter, 'valueTo')}</div>
             </div>
           ) : (

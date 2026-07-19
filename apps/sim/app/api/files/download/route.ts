@@ -1,9 +1,11 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { fileDownloadContract } from '@/lib/api/contracts/storage-transfer'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
@@ -80,10 +82,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`Generated download URL for ${storageContext} file: ${key}`)
 
+    const downloadName = name || key.split('/').pop() || 'download'
+    recordAudit({
+      workspaceId: null,
+      actorId: userId,
+      action: AuditAction.FILE_DOWNLOADED,
+      resourceType: AuditResourceType.FILE,
+      resourceName: downloadName,
+      description: `Downloaded file "${downloadName}"`,
+      metadata: { key, fileName: downloadName, context: storageContext },
+      request,
+    })
+    captureServerEvent(userId, 'file_downloaded', {
+      is_bulk: false,
+      file_count: 1,
+    })
+
     return NextResponse.json({
       downloadUrl,
       expiresIn: null,
-      fileName: name || key.split('/').pop() || 'download',
+      fileName: downloadName,
     })
   } catch (error) {
     logger.error('Error in file download endpoint:', error)

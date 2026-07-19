@@ -3,6 +3,7 @@ import type {
   WorkflowSearchSubflowEditableValue,
   WorkflowSearchSubflowFieldId,
 } from '@/lib/workflows/search-replace/subflow-fields'
+import type { StoredCustomToolRecord } from '@/lib/workflows/subblocks/display'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
 import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
@@ -96,10 +97,19 @@ export interface WorkflowSearchIndexerOptions {
   workflowId?: string
   blockConfigs?: Record<
     string,
-    | { subBlocks?: SubBlockConfig[]; triggers?: { enabled?: boolean }; category?: string }
+    | {
+        name?: string
+        subBlocks?: SubBlockConfig[]
+        triggers?: { enabled?: boolean }
+        category?: string
+      }
     | undefined
   >
   credentialTypeById?: Record<string, string | undefined>
+  /** Custom-tool records so indexed tool names match the rendered chips. */
+  customTools?: StoredCustomToolRecord[]
+  /** Live MCP tool names keyed by composite tool id, same as the chip renderers. */
+  mcpToolNamesById?: ReadonlyMap<string, string>
 }
 
 export interface WorkflowSearchReplacementOption {

@@ -1,9 +1,8 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
+import { Combobox, type ComboboxOption } from '@sim/emcn'
 import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Combobox, type ComboboxOption } from '@/components/emcn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -34,7 +33,6 @@ export function TableSelector({
   isPreview = false,
   previewValue,
 }: TableSelectorProps) {
-  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -79,7 +77,7 @@ export function TableSelector({
       options={options}
       value={tableId ?? undefined}
       onChange={handleChange}
-      placeholder={subBlock.placeholder || t('select_a_table')}
+      placeholder={subBlock.placeholder || 'Select a table'}
       disabled={disabled || isPreview}
       editable={false}
       isLoading={isLoading}

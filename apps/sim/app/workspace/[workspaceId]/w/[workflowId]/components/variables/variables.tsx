@@ -1,10 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus, X } from 'lucide-react'
-import { useTranslations } from 'next-intl'
-import Editor from 'react-simple-code-editor'
-import { useShallow } from 'zustand/react/shallow'
 import {
   Badge,
   Button,
@@ -12,14 +8,17 @@ import {
   Combobox,
   type ComboboxOption,
   calculateGutterWidth,
+  cn,
   getCodeEditorProps,
   highlight,
   Input,
   Label,
   languages,
-} from '@/components/emcn'
-import { Trash } from '@/components/emcn/icons/trash'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { Trash } from '@sim/emcn/icons'
+import { Plus, X } from 'lucide-react'
+import Editor from 'react-simple-code-editor'
+import { useShallow } from 'zustand/react/shallow'
 import { validateName } from '@/lib/core/utils/validation'
 import {
   useFloatBoundarySync,
@@ -102,7 +101,6 @@ function VariableHeader({
   onRemove,
   readOnly,
 }: VariableHeaderProps) {
-  const t = useTranslations('auto')
   function handleHeaderKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
@@ -141,7 +139,7 @@ function VariableHeader({
         aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
       >
         <Trash style={{ width: `${ICON_SIZE}px`, height: `${ICON_SIZE}px` }} />
-        <span className='sr-only'>{t('delete_variable')}</span>
+        <span className='sr-only'>Delete Variable</span>
       </Button>
     </div>
   )
@@ -227,7 +225,6 @@ interface VariablesProps {
 }
 
 export function Variables({ readOnly = false }: VariablesProps) {
-  const t = useTranslations('auto')
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
 
   const { isOpen, position, width, height, setIsOpen, setPosition, setDimensions } =
@@ -437,7 +434,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
     <div
       ref={preventZoomRef}
       role='dialog'
-      aria-label={t('variables')}
+      aria-label='Variables'
       className='fixed z-30 flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
       style={{
         left: `${actualPosition.x}px`,
@@ -458,7 +455,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
       >
         <div className='flex items-center'>
           <span className='flex-shrink-0 font-medium text-[var(--text-primary)] text-sm'>
-            {t('variables')}
+            Variables
           </span>
         </div>
         <div className='flex items-center gap-2'>
@@ -470,7 +467,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
               handleAddVariable()
             }}
             disabled={readOnly}
-            aria-label={t('add_new_variable')}
+            aria-label='Add new variable'
           >
             <Plus style={{ width: `${HEADER_ICON_SIZE}px`, height: `${HEADER_ICON_SIZE}px` }} />
           </Button>
@@ -478,7 +475,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
             variant='ghost'
             className='!p-1.5 -m-1.5'
             onClick={handleClose}
-            aria-label={t('close_variables_panel')}
+            aria-label='Close variables panel'
           >
             <X style={{ width: `${HEADER_ICON_SIZE}px`, height: `${HEADER_ICON_SIZE}px` }} />
           </Button>

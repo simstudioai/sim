@@ -1,11 +1,13 @@
 import type { ComponentType } from 'react'
+import { Loader } from '@sim/emcn'
 import { FileText } from 'lucide-react'
-import { Loader } from '@/components/emcn'
 import { Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
+import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
-import { decodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
+import { humanizeDisplayIdentifier, humanizeToolName } from '@/lib/copilot/tools/tool-display'
+import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
 
 /** Respond tools are internal handoff tools shown with a friendly generic label. */
 const HIDDEN_TOOL_SUFFIX = '_respond'
@@ -67,7 +69,7 @@ function readStringParam(
 }
 
 function formatReadingLabel(target: string | undefined, state: ClientToolCallState): string {
-  const suffix = target ? ` ${target}` : ''
+  const suffix = ` ${target || 'file'}`
   switch (state) {
     case ClientToolCallState.success:
       return `Read${suffix}`
@@ -81,22 +83,11 @@ function formatReadingLabel(target: string | undefined, state: ClientToolCallSta
   }
 }
 
-/**
- * VFS paths store each segment percent-encoded (see {@link encodeVfsSegment}), so
- * a read on "My Report.txt" arrives as "files/My%20Report.txt". Decode for
- * display so the user sees the real file name. Falls back to the raw segment when
- * it is not valid encoding (e.g. a literal "%" that was never encoded).
- */
-function decodeVfsSegmentSafe(segment: string): string {
-  try {
-    return decodeVfsSegment(segment)
-  } catch {
-    return segment
-  }
-}
-
 function describeReadTarget(path: string | undefined): string | undefined {
   if (!path) return undefined
+
+  const block = getReadTargetBlock(path)
+  if (block) return block.name
 
   const segments = path
     .split('/')
@@ -108,7 +99,7 @@ function describeReadTarget(path: string | undefined): string | undefined {
 
   const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
   if (!resourceType) {
-    return stripExtension(segments[segments.length - 1])
+    return humanizeDisplayIdentifier(stripExtension(segments[segments.length - 1]), 'sentence')
   }
 
   if (resourceType === 'file') {
@@ -169,9 +160,9 @@ function humanizedFallback(
   toolName: string,
   state: ClientToolCallState
 ): ClientToolDisplay | undefined {
-  const titleCaseName = toolName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  const titleCaseName = humanizeToolName(toolName)
   if (state === ClientToolCallState.error) {
-    const lowerCaseName = toolName.replace(/_/g, ' ').toLowerCase()
+    const lowerCaseName = humanizeDisplayIdentifier(toolName, 'sentence')
     return { text: `Attempted to ${lowerCaseName}`, icon: Loader }
   }
   const stateVerb =

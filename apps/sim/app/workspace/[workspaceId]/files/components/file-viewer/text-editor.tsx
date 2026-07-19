@@ -2,10 +2,9 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { OnMount } from '@monaco-editor/react'
+import { cn } from '@sim/emcn'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
-import { useTranslations } from 'next-intl'
-import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { EditorContextMenu } from './editor-context-menu'
@@ -329,8 +328,12 @@ interface TextEditorProps {
   previewMode: PreviewMode
   autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
-  onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
+  onSaveStatusChange?: (
+    status: 'idle' | 'saving' | 'saved' | 'error',
+    retry?: () => Promise<void>
+  ) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  discardRef?: React.MutableRefObject<(() => void) | null>
   streamingContent?: string
   isAgentEditing?: boolean
   disableStreamingAutoScroll: boolean
@@ -346,12 +349,12 @@ export const TextEditor = memo(function TextEditor({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  discardRef,
   streamingContent,
   isAgentEditing,
   disableStreamingAutoScroll,
   previewContextKey,
 }: TextEditorProps) {
-  const t = useTranslations('auto')
   const containerRef = useRef<HTMLDivElement>(null)
   const monacoEditorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const lastSyncedContentRef = useRef('')
@@ -387,6 +390,7 @@ export const TextEditor = memo(function TextEditor({
     onDirtyChange,
     onSaveStatusChange,
     saveRef,
+    discardRef,
   })
   contentRef.current = content
 
@@ -541,7 +545,7 @@ export const TextEditor = memo(function TextEditor({
   if (hasContentError) {
     return (
       <div className='flex flex-1 items-center justify-center'>
-        <p className='text-[13px] text-[var(--text-muted)]'>{t('failed_to_load_file_content')}</p>
+        <p className='text-[13px] text-[var(--text-muted)]'>Failed to load file content</p>
       </div>
     )
   }
@@ -617,7 +621,7 @@ export const TextEditor = memo(function TextEditor({
                 onMouseDown={() => setIsResizing(true)}
                 role='separator'
                 aria-orientation='vertical'
-                aria-label={t('resize_split')}
+                aria-label='Resize split'
               />
               {isResizing && (
                 <div className='-translate-x-[0.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]' />

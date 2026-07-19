@@ -1,11 +1,11 @@
 'use client'
 
 import { memo, useEffect, useRef, useState } from 'react'
+import { Chip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useTranslations } from 'next-intl'
 import type { WorkBook } from 'xlsx'
-import { Chip } from '@/components/emcn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { DataTable } from './data-table'
 import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'

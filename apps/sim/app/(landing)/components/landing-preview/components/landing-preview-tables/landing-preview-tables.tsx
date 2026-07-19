@@ -1,9 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
-import { useTranslations } from 'next-intl'
-import { Checkbox } from '@/components/emcn'
+import { useState } from 'react'
+import { Checkbox, cn } from '@sim/emcn'
 import {
   ChevronDown,
   Columns3,
@@ -12,16 +10,15 @@ import {
   TypeBoolean,
   TypeNumber,
   TypeText,
-} from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn/icons'
+import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 import type {
   PreviewColumn,
   PreviewRow,
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
-import {
-  LandingPreviewResource,
-  ownerCell,
-} from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
+import { LandingPreviewResource } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
+import { ownerCell } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/utils'
+import { EASE_OUT } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
 const CELL = 'border-[var(--border)] border-r border-b px-2 py-[7px] align-middle select-none'
 const CELL_CHECKBOX =
@@ -428,13 +425,12 @@ interface SpreadsheetViewProps {
 }
 
 function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
-  const t = useTranslations('auto')
   const data = SPREADSHEET_DATA[tableId] ?? SPREADSHEET_DATA['1']
   const [selectedCell, setSelectedCell] = useState<{ row: string; col: string } | null>(null)
 
   return (
     <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-      {/* Breadcrumb header — matches real Resource.Header breadcrumb layout */}
+      {/* Breadcrumb header - matches real Resource.Header breadcrumb layout */}
       <div className='border-[var(--border)] border-b px-4 py-[8.5px]'>
         <div className='flex items-center gap-3'>
           <button
@@ -443,7 +439,7 @@ function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
             className='inline-flex items-center px-2 py-1 font-medium text-[var(--text-secondary)] text-sm transition-colors hover-hover:text-[var(--text-body)]'
           >
             <Table className='mr-3 size-[14px] text-[var(--text-icon)]' />
-            {t('tables')}
+            Tables
           </button>
           <span className='select-none text-[var(--text-icon)] text-sm'>/</span>
           <span className='inline-flex items-center px-2 py-1 font-medium text-[var(--text-body)] text-sm'>
@@ -453,7 +449,7 @@ function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
         </div>
       </div>
 
-      {/* Spreadsheet — matches exact real table editor structure */}
+      {/* Spreadsheet - matches exact real table editor structure */}
       <div className='min-h-0 flex-1 overflow-auto overscroll-none'>
         <table className='table-fixed border-separate border-spacing-0 text-small'>
           <colgroup>
@@ -464,7 +460,7 @@ function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
           </colgroup>
           <thead className='sticky top-0 z-10'>
             <tr>
-              <th className={CELL_HEADER_CHECKBOX} />
+              <th className={CELL_HEADER_CHECKBOX} aria-label='Row number' />
               {data.columns.map((col) => {
                 const Icon = COLUMN_TYPE_ICONS[col.type] ?? TypeText
                 return (
@@ -509,6 +505,7 @@ function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
                             <Checkbox
                               size='sm'
                               checked={cellValue === 'true'}
+                              aria-label={col.label}
                               className='pointer-events-none'
                             />
                           </div>
@@ -528,29 +525,15 @@ function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
   )
 }
 
-interface LandingPreviewTablesProps {
-  autoOpenTableId?: string | null
-}
-
 const tableViewTransition = {
   initial: { opacity: 0, x: 20 },
   animate: { opacity: 1, x: 0 },
   exit: { opacity: 0, x: -20 },
-  transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] as const },
+  transition: { duration: 0.25, ease: EASE_OUT },
 } as const
 
-export function LandingPreviewTables({ autoOpenTableId }: LandingPreviewTablesProps = {}) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
+export function LandingPreviewTables() {
   const [openTableId, setOpenTableId] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!autoOpenTableId) return
-    const timer = setTimeout(() => {
-      setOpenTableId(autoOpenTableId)
-    }, 800)
-    return () => clearTimeout(timer)
-  }, [autoOpenTableId])
 
   return (
     <LazyMotion features={domAnimation}>
@@ -571,9 +554,9 @@ export function LandingPreviewTables({ autoOpenTableId }: LandingPreviewTablesPr
           <m.div key='table-list' className='flex h-full flex-1 flex-col' {...tableViewTransition}>
             <LandingPreviewResource
               icon={Table}
-              title={t('tables')}
-              createLabel={tI18n('new_table')}
-              searchPlaceholder={tI18n('search_tables')}
+              title='Tables'
+              createLabel='New table'
+              searchPlaceholder='Search tables...'
               columns={LIST_COLUMNS}
               rows={LIST_ROWS}
               onRowClick={(id) => setOpenTableId(id)}

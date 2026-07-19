@@ -1,5 +1,11 @@
 import { JiraIcon } from '@/components/icons'
-import { buildCommentOutputs, jiraSetupInstructions } from '@/triggers/jira/utils'
+import { buildTriggerSubBlocks } from '@/triggers'
+import {
+  buildCommentOutputs,
+  buildJiraExtraFields,
+  jiraSetupInstructions,
+  jiraTriggerOptions,
+} from '@/triggers/jira/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -14,61 +20,15 @@ export const jiraCommentDeletedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: JiraIcon,
 
-  subBlocks: [
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_comment_deleted',
-      },
-    },
-    {
-      id: 'webhookSecret',
-      title: 'Webhook Secret',
-      type: 'short-input',
-      placeholder: 'Enter a strong secret',
-      description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
-      password: true,
-      required: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_comment_deleted',
-      },
-    },
-    {
-      id: 'jqlFilter',
-      title: 'JQL Filter',
-      type: 'long-input',
-      placeholder: 'project = PROJ AND issuetype = Bug',
-      description: 'Filter which comment deletions trigger this workflow using JQL',
-      required: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_comment_deleted',
-      },
-    },
-    {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: jiraSetupInstructions('comment_deleted'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_comment_deleted',
-      },
-    },
-  ],
+  subBlocks: buildTriggerSubBlocks({
+    triggerId: 'jira_comment_deleted',
+    triggerOptions: jiraTriggerOptions,
+    setupInstructions: jiraSetupInstructions('comment_deleted'),
+    extraFields: buildJiraExtraFields(
+      'jira_comment_deleted',
+      'Filter which comment deletions trigger this workflow using JQL'
+    ),
+  }),
 
   outputs: buildCommentOutputs(),
 

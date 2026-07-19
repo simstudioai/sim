@@ -50,7 +50,12 @@ export const GET = withRouteHandler(
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
 
-      let streamSnapshot: {
+      // The Redis replay buffer is read here only to synthesize the in-flight
+      // assistant turn for the initial paint. The raw events are NOT shipped
+      // to the client: when `activeStreamId` is set, the client reconnects to
+      // the replay buffer (from seq 0) via the stream resume endpoint, which
+      // is the source of truth for streaming state.
+      let liveTurnSnapshot: {
         events: StreamBatchEvent[]
         previewSessions: FilePreviewSession[]
         status: string
@@ -84,7 +89,7 @@ export const GET = withRouteHandler(
             return null
           })
 
-          streamSnapshot = {
+          liveTurnSnapshot = {
             events: events.map(toStreamBatchEvent),
             previewSessions,
             status:
@@ -111,7 +116,7 @@ export const GET = withRouteHandler(
       const effectiveMessages = buildEffectiveChatTranscript({
         messages: normalizedMessages,
         activeStreamId: liveStreamId,
-        ...(streamSnapshot ? { streamSnapshot } : {}),
+        ...(liveTurnSnapshot ? { streamSnapshot: liveTurnSnapshot } : {}),
       })
 
       return NextResponse.json({
@@ -124,7 +129,19 @@ export const GET = withRouteHandler(
           resources: Array.isArray(chat.resources) ? chat.resources : [],
           createdAt: chat.createdAt,
           updatedAt: chat.updatedAt,
-          ...(streamSnapshot ? { streamSnapshot } : {}),
+          // Events stay out of the payload (the resume endpoint replays them),
+          // but the client still needs the run status to skip reconnecting to
+          // an already-terminal stream, and the preview sessions to seed the
+          // file preview panel before the reconnect lands.
+          ...(liveTurnSnapshot
+            ? {
+                streamSnapshot: {
+                  events: [],
+                  previewSessions: liveTurnSnapshot.previewSessions,
+                  status: liveTurnSnapshot.status,
+                },
+              }
+            : {}),
         },
       })
     } catch (error) {

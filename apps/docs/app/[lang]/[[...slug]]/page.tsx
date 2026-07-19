@@ -40,6 +40,21 @@ function resolveLangAndSlug(params: { slug?: string[]; lang: string }) {
   return { lang, slug }
 }
 
+/**
+ * Strips a leading `/{lang}` path segment from a page URL. Unlike a naive
+ * `String.replace`, this only removes the locale when it is actually the
+ * first path segment — a plain substring replace would also match `/en`
+ * inside unrelated slugs (e.g. `/platform/enterprise`, `/integrations/enrich`,
+ * `/platform/self-hosting/environment-variables`), corrupting canonical and
+ * hreflang URLs for those pages.
+ */
+function stripLocalePrefix(url: string, lang: string): string {
+  const prefix = `/${lang}`
+  if (url === prefix) return ''
+  if (url.startsWith(`${prefix}/`)) return url.slice(prefix.length)
+  return url
+}
+
 const APIPage = createAPIPage(openapi, {
   playground: { enabled: false },
   content: {
@@ -324,7 +339,7 @@ export async function generateMetadata(props: {
         {
           url: ogImageUrl,
           width: 1200,
-          height: 630,
+          height: 675,
           alt: data.title,
         },
       ],
@@ -343,14 +358,14 @@ export async function generateMetadata(props: {
     alternates: {
       canonical: fullUrl,
       languages: {
-        'x-default': `${BASE_URL}${page.url.replace(`/${lang}`, '')}`,
-        en: `${BASE_URL}${page.url.replace(`/${lang}`, '')}`,
-        es: `${BASE_URL}/es${page.url.replace(`/${lang}`, '')}`,
-        fr: `${BASE_URL}/fr${page.url.replace(`/${lang}`, '')}`,
-        de: `${BASE_URL}/de${page.url.replace(`/${lang}`, '')}`,
-        ja: `${BASE_URL}/ja${page.url.replace(`/${lang}`, '')}`,
-        zh: `${BASE_URL}/zh${page.url.replace(`/${lang}`, '')}`,
-        ru: `${BASE_URL}/ru${page.url.replace(`/${lang}`, '')}`,
+        'x-default': `${BASE_URL}${stripLocalePrefix(page.url, lang)}`,
+        en: `${BASE_URL}${stripLocalePrefix(page.url, lang)}`,
+        es: `${BASE_URL}/es${stripLocalePrefix(page.url, lang)}`,
+        fr: `${BASE_URL}/fr${stripLocalePrefix(page.url, lang)}`,
+        de: `${BASE_URL}/de${stripLocalePrefix(page.url, lang)}`,
+        ja: `${BASE_URL}/ja${stripLocalePrefix(page.url, lang)}`,
+        zh: `${BASE_URL}/zh${stripLocalePrefix(page.url, lang)}`,
+        ru: `${BASE_URL}/ru${stripLocalePrefix(page.url, lang)}`,
       },
     },
   }

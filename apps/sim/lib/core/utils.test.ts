@@ -1,3 +1,4 @@
+import { cn } from '@sim/emcn'
 import { createEnvMock } from '@sim/testing'
 import {
   formatDate,
@@ -9,7 +10,6 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
-import { cn } from '@/lib/core/utils/cn'
 import { convertScheduleOptionsToCron } from '@/lib/core/utils/scheduling'
 import { getInvalidCharacters, isValidName, validateName } from '@/lib/core/utils/validation'
 
@@ -43,6 +43,9 @@ vi.mock('@/lib/core/config/env', () =>
     GEMINI_API_KEY_1: 'test-gemini-key-1',
     GEMINI_API_KEY_2: 'test-gemini-key-2',
     GEMINI_API_KEY_3: 'test-gemini-key-3',
+    XAI_API_KEY_1: 'test-xai-key-1',
+    XAI_API_KEY_2: 'test-xai-key-2',
+    XAI_API_KEY_3: 'test-xai-key-3',
   })
 )
 
@@ -325,6 +328,11 @@ describe('getRotatingApiKey', () => {
   it.concurrent('should return Gemini API key based on current minute', () => {
     const result = getRotatingApiKey('gemini')
     expect(result).toMatch(/^test-gemini-key-[1-3]$/)
+  })
+
+  it.concurrent('should return xAI API key based on current minute', () => {
+    const result = getRotatingApiKey('xai')
+    expect(result).toMatch(/^test-xai-key-[1-3]$/)
   })
 
   it.concurrent('should throw error for unsupported provider', () => {

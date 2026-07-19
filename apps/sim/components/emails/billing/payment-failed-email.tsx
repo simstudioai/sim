@@ -48,8 +48,8 @@ export function PaymentFailedEmail({
 
       <Section
         style={{
-          backgroundColor: '#fff5f5',
-          border: '1px solid #fed7d7',
+          backgroundColor: colors.errorBg,
+          border: `1px solid ${colors.errorBorder}`,
           borderRadius: '6px',
           padding: '16px 18px',
           margin: '16px 0',

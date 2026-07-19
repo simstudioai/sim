@@ -26,6 +26,7 @@ const CONSTANTS = {
 interface UpgradeOptions {
   creditTier?: number
   annual?: boolean
+  organizationId?: string
 }
 
 export function useSubscriptionUpgrade() {
@@ -49,11 +50,14 @@ export function useSubscriptionUpgrade() {
       try {
         const listResult = await client.subscription.list()
         allSubscriptions = listResult.data || []
-        const activePersonalSub = allSubscriptions.find(
-          (sub: any) => hasPaidSubscriptionStatus(sub.status) && sub.referenceId === userId
+        const initialReferenceId =
+          targetPlan === 'team' && options?.organizationId ? options.organizationId : userId
+        const activeReferenceSub = allSubscriptions.find(
+          (sub: any) =>
+            hasPaidSubscriptionStatus(sub.status) && sub.referenceId === initialReferenceId
         )
-        currentSubscriptionRowId = activePersonalSub?.id
-        currentStripeSubscriptionId = activePersonalSub?.stripeSubscriptionId
+        currentSubscriptionRowId = activeReferenceSub?.id
+        currentStripeSubscriptionId = activeReferenceSub?.stripeSubscriptionId
       } catch (_e) {
         currentSubscriptionRowId = undefined
         currentStripeSubscriptionId = undefined
@@ -83,7 +87,15 @@ export function useSubscriptionUpgrade() {
             }
             throw err
           }
-          const existingOrg = orgsData.organizations?.find((org) => isOrgAdminRole(org.role))
+          const existingOrg = options?.organizationId
+            ? orgsData.organizations?.find(
+                (org) => org.id === options.organizationId && isOrgAdminRole(org.role)
+              )
+            : orgsData.organizations?.find((org) => isOrgAdminRole(org.role))
+
+          if (options?.organizationId && !existingOrg) {
+            throw new Error('Only organization administrators can upgrade this workspace plan.')
+          }
 
           if (existingOrg) {
             const existingOrgSub = allSubscriptions.find(
@@ -112,14 +124,16 @@ export function useSubscriptionUpgrade() {
             })
             referenceId = existingOrg.id
 
-            try {
-              await client.organization.setActive({ organizationId: referenceId })
-              logger.info('Set organization as active', { organizationId: referenceId })
-            } catch (error) {
-              logger.warn('Failed to set organization as active, proceeding with upgrade', {
-                organizationId: referenceId,
-                error: getErrorMessage(error, 'Unknown error'),
-              })
+            if (!options?.organizationId) {
+              try {
+                await client.organization.setActive({ organizationId: referenceId })
+                logger.info('Set organization as active', { organizationId: referenceId })
+              } catch (error) {
+                logger.warn('Failed to set organization as active, proceeding with upgrade', {
+                  organizationId: referenceId,
+                  error: getErrorMessage(error, 'Unknown error'),
+                })
+              }
             }
           } else if (orgsData.isMemberOfAnyOrg) {
             throw new Error(
@@ -185,7 +199,12 @@ export function useSubscriptionUpgrade() {
           }
         )
 
-        await betterAuthSubscription.upgrade(finalParams)
+        const upgradeResult = await betterAuthSubscription.upgrade(finalParams)
+        if (upgradeResult?.error) {
+          throw new Error(
+            upgradeResult.error.message || 'Checkout could not be started. Please try again.'
+          )
+        }
 
         if (targetPlan === 'team' && currentSubscriptionRowId && referenceId !== userId) {
           try {

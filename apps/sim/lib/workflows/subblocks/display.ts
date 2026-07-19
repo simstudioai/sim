@@ -302,7 +302,7 @@ export const getDisplayValue = (value: unknown): string => {
     try {
       const json = JSON.stringify(parsedValue)
       if (json.length <= 40) return json
-      return `${json.slice(0, 37)}...`
+      return truncate(json, 37)
     } catch {
       return '-'
     }
@@ -426,52 +426,89 @@ export function resolveVariablesLabel(
   return summarizeNames(names)
 }
 
+/** Custom-tool record shape needed to resolve a stored custom-tool reference. */
+export interface StoredCustomToolRecord {
+  id: string
+  title?: string
+  schema?: { function?: { name?: string } }
+}
+
+export interface ResolveStoredToolNameOptions {
+  customTools?: StoredCustomToolRecord[]
+  /** Live MCP tool names keyed by composite tool id (`createMcpToolId`). */
+  mcpToolNamesById?: ReadonlyMap<string, string>
+  /** Block-config lookup; overridable so snapshot views can scope configs. */
+  getBlockConfig?: (type: string) => { name?: string } | undefined
+}
+
 /**
- * Resolves a tool-input value to a tool-name summary. Stored tool entries
- * come in several historical shapes, checked in priority order: explicit
- * title, custom tool referenced by id, inline schema name, OpenAI function
- * name, then the block registry.
+ * Resolves one stored tool entry to its display name. Canonical sources win —
+ * the block registry (including the custom-block overlay), the custom-tool
+ * record, live MCP server data — so edits to the entry's mutable `title` in
+ * workflow state cannot relabel a tool that has a canonical name. The stored
+ * title is the fallback for entries with no resolvable source (deleted custom
+ * blocks, MCP entries while server data is unavailable, legacy inline custom
+ * tools where the title is the identity), ahead of the raw type id.
+ */
+export function resolveStoredToolName(
+  tool: unknown,
+  options: ResolveStoredToolNameOptions = {}
+): string | null {
+  if (!tool || typeof tool !== 'object') return null
+  const t = tool as Record<string, unknown>
+  const { customTools = [], mcpToolNamesById, getBlockConfig = getBlock } = options
+
+  const storedTitle = typeof t.title === 'string' && t.title ? t.title : null
+  const schema = t.schema as { function?: { name?: string } } | undefined
+  const schemaName = schema?.function?.name || null
+
+  if (t.type === 'custom-tool') {
+    if (typeof t.customToolId === 'string') {
+      const record = customTools.find((candidate) => candidate.id === t.customToolId)
+      if (record?.title) return record.title
+      if (record?.schema?.function?.name) return record.schema.function.name
+    }
+    return storedTitle || schemaName
+  }
+
+  if (t.type === 'mcp') {
+    if (typeof t.toolId === 'string') {
+      const liveName = mcpToolNamesById?.get(t.toolId)
+      if (liveName) return liveName
+    }
+    return storedTitle
+  }
+
+  if (typeof t.type === 'string' && t.type) {
+    const blockConfig = getBlockConfig(t.type)
+    if (blockConfig?.name) return blockConfig.name
+    return storedTitle || t.type
+  }
+
+  if (storedTitle) return storedTitle
+  if (schemaName) return schemaName
+
+  const fn = t.function as { name?: string } | undefined
+  if (fn?.name) return fn.name
+
+  return null
+}
+
+/**
+ * Resolves a tool-input value to a tool-name summary via
+ * {@link resolveStoredToolName}. Unresolvable entries are skipped.
  */
 export function resolveToolsLabel(
   subBlock: SubBlockConfig | undefined,
   rawValue: unknown,
-  customTools: Array<{ id: string; title?: string; schema?: { function?: { name?: string } } }>
+  customTools: StoredCustomToolRecord[],
+  mcpToolNamesById?: ReadonlyMap<string, string>
 ): string | null {
   if (subBlock?.type !== 'tool-input') return null
   if (!Array.isArray(rawValue) || rawValue.length === 0) return null
 
   const names = rawValue
-    .map((tool: unknown) => {
-      if (!tool || typeof tool !== 'object') return null
-      const t = tool as Record<string, unknown>
-
-      if (typeof t.title === 'string' && t.title) return t.title
-
-      if (t.type === 'custom-tool' && typeof t.customToolId === 'string') {
-        const customTool = customTools.find((candidate) => candidate.id === t.customToolId)
-        if (customTool?.title) return customTool.title
-        if (customTool?.schema?.function?.name) return customTool.schema.function.name
-      }
-
-      const schema = t.schema as { function?: { name?: string } } | undefined
-      if (schema?.function?.name) return schema.function.name
-
-      const fn = t.function as { name?: string } | undefined
-      if (fn?.name) return fn.name
-
-      if (
-        typeof t.type === 'string' &&
-        t.type !== 'custom-tool' &&
-        t.type !== 'mcp' &&
-        t.type !== 'workflow' &&
-        t.type !== 'workflow_input'
-      ) {
-        const blockConfig = getBlock(t.type)
-        if (blockConfig?.name) return blockConfig.name
-      }
-
-      return null
-    })
+    .map((tool: unknown) => resolveStoredToolName(tool, { customTools, mcpToolNamesById }))
     .filter((name): name is string => !!name)
 
   return summarizeNames(names)

@@ -1,3 +1,4 @@
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import type { BlockOutput } from '@/blocks/types'
@@ -5,6 +6,7 @@ import type {
   ChildWorkflowContext,
   IterationContext,
   ParentIteration,
+  PiiBlockOutputRedaction,
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
@@ -68,6 +70,7 @@ export interface PausePoint {
   response: any
   registeredAt: string
   resumeStatus: ResumeStatus
+  automaticResumeWaitingReason?: string
   snapshotReady: boolean
   parallelScope?: ParallelPauseScope
   loopScope?: LoopPauseScope
@@ -228,6 +231,28 @@ export const EXECUTION_CONTROL_OUTPUT_FIELD_NAMES = [
 
 export type ExecutionControlOutputFieldName = (typeof EXECUTION_CONTROL_OUTPUT_FIELD_NAMES)[number]
 
+/** Start block output key that carries trusted, server-injected run metadata. */
+export const START_BLOCK_METADATA_FIELD = 'metadata'
+
+/**
+ * Trusted run metadata surfaced under `<start.metadata.*>` when the Start
+ * block's "Add run metadata" toggle is enabled. Built server-side from the
+ * authenticated execution context — never from caller-supplied input.
+ * Every field describes the INVOKING run: on top-level runs that is the run
+ * itself; on child and custom-block executions it is the parent run (its
+ * actor's email, workspace, and workflow) — never the child's own static,
+ * authoring-time-known identity.
+ */
+export interface StartBlockRunMetadata {
+  userEmail?: string | null
+  workspaceId?: string | null
+  workflowId?: string | null
+  executionId?: string
+  executionType?: string
+  executionMode?: 'sync' | 'stream' | 'async'
+  startTime?: string
+}
+
 export interface BlockLog {
   blockId: string
   blockName?: string
@@ -263,6 +288,8 @@ interface ExecutionMetadata {
   requestId?: string
   workflowId?: string
   workspaceId?: string
+  /** Immutable actor/payer decision captured before execution. */
+  billingAttribution?: BillingAttributionSnapshot
   startTime?: string
   endTime?: string
   duration: number
@@ -286,6 +313,7 @@ interface ExecutionMetadata {
   useDraftState?: boolean
   resumeFromSnapshot?: boolean
   resumeTerminalNoop?: boolean
+  executionMode?: 'sync' | 'stream' | 'async'
 }
 
 export interface BlockState {
@@ -306,6 +334,8 @@ export interface ExecutionContext {
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
   copilotToolExecution?: boolean
+  /** In-flight block-output PII redaction policy (resolved `blockOutputs` stage). */
+  piiBlockOutputRedaction?: PiiBlockOutputRedaction
 
   permissionConfig?: PermissionGroupConfig | null
   permissionConfigLoaded?: boolean
@@ -315,6 +345,8 @@ export interface ExecutionContext {
 
   blockLogs: BlockLog[]
   metadata: ExecutionMetadata
+  /** Trusted run metadata for the Start block's "Add run metadata" toggle. */
+  startRunMetadata?: StartBlockRunMetadata
   environmentVariables: Record<string, string>
   workflowVariables?: Record<string, any>
 

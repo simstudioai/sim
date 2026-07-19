@@ -14,6 +14,7 @@
   --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
+  --output-panel-width: 560px; /* OUTPUT_PANEL_WIDTH.DEFAULT */
   --auth-primary-btn-bg: #ffffff;
   --auth-primary-btn-border: #ffffff;
   --auth-primary-btn-text: #000000;
@@ -107,6 +108,18 @@
    sidebar content, which is already at the correct width instantly. */
 html.sidebar-resizing .sidebar-shell-outer,
 html.sidebar-resizing .sidebar-shell-inner {
+  transition: none !important;
+}
+
+/* Suppress sidebar transitions during the initial hydration window. The
+   pre-paint script sets the correct --sidebar-width, but store rehydration
+   re-applies it a tick later; without this guard that re-apply animates the
+   rail, reading as a collapse -> expand flash on a fresh page load. Removed
+   after the first paint (see workspace-chrome.tsx) so user-driven toggles and
+   the fullscreen slide still animate. */
+html.sidebar-booting .sidebar-container,
+html.sidebar-booting .sidebar-shell-outer,
+html.sidebar-booting .sidebar-shell-inner {
   transition: none !important;
 }
 
@@ -213,6 +226,7 @@ html.sidebar-resizing .sidebar-shell-inner {
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
     --selection: #1a5cf6;
+    --selection-muted: #1a5cf647;
     --warning: #ea580c;
 
     /* Inverted surface (dark chrome on light page, e.g. tag dropdown) */
@@ -370,6 +384,7 @@ html.sidebar-resizing .sidebar-shell-inner {
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
     --selection: #4b83f7;
+    --selection-muted: #4b83f759;
     --warning: #ff6600;
 
     /* Inverted surface (in dark mode, falls back to standard surfaces) */
@@ -477,6 +492,17 @@ html.sidebar-resizing .sidebar-shell-inner {
 
   *:focus {
     outline: none;
+  }
+
+  /* Consistent branded text-selection color everywhere, independent of the
+     browser/OS default (which dims when the window loses focus). Translucent,
+     with no color override, so selected text keeps its own paint on every
+     surface — solid-brand + forced white broke wherever glyphs aren't the
+     selected element's own (Chromium ignores ::selection color in form
+     controls, and the chat/workflow inputs render transparent textareas over
+     styled mirrors, which left black text on solid brand blue). */
+  ::selection {
+    background-color: var(--selection-muted);
   }
 
   body {

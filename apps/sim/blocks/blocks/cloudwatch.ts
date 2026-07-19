@@ -2,13 +2,16 @@ import { CloudWatchIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type {
+  CloudWatchDescribeAlarmHistoryResponse,
   CloudWatchDescribeAlarmsResponse,
   CloudWatchDescribeLogGroupsResponse,
   CloudWatchDescribeLogStreamsResponse,
+  CloudWatchFilterLogEventsResponse,
   CloudWatchGetLogEventsResponse,
   CloudWatchGetMetricStatisticsResponse,
   CloudWatchListMetricsResponse,
   CloudWatchMuteAlarmResponse,
+  CloudWatchPutLogGroupRetentionResponse,
   CloudWatchPutMetricDataResponse,
   CloudWatchQueryLogsResponse,
   CloudWatchUnmuteAlarmResponse,
@@ -19,12 +22,15 @@ export const CloudWatchBlock: BlockConfig<
   | CloudWatchDescribeLogGroupsResponse
   | CloudWatchDescribeLogStreamsResponse
   | CloudWatchGetLogEventsResponse
+  | CloudWatchFilterLogEventsResponse
   | CloudWatchDescribeAlarmsResponse
+  | CloudWatchDescribeAlarmHistoryResponse
   | CloudWatchListMetricsResponse
   | CloudWatchGetMetricStatisticsResponse
   | CloudWatchPutMetricDataResponse
   | CloudWatchMuteAlarmResponse
   | CloudWatchUnmuteAlarmResponse
+  | CloudWatchPutLogGroupRetentionResponse
 > = {
   type: 'cloudwatch',
   name: 'CloudWatch',
@@ -44,13 +50,16 @@ export const CloudWatchBlock: BlockConfig<
       type: 'dropdown',
       options: [
         { label: 'Query Logs (Insights)', id: 'query_logs' },
+        { label: 'Filter Log Events', id: 'filter_log_events' },
         { label: 'Describe Log Groups', id: 'describe_log_groups' },
         { label: 'Get Log Events', id: 'get_log_events' },
         { label: 'Describe Log Streams', id: 'describe_log_streams' },
+        { label: 'Set Log Group Retention', id: 'put_log_group_retention' },
         { label: 'List Metrics', id: 'list_metrics' },
         { label: 'Get Metric Statistics', id: 'get_metric_statistics' },
         { label: 'Publish Metric', id: 'put_metric_data' },
         { label: 'Describe Alarms', id: 'describe_alarms' },
+        { label: 'Describe Alarm History', id: 'describe_alarm_history' },
         { label: 'Mute Alarm', id: 'mute_alarm' },
         { label: 'Unmute Alarm', id: 'unmute_alarm' },
       ],
@@ -130,7 +139,7 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       placeholder: 'e.g., 1711900800',
       condition: {
         field: 'operation',
-        value: ['query_logs', 'get_log_events', 'get_metric_statistics'],
+        value: ['query_logs', 'get_log_events', 'get_metric_statistics', 'filter_log_events'],
       },
       required: { field: 'operation', value: ['query_logs', 'get_metric_statistics'] },
       wandConfig: {
@@ -149,7 +158,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       placeholder: 'e.g., 1711987200',
       condition: {
         field: 'operation',
-        value: ['query_logs', 'get_log_events', 'get_metric_statistics'],
+        value: ['query_logs', 'get_log_events', 'get_metric_statistics', 'filter_log_events'],
       },
       required: { field: 'operation', value: ['query_logs', 'get_metric_statistics'] },
       wandConfig: {
@@ -176,8 +185,24 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       selectorKey: 'cloudwatch.logGroups',
       dependsOn: ['awsAccessKeyId', 'awsSecretAccessKey', 'awsRegion'],
       placeholder: 'Select a log group',
-      condition: { field: 'operation', value: ['get_log_events', 'describe_log_streams'] },
-      required: { field: 'operation', value: ['get_log_events', 'describe_log_streams'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_log_events',
+          'describe_log_streams',
+          'filter_log_events',
+          'put_log_group_retention',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'get_log_events',
+          'describe_log_streams',
+          'filter_log_events',
+          'put_log_group_retention',
+        ],
+      },
       mode: 'basic',
     },
     {
@@ -186,8 +211,24 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       canonicalParamId: 'logGroupName',
       placeholder: '/aws/lambda/my-func',
-      condition: { field: 'operation', value: ['get_log_events', 'describe_log_streams'] },
-      required: { field: 'operation', value: ['get_log_events', 'describe_log_streams'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_log_events',
+          'describe_log_streams',
+          'filter_log_events',
+          'put_log_group_retention',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'get_log_events',
+          'describe_log_streams',
+          'filter_log_events',
+          'put_log_group_retention',
+        ],
+      },
       mode: 'advanced',
     },
     {
@@ -196,6 +237,80 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: '2024/03/31/',
       condition: { field: 'operation', value: 'describe_log_streams' },
+    },
+    {
+      id: 'filterPattern',
+      title: 'Filter Pattern',
+      type: 'short-input',
+      placeholder: 'ERROR, ?ERROR ?Exception, %timeout%',
+      condition: { field: 'operation', value: 'filter_log_events' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a CloudWatch Logs filter pattern based on the user's description.
+Common patterns:
+- ERROR (matches lines containing ERROR)
+- ?ERROR ?Exception (matches lines containing either term)
+- "Failed to connect" (matches an exact phrase)
+- %timeout%error% (matches lines matching a regular expression)
+
+Return ONLY the filter pattern - no explanations, no extra text.`,
+        placeholder: 'Describe what you want to find in the logs...',
+      },
+    },
+    {
+      id: 'filterLogStreamPrefix',
+      title: 'Log Stream Name Prefix',
+      type: 'short-input',
+      placeholder: '2024/03/31/',
+      condition: { field: 'operation', value: 'filter_log_events' },
+      mode: 'advanced',
+      description: 'Only search log streams whose name starts with this prefix',
+    },
+    {
+      id: 'startFromHead',
+      title: 'Return Oldest First',
+      type: 'dropdown',
+      options: [
+        { label: 'No (newest first)', id: 'false' },
+        { label: 'Yes (oldest first)', id: 'true' },
+      ],
+      value: () => 'true',
+      condition: { field: 'operation', value: 'filter_log_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'retentionInDays',
+      title: 'Retention Period',
+      type: 'dropdown',
+      options: [
+        { label: 'Never expire', id: '' },
+        { label: '1 day', id: '1' },
+        { label: '3 days', id: '3' },
+        { label: '5 days', id: '5' },
+        { label: '1 week', id: '7' },
+        { label: '2 weeks', id: '14' },
+        { label: '1 month', id: '30' },
+        { label: '2 months', id: '60' },
+        { label: '3 months', id: '90' },
+        { label: '4 months', id: '120' },
+        { label: '5 months', id: '150' },
+        { label: '6 months', id: '180' },
+        { label: '1 year', id: '365' },
+        { label: '13 months', id: '400' },
+        { label: '18 months', id: '545' },
+        { label: '2 years', id: '731' },
+        { label: '3 years', id: '1096' },
+        { label: '5 years', id: '1827' },
+        { label: '6 years', id: '2192' },
+        { label: '7 years', id: '2557' },
+        { label: '8 years', id: '2922' },
+        { label: '9 years', id: '3288' },
+        { label: '10 years', id: '3653' },
+      ],
+      value: () => '30',
+      condition: { field: 'operation', value: 'put_log_group_retention' },
+      description:
+        'How long to keep log events. Choose "Never expire" to remove any retention limit.',
     },
     {
       id: 'logStreamNameSelector',
@@ -367,6 +482,74 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'describe_alarms' },
     },
     {
+      id: 'historyAlarmName',
+      title: 'Alarm Name',
+      type: 'short-input',
+      placeholder: 'my-service-high-cpu',
+      condition: { field: 'operation', value: 'describe_alarm_history' },
+      description: 'Exact alarm name. Omit to retrieve history across all alarms.',
+    },
+    {
+      id: 'historyItemType',
+      title: 'History Item Type',
+      type: 'dropdown',
+      options: [
+        { label: 'All Types', id: '' },
+        { label: 'State Update', id: 'StateUpdate' },
+        { label: 'Configuration Update', id: 'ConfigurationUpdate' },
+        { label: 'Action', id: 'Action' },
+        { label: 'Contributor State Update', id: 'AlarmContributorStateUpdate' },
+        { label: 'Contributor Action', id: 'AlarmContributorAction' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'describe_alarm_history' },
+      mode: 'advanced',
+    },
+    {
+      id: 'alarmHistoryStartDate',
+      title: 'Start Date (Unix epoch seconds)',
+      type: 'short-input',
+      placeholder: 'e.g., 1711900800',
+      condition: { field: 'operation', value: 'describe_alarm_history' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix epoch timestamp (in seconds) based on the user's description of a point in time.
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start of the history window (e.g., "7 days ago")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'alarmHistoryEndDate',
+      title: 'End Date (Unix epoch seconds)',
+      type: 'short-input',
+      placeholder: 'e.g., 1711987200',
+      condition: { field: 'operation', value: 'describe_alarm_history' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix epoch timestamp (in seconds) based on the user's description of a point in time.
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end of the history window (e.g., "now")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'scanBy',
+      title: 'Sort Order',
+      type: 'dropdown',
+      options: [
+        { label: 'Newest First', id: 'TimestampDescending' },
+        { label: 'Oldest First', id: 'TimestampAscending' },
+      ],
+      value: () => 'TimestampDescending',
+      condition: { field: 'operation', value: 'describe_alarm_history' },
+      mode: 'advanced',
+    },
+    {
       id: 'muteRuleName',
       title: 'Mute Rule Name',
       type: 'short-input',
@@ -432,8 +615,10 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
           'describe_log_groups',
           'get_log_events',
           'describe_log_streams',
+          'filter_log_events',
           'list_metrics',
           'describe_alarms',
+          'describe_alarm_history',
         ],
       },
       mode: 'advanced',
@@ -442,13 +627,16 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
   tools: {
     access: [
       'cloudwatch_query_logs',
+      'cloudwatch_filter_log_events',
       'cloudwatch_describe_log_groups',
       'cloudwatch_get_log_events',
       'cloudwatch_describe_log_streams',
+      'cloudwatch_put_log_group_retention',
       'cloudwatch_list_metrics',
       'cloudwatch_get_metric_statistics',
       'cloudwatch_put_metric_data',
       'cloudwatch_describe_alarms',
+      'cloudwatch_describe_alarm_history',
       'cloudwatch_mute_alarm',
       'cloudwatch_unmute_alarm',
     ],
@@ -463,6 +651,10 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
             return 'cloudwatch_get_log_events'
           case 'describe_log_streams':
             return 'cloudwatch_describe_log_streams'
+          case 'filter_log_events':
+            return 'cloudwatch_filter_log_events'
+          case 'put_log_group_retention':
+            return 'cloudwatch_put_log_group_retention'
           case 'list_metrics':
             return 'cloudwatch_list_metrics'
           case 'get_metric_statistics':
@@ -471,6 +663,8 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
             return 'cloudwatch_put_metric_data'
           case 'describe_alarms':
             return 'cloudwatch_describe_alarms'
+          case 'describe_alarm_history':
+            return 'cloudwatch_describe_alarm_history'
           case 'mute_alarm':
             return 'cloudwatch_mute_alarm'
           case 'unmute_alarm':
@@ -561,6 +755,49 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               logGroupName: rest.logGroupName,
               ...(rest.streamPrefix && { prefix: rest.streamPrefix }),
               ...(parsedLimit !== undefined && { limit: parsedLimit }),
+            }
+          }
+
+          case 'filter_log_events': {
+            if (!rest.logGroupName) {
+              throw new Error('Log group name is required')
+            }
+
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              logGroupName: rest.logGroupName,
+              ...(rest.filterPattern && { filterPattern: rest.filterPattern }),
+              ...(rest.filterLogStreamPrefix && {
+                logStreamNamePrefix: rest.filterLogStreamPrefix,
+              }),
+              ...(startTime && { startTime: Number(startTime) }),
+              ...(endTime && { endTime: Number(endTime) }),
+              ...(rest.startFromHead !== undefined && {
+                startFromHead: rest.startFromHead === 'true' || rest.startFromHead === true,
+              }),
+              ...(parsedLimit !== undefined && { limit: parsedLimit }),
+            }
+          }
+
+          case 'put_log_group_retention': {
+            if (!rest.logGroupName) {
+              throw new Error('Log group name is required')
+            }
+
+            const retentionRaw = rest.retentionInDays
+            const parsedRetention =
+              retentionRaw === undefined || retentionRaw === ''
+                ? undefined
+                : Number.parseInt(String(retentionRaw), 10)
+
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              logGroupName: rest.logGroupName,
+              ...(parsedRetention !== undefined && { retentionInDays: parsedRetention }),
             }
           }
 
@@ -679,6 +916,21 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               ...(parsedLimit !== undefined && { limit: parsedLimit }),
             }
 
+          case 'describe_alarm_history':
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              ...(rest.historyAlarmName && { alarmName: rest.historyAlarmName }),
+              ...(rest.historyItemType && { historyItemType: rest.historyItemType }),
+              ...(rest.alarmHistoryStartDate && {
+                startDate: Number(rest.alarmHistoryStartDate),
+              }),
+              ...(rest.alarmHistoryEndDate && { endDate: Number(rest.alarmHistoryEndDate) }),
+              ...(rest.scanBy && { scanBy: rest.scanBy }),
+              ...(parsedLimit !== undefined && { limit: parsedLimit }),
+            }
+
           case 'mute_alarm': {
             const alarmNames = rest.alarmNames
             if (!alarmNames) {
@@ -757,10 +1009,42 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
     prefix: { type: 'string', description: 'Log group name prefix filter' },
     logGroupName: {
       type: 'string',
-      description: 'Log group name for get events / describe streams',
+      description:
+        'Log group name for get events / describe streams / filter events / set retention',
     },
     logStreamName: { type: 'string', description: 'Log stream name for get events' },
     streamPrefix: { type: 'string', description: 'Log stream name prefix filter' },
+    filterPattern: { type: 'string', description: 'CloudWatch Logs filter pattern' },
+    filterLogStreamPrefix: {
+      type: 'string',
+      description: 'Only search log streams whose name starts with this prefix',
+    },
+    startFromHead: {
+      type: 'boolean',
+      description: 'Return the earliest matching events first instead of the latest',
+    },
+    retentionInDays: {
+      type: 'number',
+      description: 'Retention period in days for a log group. Omit to never expire.',
+    },
+    historyAlarmName: { type: 'string', description: 'Exact alarm name for history lookup' },
+    historyItemType: {
+      type: 'string',
+      description:
+        'Alarm history item type filter (StateUpdate, ConfigurationUpdate, Action, etc.)',
+    },
+    alarmHistoryStartDate: {
+      type: 'number',
+      description: 'Start of the alarm history window as Unix epoch seconds',
+    },
+    alarmHistoryEndDate: {
+      type: 'number',
+      description: 'End of the alarm history window as Unix epoch seconds',
+    },
+    scanBy: {
+      type: 'string',
+      description: 'Alarm history sort order: TimestampDescending or TimestampAscending',
+    },
     metricNamespace: { type: 'string', description: 'Metric namespace (e.g., AWS/EC2)' },
     metricName: { type: 'string', description: 'Metric name (e.g., CPUUtilization)' },
     recentlyActive: { type: 'boolean', description: 'Only show recently active metrics' },
@@ -834,6 +1118,10 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       type: 'array',
       description: 'CloudWatch alarms with state and configuration',
     },
+    alarmHistoryItems: {
+      type: 'array',
+      description: 'Alarm history items (state changes, configuration updates, actions)',
+    },
     alarmNames: {
       type: 'array',
       description: 'Names of the alarms targeted by the mute rule',
@@ -873,6 +1161,14 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
     timestamp: {
       type: 'string',
       description: 'Timestamp when metric was published',
+    },
+    logGroupName: {
+      type: 'string',
+      description: 'Log group the retention policy was applied to',
+    },
+    retentionInDays: {
+      type: 'number',
+      description: 'Retention period in days, or null if events never expire',
     },
   },
 }

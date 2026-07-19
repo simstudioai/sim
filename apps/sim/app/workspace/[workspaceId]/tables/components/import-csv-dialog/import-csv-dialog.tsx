@@ -1,9 +1,6 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useTranslations } from 'next-intl'
 import {
   Button,
   ButtonGroup,
@@ -23,7 +20,10 @@ import {
   TableHeader,
   TableRow,
   toast,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES } from '@/lib/table/constants'
 import { buildAutoMapping, parseCsvBuffer } from '@/lib/table/import'
 import type { TableDefinition } from '@/lib/table/types'
@@ -89,7 +89,7 @@ function summarizeImportError(message: string): string {
   }
 
   const trimmed = message.trim()
-  if (trimmed.length > 180) return `${trimmed.slice(0, 177)}...`
+  if (trimmed.length > 180) return truncate(trimmed, 177)
   return trimmed
 }
 
@@ -126,8 +126,6 @@ export function ImportCsvDialog({
   table,
   onImported,
 }: ImportCsvDialogProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [parsed, setParsed] = useState<ParsedCsv | null>(null)
   const [parseError, setParseError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -376,50 +374,50 @@ export function ImportCsvDialog({
       size='lg'
     >
       <ChipModalHeader onClose={() => handleOpenChange(false)}>
-        {t('import_csv_into')} {table.name}
+        Import CSV into {table.name}
       </ChipModalHeader>
       <ChipModalBody>
         {!parsed ? (
           <ChipModalField
             type='file'
-            title={t('import_csv')}
+            title='Import CSV'
             accept='.csv,.tsv'
             disabled={parsing}
             onChange={handleFilesSelected}
-            label={parsing ? 'Parsing...' : tI18n('drop_csv_or_tsv_here_or')}
-            description={t('map_columns_to_append_or_replace')}
+            label={parsing ? 'Parsing...' : 'Drop CSV or TSV here or click to browse'}
+            description='Map columns to append or replace rows in this table'
             error={parseError ?? undefined}
           />
         ) : (
           <>
-            <ChipModalField type='custom' title={t('file')}>
+            <ChipModalField type='custom' title='File'>
               <div className='flex items-center justify-between gap-3 rounded-sm border border-[var(--border)] p-2'>
                 <div className='flex min-w-0 flex-col'>
                   <span className='truncate text-[var(--text-primary)] text-caption'>
                     {parsed.file.name}
                   </span>
                   <span className='text-[var(--text-tertiary)] text-xs'>
-                    {parsed.headers.length} {t('columns')}
+                    {parsed.headers.length} columns
                   </span>
                 </div>
                 <Button variant='ghost' size='sm' onClick={resetState}>
-                  {t('change_file')}
+                  Change file
                 </Button>
               </div>
             </ChipModalField>
 
-            <ChipModalField type='custom' title={t('mode')}>
+            <ChipModalField type='custom' title='Mode'>
               <ButtonGroup value={mode} onValueChange={handleModeChange}>
-                <ButtonGroupItem value='append'>{t('append')}</ButtonGroupItem>
-                <ButtonGroupItem value='replace'>{t('replace_all_rows')}</ButtonGroupItem>
+                <ButtonGroupItem value='append'>Append</ButtonGroupItem>
+                <ButtonGroupItem value='replace'>Replace all rows</ButtonGroupItem>
               </ButtonGroup>
             </ChipModalField>
 
-            <ChipModalField type='custom' title={t('column_mapping')}>
+            <ChipModalField type='custom' title='Column mapping'>
               {skipCount > 0 && (
                 <div className='flex justify-end'>
                   <Button variant='ghost' size='sm' onClick={handleCreateAllUnmapped}>
-                    {t('create_columns_for')} {skipCount} {t('unmapped')}
+                    Create columns for {skipCount} unmapped
                   </Button>
                 </div>
               )}
@@ -428,8 +426,8 @@ export function ImportCsvDialog({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>{t('csv_column')}</TableHead>
-                        <TableHead>{t('target_column')}</TableHead>
+                        <TableHead>CSV column</TableHead>
+                        <TableHead>Target column</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -475,30 +473,30 @@ export function ImportCsvDialog({
                 </div>
               </div>
               <span className='text-[var(--text-tertiary)] text-xs'>
-                {mappedCount} {t('mapped')}
+                {mappedCount} mapped
                 {createCount > 0
                   ? ` · ${createCount} new column${createCount === 1 ? '' : 's'}`
                   : ''}
                 {' · '}
-                {skipCount} {t('skipped')}
+                {skipCount} skipped
               </span>
             </ChipModalField>
 
             {missingRequired.length > 0 && (
               <ChipModalError>
-                {t('missing_required_column_s')} {missingRequired.join(', ')}
+                Missing required column(s): {missingRequired.join(', ')}
               </ChipModalError>
             )}
             {duplicateTargets.length > 0 && (
               <ChipModalError>
-                {t('multiple_csv_columns_target')} {duplicateTargets.join(', ')} {t('pick_one')}
+                Multiple CSV columns target: {duplicateTargets.join(', ')} (pick one)
               </ChipModalError>
             )}
 
             {mode === 'replace' && !hasWarning && (
               <ChipModalError>
-                {t('replace_will_permanently_delete_the')} {table.rowCount.toLocaleString()}{' '}
-                {t('existing_row_s_before_inserting_the')}
+                Replace will permanently delete the {table.rowCount.toLocaleString()} existing
+                row(s) before inserting the new rows.
               </ChipModalError>
             )}
 

@@ -72,7 +72,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 
 ## File Storage
 
-By default Sim writes uploads to local disk. For production, point it at AWS S3 or Azure Blob. See [Object Storage](/platform/self-hosting/object-storage) for the full setup, bucket layout, and IAM policy.
+By default Sim writes uploads to local disk. For production, point it at AWS S3, Azure Blob, or Google Cloud Storage. See [Object Storage](/platform/self-hosting/object-storage) for the full setup, bucket layout, and IAM policy.
 
 | Variable | Description |
 |----------|-------------|
@@ -82,10 +82,13 @@ By default Sim writes uploads to local disk. For production, point it at AWS S3 
 | `S3_BUCKET_NAME` | General workspace files bucket — set with `AWS_REGION` to enable S3 |
 | `AZURE_STORAGE_CONTAINER_NAME` | General files container — set with Azure credentials to enable Blob (takes precedence over S3) |
 | `AZURE_CONNECTION_STRING` | Azure connection string, or use `AZURE_ACCOUNT_NAME` + `AZURE_ACCOUNT_KEY` |
+| `GCS_BUCKET_NAME` | General workspace files bucket — enables GCS when neither Azure Blob nor S3 is configured |
+| `GCS_PROJECT_ID` | GCP project ID. Omit to infer from credentials/ADC |
+| `GCS_CREDENTIALS_JSON` | Inline service-account JSON. Omit to use Application Default Credentials (Workload Identity, `GOOGLE_APPLICATION_CREDENTIALS`) |
 
 ## Email Providers
 
-Configure one provider — the mailer auto-detects in priority order: **Resend → AWS SES → SMTP → Azure Communication Services**. If none are configured, emails are logged to the console instead.
+Configure one provider — the mailer auto-detects in priority order: **Resend → AWS SES → SMTP → Azure Communication Services → Gmail**. If none are configured, emails are logged to the console instead.
 
 | Variable | Description |
 |----------|-------------|
@@ -120,6 +123,38 @@ Configure one provider — the mailer auto-detects in priority order: **Resend �
 | Variable | Description |
 |----------|-------------|
 | `AZURE_ACS_CONNECTION_STRING` | Azure Communication Services connection string |
+
+**Gmail** (Google-native — GCP has no first-party transactional email service, so the native path is the Gmail API with a Google Workspace sender)
+
+| Variable | Description |
+|----------|-------------|
+| `GMAIL_CREDENTIALS_JSON` | Inline service-account JSON. The service account needs [domain-wide delegation](https://developers.google.com/workspace/guides/create-credentials#delegate_domain-wide_authority_to_a_service_account) granted for the `https://www.googleapis.com/auth/gmail.send` scope in the Workspace admin console |
+| `GMAIL_SENDER` | The Workspace user the service account impersonates when sending (e.g. `noreply@yourdomain.com`). `FROM_EMAIL_ADDRESS` should match this user or one of its registered aliases — Gmail rewrites unrecognized From addresses |
+
+Alternatively, the [Google Workspace SMTP relay](https://support.google.com/a/answer/2956491) works through the generic SMTP provider (`SMTP_HOST=smtp-relay.gmail.com`, port `587`) with no service account required.
+
+## Limits
+
+Self-hosted deployments (billing disabled) run without plan limits: no rate limits, no execution timeouts, no table or storage caps, and no retention-based data deletion. Each limit can be opted back in individually by explicitly setting its variable.
+
+| Variable | Opts in | Suggested value |
+|----------|---------|-----------------|
+| `RATE_LIMIT_FREE_SYNC` | Sync executions per minute | `50` |
+| `RATE_LIMIT_FREE_ASYNC` | Async executions per minute | `200` |
+| `RATE_LIMIT_FREE_API_ENDPOINT` | v1 API endpoint requests per minute | `30` |
+| `EXECUTION_TIMEOUT_FREE` | Sync execution timeout (seconds) | `300` |
+| `EXECUTION_TIMEOUT_ASYNC_FREE` | Async execution timeout (seconds) | `5400` |
+| `FREE_TABLES_LIMIT` | Max user tables per workspace | `5` |
+| `FREE_TABLE_ROWS_LIMIT` | Max rows per user table | `50000` |
+| `FREE_STORAGE_LIMIT_GB` | File storage quota (GB) | `5` |
+
+<Callout type="info">
+  Without billing, every account resolves to the free tier, so only the free-tier variables apply. Setting one variable enforces only that limit — the rest stay unlimited.
+</Callout>
+
+<Callout type="warn">
+  Deployments installed with the Helm chart ship these variables preset in `app.envDefaults`, so chart-based installs keep enforcement unless those keys are removed or overridden.
+</Callout>
 
 ## Example .env
 

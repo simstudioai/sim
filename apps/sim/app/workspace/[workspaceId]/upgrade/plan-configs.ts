@@ -1,3 +1,5 @@
+import { DEFAULT_BILLING_CONCURRENCY_LIMITS } from '@/lib/billing/concurrency-defaults'
+
 /**
  * Config for a plan's top-level credit stats.
  * When `credits` is omitted the credits/refresh block is not rendered.
@@ -25,13 +27,15 @@ export const ENTERPRISE_PLAN_CREDITS: PlanCredits = {
 }
 
 export const PRO_PLAN_FEATURES: readonly string[] = [
+  `${DEFAULT_BILLING_CONCURRENCY_LIMITS.pro.toLocaleString('en-US')} concurrent executions`,
   'Invite teammates',
-  'Deploy workflows as APIs',
+  'Higher rate limits',
   'Extended run timeouts',
   'More storage & tables',
 ]
 
 export const MAX_PLAN_FEATURES: readonly string[] = [
+  `${DEFAULT_BILLING_CONCURRENCY_LIMITS.team.toLocaleString('en-US')} concurrent executions`,
   'Invite teammates',
   'Sim Mailer & KB Live Sync',
   'Highest rate limits',
@@ -39,6 +43,7 @@ export const MAX_PLAN_FEATURES: readonly string[] = [
 ]
 
 export const ENTERPRISE_PLAN_FEATURES: readonly string[] = [
+  `${DEFAULT_BILLING_CONCURRENCY_LIMITS.enterprise.toLocaleString('en-US')} concurrent executions, customizable`,
   'Custom limits & infrastructure',
   'SSO & SOC2 compliance',
   'Access control & self-hosting',

@@ -243,6 +243,7 @@ export function serializePauseSnapshot(
     workflowId: context.workflowId,
     workspaceId,
     userId: metadataFromContext?.userId ?? '',
+    billingAttribution: metadataFromContext?.billingAttribution,
     sessionUserId: metadataFromContext?.sessionUserId,
     workflowUserId: metadataFromContext?.workflowUserId,
     triggerType: metadataFromContext?.triggerType ?? 'manual',

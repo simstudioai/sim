@@ -1,7 +1,17 @@
-import type { NewRelicRegion } from '@/tools/new_relic/types'
+import type { NewRelicEntity, NewRelicRegion } from '@/tools/new_relic/types'
 
 interface GraphQLError {
   message?: string
+}
+
+export interface NewRelicRawEntity {
+  guid?: string | null
+  name?: string | null
+  entityType?: string | null
+  domain?: string | null
+  reporting?: boolean | null
+  alertSeverity?: string | null
+  tags?: ({ key?: string | null; values?: string[] | null } | null)[] | null
 }
 
 interface GraphQLResponse<TData> {
@@ -40,3 +50,17 @@ export const cleanOptionalString = (value?: string): string | undefined => {
   const trimmed = value?.trim()
   return trimmed ? trimmed : undefined
 }
+
+export const normalizeNewRelicEntity = (entity: NewRelicRawEntity): NewRelicEntity => ({
+  guid: entity.guid ?? null,
+  name: entity.name ?? null,
+  entityType: entity.entityType ?? null,
+  domain: entity.domain ?? null,
+  reporting: entity.reporting ?? null,
+  alertSeverity: entity.alertSeverity ?? null,
+  tags:
+    entity.tags?.map((tag) => ({
+      key: tag?.key ?? null,
+      values: tag?.values ?? [],
+    })) ?? [],
+})

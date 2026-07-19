@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useTranslations } from 'next-intl'
-import { ChipConfirmModal, type ChipConfirmTextSegment, ChipModalField } from '@/components/emcn'
+import { ChipConfirmModal, type ChipConfirmTextSegment, ChipModalField } from '@sim/emcn'
 
 interface DeleteModalProps {
   /**
@@ -48,7 +47,6 @@ export function DeleteModal({
   itemType,
   itemName,
 }: DeleteModalProps) {
-  const t = useTranslations('auto')
   const [confirmationText, setConfirmationText] = useState('')
   const [prevIsOpen, setPrevIsOpen] = useState(false)
 
@@ -221,9 +219,9 @@ export function DeleteModal({
           type='input'
           title={
             <span>
-              {t('type_nbsp')}
+              Type&nbsp;
               <span className='font-medium text-[var(--text-primary)]'>{workspaceName}</span>
-              {t('nbsp_to_confirm')}
+              &nbsp;to confirm
             </span>
           }
           value={confirmationText}

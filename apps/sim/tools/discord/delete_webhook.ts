@@ -36,11 +36,11 @@ export const discordDeleteWebhookTool: ToolConfig<
 
   request: {
     url: (params: DiscordDeleteWebhookParams) => {
-      return `https://discord.com/api/v10/webhooks/${params.webhookId}`
+      return `https://discord.com/api/v10/webhooks/${params.webhookId.trim()}`
     },
     method: 'DELETE',
     headers: (params) => ({
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
   },
 

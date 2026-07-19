@@ -1,14 +1,32 @@
 import { generateId } from '@sim/utils/id'
+import { isInternalFileUrl, parseInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
+import type { UserFile } from '@/executor/types'
 
 /**
  * Simplified input field representation for workflow input mapping
  */
 export interface WorkflowInputField {
+  /**
+   * Stable per-field id seeded at field creation (`InputFormatFieldState.id`).
+   * Custom blocks anchor their input sub-block on this so renaming a field
+   * never orphans a consumer's placed value. Absent on legacy fields.
+   */
+  id?: string
   name: string
   type: string
   description?: string
+  /**
+   * Consumer-facing placeholder hint for a custom block's curated input. Authored
+   * in the Custom Blocks settings UI; has no source on the workflow's Start block.
+   */
+  placeholder?: string
+  /**
+   * Consumers must fill this custom-block input. Authored in the Custom Blocks
+   * settings UI; has no source on the workflow's Start block.
+   */
+  required?: boolean
 }
 
 /**
@@ -42,6 +60,100 @@ export function createDefaultInputFormatField(): InputFormatFieldState {
 }
 
 /**
+ * Whether an input-format field type denotes a file input. Matches the canonical
+ * `file[]` written by the field-type dropdown — the same literal the execution
+ * and webhook file paths already key off (`lib/execution/files.ts`,
+ * `lib/webhooks/providers/generic.ts`) — so the editor and runtime agree and no
+ * existing non-`file[]` field changes behavior.
+ */
+export function isFileFieldType(type: string | null | undefined): boolean {
+  return type === 'file[]'
+}
+
+/**
+ * Run-ready file object stored as a file field's value. Derived from the
+ * executor's canonical {@link UserFile} (validated by `normalizeStartFile`) so
+ * editor-attached files flow into a run unchanged and the shape can't drift.
+ */
+export type InputFormatFile = Pick<UserFile, 'id' | 'name' | 'url' | 'size' | 'type'> &
+  Pick<Partial<UserFile>, 'key'>
+
+/**
+ * Whether a file's key is usable at run time: an explicit non-empty `key`, or an
+ * internal `/api/files/serve/...` URL the key can actually be parsed from. This
+ * mirrors `normalizeStartFile` exactly (including the parse, so a malformed
+ * internal URL is rejected rather than accepted on the prefix alone).
+ */
+function hasRecoverableFileKey(file: InputFormatFile): boolean {
+  if (typeof file.key === 'string' && file.key.length > 0) return true
+  if (typeof file.url !== 'string' || !isInternalFileUrl(file.url)) return false
+  try {
+    return parseInternalFileUrl(file.url).key.length > 0
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Tolerantly parses a file field's stored value (a JSON string, or an already
+ * materialized array) into run-ready file objects. Returns an empty array for
+ * legacy free-form values (base64 placeholders, raw text) that don't describe
+ * uploaded files, so callers degrade gracefully instead of throwing.
+ */
+export function parseInputFormatFiles(value: unknown): InputFormatFile[] {
+  let raw: unknown = value
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (!trimmed) return []
+    try {
+      raw = JSON.parse(trimmed)
+    } catch {
+      return []
+    }
+  }
+
+  if (!Array.isArray(raw)) return []
+
+  return raw.filter((file): file is InputFormatFile => {
+    if (file === null || typeof file !== 'object') return false
+    const f = file as InputFormatFile
+    // Accept only the run-ready shape `normalizeStartFile` accepts (non-empty
+    // id/name/url/type + finite size + recoverable key); file normalization is
+    // all-or-nothing, so anything short of this falls back to the JSON editor
+    // rather than silently dropping every file at run time.
+    return (
+      typeof f.id === 'string' &&
+      f.id.length > 0 &&
+      typeof f.name === 'string' &&
+      f.name.length > 0 &&
+      typeof f.url === 'string' &&
+      f.url.length > 0 &&
+      typeof f.size === 'number' &&
+      Number.isFinite(f.size) &&
+      typeof f.type === 'string' &&
+      f.type.length > 0 &&
+      hasRecoverableFileKey(f)
+    )
+  })
+}
+
+/**
+ * Collects all editor-attached files from the file-typed fields of an
+ * inputFormat value. Files are already uploaded (run-ready), so callers can pass
+ * them straight to the executor's file channel without a re-upload.
+ */
+export function collectInputFormatFiles(inputFormatValue: unknown): InputFormatFile[] {
+  if (!Array.isArray(inputFormatValue)) return []
+  return inputFormatValue.flatMap((field) =>
+    field &&
+    typeof field === 'object' &&
+    isFileFieldType((field as { type?: unknown }).type as string)
+      ? parseInputFormatFiles((field as { value?: unknown }).value)
+      : []
+  )
+}
+
+/**
  * Extracts input fields from workflow blocks.
  * Finds the trigger block (start_trigger, input_trigger, or starter) and extracts its inputFormat.
  *
@@ -69,7 +181,9 @@ export function extractInputFieldsFromBlocks(
   if (Array.isArray(inputFormat)) {
     return inputFormat
       .filter(
-        (field: unknown): field is { name: string; type?: string; description?: string } =>
+        (
+          field: unknown
+        ): field is { id?: unknown; name: string; type?: string; description?: string } =>
           typeof field === 'object' &&
           field !== null &&
           'name' in field &&
@@ -77,6 +191,7 @@ export function extractInputFieldsFromBlocks(
           (field as { name: string }).name.trim() !== ''
       )
       .map((field) => ({
+        ...(typeof field.id === 'string' && field.id ? { id: field.id } : {}),
         name: field.name,
         type: field.type || 'string',
         ...(field.description && { description: field.description }),
@@ -90,7 +205,9 @@ export function extractInputFieldsFromBlocks(
   if (Array.isArray(legacyFormat)) {
     return legacyFormat
       .filter(
-        (field: unknown): field is { name: string; type?: string; description?: string } =>
+        (
+          field: unknown
+        ): field is { id?: unknown; name: string; type?: string; description?: string } =>
           typeof field === 'object' &&
           field !== null &&
           'name' in field &&
@@ -98,6 +215,7 @@ export function extractInputFieldsFromBlocks(
           (field as { name: string }).name.trim() !== ''
       )
       .map((field) => ({
+        ...(typeof field.id === 'string' && field.id ? { id: field.id } : {}),
         name: field.name,
         type: field.type || 'string',
         ...(field.description && { description: field.description }),

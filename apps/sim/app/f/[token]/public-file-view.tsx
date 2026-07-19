@@ -1,12 +1,11 @@
 'use client'
 
 import { useMemo } from 'react'
-import Image from 'next/image'
+import { Chip } from '@sim/emcn'
+import { Download } from '@sim/emcn/icons'
 import Link from 'next/link'
-import { useTranslations } from 'next-intl'
-import { Chip } from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { SimWordmark } from '@/app/(landing)/components/navbar/components'
 import { buildProvenance } from '@/app/f/[token]/utils'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useBrandConfig } from '@/ee/whitelabeling'
@@ -32,7 +31,6 @@ export function PublicFileView({
   workspaceName,
   ownerName,
 }: PublicFileViewProps) {
-  const t = useTranslations('auto')
   const contentUrl = `/api/files/public/${token}/content`
   const brand = useBrandConfig()
   const provenance = buildProvenance(workspaceName, ownerName)
@@ -67,7 +65,7 @@ export function PublicFileView({
   )
 
   return (
-    <div className='flex min-h-screen flex-col bg-[var(--bg)]'>
+    <div className='light flex min-h-screen flex-col bg-[var(--bg)]'>
       <header className='sticky top-0 z-10 flex items-center justify-between gap-4 border-[var(--border)] border-b bg-[var(--bg)] px-4 py-3'>
         <div className='flex min-w-0 items-center gap-3'>
           {!brand.logoUrl && (
@@ -76,25 +74,10 @@ export function PublicFileView({
                 href='https://sim.ai'
                 target='_blank'
                 rel='noopener noreferrer'
-                aria-label={t('sim_home')}
-                className='shrink-0'
+                aria-label='Sim home'
+                className='flex shrink-0 items-center'
               >
-                <Image
-                  src='/logo/wordmark-dark.svg'
-                  alt={t('sim')}
-                  width={71}
-                  height={22}
-                  className='h-[22px] w-auto dark:hidden'
-                  priority
-                />
-                <Image
-                  src='/logo/sim-landing.svg'
-                  alt={t('sim')}
-                  width={71}
-                  height={22}
-                  className='hidden h-[22px] w-auto dark:block'
-                  priority
-                />
+                <SimWordmark />
               </Link>
               <div className='h-5 w-px shrink-0 bg-[var(--border)]' />
             </>
@@ -118,7 +101,7 @@ export function PublicFileView({
             anchor.remove()
           }}
         >
-          {t('download')}
+          Download
         </Chip>
       </header>
 

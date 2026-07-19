@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { PII_LANGUAGE_CODES } from '@/lib/guardrails/pii-entities'
+import { PII_LANGUAGE_CODES, stripNerEntities } from '@/lib/guardrails/pii-entities'
+import { validateRegexPattern } from '@/lib/guardrails/validate_regex'
 
 export const unknownRecordSchema = z.record(z.string(), z.unknown())
 
@@ -113,17 +114,114 @@ export const userFileSchema = z
   })
   .passthrough()
 
-/** A single PII redaction rule targeting one scope (all workspaces, or one). */
-export const piiRedactionRuleSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().max(100).optional(),
-  /** Presidio entity types to mask. Empty = redact nothing for this scope. */
-  entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100),
-  /** null = all workspaces; otherwise the single targeted workspace. */
-  workspaceId: z.string().min(1).nullable(),
-  /** Language whose Presidio recognizers apply; defaults to English. */
-  language: z.enum(PII_LANGUAGE_CODES).optional(),
+/**
+ * Per-stage redaction policy: which entity types to mask, in which language. An
+ * enabled stage must name at least one entity type — "redact all" is not an
+ * expressible policy, so `enabled: true` with an empty list (which would resolve
+ * to off and silently skip masking) is rejected at the boundary.
+ */
+/**
+ * A user-supplied custom regex pattern. `name` is a label; `regex` is matched
+ * against text; matches are replaced with `replacement` wrapped in angle brackets
+ * (`EMPLOYEE_ID` → `<EMPLOYEE_ID>`). Bounds guard the Presidio boundary
+ * (ReDoS/oversized payloads).
+ *
+ * The `regex` is validated for both syntax and catastrophic-backtracking safety
+ * here at the write boundary — not just in the editor — so an invalid or unsafe
+ * pattern can never be persisted or reach Presidio (where it would abort the
+ * batch on a 400, or time out and silently fail open, leaving PII unredacted).
+ */
+export const customPatternSchema = z.object({
+  name: z.string().max(100, 'Pattern name is too long'),
+  regex: z
+    .string()
+    .min(1, 'Pattern cannot be empty')
+    .max(512, 'Pattern is too long')
+    .superRefine((regex, ctx) => {
+      const result = validateRegexPattern(regex)
+      if (!result.valid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: result.error ?? 'Invalid regex pattern',
+        })
+      }
+    }),
+  replacement: z.string().max(100, 'Replacement is too long'),
 })
+
+export type CustomPiiPattern = z.output<typeof customPatternSchema>
+
+export const piiStagePolicySchema = z
+  .object({
+    enabled: z.boolean(),
+    /** Presidio entity types to mask. Disabled stages may be empty. */
+    entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100),
+    /** Language whose Presidio recognizers apply; defaults to English. */
+    language: z.enum(PII_LANGUAGE_CODES).optional(),
+    /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+    customPatterns: z.array(customPatternSchema).max(20).optional(),
+  })
+  .refine(
+    (stage) =>
+      !stage.enabled || stage.entityTypes.length > 0 || (stage.customPatterns?.length ?? 0) > 0,
+    {
+      message: 'An enabled redaction stage must select at least one entity type or custom pattern.',
+      path: ['entityTypes'],
+    }
+  )
+
+export type PiiStagePolicy = z.output<typeof piiStagePolicySchema>
+
+/**
+ * The three redaction stages, each independently configured.
+ *
+ * Block outputs are regex-only: they run in-flight on Presidio's spaCy-free fast
+ * path, so the spaCy-NER entities (PERSON/LOCATION/NRP/DATE_TIME) are stripped
+ * here rather than rejected — a stored rule that still selects NER stays saveable
+ * (migration-safe), and a blockOutputs stage left empty by the strip is disabled.
+ */
+export const piiStagesSchema = z
+  .object({
+    input: piiStagePolicySchema,
+    blockOutputs: piiStagePolicySchema,
+    logs: piiStagePolicySchema,
+  })
+  .transform((stages) => {
+    const entityTypes = stripNerEntities(stages.blockOutputs.entityTypes)
+    const customPatterns = stages.blockOutputs.customPatterns ?? []
+    return {
+      ...stages,
+      blockOutputs: {
+        ...stages.blockOutputs,
+        entityTypes,
+        enabled:
+          stages.blockOutputs.enabled && (entityTypes.length > 0 || customPatterns.length > 0),
+      },
+    }
+  })
+
+export type PiiStages = z.output<typeof piiStagesSchema>
+
+/**
+ * A single PII redaction rule targeting one scope (all workspaces, or one).
+ * New rules carry per-stage `stages`; legacy rows carry only the flat
+ * `entityTypes`/`language` (resolved as logs-only). At least one must be present.
+ */
+export const piiRedactionRuleSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().max(100).optional(),
+    /** null = all workspaces; otherwise the single targeted workspace. */
+    workspaceId: z.string().min(1).nullable(),
+    /** Per-stage policy (input / blockOutputs / logs). */
+    stages: piiStagesSchema.optional(),
+    /** Legacy flat policy (pre-stages). Retained for back-compat parse + migration. */
+    entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100).optional(),
+    language: z.enum(PII_LANGUAGE_CODES).optional(),
+  })
+  .refine((rule) => rule.stages !== undefined || rule.entityTypes !== undefined, {
+    message: 'A PII redaction rule must define either stages or entityTypes.',
+  })
 
 export type PiiRedactionRule = z.output<typeof piiRedactionRuleSchema>
 

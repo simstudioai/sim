@@ -1,7 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { mapPsp, UPTIMEROBOT_API_BASE } from '@/tools/uptimerobot/types'
 
@@ -47,8 +47,8 @@ async function appendPspImage(
   const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
   if (denied) return denied
 
-  const buffer = await downloadFileFromStorage(userFile, requestId, logger)
-  const mimeType = userFile.type || 'application/octet-stream'
+  const { buffer, contentType } = await downloadServableFileFromStorage(userFile, requestId, logger)
+  const mimeType = contentType || userFile.type || 'application/octet-stream'
   form.append(field, new Blob([new Uint8Array(buffer)], { type: mimeType }), userFile.name)
   return null
 }

@@ -27,7 +27,8 @@ export const getDataConnectionTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://app.hex.tech/api/v1/data-connections/${params.dataConnectionId}`,
+    url: (params) =>
+      `https://app.hex.tech/api/v1/data-connections/${params.dataConnectionId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

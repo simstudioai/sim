@@ -1,13 +1,11 @@
 'use client'
 
+import { Button } from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
 import { useParams, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Button } from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
 import { type ErrorBoundaryProps, ErrorState } from '@/app/workspace/[workspaceId]/components'
 
 export default function TableError({ error, reset }: ErrorBoundaryProps) {
-  const t = useTranslations('auto')
   const router = useRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
 
@@ -15,8 +13,8 @@ export default function TableError({ error, reset }: ErrorBoundaryProps) {
     <ErrorState
       error={error}
       reset={reset}
-      title={t('failed_to_load_table')}
-      description={t('something_went_wrong_while_loading_this')}
+      title='Failed to load table'
+      description='Something went wrong while loading this table. The table may have been deleted or you may not have permission to view it.'
       loggerName='TableError'
     >
       <Button
@@ -25,7 +23,7 @@ export default function TableError({ error, reset }: ErrorBoundaryProps) {
         onClick={() => router.push(`/workspace/${workspaceId}/tables`)}
       >
         <ArrowLeft className='mr-1.5 size-[14px]' />
-        {t('go_back')}
+        Go back
       </Button>
     </ErrorState>
   )

@@ -1,9 +1,8 @@
 'use client'
 
+import { chipVariants, cn } from '@sim/emcn'
 import { useTranslations } from 'next-intl'
-import { chipVariants } from '@/components/emcn'
 import { SlackIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
 import { BillingPeriodToggle } from '@/app/workspace/[workspaceId]/upgrade/components/billing-period-toggle/billing-period-toggle'
 import {
   type CellValue,

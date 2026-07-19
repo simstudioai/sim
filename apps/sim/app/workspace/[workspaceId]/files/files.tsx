@@ -1,12 +1,6 @@
 'use client'
 
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
-import { useParams, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { useQueryStates } from 'nuqs'
-import { usePostHog } from 'posthog-js/react'
 import {
   Button,
   ChipCombobox,
@@ -23,8 +17,13 @@ import {
   Trash,
   toast,
   Upload,
-} from '@/components/emcn'
-import { Download, Send } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Download, Send } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { useParams, useRouter } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
+import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
@@ -76,10 +75,16 @@ import {
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
-import { filesParsers, filesUrlKeys } from '@/app/workspace/[workspaceId]/files/search-params'
+import {
+  filesFilterParsers,
+  filesFilterUrlKeys,
+  filesParsers,
+  filesSortParams,
+  filesUrlKeys,
+} from '@/app/workspace/[workspaceId]/files/search-params'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
+import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {
   useBulkArchiveWorkspaceFileItems,
   useCreateWorkspaceFileFolder,
@@ -95,8 +100,10 @@ import {
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useUrlSort } from '@/hooks/use-url-sort'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type FileResourceItem =
@@ -104,6 +111,12 @@ type FileResourceItem =
   | { kind: 'folder'; id: string; folder: WorkspaceFileFolderApi }
 
 const logger = createLogger('Files')
+
+/**
+ * Debounce window for `search` URL writes and filtering; the input itself stays
+ * instant. Intentionally shorter than the shared `SEARCH_DEBOUNCE_MS` (300).
+ */
+const FILES_SEARCH_DEBOUNCE_MS = 200 as const
 
 const SUPPORTED_EXTENSIONS = [
   ...SUPPORTED_DOCUMENT_EXTENSIONS,
@@ -170,10 +183,9 @@ function formatFileType(mimeType: string | null, filename: string): string {
 }
 
 export function Files() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const saveRef = useRef<(() => Promise<void>) | null>(null)
+  const discardRef = useRef<(() => void) | null>(null)
 
   const params = useParams()
   const router = useRouter()
@@ -200,6 +212,11 @@ export function Files() {
   const { data: files = EMPTY_WORKSPACE_FILES, isLoading, error } = useWorkspaceFiles(workspaceId)
   const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
+  const membersById = useMemo(() => {
+    const map = new Map<string, WorkspaceMember>()
+    for (const member of members ?? []) map.set(member.userId, member)
+    return map
+  }, [members])
   const uploadFile = useUploadWorkspaceFile()
   const notifyLimit = useLimitUpgradeToast()
   const deleteFile = useDeleteWorkspaceFile()
@@ -241,15 +258,42 @@ export function Files() {
   })
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const dragCounterRef = useRef(0)
-  const [inputValue, setInputValue] = useState('')
-  const debouncedSearchTerm = useDebounce(inputValue, 200)
-  const [activeSort, setActiveSort] = useState<{
-    column: string
-    direction: 'asc' | 'desc'
-  } | null>(null)
-  const [typeFilter, setTypeFilter] = useState<string[]>([])
-  const [sizeFilter, setSizeFilter] = useState<string[]>([])
-  const [uploadedByFilter, setUploadedByFilter] = useState<string[]>([])
+  const [
+    { search: urlSearchTerm, type: typeFilter, size: sizeFilter, uploadedBy: uploadedByFilter },
+    setFileFilters,
+  ] = useQueryStates(filesFilterParsers, filesFilterUrlKeys)
+
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. The in-memory filter below still reads a debounced value
+   * so it doesn't recompute on every keystroke.
+   */
+  const setSearchTerm = useDebouncedSearchSetter(
+    (value, options) => setFileFilters({ search: value }, options),
+    { debounceMs: FILES_SEARCH_DEBOUNCE_MS }
+  )
+  const debouncedSearchTerm = useDebounce(urlSearchTerm, FILES_SEARCH_DEBOUNCE_MS)
+
+  /**
+   * `sort`/`dir` are nullable in the URL because "no active sort" is distinct
+   * from an explicit updated/desc selection: with no sort, files fall back to
+   * updated/desc but folders to name/asc, while an explicit sort orders both
+   * sections by the chosen column.
+   */
+  const { activeSort, onSort, onClear } = useUrlSort(filesSortParams, filesFilterUrlKeys)
+
+  const setTypeFilter = useCallback(
+    (next: string[]) => setFileFilters({ type: next }),
+    [setFileFilters]
+  )
+  const setSizeFilter = useCallback(
+    (next: string[]) => setFileFilters({ size: next }),
+    [setFileFilters]
+  )
+  const setUploadedByFilter = useCallback(
+    (next: string[]) => setFileFilters({ uploadedBy: next }),
+    [setFileFilters]
+  )
 
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
@@ -344,10 +388,9 @@ export function Files() {
 
   const visibleFolders = useMemo(() => {
     const siblings = folders.filter((folder) => (folder.parentId ?? null) === currentFolderId)
-    const searched = debouncedSearchTerm
-      ? siblings.filter((folder) =>
-          folder.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-        )
+    const needle = debouncedSearchTerm.trim().toLowerCase()
+    const searched = needle
+      ? siblings.filter((folder) => folder.name.toLowerCase().includes(needle))
       : siblings
     const col = activeSort?.column ?? 'name'
     const dir = activeSort?.direction ?? 'asc'
@@ -365,11 +408,10 @@ export function Files() {
   }, [folders, currentFolderId, debouncedSearchTerm, activeSort])
 
   const filteredFiles = useMemo(() => {
-    let result = debouncedSearchTerm
+    const needle = debouncedSearchTerm.trim().toLowerCase()
+    let result = needle
       ? files.filter(
-          (f) =>
-            (f.folderId ?? null) === currentFolderId &&
-            f.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+          (f) => (f.folderId ?? null) === currentFolderId && f.name.toLowerCase().includes(needle)
         )
       : files.filter((f) => (f.folderId ?? null) === currentFolderId)
 
@@ -419,8 +461,8 @@ export function Files() {
           cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
           break
         case 'owner':
-          cmp = (members?.find((m) => m.userId === a.uploadedBy)?.name ?? '').localeCompare(
-            members?.find((m) => m.userId === b.uploadedBy)?.name ?? ''
+          cmp = (membersById.get(a.uploadedBy)?.name ?? '').localeCompare(
+            membersById.get(b.uploadedBy)?.name ?? ''
           )
           break
       }
@@ -434,7 +476,7 @@ export function Files() {
     sizeFilter,
     uploadedByFilter,
     activeSort,
-    members,
+    membersById,
   ])
 
   const baseRows: ResourceRow[] = useMemo(() => {
@@ -456,7 +498,7 @@ export function Files() {
           label: 'Folder',
         },
         created: timeCell(folder.createdAt),
-        owner: ownerCell(folder.userId, members),
+        owner: ownerCell(folder.userId, membersById),
         updated: timeCell(folder.updatedAt),
       },
     }))
@@ -478,7 +520,7 @@ export function Files() {
             label: formatFileType(file.type, file.name),
           },
           created: timeCell(file.uploadedAt),
-          owner: ownerCell(file.uploadedBy, members),
+          owner: ownerCell(file.uploadedBy, membersById),
           updated: timeCell(file.updatedAt),
         },
       }
@@ -486,7 +528,7 @@ export function Files() {
     })
 
     return [...folderRows, ...fileRows]
-  }, [visibleFolders, filteredFiles, members, folderSizeMap])
+  }, [visibleFolders, filteredFiles, membersById, folderSizeMap])
 
   const rows: ResourceRow[] = useMemo(() => {
     if (!listRename.editingId) return baseRows
@@ -528,22 +570,16 @@ export function Files() {
 
   const isAllSelected =
     visibleRowIds.length > 0 && visibleRowIds.every((id) => selectedRowIds.has(id))
-  const selectedFileIds = useMemo(
-    () =>
-      Array.from(selectedRowIds)
-        .map(parseRowId)
-        .filter((item) => item.kind === 'file')
-        .map((item) => item.id),
-    [selectedRowIds]
-  )
-  const selectedFolderIds = useMemo(
-    () =>
-      Array.from(selectedRowIds)
-        .map(parseRowId)
-        .filter((item) => item.kind === 'folder')
-        .map((item) => item.id),
-    [selectedRowIds]
-  )
+  const { selectedFileIds, selectedFolderIds } = useMemo(() => {
+    const fileIds: string[] = []
+    const folderIds: string[] = []
+    for (const rowId of selectedRowIds) {
+      const item = parseRowId(rowId)
+      if (item.kind === 'file') fileIds.push(item.id)
+      else folderIds.push(item.id)
+    }
+    return { selectedFileIds: fileIds, selectedFolderIds: folderIds }
+  }, [selectedRowIds])
 
   const selectableConfig = useMemo(
     () => ({
@@ -974,6 +1010,15 @@ export function Files() {
     await saveRef.current()
   }, [])
 
+  const handleSaveStatusChange = useCallback((status: SaveStatus, retry?: () => Promise<void>) => {
+    setSaveStatus(status)
+    if (status === 'error') {
+      toast.error(`Failed to save "${selectedFileRef.current?.name ?? 'file'}"`, {
+        action: { label: 'Retry', onClick: () => void retry?.() },
+      })
+    }
+  }, [])
+
   const handleNavigateFromFileDetail = useCallback(
     (url: string) => {
       if (isDirtyRef.current) {
@@ -1110,6 +1155,7 @@ export function Files() {
   ])
 
   const handleDiscardChanges = () => {
+    discardRef.current?.()
     setShowUnsavedChangesAlert(false)
     setIsDirty(false)
     setSaveStatus('idle')
@@ -1362,16 +1408,8 @@ export function Files() {
         handleSave()
       }
     }
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!isDirtyRef.current) return
-      e.preventDefault()
-    }
     window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-    }
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleSave])
 
   const selectedRowIdsRef = useRef(selectedRowIds)
@@ -1432,24 +1470,14 @@ export function Files() {
   const fileActions = useMemo<ResourceAction[]>(() => {
     if (!selectedFile) return []
     // A large CSV renders as a read-only streamed preview (no editor), so it gets neither the
-    // Save action nor the edit/split/preview toggle — just like a non-editable file.
+    // edit/split/preview toggle nor autosave — just like a non-editable file.
     const streamOnly = isCsvStreamOnly(selectedFile)
     const canEditText = isTextEditable(selectedFile) && !streamOnly
     const canPreview = isPreviewable(selectedFile) && !streamOnly
-    // Markdown renders in the single-surface inline editor, which has no raw/split/preview
-    // modes — so it keeps Save but drops the mode toggle.
+    // Markdown renders in the single-surface inline editor, which has no raw/split/preview modes.
     const isInlineMarkdown = isMarkdownFile(selectedFile)
     const hasSplitView = canEditText && canPreview && !isInlineMarkdown
     const showPreviewToggle = canPreview && !isInlineMarkdown
-
-    const saveLabel =
-      saveStatus === 'saving'
-        ? 'Saving...'
-        : saveStatus === 'saved'
-          ? 'Saved'
-          : saveStatus === 'error'
-            ? 'Save failed'
-            : 'Save'
 
     const nextModeLabel =
       previewMode === 'editor' ? 'Split' : previewMode === 'split' ? 'Preview' : 'Edit'
@@ -1457,18 +1485,6 @@ export function Files() {
       previewMode === 'editor' ? Columns2 : previewMode === 'split' ? Eye : Pencil
 
     return [
-      ...(canEditText
-        ? [
-            {
-              text: saveLabel,
-              onSelect: handleSave,
-              disabled:
-                (!isDirty && saveStatus === 'idle') ||
-                saveStatus === 'saving' ||
-                saveStatus === 'saved',
-            },
-          ]
-        : []),
       ...(hasSplitView
         ? [
             {
@@ -1509,12 +1525,9 @@ export function Files() {
   }, [
     selectedFile,
     canEdit,
-    saveStatus,
     previewMode,
-    isDirty,
     handleCyclePreviewMode,
     handleTogglePreview,
-    handleSave,
     handleDownloadSelected,
     handleShareSelected,
     handleDeleteSelected,
@@ -1549,9 +1562,9 @@ export function Files() {
   }, [canEdit, uploading])
 
   const searchConfig: SearchConfig = {
-    value: inputValue,
-    onChange: setInputValue,
-    onClearAll: () => setInputValue(''),
+    value: urlSearchTerm,
+    onChange: setSearchTerm,
+    onClearAll: () => setSearchTerm(''),
     placeholder: 'Search files...',
   }
 
@@ -1715,10 +1728,10 @@ export function Files() {
         { id: 'owner', label: 'Owner' },
       ],
       active: activeSort,
-      onSort: (column, direction) => setActiveSort({ column, direction }),
-      onClear: () => setActiveSort(null),
+      onSort,
+      onClear,
     }),
-    [activeSort]
+    [activeSort, onSort, onClear]
   )
 
   const hasActiveFilters =
@@ -1752,15 +1765,13 @@ export function Files() {
       uploadedByFilter.length === 0
         ? 'All'
         : uploadedByFilter.length === 1
-          ? (members?.find((m) => m.userId === uploadedByFilter[0])?.name ?? '1 member')
+          ? (membersById.get(uploadedByFilter[0])?.name ?? '1 member')
           : `${uploadedByFilter.length} members`
 
     return (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>
-            {t('file_type')}
-          </span>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>File Type</span>
           <ChipCombobox
             options={[
               { value: 'document', label: 'Documents' },
@@ -1780,7 +1791,7 @@ export function Files() {
           />
         </div>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>{t('size')}</span>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Size</span>
           <ChipCombobox
             options={[
               { value: 'small', label: 'Small (< 1 MB)' },
@@ -1801,7 +1812,7 @@ export function Files() {
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-1.5'>
             <span className='font-medium text-[var(--text-secondary)] text-caption'>
-              {t('uploaded_by')}
+              Uploaded By
             </span>
             <ChipCombobox
               options={memberOptions}
@@ -1814,7 +1825,7 @@ export function Files() {
                 </span>
               }
               searchable
-              searchPlaceholder={tI18n('search_members')}
+              searchPlaceholder='Search members...'
               showAllOption
               allOptionLabel='All'
               className='w-full'
@@ -1831,12 +1842,12 @@ export function Files() {
             }}
             className='h-[32px] w-full text-caption hover-hover:bg-[var(--surface-active)]'
           >
-            {t('clear_all_filters')}
+            Clear all filters
           </Button>
         )}
       </div>
     )
-  }, [typeFilter, sizeFilter, uploadedByFilter, memberOptions, members, hasActiveFilters])
+  }, [typeFilter, sizeFilter, uploadedByFilter, memberOptions, membersById, hasActiveFilters])
 
   const filterTags: FilterTag[] = useMemo(() => {
     const tags: FilterTag[] = []
@@ -1868,12 +1879,12 @@ export function Files() {
     if (uploadedByFilter.length > 0) {
       const label =
         uploadedByFilter.length === 1
-          ? `Uploaded by: ${members?.find((m) => m.userId === uploadedByFilter[0])?.name ?? '1 member'}`
+          ? `Uploaded by: ${membersById.get(uploadedByFilter[0])?.name ?? '1 member'}`
           : `Uploaded by: ${uploadedByFilter.length} members`
       tags.push({ label, onRemove: () => setUploadedByFilter([]) })
     }
     return tags
-  }, [typeFilter, sizeFilter, uploadedByFilter, members])
+  }, [typeFilter, sizeFilter, uploadedByFilter, membersById])
 
   if (fileIdFromRoute && !selectedFile && isLoading) {
     return (
@@ -1903,17 +1914,18 @@ export function Files() {
             previewMode={previewMode}
             autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
             onDirtyChange={setIsDirty}
-            onSaveStatusChange={setSaveStatus}
+            onSaveStatusChange={handleSaveStatusChange}
             saveRef={saveRef}
+            discardRef={discardRef}
           />
 
           <ChipConfirmModal
             open={showUnsavedChangesAlert}
             onOpenChange={setShowUnsavedChangesAlert}
-            srTitle={tI18n('unsaved_changes')}
-            title={t('unsaved_changes')}
-            text={tI18n('you_have_unsaved_changes_are_you')}
-            dismissLabel={tI18n('keep_editing')}
+            srTitle='Unsaved Changes'
+            title='Unsaved Changes'
+            text='You have unsaved changes. Are you sure you want to discard them?'
+            dismissLabel='Keep editing'
             confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
           />
         </Resource>
@@ -1944,7 +1956,7 @@ export function Files() {
       <Resource onContextMenu={handleContentContextMenu}>
         <Resource.Header
           icon={FilesIcon}
-          title={t('files')}
+          title='Files'
           breadcrumbs={listBreadcrumbs}
           actions={headerActionsConfig}
         />
@@ -1976,10 +1988,10 @@ export function Files() {
                   <Upload className='size-5 text-[var(--brand-secondary)]' />
                   <div className='flex flex-col gap-0.5 text-center'>
                     <p className='font-medium text-[14px] text-[var(--brand-secondary)]'>
-                      {t('drop_to_upload')}
+                      Drop to upload
                     </p>
                     <p className='text-[11px] text-[var(--text-tertiary)]'>
-                      {t('release_files_here_to_add_them')}
+                      Release files here to add them to this workspace
                     </p>
                   </div>
                 </div>

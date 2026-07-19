@@ -11,6 +11,7 @@ jobs:
   process-docs-embeddings:
     name: Process Documentation Embeddings
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 30
     if: github.ref == 'refs/heads/main'
 
     steps:
@@ -25,7 +26,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: latest
+          node-version: 22
 
       - name: Cache Bun dependencies
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5

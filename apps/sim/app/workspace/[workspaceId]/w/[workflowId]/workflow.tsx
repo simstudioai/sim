@@ -13,15 +13,16 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import type { SubflowNodeData } from '@sim/workflow-renderer'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
 import { useShallow } from 'zustand/react/shallow'
-import { toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-tool'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import type { OAuthProvider } from '@/lib/oauth'
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -36,7 +37,6 @@ import { CanvasMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/compone
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { WorkflowSearchReplace } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/workflow-search-replace'
-import type { SubflowNodeData } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { WorkflowControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
 import {
   useAutoLayout,
@@ -79,6 +79,7 @@ import {
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
+import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
@@ -94,6 +95,7 @@ import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
 import { defaultWorkflowExecutionState, useExecutionStore } from '@/stores/execution'
 import { useSearchModalStore } from '@/stores/modals/search/store'
+import type { PendingConnect } from '@/stores/modals/search/types'
 import { usePanelEditorStore } from '@/stores/panel'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesModalStore } from '@/stores/variables/modal'
@@ -208,6 +210,7 @@ interface AddBlockFromToolbarDetail {
   type?: unknown
   enableTriggerMode?: unknown
   presetOperation?: unknown
+  pendingConnect?: PendingConnect
 }
 
 /**
@@ -218,8 +221,6 @@ interface WorkflowContentProps {
   workspaceId?: string
   workflowId?: string
   embedded?: boolean
-  /** Sandbox mode: full editing enabled but no workspace API calls (used by Sim Academy). */
-  sandbox?: boolean
 }
 
 const WorkflowContent = React.memo(
@@ -227,7 +228,6 @@ const WorkflowContent = React.memo(
     workspaceId: propWorkspaceId,
     workflowId: propWorkflowId,
     embedded,
-    sandbox,
   }: WorkflowContentProps = {}) => {
     const [isCanvasReady, setIsCanvasReady] = useState(false)
     const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
@@ -329,7 +329,7 @@ const WorkflowContent = React.memo(
     const snapToGridSize = useSnapToGridSize()
     const snapToGrid = snapToGridSize > 0
 
-    const isAutoConnectEnabled = useAutoConnect() && !sandbox
+    const isAutoConnectEnabled = useAutoConnect()
     const autoConnectRef = useRef(isAutoConnectEnabled)
     autoConnectRef.current = isAutoConnectEnabled
 
@@ -352,7 +352,7 @@ const WorkflowContent = React.memo(
       return blockList.length > 0 && blockList.every((b) => b.locked)
     }, [blocks])
     const workflowLocked = workflowRowLocked || workflowFolderLocked
-    const workflowReadOnly = workflowLocked && !sandbox
+    const workflowReadOnly = workflowLocked
     const canvasOpacityClass = isCanvasReady
       ? workflowReadOnly
         ? 'opacity-75'
@@ -1781,8 +1781,54 @@ const WorkflowContent = React.memo(
      * @param position - Drop position in ReactFlow coordinates.
      */
     const handleToolbarDrop = useCallback(
-      (data: { type: string; enableTriggerMode?: boolean }, position: { x: number; y: number }) => {
+      (
+        data: {
+          type: string
+          enableTriggerMode?: boolean
+          presetOperation?: string
+          forcedSource?: { nodeId: string; handleId: string }
+        },
+        position: { x: number; y: number }
+      ) => {
         if (!data.type || data.type === 'connectionBlock') return
+
+        const operationConfig = data.presetOperation
+          ? { operation: data.presetOperation }
+          : undefined
+
+        const { forcedSource } = data
+
+        /**
+         * Edge for the new block. With a `forcedSource` (a drag-release from a
+         * handle), wire from that exact handle — but only when it stays within the
+         * resolved container context, matching onConnect's boundary rules; a
+         * cross-boundary source yields no edge. Otherwise fall back to normal
+         * proximity auto-connect.
+         */
+        const resolveEdge = (
+          targetId: string,
+          targetParentId: string | null,
+          fallback: () => Edge | undefined
+        ): Edge | undefined => {
+          if (!forcedSource) return fallback()
+
+          const isContainerStartHandle =
+            forcedSource.handleId === 'loop-start-source' ||
+            forcedSource.handleId === 'parallel-start-source'
+          if (isContainerStartHandle) {
+            // A container-start handle may only wire to a child of that container.
+            return forcedSource.nodeId === targetParentId
+              ? createEdgeObject(forcedSource.nodeId, targetId, forcedSource.handleId)
+              : undefined
+          }
+
+          const sourceBlock = blocks[forcedSource.nodeId]
+          if (!sourceBlock) return undefined
+          const sourceParentId = sourceBlock.data?.parentId ?? null
+          return sourceParentId === targetParentId
+            ? createEdgeObject(forcedSource.nodeId, targetId, forcedSource.handleId)
+            : undefined
+        }
 
         try {
           const containerInfo = isPointInLoopNode(position)
@@ -1813,11 +1859,13 @@ const WorkflowContent = React.memo(
                 .filter((b) => b.data?.parentId === containerInfo.loopId)
                 .map((b) => ({ id: b.id, type: b.type, position: b.position }))
 
-              const autoConnectEdge = tryCreateAutoConnectEdge(relativePosition, id, {
-                targetParentId: containerInfo.loopId,
-                existingChildBlocks,
-                containerId: containerInfo.loopId,
-              })
+              const autoConnectEdge = resolveEdge(id, containerInfo.loopId, () =>
+                tryCreateAutoConnectEdge(relativePosition, id, {
+                  targetParentId: containerInfo.loopId,
+                  existingChildBlocks,
+                  containerId: containerInfo.loopId,
+                })
+              )
 
               addBlock(
                 id,
@@ -1838,9 +1886,11 @@ const WorkflowContent = React.memo(
 
               resizeLoopNodesWrapper()
             } else {
-              const autoConnectEdge = tryCreateAutoConnectEdge(position, id, {
-                targetParentId: null,
-              })
+              const autoConnectEdge = resolveEdge(id, null, () =>
+                tryCreateAutoConnectEdge(position, id, {
+                  targetParentId: null,
+                })
+              )
 
               addBlock(
                 id,
@@ -1905,11 +1955,13 @@ const WorkflowContent = React.memo(
               .filter((b) => b.data?.parentId === containerInfo.loopId)
               .map((b) => ({ id: b.id, type: b.type, position: b.position }))
 
-            const autoConnectEdge = tryCreateAutoConnectEdge(relativePosition, id, {
-              targetParentId: containerInfo.loopId,
-              existingChildBlocks,
-              containerId: containerInfo.loopId,
-            })
+            const autoConnectEdge = resolveEdge(id, containerInfo.loopId, () =>
+              tryCreateAutoConnectEdge(relativePosition, id, {
+                targetParentId: containerInfo.loopId,
+                existingChildBlocks,
+                containerId: containerInfo.loopId,
+              })
+            )
 
             // Add block with parent info AND autoConnectEdge (atomic operation)
             addBlock(
@@ -1923,7 +1975,9 @@ const WorkflowContent = React.memo(
               },
               containerInfo.loopId,
               'parent',
-              autoConnectEdge
+              autoConnectEdge,
+              undefined,
+              operationConfig
             )
 
             // Resize the container node to fit the new block
@@ -1933,9 +1987,11 @@ const WorkflowContent = React.memo(
             // Centralized trigger constraints
             if (checkTriggerConstraints(data.type)) return
 
-            const autoConnectEdge = tryCreateAutoConnectEdge(position, id, {
-              targetParentId: null,
-            })
+            const autoConnectEdge = resolveEdge(id, null, () =>
+              tryCreateAutoConnectEdge(position, id, {
+                targetParentId: null,
+              })
+            )
 
             // Regular canvas drop with auto-connect edge
             // Use enableTriggerMode from drag data if present (when dragging from Triggers tab)
@@ -1949,7 +2005,8 @@ const WorkflowContent = React.memo(
               undefined,
               undefined,
               autoConnectEdge,
-              enableTriggerMode
+              enableTriggerMode,
+              operationConfig
             )
           }
         } catch (err) {
@@ -1963,6 +2020,7 @@ const WorkflowContent = React.memo(
         addBlock,
         tryCreateAutoConnectEdge,
         checkTriggerConstraints,
+        createEdgeObject,
       ]
     )
 
@@ -1974,10 +2032,29 @@ const WorkflowContent = React.memo(
           return
         }
 
-        const { type, enableTriggerMode, presetOperation } = event.detail
+        const { type, enableTriggerMode, presetOperation, pendingConnect } = event.detail
 
         if (typeof type !== 'string' || !type) return
         if (type === 'connectionBlock') return
+
+        // Complete an edge drag-release: only a genuine palette selection carries
+        // `pendingConnect` (other add-block dispatchers — toolbar, sidebar, command
+        // list — don't), so its presence is the signal. Delegating to
+        // handleToolbarDrop with the drag source gives container-aware placement AND
+        // an edge from the released handle that respects container boundaries.
+        if (pendingConnect) {
+          // screenToFlowPosition subtracts the pane rect internally — pass raw client coords.
+          handleToolbarDrop(
+            {
+              type,
+              enableTriggerMode: enableTriggerMode === true,
+              presetOperation: typeof presetOperation === 'string' ? presetOperation : undefined,
+              forcedSource: pendingConnect.source,
+            },
+            screenToFlowPosition({ x: pendingConnect.screenX, y: pendingConnect.screenY })
+          )
+          return
+        }
 
         const basePosition = getViewportCenter()
 
@@ -2056,6 +2133,8 @@ const WorkflowContent = React.memo(
       effectivePermissions.canEdit,
       checkTriggerConstraints,
       tryCreateAutoConnectEdge,
+      screenToFlowPosition,
+      handleToolbarDrop,
     ])
 
     /**
@@ -2273,9 +2352,6 @@ const WorkflowContent = React.memo(
       !isWorkflowMapPlaceholderData && Boolean(workflows[workflowIdParam])
 
     useEffect(() => {
-      // In sandbox mode the stores are pre-hydrated externally; skip the API load.
-      if (sandbox) return
-
       const currentId = workflowIdParam
       // Wait for workflow data to be available before attempting to load
       if (
@@ -2348,13 +2424,13 @@ const WorkflowContent = React.memo(
       workspaceId,
     ])
 
-    useWorkspaceEnvironment(sandbox ? '' : workspaceId)
+    useWorkspaceEnvironment(workspaceId)
 
     const workflowCount = useMemo(() => Object.keys(workflows).length, [workflows])
 
     /** Handles navigation validation and redirects for invalid workflow IDs. */
     useEffect(() => {
-      if (embedded || sandbox) return
+      if (embedded) return
 
       if (
         isWorkflowMapLoading ||
@@ -2421,11 +2497,21 @@ const WorkflowContent = React.memo(
 
     const blockConfigCache = useRef<Map<string, any>>(new Map())
     const getBlockConfig = useCallback((type: string) => {
-      if (!blockConfigCache.current.has(type)) {
-        blockConfigCache.current.set(type, getBlock(type))
-      }
-      return blockConfigCache.current.get(type)
+      const cached = blockConfigCache.current.get(type)
+      if (cached) return cached
+      // Don't cache a miss: custom (deploy-as-block) blocks resolve only once the
+      // client overlay hydrates, so an early miss must re-resolve on a later render.
+      const config = getBlock(type)
+      if (config) blockConfigCache.current.set(type, config)
+      return config
     }, [])
+
+    // Bust cached custom-block node configs when the org overlay (hydrated by
+    // CustomBlocksLoader) changes, so renames/icon edits refresh existing nodes.
+    const { data: customBlocksData } = useCustomBlocks(workspaceId)
+    useEffect(() => {
+      for (const cb of customBlocksData ?? []) blockConfigCache.current.delete(cb.type)
+    }, [customBlocksData])
 
     const prevBlocksHashRef = useRef<string>('')
     const prevBlocksRef = useRef(blocks)
@@ -2551,7 +2637,6 @@ const WorkflowContent = React.memo(
             isActive,
             isPending,
             ...(embedded && { isEmbedded: true }),
-            ...(sandbox && { isSandbox: true }),
             isWorkflowLocked: workflowReadOnly,
           },
           // Include dynamic dimensions for container resizing calculations (must match rendered size)
@@ -2572,7 +2657,6 @@ const WorkflowContent = React.memo(
       pendingBlocks,
       isDebugging,
       getBlockConfig,
-      sandbox,
       embedded,
       workflowReadOnly,
     ])
@@ -3129,6 +3213,17 @@ const WorkflowContent = React.memo(
             target: targetNode.id,
             targetHandle: 'target',
           })
+        } else if (!targetNode) {
+          // Released on empty canvas: open the command palette with the drag origin
+          // + drop point, so the chosen block lands here wired from this handle.
+          useSearchModalStore.getState().open({
+            sections: ['blocks', 'tools', 'toolOperations'],
+            pendingConnect: {
+              source: { nodeId: source.nodeId, handleId: source.handleId },
+              screenX: clientPos.clientX,
+              screenY: clientPos.clientY,
+            },
+          })
         }
 
         connectionSourceRef.current = null
@@ -3149,6 +3244,14 @@ const WorkflowContent = React.memo(
         if (currentParentId) {
           updateContainerDimensionsDuringMove(node.id, node.position)
         }
+
+        // Embedded (mship panel) canvases allow repositioning but never
+        // re-parenting: skip container-intersection detection so a drag over a
+        // subflow neither highlights it nor arms potentialParentId. Both drag-stop
+        // paths bail when potentialParentId still equals the drag-start parent, so
+        // positions persist but a block can never be inserted into (or pulled out
+        // of) a loop/parallel from the embedded view.
+        if (embedded) return
 
         // Check if this is a starter block - starter blocks should never be in containers
         const isStarterBlock = node.data?.type === 'starter'
@@ -3265,6 +3368,7 @@ const WorkflowContent = React.memo(
         getNodes,
         potentialParentId,
         blocks,
+        embedded,
         getNodeAbsolutePosition,
         getNodeDepth,
         isDescendantOf,
@@ -4117,7 +4221,9 @@ const WorkflowContent = React.memo(
                   edgesUpdatable={!embedded && effectivePermissions.canEdit}
                   className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${canvasOpacityClass} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
                   onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
-                  onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
+                  onNodeDragStop={
+                    !embedded && effectivePermissions.canEdit ? onNodeDragStop : undefined
+                  }
                   onSelectionDragStart={
                     effectivePermissions.canEdit ? onSelectionDragStart : undefined
                   }
@@ -4125,7 +4231,9 @@ const WorkflowContent = React.memo(
                   onSelectionDragStop={
                     effectivePermissions.canEdit ? onSelectionDragStop : undefined
                   }
-                  onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}
+                  onNodeDragStart={
+                    !embedded && effectivePermissions.canEdit ? onNodeDragStart : undefined
+                  }
                   snapToGrid={snapToGrid}
                   snapGrid={snapGrid}
                   elevateEdgesOnSelect={false}
@@ -4227,9 +4335,9 @@ const WorkflowContent = React.memo(
           <Terminal />
         </div>
 
-        {(!embedded || sandbox) && <Panel workspaceId={sandbox ? workspaceId : undefined} />}
+        {!embedded && <Panel />}
 
-        {!embedded && !sandbox && oauthModal && (
+        {!embedded && oauthModal && (
           <ConnectOAuthModal
             mode='reauthorize'
             open={true}
@@ -4257,27 +4365,18 @@ interface WorkflowProps {
   workspaceId?: string
   workflowId?: string
   embedded?: boolean
-  /** Sandbox mode: full editing enabled but no workspace API calls (used by Sim Academy). */
-  sandbox?: boolean
 }
 
 /** Workflow page with ReactFlowProvider and error boundary wrapper. */
-const Workflow = React.memo(
-  ({ workspaceId, workflowId, embedded, sandbox }: WorkflowProps = {}) => {
-    return (
-      <ReactFlowProvider>
-        <ErrorBoundary>
-          <WorkflowContent
-            workspaceId={workspaceId}
-            workflowId={workflowId}
-            embedded={embedded}
-            sandbox={sandbox}
-          />
-        </ErrorBoundary>
-      </ReactFlowProvider>
-    )
-  }
-)
+const Workflow = React.memo(({ workspaceId, workflowId, embedded }: WorkflowProps = {}) => {
+  return (
+    <ReactFlowProvider>
+      <ErrorBoundary>
+        <WorkflowContent workspaceId={workspaceId} workflowId={workflowId} embedded={embedded} />
+      </ErrorBoundary>
+    </ReactFlowProvider>
+  )
+})
 
 Workflow.displayName = 'Workflow'
 

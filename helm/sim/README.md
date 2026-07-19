@@ -48,7 +48,7 @@ Optional components (off by default):
 
 * **`copilot`** — the Sim Copilot service plus its own Postgres StatefulSet.
 * **`ollama`** — local LLM inference, with optional NVIDIA GPU support.
-* **`pii`** — Presidio PII redaction sidecar (analyzer + anonymizer) for the Guardrails PII block and log redaction. See [PII redaction](#pii-redaction).
+* **`pii`** — Presidio PII redaction service (analyzer + anonymizer) for the Guardrails PII block and log redaction. See [PII redaction](#pii-redaction).
 * **`telemetry`** — OpenTelemetry Collector wired to Jaeger / Prometheus / OTLP backends.
 * **`ingress`** — NGINX-style Ingress for the app and realtime services.
 * **`networkPolicy`** — east-west and egress isolation (blocks cloud metadata endpoints by default).
@@ -219,7 +219,15 @@ Before installing in production, confirm each of the following:
 * **Secrets management** — provide secrets via External Secrets Operator (ESO) or pre-created Kubernetes Secrets. Never commit secrets to `values.yaml`.
 * **TLS / Ingress** — set the `cert-manager.io/cluster-issuer` annotation on the ingress and tune `proxy-body-size` / `proxy-read-timeout` for your workload. See commented examples in `values.yaml`.
 * **Network policy egress** — review `networkPolicy.egressExceptCidrs`. Defaults block cloud metadata endpoints (`169.254.169.254/32`, `169.254.170.2/32`); add your cluster's API server CIDR for stronger isolation. Custom egress rules go in `networkPolicy.egress` (a list).
-* **Namespace hardening** — label the install namespace with Pod Security Standards `restricted` enforcement (`pod-security.kubernetes.io/enforce=restricted`).
+* **Network policy ingress** — `networkPolicy.ingressFrom` defaults to `[{}]` (an empty peer selector), which allows ingress traffic from **any pod in the cluster**, not just your ingress controller. This is a deliberate simple default, not a locked-down one. On a shared or multi-tenant cluster, scope it down, e.g. to the ingress-nginx namespace:
+  ```yaml
+  networkPolicy:
+    ingressFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+  ```
+* **Namespace hardening** — label the install namespace with Pod Security Standards `restricted` enforcement (`pod-security.kubernetes.io/enforce=restricted`). All workloads set `runAsNonRoot`, drop all Linux capabilities, disable privilege escalation, and set `seccompProfile: RuntimeDefault` — the four controls the Restricted profile requires. `readOnlyRootFilesystem` is intentionally **not** defaulted anywhere (Postgres/Ollama genuinely need a writable root; the stateless services — `realtime`, `pii`, `copilot` — could tolerate it but aren't pre-wired with a `/tmp` `emptyDir`). If your policy requires it, set `<component>.securityContext.readOnlyRootFilesystem: true` and mount an `emptyDir` at `/tmp` yourself via `extraVolumes`/`extraVolumeMounts`.
 * **Env validation** — keys under `app.env`, `realtime.env`, and `copilot.env` are passed through to the application and validated at startup. The JSON Schema intentionally does not enforce `additionalProperties: false` (would break custom user envs), so typos like `OPENA_API_KEY` (instead of `OPENAI_API_KEY`) surface as missing-key errors at runtime, not at `helm install` time. Review your env block carefully.
 * **Set public URLs** — `app.env.NEXT_PUBLIC_APP_URL` and `app.env.BETTER_AUTH_URL` must match your public origin (e.g. `https://sim.example.com`). Leaving them as `localhost` breaks sign-in.
 
@@ -287,6 +295,17 @@ externalSecrets:
       INTERNAL_API_SECRET: sim/app/internal-api-secret
     postgresql:
       password: sim/postgresql/password
+    # Only needed when copilot.enabled=true and copilot.server.secret.create=true.
+    # Every non-empty copilot.server.env key must have a matching entry here —
+    # template rendering fails with a clear message naming the missing key otherwise.
+    copilot:
+      AGENT_API_DB_ENCRYPTION_KEY: sim/copilot/agent-api-db-encryption-key
+      INTERNAL_API_SECRET: sim/copilot/internal-api-secret
+      LICENSE_KEY: sim/copilot/license-key
+      SIM_BASE_URL: sim/copilot/sim-base-url
+      SIM_AGENT_API_KEY: sim/copilot/sim-agent-api-key
+      REDIS_URL: sim/copilot/redis-url
+      OPENAI_API_KEY_1: sim/copilot/openai-api-key
 ```
 
 See `examples/values-external-secrets.yaml`.
@@ -364,7 +383,7 @@ pii:
   enabled: true
 ```
 
-When enabled, the chart deploys the sidecar (`<release>-pii` Deployment + Service) and **auto-wires** `PII_URL` on the app to the in-cluster service. The sidecar bundles five large spaCy models (en/es/it/pl/fi, ~2.2GB), so the first start takes ~3 minutes while models load — the `startupProbe` allows for this. Size the `pii.resources` for at least ~4Gi memory.
+When enabled, the chart deploys it as a standalone `<release>-pii` Deployment + Service and **auto-wires** `PII_URL` on the app to the in-cluster service. The service bundles five large spaCy models (en/es/it/pl/fi, ~2.2GB), so the first start takes ~3 minutes while models load — the `startupProbe` allows for this. Size the `pii.resources` for at least ~4Gi memory.
 
 This alone powers the **Guardrails PII block** and on-demand masking. To additionally turn on **automatic log redaction** (the org/workspace data-retention scrub), you must:
 
@@ -454,7 +473,7 @@ kubectl --namespace sim logs job/sim-migrations
 * **Docs:** https://docs.sim.ai
 * **GitHub:** https://github.com/simstudioai/sim
 * **Issues:** https://github.com/simstudioai/sim/issues
-* **Discord:** https://discord.gg/Hr4UWYEcTT
+* **Slack:** https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA
 
 ---
 

@@ -1,7 +1,6 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
-import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
+import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@sim/emcn'
 
 interface ToolbarItemContextMenuProps {
   /**
@@ -47,7 +46,6 @@ export function ToolbarItemContextMenu({
   onViewDocumentation,
   showViewDocumentation = false,
 }: ToolbarItemContextMenuProps) {
-  const t = useTranslations('auto')
   return (
     <Popover
       open={isOpen}
@@ -72,7 +70,7 @@ export function ToolbarItemContextMenu({
             onClose()
           }}
         >
-          {t('add_to_canvas')}
+          Add to canvas
         </PopoverItem>
         {showViewDocumentation && onViewDocumentation && (
           <PopoverItem
@@ -81,7 +79,7 @@ export function ToolbarItemContextMenu({
               onClose()
             }}
           >
-            {t('view_documentation')}
+            View documentation
           </PopoverItem>
         )}
       </PopoverContent>

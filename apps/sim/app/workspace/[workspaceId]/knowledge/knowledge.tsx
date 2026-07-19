@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ChipDropdownOption } from '@sim/emcn'
+import { Button, ChipDropdown, Plus, Tooltip } from '@sim/emcn'
+import { Database } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import type { ChipDropdownOption } from '@/components/emcn'
-import { Button, ChipDropdown, Plus, Tooltip } from '@/components/emcn'
-import { Database } from '@/components/emcn/icons'
+import { useQueryStates } from 'nuqs'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
   FilterTag,
   ResourceAction,
@@ -31,6 +32,11 @@ import {
   KnowledgeBaseContextMenu,
   KnowledgeListContextMenu,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
+import {
+  knowledgeParsers,
+  knowledgeSortParams,
+  knowledgeUrlKeys,
+} from '@/app/workspace/[workspaceId]/knowledge/search-params'
 import { filterKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/utils/sort'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -39,7 +45,9 @@ import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('Knowledge')
 
@@ -122,8 +130,6 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
 }
 
 export function Knowledge() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -146,16 +152,44 @@ export function Knowledge() {
   const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
   const { mutateAsync: deleteKnowledgeBaseMutation } = useDeleteKnowledgeBase(workspaceId)
 
-  const [activeSort, setActiveSort] = useState<{
-    column: string
-    direction: 'asc' | 'desc'
-  } | null>(null)
-  const [connectorFilter, setConnectorFilter] = useState<string[]>([])
-  const [contentFilter, setContentFilter] = useState<string[]>([])
-  const [ownerFilter, setOwnerFilter] = useState<string[]>([])
+  const [
+    {
+      search: urlSearchQuery,
+      connector: connectorFilter,
+      content: contentFilter,
+      owner: ownerFilter,
+    },
+    setKnowledgeFilters,
+  ] = useQueryStates(knowledgeParsers, knowledgeUrlKeys)
 
-  const [searchInputValue, setSearchInputValue] = useState('')
-  const debouncedSearchQuery = useDebounce(searchInputValue, 300)
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. The in-memory filter below still reads a debounced
+   * value so it doesn't recompute on every keystroke.
+   */
+  const setSearchQuery = useDebouncedSearchSetter((value, options) =>
+    setKnowledgeFilters({ search: value }, options)
+  )
+  const debouncedSearchQuery = useDebounce(urlSearchQuery, SEARCH_DEBOUNCE_MS)
+
+  const {
+    activeSort,
+    onSort: onSortColumn,
+    onClear: onClearSort,
+  } = useUrlSort(knowledgeSortParams, knowledgeUrlKeys)
+
+  const setConnectorFilter = useCallback(
+    (next: string[]) => setKnowledgeFilters({ connector: next }),
+    [setKnowledgeFilters]
+  )
+  const setContentFilter = useCallback(
+    (next: string[]) => setKnowledgeFilters({ content: next }),
+    [setKnowledgeFilters]
+  )
+  const setOwnerFilter = useCallback(
+    (next: string[]) => setKnowledgeFilters({ owner: next }),
+    [setKnowledgeFilters]
+  )
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
@@ -405,12 +439,12 @@ export function Knowledge() {
 
   const searchConfig: SearchConfig = useMemo(
     () => ({
-      value: searchInputValue,
-      onChange: setSearchInputValue,
-      onClearAll: () => setSearchInputValue(''),
+      value: urlSearchQuery,
+      onChange: setSearchQuery,
+      onClearAll: () => setSearchQuery(''),
       placeholder: 'Search knowledge bases...',
     }),
-    [searchInputValue]
+    [urlSearchQuery, setSearchQuery]
   )
 
   const sortConfig: SortConfig = useMemo(
@@ -425,10 +459,10 @@ export function Knowledge() {
         { id: 'owner', label: 'Owner' },
       ],
       active: activeSort,
-      onSort: (column, direction) => setActiveSort({ column, direction }),
-      onClear: () => setActiveSort(null),
+      onSort: onSortColumn,
+      onClear: onClearSort,
     }),
-    [activeSort]
+    [activeSort, onSortColumn, onClearSort]
   )
 
   const memberOptions: ChipDropdownOption[] = useMemo(
@@ -457,14 +491,14 @@ export function Knowledge() {
       <div className='flex w-[260px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-2'>
           <div className='flex h-5 items-center justify-between'>
-            <span className={FILTER_SECTION_LABEL_CLASS}>{t('connectors')}</span>
+            <span className={FILTER_SECTION_LABEL_CLASS}>Connectors</span>
             {connectorFilter.length > 0 && (
               <Button
                 variant='ghost'
                 onClick={() => setConnectorFilter([])}
                 className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
               >
-                {t('clear')}
+                Clear
               </Button>
             )}
           </div>
@@ -479,14 +513,14 @@ export function Knowledge() {
         </div>
         <div className='flex flex-col gap-2'>
           <div className='flex h-5 items-center justify-between'>
-            <span className={FILTER_SECTION_LABEL_CLASS}>{t('content')}</span>
+            <span className={FILTER_SECTION_LABEL_CLASS}>Content</span>
             {contentFilter.length > 0 && (
               <Button
                 variant='ghost'
                 onClick={() => setContentFilter([])}
                 className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
               >
-                {t('clear')}
+                Clear
               </Button>
             )}
           </div>
@@ -502,14 +536,14 @@ export function Knowledge() {
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-2'>
             <div className='flex h-5 items-center justify-between'>
-              <span className={FILTER_SECTION_LABEL_CLASS}>{t('owner')}</span>
+              <span className={FILTER_SECTION_LABEL_CLASS}>Owner</span>
               {ownerFilter.length > 0 && (
                 <Button
                   variant='ghost'
                   onClick={() => setOwnerFilter([])}
                   className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
                 >
-                  {t('clear')}
+                  Clear
                 </Button>
               )}
             </div>
@@ -520,7 +554,7 @@ export function Knowledge() {
               onChange={setOwnerFilter}
               allLabel='All'
               searchable
-              searchPlaceholder={tI18n('search_members')}
+              searchPlaceholder='Search members...'
               align='start'
               fullWidth
               flush
@@ -561,7 +595,7 @@ export function Knowledge() {
   return (
     <>
       <Resource onContextMenu={handleContentContextMenu}>
-        <Resource.Header icon={Database} title={t('knowledge_base')} actions={headerActions} />
+        <Resource.Header icon={Database} title='Knowledge Base' actions={headerActions} />
         <Resource.Options
           search={searchConfig}
           sort={sortConfig}

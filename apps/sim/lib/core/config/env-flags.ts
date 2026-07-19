@@ -32,9 +32,32 @@ try {
 export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
 
 /**
- * Is billing enforcement enabled
+ * Enables the strict attributed-v1 Sim/Copilot billing protocol after the Go
+ * consumer has rolled out. Disabled is the Sim-first compatibility stage.
  */
-export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
+export const isCopilotBillingAttributionV1Enabled = isTruthy(
+  env.COPILOT_BILLING_ATTRIBUTION_V1_ENABLED
+)
+
+/**
+ * Rejects markerless old-Go billing traffic after an operator explicitly
+ * confirms the compatibility window has closed. Off by default.
+ */
+export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
+
+/**
+ * Is billing enforcement enabled.
+ *
+ * Server code reads `BILLING_ENABLED`. Server-only vars never reach browser
+ * bundles, so client evaluation reads the `NEXT_PUBLIC_BILLING_ENABLED` twin
+ * (via `window.__ENV`, populated by `<PublicEnvScript>`) — reading
+ * `env.BILLING_ENABLED` in client code is always `undefined`. Deployments must
+ * set both vars together.
+ */
+export const isBillingEnabled =
+  typeof window === 'undefined'
+    ? isTruthy(env.BILLING_ENABLED)
+    : isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 /**
  * Billing provider for this deployment. Defaults to Stripe for backward compatibility.
@@ -44,14 +67,6 @@ export const billingProvider = env.BILLING_PROVIDER ?? 'stripe'
 export const isLagoBillingProvider = isBillingEnabled && billingProvider === 'lago'
 
 export const isStripeBillingProvider = isBillingEnabled && billingProvider !== 'lago'
-
-/**
- * Block free-plan accounts from programmatic workflow execution (API key, public
- * API, MCP server, A2A agent server, generic webhooks, cross-origin chat embeds).
- * Gated behind {@link isBillingEnabled}; off by default so the paywall can ship
- * dark and be enabled per-deployment once verified.
- */
-export const isFreeApiDeploymentGateEnabled = isTruthy(env.FREE_API_DEPLOYMENT_GATE_ENABLED)
 
 /**
  * Is email verification enabled
@@ -149,24 +164,32 @@ export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
 export const isSsoEnabled = isTruthy(env.SSO_ENABLED)
 
 /**
- * Is credential sets (email polling) enabled via env var override
- * This bypasses plan requirements for self-hosted deployments
+ * Is access control (permission groups) enabled via env var override.
+ * This bypasses plan requirements for self-hosted deployments.
+ *
+ * Server code reads `ACCESS_CONTROL_ENABLED`; the browser reads the
+ * `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` twin (see {@link isBillingEnabled}).
  */
-export const isCredentialSetsEnabled = isTruthy(env.CREDENTIAL_SETS_ENABLED)
+export const isAccessControlEnabled =
+  typeof window === 'undefined'
+    ? isTruthy(env.ACCESS_CONTROL_ENABLED)
+    : isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
 
 /**
- * Is access control (permission groups) enabled via env var override
- * This bypasses plan requirements for self-hosted deployments
- */
-export const isAccessControlEnabled = isTruthy(env.ACCESS_CONTROL_ENABLED)
-
-/**
- * Is organizations enabled
+ * Is organizations enabled.
  * True if billing is enabled (orgs come with billing), OR explicitly enabled via env var,
- * OR if access control is enabled (access control requires organizations)
+ * OR if access control is enabled (access control requires organizations).
+ *
+ * Each term resolves through its `NEXT_PUBLIC_*` twin in the browser (see
+ * {@link isBillingEnabled}), so client code — e.g. the better-auth
+ * `organizationClient` plugin registration — sees the same value as the server.
  */
 export const isOrganizationsEnabled =
-  isBillingEnabled || isTruthy(env.ORGANIZATIONS_ENABLED) || isAccessControlEnabled
+  isBillingEnabled ||
+  (typeof window === 'undefined'
+    ? isTruthy(env.ORGANIZATIONS_ENABLED)
+    : isTruthy(getEnv('NEXT_PUBLIC_ORGANIZATIONS_ENABLED'))) ||
+  isAccessControlEnabled
 
 /**
  * Is inbox (Sim Mailer) enabled via env var override
@@ -197,6 +220,12 @@ export const isDataRetentionEnabled = isTruthy(env.DATA_RETENTION_ENABLED)
  * This bypasses hosted requirements for self-hosted deployments
  */
 export const isDataDrainsEnabled = isTruthy(env.DATA_DRAINS_ENABLED)
+
+/**
+ * Is workspace forking enabled via env var override
+ * This bypasses hosted (Enterprise) requirements for self-hosted deployments
+ */
+export const isForkingEnabled = isTruthy(env.FORKING_ENABLED)
 
 /**
  * Is E2B enabled for remote code execution
@@ -300,6 +329,19 @@ export function getAllowedIntegrationsFromEnv(): string[] | null {
     .map((i) => i.trim().toLowerCase())
     .filter(Boolean)
   return parsed.length > 0 ? parsed : null
+}
+
+/**
+ * Returns the preview block types revealed via the environment variable — the
+ * off-AppConfig reveal path for self-hosters and local dev. If not set or empty,
+ * returns an empty array (all `preview: true` blocks stay hidden). Block types
+ * are already lowercase snake_case, so entries are trimmed but not lowercased.
+ */
+export function getPreviewBlocksFromEnv(): string[] {
+  if (!env.PREVIEW_BLOCKS) return []
+  return env.PREVIEW_BLOCKS.split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
 }
 
 /**

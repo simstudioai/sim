@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { cn, Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { normalizeEmail } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Input, InputOTP, InputOTPGroup, InputOTPSlot, Label, Loader } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { AUTH_SUBMIT_BTN, AUTH_TEXT_LINK } from '@/app/(auth)/components/auth-button-classes'
+import { AuthSubmitButton } from '@/app/(auth)/components'
+import { AUTH_TEXT_LINK } from '@/app/(auth)/components/auth-button-classes'
 import { PublicFileAuthShell } from '@/app/f/[token]/public-file-auth-shell'
 import { usePublicFileOtpRequest, usePublicFileOtpVerify } from '@/hooks/queries/public-shares'
 
@@ -21,8 +21,6 @@ interface PublicFileEmailAuthProps {
  * `file_auth_{shareId}` cookie and the page re-renders the viewer.
  */
 export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const router = useRouter()
   const requestOtp = usePublicFileOtpRequest(token)
   const verifyOtp = usePublicFileOtpVerify(token)
@@ -40,13 +38,13 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
   }, [countdown])
 
   const sendCode = async () => {
-    if (!quickValidateEmail(email.trim().toLowerCase()).isValid) {
+    if (!quickValidateEmail(normalizeEmail(email)).isValid) {
       setError('Please enter a valid email address.')
       return
     }
     setError(null)
     try {
-      await requestOtp.mutateAsync({ email: email.trim().toLowerCase() })
+      await requestOtp.mutateAsync({ email: normalizeEmail(email) })
       setSent(true)
       setOtp('')
     } catch (err) {
@@ -58,7 +56,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
     if (code.length !== 6) return
     setError(null)
     try {
-      await verifyOtp.mutateAsync({ email: email.trim().toLowerCase(), otp: code })
+      await verifyOtp.mutateAsync({ email: normalizeEmail(email), otp: code })
       router.refresh()
     } catch (err) {
       setError(getErrorMessage(err, 'Invalid verification code'))
@@ -68,7 +66,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
   const resend = async () => {
     setCountdown(30)
     try {
-      await requestOtp.mutateAsync({ email: email.trim().toLowerCase() })
+      await requestOtp.mutateAsync({ email: normalizeEmail(email) })
       setOtp('')
       setError(null)
     } catch (err) {
@@ -80,8 +78,8 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
   if (!sent) {
     return (
       <PublicFileAuthShell
-        title={t('email_verification')}
-        subtitle={tI18n('this_file_requires_email_verification')}
+        title='Email Verification'
+        subtitle='This file requires email verification'
       >
         <form
           onSubmit={(e) => {
@@ -91,7 +89,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
           className='space-y-6'
         >
           <div className='space-y-2'>
-            <Label htmlFor='email'>{t('email')}</Label>
+            <Label htmlFor='email'>Email</Label>
             <Input
               id='email'
               name='email'
@@ -100,7 +98,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
               autoCapitalize='none'
               autoComplete='email'
               autoCorrect='off'
-              placeholder={t('enter_your_email')}
+              placeholder='Enter your email'
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value)
@@ -111,20 +109,13 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
             {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}
           </div>
 
-          <button
-            type='submit'
-            disabled={!email.trim() || requestOtp.isPending}
-            className={AUTH_SUBMIT_BTN}
+          <AuthSubmitButton
+            disabled={!email.trim()}
+            loading={requestOtp.isPending}
+            loadingLabel='Sending Code…'
           >
-            {requestOtp.isPending ? (
-              <span className='flex items-center gap-2'>
-                <Loader className='size-4' animate />
-                {t('sending_code')}
-              </span>
-            ) : (
-              tI18n('continue')
-            )}
-          </button>
+            Continue
+          </AuthSubmitButton>
         </form>
       </PublicFileAuthShell>
     )
@@ -132,12 +123,13 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
 
   return (
     <PublicFileAuthShell
-      title={t('verify_your_email')}
+      title='Verify Your Email'
       subtitle={`A verification code has been sent to ${email}`}
     >
       <div className='space-y-6'>
-        <p className='text-center text-[var(--landing-text-muted)] text-sm'>
-          {t('enter_the_6_digit_code_to')}
+        <p className='text-center text-[var(--text-muted)] text-sm'>
+          Enter the 6-digit code to verify your access. If you don't see it in your inbox, check
+          your spam folder.
         </p>
 
         <div className='flex justify-center'>
@@ -166,28 +158,23 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
 
         {error ? <p className='text-center text-[var(--text-error)] text-xs'>{error}</p> : null}
 
-        <button
+        <AuthSubmitButton
+          type='button'
           onClick={() => verifyCode(otp)}
-          disabled={otp.length !== 6 || verifyOtp.isPending}
-          className={AUTH_SUBMIT_BTN}
+          disabled={otp.length !== 6}
+          loading={verifyOtp.isPending}
+          loadingLabel='Verifying…'
         >
-          {verifyOtp.isPending ? (
-            <span className='flex items-center gap-2'>
-              <Loader className='size-4' animate />
-              {t('verifying')}
-            </span>
-          ) : (
-            tI18n('verify_email')
-          )}
-        </button>
+          Verify Email
+        </AuthSubmitButton>
 
         <div className='text-center'>
-          <p className='text-[var(--landing-text-muted)] text-sm'>
-            {t('didn_t_receive_a_code')}{' '}
+          <p className='text-[var(--text-muted)] text-sm'>
+            Didn't receive a code?{' '}
             {countdown > 0 ? (
               <span>
-                {t('resend_in')}{' '}
-                <span className='font-medium text-[var(--landing-text)]'>{countdown}s</span>
+                Resend in{' '}
+                <span className='font-medium text-[var(--text-primary)]'>{countdown}s</span>
               </span>
             ) : (
               <button
@@ -195,7 +182,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
                 onClick={resend}
                 disabled={requestOtp.isPending || verifyOtp.isPending}
               >
-                {t('resend')}
+                Resend
               </button>
             )}
           </p>
@@ -210,7 +197,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
             }}
             className={AUTH_TEXT_LINK}
           >
-            {t('change_email')}
+            Change email
           </button>
         </div>
       </div>

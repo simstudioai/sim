@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useTranslations } from 'next-intl'
-import { Tooltip } from '@/components/emcn'
+import { Tooltip } from '@sim/emcn'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useSelectorSetup } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-selector-setup'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -34,8 +33,6 @@ export function SelectorInput({
   previewContextValues,
   overrides,
 }: SelectorInputProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const [storeValue] = useSubBlockValue(blockId, subBlock.id)
   const defaultAppliedRef = useRef(false)
@@ -78,13 +75,11 @@ export function SelectorInput({
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <div className='w-full rounded border p-4 text-center text-muted-foreground text-sm'>
-            {t('selector_not_supported_for_service')} {serviceId}
+            Selector not supported for service: {serviceId}
           </div>
         </Tooltip.Trigger>
         <Tooltip.Content side='top'>
-          <p>
-            {t('this_selector_is_not_implemented_for')} {serviceId}
-          </p>
+          <p>This selector is not implemented for {serviceId}</p>
         </Tooltip.Content>
       </Tooltip.Root>
     )
@@ -99,8 +94,9 @@ export function SelectorInput({
       disabled={selectorDisabled}
       isPreview={isPreview}
       previewValue={previewValue ?? null}
-      placeholder={subBlock.placeholder || tI18n('select_resource')}
+      placeholder={subBlock.placeholder || 'Select resource'}
       allowSearch={allowSearch}
+      multiSelect={subBlock.multiSelect}
       onOptionChange={(value) => {
         if (!isPreview) {
           collaborativeSetSubblockValue(blockId, subBlock.id, value)

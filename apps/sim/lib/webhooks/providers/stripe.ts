@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import type {
@@ -49,10 +50,15 @@ export const stripeHandler: WebhookProviderHandler = {
     return skipByEventTypes(ctx, 'Stripe', logger)
   },
 
-  extractIdempotencyId(body: unknown) {
-    const obj = body as Record<string, unknown>
-    if (obj.id && obj.object === 'event') {
-      return String(obj.id)
+  /**
+   * Stripe event ids (evt_...) are globally unique and stable across retries —
+   * Stripe resends the same event id on delivery retries, so keying on it
+   * directly is sufficient without a content-derived fallback.
+   */
+  extractIdempotencyId(body: unknown): string | null {
+    if (!isRecordLike(body)) return null
+    if (body.id && body.object === 'event') {
+      return String(body.id)
     }
     return null
   },

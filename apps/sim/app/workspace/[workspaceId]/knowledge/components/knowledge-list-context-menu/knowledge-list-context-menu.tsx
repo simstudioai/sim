@@ -1,14 +1,8 @@
 'use client'
 
 import { memo } from 'react'
-import { useTranslations } from 'next-intl'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Plus } from '@/components/emcn/icons'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 
 interface KnowledgeListContextMenuProps {
   isOpen: boolean
@@ -29,7 +23,6 @@ export const KnowledgeListContextMenu = memo(function KnowledgeListContextMenu({
   onAddKnowledgeBase,
   disableAdd = false,
 }: KnowledgeListContextMenuProps) {
-  const t = useTranslations('auto')
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -55,7 +48,7 @@ export const KnowledgeListContextMenu = memo(function KnowledgeListContextMenu({
         {onAddKnowledgeBase && (
           <DropdownMenuItem disabled={disableAdd} onSelect={onAddKnowledgeBase}>
             <Plus />
-            {t('add_knowledge_base')}
+            Add knowledge base
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

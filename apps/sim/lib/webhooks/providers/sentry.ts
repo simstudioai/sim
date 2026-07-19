@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
+import { isRecordLike } from '@sim/utils/object'
 import type {
   EventMatchContext,
   FormatInputContext,
@@ -40,9 +41,8 @@ const SENTRY_RESOURCE_HEADER = 'sentry-hook-resource'
  * tag dropdown (the original `type` is preserved on the passthrough object).
  */
 function aliasEventType(entity: unknown): Record<string, unknown> | null {
-  if (!entity || typeof entity !== 'object') return null
-  const obj = entity as Record<string, unknown>
-  return { ...obj, eventType: obj.type ?? null }
+  if (!isRecordLike(entity)) return null
+  return { ...entity, eventType: entity.type ?? null }
 }
 
 export const sentryHandler: WebhookProviderHandler = {
@@ -58,8 +58,8 @@ export const sentryHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
     if (triggerId) {
       const resource = request.headers.get(SENTRY_RESOURCE_HEADER)
-      const obj = body as Record<string, unknown>
-      const action = obj.action as string | undefined
+      const obj = isRecordLike(body) ? body : {}
+      const action = typeof obj.action === 'string' ? obj.action : undefined
 
       const { isSentryEventMatch } = await import('@/triggers/sentry/utils')
       if (!isSentryEventMatch(triggerId, resource, action)) {
@@ -73,8 +73,8 @@ export const sentryHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body, headers }: FormatInputContext): Promise<FormatInputResult> {
-    const b = (body as Record<string, unknown>) || {}
-    const data = (b.data as Record<string, unknown>) || {}
+    const b = isRecordLike(body) ? body : {}
+    const data = isRecordLike(b.data) ? b.data : {}
     const resource = headers[SENTRY_RESOURCE_HEADER] || ''
 
     const envelope = {
@@ -113,26 +113,27 @@ export const sentryHandler: WebhookProviderHandler = {
   },
 
   extractIdempotencyId(body: unknown): string | null {
-    const obj = body as Record<string, unknown>
-    const data = (obj?.data as Record<string, unknown>) || {}
-    const action = typeof obj?.action === 'string' ? obj.action : ''
+    if (!isRecordLike(body)) return null
 
-    const issue = data.issue as Record<string, unknown> | undefined
+    const data = isRecordLike(body.data) ? body.data : {}
+    const action = typeof body.action === 'string' ? body.action : ''
+
+    const issue = isRecordLike(data.issue) ? data.issue : undefined
     if (issue?.id) {
       return `sentry:issue:${issue.id}:${action}`
     }
 
-    const error = data.error as Record<string, unknown> | undefined
+    const error = isRecordLike(data.error) ? data.error : undefined
     if (error?.event_id) {
       return `sentry:error:${error.event_id}`
     }
 
-    const event = data.event as Record<string, unknown> | undefined
+    const event = isRecordLike(data.event) ? data.event : undefined
     if (event?.event_id) {
       return `sentry:event_alert:${event.event_id}`
     }
 
-    const metricAlert = data.metric_alert as Record<string, unknown> | undefined
+    const metricAlert = isRecordLike(data.metric_alert) ? data.metric_alert : undefined
     if (metricAlert?.id) {
       return `sentry:metric_alert:${metricAlert.id}:${action}`
     }

@@ -41,6 +41,11 @@ const logger = createLogger('McpQueries')
 
 export type { McpServerStatusConfig, McpTool, StoredMcpTool }
 
+export const MCP_SERVER_LIST_STALE_TIME = 60 * 1000
+export const MCP_SERVER_TOOLS_STALE_TIME = 30 * 1000
+export const MCP_STORED_TOOL_LIST_STALE_TIME = 60 * 1000
+export const MCP_ALLOWED_DOMAINS_STALE_TIME = 5 * 60 * 1000
+
 export const mcpKeys = {
   all: ['mcp'] as const,
   servers: () => [...mcpKeys.all, 'servers'] as const,
@@ -91,7 +96,7 @@ export function useMcpServers(workspaceId: string) {
     queryFn: ({ signal }) => fetchMcpServers(workspaceId, signal),
     enabled: !!workspaceId,
     retry: false,
-    staleTime: 60 * 1000,
+    staleTime: MCP_SERVER_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -120,20 +125,31 @@ async function fetchMcpTools(
   }
 }
 
+function isServerEligibleForDiscovery(server: McpServer, workspaceId: string): boolean {
+  return (
+    server.enabled &&
+    server.workspaceId === workspaceId &&
+    (server.authType !== 'oauth' || server.connectionStatus === 'connected')
+  )
+}
+
 /**
  * Workspace aggregate derived from N parallel per-server queries via
  * `useQueries`. One slow server cannot block the others.
  */
 export function useMcpToolsQuery(workspaceId: string) {
+  const queryClient = useQueryClient()
   const { data: servers, isLoading: serversLoading } = useMcpServers(workspaceId)
 
-  // Skip disabled rows (would 404 → negative-cache) and rows from a previous
-  // workspace (keepPreviousData on useMcpServers).
+  /**
+   * Skip disabled rows, rows retained from a previous workspace, and OAuth rows
+   * that require explicit authorization before discovery can succeed.
+   */
   const serverIds = useMemo(
     () =>
       servers
         ? servers
-            .filter((s) => s.enabled && s.workspaceId === workspaceId)
+            .filter((server) => isServerEligibleForDiscovery(server, workspaceId))
             .map((s) => s.id)
             .sort()
         : [],
@@ -143,11 +159,20 @@ export function useMcpToolsQuery(workspaceId: string) {
   const results = useQueries({
     queries: serverIds.map((serverId) => ({
       queryKey: mcpKeys.serverToolsList(workspaceId, serverId),
-      queryFn: ({ signal }: { signal?: AbortSignal }) =>
-        fetchMcpTools(workspaceId, false, signal, serverId),
+      queryFn: async ({ signal }: { signal?: AbortSignal }) => {
+        try {
+          return await fetchMcpTools(workspaceId, false, signal, serverId)
+        } catch (error) {
+          await queryClient.invalidateQueries(
+            { queryKey: mcpKeys.serversList(workspaceId) },
+            { cancelRefetch: false }
+          )
+          throw error
+        }
+      },
       enabled: !!workspaceId,
       retry: false,
-      staleTime: 30 * 1000,
+      staleTime: MCP_SERVER_TOOLS_STALE_TIME,
       refetchOnWindowFocus: false,
     })),
   })
@@ -157,7 +182,12 @@ export function useMcpToolsQuery(workspaceId: string) {
     let hasData = false
     let anyServerLoading = false
     let firstError: Error | null = null
-    for (const result of results) {
+    const toolsStateByServer = new Map<
+      string,
+      { isLoading: boolean; isFetching: boolean; error: Error | null }
+    >()
+    for (let index = 0; index < results.length; index++) {
+      const result = results[index]
       // Drop stale data from servers whose latest refetch errored.
       if (result.data && !result.isError) {
         tools.push(...result.data)
@@ -165,16 +195,25 @@ export function useMcpToolsQuery(workspaceId: string) {
       }
       if (result.isLoading) anyServerLoading = true
       if (!firstError && result.error instanceof Error) firstError = result.error
+
+      const serverId = serverIds[index]
+      if (serverId) {
+        toolsStateByServer.set(serverId, {
+          isLoading: result.isLoading,
+          isFetching: result.isFetching,
+          error: result.error instanceof Error ? result.error : null,
+        })
+      }
     }
     return {
       data: tools,
       isLoading: (serversLoading || anyServerLoading) && !hasData,
       isFetching: serversLoading || results.some((r) => r.isFetching),
-      // Suppress when any healthy server rendered; per-server errors live in `perServer`.
+      // Suppress when any healthy server rendered; per-server errors live in `toolsStateByServer`.
       error: hasData ? null : firstError,
-      perServer: results,
+      toolsStateByServer,
     }
-  }, [results, serversLoading])
+  }, [results, serversLoading, serverIds])
 }
 
 export function useForceRefreshMcpTools() {
@@ -184,7 +223,9 @@ export function useForceRefreshMcpTools() {
     mutationFn: async (workspaceId: string) => {
       const allServers =
         queryClient.getQueryData<McpServer[]>(mcpKeys.serversList(workspaceId)) ?? []
-      const servers = allServers.filter((s) => s.enabled && s.workspaceId === workspaceId)
+      const servers = allServers.filter((server) =>
+        isServerEligibleForDiscovery(server, workspaceId)
+      )
       const results = await Promise.allSettled(
         servers.map(async (server) => {
           const tools = await fetchMcpTools(workspaceId, true, undefined, server.id)
@@ -441,7 +482,7 @@ export function useStoredMcpTools(workspaceId: string) {
     queryKey: mcpKeys.storedToolsList(workspaceId),
     queryFn: ({ signal }) => fetchStoredMcpTools(workspaceId, signal),
     enabled: !!workspaceId,
-    staleTime: 60 * 1000,
+    staleTime: MCP_STORED_TOOL_LIST_STALE_TIME,
   })
 }
 
@@ -595,6 +636,6 @@ export function useAllowedMcpDomains() {
   return useQuery<string[] | null>({
     queryKey: mcpKeys.allowedDomains(),
     queryFn: ({ signal }) => fetchAllowedMcpDomains(signal),
-    staleTime: 5 * 60 * 1000,
+    staleTime: MCP_ALLOWED_DOMAINS_STALE_TIME,
   })
 }

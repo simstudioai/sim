@@ -1,15 +1,8 @@
 'use client'
 
 import type { RefObject } from 'react'
-import { useTranslations } from 'next-intl'
+import { Popover, PopoverAnchor, PopoverContent, PopoverDivider, PopoverItem } from '@sim/emcn'
 import { createPortal } from 'react-dom'
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
-} from '@/components/emcn'
 
 interface PreviewContextMenuProps {
   isOpen: boolean
@@ -40,7 +33,6 @@ export function PreviewContextMenu({
   onToggleWrap,
   copyOnly = false,
 }: PreviewContextMenuProps) {
-  const t = useTranslations('auto')
   if (typeof document === 'undefined') return null
 
   return createPortal(
@@ -67,7 +59,7 @@ export function PreviewContextMenu({
             onClose()
           }}
         >
-          {t('copy')}
+          Copy
         </PopoverItem>
 
         {!copyOnly && onSearch && (
@@ -79,7 +71,7 @@ export function PreviewContextMenu({
                 onClose()
               }}
             >
-              {t('search')}
+              Search
             </PopoverItem>
           </>
         )}
@@ -88,7 +80,7 @@ export function PreviewContextMenu({
           <>
             <PopoverDivider />
             <PopoverItem showCheck={wrapText} onClick={onToggleWrap}>
-              {t('wrap_text')}
+              Wrap Text
             </PopoverItem>
           </>
         )}

@@ -10,22 +10,22 @@ interface WhatYouWillLearnProps {
   className?: string
 }
 
-/** A bordered "What you will learn" card listing lesson takeaways. */
+/**
+ * "What you will learn" — a flat callout matching the docs' flat/divider
+ * language. A quiet muted label (like the TOC heading) sits above the
+ * takeaways; dividers fall only between items, so the label reads as a marker
+ * rather than an underlined heading and never competes with the item titles.
+ */
 export function WhatYouWillLearn({ items, className }: WhatYouWillLearnProps) {
   return (
-    <div
-      className={cn(
-        'not-prose rounded-xl border border-[var(--border-1)] bg-[var(--surface-3)] p-6',
-        className
-      )}
-    >
-      <h2 className='mt-0 mb-5 font-semibold text-[var(--text-primary)] text-xl'>
+    <div className={cn('not-prose', className)}>
+      <p className='mb-3 font-medium text-[0.8125rem] text-[var(--text-muted)]'>
         What you will learn
-      </h2>
-      <div className='flex flex-col gap-5'>
+      </p>
+      <div className='divide-y divide-[var(--border)]'>
         {items.map((item) => (
-          <div key={item.title}>
-            <p className='mb-1 font-semibold text-[var(--text-primary)] text-sm'>{item.title}</p>
+          <div key={item.title} className='py-3.5 first:pt-0 last:pb-0'>
+            <p className='mb-1 font-medium text-[var(--text-primary)] text-sm'>{item.title}</p>
             <p className='m-0 text-[var(--text-secondary)] text-sm leading-relaxed'>{item.body}</p>
           </div>
         ))}

@@ -1,9 +1,8 @@
 'use client'
 
 import { type CSSProperties, memo, useMemo } from 'react'
-import { useTranslations } from 'next-intl'
+import { HANDLE_POSITIONS } from '@sim/workflow-renderer'
 import { Handle, type NodeProps, Position } from 'reactflow'
-import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import {
   getDisplayValue,
   resolveDropdownLabel,
@@ -20,6 +19,7 @@ import {
   isSubBlockVisibleForMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -172,7 +172,6 @@ const SubBlockRow = memo(function SubBlockRow({
  * Matches the visual structure of WorkflowBlock exactly.
  */
 function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>) {
-  const t = useTranslations('auto')
   const {
     type,
     name,
@@ -377,7 +376,9 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
               className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-md'
               style={{ background: enabled ? blockConfig.bgColor : 'gray' }}
             >
-              <IconComponent className='size-[16px] text-white' />
+              <IconComponent
+                className={`size-[16px] ${enabled ? getTileIconColorClass(blockConfig.bgColor) : 'text-[var(--text-icon)]'}`}
+              />
             </div>
           )}
           <span
@@ -406,7 +407,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
             <>
               <SubBlockRow
                 key='context'
-                title={t('context')}
+                title='Context'
                 value={lightweight ? undefined : getDisplayValue(rawValues.context)}
                 workflowMap={workflowMap}
                 workflowLabelsReady={workflowLabelsReady}
@@ -440,7 +441,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
           {/* Error row for non-trigger blocks */}
           {shouldShowDefaultHandles && (
             <SubBlockRow
-              title={t('error')}
+              title='error'
               workflowMap={workflowMap}
               workflowLabelsReady={workflowLabelsReady}
             />

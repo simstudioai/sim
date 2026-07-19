@@ -2,26 +2,19 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { webhookTriggerGetContract, webhookTriggerPostContract } from '@/lib/api/contracts/webhooks'
 import { parseRequest } from '@/lib/api/server'
-import {
-  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE,
-  isWorkspaceApiExecutionEntitled,
-} from '@/lib/billing/core/api-access'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  checkWebhookPreprocessing,
+  dispatchResolvedWebhookTarget,
   findAllWebhooksForPath,
-  handlePreDeploymentVerification,
   handlePreLookupWebhookVerification,
   handleProviderChallenges,
   handleProviderReachabilityTest,
   parseWebhookBody,
-  queueWebhookExecution,
-  shouldSkipWebhookEvent,
   verifyProviderAuth,
 } from '@/lib/webhooks/processor'
-import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
+import { acceptsPathWebhookDelivery } from '@/lib/webhooks/providers'
 import { isInternalTriggerProvider } from '@/triggers/constants'
 
 const logger = createLogger('WebhookTriggerAPI')
@@ -69,6 +62,17 @@ async function handleWebhookPost(
   request: NextRequest,
   context: { params: Promise<{ path: string }> }
 ): Promise<NextResponse> {
+  const receivedAt = Date.now()
+  /**
+   * Slack signs every interactive request with the originating interaction time.
+   * Capturing it lets the executor surface the true trigger_id age (the window
+   * that expires at 3s) instead of only the in-workflow block timings.
+   */
+  const slackRequestTimestamp = request.headers.get('x-slack-request-timestamp')
+  const triggerTimestampMs = slackRequestTimestamp
+    ? Number(slackRequestTimestamp) * 1000
+    : undefined
+
   const requestId = generateRequestId()
   const parsed = await parseRequest(webhookTriggerPostContract, request, context)
   if (!parsed.success) return parsed.response
@@ -93,18 +97,18 @@ async function handleWebhookPost(
     return challengeResponse
   }
 
-  // Find all webhooks for this path (supports credential set fan-out where multiple webhooks share a path)
+  // Find all webhooks for this path (multiple webhooks in one workflow may share a path)
   const allWebhooksForPath = await findAllWebhooksForPath({ requestId, path })
 
-  // Internal trigger providers (sim, table) are fired in-process, never over
-  // HTTP. Their rows still register a path, so reject deliveries here to keep
-  // forged events out.
+  /** Exclude in-process triggers and providers that own an app-level ingress route. */
   const webhooksForPath = allWebhooksForPath.filter(
-    ({ webhook: foundWebhook }) => !isInternalTriggerProvider(foundWebhook.provider)
+    ({ webhook: foundWebhook }) =>
+      !isInternalTriggerProvider(foundWebhook.provider) &&
+      acceptsPathWebhookDelivery(foundWebhook.provider)
   )
 
   if (allWebhooksForPath.length > 0 && webhooksForPath.length === 0) {
-    logger.warn(`[${requestId}] Rejected HTTP delivery to internal trigger path: ${path}`)
+    logger.warn(`[${requestId}] Rejected HTTP delivery to non-path trigger: ${path}`)
     return new NextResponse('Not Found', { status: 404 })
   }
 
@@ -123,23 +127,24 @@ async function handleWebhookPost(
     return new NextResponse('Not Found', { status: 404 })
   }
 
-  // Process each webhook
-  // For credential sets with shared paths, each webhook represents a different credential
+  // Process each webhook matched on this path
   const responses: NextResponse[] = []
-  let billingBlocked = false
+  const failures: NextResponse[] = []
 
   for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooksForPath) {
-    // Generic ("custom") webhooks are an unauthenticated programmatic execution
-    // surface, so they fall under the same paid-plan gate as the API. Provider
-    // webhooks (slack, github, ...) are unaffected.
-    if (
-      foundWebhook.provider === 'generic' &&
-      !(await isWorkspaceApiExecutionEntitled(foundWorkflow.workspaceId))
-    ) {
-      logger.warn(`[${requestId}] Generic webhook blocked: workspace on free plan`)
-      billingBlocked = true
-      if (webhooksForPath.length > 1) continue
-      return NextResponse.json({ error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE }, { status: 402 })
+    const provider = foundWebhook.provider
+    if (!provider) {
+      const missingProviderResponse = NextResponse.json(
+        { error: 'Webhook provider is missing' },
+        { status: 500 }
+      )
+      if (webhooksForPath.length > 1) {
+        logger.error(
+          `[${requestId}] Webhook ${foundWebhook.id} has no provider, continuing to next`
+        )
+        continue
+      }
+      return missingProviderResponse
     }
 
     const authError = await verifyProviderAuth(
@@ -157,56 +162,46 @@ async function handleWebhookPost(
       return authError
     }
 
-    const reachabilityResponse = handleProviderReachabilityTest(foundWebhook, body, requestId)
+    const reachabilityResponse = handleProviderReachabilityTest({ provider }, body, requestId)
     if (reachabilityResponse) {
       return reachabilityResponse
     }
 
-    const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
-    if (preprocessResult.error) {
-      if (webhooksForPath.length > 1) {
-        logger.warn(
-          `[${requestId}] Preprocessing failed for webhook ${foundWebhook.id}, continuing to next`
-        )
-        continue
+    const dispatchResult = await dispatchResolvedWebhookTarget(
+      foundWebhook,
+      foundWorkflow,
+      body,
+      request,
+      {
+        requestId,
+        path,
+        receivedAt,
+        triggerTimestampMs: Number.isFinite(triggerTimestampMs) ? triggerTimestampMs : undefined,
       }
-      return preprocessResult.error
-    }
+    )
 
-    if (foundWebhook.blockId) {
-      const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
-      if (!blockExists) {
-        const preDeploymentResponse = handlePreDeploymentVerification(foundWebhook, requestId)
-        if (preDeploymentResponse) {
-          return preDeploymentResponse
-        }
-
-        logger.info(
-          `[${requestId}] Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`
-        )
-        if (webhooksForPath.length > 1) {
-          continue
-        }
-        return new NextResponse('Trigger block not found in deployment', { status: 404 })
-      }
-    }
-
-    if (shouldSkipWebhookEvent(foundWebhook, body, requestId)) {
+    if (dispatchResult.reason === 'filtered') {
       continue
     }
-    const response = await queueWebhookExecution(foundWebhook, foundWorkflow, body, request, {
-      requestId,
-      path,
-      actorUserId: preprocessResult.actorUserId,
-      executionId: preprocessResult.executionId,
-      correlation: preprocessResult.correlation,
-    })
-    responses.push(response)
+
+    if (dispatchResult.outcome === 'failed' || dispatchResult.reason === 'block-missing') {
+      if (webhooksForPath.length > 1) {
+        logger.warn(
+          `[${requestId}] Webhook dispatch failed for ${foundWebhook.id}, continuing to next`,
+          { reason: dispatchResult.reason, status: dispatchResult.response.status }
+        )
+        failures.push(dispatchResult.response)
+        continue
+      }
+      return dispatchResult.response
+    }
+
+    responses.push(dispatchResult.response)
   }
 
   if (responses.length === 0) {
-    if (billingBlocked) {
-      return NextResponse.json({ error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE }, { status: 402 })
+    if (failures.length > 0) {
+      return failures[0]
     }
     return new NextResponse('No webhooks processed successfully', { status: 500 })
   }
@@ -216,9 +211,7 @@ async function handleWebhookPost(
   }
 
   // For multiple webhooks, return success if at least one succeeded
-  logger.info(
-    `[${requestId}] Processed ${responses.length} webhooks for path: ${path} (credential set fan-out)`
-  )
+  logger.info(`[${requestId}] Processed ${responses.length} webhooks for path: ${path}`)
   return NextResponse.json({
     success: true,
     webhooksProcessed: responses.length,

@@ -1,48 +1,62 @@
 'use client'
 
-import { useState } from 'react'
-import { useTranslations } from 'next-intl'
-import { ChipInput, Search } from '@/components/emcn'
-import { blockTypeToIconMap, formatIntegrationType, type Integration } from '@/lib/integrations'
+import { useMemo } from 'react'
+import { ChipInput, Search } from '@sim/emcn'
+import { useQueryStates } from 'nuqs'
+import {
+  blockTypeToIconMap,
+  formatIntegrationType,
+  type IntegrationSummary,
+} from '@/lib/integrations'
 import { IntegrationRow } from '@/app/(landing)/integrations/components/integration-card'
+import {
+  integrationsParsers,
+  integrationsUrlKeys,
+} from '@/app/(landing)/integrations/search-params'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 const PILL_BASE =
-  'rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] py-0.5 text-[13.5px] text-[var(--landing-text)] transition-colors' as const
-const PILL_ACTIVE = 'bg-[var(--landing-bg-elevated)]' as const
-const PILL_INACTIVE = 'hover:bg-[var(--landing-bg-elevated)]' as const
+  'rounded-[5px] border border-[var(--border-1)] px-[9px] py-0.5 text-small text-[var(--text-primary)] transition-colors' as const
+const PILL_ACTIVE = 'bg-[var(--surface-active)]' as const
+const PILL_INACTIVE = 'hover:bg-[var(--surface-hover)]' as const
 
 interface IntegrationGridProps {
-  integrations: readonly Integration[]
+  integrations: readonly IntegrationSummary[]
 }
 
 export function IntegrationGrid({ integrations }: IntegrationGridProps) {
-  const t = useTranslations('auto')
-  const [query, setQuery] = useState('')
-  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [{ q: query, category }, setParams] = useQueryStates(
+    integrationsParsers,
+    integrationsUrlKeys
+  )
+  const activeCategory = category || null
 
-  const counts = new Map<string, number>()
-  for (const i of integrations) {
-    if (i.integrationType) {
-      counts.set(i.integrationType, (counts.get(i.integrationType) || 0) + 1)
+  /** Debounced `q` URL write; the input stays instant and clearing strips the param immediately. */
+  const setQuery = useDebouncedSearchSetter((value, options) => setParams({ q: value }, options))
+
+  /** Category facets, derived once from the (stable) integration list. */
+  const availableCategories = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const i of integrations) {
+      if (i.integrationType) {
+        counts.set(i.integrationType, (counts.get(i.integrationType) || 0) + 1)
+      }
     }
-  }
-  const availableCategories = Array.from(counts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([key]) => key)
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([key]) => key)
+  }, [integrations])
 
   const q = query.trim().toLowerCase()
-  const filtered = integrations.filter((i) => {
-    if (activeCategory && i.integrationType !== activeCategory) return false
-    if (!q) return true
-    return (
-      i.name.toLowerCase().includes(q) ||
-      i.description.toLowerCase().includes(q) ||
-      i.operations.some(
-        (op) => op.name.toLowerCase().includes(q) || op.description.toLowerCase().includes(q)
-      ) ||
-      i.triggers.some((t) => t.name.toLowerCase().includes(q))
-    )
-  })
+  const filtered = useMemo(
+    () =>
+      integrations.filter((i) => {
+        if (activeCategory && i.integrationType !== activeCategory) return false
+        if (!q) return true
+        return i.searchFields.some((field) => field.includes(q))
+      }),
+    [integrations, q, activeCategory]
+  )
 
   return (
     <div>
@@ -51,10 +65,10 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
           <ChipInput
             icon={Search}
             type='search'
-            placeholder={t('search_integrations_tools_or_triggers')}
+            placeholder='Search integrations, tools, or triggers…'
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            aria-label={t('search_integrations')}
+            aria-label='Search integrations'
           />
         </div>
       </div>
@@ -62,16 +76,16 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
       <div className='mb-6 flex flex-wrap gap-2 px-6'>
         <button
           type='button'
-          onClick={() => setActiveCategory(null)}
+          onClick={() => setParams({ category: '' })}
           className={`${PILL_BASE} ${activeCategory === null ? PILL_ACTIVE : PILL_INACTIVE}`}
         >
-          {t('all')}
+          All
         </button>
         {availableCategories.map((cat) => (
           <button
             key={cat}
             type='button'
-            onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
+            onClick={() => setParams({ category: activeCategory === cat ? '' : cat })}
             className={`${PILL_BASE} ${activeCategory === cat ? PILL_ACTIVE : PILL_INACTIVE}`}
           >
             {formatIntegrationType(cat)}
@@ -79,25 +93,13 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
         ))}
       </div>
 
-      <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+      <div className='h-px w-full bg-[var(--border)]' />
 
       {filtered.length === 0 ? (
-        <p className='py-12 text-center text-[15px] text-[var(--landing-text-subtle)]'>
-          {t('no_integrations_found')}
-          {query ? (
-            <>
-              {' '}
-              {t('for_ldquo')}
-              {query}
-              {t('rdquo')}
-            </>
-          ) : null}
-          {activeCategory ? (
-            <>
-              {' '}
-              {t('in')} {formatIntegrationType(activeCategory)}
-            </>
-          ) : null}
+        <p className='py-12 text-center text-[15px] text-[var(--text-muted)]'>
+          No integrations found
+          {query ? <> for &ldquo;{query}&rdquo;</> : null}
+          {activeCategory ? <> in {formatIntegrationType(activeCategory)}</> : null}
         </p>
       ) : (
         <div>

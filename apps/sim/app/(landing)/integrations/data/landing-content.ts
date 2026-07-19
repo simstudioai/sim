@@ -13,11 +13,11 @@ export const INTEGRATION_LANDING_CONTENT: Record<string, IntegrationLandingConte
     install: {
       heading: 'Add Sim to your Slack workspace',
       intro:
-        'Sim connects to Slack through Slack’s official OAuth flow. The “Add to Slack” button lives inside your Sim account (after sign-in) — connect from there and the Sim bot is installed in your Slack workspace. The steps below show exactly how to reach it.',
+        'Sim connects to Slack through Slack’s official OAuth flow. The “Add to Slack” button lives inside your Sim account (after sign-in). Connect from there and the Sim bot is installed in your Slack workspace. The steps below show exactly how to reach it.',
       steps: [
         {
           title: 'Create your free Sim account',
-          body: 'Sign up at sim.ai — no credit card required.',
+          body: 'Sign up at sim.ai. No credit card required.',
         },
         {
           title: 'Add a Slack block',
@@ -38,6 +38,6 @@ export const INTEGRATION_LANDING_CONTENT: Record<string, IntegrationLandingConte
       href: '/privacy',
     },
     aiDisclaimer:
-      'Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete — review automated outputs before relying on them, especially for important communications.',
+      'Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete, so review automated outputs before relying on them, especially for important communications.',
   },
 }

@@ -6,7 +6,6 @@ import { updateDeploymentVersionMetadataContract } from '@/lib/api/contracts/dep
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { captureServerEvent } from '@/lib/posthog/server'
 import { performActivateVersion } from '@/lib/workflows/orchestration'
 import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import {
@@ -73,11 +72,11 @@ export const PATCH = withRouteHandler(
 
       // Activation requires admin permission, other updates require write
       const requiredPermission = isActive ? 'admin' : 'write'
-      const {
-        error,
-        session,
-        workflow: workflowData,
-      } = await validateWorkflowPermissions(id, requestId, requiredPermission)
+      const { error, session } = await validateWorkflowPermissions(
+        id,
+        requestId,
+        requiredPermission
+      )
       if (error) {
         return createErrorResponse(error.message, error.status)
       }
@@ -98,9 +97,7 @@ export const PATCH = withRouteHandler(
           workflowId: id,
           version: versionNum,
           userId: actorUserId,
-          workflow: workflowData as Record<string, unknown>,
           requestId,
-          request,
         })
 
         if (!activateResult.success) {
@@ -145,18 +142,12 @@ export const PATCH = withRouteHandler(
           }
         }
 
-        const wsId = (workflowData as { workspaceId?: string } | null)?.workspaceId
-        captureServerEvent(
-          actorUserId,
-          'deployment_version_activated',
-          { workflow_id: id, workspace_id: wsId ?? '', version: versionNum },
-          wsId ? { groups: { workspace: wsId } } : undefined
-        )
-
         return createSuccessResponse({
           success: true,
-          deployedAt: activateResult.deployedAt,
+          deployedAt: activateResult.deployedAt ?? null,
           warnings: activateResult.warnings,
+          activeDeployment: activateResult.activeDeployment ?? null,
+          latestDeploymentAttempt: activateResult.latestDeploymentAttempt ?? null,
           ...(updatedName !== undefined && { name: updatedName }),
           ...(updatedDescription !== undefined && { description: updatedDescription }),
         })

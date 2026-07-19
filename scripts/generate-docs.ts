@@ -37,8 +37,10 @@ const TRIGGER_DOCS_OUTPUT_PATH = DOCS_OUTPUT_PATH
 /** Hand-written integration pages in DOCS_OUTPUT_PATH that the generator must never clobber. */
 const HANDWRITTEN_INTEGRATION_DOCS = new Set([
   'index',
+  'a2a',
   'google-service-account',
   'atlassian-service-account',
+  'clickup-service-account',
   'hubspot-setup',
 ])
 
@@ -68,7 +70,15 @@ const HANDWRITTEN_TRIGGER_DOCS = new Set([
 ])
 
 /** Providers whose docs are already covered by hand-written pages. */
-const SKIP_TRIGGER_PROVIDERS = new Set(['generic', 'rss', 'table', 'sim'])
+const SKIP_TRIGGER_PROVIDERS = new Set([
+  'generic',
+  'rss',
+  'table',
+  'sim',
+  // TikTok is temporarily hideFromToolbar; skip so cleanup does not leave an
+  // orphan triggers-only docs page after the actions page is removed.
+  'tiktok',
+])
 
 /**
  * Maps trigger provider names (from TriggerConfig.provider) to their
@@ -118,6 +128,7 @@ const TRIGGER_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   slack: 'Slack',
   stripe: 'Stripe',
   telegram: 'Telegram',
+  tiktok: 'TikTok',
   twilio_voice: 'Twilio Voice',
   typeform: 'Typeform',
   vercel: 'Vercel',
@@ -162,6 +173,17 @@ interface BlockConfig {
   operations?: OperationInfo[]
   docsLink?: string
   [key: string]: any
+}
+
+/**
+ * True when a block's source text marks it as an unreleased `preview: true`
+ * block. THE single preview gate for this script — every surface it emits
+ * (docs .mdx, integrations.json, icon mapping) must consult this, because a
+ * missed gate publishes an unreleased block to docs.sim.ai, the catalog, the
+ * sitemap, and OG images. Mirrors the `hideFromToolbar` source-text checks.
+ */
+function isPreviewSource(blockContent: string): boolean {
+  return /preview\s*:\s*true/.test(blockContent)
 }
 
 /**
@@ -296,6 +318,11 @@ async function generateIconMapping(options: {
 
           // Check hideFromToolbar - skip hidden blocks for docs but NOT for icon mapping
           const hideFromToolbar = /hideFromToolbar\s*:\s*true/.test(blockContent)
+
+          // Unreleased preview blocks never reach any public surface, icon map included.
+          if (isPreviewSource(blockContent)) {
+            continue
+          }
 
           // Get block type
           const blockType =
@@ -633,7 +660,7 @@ function extractOAuthServiceId(blockContent: string): string | undefined {
  * Extract the list of trigger IDs from the block's `triggers.available` array.
  * Handles blocks that declare `triggers: { enabled: true, available: [...] }`.
  */
-function extractTriggersAvailable(blockContent: string): string[] {
+function extractTriggersAvailable(blockContent: string, fileContent?: string): string[] {
   const triggersMatch = /\btriggers\s*:\s*\{/.exec(blockContent)
   if (!triggersMatch) return []
 
@@ -652,10 +679,26 @@ function extractTriggersAvailable(blockContent: string): string[] {
   if (arrayEnd === -1) return []
   const arrayContent = triggersContent.substring(arrayStart + 1, arrayEnd - 1)
 
+  // Blocks like emailbison declare `available: [...LOCAL_TRIGGER_IDS]`;
+  // resolve same-file const spreads to their literal entries so those
+  // triggers are not silently dropped from the generated data.
+  let resolvedContent = arrayContent
+  const constSource = fileContent ?? blockContent
+  const spreadRegex = /\.\.\.(\w+)/g
+  let spreadMatch: RegExpExecArray | null
+  while ((spreadMatch = spreadRegex.exec(arrayContent)) !== null) {
+    const constMatch = new RegExp(`const\\s+${spreadMatch[1]}\\s*=\\s*\\[`).exec(constSource)
+    if (!constMatch) continue
+    const constStart = constMatch.index + constMatch[0].length - 1
+    const constEnd = findMatchingClose(constSource, constStart, '[', ']')
+    if (constEnd === -1) continue
+    resolvedContent += constSource.substring(constStart + 1, constEnd - 1)
+  }
+
   const ids: string[] = []
   const idRegex = /['"]([^'"]+)['"]/g
   let m
-  while ((m = idRegex.exec(arrayContent)) !== null) {
+  while ((m = idRegex.exec(resolvedContent)) !== null) {
     ids.push(m[1])
   }
   return ids
@@ -698,6 +741,10 @@ async function buildTriggerRegistry(): Promise<Map<string, TriggerInfo>> {
         const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(segment)
         const nameMatch = /\bname\s*:\s*['"]([^'"]+)['"]/.exec(segment)
         const descMatch = /\bdescription\s*:\s*['"]([^'"]+)['"]/.exec(segment)
+
+        // Deprecated triggers stay registered for existing workflows but are
+        // excluded from generated documentation.
+        if (/\bdeprecated\s*:\s*true/.test(segment)) continue
 
         if (idMatch && nameMatch) {
           registry.set(idMatch[1], {
@@ -982,6 +1029,14 @@ function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
         continue
       }
 
+      // Unreleased preview blocks stay out of every generated surface: docs
+      // .mdx pages, integrations.json (landing + workspace catalog + sitemap +
+      // OG images), and the icon mapping.
+      if (isPreviewSource(blockContent)) {
+        console.log(`Skipping ${blockName}Block - preview is true`)
+        continue
+      }
+
       // Pass fileContent to enable spread inheritance resolution
       const config = extractBlockConfigFromContent(blockContent, blockName, fileContent)
       if (config) {
@@ -1085,7 +1140,7 @@ function extractBlockConfigFromContent(
     }
 
     const operations = extractOperationsFromContent(blockContent)
-    const triggerIds = extractTriggersAvailable(blockContent)
+    const triggerIds = extractTriggersAvailable(blockContent, fileContent)
     const docsLink =
       extractStringPropertyFromContent(blockContent, 'docsLink', true) ||
       baseConfig?.docsLink ||
@@ -1138,8 +1193,12 @@ function extractBlockConfigFromContent(
  * also naturally selects the canonical version. Recategorizing a block to
  * `'blocks'` or `'triggers'` removes it from all integration surfaces.
  */
-function isIntegrationBlock(config: { category?: string; hideFromToolbar?: boolean }): boolean {
-  return config.category === 'tools' && !config.hideFromToolbar
+function isIntegrationBlock(config: {
+  category?: string
+  hideFromToolbar?: boolean
+  preview?: boolean
+}): boolean {
+  return config.category === 'tools' && !config.hideFromToolbar && !config.preview
 }
 
 /**
@@ -3557,6 +3616,10 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
         const providerMatch = /\bprovider\s*:\s*['"]([^'"]+)['"]/.exec(segment)
 
         if (!idMatch || !nameMatch || !providerMatch) continue
+
+        // Deprecated triggers stay registered for existing workflows but are
+        // excluded from generated documentation.
+        if (/\bdeprecated\s*:\s*true/.test(segment)) continue
 
         const polling = /\bpolling\s*:\s*true/.test(segment)
 

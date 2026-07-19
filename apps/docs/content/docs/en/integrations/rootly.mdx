@@ -1340,3 +1340,232 @@ List incident roles configured in Rootly (e.g. commander, scribe).
 | `totalCount` | number | Total number of incident roles returned |
 
 
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Rootly Alert Created
+
+Trigger workflow when a new alert is created in Rootly
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Unique webhook event ID |
+| `eventType` | string | Rootly event type \(e.g. alert.created\) |
+| `issuedAt` | string | When the event was issued \(ISO 8601\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Alert ID |
+|   ↳ `team_id` | number | Team ID |
+|   ↳ `source` | string | Alert source \(e.g. pagerduty\) |
+|   ↳ `summary` | string | Alert summary |
+|   ↳ `labels` | json | Alert labels |
+|   ↳ `data` | json | Raw alert payload data |
+|   ↳ `external_id` | string | External alert ID |
+|   ↳ `external_url` | string | External alert URL |
+|   ↳ `webhook_type` | string | Webhook type |
+|   ↳ `webhook_id` | string | Webhook ID |
+|   ↳ `webhook_idempotency_key` | string | Webhook idempotency key |
+|   ↳ `started_at` | string | When the alert started |
+|   ↳ `ended_at` | string | When the alert ended |
+|   ↳ `deleted_at` | string | When the alert was deleted |
+|   ↳ `created_at` | string | Alert creation timestamp |
+|   ↳ `updated_at` | string | Alert last update timestamp |
+
+
+---
+
+### Rootly Incident Created
+
+Trigger workflow when a new incident is created in Rootly
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Unique webhook event ID |
+| `eventType` | string | Rootly event type \(e.g. incident.created\) |
+| `issuedAt` | string | When the event was issued \(ISO 8601\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `sequential_id` | number | Sequential incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `public_title` | string | Public-facing incident title |
+|   ↳ `slug` | string | Incident slug |
+|   ↳ `kind` | string | Incident kind \(normal, test, etc.\) |
+|   ↳ `private` | boolean | Whether the incident is private |
+|   ↳ `summary` | string | Incident summary |
+|   ↳ `status` | string | Incident status |
+|   ↳ `url` | string | Incident URL in Rootly |
+|   ↳ `short_url` | string | Shortened incident URL |
+|   ↳ `mitigation_message` | string | Mitigation message |
+|   ↳ `resolution_message` | string | Resolution message |
+|   ↳ `cancellation_message` | string | Cancellation message |
+|   ↳ `slack_channel_name` | string | Linked Slack channel name |
+|   ↳ `slack_channel_id` | string | Linked Slack channel ID |
+|   ↳ `slack_channel_url` | string | Linked Slack channel URL |
+|   ↳ `started_at` | string | When the incident started |
+|   ↳ `detected_at` | string | When the incident was detected |
+|   ↳ `acknowledged_at` | string | When the incident was acknowledged |
+|   ↳ `mitigated_at` | string | When the incident was mitigated |
+|   ↳ `resolved_at` | string | When the incident was resolved |
+|   ↳ `cancelled_at` | string | When the incident was cancelled |
+|   ↳ `created_at` | string | Incident creation timestamp |
+|   ↳ `updated_at` | string | Incident last update timestamp |
+|   ↳ `labels` | json | Incident labels \(key-value pairs\) |
+|   ↳ `severity` | json | Incident severity object |
+|   ↳ `user` | json | User who owns the incident |
+|   ↳ `started_by` | json | User who started the incident |
+|   ↳ `mitigated_by` | json | User who mitigated the incident |
+|   ↳ `resolved_by` | json | User who resolved the incident |
+|   ↳ `cancelled_by` | json | User who cancelled the incident |
+|   ↳ `roles` | json | Assigned incident roles |
+|   ↳ `environments` | json | Affected environments |
+|   ↳ `incident_types` | json | Incident types |
+|   ↳ `services` | json | Affected services |
+|   ↳ `functionalities` | json | Affected functionalities |
+|   ↳ `groups` | json | Associated teams/groups |
+|   ↳ `events` | json | Timeline events |
+|   ↳ `action_items` | json | Action items |
+|   ↳ `incident_post_mortem` | json | Retrospective/post-mortem object |
+
+
+---
+
+### Rootly Incident Resolved
+
+Trigger workflow when an incident is resolved in Rootly
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Unique webhook event ID |
+| `eventType` | string | Rootly event type \(e.g. incident.created\) |
+| `issuedAt` | string | When the event was issued \(ISO 8601\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `sequential_id` | number | Sequential incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `public_title` | string | Public-facing incident title |
+|   ↳ `slug` | string | Incident slug |
+|   ↳ `kind` | string | Incident kind \(normal, test, etc.\) |
+|   ↳ `private` | boolean | Whether the incident is private |
+|   ↳ `summary` | string | Incident summary |
+|   ↳ `status` | string | Incident status |
+|   ↳ `url` | string | Incident URL in Rootly |
+|   ↳ `short_url` | string | Shortened incident URL |
+|   ↳ `mitigation_message` | string | Mitigation message |
+|   ↳ `resolution_message` | string | Resolution message |
+|   ↳ `cancellation_message` | string | Cancellation message |
+|   ↳ `slack_channel_name` | string | Linked Slack channel name |
+|   ↳ `slack_channel_id` | string | Linked Slack channel ID |
+|   ↳ `slack_channel_url` | string | Linked Slack channel URL |
+|   ↳ `started_at` | string | When the incident started |
+|   ↳ `detected_at` | string | When the incident was detected |
+|   ↳ `acknowledged_at` | string | When the incident was acknowledged |
+|   ↳ `mitigated_at` | string | When the incident was mitigated |
+|   ↳ `resolved_at` | string | When the incident was resolved |
+|   ↳ `cancelled_at` | string | When the incident was cancelled |
+|   ↳ `created_at` | string | Incident creation timestamp |
+|   ↳ `updated_at` | string | Incident last update timestamp |
+|   ↳ `labels` | json | Incident labels \(key-value pairs\) |
+|   ↳ `severity` | json | Incident severity object |
+|   ↳ `user` | json | User who owns the incident |
+|   ↳ `started_by` | json | User who started the incident |
+|   ↳ `mitigated_by` | json | User who mitigated the incident |
+|   ↳ `resolved_by` | json | User who resolved the incident |
+|   ↳ `cancelled_by` | json | User who cancelled the incident |
+|   ↳ `roles` | json | Assigned incident roles |
+|   ↳ `environments` | json | Affected environments |
+|   ↳ `incident_types` | json | Incident types |
+|   ↳ `services` | json | Affected services |
+|   ↳ `functionalities` | json | Affected functionalities |
+|   ↳ `groups` | json | Associated teams/groups |
+|   ↳ `events` | json | Timeline events |
+|   ↳ `action_items` | json | Action items |
+|   ↳ `incident_post_mortem` | json | Retrospective/post-mortem object |
+
+
+---
+
+### Rootly Incident Updated
+
+Trigger workflow when an incident is updated in Rootly
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Unique webhook event ID |
+| `eventType` | string | Rootly event type \(e.g. incident.created\) |
+| `issuedAt` | string | When the event was issued \(ISO 8601\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `sequential_id` | number | Sequential incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `public_title` | string | Public-facing incident title |
+|   ↳ `slug` | string | Incident slug |
+|   ↳ `kind` | string | Incident kind \(normal, test, etc.\) |
+|   ↳ `private` | boolean | Whether the incident is private |
+|   ↳ `summary` | string | Incident summary |
+|   ↳ `status` | string | Incident status |
+|   ↳ `url` | string | Incident URL in Rootly |
+|   ↳ `short_url` | string | Shortened incident URL |
+|   ↳ `mitigation_message` | string | Mitigation message |
+|   ↳ `resolution_message` | string | Resolution message |
+|   ↳ `cancellation_message` | string | Cancellation message |
+|   ↳ `slack_channel_name` | string | Linked Slack channel name |
+|   ↳ `slack_channel_id` | string | Linked Slack channel ID |
+|   ↳ `slack_channel_url` | string | Linked Slack channel URL |
+|   ↳ `started_at` | string | When the incident started |
+|   ↳ `detected_at` | string | When the incident was detected |
+|   ↳ `acknowledged_at` | string | When the incident was acknowledged |
+|   ↳ `mitigated_at` | string | When the incident was mitigated |
+|   ↳ `resolved_at` | string | When the incident was resolved |
+|   ↳ `cancelled_at` | string | When the incident was cancelled |
+|   ↳ `created_at` | string | Incident creation timestamp |
+|   ↳ `updated_at` | string | Incident last update timestamp |
+|   ↳ `labels` | json | Incident labels \(key-value pairs\) |
+|   ↳ `severity` | json | Incident severity object |
+|   ↳ `user` | json | User who owns the incident |
+|   ↳ `started_by` | json | User who started the incident |
+|   ↳ `mitigated_by` | json | User who mitigated the incident |
+|   ↳ `resolved_by` | json | User who resolved the incident |
+|   ↳ `cancelled_by` | json | User who cancelled the incident |
+|   ↳ `roles` | json | Assigned incident roles |
+|   ↳ `environments` | json | Affected environments |
+|   ↳ `incident_types` | json | Incident types |
+|   ↳ `services` | json | Affected services |
+|   ↳ `functionalities` | json | Affected functionalities |
+|   ↳ `groups` | json | Associated teams/groups |
+|   ↳ `events` | json | Timeline events |
+|   ↳ `action_items` | json | Action items |
+|   ↳ `incident_post_mortem` | json | Retrospective/post-mortem object |
+

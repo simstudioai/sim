@@ -1,22 +1,22 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Badge, Button, ChipInput, ChipSelect, cn, Label, Search, Switch } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import { useQueryStates } from 'nuqs'
-import { Badge, Button, ChipInput, ChipSelect, Label, Search, Switch } from '@/components/emcn'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
-import { cn } from '@/lib/core/utils/cn'
 import {
   adminParsers,
   adminUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/admin/search-params'
+import { useRecentImpersonations } from '@/app/workspace/[workspaceId]/settings/components/admin/use-recent-impersonations'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
+  type AdminUser,
   useAdminUsers,
+  useAdminUsersByEmails,
   useBanUser,
   useImpersonateUser,
   useSetUserRole,
@@ -24,8 +24,19 @@ import {
 } from '@/hooks/queries/admin-users'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useImportWorkflow } from '@/hooks/queries/workflows'
+import { clearUserData } from '@/stores'
 
 const PAGE_SIZE = 20 as const
+
+const USER_TABLE_HEADER = (
+  <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
+    <span className='w-[170px]'>Name</span>
+    <span className='flex-1'>Email</span>
+    <span className='w-[60px]'>Role</span>
+    <span className='w-[55px]'>Status</span>
+    <span className='w-[200px] text-right'>Actions</span>
+  </div>
+)
 
 const MOTHERSHIP_ENV_OPTIONS: { value: MothershipEnvironment; label: string }[] = [
   { value: 'default', label: 'Default' },
@@ -35,10 +46,6 @@ const MOTHERSHIP_ENV_OPTIONS: { value: MothershipEnvironment; label: string }[] 
 ]
 
 export function Admin() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
-  const params = useParams()
-  const workspaceId = params?.workspaceId as string
   const { data: session } = useSession()
 
   const { data: settings } = useGeneralSettings()
@@ -49,8 +56,11 @@ export function Admin() {
   const banUser = useBanUser()
   const unbanUser = useUnbanUser()
   const impersonateUser = useImpersonateUser()
+  const { recentEmails, recordImpersonation } = useRecentImpersonations()
+  const { data: recentUsers } = useAdminUsersByEmails(recentEmails)
 
   const [workflowId, setWorkflowId] = useState('')
+  const [targetWorkspaceId, setTargetWorkspaceId] = useState('')
 
   const [{ q: searchQuery, offset: usersOffset }, setAdminParams] = useQueryStates(
     adminParsers,
@@ -81,11 +91,8 @@ export function Admin() {
     setSearchInput((current) => (current === searchQuery ? current : searchQuery))
   }, [searchQuery])
 
-  const totalPages = useMemo(
-    () => Math.ceil((usersData?.total ?? 0) / PAGE_SIZE),
-    [usersData?.total]
-  )
-  const currentPage = useMemo(() => Math.floor(usersOffset / PAGE_SIZE) + 1, [usersOffset])
+  const totalPages = Math.ceil((usersData?.total ?? 0) / PAGE_SIZE)
+  const currentPage = Math.floor(usersOffset / PAGE_SIZE) + 1
 
   const handleSuperUserModeToggle = async (checked: boolean) => {
     if (checked !== settings?.superUserModeEnabled && !updateSetting.isPending) {
@@ -93,27 +100,16 @@ export function Admin() {
     }
   }
 
-  const handleMothershipEnvironmentChange = useCallback(
-    async (nextEnvironment: MothershipEnvironment) => {
-      if (nextEnvironment !== settings?.mothershipEnvironment && !updateSetting.isPending) {
-        await updateSetting.mutateAsync({
-          key: 'mothershipEnvironment',
-          value: nextEnvironment,
-        })
-      }
-    },
-    [settings?.mothershipEnvironment, updateSetting]
-  )
-
-  const handleImport = () => {
-    if (!workflowId.trim()) return
-    importWorkflow.mutate(
-      { workflowId: workflowId.trim(), targetWorkspaceId: workspaceId },
-      { onSuccess: () => setWorkflowId('') }
-    )
+  const handleMothershipEnvironmentChange = async (nextEnvironment: MothershipEnvironment) => {
+    if (nextEnvironment !== settings?.mothershipEnvironment && !updateSetting.isPending) {
+      await updateSetting.mutateAsync({
+        key: 'mothershipEnvironment',
+        value: nextEnvironment,
+      })
+    }
   }
 
-  const handleImpersonate = (userId: string) => {
+  const handleImpersonate = (userId: string, email: string) => {
     setImpersonationGuardError(null)
     if (session?.user?.role !== 'admin') {
       setImpersonatingUserId(null)
@@ -129,8 +125,25 @@ export function Admin() {
         onError: () => {
           setImpersonatingUserId(null)
         },
-        onSuccess: () => {
+        onSuccess: async () => {
+          recordImpersonation(email)
+          await clearUserData()
           window.location.assign('/workspace')
+        },
+      }
+    )
+  }
+
+  const handleImport = () => {
+    const sourceId = workflowId.trim()
+    const targetId = targetWorkspaceId.trim()
+    if (!sourceId || !targetId) return
+    importWorkflow.mutate(
+      { workflowId: sourceId, targetWorkspaceId: targetId },
+      {
+        onSuccess: () => {
+          setWorkflowId('')
+          setTargetWorkspaceId('')
         },
       }
     )
@@ -159,11 +172,124 @@ export function Admin() {
     impersonateUser.variables,
     impersonatingUserId,
   ])
+
+  const renderUserRow = (u: AdminUser) => (
+    <div key={u.id} className='flex flex-col gap-2 px-3 py-2 text-small'>
+      <div className='flex items-center gap-3'>
+        <span className='w-[170px] truncate text-[var(--text-primary)]'>{u.name || '—'}</span>
+        <span className='flex-1 truncate text-[var(--text-secondary)]'>{u.email}</span>
+        <span className='w-[60px]'>
+          <Badge variant={u.role === 'admin' ? 'blue' : 'gray'}>{u.role || 'user'}</Badge>
+        </span>
+        <span className='w-[55px]'>
+          {u.banned ? <Badge variant='red'>Banned</Badge> : <Badge variant='green'>Active</Badge>}
+        </span>
+        <span className='flex w-[200px] justify-end gap-1'>
+          {u.id !== session?.user?.id && (
+            <>
+              <Button
+                variant='active'
+                className='h-[28px] px-2 text-caption'
+                onClick={() => handleImpersonate(u.id, u.email)}
+                disabled={pendingUserIds.has(u.id)}
+              >
+                {impersonatingUserId === u.id ||
+                (impersonateUser.isPending &&
+                  (impersonateUser.variables as { userId?: string } | undefined)?.userId === u.id)
+                  ? 'Switching...'
+                  : 'Impersonate'}
+              </Button>
+              <Button
+                variant='active'
+                className='h-[28px] px-2 text-caption'
+                onClick={() => {
+                  setUserRole.reset()
+                  setUserRole.mutate({
+                    userId: u.id,
+                    role: u.role === 'admin' ? 'user' : 'admin',
+                  })
+                }}
+                disabled={pendingUserIds.has(u.id)}
+              >
+                {u.role === 'admin' ? 'Demote' : 'Promote'}
+              </Button>
+              {u.banned ? (
+                <Button
+                  variant='active'
+                  className='h-[28px] px-2 text-caption'
+                  onClick={() => {
+                    unbanUser.reset()
+                    unbanUser.mutate({ userId: u.id })
+                  }}
+                  disabled={pendingUserIds.has(u.id)}
+                >
+                  Unban
+                </Button>
+              ) : (
+                <Button
+                  variant='active'
+                  className={cn(
+                    'h-[28px] px-2 text-caption',
+                    banUserId === u.id ? 'text-[var(--text-primary)]' : 'text-[var(--text-error)]'
+                  )}
+                  onClick={() => {
+                    if (banUserId === u.id) {
+                      setBanUserId(null)
+                      setBanReason('')
+                    } else {
+                      setBanUserId(u.id)
+                      setBanReason('')
+                    }
+                  }}
+                  disabled={pendingUserIds.has(u.id)}
+                >
+                  {banUserId === u.id ? 'Cancel' : 'Ban'}
+                </Button>
+              )}
+            </>
+          )}
+        </span>
+      </div>
+      {banUserId === u.id && !u.banned && (
+        <div className='flex items-center gap-2 pl-[170px]'>
+          <ChipInput
+            value={banReason}
+            onChange={(e) => setBanReason(e.target.value)}
+            placeholder='Reason (optional)'
+            className='flex-1'
+          />
+          <Button
+            variant='primary'
+            className='h-[28px] px-3 text-caption'
+            onClick={() => {
+              banUser.reset()
+              banUser.mutate(
+                {
+                  userId: u.id,
+                  ...(banReason.trim() ? { banReason: banReason.trim() } : {}),
+                },
+                {
+                  onSuccess: () => {
+                    setBanUserId(null)
+                    setBanReason('')
+                  },
+                }
+              )
+            }}
+            disabled={pendingUserIds.has(u.id)}
+          >
+            Confirm Ban
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <SettingsPanel>
       <div className='flex flex-col gap-4'>
         <div className='flex items-center justify-between'>
-          <Label htmlFor='super-user-mode'>{t('super_admin_mode')}</Label>
+          <Label htmlFor='super-user-mode'>Super admin mode</Label>
           <Switch
             id='super-user-mode'
             checked={settings?.superUserModeEnabled ?? false}
@@ -176,11 +302,9 @@ export function Admin() {
           <>
             <div className='flex items-center justify-between gap-3'>
               <div className='flex flex-col gap-1'>
-                <Label className='text-[var(--text-primary)] text-sm'>
-                  {t('mothership_environment')}
-                </Label>
+                <Label className='text-[var(--text-primary)] text-sm'>Mothership Environment</Label>
                 <p className='text-[var(--text-secondary)] text-xs'>
-                  {t('default_uses_the_configured_sim_agent')}
+                  Default uses the configured Sim agent URL.
                 </p>
               </div>
               <ChipSelect
@@ -190,7 +314,7 @@ export function Admin() {
                 onChange={(value) =>
                   handleMothershipEnvironmentChange(value as MothershipEnvironment)
                 }
-                placeholder={t('select_environment')}
+                placeholder='Select environment'
                 disabled={updateSetting.isPending}
                 options={MOTHERSHIP_ENV_OPTIONS}
               />
@@ -202,23 +326,34 @@ export function Admin() {
       <div className='h-px bg-[var(--border)]' />
 
       <div className='flex flex-col gap-2'>
-        <p className='text-[var(--text-secondary)] text-sm'>{t('import_a_workflow_by_id_along')}</p>
+        <p className='text-[var(--text-secondary)] text-sm'>
+          Import a workflow and its copilot chats into a target workspace.
+        </p>
         <div className='flex gap-2'>
           <ChipInput
             value={workflowId}
-            onChange={(e) => {
-              setWorkflowId(e.target.value)
+            onChange={(event) => {
+              setWorkflowId(event.target.value)
               importWorkflow.reset()
             }}
-            placeholder={t('enter_workflow_id')}
+            placeholder='Source workflow ID'
+            disabled={importWorkflow.isPending}
+          />
+          <ChipInput
+            value={targetWorkspaceId}
+            onChange={(event) => {
+              setTargetWorkspaceId(event.target.value)
+              importWorkflow.reset()
+            }}
+            placeholder='Target workspace ID'
             disabled={importWorkflow.isPending}
           />
           <Button
             variant='primary'
             onClick={handleImport}
-            disabled={importWorkflow.isPending || !workflowId.trim()}
+            disabled={importWorkflow.isPending || !workflowId.trim() || !targetWorkspaceId.trim()}
           >
-            {importWorkflow.isPending ? 'Importing...' : tI18n('import')}
+            {importWorkflow.isPending ? 'Importing...' : 'Import'}
           </Button>
         </div>
         {importWorkflow.error && (
@@ -226,8 +361,8 @@ export function Admin() {
         )}
         {importWorkflow.isSuccess && (
           <p className='text-[var(--text-secondary)] text-small'>
-            {t('workflow_imported_successfully_new_id')} {importWorkflow.data.newWorkflowId},{' '}
-            {importWorkflow.data.copilotChatsImported ?? 0} {t('copilot_chats_imported')}
+            Workflow imported successfully (new ID: {importWorkflow.data.newWorkflowId},{' '}
+            {importWorkflow.data.copilotChatsImported ?? 0} copilot chats imported)
           </p>
         )}
       </div>
@@ -235,18 +370,18 @@ export function Admin() {
       <div className='h-px bg-[var(--border)]' />
 
       <div className='flex flex-col gap-3'>
-        <p className='font-medium text-[var(--text-muted)] text-small'>{t('user_management')}</p>
+        <p className='font-medium text-[var(--text-muted)] text-small'>User Management</p>
         <div className='flex gap-2'>
           <ChipInput
             icon={Search}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder={t('search_by_email_or_paste_a')}
+            placeholder='Search by email or paste a user ID...'
             className='min-w-0 flex-1'
           />
           <Button variant='primary' onClick={handleSearch} disabled={usersLoading}>
-            {usersLoading ? 'Searching...' : tI18n('search')}
+            {usersLoading ? 'Searching...' : 'Search'}
           </Button>
         </div>
 
@@ -261,163 +396,30 @@ export function Admin() {
           unbanUser.error ||
           impersonateUser.error ||
           impersonationGuardError) && (
-          <p className='text-[13px] text-[var(--text-error)]'>
+          <p className='text-[var(--text-error)] text-small'>
             {impersonationGuardError ||
               (setUserRole.error || banUser.error || unbanUser.error || impersonateUser.error)
                 ?.message ||
-              tI18n('action_failed_please_try_again')}
+              'Action failed. Please try again.'}
           </p>
         )}
 
-        {searchQuery.length > 0 && usersData && (
+        {searchQuery.length > 0 && usersData ? (
           <>
             <div className='flex flex-col gap-0.5'>
-              <div className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-[var(--text-tertiary)] text-caption'>
-                <span className='w-[200px]'>{t('name')}</span>
-                <span className='flex-1'>{t('email')}</span>
-                <span className='w-[80px]'>{t('role')}</span>
-                <span className='w-[80px]'>{t('status')}</span>
-                <span className='w-[250px] text-right'>{t('actions')}</span>
-              </div>
+              {USER_TABLE_HEADER}
 
               {usersData.users.length === 0 && (
-                <SettingsEmptyState variant='inline'>{t('no_users_found')}</SettingsEmptyState>
+                <SettingsEmptyState variant='inline'>No users found.</SettingsEmptyState>
               )}
 
-              {usersData.users.map((u) => (
-                <div
-                  key={u.id}
-                  className={cn(
-                    'flex flex-col gap-2 px-3 py-2 text-small',
-                    'border-[var(--border-secondary)] border-b last:border-b-0'
-                  )}
-                >
-                  <div className='flex items-center gap-3'>
-                    <span className='w-[200px] truncate text-[var(--text-primary)]'>
-                      {u.name || '—'}
-                    </span>
-                    <span className='flex-1 truncate text-[var(--text-secondary)]'>{u.email}</span>
-                    <span className='w-[80px]'>
-                      <Badge variant={u.role === 'admin' ? 'blue' : 'gray'}>
-                        {u.role || 'user'}
-                      </Badge>
-                    </span>
-                    <span className='w-[80px]'>
-                      {u.banned ? (
-                        <Badge variant='red'>{t('banned')}</Badge>
-                      ) : (
-                        <Badge variant='green'>{t('active')}</Badge>
-                      )}
-                    </span>
-                    <span className='flex w-[250px] justify-end gap-1'>
-                      {u.id !== session?.user?.id && (
-                        <>
-                          <Button
-                            variant='active'
-                            className='h-[28px] px-2 text-[12px]'
-                            onClick={() => handleImpersonate(u.id)}
-                            disabled={pendingUserIds.has(u.id)}
-                          >
-                            {impersonatingUserId === u.id ||
-                            (impersonateUser.isPending &&
-                              (impersonateUser.variables as { userId?: string } | undefined)
-                                ?.userId === u.id)
-                              ? 'Switching...'
-                              : tI18n('impersonate')}
-                          </Button>
-                          <Button
-                            variant='active'
-                            className='h-[28px] px-2 text-[12px]'
-                            onClick={() => {
-                              setUserRole.reset()
-                              setUserRole.mutate({
-                                userId: u.id,
-                                role: u.role === 'admin' ? 'user' : 'admin',
-                              })
-                            }}
-                            disabled={pendingUserIds.has(u.id)}
-                          >
-                            {u.role === 'admin' ? tI18n('demote') : tI18n('promote')}
-                          </Button>
-                          {u.banned ? (
-                            <Button
-                              variant='active'
-                              className='h-[28px] px-2 text-caption'
-                              onClick={() => {
-                                unbanUser.reset()
-                                unbanUser.mutate({ userId: u.id })
-                              }}
-                              disabled={pendingUserIds.has(u.id)}
-                            >
-                              {t('unban')}
-                            </Button>
-                          ) : (
-                            <Button
-                              variant='active'
-                              className={cn(
-                                'h-[28px] px-2 text-caption',
-                                banUserId === u.id
-                                  ? 'text-[var(--text-primary)]'
-                                  : 'text-[var(--text-error)]'
-                              )}
-                              onClick={() => {
-                                if (banUserId === u.id) {
-                                  setBanUserId(null)
-                                  setBanReason('')
-                                } else {
-                                  setBanUserId(u.id)
-                                  setBanReason('')
-                                }
-                              }}
-                              disabled={pendingUserIds.has(u.id)}
-                            >
-                              {banUserId === u.id ? tI18n('cancel') : tI18n('ban')}
-                            </Button>
-                          )}
-                        </>
-                      )}
-                    </span>
-                  </div>
-                  {banUserId === u.id && !u.banned && (
-                    <div className='flex items-center gap-2 pl-[200px]'>
-                      <ChipInput
-                        value={banReason}
-                        onChange={(e) => setBanReason(e.target.value)}
-                        placeholder={t('reason_optional')}
-                        className='flex-1'
-                      />
-                      <Button
-                        variant='primary'
-                        className='h-[28px] px-3 text-caption'
-                        onClick={() => {
-                          banUser.reset()
-                          banUser.mutate(
-                            {
-                              userId: u.id,
-                              ...(banReason.trim() ? { banReason: banReason.trim() } : {}),
-                            },
-                            {
-                              onSuccess: () => {
-                                setBanUserId(null)
-                                setBanReason('')
-                              },
-                            }
-                          )
-                        }}
-                        disabled={pendingUserIds.has(u.id)}
-                      >
-                        {t('confirm_ban')}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
+              {usersData.users.map((u) => renderUserRow(u))}
             </div>
 
             {totalPages > 1 && (
               <div className='flex items-center justify-between text-[var(--text-secondary)] text-small'>
                 <span>
-                  {t('page')} {currentPage} {t('of')} {totalPages} ({usersData.total} {t('users')}
+                  Page {currentPage} of {totalPages} ({usersData.total} users)
                 </span>
                 <div className='flex gap-1'>
                   <Button
@@ -430,7 +432,7 @@ export function Admin() {
                     }
                     disabled={usersOffset === 0 || usersLoading}
                   >
-                    {t('previous')}
+                    Previous
                   </Button>
                   <Button
                     variant='active'
@@ -438,12 +440,21 @@ export function Admin() {
                     onClick={() => setAdminParams((prev) => ({ offset: prev.offset + PAGE_SIZE }))}
                     disabled={usersOffset + PAGE_SIZE >= (usersData?.total ?? 0) || usersLoading}
                   >
-                    {t('next')}
+                    Next
                   </Button>
                 </div>
               </div>
             )}
           </>
+        ) : (
+          searchQuery.length === 0 &&
+          recentUsers &&
+          recentUsers.length > 0 && (
+            <div className='flex flex-col gap-0.5'>
+              {USER_TABLE_HEADER}
+              {recentUsers.map((u) => renderUserRow(u))}
+            </div>
+          )
         )}
       </div>
     </SettingsPanel>

@@ -49,12 +49,12 @@ export const discordCreateRoleTool: ToolConfig<DiscordCreateRoleParams, DiscordC
 
     request: {
       url: (params: DiscordCreateRoleParams) => {
-        return `https://discord.com/api/v10/guilds/${params.serverId}/roles`
+        return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/roles`
       },
       method: 'POST',
       headers: (params) => ({
         'Content-Type': 'application/json',
-        Authorization: `Bot ${params.botToken}`,
+        Authorization: `Bot ${params.botToken.trim()}`,
       }),
       body: (params: DiscordCreateRoleParams) => {
         const body: any = {

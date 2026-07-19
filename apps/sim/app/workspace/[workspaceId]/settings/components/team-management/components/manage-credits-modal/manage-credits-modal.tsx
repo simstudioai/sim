@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -11,7 +9,9 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Info,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import {
   useOrganizationMemberUsageLimit,
   useUpdateOrganizationMemberUsageLimit,

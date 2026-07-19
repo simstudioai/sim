@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import {
+  AsyncJobEnqueueError,
   type EnqueueOptions,
   JOB_STATUS,
   type Job,
@@ -88,22 +89,53 @@ export class DatabaseJobQueue implements JobQueueBackend {
     const jobId = options?.jobId ?? `run_${generateShortId(20)}`
     const now = new Date()
 
-    await db
-      .insert(asyncJobs)
-      .values({
-        id: jobId,
+    try {
+      await db
+        .insert(asyncJobs)
+        .values({
+          id: jobId,
+          type,
+          payload: payload as Record<string, unknown>,
+          status: JOB_STATUS.PENDING,
+          createdAt: now,
+          runAt:
+            options?.delayMs && options.delayMs > 0
+              ? new Date(now.getTime() + options.delayMs)
+              : now,
+          attempts: 0,
+          maxAttempts: options?.maxAttempts ?? 3,
+          metadata: (options?.metadata ?? {}) as Record<string, unknown>,
+          updatedAt: now,
+        })
+        .onConflictDoNothing()
+    } catch (error) {
+      let existingJob: Job | null
+      try {
+        existingJob = await this.getJob(jobId)
+      } catch (verificationError) {
+        throw new AsyncJobEnqueueError(
+          `Unable to verify database enqueue after failure: ${toError(verificationError).message}`,
+          {
+            acceptance: 'unknown',
+            retryable: true,
+            cause: error,
+          }
+        )
+      }
+
+      if (!existingJob) {
+        throw new AsyncJobEnqueueError(toError(error).message, {
+          acceptance: 'rejected',
+          retryable: true,
+          cause: error,
+        })
+      }
+
+      logger.warn('Recovered accepted database enqueue after insert failure', {
+        jobId,
         type,
-        payload: payload as Record<string, unknown>,
-        status: JOB_STATUS.PENDING,
-        createdAt: now,
-        runAt:
-          options?.delayMs && options.delayMs > 0 ? new Date(now.getTime() + options.delayMs) : now,
-        attempts: 0,
-        maxAttempts: options?.maxAttempts ?? 3,
-        metadata: (options?.metadata ?? {}) as Record<string, unknown>,
-        updatedAt: now,
       })
-      .onConflictDoNothing()
+    }
 
     logger.debug('Enqueued job', { jobId, type })
     if (options?.runner) {
@@ -175,7 +207,23 @@ export class DatabaseJobQueue implements JobQueueBackend {
         inlineCancelKeyControllers.set(cancelKey, controller)
         tracked.push({ key: cancelKey, controller })
       }
-      return runner(item.payload, controller.signal).catch((err) => {
+      // Same shared-key semaphore as `runInline`: without it, overlapping
+      // batches on one concurrencyKey (e.g. two dispatches on one table) would
+      // each run their full window concurrently instead of sharing the cap.
+      const { concurrencyKey, concurrencyLimit } = item.options ?? {}
+      const run = async () => {
+        if (concurrencyKey && concurrencyLimit && concurrencyLimit > 0) {
+          await acquireSlot(concurrencyKey, concurrencyLimit)
+          try {
+            await runner(item.payload, controller.signal)
+          } finally {
+            releaseSlot(concurrencyKey)
+          }
+          return
+        }
+        await runner(item.payload, controller.signal)
+      }
+      return run().catch((err) => {
         logger.error(`[${type}] Inline run failed`, {
           cancelKey,
           error: toError(err).message,

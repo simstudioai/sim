@@ -24,6 +24,7 @@ import {
   restoreSkillTriggerText,
   SKILL_CHIP_TRIGGER,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import { type McpServer, useMcpServers } from '@/hooks/queries/mcp'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
 import type { ChatContext } from '@/stores/panel'
 
@@ -155,6 +156,11 @@ export function usePromptEditor({
   onPasteFiles,
 }: UsePromptEditorProps) {
   const { data: skills = [] } = useSkills(workspaceId)
+  const { data: allMcpServers = [] } = useMcpServers(workspaceId)
+  const mcpServers = useMemo(
+    () => allMcpServers.filter((server) => server.enabled && server.workspaceId === workspaceId),
+    [allMcpServers, workspaceId]
+  )
 
   const [value, setValueState] = useState(initialValue)
   const valueRef = useRef(value)
@@ -178,6 +184,15 @@ export function usePromptEditor({
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const slashRangeRef = useRef<{ start: number; end: number } | null>(null)
   const [slashQuery, setSlashQuery] = useState<string | null>(null)
+
+  /**
+   * Start offset of a mention/slash token most recently dismissed by the user
+   * (outside click or Escape) without a following keystroke — suppresses a
+   * single reopen of the menu for that exact token when the caret's own
+   * selection-change handler runs immediately after.
+   */
+  const dismissedMentionStartRef = useRef<number | null>(null)
+  const dismissedSlashStartRef = useRef<number | null>(null)
 
   const contextManagement = useContextManagement({ message: value, initialContexts })
   const contextManagementRef = useRef(contextManagement)
@@ -215,6 +230,7 @@ export function usePromptEditor({
 
   const skillAutoMention = useSkillAutoMention({
     skills,
+    mcpServers,
     setSelectedContexts: contextManagement.setSelectedContexts,
   })
 
@@ -263,8 +279,8 @@ export function usePromptEditor({
       valueRef.current = converted
       setValueState(converted)
     }
-    seedRef.current = skills.length > 0 ? null : converted
-  }, [skills.length, applyAutoMentions])
+    seedRef.current = skills.length > 0 || mcpServers.length > 0 ? null : converted
+  }, [skills.length, mcpServers.length, applyAutoMentions])
 
   const existingResourceKeys = useMemo(() => {
     const keys = new Set<string>()
@@ -327,9 +343,11 @@ export function usePromptEditor({
     plusMenuRef.current?.close()
     mentionRangeRef.current = null
     setMentionQuery(null)
+    dismissedMentionStartRef.current = null
     skillsMenuRef.current?.close()
     slashRangeRef.current = null
     setSlashQuery(null)
+    dismissedSlashStartRef.current = null
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
@@ -368,6 +386,7 @@ export function usePromptEditor({
         atInsertPosRef.current = newPos
         mentionRangeRef.current = null
         setMentionQuery(null)
+        dismissedMentionStartRef.current = null
         setValueState(newValue)
       }
 
@@ -423,6 +442,7 @@ export function usePromptEditor({
         valueRef.current = newValue
         slashRangeRef.current = null
         setSlashQuery(null)
+        dismissedSlashStartRef.current = null
         setValueState(newValue)
       }
 
@@ -431,12 +451,50 @@ export function usePromptEditor({
     [textareaRef, addContextNotified]
   )
 
+  const handleMcpSelect = useCallback(
+    (server: McpServer) => {
+      const textarea = textareaRef.current
+      if (textarea) {
+        const currentValue = valueRef.current
+        const range = slashRangeRef.current
+        const insertAt = range?.start ?? textarea.selectionStart ?? currentValue.length
+        const end = range?.end ?? insertAt
+        const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
+        const insertText = `${needsSpaceBefore ? ' ' : ''}${SKILL_CHIP_TRIGGER}${server.name} `
+        const newValue = `${currentValue.slice(0, insertAt)}${insertText}${currentValue.slice(end)}`
+        const newPos = insertAt + insertText.length
+
+        pendingCursorRef.current = newPos
+        valueRef.current = newValue
+        slashRangeRef.current = null
+        setSlashQuery(null)
+        dismissedSlashStartRef.current = null
+        setValueState(newValue)
+      }
+
+      addContextNotified({ kind: 'mcp', serverId: server.id, label: server.name })
+    },
+    [textareaRef, addContextNotified]
+  )
+
+  /**
+   * Only reachable via Radix's own dismiss detection (outside click /
+   * Escape) — programmatic closes (`skillsMenuRef.current?.close()`) bypass
+   * `onOpenChange` and never call this.
+   */
   const handleSkillsMenuClose = useCallback(() => {
+    dismissedSlashStartRef.current = slashRangeRef.current?.start ?? null
     slashRangeRef.current = null
     setSlashQuery(null)
   }, [])
 
+  /**
+   * Only reachable via Radix's own dismiss detection (outside click /
+   * Escape) — programmatic closes (`plusMenuRef.current?.close()`) bypass
+   * `onOpenChange` and never call this.
+   */
   const handlePlusMenuClose = useCallback(() => {
+    dismissedMentionStartRef.current = mentionRangeRef.current?.start ?? null
     atInsertPosRef.current = null
     mentionRangeRef.current = null
     setMentionQuery(null)
@@ -462,6 +520,15 @@ export function usePromptEditor({
           mentionRangeRef.current = null
           setMentionQuery(null)
           plusMenuRef.current?.close()
+        }
+        dismissedMentionStartRef.current = null
+        return
+      }
+
+      if (active.start === dismissedMentionStartRef.current) {
+        if (mentionRangeRef.current !== null) {
+          mentionRangeRef.current = null
+          setMentionQuery(null)
         }
         return
       }
@@ -490,6 +557,15 @@ export function usePromptEditor({
           slashRangeRef.current = null
           setSlashQuery(null)
           skillsMenuRef.current?.close()
+        }
+        dismissedSlashStartRef.current = null
+        return
+      }
+
+      if (active.start === dismissedSlashStartRef.current) {
+        if (slashRangeRef.current !== null) {
+          slashRangeRef.current = null
+          setSlashQuery(null)
         }
         return
       }
@@ -530,6 +606,7 @@ export function usePromptEditor({
     setValueState(newValue)
     textarea.value = newValue
     textarea.setSelectionRange(newCaret, newCaret)
+    dismissedSlashStartRef.current = null
     syncSlashState(textarea, newValue, newCaret)
   }, [textareaRef, syncSlashState])
 
@@ -584,6 +661,8 @@ export function usePromptEditor({
       const caret = e.target.selectionStart ?? finalValue.length
       valueRef.current = finalValue
       setValueState(finalValue)
+      dismissedMentionStartRef.current = null
+      dismissedSlashStartRef.current = null
       syncMentionState(e.target, finalValue, caret)
       syncSlashState(e.target, finalValue, caret)
     },
@@ -964,6 +1043,8 @@ export function usePromptEditor({
     /** @internal Wiring consumed by the {@link PromptEditor} view. */
     skills,
     /** @internal */
+    mcpServers,
+    /** @internal */
     availableResources,
     /** @internal */
     mentionQuery,
@@ -979,6 +1060,8 @@ export function usePromptEditor({
     insertResource,
     /** @internal */
     handleSkillSelect,
+    /** @internal */
+    handleMcpSelect,
     /** @internal */
     handlePlusMenuClose,
     /** @internal */

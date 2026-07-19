@@ -26,6 +26,7 @@ const {
   getPendingChatStreamId,
   releasePendingChatStream,
   resolveOrCreateChat,
+  resolveBillingAttribution,
   finalizeAssistantTurn,
   appendCopilotChatMessages,
   mockPublishStatusChanged,
@@ -41,6 +42,7 @@ const {
   getPendingChatStreamId: vi.fn(),
   releasePendingChatStream: vi.fn(),
   resolveOrCreateChat: vi.fn(),
+  resolveBillingAttribution: vi.fn(),
   finalizeAssistantTurn: vi.fn(),
   appendCopilotChatMessages: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
@@ -48,10 +50,26 @@ const {
 }))
 
 const getSession = authMockFns.mockGetSession
+const billingAttribution = {
+  actorUserId: 'user-1',
+  billedAccountUserId: 'owner-1',
+  billingEntity: { type: 'organization' as const, id: 'org-1' },
+  billingPeriod: {
+    start: '2026-07-01T00:00:00.000Z',
+    end: '2026-08-01T00:00:00.000Z',
+  },
+  organizationId: 'org-1',
+  payerSubscription: null,
+  workspaceId: 'ws-1',
+}
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  resolveBillingAttribution,
+}))
 
 vi.mock('@/lib/environment/utils', () => ({
   getEffectiveDecryptedEnv,
@@ -148,6 +166,7 @@ describe('handleUnifiedChatPost', () => {
     })
     getUserEntityPermissions.mockResolvedValue('write')
     checkActorUsageLimits.mockResolvedValue({ isExceeded: false })
+    resolveBillingAttribution.mockResolvedValue(billingAttribution)
     getEffectiveDecryptedEnv.mockResolvedValue({ API_KEY: 'secret' })
     generateWorkspaceSnapshot.mockResolvedValue({
       markdown: 'workspace context',
@@ -209,6 +228,7 @@ describe('handleUnifiedChatPost', () => {
             userId: 'user-1',
             workflowId: 'wf-1',
             workspaceId: 'ws-1',
+            billingAttribution,
             requestMode: 'agent',
           }),
         }),
@@ -277,6 +297,7 @@ describe('handleUnifiedChatPost', () => {
             userId: 'user-1',
             workflowId: '',
             workspaceId: 'ws-1',
+            billingAttribution,
             requestMode: 'agent',
           }),
         }),
@@ -306,6 +327,26 @@ describe('handleUnifiedChatPost', () => {
       'Hello',
       'ws-1',
       expect.anything()
+    )
+  })
+
+  it('forwards slash-selected MCP server ids to the request-local tool builder', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: '/Docs search auth',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          contexts: [{ kind: 'mcp', serverId: 'mcp-server-1', label: 'Docs' }],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ mcpServerIds: ['mcp-server-1'] }),
+      { selectedModel: '' }
     )
   })
 

@@ -3,17 +3,15 @@
 import { Suspense, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import { requestJson } from '@/lib/api/client/request'
 import { resetPasswordContract } from '@/lib/api/contracts'
+import { AuthHeader, AuthNavPrompt } from '@/app/(auth)/components'
 import { SetNewPasswordForm } from '@/app/(auth)/reset-password/reset-password-form'
 
 const logger = createLogger('ResetPasswordPage')
 
 function ResetPasswordContent() {
-  const t = useTranslations('auto')
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
@@ -64,44 +62,25 @@ function ResetPasswordContent() {
   }
 
   return (
-    <>
-      <div className='space-y-1 text-center'>
-        <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
-          {t('reset_your_password')}
-        </h1>
-        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-          {t('enter_a_new_password_for_your')}
-        </p>
-      </div>
+    <div className='space-y-6'>
+      <AuthHeader title='Reset your password' description='Enter a new password for your account' />
 
-      <div className='mt-8'>
-        <SetNewPasswordForm
-          token={token}
-          onSubmit={handleResetPassword}
-          isSubmitting={isSubmitting}
-          statusType={tokenError ? 'error' : statusMessage.type}
-          statusMessage={tokenError ?? statusMessage.text}
-        />
-      </div>
+      <SetNewPasswordForm
+        token={token}
+        onSubmit={handleResetPassword}
+        isSubmitting={isSubmitting}
+        statusType={tokenError ? 'error' : statusMessage.type}
+        statusMessage={tokenError ?? statusMessage.text}
+      />
 
-      <div className='pt-6 text-center font-light text-sm'>
-        <Link
-          href='/login'
-          className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
-        >
-          {t('back_to_login')}
-        </Link>
-      </div>
-    </>
+      <AuthNavPrompt href='/login' linkLabel='Back to login' />
+    </div>
   )
 }
 
 export default function ResetPasswordPage() {
-  const t = useTranslations('auto')
   return (
-    <Suspense
-      fallback={<div className='flex h-screen items-center justify-center'>{t('loading')}</div>}
-    >
+    <Suspense fallback={<div className='flex h-screen items-center justify-center'>Loading…</div>}>
       <ResetPasswordContent />
     </Suspense>
   )

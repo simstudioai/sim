@@ -1,6 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  Badge,
+  Button,
+  Checkbox,
+  ChipConfirmModal,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Loader,
+  Tooltip,
+} from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import {
@@ -15,15 +28,13 @@ import {
   Trash,
   XCircle,
 } from 'lucide-react'
-import { useTranslations } from 'next-intl'
-import { Badge, Button, Checkbox, ChipConfirmModal, Loader, Tooltip } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
 import {
@@ -68,8 +79,6 @@ export function ConnectorsSection({
   canEdit,
   className,
 }: ConnectorsSectionProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const { mutate: triggerSync } = useTriggerSync()
   const { mutate: updateConnector } = useUpdateConnector()
   const { mutate: deleteConnector, isPending: isDeleting } = useDeleteConnector()
@@ -99,12 +108,13 @@ export function ConnectorsSection({
   }, [])
 
   const syncTriggeredAt = useRef<Record<string, number>>({})
-  const cooldownTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
+  const cooldownTimersRef = useRef<Set<ReturnType<typeof setTimeout>> | null>(null)
+  cooldownTimersRef.current ??= new Set()
   const [, forceUpdate] = useState(0)
 
   useEffect(() => {
     return () => {
-      for (const timer of cooldownTimers.current) {
+      for (const timer of cooldownTimersRef.current ?? []) {
         clearTimeout(timer)
       }
     }
@@ -117,22 +127,22 @@ export function ConnectorsSection({
   }, [])
 
   const handleSync = useCallback(
-    (connectorId: string) => {
+    (connectorId: string, rehydrate = false) => {
       if (isSyncOnCooldown(connectorId)) return
 
       syncTriggeredAt.current[connectorId] = Date.now()
       addToSet(setSyncingIds, connectorId)
 
       triggerSync(
-        { knowledgeBaseId, connectorId },
+        { knowledgeBaseId, connectorId, rehydrate },
         {
           onSuccess: () => {
             setError(null)
             const timer = setTimeout(() => {
-              cooldownTimers.current.delete(timer)
+              cooldownTimersRef.current?.delete(timer)
               forceUpdate((n) => n + 1)
             }, SYNC_COOLDOWN_MS)
-            cooldownTimers.current.add(timer)
+            cooldownTimersRef.current?.add(timer)
           },
           onError: (err) => {
             logger.error('Sync trigger failed', { error: err.message })
@@ -202,7 +212,7 @@ export function ConnectorsSection({
         <div className='mt-2' />
       ) : connectors.length === 0 ? (
         <p className='mt-2 text-[var(--text-muted)] text-small'>
-          {t('no_connected_sources_yet_connect_an')}
+          No connected sources yet. Connect an external source to automatically sync documents.
         </p>
       ) : (
         <div className='mt-2 flex flex-col gap-0.5'>
@@ -216,7 +226,7 @@ export function ConnectorsSection({
               isSyncPending={syncingIds.has(connector.id)}
               isUpdating={updatingIds.has(connector.id)}
               syncCooldown={isSyncOnCooldown(connector.id)}
-              onSync={() => handleSync(connector.id)}
+              onSync={(rehydrate) => handleSync(connector.id, rehydrate)}
               onTogglePause={() => handleTogglePause(connector)}
               onEdit={() => setEditingConnector(connector)}
               onDelete={() => setDeleteTarget(connector.id)}
@@ -239,9 +249,9 @@ export function ConnectorsSection({
         onOpenChange={(open) => {
           if (!open) closeDeleteModal()
         }}
-        srTitle={tI18n('remove_connector')}
-        title={t('remove_connector')}
-        text={tI18n('this_will_disconnect_the_source_and')}
+        srTitle='Remove Connector'
+        title='Remove Connector'
+        text='This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
         confirm={{
           label: 'Remove',
           onClick: handleDeleteConnector,
@@ -259,7 +269,7 @@ export function ConnectorsSection({
             htmlFor={deleteDocumentsId}
             className='cursor-pointer text-[var(--text-secondary)] text-small'
           >
-            {t('also_delete_all_synced_documents')}
+            Also delete all synced documents
           </label>
         </div>
       </ChipConfirmModal>
@@ -275,7 +285,7 @@ interface ConnectorCardProps {
   isSyncPending: boolean
   isUpdating: boolean
   syncCooldown: boolean
-  onSync: () => void
+  onSync: (rehydrate?: boolean) => void
   onEdit: () => void
   onTogglePause: () => void
   onDelete: () => void
@@ -294,8 +304,6 @@ function ConnectorCard({
   onTogglePause,
   onDelete,
 }: ConnectorCardProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [expanded, setExpanded] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
 
@@ -307,8 +315,10 @@ function ConnectorCard({
 
   const serviceId = connectorDef?.auth.mode === 'oauth' ? connectorDef.auth.provider : undefined
   const providerId = serviceId ? getProviderIdFromServiceId(serviceId) : undefined
-  const requiredScopes =
-    connectorDef?.auth.mode === 'oauth' ? (connectorDef.auth.requiredScopes ?? []) : []
+  const requiredScopes = useMemo(
+    () => (connectorDef?.auth.mode === 'oauth' ? (connectorDef.auth.requiredScopes ?? []) : []),
+    [connectorDef]
+  )
 
   const { data: credentials, refetch: refetchCredentials } = useOAuthCredentials(providerId, {
     workspaceId,
@@ -328,6 +338,14 @@ function ConnectorCard({
     expanded ? connector.id : undefined
   )
   const syncLogs = detail?.syncLogs ?? []
+
+  const canFullResync = Boolean(connectorDef?.rehydrateOnFullSync)
+  const syncDisabled =
+    connector.status === 'syncing' ||
+    connector.status === 'disabled' ||
+    isSyncPending ||
+    syncCooldown
+  const syncTooltip = syncCooldown ? 'Sync recently triggered' : canFullResync ? 'Sync' : 'Sync now'
 
   return (
     <div
@@ -352,7 +370,10 @@ function ConnectorCard({
             >
               {Icon && (
                 <Icon
-                  className={cn('size-5', brandBg ? 'text-white' : 'text-[var(--text-icon)]')}
+                  className={cn(
+                    'size-5',
+                    brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
+                  )}
                 />
               )}
             </div>
@@ -374,23 +395,19 @@ function ConnectorCard({
             </div>
             <div className='flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[var(--text-muted)] text-xs'>
               {connector.lastSyncAt && (
-                <span>
-                  {t('last_sync')} {format(new Date(connector.lastSyncAt), 'MMM d, h:mm a')}
-                </span>
+                <span>Last sync: {format(new Date(connector.lastSyncAt), 'MMM d, h:mm a')}</span>
               )}
               {connector.lastSyncDocCount !== null && (
                 <>
                   <span>·</span>
-                  <span>
-                    {connector.lastSyncDocCount} {t('docs')}
-                  </span>
+                  <span>{connector.lastSyncDocCount} docs</span>
                 </>
               )}
               {connector.nextSyncAt && connector.status === 'active' && (
                 <>
                   <span>·</span>
                   <span>
-                    {t('next_sync')}{' '}
+                    Next sync:{' '}
                     {isPast(new Date(connector.nextSyncAt))
                       ? 'pending'
                       : formatDistanceToNow(new Date(connector.nextSyncAt), { addSuffix: true })}
@@ -412,28 +429,60 @@ function ConnectorCard({
         <div className='flex flex-shrink-0 items-center gap-0.5'>
           {canEdit && (
             <>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className={CONNECTOR_ACTION_BUTTON_CLASSES}
-                    onClick={onSync}
-                    disabled={
-                      connector.status === 'syncing' ||
-                      connector.status === 'disabled' ||
-                      isSyncPending ||
-                      syncCooldown
-                    }
-                  >
-                    <RefreshCw
-                      className={cn('size-3.5', connector.status === 'syncing' && 'animate-spin')}
-                    />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  {syncCooldown ? tI18n('sync_recently_triggered') : tI18n('sync_now')}
-                </Tooltip.Content>
-              </Tooltip.Root>
+              {canFullResync ? (
+                <DropdownMenu>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      {/* span keeps the tooltip hoverable while the trigger button is disabled */}
+                      <span className='inline-flex'>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            aria-label='Sync options'
+                            className={CONNECTOR_ACTION_BUTTON_CLASSES}
+                            disabled={syncDisabled}
+                          >
+                            <RefreshCw
+                              className={cn(
+                                'size-3.5',
+                                connector.status === 'syncing' && 'animate-spin'
+                              )}
+                            />
+                          </Button>
+                        </DropdownMenuTrigger>
+                      </span>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content>{syncTooltip}</Tooltip.Content>
+                  </Tooltip.Root>
+                  <DropdownMenuContent align='end'>
+                    <DropdownMenuItem onSelect={() => onSync(false)}>Sync now</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => onSync(true)}>Full resync</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    {/* span keeps the tooltip hoverable while the button is disabled */}
+                    <span className='inline-flex'>
+                      <Button
+                        variant='ghost'
+                        aria-label='Sync now'
+                        className={CONNECTOR_ACTION_BUTTON_CLASSES}
+                        disabled={syncDisabled}
+                        onClick={() => onSync(false)}
+                      >
+                        <RefreshCw
+                          className={cn(
+                            'size-3.5',
+                            connector.status === 'syncing' && 'animate-spin'
+                          )}
+                        />
+                      </Button>
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>{syncTooltip}</Tooltip.Content>
+                </Tooltip.Root>
+              )}
 
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -445,7 +494,7 @@ function ConnectorCard({
                     <Settings className='size-3.5' />
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content>{t('settings')}</Tooltip.Content>
+                <Tooltip.Content>Settings</Tooltip.Content>
               </Tooltip.Root>
 
               <Tooltip.Root>
@@ -467,8 +516,8 @@ function ConnectorCard({
                 </Tooltip.Trigger>
                 <Tooltip.Content>
                   {connector.status === 'paused' || connector.status === 'disabled'
-                    ? tI18n('resume')
-                    : tI18n('pause')}
+                    ? 'Resume'
+                    : 'Pause'}
                 </Tooltip.Content>
               </Tooltip.Root>
 
@@ -482,7 +531,7 @@ function ConnectorCard({
                     <Trash className='size-3.5' />
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content>{t('delete')}</Tooltip.Content>
+                <Tooltip.Content>Delete</Tooltip.Content>
               </Tooltip.Root>
             </>
           )}
@@ -499,9 +548,7 @@ function ConnectorCard({
                 />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content>
-              {expanded ? tI18n('hide_history') : tI18n('sync_history')}
-            </Tooltip.Content>
+            <Tooltip.Content>{expanded ? 'Hide history' : 'Sync history'}</Tooltip.Content>
           </Tooltip.Root>
         </div>
       </div>
@@ -511,14 +558,13 @@ function ConnectorCard({
           <div className='flex flex-col gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-3)] px-2.5 py-2'>
             <div className='flex items-center gap-1.5 font-medium text-[var(--text-primary)] text-caption'>
               <AlertTriangle className='size-3 flex-shrink-0 text-[var(--caution)]' />
-              {t('connector_disabled_after_repeated_sync_failures')}
+              Connector disabled after repeated sync failures
             </div>
             <p className='text-[var(--text-muted)] text-caption leading-snug'>
-              {t('syncing_has_been_paused_due_to')} {connector.consecutiveFailures}{' '}
-              {t('consecutive_failures')}
+              Syncing has been paused due to {connector.consecutiveFailures} consecutive failures.
               {serviceId
-                ? tI18n('reconnect_your_account_to_resume_syncing')
-                : tI18n('use_the_resume_button_to_re')}
+                ? ' Reconnect your account to resume syncing.'
+                : ' Use the resume button to re-enable syncing.'}
             </p>
             {canEdit && serviceId && providerId && (
               <Button
@@ -540,7 +586,7 @@ function ConnectorCard({
                 size='sm'
                 className='w-full'
               >
-                {t('reconnect')}
+                Reconnect
               </Button>
             )}
           </div>
@@ -552,7 +598,7 @@ function ConnectorCard({
           <div className='flex flex-col gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-3)] px-2.5 py-2'>
             <div className='flex items-center font-medium text-[var(--text-primary)] text-caption'>
               <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-[var(--caution)]' />
-              {t('additional_permissions_required')}
+              Additional permissions required
             </div>
             {canEdit && (
               <Button
@@ -574,7 +620,7 @@ function ConnectorCard({
                 size='sm'
                 className='w-full'
               >
-                {t('update_access')}
+                Update access
               </Button>
             )}
           </div>
@@ -633,13 +679,11 @@ interface SyncHistoryProps {
 }
 
 function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   if (isLoading) {
     return (
       <div className='flex items-center gap-2 rounded-md bg-[var(--surface-3)] px-2 py-2 text-[var(--text-muted)] text-xs'>
         <Loader className='size-3' animate />
-        {t('loading_sync_history')}
+        Loading sync history…
       </div>
     )
   }
@@ -647,7 +691,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
   if (logs.length === 0) {
     return (
       <p className='rounded-md bg-[var(--surface-3)] px-2 py-2 text-[var(--text-muted)] text-xs'>
-        {t('no_sync_history_yet')}
+        No sync history yet.
       </p>
     )
   }
@@ -705,11 +749,11 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                         )}
                       </>
                     ) : (
-                      tI18n('no_changes')
+                      'No changes'
                     )}
                   </span>
                 )}
-                {isRunning && <span className='text-[var(--text-muted)]'>{t('in_progress')}</span>}
+                {isRunning && <span className='text-[var(--text-muted)]'>In progress…</span>}
               </div>
 
               {isError && log.errorMessage && (

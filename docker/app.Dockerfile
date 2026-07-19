@@ -125,8 +125,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-v
 # apps/sim/lib/execution/sandbox/bundles/build.ts to regenerate.
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/sandbox/bundles ./apps/sim/lib/execution/sandbox/bundles
 
-# Guardrails PII runs in dedicated Presidio sidecar containers (analyzer +
-# anonymizer), reached over localhost — no Python/Presidio in this image.
+# Guardrails PII runs in a standalone Presidio service (combined analyzer +
+# anonymizer, docker/pii.Dockerfile), reached over the network via PII_URL —
+# no Python/Presidio in this image.
 
 # Create .next/cache directory with correct ownership
 RUN mkdir -p apps/sim/.next/cache && \

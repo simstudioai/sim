@@ -1,10 +1,9 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { Combobox, type ComboboxOptionGroup } from '@sim/emcn'
 import { Plus, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
 import { AgentSkillsIcon } from '@/components/icons'
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -35,8 +34,6 @@ export function SkillInput({
   previewValue,
   disabled,
 }: SkillInputProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -125,12 +122,12 @@ export function SkillInput({
         <Combobox
           options={[]}
           groups={skillGroups}
-          placeholder={t('add_skill')}
+          placeholder='Add skill...'
           disabled={disabled}
           searchable
-          searchPlaceholder={tI18n('search_skills')}
+          searchPlaceholder='Search skills...'
           maxHeight={240}
-          emptyMessage={t('no_skills_found')}
+          emptyMessage='No skills found'
         />
 
         {selectedSkills.length > 0 &&
@@ -174,7 +171,7 @@ export function SkillInput({
                           handleRemove(stored.skillId)
                         }}
                         className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
-                        aria-label={t('remove_skill')}
+                        aria-label='Remove skill'
                       >
                         <XIcon className='size-[13px]' />
                       </button>

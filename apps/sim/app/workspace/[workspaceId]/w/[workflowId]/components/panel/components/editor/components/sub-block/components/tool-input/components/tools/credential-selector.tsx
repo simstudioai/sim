@@ -1,10 +1,9 @@
 'use client'
 
 import { createElement, useCallback, useMemo, useRef, useState } from 'react'
+import { Button, Combobox } from '@sim/emcn'
 import { ExternalLink } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Button, Combobox } from '@/components/emcn/components'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
@@ -80,7 +79,6 @@ export function ToolCredentialSelector({
   serviceId,
   disabled = false,
 }: ToolCredentialSelectorProps) {
-  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -241,7 +239,7 @@ export function ToolCredentialSelector({
         <div className='mt-2 flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
           <div className='flex items-center font-medium text-caption'>
             <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-amber-500' />
-            {t('additional_permissions_required')}
+            Additional permissions required
           </div>
           <Button
             variant='active'
@@ -259,7 +257,7 @@ export function ToolCredentialSelector({
             }}
             className='w-full px-2 py-1 font-medium text-caption'
           >
-            {t('update_access')}
+            Update access
           </Button>
         </div>
       )}

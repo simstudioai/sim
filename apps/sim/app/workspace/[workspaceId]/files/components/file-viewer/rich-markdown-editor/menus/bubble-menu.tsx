@@ -10,6 +10,7 @@ import {
   Code,
   Heading1,
   Heading2,
+  Highlighter,
   Italic,
   Link as LinkIcon,
   List,
@@ -76,6 +77,7 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
       bold: e.isActive('bold'),
       italic: e.isActive('italic'),
       strike: e.isActive('strike'),
+      highlight: e.isActive('highlight'),
       code: e.isActive('code'),
       link: e.isActive('link'),
       heading1: e.isActive('heading', { level: 1 }),
@@ -261,6 +263,13 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
             shortcut='⌘⇧S'
             isActive={active.strike}
             onClick={() => editor.chain().focus().toggleStrike().run()}
+          />
+          <ToolbarButton
+            icon={Highlighter}
+            label='Highlight'
+            shortcut='⌘⇧H'
+            isActive={active.highlight}
+            onClick={() => editor.chain().focus().toggleMark('highlight').run()}
           />
           <ToolbarButton
             icon={Code}

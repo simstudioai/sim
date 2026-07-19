@@ -10,6 +10,7 @@ import {
 } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { HttpError } from '@/lib/core/utils/http-error'
+import type { DbOrTx } from '@/lib/db/types'
 import { getOrgAdminWorkspaceRows } from '@/lib/workspaces/utils'
 
 export type { PermissionType }
@@ -33,6 +34,8 @@ export interface WorkspaceAccess {
   canWrite: boolean
   canAdmin: boolean
   workspace: WorkspaceWithOwner | null
+  /** The viewer's raw effective permission, or `null` when the workspace doesn't exist or they have none. */
+  permission: PermissionType | null
 }
 
 /**
@@ -81,10 +84,10 @@ export async function getWorkspaceById(
  */
 export async function getWorkspaceWithOwner(
   workspaceId: string,
-  options?: { includeArchived?: boolean }
+  options?: { includeArchived?: boolean; executor?: DbOrTx; forUpdate?: boolean }
 ): Promise<WorkspaceWithOwner | null> {
-  const { includeArchived = false } = options ?? {}
-  const [ws] = await db
+  const { includeArchived = false, executor = db, forUpdate = false } = options ?? {}
+  const query = executor
     .select({
       id: workspace.id,
       name: workspace.name,
@@ -100,7 +103,7 @@ export async function getWorkspaceWithOwner(
         ? eq(workspace.id, workspaceId)
         : and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt))
     )
-    .limit(1)
+  const [ws] = forUpdate ? await query.for('update').limit(1) : await query.limit(1)
 
   return ws || null
 }
@@ -143,7 +146,14 @@ export async function checkWorkspaceAccess(
   const ws = await getWorkspaceWithOwner(workspaceId)
 
   if (!ws) {
-    return { exists: false, hasAccess: false, canWrite: false, canAdmin: false, workspace: null }
+    return {
+      exists: false,
+      hasAccess: false,
+      canWrite: false,
+      canAdmin: false,
+      workspace: null,
+      permission: null,
+    }
   }
 
   const permission = await getEffectiveWorkspacePermission(userId, ws)
@@ -151,7 +161,7 @@ export async function checkWorkspaceAccess(
   const canWrite = permissionSatisfies(permission, 'write')
   const canAdmin = permissionSatisfies(permission, 'admin')
 
-  return { exists: true, hasAccess, canWrite, canAdmin, workspace: ws }
+  return { exists: true, hasAccess, canWrite, canAdmin, workspace: ws, permission }
 }
 
 /**
@@ -200,11 +210,7 @@ export async function getUserEntityPermissions(
   entityId: string
 ): Promise<PermissionType | null> {
   if (entityType === 'workspace') {
-    const ws = await getWorkspaceWithOwner(entityId)
-    if (!ws) {
-      return null
-    }
-    return getEffectiveWorkspacePermission(userId, ws)
+    return (await checkWorkspaceAccess(entityId, userId)).permission
   }
 
   const result = await db
@@ -241,6 +247,7 @@ export async function getUserEntityPermissions(
  * the UI tag matches how the member actually joined.
  *
  * @param workspaceId - The ID of the workspace to retrieve user permissions for.
+ * @param resolvedWorkspace - An already-authorized workspace row that avoids a duplicate lookup.
  * @returns A promise that resolves to an array of user objects, each containing user details and their permission type.
  */
 export type MemberRoleSource = 'owner' | 'explicit' | 'org-admin'
@@ -261,9 +268,10 @@ export interface WorkspaceMemberWithRole {
 }
 
 export async function getUsersWithPermissions(
-  workspaceId: string
+  workspaceId: string,
+  resolvedWorkspace?: WorkspaceWithOwner
 ): Promise<WorkspaceMemberWithRole[]> {
-  const ws = await getWorkspaceWithOwner(workspaceId)
+  const ws = resolvedWorkspace ?? (await getWorkspaceWithOwner(workspaceId))
   if (!ws) return []
 
   const explicitRows = await db
@@ -376,6 +384,62 @@ export async function getWorkspaceMemberProfiles(
   return rows
 }
 
+export interface WorkspacePermissionsForViewer {
+  users: WorkspaceMemberWithRole[]
+  total: number
+  viewer: {
+    userId: string
+    isAdmin: boolean
+    permissionType: PermissionType
+  }
+}
+
+/**
+ * Builds the workspace-permissions payload after the caller has already
+ * authorized the viewer against the same workspace resource.
+ *
+ * This avoids repeating the workspace and effective-permission reads in
+ * server-render prefetch paths. Callers must pass the permission returned by
+ * {@link checkWorkspaceAccess}; API boundaries should use
+ * {@link getWorkspacePermissionsForViewer} instead.
+ */
+export async function getWorkspacePermissionsForAuthorizedViewer(
+  workspaceId: string,
+  userId: string,
+  permission: PermissionType,
+  resolvedWorkspace?: WorkspaceWithOwner
+): Promise<WorkspacePermissionsForViewer> {
+  const users = await getUsersWithPermissions(workspaceId, resolvedWorkspace)
+
+  return {
+    users,
+    total: users.length,
+    viewer: { userId, isAdmin: permission === 'admin', permissionType: permission },
+  }
+}
+
+/**
+ * Builds the workspace permissions payload for a viewer: the full member list plus
+ * the viewer's own resolved permission. Shared by `GET /api/workspaces/[id]/permissions`
+ * and the sidebar prefetch so the two never drift.
+ *
+ * @param workspaceId - The workspace ID to build permissions for
+ * @param userId - The viewer's user ID
+ * @returns The permissions payload, or `null` if the workspace doesn't exist or the viewer lacks access
+ */
+export async function getWorkspacePermissionsForViewer(
+  workspaceId: string,
+  userId: string
+): Promise<WorkspacePermissionsForViewer | null> {
+  const ws = await getWorkspaceWithOwner(workspaceId)
+  if (!ws) return null
+
+  const permission = await getEffectiveWorkspacePermission(userId, ws)
+  if (permission === null) return null
+
+  return getWorkspacePermissionsForAuthorizedViewer(workspaceId, userId, permission, ws)
+}
+
 /**
  * Check if a user has admin access to a specific workspace
  *
@@ -387,13 +451,7 @@ export async function hasWorkspaceAdminAccess(
   userId: string,
   workspaceId: string
 ): Promise<boolean> {
-  const ws = await getWorkspaceWithOwner(workspaceId)
-
-  if (!ws) {
-    return false
-  }
-
-  return (await getEffectiveWorkspacePermission(userId, ws)) === 'admin'
+  return (await checkWorkspaceAccess(workspaceId, userId)).canAdmin
 }
 
 /**

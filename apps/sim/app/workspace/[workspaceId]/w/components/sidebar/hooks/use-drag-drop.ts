@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { noop } from '@sim/utils/helpers'
 import { useParams } from 'next/navigation'
 import { getFolderPath } from '@/lib/folders/tree'
 import { useReorderFolders } from '@/hooks/queries/folders'
@@ -40,8 +41,6 @@ const NOOP_DRAG_HANDLERS = {
 
 const createNoopDragHandlers = () => NOOP_DRAG_HANDLERS
 
-const noop = () => {}
-
 /** Root folder vs root workflow scope: API/cache may use null or undefined for "no parent". */
 function isSameFolderScope(
   parentOrFolderId: string | null | undefined,
@@ -65,7 +64,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
   const hoverExpandTimerRef = useRef<number | null>(null)
   const lastDragYRef = useRef<number>(0)
   const draggedSourceFolderRef = useRef<string | null>(null)
-  const siblingsCacheRef = useRef<Map<string, SiblingItem[]>>(new Map())
+  const siblingsCacheRef = useRef<Map<string, SiblingItem[]> | null>(null)
   const isDraggingRef = useRef(false)
 
   const params = useParams()
@@ -152,7 +151,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
   }, [hoverFolderId, isDragging, expandedFolders, setExpanded])
 
   useEffect(() => {
-    siblingsCacheRef.current.clear()
+    siblingsCacheRef.current?.clear()
   }, [workspaceId])
 
   const calculateDropPosition = useCallback(
@@ -276,7 +275,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     (folderId: string | null): SiblingItem[] => {
       const cacheKey = folderId ?? 'root'
       if (!isDraggingRef.current) {
-        const cached = siblingsCacheRef.current.get(cacheKey)
+        const cached = siblingsCacheRef.current?.get(cacheKey)
         if (cached) return cached
       }
 
@@ -302,7 +301,8 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       ].sort(compareSiblingItems)
 
       if (!isDraggingRef.current) {
-        siblingsCacheRef.current.set(cacheKey, siblings)
+        const cache = (siblingsCacheRef.current ??= new Map())
+        cache.set(cacheKey, siblings)
       }
       return siblings
     },
@@ -474,7 +474,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       setDropIndicator(null)
       isDraggingRef.current = false
       setIsDragging(false)
-      siblingsCacheRef.current.clear()
+      siblingsCacheRef.current?.clear()
 
       if (!indicator) return
 
@@ -614,7 +614,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
 
   const handleDragStart = useCallback((sourceFolderId: string | null) => {
     draggedSourceFolderRef.current = sourceFolderId
-    siblingsCacheRef.current.clear()
+    siblingsCacheRef.current?.clear()
     isDraggingRef.current = true
     setIsDragging(true)
   }, [])
@@ -626,7 +626,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     setDropIndicator(null)
     draggedSourceFolderRef.current = null
     setHoverFolderId(null)
-    siblingsCacheRef.current.clear()
+    siblingsCacheRef.current?.clear()
   }, [])
 
   useEffect(() => {

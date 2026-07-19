@@ -73,7 +73,7 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       id: 'userId',
       title: 'User ID',
       type: 'short-input',
-      placeholder: 'me (or user ID/email)',
+      placeholder: 'me (OAuth only) or user ID/email',
       required: true,
       condition: {
         field: 'operation',
@@ -625,7 +625,11 @@ Return ONLY the date string - no explanations, no quotes, no extra text.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Zoom access token' },
-    userId: { type: 'string', description: 'User ID or email (use "me" for authenticated user)' },
+    userId: {
+      type: 'string',
+      description:
+        'User ID or email address. Use "me" for the authenticated user with OAuth credentials; with a Zoom server-to-server service account, "me" is not supported — provide the target user ID or email address.',
+    },
     meetingId: { type: 'string', description: 'Meeting ID' },
     topic: { type: 'string', description: 'Meeting topic' },
     topicUpdate: { type: 'string', description: 'Meeting topic for update' },

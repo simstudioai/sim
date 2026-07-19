@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerReadResponse,
   MicrosoftPlannerToolParams,
@@ -13,7 +14,7 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
   description:
     'Read tasks from Microsoft Planner - get all user tasks or all tasks from a specific plan',
   version: '1.0',
-  errorExtractor: 'nested-error-object',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,

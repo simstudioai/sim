@@ -1,25 +1,27 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { ChipDropdown, Plus, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatDate } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Chip, ChipDropdown, Plus, toast } from '@/components/emcn'
 import {
   RoleLockTooltip,
   type WorkspaceRoleSource,
   workspaceRoleLockReason,
 } from '@/components/permissions'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { WorkspacePermission } from '@/lib/api/contracts/workspaces'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import {
   MemberRow,
   MemberSection,
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import {
   useCancelWorkspaceInvitation,
@@ -56,10 +58,6 @@ interface Teammate {
   roleSource?: WorkspaceRoleSource
 }
 
-function formatJoinedDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US')
-}
-
 function copyToClipboard(text: string) {
   void navigator.clipboard.writeText(text)
 }
@@ -69,12 +67,10 @@ function buildInviteLink(invitationId: string, token: string) {
 }
 
 export function Teammates() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
 
   const { data: permissions, isPending: permissionsLoading } =
@@ -92,7 +88,10 @@ export function Teammates() {
   const updatePermissions = useUpdateWorkspacePermissions()
 
   const viewer = permissions?.viewer
-  const canManage = Boolean(viewer?.isAdmin)
+  const canManage = canMutateWorkspaceSettingsSection('teammates', {
+    canEdit: viewer?.permissionType === 'write' || viewer?.permissionType === 'admin',
+    canAdmin: Boolean(viewer?.isAdmin),
+  })
 
   const activeWorkspace = workspaces?.find((workspace) => workspace.id === workspaceId)
   const inviteDisabledReason = activeWorkspace?.inviteDisabledReason ?? null
@@ -125,7 +124,7 @@ export function Teammates() {
       name: member.name ?? member.email,
       image: member.image,
       role: member.permissionType,
-      status: `Joined ${formatJoinedDate(member.joinedAt)}`,
+      status: `Joined ${formatDate(new Date(member.joinedAt))}`,
       isPending: false,
       userId: member.userId,
       roleSource: member.roleSource,
@@ -174,25 +173,25 @@ export function Teammates() {
           placeholder: 'Search teammates...',
         }}
         actions={
-          <Chip
-            leftIcon={Plus}
-            variant='primary'
-            onClick={handleInvite}
-            onMouseEnter={isInvitationsDisabled ? prefetchUpgrade : undefined}
-            onFocus={isInvitationsDisabled ? prefetchUpgrade : undefined}
-            title={inviteDisabledReason ?? undefined}
-          >
-            {t('invite')}
-          </Chip>
+          canManage
+            ? [
+                {
+                  text: 'Invite',
+                  icon: Plus,
+                  variant: 'primary',
+                  onSelect: handleInvite,
+                  tooltip: inviteDisabledReason ?? undefined,
+                  onPrefetch: isInvitationsDisabled ? prefetchUpgrade : undefined,
+                },
+              ]
+            : []
         }
       >
         <MemberSection
           label={`Teammates (${teammates.length})`}
           isEmpty={showNoResults}
           emptyText={
-            searchTerm.trim()
-              ? `No teammates found matching “${searchTerm}”`
-              : tI18n('no_teammates_yet')
+            searchTerm.trim() ? `No teammates found matching “${searchTerm}”` : 'No teammates yet'
           }
         >
           {filteredTeammates.map((teammate) => (
@@ -225,7 +224,7 @@ export function Teammates() {
               })()}
               menu={
                 <RowActionsMenu
-                  label={t('teammate_actions')}
+                  label='Teammate actions'
                   actions={[
                     {
                       label: 'Copy email',
@@ -301,13 +300,15 @@ export function Teammates() {
         </MemberSection>
       </SettingsPanel>
 
-      <InviteModal
-        open={isInviteModalOpen}
-        onOpenChange={setIsInviteModalOpen}
-        workspaceName={activeWorkspace?.name ?? 'Workspace'}
-        inviteDisabledReason={inviteDisabledReason}
-        organizationId={activeWorkspace?.organizationId ?? null}
-      />
+      {canManage && (
+        <InviteModal
+          open={isInviteModalOpen}
+          onOpenChange={setIsInviteModalOpen}
+          workspaceName={activeWorkspace?.name ?? 'Workspace'}
+          inviteDisabledReason={inviteDisabledReason}
+          organizationId={activeWorkspace?.organizationId ?? null}
+        />
+      )}
     </>
   )
 }

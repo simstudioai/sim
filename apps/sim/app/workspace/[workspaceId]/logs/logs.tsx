@@ -9,31 +9,30 @@ import {
   useRef,
   useState,
 } from 'react'
-import { formatDuration } from '@sim/utils/formatting'
-import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { useQueryState } from 'nuqs'
 import {
   Button,
+  Calendar,
   ChipCombobox,
   type ComboboxOption,
+  cn,
   Library,
   Popover,
   PopoverAnchor,
   PopoverContent,
   RefreshCw,
   toast,
-} from '@/components/emcn'
-import { Calendar } from '@/components/emcn/components/calendar/calendar'
-import { Download, Workflow } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Download, Workflow } from '@sim/emcn/icons'
+import { formatDuration } from '@sim/utils/formatting'
+import { useQueryClient } from '@tanstack/react-query'
+import { useParams } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import type {
   WorkflowLogDetail,
   WorkflowLogRow,
   WorkflowLogSummary,
 } from '@/lib/api/contracts/logs'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { cn } from '@/lib/core/utils/cn'
 import {
   getEndDateFromTimeRange,
   getStartDateFromTimeRange,
@@ -47,6 +46,7 @@ import {
   type TriggerData,
   type WorkflowData,
 } from '@/lib/logs/search-suggestions'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
   FilterTag,
   ResourceAction,
@@ -60,14 +60,16 @@ import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import {
   executionIdParam,
+  executionIdWriteOptions,
   logDetailsTabParam,
   logDetailsTabUrlKeys,
+  logFilterUrlKeys,
+  logSortParams,
 } from '@/app/workspace/[workspaceId]/logs/search-params'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
-import type { LogSortBy, LogSortOrder } from '@/hooks/queries/logs'
 import {
   fetchLogDetail,
   logKeys,
@@ -81,6 +83,7 @@ import {
 } from '@/hooks/queries/logs'
 import { useWorkflowMap, useWorkflows } from '@/hooks/queries/workflows'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { Dashboard, ExecutionSnapshot, LogDetails, LogRowContextMenu } from './components'
@@ -98,7 +101,6 @@ import {
 } from './utils'
 
 const LOGS_PER_PAGE = 50 as const
-const SORTABLE_COLUMNS: readonly LogSortBy[] = ['date', 'duration', 'cost', 'status'] as const
 const REFRESH_SPINNER_DURATION_MS = 1000 as const
 const LIVE_REFRESH_INTERVAL_MS = 10_000 as const
 const ACTIVE_RUN_DETAIL_REFRESH_MS = 3_000 as const
@@ -207,7 +209,6 @@ function SpinningRefreshCw(props: React.SVGProps<SVGSVGElement>) {
  * @returns The logs page view with table and sidebar details
  */
 export default function Logs() {
-  const tI18n = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -239,7 +240,7 @@ export default function Logs() {
     isSidebarOpen: false,
   })
 
-  const [executionId] = useQueryState(executionIdParam.key, executionIdParam.parser)
+  const [executionId, setExecutionId] = useQueryState(executionIdParam.key, executionIdParam.parser)
   const [pendingExecutionId, setPendingExecutionId] = useState<string | null>(() => executionId)
 
   /**
@@ -255,9 +256,10 @@ export default function Logs() {
   /**
    * `urlSearchQuery` is the instant nuqs value (its URL write is debounced inside
    * `useLogFilters`); the query/filtering still debounce off it to avoid
-   * per-keystroke fetches.
+   * per-keystroke fetches. The raw value is written to the URL, so trim here on
+   * read — the server keeps receiving a trimmed query.
    */
-  const debouncedSearchQuery = useDebounce(urlSearchQuery, 300)
+  const debouncedSearchQuery = useDebounce(urlSearchQuery, SEARCH_DEBOUNCE_MS).trim()
 
   const isLive = true
   const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
@@ -266,16 +268,26 @@ export default function Logs() {
   const logsRef = useRef<WorkflowLogSummary[]>([])
   const selectedLogIndexRef = useRef(-1)
   const selectedLogIdRef = useRef<string | null>(null)
+  const isSidebarOpenRef = useRef(false)
   const shouldScrollIntoViewRef = useRef(false)
   const resourceTableRef = useRef<ResourceTableHandle>(null)
   const logsRefetchRef = useRef<() => void>(() => {})
   const activeLogRefetchRef = useRef<() => void>(() => {})
   const activeLogTabRef = useRef<string>('overview')
   const logsQueryRef = useRef({ isFetching: false, hasNextPage: false, fetchNextPage: () => {} })
-  const [activeSort, setActiveSort] = useState<{
-    column: string
-    direction: 'asc' | 'desc'
-  } | null>(null)
+
+  /**
+   * URL-backed sort (`sort` + `dir`). The defaults match the server's default
+   * ordering, so a clean URL means "no active sort" and clearing the sort
+   * writes the defaults back (which `clearOnDefault` strips from the URL).
+   */
+  const {
+    sort: sortBy,
+    dir: sortOrder,
+    activeSort,
+    onSort,
+    onClear: onClearSort,
+  } = useUrlSort(logSortParams, logFilterUrlKeys)
   const userPermissions = useUserPermissionsContext()
 
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
@@ -302,12 +314,6 @@ export default function Logs() {
   const previewDetailQuery = useLogDetail(previewLogId ?? undefined, workspaceId, {
     refetchInterval,
   })
-
-  const sortBy: LogSortBy =
-    activeSort && SORTABLE_COLUMNS.includes(activeSort.column as LogSortBy)
-      ? (activeSort.column as LogSortBy)
-      : 'date'
-  const sortOrder: LogSortOrder = activeSort?.direction ?? 'desc'
 
   const logFilters = useMemo(
     () => ({
@@ -379,6 +385,7 @@ export default function Logs() {
   logsRef.current = logs
   selectedLogIndexRef.current = selectedLogIndex
   selectedLogIdRef.current = selectedLogId
+  isSidebarOpenRef.current = isSidebarOpen
   logsRefetchRef.current = logsQuery.refetch
   activeLogRefetchRef.current = selectedDetailQuery.refetch
   logsQueryRef.current = {
@@ -408,31 +415,69 @@ export default function Logs() {
     }
   }, [])
 
-  const handleLogClick = useCallback((rowId: string) => {
-    dispatch({ type: 'TOGGLE_LOG', logId: rowId })
-  }, [])
+  /**
+   * The single write path for user-driven `executionId` changes. Cancels any
+   * in-flight deep-link resolution first — an explicit interaction supersedes
+   * it, otherwise the resolved row would open over the user's selection and
+   * leave the URL pointing at a different run than the panel shows.
+   */
+  const writeExecutionId = useCallback(
+    (value: string | null) => {
+      setPendingExecutionId(null)
+      void setExecutionId(value, executionIdWriteOptions)
+    },
+    [setExecutionId]
+  )
+
+  /**
+   * Mirrors the reducer's TOGGLE_LOG branch: clicking the already-open row
+   * closes the sidebar (strip `executionId`); any other click opens the row
+   * (sync `executionId` to it so the URL always deep-links the open run).
+   */
+  const handleLogClick = useCallback(
+    (rowId: string) => {
+      const opens = !(selectedLogIdRef.current === rowId && isSidebarOpenRef.current)
+      dispatch({ type: 'TOGGLE_LOG', logId: rowId })
+      if (opens) {
+        const log = logsRef.current.find((l) => l.id === rowId)
+        writeExecutionId(log?.executionId ?? null)
+      } else {
+        writeExecutionId(null)
+      }
+    },
+    [writeExecutionId]
+  )
 
   const handleNavigateNext = useCallback(() => {
     const idx = selectedLogIndexRef.current
     const currentLogs = logsRef.current
     if (idx >= 0 && idx < currentLogs.length - 1) {
+      const nextLog = currentLogs[idx + 1]
       shouldScrollIntoViewRef.current = true
-      dispatch({ type: 'SELECT_LOG', logId: currentLogs[idx + 1].id })
+      dispatch({ type: 'SELECT_LOG', logId: nextLog.id })
+      if (isSidebarOpenRef.current) {
+        writeExecutionId(nextLog.executionId ?? null)
+      }
     }
-  }, [])
+  }, [writeExecutionId])
 
   const handleNavigatePrev = useCallback(() => {
     const idx = selectedLogIndexRef.current
     if (idx > 0) {
+      const prevLog = logsRef.current[idx - 1]
       shouldScrollIntoViewRef.current = true
-      dispatch({ type: 'SELECT_LOG', logId: logsRef.current[idx - 1].id })
+      dispatch({ type: 'SELECT_LOG', logId: prevLog.id })
+      if (isSidebarOpenRef.current) {
+        writeExecutionId(prevLog.executionId ?? null)
+      }
     }
-  }, [])
+  }, [writeExecutionId])
 
   const handleCloseSidebar = useCallback(() => {
     dispatch({ type: 'CLOSE_SIDEBAR' })
+    writeExecutionId(null)
     activeLogTabRef.current = 'overview'
-  }, [])
+  }, [writeExecutionId])
 
   /**
    * Strip the `tab` param whenever the detail panel transitions from open to
@@ -661,6 +706,9 @@ export default function Logs() {
 
   const handleNavigateNextEvent = useEffectEvent(handleNavigateNext)
   const handleNavigatePrevEvent = useEffectEvent(handleNavigatePrev)
+  const writeExecutionIdEvent = useEffectEvent((value: string | null) => {
+    writeExecutionId(value)
+  })
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -695,7 +743,14 @@ export default function Logs() {
 
       if (e.key === 'Enter' && selectedLogIdRef.current) {
         e.preventDefault()
+        const willOpen = !isSidebarOpenRef.current
         dispatch({ type: 'TOGGLE_SIDEBAR' })
+        if (willOpen) {
+          const log = currentLogs.find((l) => l.id === selectedLogIdRef.current)
+          writeExecutionIdEvent(log?.executionId ?? null)
+        } else {
+          writeExecutionIdEvent(null)
+        }
       }
     }
 
@@ -964,7 +1019,7 @@ export default function Logs() {
           <div className='py-1'>
             {suggestionType === 'filters' && (
               <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
-                {tI18n('suggested_filters')}
+                SUGGESTED FILTERS
               </div>
             )}
             {suggestions.map((suggestion, index) => (
@@ -1019,10 +1074,10 @@ export default function Logs() {
         { id: 'status', label: 'Status' },
       ],
       active: activeSort,
-      onSort: (column, direction) => setActiveSort({ column, direction }),
-      onClear: () => setActiveSort(null),
+      onSort,
+      onClear: onClearSort,
     }),
-    [activeSort]
+    [activeSort, onSort, onClearSort]
   )
 
   const searchConfig = useMemo<SearchConfig>(
@@ -1098,7 +1153,7 @@ export default function Logs() {
   return (
     <>
       <Resource>
-        <Resource.Header icon={Library} title={tI18n('logs')} actions={headerActions} />
+        <Resource.Header icon={Library} title='Logs' actions={headerActions} />
         <Resource.Options
           search={searchConfig}
           sort={sortConfig}
@@ -1179,8 +1234,6 @@ interface LogsFilterPanelProps {
 }
 
 function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelProps) {
-  const tAuto = useTranslations('auto')
-  const tI18n = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -1332,13 +1385,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   return (
     <div className='flex w-[240px] flex-col gap-4 p-3'>
       <div className='flex flex-col gap-[9px]'>
-        <span className='text-[var(--text-muted)] text-small'>{tI18n('status')}</span>
+        <span className='text-[var(--text-muted)] text-small'>Status</span>
         <ChipCombobox
           options={statusOptions}
           multiSelect
           multiSelectValues={selectedStatuses}
           onMultiSelectChange={handleStatusChange}
-          placeholder={tI18n('all_statuses')}
+          placeholder='All statuses'
           overlayContent={
             <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
               {selectedStatusColor && (
@@ -1351,19 +1404,19 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             </span>
           }
           showAllOption
-          allOptionLabel={tAuto('all_statuses')}
+          allOptionLabel='All statuses'
           className='w-full'
         />
       </div>
 
       <div className='flex flex-col gap-[9px]'>
-        <span className='text-[var(--text-muted)] text-small'>{tI18n('workflow')}</span>
+        <span className='text-[var(--text-muted)] text-small'>Workflow</span>
         <ChipCombobox
           options={workflowOptions}
           multiSelect
           multiSelectValues={workflowIds}
           onMultiSelectChange={setWorkflowIds}
-          placeholder={tI18n('all_workflows')}
+          placeholder='All workflows'
           overlayContent={
             <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
               {selectedWorkflow && (
@@ -1373,59 +1426,59 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             </span>
           }
           searchable
-          searchPlaceholder={tAuto('search_workflows')}
+          searchPlaceholder='Search workflows...'
           showAllOption
-          allOptionLabel={tAuto('all_workflows')}
+          allOptionLabel='All workflows'
           className='w-full'
         />
       </div>
 
       <div className='flex flex-col gap-[9px]'>
-        <span className='text-[var(--text-muted)] text-small'>{tI18n('folder')}</span>
+        <span className='text-[var(--text-muted)] text-small'>Folder</span>
         <ChipCombobox
           options={folderOptions}
           multiSelect
           multiSelectValues={folderIds}
           onMultiSelectChange={setFolderIds}
-          placeholder={tI18n('all_folders')}
+          placeholder='All folders'
           overlayContent={
             <span className='truncate text-[var(--text-primary)]'>{folderDisplayLabel}</span>
           }
           searchable
-          searchPlaceholder={tAuto('search_folders')}
+          searchPlaceholder='Search folders...'
           showAllOption
-          allOptionLabel={tAuto('all_folders')}
+          allOptionLabel='All folders'
           className='w-full'
         />
       </div>
 
       <div className='flex flex-col gap-[9px]'>
-        <span className='text-[var(--text-muted)] text-small'>{tI18n('trigger')}</span>
+        <span className='text-[var(--text-muted)] text-small'>Trigger</span>
         <ChipCombobox
           options={triggerOptions}
           multiSelect
           multiSelectValues={triggers}
           onMultiSelectChange={setTriggers}
-          placeholder={tI18n('all_triggers')}
+          placeholder='All triggers'
           overlayContent={
             <span className='truncate text-[var(--text-primary)]'>{triggerDisplayLabel}</span>
           }
           searchable
-          searchPlaceholder={tAuto('search_triggers')}
+          searchPlaceholder='Search triggers...'
           showAllOption
-          allOptionLabel={tAuto('all_triggers')}
+          allOptionLabel='All triggers'
           className='w-full'
         />
       </div>
 
       <div className='flex flex-col gap-[9px]'>
-        <span className='text-[var(--text-muted)] text-small'>{tI18n('time_range')}</span>
+        <span className='text-[var(--text-muted)] text-small'>Time Range</span>
         <div className='relative'>
           <ChipCombobox
             options={TIME_RANGE_OPTIONS}
             value={timeRange}
             onChange={handleTimeRangeChange}
-            placeholder={tI18n('all_time')}
+            placeholder='All time'
             overlayContent={
               <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
             }
@@ -1465,7 +1518,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           onClick={handleClearFilters}
           className='h-[32px] w-full rounded-md'
         >
-          {tI18n('clear_all_filters')}
+          Clear All Filters
         </Button>
       )}
     </div>

@@ -1,10 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { truncate } from '@sim/utils/string'
-import { useTranslations } from 'next-intl'
 import {
   Button,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -14,9 +13,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Tooltip,
-} from '@/components/emcn'
-import { Folder, Plus, Workflow } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { Folder, Plus, Workflow } from '@sim/emcn/icons'
+import { truncate } from '@sim/utils/string'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
@@ -389,7 +388,6 @@ export function AddResourceDropdown({
   onSwitch,
   excludeTypes,
 }: AddResourceDropdownProps) {
-  const t = useTranslations('auto')
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
@@ -461,14 +459,14 @@ export function AddResourceDropdown({
             <Button
               variant='subtle'
               className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-              aria-label={t('add_resource_tab')}
+              aria-label='Add resource tab'
             >
               <Plus className={RESOURCE_TAB_ICON_CLASS} />
             </Button>
           </DropdownMenuTrigger>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
-          <p>{t('add_resource')}</p>
+          <p>Add resource</p>
         </Tooltip.Content>
       </Tooltip.Root>
       <DropdownMenuContent
@@ -478,7 +476,7 @@ export function AddResourceDropdown({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <DropdownMenuSearchInput
-          placeholder={t('search_resources')}
+          placeholder='Search resources...'
           value={search}
           onChange={(e) => {
             setSearch(e.target.value)
@@ -504,7 +502,7 @@ export function AddResourceDropdown({
               })
             ) : (
               <div className='px-2 py-1.5 text-center font-medium text-[var(--text-tertiary)] text-caption'>
-                {t('no_results')}
+                No results
               </div>
             )
           ) : (
@@ -513,7 +511,7 @@ export function AddResourceDropdown({
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <Workflow className='size-[14px]' />
-                    <span>{t('workflows')}</span>
+                    <span>Workflows</span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent>
                     <WorkflowFolderTreeItems nodes={workflowTree} onSelect={select} />
@@ -527,7 +525,7 @@ export function AddResourceDropdown({
                       const Icon = getResourceConfig('file').icon
                       return <Icon className='size-[14px]' />
                     })()}
-                    <span>{t('files')}</span>
+                    <span>Files</span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent>
                     <FileFolderTreeItems nodes={fileFolderTree} onSelect={select} />

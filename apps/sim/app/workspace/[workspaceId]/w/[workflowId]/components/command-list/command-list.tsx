@@ -1,15 +1,12 @@
 'use client'
 
 import { useCallback } from 'react'
+import { Button, cn, handleKeyboardActivation, Library } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { Search } from 'lucide-react'
 import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Button, Library } from '@/components/emcn'
 import { AgentIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 
@@ -53,7 +50,6 @@ const commands: CommandItem[] = [
  * Centered on the screen for empty workflows
  */
 export function CommandList() {
-  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const openSearchModal = useSearchModalStore((s) => s.open)
@@ -176,7 +172,7 @@ export function CommandList() {
         <div className='mb-5 flex justify-center'>
           <Image
             src='/logo/b&w/text/b&w.svg'
-            alt={t('sim')}
+            alt='Sim'
             width={99.56}
             height={48.56}
             className='opacity-70'

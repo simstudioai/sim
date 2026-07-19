@@ -1,9 +1,8 @@
 'use client'
 
 import { forwardRef, memo, useState } from 'react'
-import { useTranslations } from 'next-intl'
+import { cn } from '@sim/emcn'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
-import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
@@ -72,7 +71,6 @@ export const MothershipView = memo(
     }: MothershipViewProps,
     ref
   ) {
-    const t = useTranslations('auto')
     const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
     const { canEdit } = useUserPermissionsContext()
     const { removeResource } = useMothershipResources()
@@ -147,7 +145,7 @@ export const MothershipView = memo(
               />
             ) : (
               <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                {t('click_above_to_add_a_resource')}
+                Click "+" above to add a resource
               </div>
             )}
           </div>

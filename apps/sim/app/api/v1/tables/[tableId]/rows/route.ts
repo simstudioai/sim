@@ -38,6 +38,7 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  resolveWorkspaceRequestActor,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableRowsAPI')
@@ -53,7 +54,8 @@ async function handleBatchInsert(
   requestId: string,
   tableId: string,
   validated: V1BatchInsertTableRowsBody,
-  userId: string
+  userId: string,
+  actorUserId: string
 ): Promise<NextResponse> {
   const accessResult = await checkAccess(tableId, userId, 'write')
   if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
@@ -82,7 +84,7 @@ async function handleBatchInsert(
         tableId,
         rows,
         workspaceId: validated.workspaceId,
-        userId,
+        userId: actorUserId,
       },
       table,
       requestId
@@ -220,13 +222,26 @@ export const POST = withRouteHandler(
         const batchValidated = parsed.data.body
         const scopeError = await checkWorkspaceScope(rateLimit, batchValidated.workspaceId)
         if (scopeError) return scopeError
-        return handleBatchInsert(requestId, tableId, batchValidated, userId)
+        const actorUserId = await resolveWorkspaceRequestActor(
+          rateLimit,
+          batchValidated.workspaceId
+        )
+        if (!actorUserId) {
+          throw new Error(
+            `Unable to resolve system actor for workspace ${batchValidated.workspaceId}`
+          )
+        }
+        return handleBatchInsert(requestId, tableId, batchValidated, userId, actorUserId)
       }
 
       const validated = parsed.data.body
 
       const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return scopeError
+      const actorUserId = await resolveWorkspaceRequestActor(rateLimit, validated.workspaceId)
+      if (!actorUserId) {
+        throw new Error(`Unable to resolve system actor for workspace ${validated.workspaceId}`)
+      }
 
       const accessResult = await checkAccess(tableId, userId, 'write')
       if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
@@ -253,7 +268,7 @@ export const POST = withRouteHandler(
           tableId,
           data: rowData,
           workspaceId: validated.workspaceId,
-          userId,
+          userId: actorUserId,
         },
         table,
         requestId
@@ -303,6 +318,10 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
 
     const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
+    const actorUserId = await resolveWorkspaceRequestActor(rateLimit, validated.workspaceId)
+    if (!actorUserId) {
+      throw new Error(`Unable to resolve system actor for workspace ${validated.workspaceId}`)
+    }
 
     const accessResult = await checkAccess(tableId, userId, 'write')
     if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
@@ -330,7 +349,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
         filter: filterNamesToIds(validated.filter as Filter, idByName),
         data: patchData,
         limit: validated.limit,
-        actorUserId: userId,
+        actorUserId,
       },
       requestId
     )

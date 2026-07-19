@@ -12,18 +12,17 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useTranslations } from 'next-intl'
 import {
   Button,
   Checkbox,
   cellIconNodeClass,
   chipContentGap,
   chipContentLabelClass,
+  cn,
   Loader,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { ResourceHeader } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
@@ -234,7 +233,6 @@ const ResourceTable = memo(function ResourceTable({
   pagination,
   overlay,
 }: ResourceTableProps) {
-  const t = useTranslations('auto')
   const scrollRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
 
@@ -343,7 +341,7 @@ const ResourceTable = memo(function ResourceTable({
                     checked={selectable.isAllSelected}
                     onCheckedChange={handleSelectAll}
                     disabled={selectable.disabled}
-                    aria-label={t('select_all')}
+                    aria-label='Select all'
                   />
                 </div>
               )}
@@ -557,7 +555,6 @@ const DataRow = memo(function DataRow({
   dataIndex,
   ref,
 }: DataRowProps) {
-  const t = useTranslations('auto')
   const isSelected = selectable?.selectedIds.has(row.id) ?? false
   const isDraggable = rowDragDrop?.isRowDraggable?.(row.id) ?? false
   const isDropTarget = rowDragDrop?.isRowDropTarget?.(row.id) ?? false
@@ -670,7 +667,7 @@ const DataRow = memo(function DataRow({
             checked={isSelected}
             onCheckedChange={handleSelectRow}
             disabled={selectable.disabled}
-            aria-label={t('select_row')}
+            aria-label='Select row'
             onClick={handleSelectRowClick}
           />
         </div>

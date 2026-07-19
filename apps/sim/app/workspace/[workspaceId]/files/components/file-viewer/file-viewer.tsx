@@ -100,8 +100,12 @@ interface FileViewerProps {
   previewMode?: PreviewMode
   autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
-  onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
+  onSaveStatusChange?: (
+    status: 'idle' | 'saving' | 'saved' | 'error',
+    retry?: () => Promise<void>
+  ) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  discardRef?: React.MutableRefObject<(() => void) | null>
   streamingContent?: string
   isAgentEditing?: boolean
   streamIsIncremental?: boolean
@@ -132,6 +136,7 @@ function FileViewerContent({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  discardRef,
   streamingContent,
   isAgentEditing,
   streamIsIncremental,
@@ -175,6 +180,7 @@ function FileViewerContent({
           onDirtyChange={onDirtyChange}
           onSaveStatusChange={onSaveStatusChange}
           saveRef={saveRef}
+          discardRef={discardRef}
           streamingContent={streamingContent}
           isAgentEditing={isAgentEditing}
           streamIsIncremental={streamIsIncremental}
@@ -194,6 +200,7 @@ function FileViewerContent({
         onDirtyChange={onDirtyChange}
         onSaveStatusChange={onSaveStatusChange}
         saveRef={saveRef}
+        discardRef={discardRef}
         streamingContent={streamingContent}
         isAgentEditing={isAgentEditing}
         disableStreamingAutoScroll={disableStreamingAutoScroll}

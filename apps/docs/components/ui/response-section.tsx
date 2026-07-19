@@ -106,8 +106,17 @@ export function ResponseSection({ children }: ResponseSectionProps) {
         setIsOpen(false)
       }
     }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsOpen(false)
+      }
+    }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
   }, [])
 
   return (
@@ -120,6 +129,9 @@ export function ResponseSection({ children }: ResponseSectionProps) {
               <button
                 type='button'
                 className='response-section-dropdown-trigger'
+                aria-haspopup='listbox'
+                aria-expanded={isOpen}
+                aria-label={`Response status code, currently ${selectedCode}`}
                 onClick={() => setIsOpen(!isOpen)}
               >
                 <span>{selectedCode}</span>
@@ -131,11 +143,13 @@ export function ResponseSection({ children }: ResponseSectionProps) {
                 />
               </button>
               {isOpen && (
-                <div className='response-section-dropdown-menu'>
+                <div className='response-section-dropdown-menu' role='listbox'>
                   {statusCodes.map((code) => (
                     <button
                       key={code}
                       type='button'
+                      role='option'
+                      aria-selected={code === selectedCode}
                       className={cn(
                         'response-section-dropdown-item',
                         code === selectedCode && 'response-section-dropdown-item-selected'

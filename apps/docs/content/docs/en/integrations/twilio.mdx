@@ -1,0 +1,107 @@
+---
+title: Twilio
+description: Twilio triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="twilio"
+  color="#6B7280"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Twilio](https://www.twilio.com/) is a cloud communications platform that lets developers programmatically send and receive SMS, MMS, and voice calls. It provides a widely used API for building messaging into applications, including delivery status callbacks and inbound message handling.
+
+With the Twilio triggers, you can:
+
+- **React to message status changes**: Start a workflow whenever a sent message's status updates (sent, delivered, failed, undelivered)
+- **React to inbound messages**: Start a workflow whenever an SMS or MMS is received on a Twilio number
+- **Access full message context**: Read sender/recipient details, message body, media attachments, and error codes from the triggering event
+
+In Sim, the Twilio triggers allow your agents to start workflows directly from Twilio messaging events. The Twilio Message Status trigger fires when a message's delivery status changes, exposing fields like `messageSid`, `smsStatus`, `messageStatus`, and `errorCode` so a workflow can react to delivery failures or confirmations. The Twilio SMS Received trigger fires on inbound SMS/MMS messages, exposing the sender and recipient numbers, message body, and any attached media, so a workflow can process incoming texts, route them, or trigger automated replies.
+{/* MANUAL-CONTENT-END */}
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Twilio Message Status
+
+Trigger workflow when a Twilio message status changes (sent, delivered, failed)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountSid` | string | Yes | Your Twilio Account SID from the Twilio Console |
+| `authToken` | string | Yes | Your Twilio Auth Token, used to verify the X-Twilio-Signature header |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageSid` | string | Unique 34-character identifier for the message |
+| `accountSid` | string | Twilio Account SID |
+| `messagingServiceSid` | string | Messaging Service SID, if the message was sent through one |
+| `from` | string | Phone number or channel address that sent the message \(E.164 format\) |
+| `to` | string | Phone number or channel address of the recipient \(E.164 format\) |
+| `body` | string | Text body of the message \(up to 1600 characters\) |
+| `numMedia` | string | Number of media items attached to the message |
+| `numSegments` | string | Number of segments that make up the message |
+| `media` | json | Array of attached media as \{ url, contentType \} objects \(MMS\) |
+| `smsStatus` | string | SMS status \(e.g., received, sent, delivered, undelivered, failed\) |
+| `messageStatus` | string | Message status for status callbacks \(sent, delivered, undelivered, failed\) |
+| `errorCode` | string | Twilio error code, present when the status is failed or undelivered |
+| `apiVersion` | string | Twilio API version used to process the message |
+| `fromCity` | string | City of the sender, when available |
+| `fromState` | string | State/province of the sender, when available |
+| `fromZip` | string | Zip/postal code of the sender, when available |
+| `fromCountry` | string | Country of the sender, when available |
+| `toCity` | string | City of the recipient, when available |
+| `toState` | string | State/province of the recipient, when available |
+| `toZip` | string | Zip/postal code of the recipient, when available |
+| `toCountry` | string | Country of the recipient, when available |
+| `raw` | string | Complete raw webhook payload from Twilio as a JSON string |
+
+
+---
+
+### Twilio SMS Received
+
+Trigger workflow when an inbound SMS or MMS message is received via Twilio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountSid` | string | Yes | Your Twilio Account SID from the Twilio Console |
+| `authToken` | string | Yes | Your Twilio Auth Token, used to verify the X-Twilio-Signature header |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageSid` | string | Unique 34-character identifier for the message |
+| `accountSid` | string | Twilio Account SID |
+| `messagingServiceSid` | string | Messaging Service SID, if the message was sent through one |
+| `from` | string | Phone number or channel address that sent the message \(E.164 format\) |
+| `to` | string | Phone number or channel address of the recipient \(E.164 format\) |
+| `body` | string | Text body of the message \(up to 1600 characters\) |
+| `numMedia` | string | Number of media items attached to the message |
+| `numSegments` | string | Number of segments that make up the message |
+| `media` | json | Array of attached media as \{ url, contentType \} objects \(MMS\) |
+| `smsStatus` | string | SMS status \(e.g., received, sent, delivered, undelivered, failed\) |
+| `messageStatus` | string | Message status for status callbacks \(sent, delivered, undelivered, failed\) |
+| `errorCode` | string | Twilio error code, present when the status is failed or undelivered |
+| `apiVersion` | string | Twilio API version used to process the message |
+| `fromCity` | string | City of the sender, when available |
+| `fromState` | string | State/province of the sender, when available |
+| `fromZip` | string | Zip/postal code of the sender, when available |
+| `fromCountry` | string | Country of the sender, when available |
+| `toCity` | string | City of the recipient, when available |
+| `toState` | string | State/province of the recipient, when available |
+| `toZip` | string | Zip/postal code of the recipient, when available |
+| `toCountry` | string | Country of the recipient, when available |
+| `raw` | string | Complete raw webhook payload from Twilio as a JSON string |
+

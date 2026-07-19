@@ -7,8 +7,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Upload,
-} from '@/components/emcn'
-import { Plus } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 
 interface TablesListContextMenuProps {
   isOpen: boolean

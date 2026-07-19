@@ -25,6 +25,18 @@ function zendeskApiBase(subdomain: string): string {
   return `https://${subdomain}.zendesk.com/api/v2`
 }
 
+/**
+ * Zendesk subdomains are bare hostname labels (letters, digits, internal hyphens).
+ * Rejecting anything else prevents the value from escaping the host portion of the
+ * interpolated URL (e.g. a subdomain containing `/` would redirect the request —
+ * and its Basic-auth admin credentials — to an attacker-controlled host).
+ */
+const ZENDESK_SUBDOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i
+
+function isValidZendeskSubdomain(subdomain: string): boolean {
+  return ZENDESK_SUBDOMAIN_PATTERN.test(subdomain)
+}
+
 /** Basic auth header for the Zendesk API-token scheme (`email/token:apiToken`). */
 function zendeskAuthHeader(email: string, apiToken: string): string {
   return `Basic ${Buffer.from(`${email}/token:${apiToken}`).toString('base64')}`
@@ -79,8 +91,6 @@ export const zendeskHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const secret = providerConfig.webhookSecret as string | undefined
     if (!secret) {
-      // The signing secret is fetched during auto-registration, so a missing
-      // secret means misconfiguration — fail closed rather than skip.
       logger.warn(`[${requestId}] Zendesk webhook secret not configured`)
       return new NextResponse('Unauthorized - Missing Zendesk webhook secret', { status: 401 })
     }
@@ -168,6 +178,11 @@ export const zendeskHandler: WebhookProviderHandler = {
     const triggerId = config.triggerId as string | undefined
 
     if (!subdomain) throw new Error('Zendesk subdomain is required to create the webhook.')
+    if (!isValidZendeskSubdomain(subdomain)) {
+      throw new Error(
+        'Zendesk subdomain must contain only letters, numbers, and hyphens (e.g. "yourcompany").'
+      )
+    }
     if (!email) throw new Error('Zendesk admin email is required to create the webhook.')
     if (!apiToken) throw new Error('Zendesk API token is required to create the webhook.')
 
@@ -216,7 +231,6 @@ export const zendeskHandler: WebhookProviderHandler = {
         `[${ctx.requestId}] Created Zendesk webhook ${externalId} but failed to fetch signing secret (${secretRes.status})`,
         { detail }
       )
-      // Avoid leaving an orphaned webhook in Zendesk when secret retrieval fails.
       await deleteZendeskWebhookQuietly(apiBase, authHeader, externalId)
       throw new Error(`Failed to fetch Zendesk signing secret: ${secretRes.status}`)
     }
@@ -244,6 +258,12 @@ export const zendeskHandler: WebhookProviderHandler = {
       logger.warn(
         `[${ctx.requestId}] Skipping Zendesk webhook cleanup — missing credentials or webhook ID`
       )
+      return
+    }
+
+    if (!isValidZendeskSubdomain(subdomain)) {
+      if (ctx.strict) throw new Error('Invalid Zendesk subdomain for deletion.')
+      logger.warn(`[${ctx.requestId}] Skipping Zendesk webhook cleanup — invalid subdomain`)
       return
     }
 

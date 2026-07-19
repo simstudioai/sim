@@ -1,9 +1,6 @@
 'use client'
 
 import { memo } from 'react'
-import clsx from 'clsx'
-import { Filter } from 'lucide-react'
-import { useTranslations } from 'next-intl'
 import {
   Button,
   Popover,
@@ -13,7 +10,9 @@ import {
   PopoverScrollArea,
   PopoverSection,
   PopoverTrigger,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import clsx from 'clsx'
+import { Filter } from 'lucide-react'
 import type {
   BlockInfo,
   TerminalFilters,
@@ -45,7 +44,6 @@ export const FilterPopover = memo(function FilterPopover({
   uniqueBlocks,
   hasActiveFilters,
 }: FilterPopoverProps) {
-  const t = useTranslations('auto')
   return (
     <Popover open={open} onOpenChange={onOpenChange} size='sm'>
       <PopoverTrigger asChild>
@@ -53,7 +51,7 @@ export const FilterPopover = memo(function FilterPopover({
           variant='ghost'
           className='!p-1.5 -m-1.5'
           onClick={(e) => e.stopPropagation()}
-          aria-label={t('filters')}
+          aria-label='Filters'
         >
           <Filter className={clsx('size-3', hasActiveFilters && 'text-[var(--brand-secondary)]')} />
         </Button>
@@ -67,14 +65,14 @@ export const FilterPopover = memo(function FilterPopover({
         maxWidth={220}
         maxHeight={300}
       >
-        <PopoverSection>{t('status')}</PopoverSection>
+        <PopoverSection>Status</PopoverSection>
         <PopoverItem
           active={filters.statuses.has('error')}
           showCheck={filters.statuses.has('error')}
           onClick={() => toggleStatus('error')}
         >
           <div className='size-[6px] rounded-xs' style={{ backgroundColor: 'var(--text-error)' }} />
-          <span className='flex-1'>{t('error')}</span>
+          <span className='flex-1'>Error</span>
         </PopoverItem>
         <PopoverItem
           active={filters.statuses.has('info')}
@@ -85,13 +83,13 @@ export const FilterPopover = memo(function FilterPopover({
             className='size-[6px] rounded-xs'
             style={{ backgroundColor: 'var(--terminal-status-info-color)' }}
           />
-          <span className='flex-1'>{t('info')}</span>
+          <span className='flex-1'>Info</span>
         </PopoverItem>
 
         {uniqueBlocks.length > 0 && (
           <>
             <PopoverDivider className='my-1' />
-            <PopoverSection className='!mt-0'>{t('blocks')}</PopoverSection>
+            <PopoverSection className='!mt-0'>Blocks</PopoverSection>
             <PopoverScrollArea className='max-h-[100px]'>
               {uniqueBlocks.map((block) => {
                 const BlockIcon = getBlockIcon(block.blockType)

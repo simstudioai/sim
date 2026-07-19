@@ -1,14 +1,7 @@
 'use client'
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { Command } from 'cmdk'
-import { Scan } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { usePostHog } from 'posthog-js/react'
-import { createPortal } from 'react-dom'
-import { Library } from '@/components/emcn'
+import { cn, Library } from '@sim/emcn'
 import {
   Calendar,
   Database,
@@ -21,13 +14,18 @@ import {
   Key,
   Play,
   Plus,
+  Search,
   Send,
   Settings,
   Table,
   Upload,
-} from '@/components/emcn/icons'
-import { Search } from '@/components/emcn/icons/search'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { Command } from 'cmdk'
+import { Scan } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
+import { createPortal } from 'react-dom'
 import { captureEvent } from '@/lib/posthog/client'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -42,6 +40,7 @@ import { useSearchModalStore } from '@/stores/modals/search/store'
 import type {
   SearchBlockItem,
   SearchDocItem,
+  SearchSection,
   SearchToolOperationItem,
 } from '@/stores/modals/search/types'
 import {
@@ -71,7 +70,7 @@ import type {
   WorkflowItem,
   WorkspaceItem,
 } from './utils'
-import { filterAndSort } from './utils'
+import { filterAndCap, filterAndSort } from './utils'
 
 const logger = createLogger('SearchModal')
 
@@ -95,10 +94,10 @@ export function SearchModal({
   onCreateFolder,
   onImportWorkflow,
 }: SearchModalProps) {
-  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
+  const currentWorkflowId = params.workflowId as string | undefined
   const inputRef = useRef<HTMLInputElement>(null)
   const [mounted, setMounted] = useState(false)
   const { navigateToSettings } = useSettingsNavigation()
@@ -120,6 +119,9 @@ export function SearchModal({
   const { blocks, tools, triggers, toolOperations, docs } = useSearchModalStore(
     (state) => state.data
   )
+
+  const sections = useSearchModalStore((state) => state.sections)
+  const showSection = (key: SearchSection) => !sections || sections.includes(key)
 
   const openHelpModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent('open-help-modal'))
@@ -350,6 +352,7 @@ export function SearchModal({
           detail: {
             type: block.type,
             enableTriggerMode,
+            pendingConnect: useSearchModalStore.getState().pendingConnect,
           },
         })
       )
@@ -367,7 +370,11 @@ export function SearchModal({
     (op: SearchToolOperationItem) => {
       window.dispatchEvent(
         new CustomEvent('add-block-from-toolbar', {
-          detail: { type: op.blockType, presetOperation: op.operationId },
+          detail: {
+            type: op.blockType,
+            presetOperation: op.operationId,
+            pendingConnect: useSearchModalStore.getState().pendingConnect,
+          },
         })
       )
       captureEvent(posthogRef.current, 'search_result_selected', {
@@ -569,60 +576,71 @@ export function SearchModal({
   }, [actions, isOnWorkflowPage, isOnIntegrationsPage, deferredSearch])
 
   /**
-   * Ranking matches against clean, human-meaningful text only (names, types,
-   * aliases, folder paths) — never the structural `<type>-<id>`/uuid tokens used
-   * for cmdk row identity. Those tokens carry letters (e.g. "block", "tool") that
-   * would otherwise let short fuzzy queries scatter-match unrelated items.
+   * Blocks and tools rank by name first, with `searchValue` (type + option
+   * labels) as a lower-tier fallback, so an exact name match wins while a block
+   * stays findable by an option label.
    */
   const filteredBlocks = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndSort(blocks, (b) => b.searchValue ?? b.name, deferredSearch)
-  }, [isOnWorkflowPage, blocks, deferredSearch])
+    // A custom block is hidden on its own source workflow's canvas — placing it
+    // there recurses (same exclusion as the toolbar).
+    return filterAndCap(
+      blocks.filter((b) => !b.sourceWorkflowId || b.sourceWorkflowId !== currentWorkflowId),
+      (b) => b.name,
+      deferredSearch,
+      (b) => b.searchValue
+    )
+  }, [isOnWorkflowPage, blocks, deferredSearch, currentWorkflowId])
 
   const filteredTools = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndSort(tools, (t) => t.searchValue ?? t.name, deferredSearch)
-  }, [isOnWorkflowPage, tools, deferredSearch])
+    return filterAndCap(
+      tools.filter((t) => !t.sourceWorkflowId || t.sourceWorkflowId !== currentWorkflowId),
+      (t) => t.name,
+      deferredSearch,
+      (t) => t.searchValue
+    )
+  }, [isOnWorkflowPage, tools, deferredSearch, currentWorkflowId])
 
   const filteredTriggers = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndSort(triggers, (t) => `${t.name} ${t.id}`, deferredSearch)
+    return filterAndCap(triggers, (t) => `${t.name} ${t.id}`, deferredSearch)
   }, [isOnWorkflowPage, triggers, deferredSearch])
 
   const filteredToolOps = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndSort(toolOperations, (op) => op.searchValue, deferredSearch)
+    return filterAndCap(toolOperations, (op) => op.searchValue, deferredSearch)
   }, [isOnWorkflowPage, toolOperations, deferredSearch])
 
   const filteredDocs = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndSort(docs, (d) => `${d.name} docs documentation`, deferredSearch)
+    return filterAndCap(docs, (d) => `${d.name} docs documentation`, deferredSearch)
   }, [isOnWorkflowPage, docs, deferredSearch])
 
   const filteredTables = useMemo(
-    () => filterAndSort(tables, (t) => t.name, deferredSearch),
+    () => filterAndCap(tables, (t) => t.name, deferredSearch),
     [tables, deferredSearch]
   )
   const filteredFiles = useMemo(
-    () => filterAndSort(files, (f) => `${f.name} ${f.folderPath?.join(' ') ?? ''}`, deferredSearch),
+    () => filterAndCap(files, (f) => `${f.name} ${f.folderPath?.join(' ') ?? ''}`, deferredSearch),
     [files, deferredSearch]
   )
   const filteredKnowledgeBases = useMemo(
-    () => filterAndSort(knowledgeBases, (kb) => kb.name, deferredSearch),
+    () => filterAndCap(knowledgeBases, (kb) => kb.name, deferredSearch),
     [knowledgeBases, deferredSearch]
   )
 
   const filteredWorkflows = useMemo(
     () =>
-      filterAndSort(workflows, (w) => `${w.name} ${w.folderPath?.join(' ') ?? ''}`, deferredSearch),
+      filterAndCap(workflows, (w) => `${w.name} ${w.folderPath?.join(' ') ?? ''}`, deferredSearch),
     [workflows, deferredSearch]
   )
   const filteredChats = useMemo(
-    () => filterAndSort(chats, (t) => t.name, deferredSearch),
+    () => filterAndCap(chats, (t) => t.name, deferredSearch),
     [chats, deferredSearch]
   )
   const filteredWorkspaces = useMemo(
-    () => filterAndSort(workspaces, (w) => w.name, deferredSearch),
+    () => filterAndCap(workspaces, (w) => w.name, deferredSearch),
     [workspaces, deferredSearch]
   )
   const filteredPages = useMemo(
@@ -633,13 +651,13 @@ export function SearchModal({
   /** Connected accounts: visible on the integrations page even with empty input. */
   const filteredConnectedAccounts = useMemo(() => {
     if (!isOnIntegrationsPage) return []
-    return filterAndSort(connectedAccounts, (a) => a.name, deferredSearch)
+    return filterAndCap(connectedAccounts, (a) => a.name, deferredSearch)
   }, [isOnIntegrationsPage, connectedAccounts, deferredSearch])
 
   /** Catalog integrations: only shown once the user has typed something. */
   const filteredIntegrations = useMemo(() => {
-    if (!isOnIntegrationsPage || !deferredSearch) return []
-    return filterAndSort(integrations, (i) => i.name, deferredSearch)
+    if (!isOnIntegrationsPage || !deferredSearch.trim()) return []
+    return filterAndCap(integrations, (i) => i.name, deferredSearch)
   }, [isOnIntegrationsPage, deferredSearch, integrations])
 
   if (!mounted) return null
@@ -659,7 +677,7 @@ export function SearchModal({
         role='dialog'
         aria-modal={open}
         aria-hidden={!open}
-        aria-label={t('search')}
+        aria-label='Search'
         className={cn(
           '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
           open ? 'visible opacity-100' : 'invisible opacity-0'
@@ -671,14 +689,14 @@ export function SearchModal({
         }}
       >
         <div className='overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
-          <Command label={t('search')} shouldFilter={false}>
+          <Command label='Search' shouldFilter={false}>
             <div className='mx-2 mt-2 flex h-[30px] items-center gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
               <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
               <Command.Input
                 ref={inputRef}
                 autoFocus
                 onValueChange={handleSearchChange}
-                placeholder={t('search_anything')}
+                placeholder='Search anything...'
                 className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
               />
             </div>
@@ -690,80 +708,110 @@ export function SearchModal({
               )}
             >
               <Command.Empty className='flex items-center justify-center px-4 py-6 text-[var(--text-subtle)] text-sm'>
-                {t('no_results_found')}
+                No results found.
               </Command.Empty>
 
-              <ActionsGroup
-                items={filteredActions}
-                onSelect={handleActionSelect}
-                query={deferredSearch}
-              />
-              <ConnectedAccountsGroup
-                items={filteredConnectedAccounts}
-                onSelect={handleConnectedAccountSelect}
-                query={deferredSearch}
-              />
-              <IntegrationsGroup
-                items={filteredIntegrations}
-                onSelect={handleIntegrationSelect}
-                query={deferredSearch}
-              />
-              <BlocksGroup
-                items={filteredBlocks}
-                onSelect={handleBlockSelectAsBlock}
-                query={deferredSearch}
-              />
-              <ToolsGroup
-                items={filteredTools}
-                onSelect={handleBlockSelectAsTool}
-                query={deferredSearch}
-              />
-              <TriggersGroup
-                items={filteredTriggers}
-                onSelect={handleBlockSelectAsTrigger}
-                query={deferredSearch}
-              />
-              <ChatsGroup
-                items={filteredChats}
-                onSelect={handleChatSelect}
-                query={deferredSearch}
-              />
-              <WorkflowsGroup
-                items={filteredWorkflows}
-                onSelect={handleWorkflowSelect}
-                query={deferredSearch}
-              />
-              <TablesGroup
-                items={filteredTables}
-                onSelect={handleTableSelect}
-                query={deferredSearch}
-              />
-              <FilesGroup
-                items={filteredFiles}
-                onSelect={handleFileSelect}
-                query={deferredSearch}
-              />
-              <KnowledgeBasesGroup
-                items={filteredKnowledgeBases}
-                onSelect={handleKbSelect}
-                query={deferredSearch}
-              />
-              <ToolOpsGroup
-                items={filteredToolOps}
-                onSelect={handleToolOperationSelect}
-                query={deferredSearch}
-              />
-              <WorkspacesGroup
-                items={filteredWorkspaces}
-                onSelect={handleWorkspaceSelect}
-                query={deferredSearch}
-              />
-              <DocsGroup items={filteredDocs} onSelect={handleDocSelect} query={deferredSearch} />
-              <PagesGroup
-                items={filteredPages}
-                onSelect={handlePageSelect}
-                query={deferredSearch}
-              />
+              {showSection('actions') && (
+                <ActionsGroup
+                  items={filteredActions}
+                  onSelect={handleActionSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('connectedAccounts') && (
+                <ConnectedAccountsGroup
+                  items={filteredConnectedAccounts}
+                  onSelect={handleConnectedAccountSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('integrations') && (
+                <IntegrationsGroup
+                  items={filteredIntegrations}
+                  onSelect={handleIntegrationSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('blocks') && (
+                <BlocksGroup
+                  items={filteredBlocks}
+                  onSelect={handleBlockSelectAsBlock}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('tools') && (
+                <ToolsGroup
+                  items={filteredTools}
+                  onSelect={handleBlockSelectAsTool}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('triggers') && (
+                <TriggersGroup
+                  items={filteredTriggers}
+                  onSelect={handleBlockSelectAsTrigger}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('chats') && (
+                <ChatsGroup
+                  items={filteredChats}
+                  onSelect={handleChatSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('workflows') && (
+                <WorkflowsGroup
+                  items={filteredWorkflows}
+                  onSelect={handleWorkflowSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('tables') && (
+                <TablesGroup
+                  items={filteredTables}
+                  onSelect={handleTableSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('files') && (
+                <FilesGroup
+                  items={filteredFiles}
+                  onSelect={handleFileSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('knowledgeBases') && (
+                <KnowledgeBasesGroup
+                  items={filteredKnowledgeBases}
+                  onSelect={handleKbSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('toolOperations') && (
+                <ToolOpsGroup
+                  items={filteredToolOps}
+                  onSelect={handleToolOperationSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('workspaces') && (
+                <WorkspacesGroup
+                  items={filteredWorkspaces}
+                  onSelect={handleWorkspaceSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('docs') && (
+                <DocsGroup items={filteredDocs} onSelect={handleDocSelect} query={deferredSearch} />
+              )}
+              {showSection('pages') && (
+                <PagesGroup
+                  items={filteredPages}
+                  onSelect={handlePageSelect}
+                  query={deferredSearch}
+                />
+              )}
             </Command.List>
           </Command>
         </div>

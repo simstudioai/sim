@@ -26,7 +26,7 @@
 
 import { execSync } from 'child_process'
 import { SUBBLOCK_ID_MIGRATIONS } from '@/lib/workflows/migrations/subblock-migrations'
-import { getAllBlocks } from '@/blocks/registry'
+import { getAllBlocks, getBlockMeta } from '@/blocks/registry'
 import { tools as toolRegistry } from '@/tools/registry'
 
 const baseRef = process.argv[2] || 'HEAD~1'
@@ -128,7 +128,9 @@ function getPreviousIds(): PreviousIdsResult {
         continue
       }
 
-      const typeMatch = content.match(/BlockConfig\s*=\s*\{[\s\S]*?type:\s*['"]([^'"]+)['"]/)
+      const typeMatch = content.match(
+        /BlockConfig(?:<[^>]*>)?\s*=\s*\{[\s\S]*?type:\s*['"]([^'"]+)['"]/
+      )
       if (!typeMatch) continue
       const blockType = typeMatch[1]
 
@@ -237,6 +239,47 @@ function checkCanonicalIdContract(): CheckResult {
   return { kind: 'fail', errors }
 }
 
+/**
+ * Every catalog-visible integration block must expose a `BlockMeta` entry in
+ * `BLOCK_META_REGISTRY`. The integration detail pages
+ * (`getTemplatesForBlock`/`getSuggestedSkillsForBlock`) and the landing catalog
+ * read metas by block type; a `tools`-category block that ships in the toolbar
+ * without a meta renders an empty detail page (no templates, no skills).
+ *
+ * "Catalog-visible integration" mirrors the `isIntegrationBlock` predicate in
+ * `scripts/generate-docs.ts`: `category === 'tools' && !hideFromToolbar`. Core
+ * primitives (`agent`/`api`/`function`/…), hidden/legacy base versions, and
+ * first-party `blocks`-category blocks intentionally carry no meta and are not
+ * checked. `getBlockMeta` resolves through the version suffix, so a versioned
+ * block (e.g. `github_v2`) passes via its base meta.
+ */
+function checkIntegrationMetaCoverage(): CheckResult {
+  const errors: string[] = []
+
+  for (const block of getAllBlocks()) {
+    // Unreleased preview blocks ship no BlockMeta until GA (they are absent
+    // from every catalog surface), so meta coverage must not force one. The
+    // registry projection already hides them here (no visibility context in a
+    // script), but the explicit check keeps this true regardless.
+    const isCatalogIntegration =
+      block.category === 'tools' && !block.hideFromToolbar && !block.preview
+    if (!isCatalogIntegration) continue
+
+    if (!getBlockMeta(block.type)) {
+      errors.push(
+        `Block "${block.type}" is a catalog integration (category: 'tools', not hidden) but has no BlockMeta.\n` +
+          `  → Export a \`${block.type}\`-keyed \`{Service}BlockMeta\` (tags + templates + skills) from its block file\n` +
+          '    and register it in BLOCK_META_REGISTRY (apps/sim/blocks/registry-maps.ts), alphabetically.'
+      )
+    }
+  }
+
+  if (errors.length === 0) {
+    return { kind: 'pass', message: 'Integration meta coverage check passed' }
+  }
+  return { kind: 'fail', errors }
+}
+
 function reportResult(label: string, failureHeader: string, result: CheckResult): boolean {
   if (result.kind === 'pass') {
     console.log(`✓ ${result.message}`)
@@ -256,6 +299,7 @@ function reportResult(label: string, failureHeader: string, result: CheckResult)
 
 const stabilityResult = checkSubblockIdStability()
 const canonicalResult = checkCanonicalIdContract()
+const metaCoverageResult = checkIntegrationMetaCoverage()
 
 const stabilityOk = reportResult(
   'Subblock ID stability check',
@@ -269,4 +313,10 @@ const canonicalOk = reportResult(
   canonicalResult
 )
 
-process.exit(stabilityOk && canonicalOk ? 0 : 1)
+const metaCoverageOk = reportResult(
+  'Integration meta coverage check',
+  'Catalog integrations without a BlockMeta render empty detail pages (no templates, no skills).',
+  metaCoverageResult
+)
+
+process.exit(stabilityOk && canonicalOk && metaCoverageOk ? 0 : 1)

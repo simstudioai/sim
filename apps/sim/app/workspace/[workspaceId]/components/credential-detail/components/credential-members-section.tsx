@@ -1,10 +1,7 @@
 'use client'
-
+import { Avatar, AvatarFallback, Chip, ChipDropdown, cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { useTranslations } from 'next-intl'
-import { Avatar, AvatarFallback, Chip, ChipDropdown } from '@/components/emcn'
 import { credentialRoleLockReason, RoleLockTooltip } from '@/components/permissions'
-import { cn } from '@/lib/core/utils/cn'
 import { getUserColor } from '@/lib/workspaces/colors'
 import {
   useRemoveWorkspaceCredentialMember,
@@ -28,7 +25,6 @@ interface CredentialMembersSectionProps {
  * by every credential detail surface.
  */
 export function CredentialMembersSection({ credentialId, isAdmin }: CredentialMembersSectionProps) {
-  const t = useTranslations('auto')
   const { data: members = [], isPending: membersLoading } =
     useWorkspaceCredentialMembers(credentialId)
   const upsertMember = useUpsertWorkspaceCredentialMember()
@@ -101,7 +97,7 @@ export function CredentialMembersSection({ credentialId, isAdmin }: CredentialMe
                   <ChipDropdown
                     options={ROLE_OPTIONS}
                     value={member.role}
-                    placeholder={t('role')}
+                    placeholder='Role'
                     disabled={roleDisabled}
                     onChange={(role) =>
                       handleChangeMemberRole(member.userId, role as WorkspaceCredentialRole)
@@ -115,7 +111,7 @@ export function CredentialMembersSection({ credentialId, isAdmin }: CredentialMe
                     flush
                     className='justify-self-end'
                   >
-                    {t('remove')}
+                    Remove
                   </Chip>
                 )}
               </div>

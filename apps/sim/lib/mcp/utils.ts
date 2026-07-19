@@ -51,7 +51,10 @@ export function sanitizeHeaders(
 export const MCP_CLIENT_CONSTANTS = {
   CLIENT_TIMEOUT: DEFAULT_EXECUTION_TIMEOUT_MS,
   AUTO_REFRESH_INTERVAL: 5 * 60 * 1000,
-  LIST_TOOLS_TIMEOUT_MS: 10_000,
+  /** Idle timeout for tools/list (gap between progress events); raised from 10s toward the SDK's 60s default. */
+  LIST_TOOLS_TIMEOUT_MS: 30_000,
+  /** Hard ceiling for tools/list regardless of progress (SDK maxTotalTimeout safeguard). */
+  LIST_TOOLS_MAX_TOTAL_TIMEOUT_MS: 60_000,
   FAILURE_CACHE_TTL_MS: 120_000,
 } as const
 

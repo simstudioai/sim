@@ -69,6 +69,12 @@ export const vercelListDeploymentsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Team ID to scope the request',
     },
+    slug: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Team slug to scope the request (alternative to teamId)',
+    },
   },
 
   request: {
@@ -82,6 +88,7 @@ export const vercelListDeploymentsTool: ToolConfig<
       if (params.until) query.set('until', String(params.until))
       if (params.limit) query.set('limit', String(params.limit))
       if (params.teamId) query.set('teamId', params.teamId.trim())
+      if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
       return `https://api.vercel.com/v7/deployments${qs ? `?${qs}` : ''}`
     },

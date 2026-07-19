@@ -1,23 +1,21 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { useTranslations } from 'next-intl'
 import {
+  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@/components/emcn'
+} from '@sim/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { integrationRequestContract } from '@/lib/api/contracts/common'
 
 type SubmitStatus = 'idle' | 'submitting' | 'success' | 'error'
 
 export function RequestIntegrationModal() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [open, setOpen] = useState(false)
   const [status, setStatus] = useState<SubmitStatus>('idle')
 
@@ -65,27 +63,19 @@ export function RequestIntegrationModal() {
 
   return (
     <>
-      <button
-        type='button'
-        onClick={() => setOpen(true)}
-        className='inline-flex h-[32px] shrink-0 items-center gap-1.5 rounded-[5px] border border-[var(--landing-border-strong)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
-      >
-        {t('request_an_integration')}
-      </button>
+      <Chip className='border border-[var(--border-1)]' onClick={() => setOpen(true)}>
+        Request an integration
+      </Chip>
 
-      <ChipModal
-        open={open}
-        onOpenChange={handleOpenChange}
-        srTitle={tI18n('request_an_integration')}
-      >
+      <ChipModal open={open} onOpenChange={handleOpenChange} srTitle='Request an Integration'>
         <ChipModalHeader onClose={() => handleOpenChange(false)}>
-          {t('request_an_integration_2')}
+          Request an Integration
         </ChipModalHeader>
 
         <ChipModalBody>
           {status === 'success' ? (
             <div className='flex flex-col items-center gap-3 py-6 text-center'>
-              <div className='flex size-10 items-center justify-center rounded-full bg-[#33C482]/10'>
+              <div className='flex size-10 items-center justify-center rounded-full bg-[var(--brand-accent)]/10'>
                 <svg
                   className='size-5 text-[var(--brand-accent)]'
                   viewBox='0 0 24 24'
@@ -98,29 +88,28 @@ export function RequestIntegrationModal() {
                   <polyline points='20 6 9 17 4 12' />
                 </svg>
               </div>
-              <p className='text-[14px] text-[var(--landing-text)]'>
-                {t('request_submitted_we_apos_ll_follow')}{' '}
-                <span className='font-medium'>{email}</span>.
+              <p className='text-[14px] text-[var(--text-primary)]'>
+                Request submitted. We&apos;ll follow up at <span>{email}</span>.
               </p>
             </div>
           ) : (
             <>
               <ChipModalField
                 type='input'
-                title={t('integration_name')}
+                title='Integration name'
                 value={integrationName}
                 onChange={(value) => setIntegrationName(value)}
-                placeholder={t('e_g_stripe_hubspot_snowflake')}
+                placeholder='e.g. Stripe, HubSpot, Snowflake'
                 maxLength={200}
                 autoComplete='off'
                 required
               />
               <ChipModalField
                 type='email'
-                title={t('your_email')}
+                title='Your email'
                 value={email}
                 onChange={(value) => setEmail(value)}
-                placeholder={t('you_company_com')}
+                placeholder='you@company.com'
                 autoComplete='email'
                 required
               />
@@ -128,18 +117,17 @@ export function RequestIntegrationModal() {
                 type='textarea'
                 title={
                   <>
-                    {t('use_case')}{' '}
-                    <span className='text-[var(--text-tertiary)]'>{t('optional')}</span>
+                    Use case <span className='text-[var(--text-subtle)]'>(optional)</span>
                   </>
                 }
                 value={useCase}
                 onChange={(value) => setUseCase(value)}
-                placeholder={t('what_would_you_automate_with_this')}
+                placeholder='What would you automate with this integration?'
                 rows={3}
                 maxLength={2000}
               />
               {status === 'error' && (
-                <ChipModalError>{t('something_went_wrong_please_try_again')}</ChipModalError>
+                <ChipModalError>Something went wrong. Please try again.</ChipModalError>
               )}
             </>
           )}

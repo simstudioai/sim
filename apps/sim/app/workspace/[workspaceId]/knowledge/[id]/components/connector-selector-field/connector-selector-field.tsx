@@ -1,8 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useTranslations } from 'next-intl'
-import { ChipCombobox, type ComboboxOption, Loader } from '@/components/emcn'
+import { ChipCombobox, type ComboboxOption, Loader } from '@sim/emcn'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import type {
   ConfigFieldMap,
@@ -34,8 +33,6 @@ export function ConnectorSelectorField({
   canonicalModes,
   disabled,
 }: ConnectorSelectorFieldProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const isMulti = Boolean(field.multi)
 
   const context = useMemo<SelectorContext>(() => {
@@ -43,8 +40,9 @@ export function ConnectorSelectorField({
     if (credentialId) ctx.oauthCredential = credentialId
     if (field.mimeType) ctx.mimeType = field.mimeType
 
+    const fieldsById = new Map(configFields.map((f) => [f.id, f]))
     for (const depFieldId of getDependsOnFields(field.dependsOn)) {
-      const depField = configFields.find((f) => f.id === depFieldId)
+      const depField = fieldsById.get(depFieldId)
       const canonicalId = depField?.canonicalParamId ?? depFieldId
       const depValue = resolveDepValue(depFieldId, configFields, canonicalModes, sourceConfig)
       if (depValue && SELECTOR_CONTEXT_FIELDS.has(canonicalId as keyof SelectorContext)) {
@@ -78,7 +76,7 @@ export function ConnectorSelectorField({
     return (
       <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-medium text-[var(--text-muted)] text-small dark:bg-[var(--surface-4)]'>
         <Loader className='size-3.5' animate />
-        {t('loading')}
+        Loading…
       </div>
     )
   }
@@ -95,7 +93,7 @@ export function ConnectorSelectorField({
         searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
         placeholder={
           !credentialId
-            ? tI18n('connect_an_account_first')
+            ? 'Connect an account first'
             : !depsResolved
               ? `Select ${getDependencyLabel(field, configFields)} first`
               : field.placeholder || `Select ${field.title.toLowerCase()}`
@@ -116,7 +114,7 @@ export function ConnectorSelectorField({
       searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
       placeholder={
         !credentialId
-          ? tI18n('connect_an_account_first')
+          ? 'Connect an account first'
           : !depsResolved
             ? `Select ${getDependencyLabel(field, configFields)} first`
             : field.placeholder || `Select ${field.title.toLowerCase()}`

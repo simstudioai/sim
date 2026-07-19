@@ -17,6 +17,7 @@ import {
 } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
 // Hoisted mock state - these are available to vi.mock factories
 const {
@@ -30,6 +31,7 @@ const {
   mockGetCustomToolByIdOrTitle,
   mockGenerateInternalToken,
   mockResolveWorkspaceFileReference,
+  mockGetEffectiveDecryptedEnv,
 } = vi.hoisted(() => ({
   mockIsHosted: { value: false },
   mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:12000' } as Record<string, string | undefined>,
@@ -45,6 +47,7 @@ const {
   mockGetCustomToolByIdOrTitle: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
+  mockGetEffectiveDecryptedEnv: vi.fn(),
 }))
 
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
@@ -104,6 +107,10 @@ vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock
 
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
+}))
+
+vi.mock('@/lib/environment/utils', () => ({
+  getEffectiveDecryptedEnv: (...args: unknown[]) => mockGetEffectiveDecryptedEnv(...args),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
@@ -227,6 +234,26 @@ vi.mock('@/tools/registry', () => {
         method: 'POST',
         headers: () => ({ 'Content-Type': 'application/json' }),
         body: (p: any) => ({ attachment: p.attachment }),
+      },
+      transformResponse: async (response: any) => {
+        const data = await response.json()
+        return { success: true, output: data }
+      },
+    },
+    test_env_ref_tool: {
+      id: 'test_env_ref_tool',
+      name: 'Test Env Reference Tool',
+      description: 'Accepts a user-only API key and an llm-writable note',
+      version: '1.0.0',
+      params: {
+        apiKey: { type: 'string', required: true, visibility: 'user-only' },
+        note: { type: 'string', required: false, visibility: 'user-or-llm' },
+      },
+      request: {
+        url: '/api/tools/test/env-ref',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+        body: (p: any) => ({ apiKey: p.apiKey, note: p.note }),
       },
       transformResponse: async (response: any) => {
         const data = await response.json()
@@ -364,6 +391,19 @@ function setupFetchMock(config: MockFetchResponse = {}) {
   return mockFetch
 }
 
+const TEST_BILLING_ATTRIBUTION: BillingAttributionSnapshot = {
+  actorUserId: 'test-user',
+  workspaceId: 'workspace-456',
+  organizationId: null,
+  billedAccountUserId: 'test-user',
+  billingEntity: { type: 'user', id: 'test-user' },
+  billingPeriod: {
+    start: '2026-07-01T00:00:00.000Z',
+    end: '2026-08-01T00:00:00.000Z',
+  },
+  payerSubscription: null,
+}
+
 /**
  * Creates a mock execution context with workspaceId for tool tests.
  */
@@ -380,6 +420,11 @@ function createToolExecutionContext(overrides?: Partial<ExecutionContext>): Exec
     ...ctx,
     workspaceId: 'workspace-456',
     ...overrides,
+    metadata: {
+      ...ctx.metadata,
+      ...overrides?.metadata,
+      billingAttribution: overrides?.metadata?.billingAttribution ?? TEST_BILLING_ATTRIBUTION,
+    },
   } as ExecutionContext
 }
 
@@ -1240,6 +1285,184 @@ describe('Copilot OAuth Credential Enforcement', () => {
   })
 })
 
+describe('Copilot Env Variable Reference Resolution', () => {
+  let cleanupEnvVars: () => void
+
+  function mockJsonFetch() {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers(),
+      json: () => Promise.resolve({ ok: true }),
+      text: () => Promise.resolve(JSON.stringify({ ok: true })),
+      clone: vi.fn().mockReturnThis(),
+    })
+    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
+    return fetchMock
+  }
+
+  function sentRequestBody(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown> {
+    return JSON.parse(fetchMock.mock.calls[0][1]?.body as string)
+  }
+
+  const copilotContext = () =>
+    createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      userId: 'user-123',
+      copilotToolExecution: true,
+    } as any)
+
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    mockGetEffectiveDecryptedEnv.mockReset()
+    mockGetEffectiveDecryptedEnv.mockResolvedValue({ SENTRY_AUTH_TOKEN: 'sntrys_real_token' })
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+    cleanupEnvVars()
+  })
+
+  it('resolves a whole-value {{VAR}} reference in a user-only param', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{SENTRY_AUTH_TOKEN}}' },
+      { executionContext: copilotContext() }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', 'workspace-456')
+    expect(sentRequestBody(fetchMock).apiKey).toBe('sntrys_real_token')
+  })
+
+  it('trims whitespace inside the braces like the executor resolver', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{ SENTRY_AUTH_TOKEN }}' },
+      { executionContext: copilotContext() }
+    )
+
+    expect(result.success).toBe(true)
+    expect(sentRequestBody(fetchMock).apiKey).toBe('sntrys_real_token')
+  })
+
+  it('never resolves references in llm-writable (user-or-llm) params', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{SENTRY_AUTH_TOKEN}}', note: '{{SENTRY_AUTH_TOKEN}}' },
+      { executionContext: copilotContext() }
+    )
+
+    expect(result.success).toBe(true)
+    expect(sentRequestBody(fetchMock).note).toBe('{{SENTRY_AUTH_TOKEN}}')
+  })
+
+  it('leaves embedded references untouched in user-only params', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: 'Bearer {{SENTRY_AUTH_TOKEN}}' },
+      { executionContext: copilotContext() }
+    )
+
+    expect(result.success).toBe(true)
+    expect(sentRequestBody(fetchMock).apiKey).toBe('Bearer {{SENTRY_AUTH_TOKEN}}')
+    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+  })
+
+  it('fails with a clear error before any request when the variable is missing', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{MISSING_VAR}}' },
+      { executionContext: copilotContext() }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('MISSING_VAR')
+    expect(result.error).toContain('apiKey')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('fails fast instead of forwarding the placeholder when user context is missing', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{SENTRY_AUTH_TOKEN}}' },
+      {
+        executionContext: createToolExecutionContext({
+          workspaceId: 'workspace-456',
+          userId: undefined,
+          copilotToolExecution: true,
+        } as any),
+      }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('authenticated user context')
+    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('explains the personal-only scope when a variable is missing without a workspace context', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{MISSING_VAR}}' },
+      {
+        executionContext: createToolExecutionContext({
+          workspaceId: undefined,
+          userId: 'user-123',
+          copilotToolExecution: true,
+        } as any),
+      }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('only personal variables are available')
+    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', undefined)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('does not resolve references outside copilot execution', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{SENTRY_AUTH_TOKEN}}' },
+      { executionContext: createToolExecutionContext({ userId: 'user-123' } as any) }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(sentRequestBody(fetchMock).apiKey).toBe('{{SENTRY_AUTH_TOKEN}}')
+  })
+
+  it('never mutates the caller-owned params object (log-leak guard)', async () => {
+    mockJsonFetch()
+    const callerParams = { apiKey: '{{SENTRY_AUTH_TOKEN}}' }
+
+    const result = await executeTool('test_env_ref_tool', callerParams, {
+      executionContext: copilotContext(),
+    })
+
+    expect(result.success).toBe(true)
+    expect(callerParams.apiKey).toBe('{{SENTRY_AUTH_TOKEN}}')
+  })
+})
+
 describe('Centralized Error Handling', () => {
   let cleanupEnvVars: () => void
 
@@ -1890,6 +2113,28 @@ describe('MCP Tool Execution', () => {
         method: 'GET',
         retries: 3,
         retryMaxDelayMs: 5000,
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(1)
+      expect(result.success).toBe(false)
+    })
+
+    it('skips retry when Retry-After exceeds a maxDelayMs configured above the 30s default cap', async () => {
+      global.fetch = Object.assign(
+        vi
+          .fn()
+          .mockResolvedValueOnce(
+            makeJsonResponse(429, { error: 'rate limited' }, { 'retry-after': '50' })
+          )
+          .mockResolvedValueOnce(makeJsonResponse(200, { ok: true })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'GET',
+        retries: 3,
+        retryMaxDelayMs: 40000,
       })
 
       expect(global.fetch).toHaveBeenCalledTimes(1)
@@ -2724,6 +2969,130 @@ describe('Cost Field Handling', () => {
     expect(result.success).toBe(true)
     // Should not have cost since user provided their own key
     expect(result.output.cost).toBeUndefined()
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('emits _serviceCost for copilot executions using a hosted key', async () => {
+    const mockTool = {
+      id: 'test_copilot_hosted_cost',
+      name: 'Test Copilot Hosted Cost',
+      description: 'A hosted-key tool invoked by the copilot',
+      version: '1.0.0',
+      params: {
+        apiKey: { type: 'string', required: false },
+      },
+      hosting: {
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        byokProviderId: 'exa',
+        pricing: {
+          type: 'per_request' as const,
+          cost: 0.005,
+        },
+        rateLimit: {
+          mode: 'per_request' as const,
+          requestsPerMinute: 100,
+        },
+      },
+      request: {
+        url: '/api/test/copilot-cost',
+        method: 'POST' as const,
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'success' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_copilot_hosted_cost = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ success: true }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    // Copilot flow: no executionContext option; scope comes from _context,
+    // which the copilot tool-executor stamps with copilotToolExecution.
+    const result = await executeTool('test_copilot_hosted_cost', {
+      _context: {
+        userId: 'user-123',
+        workspaceId: 'workspace-456',
+        copilotToolExecution: true,
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.output.cost).toEqual({ total: 0.005 })
+    expect(result.output._serviceCost).toEqual({ service: 'exa', cost: 0.005 })
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('does not emit _serviceCost for workflow executions using a hosted key', async () => {
+    const mockTool = {
+      id: 'test_workflow_hosted_cost',
+      name: 'Test Workflow Hosted Cost',
+      description: 'A hosted-key tool invoked by a workflow',
+      version: '1.0.0',
+      params: {
+        apiKey: { type: 'string', required: false },
+      },
+      hosting: {
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        pricing: {
+          type: 'per_request' as const,
+          cost: 0.005,
+        },
+        rateLimit: {
+          mode: 'per_request' as const,
+          requestsPerMinute: 100,
+        },
+      },
+      request: {
+        url: '/api/test/workflow-cost',
+        method: 'POST' as const,
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'success' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_workflow_hosted_cost = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ success: true }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const mockContext = createToolExecutionContext({ userId: 'user-123' } as any)
+    const result = await executeTool(
+      'test_workflow_hosted_cost',
+      {},
+      { executionContext: mockContext }
+    )
+
+    expect(result.success).toBe(true)
+    // Workflow executions bill through the execution ledger; emitting
+    // _serviceCost here would double-bill via Go's service-charge path.
+    expect(result.output.cost).toEqual({ total: 0.005 })
+    expect(result.output._serviceCost).toBeUndefined()
 
     Object.assign(tools, originalTools)
   })

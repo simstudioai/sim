@@ -5,7 +5,7 @@ description: Enterprise features for business organizations
 
 import { FAQ } from '@/components/ui/faq'
 
-Sim Enterprise adds fine-grained access control, SSO, audit logging, and compliance features on top of Team plans.
+Sim Enterprise adds fine-grained access control, SSO, audit logging, compliance features, and workspace forking on top of Team plans.
 
 ---
 
@@ -65,8 +65,14 @@ Continuously export workflow logs, audit logs, and Mothership data to a customer
 
 ---
 
+## Workspace Forks
+
+Clone a workspace into a linked child, then push or pull **deployed** workflow changes between them. Deploy is like a commit; sync is a force push or force pull. See the [workspace forks guide](/platform/enterprise/forks).
+
+---
+
 <FAQ items={[
-  { question: "Who can manage Enterprise features?", answer: "Workspace admins on an Enterprise-entitled workspace. Access Control, SSO, whitelabeling, audit logs, and data retention are all configured per workspace under Settings → Enterprise." },
+  { question: "Who can manage Enterprise features?", answer: "Workspace admins on an Enterprise-entitled workspace. Access Control, SSO, whitelabeling, audit logs, data retention, data drains, and forks are all configured per workspace under Settings → Enterprise." },
   { question: "Which SSO providers are supported?", answer: "Sim supports SAML 2.0 and OIDC, which works with virtually any enterprise identity provider including Okta, Azure AD (Entra ID), Google Workspace, ADFS, and OneLogin." },
   { question: "How do access control permission groups work?", answer: "Permission groups are created per workspace and let you restrict which AI providers, workflow blocks, and platform features are available to specific members of that workspace. Each user can belong to at most one group per workspace. Users not assigned to any group have full access. Restrictions are enforced at both the UI level and at execution time based on the workflow's workspace." },
 ]} />
@@ -86,7 +92,7 @@ Self-hosted deployments enable enterprise features via environment variables ins
 | `AUDIT_LOGS_ENABLED`, `NEXT_PUBLIC_AUDIT_LOGS_ENABLED` | Audit logging |
 | `NEXT_PUBLIC_DATA_RETENTION_ENABLED` | Data retention configuration |
 | `DATA_DRAINS_ENABLED`, `NEXT_PUBLIC_DATA_DRAINS_ENABLED` | Data drains |
-| `CREDENTIAL_SETS_ENABLED`, `NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED` | Polling groups for email triggers |
+| `FORKING_ENABLED`, `NEXT_PUBLIC_FORKING_ENABLED` | Workspace forking |
 | `INBOX_ENABLED`, `NEXT_PUBLIC_INBOX_ENABLED` | Sim Mailer inbox |
 | `DISABLE_INVITATIONS`, `NEXT_PUBLIC_DISABLE_INVITATIONS` | Disable invitations; manage membership via Admin API |
 

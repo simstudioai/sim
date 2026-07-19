@@ -82,6 +82,8 @@ export const getExtensiveCallsTool: ToolConfig<
       const body: Record<string, unknown> = {
         filter,
         contentSelector: {
+          context: 'Extended',
+          contextTiming: ['Now', 'TimeOfCall'],
           exposedFields: {
             parties: true,
             content: {
@@ -119,6 +121,7 @@ export const getExtensiveCallsTool: ToolConfig<
     return {
       success: true,
       output: {
+        requestId: data.requestId ?? null,
         calls: data.calls ?? [],
         cursor: data.records?.cursor ?? null,
       },
@@ -126,6 +129,11 @@ export const getExtensiveCallsTool: ToolConfig<
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     calls: {
       type: 'array',
       description:
@@ -329,23 +337,13 @@ export const getExtensiveCallsTool: ToolConfig<
             properties: {
               interactionStats: {
                 type: 'array',
-                description: 'Interaction stats per user',
+                description:
+                  'Interaction stat measurements (Longest Monologue, Interactivity, Patience, etc.)',
                 items: {
                   type: 'object',
                   properties: {
-                    userId: { type: 'string', description: 'Gong user ID' },
-                    userEmailAddress: { type: 'string', description: 'User email' },
-                    personInteractionStats: {
-                      type: 'array',
-                      description: 'Stats list (Longest Monologue, Interactivity, Patience, etc.)',
-                      items: {
-                        type: 'object',
-                        properties: {
-                          name: { type: 'string', description: 'Stat name' },
-                          value: { type: 'number', description: 'Stat value' },
-                        },
-                      },
-                    },
+                    name: { type: 'string', description: 'Stat name' },
+                    value: { type: 'number', description: 'Stat value' },
                   },
                 },
               },

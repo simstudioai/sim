@@ -169,7 +169,17 @@ ${files.map((f: any) => `  ${f.status}: ${f.filename} (+${f.additions} -${f.dele
             },
           },
         },
-        parents: { type: 'array', description: 'Parent commits' },
+        parents: {
+          type: 'array',
+          description: 'Parent commits',
+          items: {
+            type: 'object',
+            properties: {
+              sha: { type: 'string', description: 'Parent commit SHA' },
+              html_url: { type: 'string', description: 'Parent commit URL' },
+            },
+          },
+        },
       },
     },
   },

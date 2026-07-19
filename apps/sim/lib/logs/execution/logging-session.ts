@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
@@ -13,6 +14,12 @@ import {
   loadDeployedWorkflowStateForLogging,
   loadWorkflowStateForExecution,
 } from '@/lib/logs/execution/logging-factory'
+import {
+  clearProgressMarkers,
+  getProgressMarkers,
+  setLastCompletedBlock,
+  setLastStartedBlock,
+} from '@/lib/logs/execution/progress-markers'
 import type {
   ExecutionEnvironment,
   ExecutionFinalizationPath,
@@ -78,6 +85,10 @@ type CompletionAttempt = 'complete' | 'error' | 'cancelled' | 'paused'
 
 export interface SessionStartParams {
   userId?: string
+  /** Explicit initiating actor for callers that do not populate `userId`. */
+  actorUserId?: string | null
+  /** Immutable actor/payer decision captured before execution. */
+  billingAttribution?: BillingAttributionSnapshot
   workspaceId: string
   variables?: Record<string, string>
   triggerData?: TriggerData
@@ -122,12 +133,15 @@ export interface SessionPausedParams {
 export class LoggingSession {
   private workflowId: string
   private executionId: string
+  private reservationId: string
   private triggerType: ExecutionTrigger['type']
   private requestId?: string
   private trigger?: ExecutionTrigger
   private environment?: ExecutionEnvironment
   private workflowState?: WorkflowState
   private correlation?: NonNullable<ExecutionTrigger['data']>['correlation']
+  private actorUserId: string | null = null
+  private billingAttribution?: BillingAttributionSnapshot
   private isResume = false
   private completed = false
   /** Synchronous flag to prevent concurrent completion attempts (race condition guard) */
@@ -143,10 +157,12 @@ export class LoggingSession {
     workflowId: string,
     executionId: string,
     triggerType: ExecutionTrigger['type'],
-    requestId?: string
+    requestId?: string,
+    reservationId = executionId
   ) {
     this.workflowId = workflowId
     this.executionId = executionId
+    this.reservationId = reservationId
     this.triggerType = triggerType
     this.requestId = requestId
   }
@@ -167,7 +183,15 @@ export class LoggingSession {
     )
   }
 
+  /**
+   * Persist the last-started-block marker. Redis is the primary path; falls back
+   * to the durable jsonb_set UPDATE when Redis is unavailable or the write fails,
+   * so a marker is never dropped.
+   */
   private async persistLastStartedBlock(marker: ExecutionLastStartedBlock): Promise<void> {
+    if (await setLastStartedBlock(this.executionId, marker)) {
+      return
+    }
     try {
       await db.execute(
         buildStartedMarkerPersistenceQuery({
@@ -185,7 +209,15 @@ export class LoggingSession {
     }
   }
 
+  /**
+   * Persist the last-completed-block marker. Redis is the primary path; falls
+   * back to the durable jsonb_set UPDATE when Redis is unavailable or the write
+   * fails, so a marker is never dropped.
+   */
   private async persistLastCompletedBlock(marker: ExecutionLastCompletedBlock): Promise<void> {
+    if (await setLastCompletedBlock(this.executionId, marker)) {
+      return
+    }
     try {
       await db.execute(
         buildCompletedMarkerPersistenceQuery({
@@ -266,13 +298,18 @@ export class LoggingSession {
       isResume: this.isResume,
       level: params.level,
       status: params.status,
+      actorUserId: this.actorUserId,
+      billingAttribution: this.billingAttribution,
     })
 
-    // Release the admission reservation from preprocessing. Skipped on pause: a
-    // paused execution keeps its slot until it terminates (or the TTL expires).
+    /**
+     * Pause persistence releases only after the resumable snapshot is durable.
+     * Releasing here would create a window where neither state nor reservation
+     * protects the execution.
+     */
     if (params.finalizationPath !== 'paused') {
       try {
-        await releaseExecutionSlot(this.executionId)
+        await releaseExecutionSlot(this.reservationId)
       } catch (error) {
         logger.warn(`Failed to release admission reservation for ${this.executionId}:`, {
           error: toError(error).message,
@@ -304,6 +341,8 @@ export class LoggingSession {
   async start(params: SessionStartParams): Promise<void> {
     const {
       userId,
+      actorUserId,
+      billingAttribution,
       workspaceId,
       variables,
       triggerData,
@@ -311,6 +350,8 @@ export class LoggingSession {
       deploymentVersionId,
       workflowState,
     } = params
+    this.actorUserId = billingAttribution?.actorUserId ?? actorUserId ?? userId ?? null
+    this.billingAttribution = billingAttribution
 
     try {
       this.trigger = createTriggerObject(this.triggerType, triggerData)
@@ -335,6 +376,8 @@ export class LoggingSession {
           executionId: this.executionId,
           trigger: this.trigger,
           environment: this.environment,
+          actorUserId,
+          billingAttribution,
           workflowState: this.workflowState,
           deploymentVersionId,
         })
@@ -764,8 +807,16 @@ export class LoggingSession {
 
       // Fallback: create a minimal logging session without full workflow state
       try {
-        const { userId, workspaceId, variables, triggerData, deploymentVersionId, workflowState } =
-          params
+        const {
+          userId,
+          actorUserId,
+          billingAttribution,
+          workspaceId,
+          variables,
+          triggerData,
+          deploymentVersionId,
+          workflowState,
+        } = params
         this.trigger = createTriggerObject(this.triggerType, triggerData)
         this.correlation = triggerData?.correlation
         this.environment = createEnvironmentObject(
@@ -789,6 +840,8 @@ export class LoggingSession {
           executionId: this.executionId,
           trigger: this.trigger,
           environment: this.environment,
+          actorUserId,
+          billingAttribution,
           workflowState: this.workflowState,
           deploymentVersionId,
         })
@@ -974,16 +1027,30 @@ export class LoggingSession {
     }
   }
 
+  /**
+   * Force-fail the execution. Waits for any in-flight completion and drains
+   * pending per-block marker writes first, so a force-fail racing
+   * onBlockStart/onBlockComplete still captures the latest breadcrumb in the fold.
+   */
   async markAsFailed(errorMessage?: string): Promise<void> {
     await this.waitForCompletion()
+    await this.drainPendingProgressWrites()
     await LoggingSession.markExecutionAsFailed(
       this.executionId,
       errorMessage,
       this.requestId,
       this.workflowId
     )
+    await releaseExecutionSlot(this.reservationId)
   }
 
+  /**
+   * Force-fail terminal boundary that bypasses completeWorkflowExecution. Folds
+   * any live Redis progress markers into execution_data before clearing the key,
+   * so a run whose markers only ever lived in Redis still keeps its
+   * last-started/last-completed breadcrumb. Both the fold and clear are no-ops
+   * when the standard completion path already persisted and cleared them.
+   */
   static async markExecutionAsFailed(
     executionId: string,
     errorMessage: string | undefined,
@@ -992,12 +1059,10 @@ export class LoggingSession {
   ): Promise<void> {
     try {
       const message = errorMessage || 'Run failed'
-      await db
-        .update(workflowExecutionLogs)
-        .set({
-          level: 'error',
-          status: 'failed',
-          executionData: sql`jsonb_set(
+
+      const markers = await getProgressMarkers(executionId)
+
+      let executionData = sql`jsonb_set(
             jsonb_set(
               jsonb_set(
                 COALESCE(execution_data, '{}'::jsonb),
@@ -1009,14 +1074,33 @@ export class LoggingSession {
             ),
             ARRAY['finalizationPath'],
             to_jsonb('force_failed'::text)
-          )`,
-        })
+          )`
+      if (markers?.lastStartedBlock) {
+        const startedAt = markers.lastStartedBlock.startedAt
+        const startedJson = JSON.stringify(markers.lastStartedBlock)
+        executionData = sql`CASE WHEN COALESCE(jsonb_extract_path_text(execution_data, 'lastStartedBlock', 'startedAt'), '') <= ${startedAt}
+            THEN jsonb_set(${executionData}, ARRAY['lastStartedBlock'], ${startedJson}::jsonb)
+            ELSE ${executionData} END`
+      }
+      if (markers?.lastCompletedBlock) {
+        const endedAt = markers.lastCompletedBlock.endedAt
+        const completedJson = JSON.stringify(markers.lastCompletedBlock)
+        executionData = sql`CASE WHEN COALESCE(jsonb_extract_path_text(execution_data, 'lastCompletedBlock', 'endedAt'), '') <= ${endedAt}
+            THEN jsonb_set(${executionData}, ARRAY['lastCompletedBlock'], ${completedJson}::jsonb)
+            ELSE ${executionData} END`
+      }
+
+      await db
+        .update(workflowExecutionLogs)
+        .set({ level: 'error', status: 'failed', executionData })
         .where(
           and(
             eq(workflowExecutionLogs.executionId, executionId),
             eq(workflowExecutionLogs.workflowId, workflowId)
           )
         )
+
+      if (markers !== null) void clearProgressMarkers(executionId)
 
       logger.info(`[${requestId || 'unknown'}] Marked execution ${executionId} as failed`)
     } catch (error) {

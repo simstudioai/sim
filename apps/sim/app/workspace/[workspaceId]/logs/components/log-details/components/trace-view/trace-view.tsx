@@ -2,6 +2,23 @@
 
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Badge,
+  Button,
+  ChevronDown,
+  ChipInput,
+  Code,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Duplicate,
+  Search as SearchIcon,
+  Tooltip,
+  useCopyToClipboard,
+} from '@sim/emcn'
 import { formatDuration } from '@sim/utils/formatting'
 import {
   ArrowDown,
@@ -15,22 +32,6 @@ import {
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
-import {
-  Badge,
-  Button,
-  ChevronDown,
-  ChipInput,
-  Code,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  Duplicate,
-  Search as SearchIcon,
-  Tooltip,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
   adjustBgForContrast,
@@ -46,8 +47,8 @@ import {
   isIterationType,
   parseTime,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
 const DEFAULT_TREE_PANE_WIDTH = 240
 const MIN_TREE_PANE_WIDTH = 200
@@ -677,7 +678,10 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   const endedAt = parseTime(span.endTime)
 
   const metaEntries: { label: string; value: string }[] = []
-  metaEntries.push({ label: 'Type', value: span.type })
+  metaEntries.push({
+    label: 'Type',
+    value: isCustomBlockType(span.type) ? 'custom block' : span.type,
+  })
   metaEntries.push({ label: 'Duration', value: formatDuration(duration, { precision: 2 }) || '—' })
   if (span.provider) metaEntries.push({ label: 'Provider', value: span.provider })
   if (span.model) metaEntries.push({ label: 'Model', value: span.model })

@@ -1,8 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { generateShortId } from '@sim/utils/id'
-import { useTranslations } from 'next-intl'
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -13,8 +11,9 @@ import {
   ChipModalHeader,
   TagInput,
   type TagItem,
-} from '@/components/emcn'
-import { Send } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Send } from '@sim/emcn/icons'
+import { generateShortId } from '@sim/utils/id'
 import { GeneratedPasswordInput } from '@/components/ui'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
@@ -62,8 +61,6 @@ export function ShareModal({
   fileName,
   initialShare,
 }: ShareModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const { data: share, isFetched } = useFileShare(workspaceId, fileId, { enabled: open })
   const { config: permissionConfig } = usePermissionConfig()
   const upsertShare = useUpsertFileShare()
@@ -204,14 +201,14 @@ export function ShareModal({
   return (
     <ChipModal open={open} onOpenChange={handleClose} size='sm' srTitle={`Share ${fileName}`}>
       <ChipModalHeader icon={Send} onClose={handleClose}>
-        {t('share_file')}
+        Share file
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='custom' title={t('access')} hint={accessHint}>
+        <ChipModalField type='custom' title='Access' hint={accessHint}>
           <ButtonGroup
             value={effectiveMode}
             onValueChange={(value) => setDraftMode(value as AccessMode)}
-            aria-label={t('file_access')}
+            aria-label='File access'
           >
             {accessModes.map((mode) => (
               <ButtonGroupItem key={mode} value={mode}>
@@ -223,42 +220,37 @@ export function ShareModal({
         {effectiveMode === 'password' ? (
           <ChipModalField
             type='custom'
-            title={t('password')}
+            title='Password'
             hint={
               saved?.hasPassword
-                ? tI18n('leave_blank_to_keep_the_current')
-                : tI18n('anyone_with_the_link_must_enter')
+                ? 'Leave blank to keep the current password.'
+                : 'Anyone with the link must enter this password.'
             }
           >
             <GeneratedPasswordInput
               value={draftPassword}
               onChange={setDraftPassword}
-              placeholder={saved?.hasPassword ? '••••••••' : tI18n('enter_a_password')}
+              placeholder={saved?.hasPassword ? '••••••••' : 'Enter a password'}
             />
           </ChipModalField>
         ) : null}
         {effectiveMode === 'email' || effectiveMode === 'sso' ? (
           <ChipModalField
             type='custom'
-            title={t('allowed_emails')}
-            hint={t('add_specific_emails_or_whole_domains')}
+            title='Allowed emails'
+            hint='Add specific emails or whole domains (@example.com).'
           >
             <TagInput
               items={emailItems}
               onAdd={addEmail}
               onRemove={removeEmail}
-              placeholder={t('enter_emails_or_domains')}
-              placeholderWithTags={tI18n('add_email')}
+              placeholder='Enter emails or domains'
+              placeholderWithTags='Add email'
             />
           </ChipModalField>
         ) : null}
         {effectiveMode !== 'private' && shareUrl ? (
-          <ChipModalField
-            type='copy'
-            title={t('link')}
-            value={shareUrl}
-            copyLabel={tI18n('copy_link')}
-          />
+          <ChipModalField type='copy' title='Link' value={shareUrl} copyLabel='Copy link' />
         ) : null}
       </ChipModalBody>
       <ChipModalFooter

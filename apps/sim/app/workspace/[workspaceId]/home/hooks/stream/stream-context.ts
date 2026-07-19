@@ -22,6 +22,9 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
 
+/** Minimum spacing between text-driven snapshot flushes (see flushText). */
+const MIN_TEXT_FLUSH_INTERVAL_MS = 50
+
 export type ActiveTurn = {
   userMessageId: string
   assistantMessageId: string
@@ -31,6 +34,25 @@ export type ActiveTurn = {
 
 export interface StreamLoopOptions {
   preserveExistingState?: boolean
+  /**
+   * The real wire cursor the preserved snapshot corresponds to. The
+   * preserve-state rebuild assigns synthetic seqs (1..M, M = synthesized
+   * envelope count) — a unit unrelated to wire seq — while the reducer's
+   * `seq <= lastSeq` idempotency guard compares against incoming REAL seqs.
+   * Re-baselining lastSeq to this cursor keeps the guard in wire units so a
+   * turn with many tool/subagent blocks but few wire events can never have
+   * M >= afterCursor+1 silently drop the first resumed events.
+   */
+  resumeCursor?: string
+  /**
+   * Batch-replay mode: suppress every intermediate snapshot write and publish
+   * ONE atomic flush when the stream ends (processSSEStream calls forceFlush).
+   * A reconnect replay re-derives content the user already saw — rendering it
+   * incrementally collapses the visible message to a prefix and re-arms the
+   * smooth-reveal/fade over text that was already on screen. With one terminal
+   * flush the rendered content only ever appends.
+   */
+  deferFlushes?: boolean
   suppressedWorkflowToolStartIds?: ReadonlySet<string>
   targetChatId?: string
   shouldContinue?: () => boolean
@@ -47,6 +69,8 @@ export interface StreamLoopState {
   sawStreamError: boolean
   sawCompleteEvent: boolean
   scheduledTextFlushFrame: number | null
+  /** Trailing timer for the min-interval text-flush gate (see flushText). */
+  scheduledTextFlushTimer: ReturnType<typeof setTimeout> | null
 }
 
 export interface StreamEventScope {
@@ -135,6 +159,8 @@ export interface StreamLoopOps {
   isStale: () => boolean
   flush: () => void
   flushText: () => void
+  /** Real flush that bypasses `deferFlushes` — the batch-replay terminal flush. */
+  forceFlush: () => void
 }
 
 export interface StreamLoopContext {
@@ -165,13 +191,27 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     sawStreamError: false,
     sawCompleteEvent: false,
     scheduledTextFlushFrame: null,
+    scheduledTextFlushTimer: null,
+  }
+
+  if (preserveState) {
+    // Convert the rebuilt model's synthetic lastSeq back into wire units (see
+    // StreamLoopOptions.resumeCursor). Without this, incoming real seqs are
+    // compared against a synthetic envelope count.
+    const resumeCursor = Number(deps.options.resumeCursor)
+    if (Number.isFinite(resumeCursor) && resumeCursor >= 0) {
+      state.model.lastSeq = resumeCursor
+    }
   }
 
   const isStale = () =>
     (deps.expectedGen !== undefined && deps.streamGenRef.current !== deps.expectedGen) ||
     deps.options.shouldContinue?.() === false
 
-  if (!preserveState && !isStale()) {
+  // Deferred (batch-replay) runs keep the previous refs intact until the
+  // terminal flush: they are what a mid-replay stop persists, and clearing
+  // them buys nothing when no intermediate flush will read them.
+  if (!preserveState && !isStale() && deps.options.deferFlushes !== true) {
     deps.streamingContentRef.current = ''
     deps.streamingBlocksRef.current = []
   }
@@ -187,7 +227,8 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     captureRevealedSimKeys(
       deps.revealedSimKeysRef.current,
       [deps.assistantId, state.streamRequestId],
-      modelContent
+      modelContent,
+      modelBlocks
     )
     const activeChatId = deps.options.targetChatId ?? deps.chatIdRef.current
     if (!activeChatId) {
@@ -241,23 +282,51 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     })
   }
 
+  // Text flushes are the hot path (one per streamed chunk); every flush
+  // re-serializes the whole model and re-runs the transcript-wide memos
+  // downstream. The min-interval gate caps that at ~20 snapshots/sec — the
+  // visible pacing is owned by the smooth-text reveal, so a 50ms snapshot
+  // cadence is indistinguishable from per-frame. Tool/lifecycle flushes stay
+  // immediate, and they push the next text flush out via lastFlushAtMs.
+  let lastFlushAtMs = 0
+  const flushAndStamp = () => {
+    lastFlushAtMs = Date.now()
+    flush()
+  }
+
   const flushText = () => {
+    if (deps.options.deferFlushes === true) return
     if (isStale()) return
-    if (state.scheduledTextFlushFrame !== null) return
+    if (state.scheduledTextFlushFrame !== null || state.scheduledTextFlushTimer !== null) return
     if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
-      flush()
+      flushAndStamp()
       return
     }
-    state.scheduledTextFlushFrame = window.requestAnimationFrame(() => {
-      state.scheduledTextFlushFrame = null
-      flush()
-    })
+    const scheduleFrame = () => {
+      state.scheduledTextFlushFrame = window.requestAnimationFrame(() => {
+        state.scheduledTextFlushFrame = null
+        flushAndStamp()
+      })
+    }
+    const waitMs = MIN_TEXT_FLUSH_INTERVAL_MS - (Date.now() - lastFlushAtMs)
+    if (waitMs <= 0) {
+      scheduleFrame()
+      return
+    }
+    state.scheduledTextFlushTimer = setTimeout(() => {
+      state.scheduledTextFlushTimer = null
+      scheduleFrame()
+    }, waitMs)
   }
 
   const ops: StreamLoopOps = {
     isStale,
-    flush,
+    flush: () => {
+      if (deps.options.deferFlushes === true) return
+      flushAndStamp()
+    },
     flushText,
+    forceFlush: flush,
   }
 
   return { state, ops, deps }

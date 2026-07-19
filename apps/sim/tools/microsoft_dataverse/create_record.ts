@@ -4,6 +4,7 @@ import type {
   DataverseCreateRecordResponse,
 } from '@/tools/microsoft_dataverse/types'
 import { DATAVERSE_RECORD_OUTPUT } from '@/tools/microsoft_dataverse/types'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseCreateRecord')
@@ -50,8 +51,8 @@ export const dataverseCreateRecordTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
-      return `${baseUrl}/api/data/v9.2/${params.entitySetName}`
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}`
     },
     method: 'POST',
     headers: (params) => ({

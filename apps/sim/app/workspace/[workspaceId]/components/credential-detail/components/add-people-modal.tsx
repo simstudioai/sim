@@ -1,9 +1,6 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -11,7 +8,9 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   useUpsertWorkspaceCredentialMember,
@@ -36,8 +35,6 @@ interface AddPeopleModalProps {
  * failures keep only the people that still need adding.
  */
 export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const { workspacePermissions } = useWorkspacePermissionsContext()
   const { data: members = [] } = useWorkspaceCredentialMembers(credentialId)
   const upsertMember = useUpsertWorkspaceCredentialMember()
@@ -135,25 +132,25 @@ export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleMo
       onOpenChange={(next) => {
         if (!next) handleClose()
       }}
-      srTitle={tI18n('add_people')}
+      srTitle='Add people'
     >
-      <ChipModalHeader onClose={handleClose}>{t('add_people')}</ChipModalHeader>
+      <ChipModalHeader onClose={handleClose}>Add people</ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='emails'
-          title={t('emails')}
+          title='Emails'
           value={emailsToAdd}
           onChange={setEmailsToAdd}
           validate={validateAddEmail}
-          placeholder={t('enter_emails')}
+          placeholder='Enter emails'
           disabled={isAdding}
         />
         <ChipModalField
           type='dropdown'
-          title={t('role')}
+          title='Role'
           options={ROLE_OPTIONS}
           value={roleToAdd}
-          placeholder={t('select_role')}
+          placeholder='Select role'
           align='start'
           onChange={(role) => setRoleToAdd(role as WorkspaceCredentialRole)}
           disabled={isAdding}

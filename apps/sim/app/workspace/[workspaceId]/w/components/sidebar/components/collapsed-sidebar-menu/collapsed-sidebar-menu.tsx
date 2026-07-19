@@ -1,8 +1,7 @@
 import { type MouseEvent as ReactMouseEvent, useState } from 'react'
-import { Folder, MoreHorizontal, Plus } from 'lucide-react'
-import Link from 'next/link'
 import {
   chipVariants,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -12,9 +11,10 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Pencil, SquareArrowUpRight } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { Pencil, SquareArrowUpRight } from '@sim/emcn/icons'
+import { Folder, MoreHorizontal, Plus } from 'lucide-react'
+import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'

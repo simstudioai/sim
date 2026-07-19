@@ -1,7 +1,5 @@
 'use client'
 
-import { Scissors } from 'lucide-react'
-import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,8 +7,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Clipboard, Duplicate, Search, SelectAll } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Clipboard, Duplicate, Search, SelectAll } from '@sim/emcn/icons'
+import { Scissors } from 'lucide-react'
 
 interface EditorContextMenuProps {
   isOpen: boolean
@@ -39,7 +38,6 @@ export function EditorContextMenu({
   onSelectAll,
   onFind,
 }: EditorContextMenuProps) {
-  const t = useTranslations('auto')
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -65,39 +63,39 @@ export function EditorContextMenu({
         {canEdit && (
           <DropdownMenuItem disabled={!hasSelection} onSelect={onCut}>
             <Scissors />
-            {t('cut')}
-            <DropdownMenuShortcut>{t('x')}</DropdownMenuShortcut>
+            Cut
+            <DropdownMenuShortcut>⌘X</DropdownMenuShortcut>
           </DropdownMenuItem>
         )}
         <DropdownMenuItem disabled={!hasSelection} onSelect={onCopy}>
           <Duplicate />
-          {t('copy')}
-          <DropdownMenuShortcut>{t('c')}</DropdownMenuShortcut>
+          Copy
+          <DropdownMenuShortcut>⌘C</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onCopyAll}>
           <Duplicate />
-          {t('copy_all')}
+          Copy all
         </DropdownMenuItem>
         {canEdit && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={onPaste}>
               <Clipboard />
-              {t('paste')}
-              <DropdownMenuShortcut>{t('v')}</DropdownMenuShortcut>
+              Paste
+              <DropdownMenuShortcut>⌘V</DropdownMenuShortcut>
             </DropdownMenuItem>
           </>
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onSelectAll}>
           <SelectAll />
-          {t('select_all')}
-          <DropdownMenuShortcut>{t('a')}</DropdownMenuShortcut>
+          Select all
+          <DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onFind}>
           <Search />
-          {t('find')}
-          <DropdownMenuShortcut>{t('f')}</DropdownMenuShortcut>
+          Find
+          <DropdownMenuShortcut>⌘F</DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

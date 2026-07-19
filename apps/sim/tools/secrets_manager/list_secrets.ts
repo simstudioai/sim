@@ -11,7 +11,7 @@ export const listSecretsTool: ToolConfig<
   id: 'secrets_manager_list_secrets',
   name: 'Secrets Manager List Secrets',
   description: 'List secrets stored in AWS Secrets Manager',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {
@@ -80,7 +80,8 @@ export const listSecretsTool: ToolConfig<
   outputs: {
     secrets: {
       type: 'json',
-      description: 'List of secrets with name, ARN, description, and dates',
+      description:
+        'List of secrets with name, ARN, description, dates, rotation rules/window, and version-to-stage mappings',
     },
     nextToken: {
       type: 'string',

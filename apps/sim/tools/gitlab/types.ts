@@ -1,3 +1,4 @@
+import type { GitLabResourceType } from '@/tools/gitlab/utils'
 import type { ToolResponse } from '@/tools/types'
 
 interface GitLabProject {
@@ -22,6 +23,29 @@ interface GitLabProject {
     name: string
     username: string
   }
+}
+
+interface GitLabGroup {
+  id: number
+  name: string
+  path: string
+  full_path: string
+  description?: string
+  visibility: string
+  web_url: string
+  parent_id?: number | null
+  created_at?: string
+}
+
+/**
+ * A single project or group membership for a user, as returned by
+ * `GET /users/:id/memberships`.
+ */
+interface GitLabUserMembership {
+  source_id: number
+  source_name: string
+  source_type: 'Project' | 'Namespace'
+  access_level: number
 }
 
 interface GitLabIssue {
@@ -196,36 +220,29 @@ interface GitLabNote {
   noteable_iid?: number
 }
 
-interface GitLabUser {
-  id: number
-  name: string
-  username: string
-  email?: string
-  state: string
-  avatar_url: string
-  web_url: string
-}
-
-interface GitLabLabel {
-  id: number
-  name: string
-  color: string
+interface GitLabRelease {
+  tag_name: string
+  name?: string
   description?: string
-  text_color: string
-}
-
-interface GitLabMilestone {
-  id: number
-  iid: number
-  project_id: number
-  title: string
-  description?: string
-  state: string
   created_at: string
-  updated_at: string
-  due_date?: string
-  start_date?: string
-  web_url: string
+  released_at?: string
+  author?: {
+    id: number
+    name: string
+    username: string
+  }
+  commit?: {
+    id: string
+    short_id: string
+    title: string
+  }
+  milestones?: unknown[]
+  assets?: {
+    count?: number
+    sources?: unknown[]
+    links?: unknown[]
+  }
+  _links?: Record<string, string>
 }
 
 interface GitLabBaseParams {
@@ -252,6 +269,31 @@ export interface GitLabGetProjectParams extends GitLabBaseParams {
   projectId: string | number
 }
 
+export interface GitLabListGroupsParams extends GitLabBaseParams {
+  owned?: boolean
+  search?: string
+  topLevelOnly?: boolean
+  visibility?: 'public' | 'internal' | 'private'
+  minAccessLevel?: number
+  allAvailable?: boolean
+  orderBy?: 'name' | 'path' | 'id' | 'similarity'
+  sort?: 'asc' | 'desc'
+  perPage?: number
+  page?: number
+}
+
+export interface GitLabGetGroupParams extends GitLabBaseParams {
+  groupId: string | number
+}
+
+export interface GitLabListUserMembershipsParams extends GitLabBaseParams {
+  userId: string | number
+  /** Filter by membership source. Omit for all memberships. */
+  membershipType?: 'Project' | 'Namespace'
+  perPage?: number
+  page?: number
+}
+
 export interface GitLabListIssuesParams extends GitLabBaseParams {
   projectId: string | number
   state?: 'opened' | 'closed' | 'all'
@@ -259,7 +301,16 @@ export interface GitLabListIssuesParams extends GitLabBaseParams {
   assigneeId?: number
   milestoneTitle?: string
   search?: string
-  orderBy?: 'created_at' | 'updated_at'
+  orderBy?:
+    | 'created_at'
+    | 'updated_at'
+    | 'priority'
+    | 'due_date'
+    | 'relative_position'
+    | 'label_priority'
+    | 'milestone_due'
+    | 'popularity'
+    | 'weight'
   sort?: 'asc' | 'desc'
   perPage?: number
   page?: number
@@ -301,11 +352,19 @@ export interface GitLabDeleteIssueParams extends GitLabBaseParams {
 
 export interface GitLabListMergeRequestsParams extends GitLabBaseParams {
   projectId: string | number
-  state?: 'opened' | 'closed' | 'merged' | 'all'
+  state?: 'opened' | 'closed' | 'locked' | 'merged' | 'all'
   labels?: string
   sourceBranch?: string
   targetBranch?: string
-  orderBy?: 'created_at' | 'updated_at'
+  orderBy?:
+    | 'created_at'
+    | 'updated_at'
+    | 'merged_at'
+    | 'label_priority'
+    | 'priority'
+    | 'milestone_due'
+    | 'popularity'
+    | 'title'
   sort?: 'asc' | 'desc'
   perPage?: number
   page?: number
@@ -366,10 +425,12 @@ export interface GitLabListPipelinesParams extends GitLabBaseParams {
     | 'running'
     | 'success'
     | 'failed'
+    | 'canceling'
     | 'canceled'
     | 'skipped'
     | 'manual'
     | 'scheduled'
+    | 'waiting_for_callback'
   orderBy?: 'id' | 'status' | 'ref' | 'updated_at' | 'user_id'
   sort?: 'asc' | 'desc'
   perPage?: number
@@ -385,6 +446,8 @@ export interface GitLabCreatePipelineParams extends GitLabBaseParams {
   projectId: string | number
   ref: string
   variables?: Array<{ key: string; value: string; variable_type?: 'env_var' | 'file' }>
+  /** Pipeline inputs (spec:inputs) as a key/value object. */
+  inputs?: Record<string, unknown>
 }
 
 export interface GitLabRetryPipelineParams extends GitLabBaseParams {
@@ -404,20 +467,24 @@ export interface GitLabListBranchesParams extends GitLabBaseParams {
   page?: number
 }
 
-interface GitLabGetBranchParams extends GitLabBaseParams {
-  projectId: string | number
-  branch: string
-}
-
 export interface GitLabCreateBranchParams extends GitLabBaseParams {
   projectId: string | number
   branch: string
   ref: string
 }
 
-interface GitLabDeleteBranchParams extends GitLabBaseParams {
+export interface GitLabDeleteBranchParams extends GitLabBaseParams {
   projectId: string | number
   branch: string
+}
+
+export interface GitLabCompareBranchesParams extends GitLabBaseParams {
+  projectId: string | number
+  from: string
+  to: string
+  straight?: boolean
+  fromProjectId?: string | number
+  unidiff?: boolean
 }
 
 export interface GitLabListRepositoryTreeParams extends GitLabBaseParams {
@@ -441,6 +508,10 @@ export interface GitLabCreateFileParams extends GitLabBaseParams {
   branch: string
   content: string
   commitMessage: string
+  startBranch?: string
+  authorName?: string
+  authorEmail?: string
+  executeFilemode?: boolean
 }
 
 export interface GitLabUpdateFileParams extends GitLabBaseParams {
@@ -450,6 +521,10 @@ export interface GitLabUpdateFileParams extends GitLabBaseParams {
   content: string
   commitMessage: string
   lastCommitId?: string
+  startBranch?: string
+  authorName?: string
+  authorEmail?: string
+  executeFilemode?: boolean
 }
 
 export interface GitLabListCommitsParams extends GitLabBaseParams {
@@ -491,58 +566,46 @@ export interface GitLabGetJobLogParams extends GitLabBaseParams {
 export interface GitLabPlayJobParams extends GitLabBaseParams {
   projectId: string | number
   jobId: number
-}
-
-interface GitLabListIssueNotesParams extends GitLabBaseParams {
-  projectId: string | number
-  issueIid: number
-  orderBy?: 'created_at' | 'updated_at'
-  sort?: 'asc' | 'desc'
-  perPage?: number
-  page?: number
+  jobVariables?: Array<{ key: string; value: string }>
 }
 
 export interface GitLabCreateIssueNoteParams extends GitLabBaseParams {
   projectId: string | number
   issueIid: number
   body: string
-}
-
-interface GitLabListMergeRequestNotesParams extends GitLabBaseParams {
-  projectId: string | number
-  mergeRequestIid: number
-  orderBy?: 'created_at' | 'updated_at'
-  sort?: 'asc' | 'desc'
-  perPage?: number
-  page?: number
+  internal?: boolean
 }
 
 export interface GitLabCreateMergeRequestNoteParams extends GitLabBaseParams {
   projectId: string | number
   mergeRequestIid: number
   body: string
+  internal?: boolean
 }
 
-interface GitLabListLabelsParams extends GitLabBaseParams {
+export interface GitLabListReleasesParams extends GitLabBaseParams {
   projectId: string | number
-  search?: string
+  orderBy?: 'released_at' | 'created_at'
+  sort?: 'asc' | 'desc'
   perPage?: number
   page?: number
 }
 
-interface GitLabCreateLabelParams extends GitLabBaseParams {
+export interface GitLabCreateReleaseParams extends GitLabBaseParams {
   projectId: string | number
-  name: string
-  color: string
+  tagName: string
+  name?: string
   description?: string
-}
-
-interface GitLabGetCurrentUserParams extends GitLabBaseParams {}
-
-interface GitLabListUsersParams extends GitLabBaseParams {
-  search?: string
-  perPage?: number
-  page?: number
+  ref?: string
+  releasedAt?: string
+  milestones?: string[]
+  tagMessage?: string
+  assetLinks?: Array<{
+    name: string
+    url: string
+    link_type?: 'other' | 'runbook' | 'image' | 'package'
+    direct_asset_path?: string
+  }>
 }
 
 export interface GitLabListProjectsResponse extends ToolResponse {
@@ -555,6 +618,26 @@ export interface GitLabListProjectsResponse extends ToolResponse {
 export interface GitLabGetProjectResponse extends ToolResponse {
   output: {
     project?: GitLabProject
+  }
+}
+
+export interface GitLabListGroupsResponse extends ToolResponse {
+  output: {
+    groups?: GitLabGroup[]
+    total?: number
+  }
+}
+
+export interface GitLabGetGroupResponse extends ToolResponse {
+  output: {
+    group?: GitLabGroup
+  }
+}
+
+export interface GitLabListUserMembershipsResponse extends ToolResponse {
+  output: {
+    memberships?: GitLabUserMembership[]
+    total?: number
   }
 }
 
@@ -658,12 +741,6 @@ export interface GitLabListBranchesResponse extends ToolResponse {
   }
 }
 
-interface GitLabGetBranchResponse extends ToolResponse {
-  output: {
-    branch?: GitLabBranch
-  }
-}
-
 export interface GitLabCreateBranchResponse extends ToolResponse {
   output: {
     name?: string | null
@@ -673,16 +750,20 @@ export interface GitLabCreateBranchResponse extends ToolResponse {
   }
 }
 
-interface GitLabDeleteBranchResponse extends ToolResponse {
+export interface GitLabDeleteBranchResponse extends ToolResponse {
   output: {
     success?: boolean
   }
 }
 
-interface GitLabListNotesResponse extends ToolResponse {
+export interface GitLabCompareBranchesResponse extends ToolResponse {
   output: {
-    notes?: GitLabNote[]
-    total?: number
+    commit?: unknown
+    commits?: unknown[]
+    diffs?: unknown[]
+    compareTimeout?: boolean | null
+    compareSameRef?: boolean | null
+    webUrl?: string | null
   }
 }
 
@@ -692,29 +773,16 @@ export interface GitLabCreateNoteResponse extends ToolResponse {
   }
 }
 
-interface GitLabListLabelsResponse extends ToolResponse {
+export interface GitLabListReleasesResponse extends ToolResponse {
   output: {
-    labels?: GitLabLabel[]
+    releases?: GitLabRelease[]
     total?: number
   }
 }
 
-interface GitLabCreateLabelResponse extends ToolResponse {
+export interface GitLabCreateReleaseResponse extends ToolResponse {
   output: {
-    label?: GitLabLabel
-  }
-}
-
-interface GitLabGetCurrentUserResponse extends ToolResponse {
-  output: {
-    user?: GitLabUser
-  }
-}
-
-interface GitLabListUsersResponse extends ToolResponse {
-  output: {
-    users?: GitLabUser[]
-    total?: number
+    release?: GitLabRelease
   }
 }
 
@@ -734,6 +802,7 @@ export interface GitLabGetFileResponse extends ToolResponse {
     blobId?: string | null
     lastCommitId?: string | null
     content?: string
+    truncated?: boolean
   }
 }
 
@@ -763,6 +832,7 @@ export interface GitLabGetMergeRequestChangesResponse extends ToolResponse {
     mergeRequestIid?: number | null
     changes?: GitLabMergeRequestChange[]
     changesCount?: number
+    hasMore?: boolean
   }
 }
 
@@ -784,6 +854,7 @@ export interface GitLabListPipelineJobsResponse extends ToolResponse {
 export interface GitLabGetJobLogResponse extends ToolResponse {
   output: {
     log?: string
+    truncated?: boolean
   }
 }
 
@@ -796,9 +867,328 @@ export interface GitLabPlayJobResponse extends ToolResponse {
   }
 }
 
+interface GitLabMember {
+  id: number
+  username: string
+  name: string
+  state: string
+  access_level: number
+  web_url?: string
+  expires_at?: string | null
+  membership_state?: string
+  member_role?: { id: number; name: string } | null
+}
+
+interface GitLabInvitation {
+  id?: number
+  invite_email: string
+  access_level: number
+  created_at?: string
+  expires_at?: string | null
+  user_name?: string
+  created_by_name?: string
+  invite_token?: string
+  member_role_id?: number | null
+}
+
+interface GitLabAccessRequest {
+  id: number
+  username: string
+  name: string
+  state: string
+  requested_at: string
+  access_level?: number
+  web_url?: string
+}
+
+interface GitLabSamlGroupLink {
+  name: string
+  access_level: number
+  member_role_id?: number | null
+  provider?: string | null
+}
+
+interface GitLabUser {
+  id: number
+  username: string
+  name: string
+  email?: string
+  state: string
+  web_url?: string
+  is_admin?: boolean
+  created_at?: string
+}
+
+/**
+ * The access resources (`/members`, `/invitations`, `/access_requests`) exist
+ * on both projects and groups; the tool receives `resourceType` to select which.
+ */
+interface GitLabResourceScopedParams extends GitLabBaseParams {
+  resourceType: GitLabResourceType
+  resourceId: string | number
+}
+
+export interface GitLabListMembersParams extends GitLabResourceScopedParams {
+  /** When true, returns only direct members (`/members`). Defaults to false, which returns inherited members too (`/members/all`). */
+  directOnly?: boolean
+  query?: string
+  /** Comma-separated user IDs to filter to. */
+  userIds?: string
+  /** 'awaiting' | 'active' — inherited-member listings only (Premium/Ultimate). */
+  state?: string
+  showSeatInfo?: boolean
+  perPage?: number
+  page?: number
+}
+
+export interface GitLabAddMemberParams extends GitLabResourceScopedParams {
+  /** Provide either userId or username to identify the user. */
+  userId?: number
+  username?: string
+  accessLevel: number
+  expiresAt?: string
+  memberRoleId?: number
+}
+
+export interface GitLabUpdateMemberParams extends GitLabResourceScopedParams {
+  userId: number
+  accessLevel: number
+  expiresAt?: string
+  memberRoleId?: number
+}
+
+export interface GitLabRemoveMemberParams extends GitLabResourceScopedParams {
+  userId: number
+  skipSubresources?: boolean
+  unassignIssuables?: boolean
+}
+
+export interface GitLabInviteMemberParams extends GitLabResourceScopedParams {
+  email: string
+  accessLevel: number
+  expiresAt?: string
+  memberRoleId?: number
+  inviteSource?: string
+}
+
+export interface GitLabListInvitationsParams extends GitLabResourceScopedParams {
+  query?: string
+  perPage?: number
+  page?: number
+}
+
+export interface GitLabUpdateInvitationParams extends GitLabResourceScopedParams {
+  email: string
+  accessLevel?: number
+  expiresAt?: string
+}
+
+export interface GitLabRevokeInvitationParams extends GitLabResourceScopedParams {
+  email: string
+}
+
+export interface GitLabListAccessRequestsParams extends GitLabResourceScopedParams {
+  perPage?: number
+  page?: number
+}
+
+export interface GitLabApproveAccessRequestParams extends GitLabResourceScopedParams {
+  userId: number
+  accessLevel?: number
+}
+
+export interface GitLabDenyAccessRequestParams extends GitLabResourceScopedParams {
+  userId: number
+}
+
+export interface GitLabListSamlGroupLinksParams extends GitLabBaseParams {
+  groupId: string | number
+}
+
+export interface GitLabAddSamlGroupLinkParams extends GitLabBaseParams {
+  groupId: string | number
+  samlGroupName: string
+  accessLevel: number
+  memberRoleId?: number
+  provider?: string
+}
+
+export interface GitLabDeleteSamlGroupLinkParams extends GitLabBaseParams {
+  groupId: string | number
+  samlGroupName: string
+  /** Provider name; required by GitLab when multiple links share the same SAML group name. */
+  provider?: string
+}
+
+export interface GitLabSearchUsersParams extends GitLabBaseParams {
+  search: string
+  perPage?: number
+  page?: number
+}
+
+export interface GitLabCreateUserParams extends GitLabBaseParams {
+  email: string
+  username: string
+  name: string
+  password?: string
+  resetPassword?: boolean
+  forceRandomPassword?: boolean
+  admin?: boolean
+  skipConfirmation?: boolean
+}
+
+export interface GitLabUpdateUserParams extends GitLabBaseParams {
+  userId: number
+  email?: string
+  username?: string
+  name?: string
+  admin?: boolean
+}
+
+export interface GitLabDeleteUserParams extends GitLabBaseParams {
+  userId: number
+  hardDelete?: boolean
+}
+
+/** Shared shape for the single-user POST actions (block/unblock/deactivate/activate/ban/unban/approve/reject). */
+export interface GitLabUserActionParams extends GitLabBaseParams {
+  userId: number
+}
+
+export interface GitLabDeleteUserIdentityParams extends GitLabBaseParams {
+  userId: number
+  provider: string
+}
+
+export interface GitLabListMembersResponse extends ToolResponse {
+  output: {
+    members?: GitLabMember[]
+    total?: number
+  }
+}
+
+export interface GitLabAddMemberResponse extends ToolResponse {
+  output: {
+    member?: GitLabMember
+    /** True when the user was already a member (409) — treated as a soft success so workflows are re-runnable. */
+    alreadyMember?: boolean
+  }
+}
+
+export interface GitLabUpdateMemberResponse extends ToolResponse {
+  output: {
+    member?: GitLabMember
+  }
+}
+
+export interface GitLabRemoveMemberResponse extends ToolResponse {
+  output: {
+    success?: boolean
+  }
+}
+
+export interface GitLabInviteMemberResponse extends ToolResponse {
+  output: {
+    status?: string
+    message?: unknown
+  }
+}
+
+export interface GitLabListInvitationsResponse extends ToolResponse {
+  output: {
+    invitations?: GitLabInvitation[]
+    total?: number
+  }
+}
+
+export interface GitLabUpdateInvitationResponse extends ToolResponse {
+  output: {
+    invitation?: GitLabInvitation
+  }
+}
+
+export interface GitLabRevokeInvitationResponse extends ToolResponse {
+  output: {
+    success?: boolean
+  }
+}
+
+export interface GitLabListAccessRequestsResponse extends ToolResponse {
+  output: {
+    accessRequests?: GitLabAccessRequest[]
+    total?: number
+  }
+}
+
+export interface GitLabApproveAccessRequestResponse extends ToolResponse {
+  output: {
+    accessRequest?: GitLabAccessRequest
+  }
+}
+
+export interface GitLabDenyAccessRequestResponse extends ToolResponse {
+  output: {
+    success?: boolean
+  }
+}
+
+export interface GitLabListSamlGroupLinksResponse extends ToolResponse {
+  output: {
+    samlGroupLinks?: GitLabSamlGroupLink[]
+    total?: number
+  }
+}
+
+export interface GitLabSamlGroupLinkResponse extends ToolResponse {
+  output: {
+    samlGroupLink?: GitLabSamlGroupLink
+  }
+}
+
+export interface GitLabDeleteSamlGroupLinkResponse extends ToolResponse {
+  output: {
+    success?: boolean
+  }
+}
+
+export interface GitLabSearchUsersResponse extends ToolResponse {
+  output: {
+    users?: GitLabUser[]
+    total?: number
+  }
+}
+
+export interface GitLabUserResponse extends ToolResponse {
+  output: {
+    user?: GitLabUser
+  }
+}
+
+export interface GitLabDeleteUserResponse extends ToolResponse {
+  output: {
+    success?: boolean
+  }
+}
+
+export interface GitLabUserActionResponse extends ToolResponse {
+  output: {
+    success?: boolean
+    user?: GitLabUser
+  }
+}
+
+export interface GitLabDeleteUserIdentityResponse extends ToolResponse {
+  output: {
+    success?: boolean
+  }
+}
+
 export type GitLabResponse =
   | GitLabListProjectsResponse
   | GitLabGetProjectResponse
+  | GitLabListGroupsResponse
+  | GitLabGetGroupResponse
+  | GitLabListUserMembershipsResponse
   | GitLabListIssuesResponse
   | GitLabGetIssueResponse
   | GitLabCreateIssueResponse
@@ -815,15 +1205,12 @@ export type GitLabResponse =
   | GitLabRetryPipelineResponse
   | GitLabCancelPipelineResponse
   | GitLabListBranchesResponse
-  | GitLabGetBranchResponse
   | GitLabCreateBranchResponse
   | GitLabDeleteBranchResponse
-  | GitLabListNotesResponse
+  | GitLabCompareBranchesResponse
   | GitLabCreateNoteResponse
-  | GitLabListLabelsResponse
-  | GitLabCreateLabelResponse
-  | GitLabGetCurrentUserResponse
-  | GitLabListUsersResponse
+  | GitLabListReleasesResponse
+  | GitLabCreateReleaseResponse
   | GitLabListRepositoryTreeResponse
   | GitLabGetFileResponse
   | GitLabCreateFileResponse
@@ -834,3 +1221,22 @@ export type GitLabResponse =
   | GitLabListPipelineJobsResponse
   | GitLabGetJobLogResponse
   | GitLabPlayJobResponse
+  | GitLabListMembersResponse
+  | GitLabAddMemberResponse
+  | GitLabUpdateMemberResponse
+  | GitLabRemoveMemberResponse
+  | GitLabInviteMemberResponse
+  | GitLabListInvitationsResponse
+  | GitLabUpdateInvitationResponse
+  | GitLabRevokeInvitationResponse
+  | GitLabListAccessRequestsResponse
+  | GitLabApproveAccessRequestResponse
+  | GitLabDenyAccessRequestResponse
+  | GitLabListSamlGroupLinksResponse
+  | GitLabSamlGroupLinkResponse
+  | GitLabDeleteSamlGroupLinkResponse
+  | GitLabSearchUsersResponse
+  | GitLabUserResponse
+  | GitLabDeleteUserResponse
+  | GitLabUserActionResponse
+  | GitLabDeleteUserIdentityResponse

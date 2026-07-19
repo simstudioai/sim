@@ -102,16 +102,16 @@ export const agentMailMessageSchema = z
     thread_id: z.string(),
     inbox_id: z.string(),
     organization_id: z.string().optional(),
-    from_: z.string(),
+    from: z.string(),
     to: z.array(z.string()),
-    cc: z.array(z.string()),
+    cc: z.array(z.string()).optional(),
     bcc: z.array(z.string()).optional(),
     reply_to: z.array(z.string()).optional(),
-    subject: z.string(),
+    subject: z.string().optional(),
     preview: z.string().optional(),
-    text: z.string().nullable(),
-    html: z.string().nullable(),
-    attachments: z.array(agentMailAttachmentSchema),
+    text: z.string().nullable().optional(),
+    html: z.string().nullable().optional(),
+    attachments: z.array(agentMailAttachmentSchema).optional(),
     in_reply_to: z.string().optional(),
     references: z.array(z.string()).optional(),
     labels: z.array(z.string()).optional(),
@@ -133,15 +133,6 @@ const listWebhooksResponseSchema = z.object({
 
 const upsertWebhookResponseSchema = z.object({
   webhook: webhookDataSchema,
-  credentialSetInfo: z
-    .object({
-      credentialSetId: z.string(),
-      totalWebhooks: z.number(),
-      created: z.number(),
-      updated: z.number(),
-      deleted: z.number(),
-    })
-    .optional(),
 })
 
 const getWebhookResponseSchema = z.object({
@@ -265,5 +256,40 @@ export const webhookTriggerPostContract = defineRouteContract({
     mode: 'json',
     // untyped-response: webhook trigger forwards arbitrary provider challenge or workflow execution payloads
     schema: z.unknown(),
+  },
+})
+
+/**
+ * TikTok app-level webhook ingress. Signature is verified from the raw body
+ * before this schema runs; `content` remains a JSON string per TikTok docs.
+ */
+export const tiktokWebhookEnvelopeSchema = z.object({
+  client_key: z.string().min(1).max(255),
+  event: z.string().min(1).max(255),
+  create_time: z.number().int().nonnegative(),
+  user_openid: z.string().min(1).max(255),
+  content: z.string().max(1_000_000),
+})
+
+export type TikTokWebhookEnvelope = z.input<typeof tiktokWebhookEnvelopeSchema>
+
+export const tiktokWebhookHeadersSchema = z.object({
+  'tiktok-signature': z.string().min(1),
+})
+
+export const tiktokWebhookResponseSchema = z.union([
+  z.object({ ok: z.literal(true) }),
+  z.object({ error: z.string().min(1) }),
+])
+
+export const tiktokWebhookContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/webhooks/tiktok',
+  headers: tiktokWebhookHeadersSchema,
+  // Body is validated after HMAC verification against the raw payload.
+  body: tiktokWebhookEnvelopeSchema,
+  response: {
+    mode: 'json',
+    schema: tiktokWebhookResponseSchema,
   },
 })

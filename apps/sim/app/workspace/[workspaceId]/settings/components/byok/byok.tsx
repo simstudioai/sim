@@ -6,6 +6,7 @@ import {
   AnthropicIcon,
   BasetenIcon,
   BrandfetchIcon,
+  ContextDevIcon,
   DatagmaIcon,
   DropcontactIcon,
   EnrowIcon,
@@ -19,6 +20,7 @@ import {
   HunterIOIcon,
   IcypeasIcon,
   JinaAIIcon,
+  KimiIcon,
   LeadMagicIcon,
   LinkupIcon,
   MillionVerifierIcon,
@@ -33,9 +35,12 @@ import {
   SerperIcon,
   TogetherIcon,
   WizaIcon,
+  xAIIcon,
   ZeroBounceIcon,
 } from '@/components/icons'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { MAX_BYOK_KEYS_PER_PROVIDER } from '@/lib/api/contracts/byok-keys'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   BYOKKeyManager,
   type BYOKManagerKey,
@@ -74,6 +79,20 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: MistralIcon,
     description: 'LLM calls and Knowledge Base OCR',
     placeholder: 'Enter your API key',
+  },
+  {
+    id: 'xai',
+    name: 'xAI',
+    icon: xAIIcon,
+    description: 'LLM calls',
+    placeholder: 'xai-...',
+  },
+  {
+    id: 'kimi',
+    name: 'Kimi',
+    icon: KimiIcon,
+    description: 'LLM calls',
+    placeholder: 'sk-...',
   },
   {
     id: 'fireworks',
@@ -123,6 +142,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: ExaAIIcon,
     description: 'AI-powered search and research',
     placeholder: 'Enter your Exa API key',
+  },
+  {
+    id: 'context_dev',
+    name: 'Context.dev',
+    icon: ContextDevIcon,
+    description: 'Web scraping, crawling, search, and brand intelligence',
+    placeholder: 'Enter your Context.dev API key',
   },
   {
     id: 'serper',
@@ -279,6 +305,8 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'anthropic',
       'google',
       'mistral',
+      'xai',
+      'kimi',
       'fireworks',
       'together',
       'baseten',
@@ -291,6 +319,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
     ids: [
       'firecrawl',
       'exa',
+      'context_dev',
       'serper',
       'linkup',
       'parallel_ai',
@@ -323,21 +352,22 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
 export function BYOK() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
+  const workspacePermissions = useUserPermissionsContext()
+  const canManage = canMutateWorkspaceSettingsSection('byok', workspacePermissions)
 
   const { data, isLoading } = useBYOKKeys(workspaceId)
-  const keys = data?.keys ?? []
   const upsertKey = useUpsertBYOKKey()
   const deleteKey = useDeleteBYOKKey()
 
   const keysByProvider = useMemo(() => {
     const grouped = new Map<string, BYOKManagerKey[]>()
-    for (const key of keys) {
+    for (const key of data?.keys ?? []) {
       const providerKeys = grouped.get(key.providerId) ?? []
       providerKeys.push({ id: key.id, name: key.name, maskedKey: key.maskedKey })
       grouped.set(key.providerId, providerKeys)
     }
     return grouped
-  }, [keys])
+  }, [data?.keys])
 
   return (
     <SettingsPanel>
@@ -350,6 +380,7 @@ export function BYOK() {
         isLoading={isLoading}
         isSaving={upsertKey.isPending}
         isDeleting={deleteKey.isPending}
+        readOnly={!canManage}
         onSaveKey={async ({ providerId, apiKey, keyId, name }) => {
           await upsertKey.mutateAsync({
             workspaceId,

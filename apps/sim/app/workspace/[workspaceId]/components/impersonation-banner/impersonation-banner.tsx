@@ -1,17 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { useTranslations } from 'next-intl'
-import { Banner } from '@/components/emcn'
+import { Banner } from '@sim/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { useStopImpersonating } from '@/hooks/queries/admin-users'
+import { clearUserData } from '@/stores'
 
 function getImpersonationBannerText(userLabel: string, userEmail?: string) {
   return `Impersonating ${userLabel}${userEmail ? ` (${userEmail})` : ''}. Changes will apply to this account until you switch back.`
 }
 
 export function ImpersonationBanner() {
-  const t = useTranslations('auto')
   const { data: session, isPending } = useSession()
   const stopImpersonating = useStopImpersonating()
   const [isRedirecting, setIsRedirecting] = useState(false)
@@ -26,9 +25,9 @@ export function ImpersonationBanner() {
     <Banner
       variant='destructive'
       text={getImpersonationBannerText(userLabel, userEmail)}
-      textClassName={t('text_red_700_dark_text_red')}
+      textClassName='text-red-700 dark:text-red-300'
       actionLabel={
-        stopImpersonating.isPending || isRedirecting ? 'Returning...' : t('stop_impersonating')
+        stopImpersonating.isPending || isRedirecting ? 'Returning...' : 'Stop impersonating'
       }
       actionVariant='destructive'
       actionDisabled={stopImpersonating.isPending || isRedirecting}
@@ -37,8 +36,9 @@ export function ImpersonationBanner() {
           onError: () => {
             setIsRedirecting(false)
           },
-          onSuccess: () => {
+          onSuccess: async () => {
             setIsRedirecting(true)
+            await clearUserData()
             window.location.assign('/workspace')
           },
         })

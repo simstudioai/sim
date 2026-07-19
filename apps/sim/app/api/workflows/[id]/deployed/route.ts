@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import type { NextRequest, NextResponse } from 'next/server'
 import { getDeployedWorkflowStateContract } from '@/lib/api/contracts/deployments'
 import { parseRequest } from '@/lib/api/server'
@@ -19,6 +20,18 @@ function addNoCacheHeaders(response: NextResponse): NextResponse {
   return response
 }
 
+/**
+ * GET /api/workflows/[id]/deployed
+ * Returns the active deployed state snapshot for a workflow.
+ *
+ * Internal (server-to-server) calls must carry the acting user in the internal
+ * JWT payload (`generateInternalToken(userId)` — the executor's
+ * `buildAuthHeaders(ctx.userId)` always embeds it) and are authorized as that
+ * user with the same workspace-read semantics as the sibling
+ * `/api/workflows/[id]` route. Internal calls without a user id are rejected
+ * (fail closed). Session calls are authorized via
+ * `validateWorkflowPermissions` as before.
+ */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
@@ -29,14 +42,39 @@ export const GET = withRouteHandler(
     try {
       const authHeader = request.headers.get('authorization')
       let isInternalCall = false
+      let internalCallUserId: string | undefined
 
       if (authHeader?.startsWith('Bearer ')) {
         const token = authHeader.split(' ')[1]
         const verification = await verifyInternalToken(token)
         isInternalCall = verification.valid
+        internalCallUserId = verification.userId
       }
 
-      if (!isInternalCall) {
+      if (isInternalCall) {
+        if (!internalCallUserId) {
+          logger.warn(`[${requestId}] Internal call without acting user denied for workflow ${id}`)
+          return addNoCacheHeaders(createErrorResponse('Forbidden', 403))
+        }
+
+        const authorization = await authorizeWorkflowByWorkspacePermission({
+          workflowId: id,
+          userId: internalCallUserId,
+          action: 'read',
+        })
+        if (!authorization.workflow) {
+          logger.warn(`[${requestId}] Workflow ${id} not found for internal call`)
+          return addNoCacheHeaders(createErrorResponse('Workflow not found', 404))
+        }
+        if (!authorization.allowed) {
+          logger.warn(
+            `[${requestId}] Internal call user ${internalCallUserId} denied read access to workflow ${id}`
+          )
+          return addNoCacheHeaders(
+            createErrorResponse(authorization.message || 'Access denied', authorization.status)
+          )
+        }
+      } else {
         const { error } = await validateWorkflowPermissions(id, requestId, 'read')
         if (error) {
           const response = createErrorResponse(error.message, error.status)

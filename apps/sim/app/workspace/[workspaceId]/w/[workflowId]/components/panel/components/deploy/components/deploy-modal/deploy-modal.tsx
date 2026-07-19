@@ -1,11 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
-import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
+import { useEffect, useRef, useState } from 'react'
 import {
   Badge,
   Button,
@@ -22,12 +17,17 @@ import {
   ModalTabsList,
   ModalTabsTrigger,
   Tooltip,
-} from '@/components/emcn'
+  toast,
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { useQueryClient } from '@tanstack/react-query'
+import { useParams } from 'next/navigation'
+import type { DeploymentOperationSummary } from '@/lib/api/contracts/deployments'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   releaseDeployAction,
   tryAcquireDeployAction,
@@ -36,7 +36,6 @@ import { syncLocalDraftFromServer } from '@/app/workspace/[workspaceId]/w/[workf
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
 import { normalizeName, startsWithUuid } from '@/executor/constants'
-import { useA2AAgentByWorkflow } from '@/hooks/queries/a2a/agents'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import {
   invalidateDeploymentQueries,
@@ -49,38 +48,17 @@ import {
 } from '@/hooks/queries/deployments'
 import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
-import { useWorkspaceOwnerBilling, useWorkspaceSettings } from '@/hooks/queries/workspace'
+import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import {
-  A2aDeploy,
-  ApiDeploy,
-  ChatDeploy,
-  DeployUpgradeGate,
-  type ExistingChat,
-  GeneralDeploy,
-  McpDeploy,
-} from './components'
+import { ApiDeploy, ChatDeploy, type ExistingChat, GeneralDeploy, McpDeploy } from './components'
 import { ApiInfoModal } from './components/general/components/api-info-modal'
 
 const logger = createLogger('DeployModal')
-
-/** Renders the upgrade prompt in place of a programmatic-deploy tab when gated. */
-function GatedTabContent({
-  gated,
-  feature,
-  children,
-}: {
-  gated: boolean
-  feature: 'API' | 'MCP' | 'A2A'
-  children: ReactNode
-}) {
-  return gated ? <DeployUpgradeGate feature={feature} /> : <>{children}</>
-}
 
 interface DeployModalProps {
   open: boolean
@@ -104,9 +82,9 @@ interface WorkflowDeploymentInfoUI {
   isPublicApi: boolean
 }
 
-type TabView = 'general' | 'api' | 'chat' | 'mcp' | 'a2a'
+type TabView = 'general' | 'api' | 'chat' | 'mcp'
 
-const DEPLOY_MODAL_TABS = new Set<TabView>(['general', 'api', 'chat', 'mcp', 'a2a'])
+const DEPLOY_MODAL_TABS = new Set<TabView>(['general', 'api', 'chat', 'mcp'])
 
 function isDeployModalTab(value: unknown): value is TabView {
   return typeof value === 'string' && DEPLOY_MODAL_TABS.has(value as TabView)
@@ -123,8 +101,6 @@ export function DeployModal({
   deployReadiness,
   isDeploymentSettling,
 }: DeployModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const queryClient = useQueryClient()
   const params = useParams()
   const workspaceId = params?.workspaceId as string
@@ -136,7 +112,6 @@ export function DeployModal({
   const [activeTab, setActiveTab] = useState<TabView>('general')
   const [chatSubmitting, setChatSubmitting] = useState(false)
   const [deployError, setDeployError] = useState<string | null>(null)
-  const [deployWarnings, setDeployWarnings] = useState<string[]>([])
   const [isFinalizingDeploy, setIsFinalizingDeploy] = useState(false)
   const [isActivatingVersion, setIsActivatingVersion] = useState(false)
   const [isChatFormValid, setIsChatFormValid] = useState(false)
@@ -147,10 +122,6 @@ export function DeployModal({
   const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
   const [mcpToolSaveDisabledReason, setMcpToolSaveDisabledReason] = useState<string | null>(null)
   const [mcpActiveServerId, setMcpActiveServerId] = useState<string | null>(null)
-  const [a2aSubmitting, setA2aSubmitting] = useState(false)
-  const [a2aCanSave, setA2aCanSave] = useState(false)
-  const [a2aNeedsRepublish, setA2aNeedsRepublish] = useState(false)
-  const [showA2aDeleteConfirm, setShowA2aDeleteConfirm] = useState(false)
 
   const [chatSuccess, setChatSuccess] = useState(false)
   const chatSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -162,16 +133,6 @@ export function DeployModal({
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
-  // Gate on the WORKSPACE owner's plan (billed account, rolled up), not the
-  // viewer's individual plan, so a free member of a paid workspace isn't shown
-  // the upgrade wall. Keyed on the URL `workspaceId` (available on mount). Uses
-  // `isPaid` — the same check the server gate runs (any paid plan in an entitled
-  // status, incl. `past_due`) — rather than `hasUsablePaidAccess`, which would
-  // reject `past_due`/billing-blocked owners the API still allows. While loading
-  // the data is undefined → gate stays closed (no flash); only a resolved,
-  // non-paid owner gates.
-  const { data: ownerBilling } = useWorkspaceOwnerBilling(workspaceId ?? undefined)
-  const gateProgrammaticDeploy = isBillingEnabled && !!ownerBilling && !ownerBilling.isPaid
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
     workflowWorkspaceId || ''
@@ -189,7 +150,7 @@ export function DeployModal({
     data: deploymentInfoData,
     isLoading: isLoadingDeploymentInfo,
     refetch: refetchDeploymentInfo,
-  } = useDeploymentInfo(workflowId, { enabled: open && isDeployed })
+  } = useDeploymentInfo(workflowId, { enabled: open })
 
   const { data: versionsData, isLoading: versionsLoading } = useDeploymentVersions(workflowId, {
     enabled: open,
@@ -205,40 +166,47 @@ export function DeployModal({
   const { data: mcpServers = [] } = useWorkflowMcpServers(workflowWorkspaceId || '')
   const hasMcpServers = mcpServers.length > 0
 
-  const { data: existingA2aAgent } = useA2AAgentByWorkflow(
-    workflowWorkspaceId || '',
-    workflowId || ''
-  )
-  const hasA2aAgent = !!existingA2aAgent
-  const isA2aPublished = existingA2aAgent?.isPublished ?? false
-
   const deployMutation = useDeployWorkflow()
   const undeployMutation = useUndeployWorkflow()
   const activateVersionMutation = useActivateDeploymentVersion()
 
   const versions = versionsData?.versions ?? []
+  const deploymentAttemptStatus = deploymentInfoData?.latestDeploymentAttempt?.status
+  const attemptErrorMessage =
+    deploymentInfoData?.latestDeploymentAttempt?.error?.message ??
+    (deploymentAttemptStatus === 'failed' ? 'Deployment preparation failed' : null)
 
   const isWorkflowStillActive = (targetWorkflowId: string) => {
     return useWorkflowRegistry.getState().activeWorkflowId === targetWorkflowId
   }
 
-  const syncDraftAfterDeploy = async (): Promise<string | null> => {
-    if (!workflowId) return null
+  const syncDraftAfterDeploy = async (): Promise<void> => {
+    if (!workflowId) return
 
     try {
-      const syncedActiveWorkflow = await syncLocalDraftFromServer(workflowId)
-      if (!syncedActiveWorkflow && isWorkflowStillActive(workflowId)) {
-        return 'Deployment succeeded, but local sync is still catching up. Refresh if the status looks stale.'
-      }
-      return null
+      await syncLocalDraftFromServer(workflowId)
     } catch (error) {
-      if (!isWorkflowStillActive(workflowId)) return null
+      if (!isWorkflowStillActive(workflowId)) return
       logger.warn('Workflow deployed, but local draft sync failed', {
         workflowId,
         error: toError(error).message,
       })
-      return 'Deployment succeeded, but local sync failed. Refresh if the status looks stale.'
     }
+  }
+
+  /**
+   * Post-activation warnings (dead-lettered or still-queued side effects)
+   * arrive with an `active` attempt, so the Live badge gives no signal —
+   * surface them as a toast. Pending/failed attempts are excluded: the
+   * status badge already covers those.
+   */
+  const toastPostActivationWarnings = (
+    title: string,
+    result: { latestDeploymentAttempt?: { status: string } | null; warnings?: string[] }
+  ) => {
+    if (result.latestDeploymentAttempt?.status !== 'active') return
+    if (!result.warnings?.length) return
+    toast.warning(title, { description: result.warnings.join(' ') })
   }
 
   useEffect(() => {
@@ -288,7 +256,6 @@ export function DeployModal({
     if (open && workflowId) {
       setActiveTab('general')
       setDeployError(null)
-      setDeployWarnings([])
       setChatSuccess(false)
 
       const currentOutputs = selectedStreamingOutputsRef.current
@@ -344,7 +311,6 @@ export function DeployModal({
     deployActionIdRef.current = actionId
     setIsFinalizingDeploy(true)
     setDeployError(null)
-    setDeployWarnings([])
 
     try {
       if (!(await deployReadiness.waitUntilReady())) {
@@ -356,9 +322,12 @@ export function DeployModal({
 
       try {
         const result = await deployMutation.mutateAsync({ workflowId })
-        const syncWarning = await syncDraftAfterDeploy()
-        if (!isWorkflowStillActive(workflowId) || deployActionIdRef.current !== actionId) return
-        setDeployWarnings([...(result.warnings || []), ...(syncWarning ? [syncWarning] : [])])
+        if (result.latestDeploymentAttempt?.status === 'active') {
+          await syncDraftAfterDeploy()
+        }
+        if (isWorkflowStillActive(workflowId)) {
+          toastPostActivationWarnings('Workflow deployed', result)
+        }
       } finally {
         if (deployActionIdRef.current === actionId) {
           setIsFinalizingDeploy(false)
@@ -384,18 +353,17 @@ export function DeployModal({
 
     activateVersionInFlightRef.current = true
     setIsActivatingVersion(true)
-    setDeployWarnings([])
+    setDeployError(null)
 
     try {
       const result = await activateVersionMutation.mutateAsync({ workflowId, version })
-      if (!isWorkflowStillActive(workflowId)) return
-      if (result.warnings && result.warnings.length > 0) {
-        setDeployWarnings(result.warnings)
+      if (isWorkflowStillActive(workflowId)) {
+        toastPostActivationWarnings(`Promoted v${version} to live`, result)
       }
     } catch (error) {
       if (!isWorkflowStillActive(workflowId)) return
       logger.error('Error promoting version:', { error })
-      throw error
+      setDeployError(toError(error).message || `Failed to promote v${version} to live`)
     } finally {
       activateVersionInFlightRef.current = false
       setIsActivatingVersion(false)
@@ -410,20 +378,23 @@ export function DeployModal({
       return
     }
 
-    setDeployWarnings([])
-
     try {
       const result = await undeployMutation.mutateAsync({ workflowId: targetWorkflowId })
       if (!isWorkflowStillActive(targetWorkflowId)) return
       setUndeployTargetWorkflowId(null)
-      if (result.warnings && result.warnings.length > 0) {
-        setDeployWarnings(result.warnings)
-        return
-      }
       onOpenChange(false)
+      /**
+       * Partial cleanup warnings (e.g. external subscription teardown left to
+       * background retries) surface as a toast so closing the modal does not
+       * silently swallow them.
+       */
+      if (result.warnings?.length) {
+        toast.warning('Workflow undeployed', { description: result.warnings.join(' ') })
+      }
     } catch (error: unknown) {
       if (!isWorkflowStillActive(targetWorkflowId)) return
       logger.error('Error undeploying workflow:', { error })
+      toast.error('Failed to undeploy workflow', { description: toError(error).message })
     }
   }
 
@@ -435,7 +406,6 @@ export function DeployModal({
     deployActionIdRef.current = actionId
     setIsFinalizingDeploy(true)
     setDeployError(null)
-    setDeployWarnings([])
 
     try {
       if (!(await deployReadiness.waitUntilReady())) {
@@ -461,9 +431,12 @@ export function DeployModal({
 
       try {
         const result = await deployMutation.mutateAsync({ workflowId })
-        const syncWarning = await syncDraftAfterDeploy()
-        if (!isWorkflowStillActive(workflowId) || deployActionIdRef.current !== actionId) return
-        setDeployWarnings([...(result.warnings || []), ...(syncWarning ? [syncWarning] : [])])
+        if (result.latestDeploymentAttempt?.status === 'active') {
+          await syncDraftAfterDeploy()
+        }
+        if (isWorkflowStillActive(workflowId)) {
+          toastPostActivationWarnings('Workflow redeployed', result)
+        }
       } finally {
         if (deployActionIdRef.current === actionId) {
           setIsFinalizingDeploy(false)
@@ -489,7 +462,6 @@ export function DeployModal({
     if (workflowId) releaseDeployAction(workflowId)
     setChatSubmitting(false)
     setDeployError(null)
-    setDeployWarnings([])
     onOpenChange(false)
   }
 
@@ -529,43 +501,6 @@ export function DeployModal({
     form?.requestSubmit()
   }
 
-  const handleA2aPublish = () => {
-    const form = document.getElementById('a2a-deploy-form')
-    const publishTrigger = form?.querySelector('[data-a2a-publish-trigger]') as HTMLButtonElement
-    publishTrigger?.click()
-  }
-
-  const handleA2aUnpublish = () => {
-    const form = document.getElementById('a2a-deploy-form')
-    const unpublishTrigger = form?.querySelector(
-      '[data-a2a-unpublish-trigger]'
-    ) as HTMLButtonElement
-    unpublishTrigger?.click()
-  }
-
-  const handleA2aPublishNew = () => {
-    const form = document.getElementById('a2a-deploy-form')
-    const publishNewTrigger = form?.querySelector(
-      '[data-a2a-publish-new-trigger]'
-    ) as HTMLButtonElement
-    publishNewTrigger?.click()
-  }
-
-  const handleA2aUpdateRepublish = () => {
-    const form = document.getElementById('a2a-deploy-form')
-    const updateRepublishTrigger = form?.querySelector(
-      '[data-a2a-update-republish-trigger]'
-    ) as HTMLButtonElement
-    updateRepublishTrigger?.click()
-  }
-
-  const handleA2aDelete = () => {
-    const form = document.getElementById('a2a-deploy-form')
-    const deleteTrigger = form?.querySelector('[data-a2a-delete-trigger]') as HTMLButtonElement
-    deleteTrigger?.click()
-    setShowA2aDeleteConfirm(false)
-  }
-
   const isSubmitting = deployMutation.isPending || isFinalizingDeploy
   const isUndeploying = undeployMutation.isPending
 
@@ -573,7 +508,7 @@ export function DeployModal({
     <>
       <Modal open={open} onOpenChange={handleCloseModal}>
         <ModalContent size='lg' className='h-[76vh]'>
-          <ModalHeader>{t('workflow_deployment')}</ModalHeader>
+          <ModalHeader>Workflow Deployment</ModalHeader>
 
           <ModalTabs
             value={activeTab}
@@ -581,43 +516,28 @@ export function DeployModal({
             className='flex min-h-0 flex-1 flex-col'
           >
             <ModalTabsList activeValue={activeTab}>
-              <ModalTabsTrigger value='general'>{t('general')}</ModalTabsTrigger>
+              <ModalTabsTrigger value='general'>General</ModalTabsTrigger>
               {!permissionConfig.hideDeployApi && (
                 <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
               )}
               {!permissionConfig.hideDeployMcp && (
                 <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
               )}
-              {!permissionConfig.hideDeployA2a && (
-                <ModalTabsTrigger value='a2a'>A2A</ModalTabsTrigger>
-              )}
               {!permissionConfig.hideDeployChatbot && (
-                <ModalTabsTrigger value='chat'>{t('chat')}</ModalTabsTrigger>
+                <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
               )}
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>
               <ModalDescription className='sr-only'>
-                {t('configure_and_manage_workflow_deployment_setting')}
+                Configure and manage workflow deployment settings including API, MCP, and chat
+                options.
               </ModalDescription>
-              {(deployError || deployWarnings.length > 0) && (
-                <div className='mb-3 flex flex-col gap-2'>
-                  {deployError && (
-                    <Badge variant='red' size='lg' dot className='max-w-full truncate'>
-                      {deployError}
-                    </Badge>
-                  )}
-                  {deployWarnings.map((warning) => (
-                    <Badge
-                      key={warning}
-                      variant='amber'
-                      size='lg'
-                      dot
-                      className='max-w-full truncate'
-                    >
-                      {warning}
-                    </Badge>
-                  ))}
+              {deployError && (
+                <div className='mb-3' role='alert'>
+                  <Badge variant='red' size='lg' dot className='max-w-full truncate'>
+                    {deployError}
+                  </Badge>
                 </div>
               )}
               <ModalTabsContent value='general'>
@@ -636,17 +556,15 @@ export function DeployModal({
               </ModalTabsContent>
 
               <ModalTabsContent value='api' className='h-full'>
-                <GatedTabContent gated={gateProgrammaticDeploy} feature='API'>
-                  <ApiDeploy
-                    workflowId={workflowId}
-                    deploymentInfo={deploymentInfo}
-                    isLoading={isLoadingDeploymentInfo}
-                    needsRedeployment={needsRedeployment}
-                    getInputFormatExample={getInputFormatExample}
-                    selectedStreamingOutputs={selectedStreamingOutputs}
-                    onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
-                  />
-                </GatedTabContent>
+                <ApiDeploy
+                  workflowId={workflowId}
+                  deploymentInfo={deploymentInfo}
+                  isLoading={isLoadingDeploymentInfo}
+                  needsRedeployment={needsRedeployment}
+                  getInputFormatExample={getInputFormatExample}
+                  selectedStreamingOutputs={selectedStreamingOutputs}
+                  onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
+                />
               </ModalTabsContent>
 
               <ModalTabsContent value='chat'>
@@ -666,40 +584,20 @@ export function DeployModal({
               </ModalTabsContent>
 
               <ModalTabsContent value='mcp' className='h-full'>
-                <GatedTabContent gated={gateProgrammaticDeploy} feature='MCP'>
-                  {workflowId && (
-                    <McpDeploy
-                      workflowId={workflowId}
-                      workflowName={workflowMetadata?.name || 'Workflow'}
-                      workflowDescription={workflowMetadata?.description}
-                      isDeployed={isDeployed}
-                      deployedState={deployedState}
-                      isLoadingDeployedState={isLoadingDeployedState}
-                      onSubmittingChange={setMcpToolSubmitting}
-                      onCanSaveChange={setMcpToolCanSave}
-                      onSaveDisabledReasonChange={setMcpToolSaveDisabledReason}
-                      onActiveServerChange={setMcpActiveServerId}
-                    />
-                  )}
-                </GatedTabContent>
-              </ModalTabsContent>
-
-              <ModalTabsContent value='a2a' className='h-full'>
-                <GatedTabContent gated={gateProgrammaticDeploy} feature='A2A'>
-                  {workflowId && (
-                    <A2aDeploy
-                      workflowId={workflowId}
-                      workflowName={workflowMetadata?.name || 'Workflow'}
-                      workflowDescription={workflowMetadata?.description}
-                      isDeployed={isDeployed}
-                      workflowNeedsRedeployment={needsRedeployment}
-                      onSubmittingChange={setA2aSubmitting}
-                      onCanSaveChange={setA2aCanSave}
-                      onNeedsRepublishChange={setA2aNeedsRepublish}
-                      onDeployWorkflow={onDeploy}
-                    />
-                  )}
-                </GatedTabContent>
+                {workflowId && (
+                  <McpDeploy
+                    workflowId={workflowId}
+                    workflowName={workflowMetadata?.name || 'Workflow'}
+                    workflowDescription={workflowMetadata?.description}
+                    isDeployed={isDeployed}
+                    deployedState={deployedState}
+                    isLoadingDeployedState={isLoadingDeployedState}
+                    onSubmittingChange={setMcpToolSubmitting}
+                    onCanSaveChange={setMcpToolCanSave}
+                    onSaveDisabledReasonChange={setMcpToolSaveDisabledReason}
+                    onActiveServerChange={setMcpActiveServerId}
+                  />
+                )}
               </ModalTabsContent>
             </ModalBody>
           </ModalTabs>
@@ -712,6 +610,8 @@ export function DeployModal({
               isUndeploying={isUndeploying}
               deployReadiness={deployReadiness}
               isDeploymentSettling={isDeploymentSettling}
+              attemptStatus={deploymentAttemptStatus}
+              attemptErrorMessage={attemptErrorMessage}
               onDeploy={onDeploy}
               onRedeploy={handleRedeploy}
               onUndeploy={() => {
@@ -719,19 +619,19 @@ export function DeployModal({
               }}
             />
           )}
-          {activeTab === 'api' && !gateProgrammaticDeploy && (
+          {activeTab === 'api' && (
             <ModalFooter className='items-center justify-between'>
               <div />
               <div className='flex items-center gap-2'>
                 <Button variant='default' onClick={() => setIsApiInfoModalOpen(true)}>
-                  {t('edit_api_info')}
+                  Edit API Info
                 </Button>
                 <Button
                   variant='tertiary'
                   onClick={() => setIsCreateKeyModalOpen(true)}
                   disabled={createButtonDisabled}
                 >
-                  {t('generate_api_key')}
+                  Generate API Key
                 </Button>
               </div>
             </ModalFooter>
@@ -747,7 +647,7 @@ export function DeployModal({
                     onClick={handleChatDelete}
                     disabled={chatSubmitting}
                   >
-                    {t('delete')}
+                    Delete
                   </Button>
                 )}
                 <Button
@@ -758,20 +658,20 @@ export function DeployModal({
                 >
                   {chatSuccess
                     ? chatExists
-                      ? tI18n('updated')
-                      : tI18n('launched')
+                      ? 'Updated'
+                      : 'Launched'
                     : chatSubmitting
                       ? chatExists
                         ? 'Updating...'
                         : 'Launching...'
                       : chatExists
-                        ? tI18n('update')
-                        : tI18n('launch_chat')}
+                        ? 'Update'
+                        : 'Launch Chat'}
                 </Button>
               </div>
             </ModalFooter>
           )}
-          {activeTab === 'mcp' && !gateProgrammaticDeploy && isDeployed && hasMcpServers && (
+          {activeTab === 'mcp' && isDeployed && hasMcpServers && (
             <ModalFooter className='items-center justify-between'>
               <div />
               <div className='flex items-center gap-2'>
@@ -785,7 +685,7 @@ export function DeployModal({
                     })
                   }
                 >
-                  {t('manage')}
+                  Manage
                 </Button>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
@@ -796,7 +696,7 @@ export function DeployModal({
                         onClick={handleMcpToolFormSubmit}
                         disabled={mcpToolSubmitting || !mcpToolCanSave}
                       >
-                        {mcpToolSubmitting ? 'Saving...' : tI18n('save_tool')}
+                        {mcpToolSubmitting ? 'Saving...' : 'Save Tool'}
                       </Button>
                     </span>
                   </Tooltip.Trigger>
@@ -804,77 +704,6 @@ export function DeployModal({
                     <Tooltip.Content>{mcpToolSaveDisabledReason}</Tooltip.Content>
                   )}
                 </Tooltip.Root>
-              </div>
-            </ModalFooter>
-          )}
-          {activeTab === 'a2a' && !gateProgrammaticDeploy && (
-            <ModalFooter className='items-center justify-between'>
-              {hasA2aAgent ? (
-                isA2aPublished ? (
-                  <Badge variant={a2aNeedsRepublish ? 'amber' : 'green'} size='lg' dot>
-                    {a2aNeedsRepublish ? tI18n('update_deployment') : tI18n('live')}
-                  </Badge>
-                ) : (
-                  <Badge variant='red' size='lg' dot>
-                    {t('unpublished')}
-                  </Badge>
-                )
-              ) : (
-                <div />
-              )}
-              <div className='flex items-center gap-2'>
-                {!hasA2aAgent && (
-                  <Button
-                    type='button'
-                    variant='tertiary'
-                    onClick={handleA2aPublishNew}
-                    disabled={a2aSubmitting || !a2aCanSave}
-                  >
-                    {a2aSubmitting ? 'Publishing...' : tI18n('publish_agent')}
-                  </Button>
-                )}
-
-                {hasA2aAgent && isA2aPublished && (
-                  <>
-                    <Button
-                      type='button'
-                      variant='default'
-                      onClick={handleA2aUnpublish}
-                      disabled={a2aSubmitting}
-                    >
-                      {t('unpublish')}
-                    </Button>
-                    <Button
-                      type='button'
-                      variant='tertiary'
-                      onClick={handleA2aUpdateRepublish}
-                      disabled={a2aSubmitting || !a2aCanSave || !a2aNeedsRepublish}
-                    >
-                      {a2aSubmitting ? 'Updating...' : tI18n('update')}
-                    </Button>
-                  </>
-                )}
-
-                {hasA2aAgent && !isA2aPublished && (
-                  <>
-                    <Button
-                      type='button'
-                      variant='default'
-                      onClick={() => setShowA2aDeleteConfirm(true)}
-                      disabled={a2aSubmitting}
-                    >
-                      {t('delete')}
-                    </Button>
-                    <Button
-                      type='button'
-                      variant='tertiary'
-                      onClick={handleA2aPublish}
-                      disabled={a2aSubmitting || !a2aCanSave}
-                    >
-                      {a2aSubmitting ? 'Publishing...' : tI18n('publish')}
-                    </Button>
-                  </>
-                )}
               </div>
             </ModalFooter>
           )}
@@ -886,8 +715,8 @@ export function DeployModal({
         onOpenChange={(nextOpen) => {
           if (!nextOpen) setUndeployTargetWorkflowId(null)
         }}
-        srTitle={tI18n('undeploy_api')}
-        title={t('undeploy_api')}
+        srTitle='Undeploy API'
+        title='Undeploy API'
         text={[
           'Are you sure you want to undeploy this workflow? ',
           {
@@ -900,26 +729,6 @@ export function DeployModal({
           onClick: handleUndeploy,
           pending: isUndeploying,
           pendingLabel: 'Undeploying...',
-        }}
-      />
-
-      <ChipConfirmModal
-        open={showA2aDeleteConfirm}
-        onOpenChange={setShowA2aDeleteConfirm}
-        srTitle={tI18n('delete_a2a_agent')}
-        title={t('delete_a2a_agent')}
-        text={[
-          'Are you sure you want to delete ',
-          { text: existingA2aAgent?.name || 'this agent', bold: true },
-          '? ',
-          { text: 'This will permanently remove the agent configuration.', error: true },
-          ' This action cannot be undone.',
-        ]}
-        confirm={{
-          label: 'Delete',
-          onClick: handleA2aDelete,
-          pending: a2aSubmitting,
-          pendingLabel: 'Deleting...',
         }}
       />
 
@@ -945,15 +754,77 @@ export function DeployModal({
   )
 }
 
+type DeploymentAttemptStatus = DeploymentOperationSummary['status']
+
 interface StatusBadgeProps {
-  isWarning: boolean
+  isDeployed: boolean
+  needsRedeployment: boolean
+  attemptStatus?: DeploymentAttemptStatus
+  attemptErrorMessage?: string | null
 }
 
-function StatusBadge({ isWarning }: StatusBadgeProps) {
-  const label = isWarning ? 'Update deployment' : 'Live'
+/**
+ * Lifecycle-aware deployment status badge. Pending attempts render amber
+ * (labelled Retrying once an attempt has recorded a transient error), failed
+ * attempts render red with the failure reason in a tooltip, and a settled
+ * live deployment falls back to the Live/Update states.
+ */
+function StatusBadge({
+  isDeployed,
+  needsRedeployment,
+  attemptStatus,
+  attemptErrorMessage,
+}: StatusBadgeProps) {
+  if (attemptStatus === 'preparing' || attemptStatus === 'activating') {
+    const isRetrying = Boolean(attemptErrorMessage)
+    return (
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Badge variant='amber' size='lg' dot className='cursor-default'>
+            {isRetrying ? 'Retrying' : 'Pending'}
+          </Badge>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='top' className='max-w-[320px]'>
+          {isRetrying && <p className='text-caption'>{attemptErrorMessage}</p>}
+          <p className='text-caption'>
+            {isRetrying
+              ? isDeployed
+                ? 'Retrying automatically. The current version stays live until cutover completes.'
+                : 'Retrying automatically. The workflow goes live once activation completes.'
+              : isDeployed
+                ? 'A new version is being prepared. The current version stays live until cutover completes.'
+                : 'Triggers and schedules are being registered. The workflow goes live once activation completes.'}
+          </p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    )
+  }
+
+  if (attemptStatus === 'failed') {
+    return (
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Badge variant='red' size='lg' dot className='cursor-default'>
+            Failed
+          </Badge>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='top' className='max-w-[320px]'>
+          <p className='text-caption'>{attemptErrorMessage || 'Deployment preparation failed.'}</p>
+          <p className='text-caption'>
+            {isDeployed
+              ? 'The previously deployed version is still live.'
+              : 'The workflow remains undeployed.'}
+          </p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    )
+  }
+
+  if (!isDeployed) return null
+
   return (
-    <Badge variant={isWarning ? 'amber' : 'green'} size='lg' dot>
-      {label}
+    <Badge variant={needsRedeployment ? 'amber' : 'green'} size='lg' dot>
+      {needsRedeployment ? 'Update deployment' : 'Live'}
     </Badge>
   )
 }
@@ -965,6 +836,8 @@ interface GeneralFooterProps {
   isUndeploying: boolean
   deployReadiness: DeployReadiness
   isDeploymentSettling: boolean
+  attemptStatus?: DeploymentAttemptStatus
+  attemptErrorMessage?: string | null
   onDeploy: () => Promise<void>
   onRedeploy: () => Promise<void>
   onUndeploy: () => void
@@ -977,28 +850,46 @@ function GeneralFooter({
   isUndeploying,
   deployReadiness,
   isDeploymentSettling,
+  attemptStatus,
+  attemptErrorMessage,
   onDeploy,
   onRedeploy,
   onUndeploy,
 }: GeneralFooterProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const isDeployBlocked =
     deployReadiness.isBlocked || isDeploymentSettling || isSubmitting || isUndeploying
   const blockedMessage =
     deployReadiness.isBlocked && !deployReadiness.isSyncing && !isSubmitting && !isUndeploying
       ? deployReadiness.tooltip
       : null
+  const status = (
+    <div className='flex min-w-0 flex-col gap-1'>
+      <StatusBadge
+        isDeployed={Boolean(isDeployed)}
+        needsRedeployment={needsRedeployment}
+        attemptStatus={attemptStatus}
+        attemptErrorMessage={attemptErrorMessage}
+      />
+      {blockedMessage && (
+        <div
+          className='max-w-[300px] truncate text-[var(--text-muted)] text-xs'
+          title={blockedMessage}
+        >
+          {blockedMessage}
+        </div>
+      )}
+    </div>
+  )
   const deployActionLoading = isSubmitting || isDeploymentSettling
 
   if (!isDeployed) {
     return (
       <ModalFooter className='items-center justify-between'>
-        <div className='max-w-[260px] text-[var(--text-muted)] text-xs'>{blockedMessage}</div>
+        {status}
         <div className='flex items-center gap-2'>
           <Button variant='tertiary' onClick={onDeploy} disabled={isDeployBlocked}>
             {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
-            {t('deploy')}
+            Deploy
           </Button>
         </div>
       </ModalFooter>
@@ -1007,20 +898,15 @@ function GeneralFooter({
 
   return (
     <ModalFooter className='items-center justify-between'>
-      <div className='flex min-w-0 flex-col gap-1'>
-        <StatusBadge isWarning={needsRedeployment} />
-        {blockedMessage && (
-          <div className='max-w-[300px] text-[var(--text-muted)] text-xs'>{blockedMessage}</div>
-        )}
-      </div>
+      {status}
       <div className='flex items-center gap-2'>
         <Button variant='default' onClick={onUndeploy} disabled={isUndeploying || isSubmitting}>
-          {isUndeploying ? 'Undeploying...' : tI18n('undeploy')}
+          {isUndeploying ? 'Undeploying...' : 'Undeploy'}
         </Button>
         {(needsRedeployment || isDeploymentSettling) && (
           <Button variant='tertiary' onClick={onRedeploy} disabled={isDeployBlocked}>
             {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
-            {t('update')}
+            Update
           </Button>
         )}
       </div>

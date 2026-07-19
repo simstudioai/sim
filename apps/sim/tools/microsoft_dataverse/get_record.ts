@@ -4,6 +4,7 @@ import type {
   DataverseGetRecordResponse,
 } from '@/tools/microsoft_dataverse/types'
 import { DATAVERSE_RECORD_OUTPUT } from '@/tools/microsoft_dataverse/types'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseGetRecord')
@@ -62,12 +63,12 @@ export const dataverseGetRecordTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
       const queryParts: string[] = []
-      if (params.select) queryParts.push(`$select=${params.select}`)
-      if (params.expand) queryParts.push(`$expand=${params.expand}`)
+      if (params.select) queryParts.push(`$select=${encodeURIComponent(params.select)}`)
+      if (params.expand) queryParts.push(`$expand=${encodeURIComponent(params.expand)}`)
       const query = queryParts.length > 0 ? `?${queryParts.join('&')}` : ''
-      return `${baseUrl}/api/data/v9.2/${params.entitySetName}(${params.recordId})${query}`
+      return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}(${params.recordId.trim()})${query}`
     },
     method: 'GET',
     headers: (params) => ({

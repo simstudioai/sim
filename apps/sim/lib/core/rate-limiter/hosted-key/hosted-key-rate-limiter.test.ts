@@ -1,3 +1,4 @@
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import type {
   ConsumeResult,
@@ -70,6 +71,7 @@ describe('HostedKeyRateLimiter', () => {
     process.env.EXA_API_KEY_1 = 'test-key-1'
     process.env.EXA_API_KEY_2 = 'test-key-2'
     process.env.EXA_API_KEY_3 = 'test-key-3'
+    process.env.EXA_API_KEY = undefined
   })
 
   afterEach(() => {
@@ -86,6 +88,7 @@ describe('HostedKeyRateLimiter', () => {
       mockAdapter.consumeTokens.mockResolvedValue(allowedResult)
 
       process.env.EXA_API_KEY_COUNT = undefined
+      process.env.EXA_API_KEY = undefined
       process.env.EXA_API_KEY_1 = undefined
       process.env.EXA_API_KEY_2 = undefined
       process.env.EXA_API_KEY_3 = undefined
@@ -99,6 +102,28 @@ describe('HostedKeyRateLimiter', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('No hosted keys configured')
+    })
+
+    it('uses a singular hosted key when no numbered pool count is configured', async () => {
+      mockAdapter.consumeTokens.mockResolvedValue({
+        allowed: true,
+        tokensRemaining: 9,
+        resetAt: new Date(Date.now() + 60000),
+      } satisfies ConsumeResult)
+      process.env.EXA_API_KEY_COUNT = undefined
+      process.env.EXA_API_KEY = 'singular-test-key'
+
+      const result = await rateLimiter.acquireKey(
+        testProvider,
+        envKeyPrefix,
+        perRequestRateLimit,
+        'workspace-1'
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.key).toBe('singular-test-key')
+      expect(result.envVarName).toBe('EXA_API_KEY')
+      expect(result.keyIndex).toBe(0)
     })
 
     it('should rate limit billing actor when wait exceeds the queue cap', async () => {
@@ -413,7 +438,7 @@ describe('HostedKeyRateLimiter', () => {
         controller.signal
       )
       // Let the first bucket check run and the sleep begin, then abort.
-      await new Promise((resolve) => setTimeout(resolve, 20))
+      await sleep(20)
       controller.abort()
       const result = await promise
 

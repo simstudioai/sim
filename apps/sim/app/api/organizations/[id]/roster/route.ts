@@ -11,37 +11,30 @@ import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { organizationParamsSchema } from '@/lib/api/contracts/organization'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import {
+  getOrganizationRosterContract,
+  type OrganizationRoster,
+  type RosterMember,
+  type RosterWorkspaceAccess,
+} from '@/lib/api/contracts/organization'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { expireStalePendingInvitationsForOrganization } from '@/lib/invitations/core'
 
 const logger = createLogger('OrganizationRosterAPI')
 
-interface RosterWorkspaceAccess {
-  workspaceId: string
-  workspaceName: string
-  permission: 'admin' | 'write' | 'read'
-}
-
 export const GET = withRouteHandler(
-  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     try {
       const session = await getSession()
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const paramsResult = organizationParamsSchema.safeParse(await params)
-      if (!paramsResult.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
-          { status: 400 }
-        )
-      }
-
-      const { id: organizationId } = paramsResult.data
+      const parsed = await parseRequest(getOrganizationRosterContract, request, { params })
+      if (!parsed.success) return parsed.response
+      const { id: organizationId } = parsed.data.params
 
       const [callerMembership] = await db
         .select({ role: member.role })
@@ -55,23 +48,6 @@ export const GET = withRouteHandler(
           { status: 403 }
         )
       }
-
-      if (callerMembership.role !== 'owner' && callerMembership.role !== 'admin') {
-        return NextResponse.json(
-          { error: 'Forbidden - Organization admin access required' },
-          { status: 403 }
-        )
-      }
-
-      await expireStalePendingInvitationsForOrganization(organizationId)
-
-      const orgWorkspaces = await db
-        .select({ id: workspace.id, name: workspace.name })
-        .from(workspace)
-        .where(and(eq(workspace.organizationId, organizationId), isNull(workspace.archivedAt)))
-
-      const orgWorkspaceIds = orgWorkspaces.map((ws) => ws.id)
-      const workspaceNameById = new Map(orgWorkspaces.map((ws) => [ws.id, ws.name]))
 
       const memberRows = await db
         .select({
@@ -87,6 +63,38 @@ export const GET = withRouteHandler(
         .innerJoin(user, eq(member.userId, user.id))
         .where(eq(member.organizationId, organizationId))
 
+      const members: RosterMember[] = memberRows.map((row) => ({
+        memberId: row.memberId,
+        userId: row.userId,
+        role: row.role === 'owner' ? 'owner' : row.role === 'admin' ? 'admin' : 'member',
+        createdAt: row.createdAt.toISOString(),
+        name: row.userName,
+        email: row.userEmail,
+        image: row.userImage,
+        workspaces: [] as RosterWorkspaceAccess[],
+      }))
+
+      if (!isOrgAdminRole(callerMembership.role)) {
+        const data = {
+          members,
+          pendingInvitations: [],
+          workspaces: [],
+        } satisfies OrganizationRoster
+        return NextResponse.json({
+          success: true,
+          data,
+        })
+      }
+
+      await expireStalePendingInvitationsForOrganization(organizationId)
+
+      const orgWorkspaces = await db
+        .select({ id: workspace.id, name: workspace.name })
+        .from(workspace)
+        .where(and(eq(workspace.organizationId, organizationId), isNull(workspace.archivedAt)))
+
+      const orgWorkspaceIds = orgWorkspaces.map((ws) => ws.id)
+      const workspaceNameById = new Map(orgWorkspaces.map((ws) => [ws.id, ws.name]))
       const memberUserIds = memberRows.map((row) => row.userId)
 
       const memberPermissions =
@@ -118,23 +126,17 @@ export const GET = withRouteHandler(
         permissionsByUser.set(row.userId, list)
       }
 
-      const members = memberRows.map((row) => {
-        const isOrgAdmin = isOrgAdminRole(row.role)
+      const membersWithWorkspaceAccess = members.map((rosterMember) => {
+        const isOrgAdmin = isOrgAdminRole(rosterMember.role)
         return {
-          memberId: row.memberId,
-          userId: row.userId,
-          role: row.role,
-          createdAt: row.createdAt,
-          name: row.userName,
-          email: row.userEmail,
-          image: row.userImage,
+          ...rosterMember,
           workspaces: isOrgAdmin
             ? orgWorkspaces.map((ws) => ({
                 workspaceId: ws.id,
                 workspaceName: ws.name,
                 permission: 'admin' as const,
               }))
-            : (permissionsByUser.get(row.userId) ?? []),
+            : (permissionsByUser.get(rosterMember.userId) ?? []),
         }
       })
 
@@ -205,7 +207,11 @@ export const GET = withRouteHandler(
         })
       }
 
-      const rosterMembers = [...members, ...externalMembersByUser.values()]
+      const externalMembers = [...externalMembersByUser.values()].map((rosterMember) => ({
+        ...rosterMember,
+        createdAt: rosterMember.createdAt.toISOString(),
+      }))
+      const rosterMembers = [...membersWithWorkspaceAccess, ...externalMembers]
 
       const pendingInvitationRows = await db
         .select({
@@ -253,20 +259,21 @@ export const GET = withRouteHandler(
         role: row.membershipIntent === 'external' ? 'external' : row.role,
         kind: row.kind,
         membershipIntent: row.membershipIntent,
-        createdAt: row.createdAt,
-        expiresAt: row.expiresAt,
+        createdAt: row.createdAt.toISOString(),
+        expiresAt: row.expiresAt.toISOString(),
         inviteeName: row.inviteeName,
         inviteeImage: row.inviteeImage,
         workspaces: grantsByInvitation.get(row.id) ?? [],
       }))
 
+      const data = {
+        members: rosterMembers,
+        pendingInvitations,
+        workspaces: orgWorkspaces,
+      } satisfies OrganizationRoster
       return NextResponse.json({
         success: true,
-        data: {
-          members: rosterMembers,
-          pendingInvitations,
-          workspaces: orgWorkspaces,
-        },
+        data,
       })
     } catch (error) {
       logger.error('Failed to fetch organization roster', { error })

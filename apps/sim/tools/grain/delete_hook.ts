@@ -33,7 +33,7 @@ export const grainDeleteHookTool: ToolConfig<GrainDeleteHookParams, GrainDeleteH
 
   transformResponse: async (response) => {
     if (!response.ok) {
-      const data = await response.json()
+      const data = await response.json().catch(() => ({}))
       throw new Error(data.error || data.message || 'Failed to delete webhook')
     }
 

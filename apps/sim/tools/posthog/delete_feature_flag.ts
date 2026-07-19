@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface DeleteFeatureFlagParams {
   projectId: string
   flagId: string
   region: 'us' | 'eu'
+  host?: string
   apiKey: string
 }
 
@@ -18,6 +20,7 @@ export const deleteFeatureFlagTool: ToolConfig<DeleteFeatureFlagParams, DeleteFe
     name: 'PostHog Delete Feature Flag',
     description: 'Delete a feature flag from PostHog',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       projectId: {
@@ -38,6 +41,13 @@ export const deleteFeatureFlagTool: ToolConfig<DeleteFeatureFlagParams, DeleteFe
         visibility: 'user-only',
         description: 'PostHog cloud region: us or eu',
       },
+      host: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description:
+          'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+      },
       apiKey: {
         type: 'string',
         required: true,
@@ -48,17 +58,20 @@ export const deleteFeatureFlagTool: ToolConfig<DeleteFeatureFlagParams, DeleteFe
 
     request: {
       url: (params) => {
-        const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
-        return `${baseUrl}/api/projects/${params.projectId}/feature_flags/${params.flagId}`
+        const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
+        return `${baseUrl}/api/projects/${params.projectId}/feature_flags/${params.flagId}/`
       },
-      method: 'DELETE',
+      // PostHog does not allow a hard DELETE on feature flags (always returns 405).
+      // Deletion is a soft-delete via PATCH with deleted: true.
+      method: 'PATCH',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
         'Content-Type': 'application/json',
       }),
+      body: () => ({ deleted: true }),
     },
 
-    transformResponse: async (response: Response) => {
+    transformResponse: async () => {
       return {
         success: true,
         message: 'Feature flag deleted successfully',

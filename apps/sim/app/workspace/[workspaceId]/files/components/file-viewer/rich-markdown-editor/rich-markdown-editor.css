@@ -94,27 +94,27 @@
   color: var(--text-secondary);
 }
 
+/* No explicit `color` on strong/em — an inherited value never beats an element's own explicit rule
+ * regardless of the ancestor selector's specificity, so a hardcoded color here would silently win
+ * over ANY ambient color a ancestor sets that differs from the prose default (a link's blue, `h6`'s
+ * dimmer `--text-secondary`, or any future colored container) — the same failure mode `color:
+ * inherit` on the `mark` (highlight) rule below already avoids. Bold/italic text is meant to carry
+ * the surrounding color, not reset it; omitting `color` here lets normal CSS inheritance do that
+ * correctly in every context, including ones this file doesn't know about yet. */
 .rich-markdown-prose strong {
   font-weight: 600;
-  color: var(--text-primary);
 }
 
 .rich-markdown-prose em {
   font-style: italic;
-  color: var(--text-primary);
 }
 
+/* del/s DO need their own explicit dimmer color (distinct from the surrounding text) as their
+ * default — but see the link-color override below for why that must still yield inside a link. */
 .rich-markdown-prose del,
 .rich-markdown-prose s {
   color: var(--text-tertiary);
   text-decoration: line-through;
-}
-
-/* Selecting struck-through text reads in the primary color like any other highlighted text, so the
-   selection looks uniform (it returns to the muted strike color when deselected). */
-.rich-markdown-prose del::selection,
-.rich-markdown-prose s::selection {
-  color: var(--text-primary);
 }
 
 .rich-markdown-prose a {
@@ -124,14 +124,6 @@
 
 .rich-markdown-prose a:hover {
   text-decoration: underline;
-}
-
-/* When a link is selected, drop its blue so it reads like any other highlighted text — the standard
-   MD-editor convention (Linear, Slack) where the selection takes precedence over the link color.
-   Only the selected state is affected; an unselected link stays blue. */
-.rich-markdown-prose a::selection,
-.rich-markdown-prose a ::selection {
-  color: var(--text-primary);
 }
 
 /* Render the gap cursor (e.g. above a leading divider) as a normal vertical caret rather
@@ -238,13 +230,29 @@
   font-style: italic;
 }
 
+/* No explicit `color` — see the strong/em comment above; inline code composites its own font/
+ * background/radius over whatever color the surrounding context (link, heading, prose default)
+ * already supplies. */
 .rich-markdown-prose code {
   font-family: var(--font-martian-mono, ui-monospace, monospace);
   font-size: 0.875em;
   background: var(--surface-5);
-  color: var(--text-primary);
   border-radius: 4px;
   padding: 0.125rem 0.375rem;
+}
+
+/* del/s are the one mark that both needs its own explicit default color (dimmer than the prose
+ * default, unlike strong/em/code above) AND must still yield it to a link's blue — an inherited
+ * value never beats an element's own explicit rule regardless of the ancestor selector's
+ * specificity, so without this override a struck-through link would show the dimmer tertiary color
+ * instead of the link's blue. Covers both DOM nesting orders since ProseMirror's mark array — and so
+ * the render order marks nest in — depends on which was toggled first, not a fixed schema order.
+ * Declared after the del/s rule above so it wins on source order too, not just specificity. */
+.rich-markdown-prose a del,
+.rich-markdown-prose a s,
+.rich-markdown-prose del a,
+.rich-markdown-prose s a {
+  color: var(--brand-secondary);
 }
 
 .rich-markdown-prose pre,
@@ -290,6 +298,35 @@
   padding: 0;
   font-size: 13px;
   line-height: 21px;
+}
+
+/* Raw, unrendered markdown constructs the schema has no real node/mark for (raw HTML blocks,
+   comments, footnotes) — held verbatim and re-emitted byte-for-byte on save (./raw-markdown-snippet.ts).
+   Same neutral surface as `code`/`pre` below (no color tint — a tint reads as a warning/error state,
+   which isn't the signal here); the hover "Raw HTML"/"Footnote" badge is what conveys "not interpreted". */
+.rich-markdown-prose .raw-markdown-block,
+.rich-markdown-prose .raw-markdown-inline {
+  font-family: var(--font-martian-mono, ui-monospace, monospace);
+  font-size: 0.875em;
+  color: var(--text-muted);
+  background: var(--surface-5);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dark .rich-markdown-prose .raw-markdown-block,
+.dark .rich-markdown-prose .raw-markdown-inline {
+  background: var(--code-bg);
+}
+
+.rich-markdown-prose .raw-markdown-block {
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.rich-markdown-prose .raw-markdown-inline {
+  border-radius: 4px;
+  padding: 0.0625rem 0.3rem;
 }
 
 .rich-markdown-prose hr {
@@ -366,12 +403,38 @@
   pointer-events: none;
 }
 
+/*
+ * prosemirror-tables' column-resizing plugin toggles the `resize-cursor` class on the editor root
+ * while the pointer is over a column boundary; without this rule the handle shows but the cursor
+ * never changes to the resize affordance.
+ */
+.rich-markdown-prose.resize-cursor {
+  cursor: col-resize;
+}
+
 .rich-markdown-prose p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: var(--text-subtle);
   float: left;
   height: 0;
   pointer-events: none;
+}
+
+/*
+ * Highlight mark (`==text==`). An opacity-based amber tint so it reads on both light and dark
+ * surfaces without a theme override; `color: inherit` keeps the text at the surrounding body color
+ * and `box-decoration-break: clone` keeps the tint clean where a highlight wraps across lines. The
+ * horizontal padding is cancelled by an equal negative margin so the tint bleeds slightly past the
+ * text without ever shifting the text (or any following text) as the highlight is applied/removed.
+ */
+.rich-markdown-prose mark {
+  background-color: rgba(255, 212, 0, 0.4);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 0.1em;
+  margin: 0 -0.1em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 /*

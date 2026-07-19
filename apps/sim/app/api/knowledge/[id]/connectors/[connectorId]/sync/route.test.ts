@@ -11,7 +11,7 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDispatchSync, mockDbChain } = vi.hoisted(() => {
+const { mockDispatchSync, mockDbChain, mockResolveBillingAttribution } = vi.hoisted(() => {
   const chain = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -24,6 +24,7 @@ const { mockDispatchSync, mockDbChain } = vi.hoisted(() => {
   return {
     mockDispatchSync: vi.fn().mockResolvedValue(undefined),
     mockDbChain: chain,
+    mockResolveBillingAttribution: vi.fn(),
   }
 })
 
@@ -31,7 +32,11 @@ const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWrit
 
 vi.mock('@sim/db', () => ({ db: mockDbChain }))
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
-vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  requireBillingAttributionHeader: vi.fn(),
+  resolveBillingAttribution: mockResolveBillingAttribution,
+}))
+vi.mock('@/lib/knowledge/connectors/queue', () => ({
   dispatchSync: mockDispatchSync,
 }))
 vi.mock('@sim/audit', () => auditMock)
@@ -94,9 +99,22 @@ describe('Connector Manual Sync API Route', () => {
   })
 
   it('dispatches sync on valid request', async () => {
+    const billingAttribution = {
+      actorUserId: 'external-admin',
+      workspaceId: 'ws-1',
+      organizationId: null,
+      billedAccountUserId: 'owner-1',
+      billingEntity: { type: 'user' as const, id: 'owner-1' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    }
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
-      userId: 'user-1',
+      authType: 'session',
+      userId: 'external-admin',
       userName: 'Test',
       userEmail: 'test@test.com',
     })
@@ -105,6 +123,7 @@ describe('Connector Manual Sync API Route', () => {
       knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
     })
     mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456', status: 'active' }])
+    mockResolveBillingAttribution.mockResolvedValue(billingAttribution)
 
     const req = createMockRequest('POST')
     const response = await POST(req as never, { params: mockParams })
@@ -112,6 +131,57 @@ describe('Connector Manual Sync API Route', () => {
 
     expect(response.status).toBe(200)
     expect(data.success).toBe(true)
-    expect(mockDispatchSync).toHaveBeenCalledWith('conn-456', { requestId: 'test-req-id' })
+    expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
+      actorUserId: 'external-admin',
+      workspaceId: 'ws-1',
+    })
+    expect(mockDispatchSync).toHaveBeenCalledWith('conn-456', {
+      billingAttribution,
+      requestId: 'test-req-id',
+      rehydrate: false,
+    })
+  })
+
+  it('dispatches a full resync when rehydrate=true is set', async () => {
+    const billingAttribution = {
+      actorUserId: 'external-admin',
+      workspaceId: 'ws-1',
+      organizationId: null,
+      billedAccountUserId: 'owner-1',
+      billingEntity: { type: 'user' as const, id: 'owner-1' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    }
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      authType: 'session',
+      userId: 'external-admin',
+      userName: 'Test',
+      userEmail: 'test@test.com',
+    })
+    mockCheckWriteAccess.mockResolvedValue({
+      hasAccess: true,
+      knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
+    })
+    mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456', status: 'active' }])
+    mockResolveBillingAttribution.mockResolvedValue(billingAttribution)
+
+    const req = createMockRequest(
+      'POST',
+      undefined,
+      {},
+      'http://localhost:3000/api/knowledge/kb-123/connectors/conn-456/sync?rehydrate=true'
+    )
+    const response = await POST(req as never, { params: mockParams })
+
+    expect(response.status).toBe(200)
+    expect(mockDispatchSync).toHaveBeenCalledWith('conn-456', {
+      billingAttribution,
+      requestId: 'test-req-id',
+      rehydrate: true,
+    })
   })
 })

@@ -2,20 +2,22 @@
 
 import {
   type Dispatch,
+  lazy,
   type SetStateAction,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
+import { Button } from '@sim/emcn'
+import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
-import { Button } from '@/components/emcn'
-import { PanelLeft } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
@@ -28,6 +30,7 @@ import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
   LandingWorkflowSeedStorage,
+  MothershipHandoffStorage,
 } from '@/lib/core/utils/browser-storage'
 import {
   MOTHERSHIP_SEND_MESSAGE_EVENT,
@@ -50,7 +53,6 @@ import {
   CreditsChip,
   MothershipChat,
   MothershipResourcesProvider,
-  MothershipView,
   SuggestedActions,
   UserInput,
   type UserInputHandle,
@@ -59,6 +61,17 @@ import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hoo
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
+
+/**
+ * The resource preview panel pulls in the file-viewer stack (rich-markdown
+ * editor, CSV/PDF viewers). It only renders once a chat has messages, so it is
+ * code-split out of the initial `/chat` bundle and loaded on demand.
+ */
+const MothershipView = lazy(() =>
+  import('./components/mothership-view/mothership-view').then((m) => ({
+    default: m.MothershipView,
+  }))
+)
 
 interface HomeProps {
   chatId?: string
@@ -133,7 +146,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
           filename: `${seed.workflowName}.json`,
           workspaceId,
           nameOverride: seed.workflowName,
-          descriptionOverride: seed.workflowDescription || 'Imported from landing template',
+          descriptionOverride: seed.workflowDescription || undefined,
           createWorkflow: async ({ name, description, workspaceId }) => {
             return requestJson(createWorkflowContract, {
               body: {
@@ -303,14 +316,38 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     [workspaceId, chatId, sendMessage]
   )
 
+  /**
+   * Handles cross-surface send requests (terminal/console "Fix in Chat", the
+   * log "Troubleshoot in Chat" action). `preventDefault` claims the event so a
+   * producer that dispatched it while this chat is mounted knows a live chat
+   * consumed the message and skips its navigate-and-persist fallback.
+   */
   useEffect(() => {
     const handler = (e: Event) => {
-      const message = (e as CustomEvent<MothershipSendMessageDetail>).detail?.message
-      if (message) sendMessage(message)
+      const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
+      if (!detail?.message) return
+      e.preventDefault()
+      sendMessage(detail.message, undefined, detail.contexts)
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
     return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
   }, [sendMessage])
+
+  /**
+   * Consumes a one-shot handoff left by another surface (e.g. "Troubleshoot in
+   * Chat" on an errored log viewed from a different route) and auto-sends it
+   * into this fresh chat, tagging the run so Sim can inspect the failure. Only
+   * the cross-route path lands here — when a chat is already mounted the event
+   * above delivers directly. Gated to the new-chat surface (`!chatId`): a
+   * handoff always targets a fresh chat, so an existing `/chat/[chatId]` mount
+   * must never claim it if navigation races. `consume` clears the entry
+   * atomically, so it fires at most once even across a StrictMode remount.
+   */
+  useEffect(() => {
+    if (chatId) return
+    const handoff = MothershipHandoffStorage.consume(workspaceId)
+    if (handoff) sendMessage(handoff.message, undefined, handoff.contexts)
+  }, [chatId, workspaceId, sendMessage])
 
   function resolveResourceFromContext(
     context: ChatContext
@@ -494,18 +531,20 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         reorderResources={reorderResources}
         collapseResource={collapseResource}
       >
-        <MothershipView
-          ref={mothershipRef}
-          workspaceId={workspaceId}
-          chatId={resolvedChatId}
-          resources={resources}
-          activeResourceId={activeResourceId}
-          isCollapsed={isResourceCollapsed}
-          previewSession={previewSession}
-          isAgentResponding={isSending}
-          genericResourceData={genericResourceData ?? undefined}
-          className={skipResourceTransition ? '!transition-none' : undefined}
-        />
+        <Suspense fallback={null}>
+          <MothershipView
+            ref={mothershipRef}
+            workspaceId={workspaceId}
+            chatId={resolvedChatId}
+            resources={resources}
+            activeResourceId={activeResourceId}
+            isCollapsed={isResourceCollapsed}
+            previewSession={previewSession}
+            isAgentResponding={isSending}
+            genericResourceData={genericResourceData ?? undefined}
+            className={skipResourceTransition ? '!transition-none' : undefined}
+          />
+        </Suspense>
       </MothershipResourcesProvider>
 
       {isResourceCollapsed && (

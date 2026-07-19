@@ -1,10 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Badge, Button, ChipModalTabs, cn, X } from '@sim/emcn'
 import { formatDuration } from '@sim/utils/formatting'
-import { useTranslations } from 'next-intl'
-import { Badge, Button, ChipModalTabs, X } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import type { EnrichmentProviderOutcome, EnrichmentRunDetail } from '@/lib/table'
 import {
   adjustBgForContrast,
@@ -125,8 +123,6 @@ function EnrichmentDetailsContent({
   groupName,
   isOpen,
 }: EnrichmentDetailsContentProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [activeTab, setActiveTab] = useState<EnrichmentDetailsTab>('result')
   const [prevKey, setPrevKey] = useState(`${rowId}:${groupId}`)
 
@@ -163,12 +159,12 @@ function EnrichmentDetailsContent({
 
       {isLoading ? (
         <div className='flex h-full items-center justify-center px-4 text-center'>
-          <span className='font-medium text-[var(--text-tertiary)] text-sm'>{t('loading')}</span>
+          <span className='font-medium text-[var(--text-tertiary)] text-sm'>Loading…</span>
         </div>
       ) : !detail ? (
         <div className='flex h-full items-center justify-center px-4 text-center'>
           <span className='font-medium text-[var(--text-tertiary)] text-sm'>
-            {t('no_enrichment_details_for_this_run')}
+            No enrichment details for this run
           </span>
         </div>
       ) : activeTab === 'result' ? (
@@ -177,7 +173,7 @@ function EnrichmentDetailsContent({
             <div className='grid grid-cols-2 gap-x-3 pb-0.5'>
               <div className='flex min-w-0 flex-col gap-0.5'>
                 <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                  {t('timestamp')}
+                  Timestamp
                 </span>
                 <span className='font-medium text-[var(--text-secondary)] text-sm tabular-nums'>
                   {timestamp ? `${timestamp.compactDate} ${timestamp.compactTime}` : '—'}
@@ -185,16 +181,16 @@ function EnrichmentDetailsContent({
               </div>
               <div className='flex min-w-0 flex-col gap-0.5'>
                 <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                  {t('enrichment')}
+                  Enrichment
                 </span>
                 <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm'>
-                  {groupName || tI18n('enrichment')}
+                  {groupName || 'Enrichment'}
                 </span>
               </div>
             </div>
 
             <div className='divide-y divide-[var(--border)] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
-              <DetailRow label={t('status')}>
+              <DetailRow label='Status'>
                 <Badge
                   variant={RESULT_STATUS_CONFIG[deriveResultStatus(detail)].variant}
                   dot
@@ -203,19 +199,17 @@ function EnrichmentDetailsContent({
                   {RESULT_STATUS_CONFIG[deriveResultStatus(detail)].label}
                 </Badge>
               </DetailRow>
-              <DetailRow label={t('duration')}>
+              <DetailRow label='Duration'>
                 {formatDuration(detail.durationMs, { precision: 2 }) || '—'}
               </DetailRow>
-              <DetailRow label={t('total_cost')}>{formatCost(detail.totalCost)}</DetailRow>
-              <DetailRow label={t('matched_provider')}>{matchedLabel || '—'}</DetailRow>
-              <DetailRow label={t('providers_ran')}>{ranCount}</DetailRow>
+              <DetailRow label='Total cost'>{formatCost(detail.totalCost)}</DetailRow>
+              <DetailRow label='Matched provider'>{matchedLabel || '—'}</DetailRow>
+              <DetailRow label='Providers ran'>{ranCount}</DetailRow>
             </div>
 
             {lastError && (
               <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
-                <span className='font-medium text-[var(--text-error)] text-caption'>
-                  {t('error')}
-                </span>
+                <span className='font-medium text-[var(--text-error)] text-caption'>Error</span>
                 <p className='break-words text-[var(--text-secondary)] text-caption'>{lastError}</p>
               </div>
             )}
@@ -335,7 +329,6 @@ export function EnrichmentDetails({
   isOpen,
   onClose,
 }: EnrichmentDetailsProps) {
-  const t = useTranslations('auto')
   const panelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const { handleMouseDown } = useLogDetailsResize()
 
@@ -358,7 +351,7 @@ export function EnrichmentDetails({
           style={{ right: `calc(${effectiveWidth} - 4px)` }}
           onMouseDown={handleMouseDown}
           role='separator'
-          aria-label={t('resize_enrichment_details_panel')}
+          aria-label='Resize enrichment details panel'
           aria-orientation='vertical'
         />
       )}
@@ -369,15 +362,13 @@ export function EnrichmentDetails({
           isOpen ? 'translate-x-0' : 'translate-x-full'
         )}
         style={{ width: effectiveWidth }}
-        aria-label={t('enrichment_details_sidebar')}
+        aria-label='Enrichment details sidebar'
       >
         {rowId && groupId && (
           <div className='flex h-full flex-col px-3.5 pt-3'>
             <div className='flex items-center justify-between'>
-              <h2 className='font-medium text-[var(--text-primary)] text-sm'>
-                {t('enrichment_details')}
-              </h2>
-              <Button variant='ghost' className='!p-1' onClick={onClose} aria-label={t('close')}>
+              <h2 className='font-medium text-[var(--text-primary)] text-sm'>Enrichment Details</h2>
+              <Button variant='ghost' className='!p-1' onClick={onClose} aria-label='Close'>
                 <X className='size-[14px]' />
               </Button>
             </div>

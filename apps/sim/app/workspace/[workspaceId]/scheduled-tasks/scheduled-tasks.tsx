@@ -1,9 +1,8 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { Calendar, Plus } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Calendar, Plus } from '@/components/emcn'
 import type { ResourceAction } from '@/app/workspace/[workspaceId]/components'
 import { Resource } from '@/app/workspace/[workspaceId]/components'
 import { ScheduleCalendar } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-calendar'
@@ -23,7 +22,6 @@ import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sideb
 import { useTimezone } from '@/hooks/queries/general-settings'
 
 export function ScheduledTasks() {
-  const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const timezone = useTimezone()
   const calendar = useCalendar(timezone)
@@ -154,7 +152,7 @@ export function ScheduledTasks() {
   return (
     <>
       <Resource onContextMenu={handleContentContextMenu}>
-        <Resource.Header icon={Calendar} title={t('scheduled_tasks')} actions={headerActions} />
+        <Resource.Header icon={Calendar} title='Scheduled Tasks' actions={headerActions} />
         <ScheduleCalendar
           scope={calendar.scope}
           anchor={calendar.anchor}

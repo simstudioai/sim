@@ -37,11 +37,11 @@ describe('isRoundTripSafe', () => {
     expect(isRoundTripSafe('> ```\n> code\n> ```')).toBe(true)
   })
 
-  it('rejects stable-loss constructs the idempotency probe cannot see', () => {
-    expect(isRoundTripSafe('text[^1]\n\n[^1]: the note')).toBe(false)
-    expect(isRoundTripSafe('<!-- a note -->\n\ntext')).toBe(false)
-    expect(isRoundTripSafe('<details><summary>x</summary>body</details>')).toBe(false)
-    expect(isRoundTripSafe('a <sub>b</sub> c')).toBe(false)
+  it('preserves footnotes, HTML comments, and raw HTML tags via the verbatim snippet nodes', () => {
+    expect(isRoundTripSafe('text[^1]\n\n[^1]: the note')).toBe(true)
+    expect(isRoundTripSafe('<!-- a note -->\n\ntext')).toBe(true)
+    expect(isRoundTripSafe('<details><summary>x</summary>body</details>')).toBe(true)
+    expect(isRoundTripSafe('a <sub>b</sub> c')).toBe(true)
   })
 
   it('rejects a hard break inside a heading (serializer splits the heading)', () => {
@@ -55,6 +55,18 @@ describe('isRoundTripSafe', () => {
     expect(isRoundTripSafe('a&nbsp;b')).toBe(false)
     expect(isRoundTripSafe('a &amp; b &lt; c &gt; d')).toBe(true)
     expect(isRoundTripSafe('AT&T and R&D')).toBe(true)
+    expect(isRoundTripSafe('a &AMP; b')).toBe(false)
+    expect(isRoundTripSafe('a &LT; b &GT; c')).toBe(false)
+  })
+
+  it('rejects an orphan reference definition (serializer drops it) but allows used ones', () => {
+    expect(isRoundTripSafe('Some text.\n\n[unused]: https://example.com "title"')).toBe(false)
+    expect(isRoundTripSafe('[a]: u1\n[b]: u2\n\nuse only [a]')).toBe(false)
+    expect(isRoundTripSafe('See [x][1].\n\n[1]: https://example.com "T"')).toBe(true)
+    expect(isRoundTripSafe('A [shortcut] ref.\n\n[shortcut]: https://example.com')).toBe(true)
+    expect(isRoundTripSafe('Case [Foo] insensitive.\n\n[foo]: https://example.com')).toBe(true)
+    expect(isRoundTripSafe('A note.\n\n[^x]: the footnote body')).toBe(true)
+    expect(isRoundTripSafe('See [ foo ] here.\n\n[foo]: https://example.com')).toBe(true)
   })
 
   it('does not flag HTML/comments/entities inside tilde or nested code fences', () => {
@@ -263,15 +275,19 @@ describe('editability gate — realistic documents stay editable', () => {
 })
 
 // The flip side and exact boundary of the gate: constructs the WYSIWYG schema genuinely cannot
-// represent open read-only so an edit can't silently corrupt them.
+// represent open read-only so an edit can't silently corrupt them. Raw HTML blocks, comments, and
+// footnotes used to be the canonical examples here — `./raw-markdown-snippet.ts` now holds each
+// verbatim (including a multi-line block spanning blank lines, via the same `NON_CHUNKABLE`
+// whole-document parse path `markdown-parse.ts` already uses for these constructs), so they moved
+// to the "preserved" test above instead of staying here.
 describe('editability gate — genuinely lossy constructs open read-only', () => {
-  it('raw HTML blocks (<details>, <div align>) open read-only', () => {
-    expect(isRoundTripSafe('<details><summary>More</summary>\n\nbody\n\n</details>')).toBe(false)
-    expect(isRoundTripSafe('<div align="center">\n\ncentered\n\n</div>')).toBe(false)
+  it('raw HTML blocks (<details>, <div align>) are preserved verbatim, not locked read-only', () => {
+    expect(isRoundTripSafe('<details><summary>More</summary>\n\nbody\n\n</details>')).toBe(true)
+    expect(isRoundTripSafe('<div align="center">\n\ncentered\n\n</div>')).toBe(true)
   })
 
-  it('HTML comments and footnotes open read-only', () => {
-    expect(isRoundTripSafe('<!-- TODO: revise -->\n\ntext')).toBe(false)
-    expect(isRoundTripSafe('a claim[^1]\n\n[^1]: the source')).toBe(false)
+  it('HTML comments and footnotes are preserved verbatim, not locked read-only', () => {
+    expect(isRoundTripSafe('<!-- TODO: revise -->\n\ntext')).toBe(true)
+    expect(isRoundTripSafe('a claim[^1]\n\n[^1]: the source')).toBe(true)
   })
 })

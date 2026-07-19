@@ -1,10 +1,13 @@
 import type { Edge } from 'reactflow'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
+import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 import type { NodeMetadata } from '@/executor/dag/types'
 import type {
   BlockLog,
   BlockState,
   NormalizedBlockOutput,
+  StartBlockRunMetadata,
   StreamingExecution,
 } from '@/executor/types'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
@@ -16,6 +19,8 @@ export interface ExecutionMetadata {
   workflowId: string
   workspaceId: string
   userId: string
+  /** Immutable actor/payer decision captured before execution. */
+  billingAttribution?: BillingAttributionSnapshot
   sessionUserId?: string
   workflowUserId?: string
   triggerType: string
@@ -148,6 +153,17 @@ export interface ExecutionCallbacks {
   ) => Promise<void>
 }
 
+/** In-flight block-output redaction policy (the resolved `blockOutputs` stage). */
+export interface PiiBlockOutputRedaction {
+  enabled: boolean
+  /** Presidio entity types to mask. Empty = redact all detected PII. */
+  entityTypes: string[]
+  /** Language whose Presidio recognizers apply. */
+  language: string
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns?: CustomPiiPattern[]
+}
+
 export interface ContextExtensions {
   workspaceId?: string
   executionId?: string
@@ -156,6 +172,13 @@ export interface ContextExtensions {
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
+  /**
+   * Immutable actor/payer decision for this execution. Child workflow
+   * executions receive it here (they carry no full metadata), so internal
+   * tool calls inside the child still attach the billing attribution header.
+   * Takes precedence over `metadata.billingAttribution` when both are set.
+   */
+  billingAttribution?: BillingAttributionSnapshot
   stream?: boolean
   selectedOutputs?: string[]
   edges?: Array<{ source: string; target: string }>
@@ -174,12 +197,24 @@ export interface ContextExtensions {
   snapshotState?: SerializableExecutionState
   metadata?: ExecutionMetadata
   /**
+   * Trusted run metadata injected into the Start block output when its
+   * "Add run metadata" toggle is enabled. Built server-side at the two
+   * Executor construction sites — never from caller-supplied input.
+   */
+  startRunMetadata?: StartBlockRunMetadata
+  /**
    * AbortSignal for cancellation support.
    * When aborted, the execution should stop gracefully.
    */
   abortSignal?: AbortSignal
   includeFileBase64?: boolean
   base64MaxBytes?: number
+  /**
+   * When enabled, every block output is masked in-flight before downstream blocks
+   * consume it. Resolved from the org/workspace PII redaction policy's
+   * `blockOutputs` stage. Serializable, so it crosses into the trigger.dev worker.
+   */
+  piiBlockOutputRedaction?: PiiBlockOutputRedaction
   onStream?: (streamingExecution: StreamingExecution) => Promise<void>
   onBlockStart?: (
     blockId: string,

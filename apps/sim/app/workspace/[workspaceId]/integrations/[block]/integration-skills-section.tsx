@@ -1,10 +1,10 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
+import { Chip, toast } from '@sim/emcn'
 import { Check, Plus } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { usePostHog } from 'posthog-js/react'
-import { Chip, toast } from '@/components/emcn'
 import { captureEvent } from '@/lib/posthog/client'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import type { SuggestedSkill } from '@/blocks/types'

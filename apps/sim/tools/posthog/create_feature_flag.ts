@@ -1,8 +1,11 @@
+import { getErrorMessage } from '@sim/utils/errors'
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface CreateFeatureFlagParams {
   projectId: string
   region: 'us' | 'eu'
+  host?: string
   apiKey: string
   name: string
   key: string
@@ -36,6 +39,7 @@ export const createFeatureFlagTool: ToolConfig<CreateFeatureFlagParams, CreateFe
     name: 'PostHog Create Feature Flag',
     description: 'Create a new feature flag in PostHog',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       projectId: {
@@ -49,6 +53,13 @@ export const createFeatureFlagTool: ToolConfig<CreateFeatureFlagParams, CreateFe
         required: true,
         visibility: 'user-only',
         description: 'PostHog cloud region: us or eu',
+      },
+      host: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description:
+          'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
       },
       apiKey: {
         type: 'string',
@@ -98,7 +109,7 @@ export const createFeatureFlagTool: ToolConfig<CreateFeatureFlagParams, CreateFe
 
     request: {
       url: (params) => {
-        const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+        const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
         return `${baseUrl}/api/projects/${params.projectId}/feature_flags/`
       },
       method: 'POST',
@@ -115,8 +126,8 @@ export const createFeatureFlagTool: ToolConfig<CreateFeatureFlagParams, CreateFe
         if (params.filters) {
           try {
             body.filters = JSON.parse(params.filters)
-          } catch {
-            body.filters = {}
+          } catch (error) {
+            throw new Error(`Invalid filters JSON: ${getErrorMessage(error)}`)
           }
         }
 

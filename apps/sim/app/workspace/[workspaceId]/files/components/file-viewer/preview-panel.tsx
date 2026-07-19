@@ -1,8 +1,7 @@
 'use client'
 
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
-import '@/components/emcn/components/code/code.css'
-import { useTranslations } from 'next-intl'
+import '@sim/emcn/components/code/code.css'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-import'
@@ -145,7 +144,6 @@ function buildHtmlPreviewDocument(content: string): string {
 }
 
 const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) {
-  const t = useTranslations('auto')
   const wrappedContent = buildHtmlPreviewDocument(content)
   const containerRef = useRef<HTMLDivElement>(null)
   const [isRenderable, setIsRenderable] = useState(false)
@@ -209,7 +207,7 @@ const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) 
           srcDoc={wrappedContent}
           sandbox='allow-scripts'
           referrerPolicy='no-referrer'
-          title={t('html_preview')}
+          title='HTML Preview'
           className='h-full w-full border-0 bg-[var(--surface-2)]'
         />
       )}
@@ -218,8 +216,6 @@ const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) 
 })
 
 function SvgPreview({ content }: { content: string }) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [blobUrl, setBlobUrl] = useState('')
 
   useEffect(() => {
@@ -229,11 +225,11 @@ function SvgPreview({ content }: { content: string }) {
   }, [content])
 
   return (
-    <ZoomablePreview className='h-full' contentClassName={tI18n('h_full_w_full')}>
+    <ZoomablePreview className='h-full' contentClassName='h-full w-full'>
       {blobUrl && (
         <img
           src={blobUrl}
-          alt={t('svg_preview')}
+          alt='SVG preview'
           className='max-h-full max-w-full select-none object-contain'
           draggable={false}
         />
@@ -243,14 +239,13 @@ function SvgPreview({ content }: { content: string }) {
 }
 
 function MermaidFilePreview({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
-  const tI18n = useTranslations('auto')
   return (
     <div className='h-full overflow-auto p-6'>
       <MermaidDiagram
         definition={content}
         isStreaming={isStreaming}
         zoomable
-        zoomClassName={tI18n('h_full_rounded_lg')}
+        zoomClassName='h-full rounded-lg'
       />
     </div>
   )
@@ -267,14 +262,13 @@ const CsvPreview = memo(function CsvPreview({
   file: CsvImportFileDescriptor
   readOnly?: boolean
 }) {
-  const t = useTranslations('auto')
   const { headers, rows, truncated } = useMemo(() => parseCsv(content), [content])
   useCsvTruncationImport(workspaceId, file, truncated, readOnly)
 
   if (headers.length === 0) {
     return (
       <div className='flex h-full items-center justify-center p-6'>
-        <p className='text-[13px] text-[var(--text-muted)]'>{t('no_data_to_display')}</p>
+        <p className='text-[13px] text-[var(--text-muted)]'>No data to display</p>
       </div>
     )
   }

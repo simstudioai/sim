@@ -2,6 +2,7 @@ import type {
   AmplitudeGroupIdentifyParams,
   AmplitudeGroupIdentifyResponse,
 } from '@/tools/amplitude/types'
+import { getIngestionHost } from '@/tools/amplitude/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const groupIdentifyTool: ToolConfig<
@@ -40,13 +41,19 @@ export const groupIdentifyTool: ToolConfig<
       description:
         'JSON object of group properties. Use operations like $set, $setOnce, $add, $append, $unset.',
     },
+    dataResidency: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Data residency region: "us" (default) or "eu"',
+    },
   },
 
   request: {
-    url: 'https://api2.amplitude.com/groupidentify',
+    url: (params) => `${getIngestionHost(params.dataResidency)}/groupidentify`,
     method: 'POST',
     headers: () => ({
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
       let groupProperties: Record<string, unknown> = {}
@@ -56,16 +63,20 @@ export const groupIdentifyTool: ToolConfig<
         groupProperties = {}
       }
 
-      return {
+      const identification = [
+        {
+          group_type: params.groupType,
+          group_value: params.groupValue,
+          group_properties: groupProperties,
+        },
+      ]
+
+      const body = new URLSearchParams({
         api_key: params.apiKey,
-        identification: [
-          {
-            group_type: params.groupType,
-            group_value: params.groupValue,
-            group_properties: groupProperties,
-          },
-        ],
-      }
+        identification: JSON.stringify(identification),
+      })
+
+      return body.toString()
     },
   },
 

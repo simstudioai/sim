@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, ne } from 'drizzle-orm'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { provisionLagoBillingForOrganization } from '@/lib/billing/lago/provision'
 import { isLagoBillingProvider } from '@/lib/core/config/env-flags'
 
@@ -76,6 +77,7 @@ export async function createOrganizationWithOwner({
   const now = new Date()
 
   await db.transaction(async (tx) => {
+    await acquireUserBillingIdentityLock(tx, ownerUserId)
     const whereClause = eq(organization.slug, slug)
     const existingOrganization = await tx
       .select({ id: organization.id })

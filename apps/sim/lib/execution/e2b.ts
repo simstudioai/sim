@@ -140,6 +140,59 @@ async function createE2BSandbox(kind: 'code' | 'shell' | 'doc' | 'pi'): Promise<
   return templateName ? Sandbox.create(templateName, { apiKey }) : Sandbox.create({ apiKey })
 }
 
+/**
+ * Marker prefix for the serialized code result printed to stdout. Emitters
+ * (the wrapper builders in the function-execute route) interpolate this
+ * constant so producer and parser cannot drift.
+ */
+export const SIM_RESULT_PREFIX = '__SIM_RESULT__='
+
+/**
+ * Extracts the `__SIM_RESULT__=` marker line from stdout and parses its JSON
+ * payload. Takes the LAST marker line: the wrapper prints its marker after all
+ * user output, so an earlier user-printed line with the same prefix (debug
+ * output, a grepped log) never shadows the real result. `parseFailed` means
+ * the last marker's payload was not valid JSON — `rawPayload` carries it so
+ * callers whose markers are user-authored (shell) can fall back to the plain
+ * string, while wrapper-backed callers treat it as transport corruption.
+ */
+function extractSimResult(stdout: string): {
+  result: unknown
+  cleanedStdout: string
+  parseFailed: boolean
+  rawPayload?: string
+} {
+  const lines = stdout.split('\n')
+  let markerIndex = -1
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].startsWith(SIM_RESULT_PREFIX)) {
+      markerIndex = i
+      break
+    }
+  }
+  if (markerIndex === -1) {
+    return { result: null, cleanedStdout: stdout, parseFailed: false }
+  }
+  const rawPayload = lines[markerIndex].slice(SIM_RESULT_PREFIX.length)
+  let result: unknown = null
+  let parseFailed = false
+  try {
+    result = JSON.parse(rawPayload)
+  } catch {
+    parseFailed = true
+  }
+  const filteredLines = lines.filter((l) => !l.startsWith(SIM_RESULT_PREFIX))
+  if (filteredLines.length > 0 && filteredLines[filteredLines.length - 1] === '') {
+    filteredLines.pop()
+  }
+  return { result, cleanedStdout: filteredLines.join('\n'), parseFailed, rawPayload }
+}
+
+const SIM_RESULT_CORRUPTED_ERROR =
+  'Sandbox result was corrupted in transport (the __SIM_RESULT__ line failed to parse). ' +
+  "Do not trust or persist this call's output. For large results, write the content to a " +
+  'file inside the sandbox and export it via outputs.files[].sandboxPath instead of returning it.'
+
 function shouldReadSandboxPathAsBase64(outputSandboxPath: string): boolean {
   const ext = outputSandboxPath.slice(outputSandboxPath.lastIndexOf('.')).toLowerCase()
   const binaryExts = new Set([
@@ -173,7 +226,7 @@ async function readSandboxOutputFile(
   } catch (error) {
     logger.warn('Failed to read requested sandbox output file', {
       outputSandboxPath,
-      error: error instanceof Error ? error.message : String(error),
+      error: getErrorMessage(error),
     })
     return undefined
   }
@@ -195,8 +248,6 @@ export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecuti
 
   const sandbox = await createE2BSandbox(req.sandboxKind ?? 'code')
   const sandboxId = sandbox.sandboxId
-
-  const stdoutChunks = []
 
   try {
     // Inside the try so a failed mount still kills the sandbox via the finally below.
@@ -224,36 +275,36 @@ export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecuti
       }
     }
 
-    if (execution.text) {
-      stdoutChunks.push(execution.text)
-    }
-    if (execution.logs?.stdout) {
-      stdoutChunks.push(...execution.logs.stdout)
-    }
-    if (execution.logs?.stderr) {
-      stdoutChunks.push(...execution.logs.stderr)
-    }
+    // Kernel stream entries are chunks, not lines — each already carries its own
+    // newlines, and one long line can arrive split across several entries.
+    // Concatenate each stream verbatim: joining chunks with '\n' injected a
+    // newline at every chunk boundary, which corrupted large single-line
+    // __SIM_RESULT__ payloads and silently truncated the persisted result.
+    // Distinct sources (final-expression text, stdout, stderr) still join with
+    // '\n' so the marker is found no matter which stream carried it.
+    const streamStdout = (execution.logs?.stdout ?? []).join('')
+    const streamStderr = (execution.logs?.stderr ?? []).join('')
+    const combinedOutput = [execution.text, streamStdout, streamStderr].filter(Boolean).join('\n')
 
-    const stdout = stdoutChunks.join('\n')
+    const extraction = extractSimResult(combinedOutput)
+    const cleanedStdout = extraction.cleanedStdout
 
-    let result: unknown = null
-    const prefix = '__SIM_RESULT__='
-    const lines = stdout.split('\n')
-    const marker = lines.find((l) => l.startsWith(prefix))
-    let cleanedStdout = stdout
-    if (marker) {
-      const jsonPart = marker.slice(prefix.length)
-      try {
-        result = JSON.parse(jsonPart)
-      } catch {
-        result = jsonPart
+    // The wrapper always emits valid single-line JSON, so a marker that fails
+    // to parse means the payload was mangled in transport — never persist it.
+    if (extraction.parseFailed) {
+      logger.error('E2B result marker failed to parse', {
+        sandboxId,
+        stdoutEntryCount: execution.logs?.stdout?.length ?? 0,
+        stdoutLength: streamStdout.length,
+      })
+      return {
+        result: null,
+        stdout: cleanedStdout,
+        error: SIM_RESULT_CORRUPTED_ERROR,
+        sandboxId,
       }
-      const filteredLines = lines.filter((l) => !l.startsWith(prefix))
-      if (filteredLines.length > 0 && filteredLines[filteredLines.length - 1] === '') {
-        filteredLines.pop()
-      }
-      cleanedStdout = filteredLines.join('\n')
     }
+    const result = extraction.result
 
     const images: string[] = []
     if (execution.results?.length) {
@@ -348,24 +399,13 @@ export async function executeShellInE2B(
       }
     }
 
-    let parsed: unknown = null
-    const prefix = '__SIM_RESULT__='
-    const lines = stdout.split('\n')
-    const marker = lines.find((l) => l.startsWith(prefix))
-    let cleanedStdout = stdout
-    if (marker) {
-      const jsonPart = marker.slice(prefix.length)
-      try {
-        parsed = JSON.parse(jsonPart)
-      } catch {
-        parsed = jsonPart
-      }
-      const filteredLines = lines.filter((l) => !l.startsWith(prefix))
-      if (filteredLines.length > 0 && filteredLines[filteredLines.length - 1] === '') {
-        filteredLines.pop()
-      }
-      cleanedStdout = filteredLines.join('\n')
-    }
+    // Shell scripts have no wrapper: any __SIM_RESULT__ line is user-authored
+    // (e.g. `echo "__SIM_RESULT__=$STATUS"`), so a non-JSON payload is a plain
+    // string result, not transport corruption. commands.run also accumulates
+    // output into one string, so the chunk-split corruption cannot occur here.
+    const extraction = extractSimResult(stdout)
+    const parsed = extraction.parseFailed ? extraction.rawPayload : extraction.result
+    const cleanedStdout = extraction.cleanedStdout
 
     const exportedFiles: Record<string, string> = {}
     for (const outputSandboxPath of requestedOutputSandboxPaths(req)) {

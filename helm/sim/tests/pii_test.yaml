@@ -1,14 +1,13 @@
-suite: pii — optional Presidio sidecar + PII_URL wiring
+suite: pii — optional Presidio service + PII_URL wiring
 release:
   name: t
   namespace: sim
 set:
-  app.env.BETTER_AUTH_SECRET: x
-  app.env.ENCRYPTION_KEY: x
+  app.env.BETTER_AUTH_SECRET: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  app.env.ENCRYPTION_KEY: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   app.env.INTERNAL_API_SECRET: x
   app.env.CRON_SECRET: x
-  postgresql.auth.password: x
-
+  postgresql.auth.password: xxxxxxxx
 tests:
   - it: does not render the pii deployment when disabled
     template: deployment-pii.yaml
@@ -31,6 +30,19 @@ tests:
           path: spec.template.spec.containers[0].ports[0].containerPort
           value: 5001
 
+  - it: pii.env renders through to the container env
+    template: deployment-pii.yaml
+    set:
+      pii.enabled: true
+      pii.env:
+        PII_WORKERS: "4"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PII_WORKERS
+            value: "4"
+
   - it: app pod gets chart-computed PII_URL pointing at the in-cluster service
     template: deployment-app.yaml
     set:
@@ -42,7 +54,7 @@ tests:
             name: PII_URL
             value: "http://t-sim-pii:5001"
 
-  - it: app pod gets the localhost PII_URL fallback when sidecar disabled
+  - it: app pod gets the localhost PII_URL fallback when service disabled
     template: deployment-app.yaml
     asserts:
       - contains:
@@ -72,7 +84,7 @@ tests:
             name: PII_URL
             value: "http://evil-pii:5001"
 
-  - it: app NetworkPolicy allows egress to the PII sidecar
+  - it: app NetworkPolicy allows egress to the PII service
     template: networkpolicy.yaml
     set:
       networkPolicy.enabled: true
@@ -94,7 +106,7 @@ tests:
               - protocol: TCP
                 port: 5001
 
-  - it: renders a dedicated NetworkPolicy for the PII sidecar
+  - it: renders a dedicated NetworkPolicy for the PII service
     template: networkpolicy.yaml
     set:
       networkPolicy.enabled: true

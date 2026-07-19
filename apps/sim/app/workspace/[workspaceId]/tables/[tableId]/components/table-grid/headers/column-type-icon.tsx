@@ -1,8 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { useTranslations } from 'next-intl'
-import { Tooltip } from '@/components/emcn'
+import { Tooltip } from '@sim/emcn'
 import {
   Calendar as CalendarIcon,
   PlayOutline,
@@ -11,7 +10,7 @@ import {
   TypeNumber,
   TypeText,
   WorkflowX,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
 import type { BlockIconInfo } from '../types'
 
 export const COLUMN_TYPE_ICONS: Record<string, React.ElementType> = {
@@ -53,7 +52,6 @@ export function ColumnTypeIcon({
   blockIconInfo,
   blockMissing,
 }: ColumnTypeIconProps) {
-  const t = useTranslations('auto')
   if (isWorkflowColumn) {
     if (blockMissing) {
       return (
@@ -63,7 +61,9 @@ export function ColumnTypeIcon({
               <WorkflowX className='size-3 shrink-0 text-[var(--text-icon)]' />
             </span>
           </Tooltip.Trigger>
-          <Tooltip.Content side='top'>{t('this_column_s_source_block_no')}</Tooltip.Content>
+          <Tooltip.Content side='top'>
+            This column's source block no longer exists in the workflow.
+          </Tooltip.Content>
         </Tooltip.Root>
       )
     }

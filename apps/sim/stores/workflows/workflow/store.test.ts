@@ -334,6 +334,86 @@ describe('workflow store', () => {
       const state = useWorkflowStore.getState()
       expectEdgeCount(state, 1)
     })
+
+    it('should not add duplicate connections that appear twice within the same batch', () => {
+      const { batchAddEdges } = useWorkflowStore.getState()
+
+      addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
+      addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
+
+      batchAddEdges([
+        { id: 'e1', source: 'block-1', target: 'block-2' },
+        { id: 'e2', source: 'block-1', target: 'block-2' },
+      ])
+
+      const state = useWorkflowStore.getState()
+      expectEdgeCount(state, 1)
+      expect(state.edges.some((e) => e.id === 'e1')).toBe(true)
+      expect(state.edges.some((e) => e.id === 'e2')).toBe(false)
+    })
+
+    it('should treat an empty-string handle as equivalent to no handle when deduping', () => {
+      const { batchAddEdges } = useWorkflowStore.getState()
+
+      addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
+      addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
+
+      batchAddEdges([
+        { id: 'e1', source: 'block-1', target: 'block-2', sourceHandle: '' },
+        { id: 'e2', source: 'block-1', target: 'block-2' },
+      ])
+
+      const state = useWorkflowStore.getState()
+      expectEdgeCount(state, 1)
+      expect(state.edges.some((e) => e.id === 'e1')).toBe(true)
+      expect(state.edges.some((e) => e.id === 'e2')).toBe(false)
+    })
+
+    it('should not add a self-loop edge', () => {
+      const { batchAddEdges } = useWorkflowStore.getState()
+
+      addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
+
+      batchAddEdges([{ id: 'e1', source: 'block-1', target: 'block-1' }])
+
+      const state = useWorkflowStore.getState()
+      expectEdgeCount(state, 0)
+    })
+
+    it('should reject an edge that would create a cycle', () => {
+      const { batchAddEdges } = useWorkflowStore.getState()
+
+      addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
+      addBlock('block-2', 'function', 'Middle', { x: 200, y: 0 })
+      addBlock('block-3', 'function', 'End', { x: 400, y: 0 })
+
+      batchAddEdges([{ id: 'e1', source: 'block-1', target: 'block-2' }])
+      batchAddEdges([{ id: 'e2', source: 'block-2', target: 'block-3' }])
+      // block-3 -> block-1 would close the loop back to block-1
+      batchAddEdges([{ id: 'e3', source: 'block-3', target: 'block-1' }])
+
+      const state = useWorkflowStore.getState()
+      expectEdgeCount(state, 2)
+      expect(state.edges.some((e) => e.id === 'e3')).toBe(false)
+    })
+
+    it('should reject a cyclic edge within the same batch', () => {
+      const { batchAddEdges } = useWorkflowStore.getState()
+
+      addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
+      addBlock('block-2', 'function', 'Middle', { x: 200, y: 0 })
+      addBlock('block-3', 'function', 'End', { x: 400, y: 0 })
+
+      batchAddEdges([
+        { id: 'e1', source: 'block-1', target: 'block-2' },
+        { id: 'e2', source: 'block-2', target: 'block-3' },
+        { id: 'e3', source: 'block-3', target: 'block-1' },
+      ])
+
+      const state = useWorkflowStore.getState()
+      expectEdgeCount(state, 2)
+      expect(state.edges.some((e) => e.id === 'e3')).toBe(false)
+    })
   })
 
   describe('batchRemoveEdges', () => {
@@ -766,6 +846,77 @@ describe('workflow store', () => {
       const { toggleBlockAdvancedMode } = useWorkflowStore.getState()
 
       expect(() => toggleBlockAdvancedMode('non-existent')).not.toThrow()
+    })
+  })
+
+  describe('setBlockCanonicalMode / setBlockCanonicalModes', () => {
+    it('should merge a single canonical mode into an empty map', () => {
+      const { setBlockCanonicalMode } = useWorkflowStore.getState()
+      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
+
+      setBlockCanonicalMode('agent1', 'credential', 'advanced')
+
+      expect(useWorkflowStore.getState().blocks.agent1?.data?.canonicalModes).toEqual({
+        credential: 'advanced',
+      })
+    })
+
+    it('should merge without clobbering existing keys', () => {
+      const { setBlockCanonicalMode } = useWorkflowStore.getState()
+      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
+
+      setBlockCanonicalMode('agent1', '0:tableId', 'advanced')
+      setBlockCanonicalMode('agent1', '1:tableId', 'basic')
+
+      expect(useWorkflowStore.getState().blocks.agent1?.data?.canonicalModes).toEqual({
+        '0:tableId': 'advanced',
+        '1:tableId': 'basic',
+      })
+    })
+
+    it('should not throw when merging into a non-existent block', () => {
+      const { setBlockCanonicalMode } = useWorkflowStore.getState()
+      expect(() => setBlockCanonicalMode('non-existent', 'credential', 'advanced')).not.toThrow()
+    })
+
+    it('should wholesale-replace canonicalModes, dropping keys absent from the new map', () => {
+      const { setBlockCanonicalMode, setBlockCanonicalModes } = useWorkflowStore.getState()
+      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
+      setBlockCanonicalMode('agent1', '0:tableId', 'advanced')
+      setBlockCanonicalMode('agent1', '1:tableId', 'basic')
+
+      // Reindex after removing tool 0: only tool 1's (now re-keyed) entry survives.
+      setBlockCanonicalModes('agent1', { '0:tableId': 'basic' })
+
+      expect(useWorkflowStore.getState().blocks.agent1?.data?.canonicalModes).toEqual({
+        '0:tableId': 'basic',
+      })
+    })
+
+    it('should preserve sibling data fields when replacing canonicalModes', () => {
+      const { setBlockCanonicalMode, setBlockCanonicalModes } = useWorkflowStore.getState()
+      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
+      setBlockCanonicalMode('agent1', '0:tableId', 'advanced')
+      useWorkflowStore.setState((state) => ({
+        blocks: {
+          ...state.blocks,
+          agent1: {
+            ...state.blocks.agent1,
+            data: { ...state.blocks.agent1.data, someOtherField: 'keep-me' },
+          },
+        },
+      }))
+
+      setBlockCanonicalModes('agent1', {})
+
+      const data = useWorkflowStore.getState().blocks.agent1?.data
+      expect(data?.canonicalModes).toEqual({})
+      expect(data?.someOtherField).toBe('keep-me')
+    })
+
+    it('should not throw when replacing canonicalModes on a non-existent block', () => {
+      const { setBlockCanonicalModes } = useWorkflowStore.getState()
+      expect(() => setBlockCanonicalModes('non-existent', { credential: 'advanced' })).not.toThrow()
     })
   })
 
@@ -1520,6 +1671,18 @@ describe('workflow store', () => {
       const state = useWorkflowStore.getState()
       expect(state.blocks.block1.name).toBe('Column AD')
       expect(state.blocks.block2.name).toBe('Employee Length')
+    })
+
+    it('should reject reserved names (loop, parallel, variable)', () => {
+      const { updateBlockName } = useWorkflowStore.getState()
+
+      for (const reserved of ['loop', 'Parallel', 'VARIABLE']) {
+        const result = updateBlockName('block1', reserved)
+        expect(result.success).toBe(false)
+      }
+
+      const state = useWorkflowStore.getState()
+      expect(state.blocks.block1.name).toBe('Column AD')
     })
 
     it('should return false when trying to rename a non-existent block', () => {

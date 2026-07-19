@@ -8,13 +8,26 @@ authors:
   - vik
 readingTime: 10
 tags: [Enterprise, Security, Self-Hosted, SSO, SAML, Compliance, BYOK, Access Control, Copilot, Whitelabel, API, Import, Export]
-ogImage: /blog/enterprise/cover.png
+ogImage: /blog/enterprise/cover.jpg
 ogAlt: 'Sim Enterprise features overview'
 about: ['Enterprise Software', 'Security', 'Compliance', 'Self-Hosting']
 timeRequired: PT10M
 canonical: https://www.sim.ai/blog/enterprise
 featured: true
 draft: false
+faq:
+  - q: "Can Sim be deployed fully on-premises or in an air-gapped environment?"
+    a: "Yes. Sim can run entirely on your infrastructure via Docker Compose or Helm charts for Kubernetes, with the application, WebSocket server, and PostgreSQL database staying inside your network. Air-gapped setups are supported by pairing self-hosting with Ollama or vLLM for local model inference, so no external network access is required."
+  - q: "Does using our own LLM API keys (BYOK) keep our data from passing through Sim's servers?"
+    a: "Yes. When you configure your own API keys for providers like OpenAI, Anthropic, Google, Azure OpenAI, or AWS Bedrock, prompts and completions route directly between Sim and that provider without passing through Sim's infrastructure. BYOK is available to everyone, not just enterprise plans, and is the default with no Sim-managed keys involved in self-hosted deployments."
+  - q: "Can Copilot be used without sending workflow data to an external AI service?"
+    a: "Yes. Copilot can run entirely within a self-hosted deployment using your own LLM keys, so prompts containing context from your workflows, execution logs, and workspace configuration route directly to your chosen provider and never leave your network."
+  - q: "What identity providers does Sim support for SSO, and what happens when an employee is deprovisioned?"
+    a: "Sim integrates with Okta, Azure AD (Entra ID), Google Workspace, OneLogin, Auth0, JumpCloud, Ping Identity, ADFS, and any SAML 2.0 or OIDC compliant identity provider. Session management ties to your IdP, so logging out there terminates Sim sessions, and account deprovisioning immediately revokes access."
+  - q: "Is Sim SOC 2 certified, and can we get a copy of the report for vendor review?"
+    a: "Sim maintains SOC 2 Type II certification with annual audits covering security, availability, and confidentiality controls, and shares the report directly with prospective customers under NDA. Sim also provides penetration test reports, architecture documentation, and completed security questionnaires (SIG, CAIQ, and custom formats) for vendor review."
+  - q: "Can we restrict which model providers or integrations are available to certain teams?"
+    a: "Yes, through permission groups that are enforced at the execution layer, not just hidden in the UI. Administrators can allowlist approved model providers so unapproved ones fail to execute, disable specific workflow blocks like HTTP calls, and block integrations that haven't cleared security review — while users outside any permission group keep full access by default."
 ---
 
 We've been working with security teams at larger organizations to bring Sim into environments with strict compliance and data handling requirements. This post covers the enterprise capabilities we've built: granular access control, bring-your-own-keys, self-hosted deployments, on-prem Copilot, SSO & SAML, whitelabeling, compliance, and programmatic management via the Admin API.

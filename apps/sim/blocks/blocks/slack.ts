@@ -1,7 +1,7 @@
-import { BookOpen, ClipboardList, File, Table, Users } from '@/components/emcn/icons'
+import { BookOpen, ClipboardList, File, Table, Users } from '@sim/emcn/icons'
 import { GoogleTranslateIcon, GreptileIcon, LinearIcon, SlackIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SlackResponse } from '@/tools/slack/types'
@@ -21,6 +21,9 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
   bgColor: '#611f69',
   icon: SlackIcon,
   triggerAllowed: true,
+  // Superseded by slack_v2, but stays discoverable until v2 GAs — hiding both
+  // would leave no Slack block in the toolbar while v2 is preview-gated. At v2
+  // GA this becomes `hideFromToolbar: true` (superseded-version paradigm).
   subBlocks: [
     {
       id: 'operation',
@@ -62,6 +65,13 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         { label: 'Update View', id: 'update_view' },
         { label: 'Push View', id: 'push_view' },
         { label: 'Publish View', id: 'publish_view' },
+        { label: 'Schedule Message', id: 'schedule_message' },
+        { label: 'List Scheduled Messages', id: 'list_scheduled_messages' },
+        { label: 'Delete Scheduled Message', id: 'delete_scheduled_message' },
+        { label: 'Archive Conversation', id: 'archive_conversation' },
+        { label: 'Rename Conversation', id: 'rename_conversation' },
+        { label: 'Set Conversation Topic', id: 'set_conversation_topic' },
+        { label: 'Set Conversation Purpose', id: 'set_conversation_purpose' },
       ],
       value: () => 'send',
     },
@@ -87,7 +97,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       value: () => 'channel',
       condition: {
         field: 'operation',
-        value: ['send', 'read'],
+        value: ['send', 'read', 'schedule_message'],
       },
     },
     {
@@ -142,7 +152,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       selectorKey: 'slack.channels',
       placeholder: 'Select Slack channel',
       mode: 'basic',
-      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken', 'customBotCredential'] },
       condition: (values?: Record<string, unknown>) => {
         const op = values?.operation as string
         if (op === 'ephemeral') {
@@ -175,7 +185,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       },
       required: {
         field: 'operation',
-        value: 'list_canvases',
+        value: ['list_canvases', 'list_scheduled_messages'],
         not: true,
       },
     },
@@ -185,7 +195,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       type: 'short-input',
       canonicalParamId: 'channel',
       placeholder: 'Enter Slack channel ID (e.g., C1234567890)',
-      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken', 'customBotCredential'] },
       mode: 'advanced',
       condition: (values?: Record<string, unknown>) => {
         const op = values?.operation as string
@@ -219,7 +229,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       },
       required: {
         field: 'operation',
-        value: 'list_canvases',
+        value: ['list_canvases', 'list_scheduled_messages'],
         not: true,
       },
     },
@@ -232,7 +242,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       selectorKey: 'slack.users',
       placeholder: 'Select Slack user',
       mode: 'basic',
-      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken', 'customBotCredential'] },
       condition: {
         field: 'destinationType',
         value: 'dm',
@@ -245,7 +255,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       type: 'short-input',
       canonicalParamId: 'dmUserId',
       placeholder: 'Enter Slack user ID (e.g., U1234567890)',
-      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken', 'customBotCredential'] },
       mode: 'advanced',
       condition: {
         field: 'destinationType',
@@ -262,7 +272,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       selectorKey: 'slack.users',
       placeholder: 'Select Slack user',
       mode: 'basic',
-      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken', 'customBotCredential'] },
       condition: {
         field: 'operation',
         value: 'ephemeral',
@@ -275,7 +285,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       type: 'short-input',
       canonicalParamId: 'ephemeralUser',
       placeholder: 'Enter Slack user ID (e.g., U1234567890)',
-      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken', 'customBotCredential'] },
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -294,7 +304,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       value: () => 'text',
       condition: {
         field: 'operation',
-        value: ['send', 'ephemeral', 'update'],
+        value: ['send', 'ephemeral', 'update', 'schedule_message'],
       },
     },
     {
@@ -304,12 +314,12 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       placeholder: 'Enter your message (supports Slack mrkdwn)',
       condition: {
         field: 'operation',
-        value: ['send', 'ephemeral'],
+        value: ['send', 'ephemeral', 'schedule_message'],
         and: { field: 'messageFormat', value: 'blocks', not: true },
       },
       required: {
         field: 'operation',
-        value: ['send', 'ephemeral'],
+        value: ['send', 'ephemeral', 'schedule_message'],
         and: { field: 'messageFormat', value: 'blocks', not: true },
       },
     },
@@ -321,12 +331,12 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       placeholder: 'JSON array of Block Kit blocks',
       condition: {
         field: 'operation',
-        value: ['send', 'ephemeral', 'update'],
+        value: ['send', 'ephemeral', 'update', 'schedule_message'],
         and: { field: 'messageFormat', value: 'blocks' },
       },
       required: {
         field: 'operation',
-        value: ['send', 'ephemeral', 'update'],
+        value: ['send', 'ephemeral', 'update', 'schedule_message'],
         and: { field: 'messageFormat', value: 'blocks' },
       },
       wandConfig: {
@@ -383,7 +393,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
       placeholder: 'Reply to thread (e.g., 1405894322.002768)',
       condition: {
         field: 'operation',
-        value: ['send', 'ephemeral'],
+        value: ['send', 'ephemeral', 'schedule_message'],
       },
       required: false,
     },
@@ -525,7 +535,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
       selectorKey: 'slack.users',
       placeholder: 'Select Slack user',
       mode: 'basic',
-      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken', 'customBotCredential'] },
       condition: {
         field: 'operation',
         value: 'get_user',
@@ -538,7 +548,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
       type: 'short-input',
       canonicalParamId: 'userId',
       placeholder: 'Enter Slack user ID (e.g., U1234567890)',
-      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken', 'customBotCredential'] },
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -897,7 +907,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       selectorKey: 'slack.users',
       placeholder: 'Select Slack user',
       mode: 'basic',
-      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken', 'customBotCredential'] },
       condition: {
         field: 'operation',
         value: 'get_user_presence',
@@ -910,7 +920,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       canonicalParamId: 'presenceUserId',
       placeholder: 'Enter Slack user ID (e.g., U1234567890)',
-      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken', 'customBotCredential'] },
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -1258,7 +1268,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       selectorKey: 'slack.users',
       placeholder: 'Select user to publish Home tab to',
       mode: 'basic',
-      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken', 'customBotCredential'] },
       condition: {
         field: 'operation',
         value: 'publish_view',
@@ -1271,7 +1281,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       canonicalParamId: 'publishUserId',
       placeholder: 'Enter Slack user ID (e.g., U0BPQUNTA)',
-      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken', 'customBotCredential'] },
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -1344,6 +1354,105 @@ Do not include any explanations, markdown formatting, or other text outside the 
         placeholder: 'Describe the view/modal you want to create...',
       },
     },
+    // Schedule Message specific fields
+    {
+      id: 'scheduleAt',
+      title: 'Send At',
+      type: 'short-input',
+      placeholder: 'Unix timestamp in seconds (e.g., 1700000000)',
+      condition: {
+        field: 'operation',
+        value: 'schedule_message',
+      },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+The timestamp must represent a time in the future (Slack rejects past times and times more than 120 days out).
+Examples:
+- "in 1 hour" -> current Unix time + 3600
+- "tomorrow at 9am" -> Unix timestamp for tomorrow 09:00 local time
+- "next Monday" -> Unix timestamp for the next Monday at 00:00
+
+If the input looks like a reference to another block's output (contains < and >) or is already a numeric Unix timestamp, return it as-is.
+Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when to send (e.g., "in 2 hours", "tomorrow at 9am")...',
+        generationType: 'timestamp',
+      },
+    },
+    // List Scheduled Messages specific fields
+    {
+      id: 'scheduledLimit',
+      title: 'Message Limit',
+      type: 'short-input',
+      placeholder: '100',
+      condition: {
+        field: 'operation',
+        value: 'list_scheduled_messages',
+      },
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'scheduledCursor',
+      title: 'Pagination Cursor',
+      type: 'short-input',
+      placeholder: 'next_cursor from a previous response',
+      condition: {
+        field: 'operation',
+        value: 'list_scheduled_messages',
+      },
+      mode: 'advanced',
+      required: false,
+    },
+    // Delete Scheduled Message specific fields
+    {
+      id: 'scheduledMessageId',
+      title: 'Scheduled Message ID',
+      type: 'short-input',
+      placeholder: 'Scheduled message ID (e.g., Q1234ABCD)',
+      condition: {
+        field: 'operation',
+        value: 'delete_scheduled_message',
+      },
+      required: true,
+    },
+    // Rename Conversation specific fields
+    {
+      id: 'renameChannelName',
+      title: 'New Channel Name',
+      type: 'short-input',
+      placeholder: 'e.g., project-updates (max 80 chars)',
+      condition: {
+        field: 'operation',
+        value: 'rename_conversation',
+      },
+      required: true,
+    },
+    // Set Conversation Topic specific fields
+    {
+      id: 'conversationTopic',
+      title: 'Topic',
+      type: 'long-input',
+      placeholder: 'New channel topic (max 250 characters)',
+      condition: {
+        field: 'operation',
+        value: 'set_conversation_topic',
+      },
+      required: true,
+    },
+    // Set Conversation Purpose specific fields
+    {
+      id: 'conversationPurpose',
+      title: 'Purpose',
+      type: 'long-input',
+      placeholder: 'New channel purpose/description (max 250 characters)',
+      condition: {
+        field: 'operation',
+        value: 'set_conversation_purpose',
+      },
+      required: true,
+    },
     ...getTrigger('slack_webhook').subBlocks,
   ],
   tools: {
@@ -1383,6 +1492,13 @@ Do not include any explanations, markdown formatting, or other text outside the 
       'slack_update_view',
       'slack_push_view',
       'slack_publish_view',
+      'slack_schedule_message',
+      'slack_list_scheduled_messages',
+      'slack_delete_scheduled_message',
+      'slack_archive_conversation',
+      'slack_rename_conversation',
+      'slack_set_conversation_topic',
+      'slack_set_conversation_purpose',
     ],
     config: {
       tool: (params) => {
@@ -1457,6 +1573,20 @@ Do not include any explanations, markdown formatting, or other text outside the 
             return 'slack_push_view'
           case 'publish_view':
             return 'slack_publish_view'
+          case 'schedule_message':
+            return 'slack_schedule_message'
+          case 'list_scheduled_messages':
+            return 'slack_list_scheduled_messages'
+          case 'delete_scheduled_message':
+            return 'slack_delete_scheduled_message'
+          case 'archive_conversation':
+            return 'slack_archive_conversation'
+          case 'rename_conversation':
+            return 'slack_rename_conversation'
+          case 'set_conversation_topic':
+            return 'slack_set_conversation_topic'
+          case 'set_conversation_purpose':
+            return 'slack_set_conversation_purpose'
           default:
             throw new Error(`Invalid Slack operation: ${params.operation}`)
         }
@@ -1466,6 +1596,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
           oauthCredential,
           authMethod,
           botToken,
+          botCredential,
           operation,
           destinationType,
           channel,
@@ -1539,6 +1670,13 @@ Do not include any explanations, markdown formatting, or other text outside the 
           fileId,
           fileName,
           paginationCursor,
+          scheduleAt,
+          scheduledLimit,
+          scheduledCursor,
+          scheduledMessageId,
+          renameChannelName,
+          conversationTopic,
+          conversationPurpose,
           ...rest
         } = params
 
@@ -1552,13 +1690,22 @@ Do not include any explanations, markdown formatting, or other text outside the 
 
         if (isDM && dmSupportedOperations.includes(operation)) {
           baseParams.userId = effectiveUserId
+        } else if (isDM && operation === 'schedule_message' && effectiveUserId) {
+          // chat.scheduleMessage opens a DM when the channel is set to a user ID
+          baseParams.channel = effectiveUserId
         } else if (effectiveChannel) {
           baseParams.channel = effectiveChannel
         }
 
-        // Handle authentication based on method
+        // Handle authentication based on method. Custom Bot resolves to a token
+        // server-side: v2 selects a reusable bot credential; v1 pastes a raw
+        // token (kept for back-compat).
         if (authMethod === 'bot_token') {
-          baseParams.accessToken = botToken
+          if (botCredential) {
+            baseParams.credential = botCredential
+          } else if (botToken) {
+            baseParams.accessToken = botToken
+          }
         } else {
           // Default to OAuth
           baseParams.credential = oauthCredential
@@ -1869,6 +2016,54 @@ Do not include any explanations, markdown formatting, or other text outside the 
             }
             baseParams.view = viewPayload
             break
+
+          case 'schedule_message': {
+            baseParams.text = messageFormat === 'blocks' && !text ? ' ' : text
+            if (blocks) {
+              baseParams.blocks = blocks
+            }
+            if (threadTs) {
+              baseParams.threadTs = threadTs
+            }
+            const parsedPostAt = Number.parseInt(String(scheduleAt ?? '').trim(), 10)
+            if (Number.isNaN(parsedPostAt)) {
+              throw new Error('Send At must be a Unix timestamp in seconds')
+            }
+            baseParams.postAt = parsedPostAt
+            break
+          }
+
+          case 'list_scheduled_messages': {
+            if (scheduledLimit) {
+              const parsedLimit = Number.parseInt(scheduledLimit, 10)
+              if (!Number.isNaN(parsedLimit) && parsedLimit > 0) {
+                baseParams.limit = parsedLimit
+              }
+            }
+            if (scheduledCursor) {
+              baseParams.cursor = String(scheduledCursor).trim()
+            }
+            break
+          }
+
+          case 'delete_scheduled_message':
+            baseParams.scheduledMessageId = scheduledMessageId
+            break
+
+          case 'archive_conversation':
+            break
+
+          case 'rename_conversation':
+            baseParams.name = renameChannelName
+            break
+
+          case 'set_conversation_topic':
+            baseParams.topic = conversationTopic
+            break
+
+          case 'set_conversation_purpose':
+            baseParams.purpose = conversationPurpose
+            break
         }
 
         return baseParams
@@ -1882,6 +2077,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
     destinationType: { type: 'string', description: 'Destination type (channel or dm)' },
     oauthCredential: { type: 'string', description: 'Slack access token' },
     botToken: { type: 'string', description: 'Bot token' },
+    botCredential: { type: 'string', description: 'Custom Slack bot credential id' },
     channel: { type: 'string', description: 'Channel identifier (canonical param)' },
     dmUserId: { type: 'string', description: 'User ID for DM recipient (canonical param)' },
     text: { type: 'string', description: 'Message text' },
@@ -2012,6 +2208,28 @@ Do not include any explanations, markdown formatting, or other text outside the 
       description: 'User ID to publish Home tab view to',
     },
     viewPayload: { type: 'json', description: 'View payload object with type, title, and blocks' },
+    // Schedule Message inputs
+    scheduleAt: {
+      type: 'string',
+      description: 'Unix timestamp (seconds) for when the scheduled message should post',
+    },
+    // List Scheduled Messages inputs
+    scheduledLimit: {
+      type: 'string',
+      description: 'Maximum number of scheduled messages to return',
+    },
+    scheduledCursor: { type: 'string', description: 'Pagination cursor for scheduled messages' },
+    // Delete Scheduled Message inputs
+    scheduledMessageId: { type: 'string', description: 'Scheduled message ID to delete' },
+    // Rename Conversation inputs
+    renameChannelName: { type: 'string', description: 'New name for the channel' },
+    // Set Conversation Topic inputs
+    conversationTopic: { type: 'string', description: 'New channel topic (max 250 characters)' },
+    // Set Conversation Purpose inputs
+    conversationPurpose: {
+      type: 'string',
+      description: 'New channel purpose/description (max 250 characters)',
+    },
   },
   outputs: {
     // slack_message outputs (send operation)
@@ -2199,6 +2417,29 @@ Do not include any explanations, markdown formatting, or other text outside the 
         'Array of per-user error objects when force is true and some invitations failed (user, ok, error)',
     },
 
+    // slack_schedule_message outputs (schedule_message operation)
+    scheduledMessageId: {
+      type: 'string',
+      description: 'Identifier of the scheduled message (used to delete it before it posts)',
+    },
+    postAt: {
+      type: 'number',
+      description: 'Unix timestamp when a scheduled message will post',
+    },
+
+    // slack_list_scheduled_messages outputs (list_scheduled_messages operation)
+    scheduledMessages: {
+      type: 'json',
+      description:
+        'Array of pending scheduled message objects with properties: id, channel_id, post_at, date_created, text',
+    },
+
+    // slack_set_conversation_purpose outputs (set_conversation_purpose operation)
+    purpose: {
+      type: 'string',
+      description: 'The purpose/description that was set on the channel',
+    },
+
     // Trigger outputs (when used as webhook trigger)
     event_type: { type: 'string', description: 'Type of Slack event that triggered the workflow' },
     subtype: {
@@ -2224,7 +2465,9 @@ Do not include any explanations, markdown formatting, or other text outside the 
     team_id: { type: 'string', description: 'Slack workspace/team ID' },
     event_id: { type: 'string', description: 'Unique event identifier for the trigger' },
   },
-  // New: Trigger capabilities
+  // Trigger capabilities moved to slack_v2 so the trigger surfaces once.
+  // Legacy webhook trigger stays available while slack_v2 (which hosts the
+  // redesigned slack_oauth trigger) is preview-gated; drops at v2 GA.
   triggers: {
     enabled: true,
     available: ['slack_webhook'],
@@ -2383,3 +2626,72 @@ export const SlackBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+/**
+ * Custom Bot picker used by slack_v2 in place of v1's raw bot-token field — a
+ * canonical basic/advanced pair (dropdown + manual credential-ID paste),
+ * mirroring the OAuth `credential`/`manualCredential` pair.
+ */
+const SLACK_CUSTOM_BOT_SUBBLOCKS: SubBlockConfig[] = [
+  {
+    id: 'customBotCredential',
+    title: 'Slack Bot',
+    type: 'oauth-input',
+    canonicalParamId: 'botCredential',
+    mode: 'basic',
+    serviceId: 'slack',
+    credentialKind: 'custom-bot',
+    requiredScopes: getScopesForService('slack'),
+    placeholder: 'Select a connected bot',
+    dependsOn: ['authMethod'],
+    condition: { field: 'authMethod', value: 'bot_token' },
+    required: true,
+  },
+  {
+    id: 'manualCustomBotCredential',
+    title: 'Bot Credential ID',
+    type: 'short-input',
+    canonicalParamId: 'botCredential',
+    mode: 'advanced',
+    placeholder: 'Enter bot credential ID',
+    dependsOn: ['authMethod'],
+    condition: { field: 'authMethod', value: 'bot_token' },
+    required: true,
+  },
+]
+
+const SLACK_WEBHOOK_TRIGGER_SUBBLOCK_IDS = new Set(
+  getTrigger('slack_webhook').subBlocks.map((sb) => sb.id)
+)
+
+/**
+ * slack_v2 — the go-forward Slack action block. Identical operations, tools, and
+ * outputs to v1 (shared by reference), but the "Custom Bot" auth method selects
+ * a reusable bot credential set up once, instead of pasting a raw token. Also
+ * hosts the redesigned slack_oauth trigger (v1 keeps the legacy slack_webhook).
+ */
+export const SlackV2Block: BlockConfig<SlackResponse> = {
+  ...SlackBlock,
+  type: 'slack_v2',
+  hideFromToolbar: false,
+  // Preview-gated: hidden from every discovery surface until revealed via the
+  // block-visibility AppConfig (hosted) or PREVIEW_BLOCKS=slack_v2 (dev /
+  // self-host). At GA: drop this flag, add SlackV2BlockMeta + docs, and set
+  // hideFromToolbar on v1.
+  preview: true,
+  subBlocks: [
+    ...SlackBlock.subBlocks.flatMap((sb) => {
+      // Drop the legacy paste-secret trigger config (v1 hosts slack_webhook)
+      // and v1's raw bot-token auth field — the trigger set includes an
+      // id-colliding 'botToken', so the set check covers both.
+      if (SLACK_WEBHOOK_TRIGGER_SUBBLOCK_IDS.has(sb.id)) return []
+      if (sb.id === 'authMethod') return [sb, ...SLACK_CUSTOM_BOT_SUBBLOCKS]
+      return [sb]
+    }),
+    ...getTrigger('slack_oauth').subBlocks,
+  ],
+  triggers: {
+    enabled: true,
+    available: ['slack_oauth'],
+  },
+}

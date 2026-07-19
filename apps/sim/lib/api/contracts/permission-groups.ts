@@ -27,7 +27,6 @@ export const permissionGroupFullConfigSchema = z.object({
   allowedFileShareAuthTypes: z.array(shareAuthTypeSchema).nullable(),
   hideDeployApi: z.boolean(),
   hideDeployMcp: z.boolean(),
-  hideDeployA2a: z.boolean(),
   hideDeployChatbot: z.boolean(),
   hideDeployTemplate: z.boolean(),
 })

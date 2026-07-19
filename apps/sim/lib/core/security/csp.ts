@@ -52,12 +52,20 @@ const STATIC_SCRIPT_SRC = [
   'https://*.google.com',
   'https://apis.google.com',
   'https://challenges.cloudflare.com',
+  // Cal.com booking embed (landing /demo) — embed.js is served from app.cal.com
+  'https://app.cal.com',
   ...(isReactGrabEnabled ? ['https://unpkg.com'] : []),
   ...(isHosted
     ? [
         'https://www.googletagmanager.com',
         'https://www.google-analytics.com',
         'https://analytics.ahrefs.com',
+        // HubSpot tracking (landing pages) — loader plus the
+        // analytics/form-tracking/banner scripts it injects as <script> tags
+        'https://*.hs-scripts.com',
+        'https://*.hs-analytics.net',
+        'https://*.hscollectedforms.net',
+        'https://*.hs-banner.com',
       ]
     : []),
 ] as const
@@ -80,6 +88,9 @@ const STATIC_CONNECT_SRC = [
   'https://api.github.com',
   'https://github.com/*',
   'https://challenges.cloudflare.com',
+  // Cal.com booking embed (landing /demo) — embed XHR/availability calls
+  'https://app.cal.com',
+  'https://cal.com',
   ...(isReactGrabEnabled ? ['https://www.react-grab.com'] : []),
   ...(isDev ? ['ws://localhost:4722'] : []),
   ...(isHosted
@@ -91,6 +102,10 @@ const STATIC_CONNECT_SRC = [
         'https://www.google.com',
         'https://analytics.ahrefs.com',
         'https://*.g.doubleclick.net',
+        // HubSpot tracking — form-tracking API (hscollectedforms.js).
+        // The visitor beacon itself is an image pixel (img-src, already
+        // permitted below), not a connect-src request.
+        'https://*.hscollectedforms.net',
       ]
     : []),
 ] as const
@@ -99,6 +114,9 @@ const STATIC_FRAME_SRC = [
   "'self'",
   'blob:',
   'https://challenges.cloudflare.com',
+  // Cal.com booking embed (landing /demo) — the booking iframe
+  'https://app.cal.com',
+  'https://cal.com',
   'https://drive.google.com',
   'https://docs.google.com',
   'https://*.google.com',

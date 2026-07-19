@@ -1,7 +1,6 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
-import { ChipConfirmModal } from '@/components/emcn'
+import { ChipConfirmModal } from '@sim/emcn'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { useDeleteChunk } from '@/hooks/queries/kb/knowledge'
 
@@ -20,8 +19,6 @@ export function DeleteChunkModal({
   isOpen,
   onClose,
 }: DeleteChunkModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const { mutate: deleteChunk, isPending: isDeleting } = useDeleteChunk()
 
   const handleDeleteChunk = () => {
@@ -36,9 +33,9 @@ export function DeleteChunkModal({
     <ChipConfirmModal
       open={isOpen}
       onOpenChange={onClose}
-      srTitle={tI18n('delete_chunk')}
-      title={t('delete_chunk')}
-      text={tI18n('are_you_sure_you_want_to')}
+      srTitle='Delete Chunk'
+      title='Delete Chunk'
+      text='Are you sure you want to delete this chunk? This action cannot be undone.'
       confirm={{
         label: 'Delete',
         onClick: handleDeleteChunk,

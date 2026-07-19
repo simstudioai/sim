@@ -1,9 +1,8 @@
 'use client'
 
+import { Chip } from '@sim/emcn'
 import { ArrowRight } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Chip } from '@/components/emcn'
 import { IntegrationsShowcase } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 
@@ -23,7 +22,6 @@ interface ShowcaseWithExploreProps {
  * and navigates to the workspace home.
  */
 export function ShowcaseWithExplore({ prompt }: ShowcaseWithExploreProps) {
-  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -32,6 +30,7 @@ export function ShowcaseWithExplore({ prompt }: ShowcaseWithExploreProps) {
     <div className='relative'>
       <IntegrationsShowcase />
       <Chip
+        active
         rightIcon={ArrowRight}
         onClick={() => {
           storeCuratedPrompt(prompt)
@@ -39,7 +38,7 @@ export function ShowcaseWithExplore({ prompt }: ShowcaseWithExploreProps) {
         }}
         className='absolute right-0 bottom-0 mx-0'
       >
-        {t('explore_in_chat')}
+        Explore in chat
       </Chip>
     </div>
   )

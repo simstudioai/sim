@@ -1,6 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Badge,
+  Button,
+  ChevronDown,
+  Code,
+  Combobox,
+  cn,
+  FieldDivider,
+  handleKeyboardActivation,
+  Input,
+  Label,
+  Tooltip,
+} from '@sim/emcn'
 import { formatDuration } from '@sim/utils/formatting'
 import {
   ArrowDown,
@@ -19,19 +32,6 @@ import {
 import { useParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { ReactFlowProvider } from 'reactflow'
-import {
-  Badge,
-  Button,
-  ChevronDown,
-  Code,
-  Combobox,
-  FieldDivider,
-  Input,
-  Label,
-  Tooltip,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndex,
@@ -46,6 +46,7 @@ import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/p
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import type { BlockConfig, BlockIcon, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
@@ -388,7 +389,8 @@ function ConnectionsSection({
                   {Icon && (
                     <Icon
                       className={cn(
-                        'text-white transition-transform duration-200',
+                        'transition-transform duration-200',
+                        getTileIconColorClass(bgColor),
                         hasFields && 'group-hover:scale-110',
                         '!h-[9px] !w-[9px]'
                       )}
@@ -1116,7 +1118,7 @@ function PreviewEditorContent({
             className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ backgroundColor: subflowBgColor }}
           >
-            <SubflowIcon className='size-[12px] text-white' />
+            <SubflowIcon className={cn('size-[12px]', getTileIconColorClass(subflowBgColor))} />
           </div>
           <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>
             {subflowName}
@@ -1208,7 +1210,10 @@ function PreviewEditorContent({
             className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ backgroundColor: blockConfig.bgColor }}
           >
-            <IconComponent icon={blockConfig.icon} className='size-[12px] text-white' />
+            <IconComponent
+              icon={blockConfig.icon}
+              className={cn('size-[12px]', getTileIconColorClass(blockConfig.bgColor))}
+            />
           </div>
         )}
         <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>

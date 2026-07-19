@@ -1,10 +1,9 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
+import { Button, type ComboboxOption } from '@sim/emcn'
 import { generateId } from '@sim/utils/id'
 import { Plus } from 'lucide-react'
-import { useTranslations } from 'next-intl'
-import { Button, type ComboboxOption } from '@/components/emcn'
 import { useTableColumns } from '@/lib/table/hooks'
 import { SORT_DIRECTIONS, type SortRule } from '@/lib/table/query-builder/constants'
 import { useCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
@@ -38,7 +37,6 @@ export function SortBuilder({
   columns: propColumns,
   tableIdSubBlockId = 'tableId',
 }: SortBuilderProps) {
-  const t = useTranslations('auto')
   const [storeValue, setStoreValue] = useSubBlockValue<SortRule[]>(blockId, subBlockId)
   const tableIdValue = useCanonicalSubBlockValue<string>(blockId, tableIdSubBlockId)
 
@@ -95,7 +93,7 @@ export function SortBuilder({
         className='h-7 w-full justify-start gap-1.5 border border-[var(--border-1)] border-dashed text-[var(--text-muted)] text-small'
       >
         <Plus className='size-[14px]' />
-        {t('add_sort')}
+        Add sort
       </Button>
     )
   }

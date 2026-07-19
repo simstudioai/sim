@@ -61,18 +61,40 @@ const EXECUTION_TIMEOUTS: Record<SubscriptionPlan, ExecutionTimeoutConfig> = {
   },
 }
 
+/**
+ * Per-plan execution timeout in milliseconds; `0` means no timeout.
+ * Billing-disabled deployments run untimed unless the operator explicitly set
+ * the free-tier env var (`EXECUTION_TIMEOUT_FREE` /
+ * `EXECUTION_TIMEOUT_ASYNC_FREE`), which opts back into that bound.
+ */
 export function getExecutionTimeout(
   plan: SubscriptionPlan | string | undefined,
   type: 'sync' | 'async' = 'sync'
 ): number {
   if (!isBillingEnabled) {
-    return EXECUTION_TIMEOUTS.free[type]
+    const override = Number.parseInt(
+      (type === 'sync' ? env.EXECUTION_TIMEOUT_FREE : env.EXECUTION_TIMEOUT_ASYNC_FREE) || ''
+    )
+    return Number.isFinite(override) && override > 0 ? EXECUTION_TIMEOUTS.free[type] : 0
   }
   return EXECUTION_TIMEOUTS[getPlanTypeForLimits(plan)][type]
 }
 
 export function getMaxExecutionTimeout(): number {
   return EXECUTION_TIMEOUTS.enterprise.async
+}
+
+/** Safety buffer added beyond the max execution timeout for execution-lifetime TTLs. */
+export const RESERVATION_TTL_BUFFER_MS = 60_000
+
+/**
+ * TTL (ms) bounding how long a single execution can remain in flight: the max
+ * execution timeout plus a safety buffer. Shared source of truth for the
+ * admission-reservation key and the live progress-marker key so they expire on
+ * the same timeline.
+ */
+export function getExecutionReservationTtlMs(): number {
+  return getMaxExecutionTimeout() + RESERVATION_TTL_BUFFER_MS
 }
 
 export const DEFAULT_EXECUTION_TIMEOUT_MS = EXECUTION_TIMEOUTS.free.sync

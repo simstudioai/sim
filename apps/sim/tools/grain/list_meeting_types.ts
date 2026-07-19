@@ -42,7 +42,7 @@ export const grainListMeetingTypesTool: ToolConfig<
     return {
       success: true,
       output: {
-        meeting_types: data.meeting_types || data || [],
+        meeting_types: data.meeting_types || [],
       },
     }
   },

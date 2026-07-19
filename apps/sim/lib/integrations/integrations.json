@@ -1,12 +1,12 @@
 {
-  "updatedAt": "2026-06-27",
+  "updatedAt": "2026-07-16",
   "integrations": [
     {
       "type": "onepassword",
       "slug": "1password",
       "name": "1Password",
       "description": "Manage secrets and items in 1Password vaults",
-      "longDescription": "Access and manage secrets stored in 1Password vaults using the Connect API or Service Account SDK. List vaults, retrieve items with their fields and secrets, create new items, update existing ones, delete items, and resolve secret references.",
+      "longDescription": "Access and manage secrets stored in 1Password vaults using the Connect API or Service Account SDK. List vaults, retrieve items with their fields and secrets, download attached files, create new items, update existing ones, delete items, and resolve secret references.",
       "bgColor": "#FFFFFF",
       "iconName": "OnePasswordIcon",
       "docsUrl": "https://docs.sim.ai/integrations/onepassword",
@@ -26,6 +26,10 @@
         {
           "name": "Get Item",
           "description": "Get full details of an item including all fields and secrets"
+        },
+        {
+          "name": "Get Item File",
+          "description": "Download the content of a file attached to an item"
         },
         {
           "name": "Create Item",
@@ -48,7 +52,7 @@
           "description": "Resolve a secret reference (op://vault/item/field) to its value. Service Account mode only."
         }
       ],
-      "operationCount": 9,
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -345,11 +349,15 @@
       "longDescription": "Integrate Ahrefs SEO tools into your workflow. Analyze domain ratings, backlinks, organic keywords, top pages, and more. Requires an Ahrefs Enterprise plan with API access.",
       "bgColor": "#FFFFFF",
       "iconName": "AhrefsIcon",
-      "docsUrl": "https://docs.ahrefs.com/docs/api/reference/introduction",
+      "docsUrl": "https://docs.sim.ai/integrations/ahrefs",
       "operations": [
         {
           "name": "Domain Rating",
           "description": "Get the Domain Rating (DR) and Ahrefs Rank for a target domain. Domain Rating shows the strength of a website's backlink profile on a scale from 0 to 100."
+        },
+        {
+          "name": "Metrics Overview",
+          "description": "Get a one-call organic and paid search overview for a target domain or URL: organic traffic, organic keywords, paid traffic, paid keywords, and estimated traffic cost."
         },
         {
           "name": "Backlinks",
@@ -357,30 +365,86 @@
         },
         {
           "name": "Backlinks Stats",
-          "description": "Get backlink statistics for a target domain or URL. Returns totals for different backlink types including dofollow, nofollow, text, image, and redirect links."
+          "description": "Get backlink and referring domain totals for a target domain or URL, both currently live and across all time."
         },
         {
           "name": "Referring Domains",
           "description": "Get a list of domains that link to a target domain or URL. Returns unique referring domains with their domain rating, backlink counts, and discovery dates."
         },
         {
+          "name": "Broken Backlinks",
+          "description": "Get a list of broken backlinks pointing to a target domain or URL. Useful for identifying link reclamation opportunities."
+        },
+        {
           "name": "Organic Keywords",
           "description": "Get organic keywords that a target domain or URL ranks for in Google search results. Returns keyword details including search volume, ranking position, and estimated traffic."
+        },
+        {
+          "name": "Organic Competitors",
+          "description": "Get domains that compete with a target domain or URL for the same organic keywords, ranked by keyword overlap."
         },
         {
           "name": "Top Pages",
           "description": "Get the top pages of a target domain sorted by organic traffic. Returns page URLs with their traffic, keyword counts, and estimated traffic value."
         },
         {
+          "name": "Paid Pages",
+          "description": "Get a target domain's pages that receive paid search traffic, sorted by estimated paid traffic. Returns page URLs with their paid traffic, keyword counts, and estimated spend."
+        },
+        {
+          "name": "Anchors",
+          "description": "Get the anchor text distribution for a target domain or URL's backlinks, showing how many links and referring domains use each anchor text."
+        },
+        {
           "name": "Keyword Overview",
           "description": "Get detailed metrics for a keyword including search volume, keyword difficulty, CPC, clicks, and traffic potential."
         },
         {
-          "name": "Broken Backlinks",
-          "description": "Get a list of broken backlinks pointing to a target domain or URL. Useful for identifying link reclamation opportunities."
+          "name": "Related Terms",
+          "description": "Get keyword ideas related to a seed keyword: terms the same top-ranking pages also rank for (\"also rank for\") or also discuss (\"also talk about\"), with volume, difficulty, and CPC."
+        },
+        {
+          "name": "Domain Rating History",
+          "description": "Get the historical Domain Rating (DR) trend for a target domain or URL over a date range, grouped daily, weekly, or monthly."
+        },
+        {
+          "name": "Metrics History",
+          "description": "Get the historical organic and paid traffic trend for a target domain or URL over a date range: organic traffic/cost and paid traffic/cost at each point in time."
+        },
+        {
+          "name": "Referring Domains History",
+          "description": "Get the historical referring domains trend for a target domain or URL over a date range, grouped daily, weekly, or monthly."
+        },
+        {
+          "name": "Keywords History",
+          "description": "Get the historical organic keyword ranking distribution for a target domain or URL over a date range: how many keywords rank in each position bucket at each point in time."
+        },
+        {
+          "name": "Batch Analysis",
+          "description": "Get bulk SEO metrics (Domain Rating, backlinks, referring domains, organic traffic, and more) for multiple domains or URLs in a single request. Useful for comparing many competitors at once."
+        },
+        {
+          "name": "Site Audit Page Explorer",
+          "description": "Get crawled pages from an Ahrefs Site Audit project with health and SEO metrics: HTTP status, title, link counts, backlinks, indexability, and traffic. Optionally filter to pages affected by a specific issue."
+        },
+        {
+          "name": "Rank Tracker Overview",
+          "description": "Get ranking overview metrics for the keywords tracked in an Ahrefs Rank Tracker project: position, search volume, keyword difficulty, and estimated traffic. This endpoint is free and does not consume API units."
+        },
+        {
+          "name": "Rank Tracker SERP Overview",
+          "description": "Get the full SERP (search engine results page) for a keyword tracked in an Ahrefs Rank Tracker project, including every ranking URL with its position, title, and authority metrics. This endpoint is free and does not consume API units."
+        },
+        {
+          "name": "Rank Tracker Competitors Overview",
+          "description": "Get competitor rankings for the keywords tracked in an Ahrefs Rank Tracker project: each tracked keyword's volume and difficulty alongside every competitor's position, traffic, and traffic value. This endpoint is free and does not consume API units."
+        },
+        {
+          "name": "Rank Tracker Competitors Stats",
+          "description": "Get aggregate competitor stats for an Ahrefs Rank Tracker project: each competitor's traffic, traffic value, average position, and share of voice across all tracked keywords. This endpoint is free and does not consume API units."
         }
       ],
-      "operationCount": 8,
+      "operationCount": 23,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -393,7 +457,7 @@
       "slug": "airtable",
       "name": "Airtable",
       "description": "Read, create, and update Airtable",
-      "longDescription": "Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, or update records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.",
+      "longDescription": "Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, update, upsert, or delete records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.",
       "bgColor": "#FFFFFF",
       "iconName": "AirtableIcon",
       "docsUrl": "https://docs.sim.ai/integrations/airtable",
@@ -429,9 +493,17 @@
         {
           "name": "Update Multiple Records",
           "description": "Update multiple existing records in an Airtable table"
+        },
+        {
+          "name": "Upsert Records",
+          "description": "Update existing records or create new ones in an Airtable table, matching on the specified merge fields"
+        },
+        {
+          "name": "Delete Records",
+          "description": "Delete one or more records from an Airtable table by ID"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 10,
       "triggers": [
         {
           "id": "airtable_webhook",
@@ -533,9 +605,13 @@
         {
           "name": "Delete By Filter",
           "description": "Delete all records matching a filter from an Algolia index"
+        },
+        {
+          "name": "Get Task Status",
+          "description": "Check whether an Algolia indexing task has finished publishing"
         }
       ],
-      "operationCount": 15,
+      "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -661,8 +737,8 @@
       "slug": "amplitude",
       "name": "Amplitude",
       "description": "Track events and query analytics from Amplitude",
-      "longDescription": "Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, and retrieve revenue data.",
-      "bgColor": "#1B1F3B",
+      "longDescription": "Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, analyze funnels and retention, and retrieve revenue data.",
+      "bgColor": "#13294B",
       "iconName": "AmplitudeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/amplitude",
       "operations": [
@@ -688,7 +764,7 @@
         },
         {
           "name": "User Profile",
-          "description": "Get a user profile including properties, cohort memberships, and computed properties."
+          "description": "Get a user profile including properties, cohort memberships, and computed properties. Not available for EU data-residency projects."
         },
         {
           "name": "Event Segmentation",
@@ -709,9 +785,17 @@
         {
           "name": "Get Revenue",
           "description": "Get revenue LTV data including ARPU, ARPPU, total revenue, and paying user counts."
+        },
+        {
+          "name": "Funnels",
+          "description": "Analyze conversion rates and drop-off between a sequence of events."
+        },
+        {
+          "name": "Retention",
+          "description": "Measure how many users return to perform an action after a starting action."
         }
       ],
-      "operationCount": 11,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -941,9 +1025,41 @@
         {
           "name": "Add Comment",
           "description": "Add a comment (story) to an Asana task"
+        },
+        {
+          "name": "Create Subtask",
+          "description": "Create a subtask under an existing Asana task"
+        },
+        {
+          "name": "Delete Task",
+          "description": "Delete an Asana task by its GID (moves it to the trash)"
+        },
+        {
+          "name": "Add Followers",
+          "description": "Add one or more followers to an Asana task"
+        },
+        {
+          "name": "Create Project",
+          "description": "Create a new project in an Asana workspace"
+        },
+        {
+          "name": "Get Project",
+          "description": "Retrieve a single Asana project by its GID"
+        },
+        {
+          "name": "List Workspaces",
+          "description": "List all Asana workspaces and organizations the authenticated user belongs to"
+        },
+        {
+          "name": "Create Section",
+          "description": "Create a new section in an Asana project"
+        },
+        {
+          "name": "List Sections",
+          "description": "List all sections in an Asana project"
         }
       ],
-      "operationCount": 6,
+      "operationCount": 14,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -1145,6 +1261,10 @@
           "description": "List recent Athena query execution IDs"
         },
         {
+          "name": "Batch Get Query Executions",
+          "description": "Get the status and details of up to 50 Athena query executions in one call"
+        },
+        {
           "name": "Create Named Query",
           "description": "Create a saved/named query in AWS Athena"
         },
@@ -1155,9 +1275,21 @@
         {
           "name": "List Named Queries",
           "description": "List saved/named query IDs in AWS Athena"
+        },
+        {
+          "name": "Delete Named Query",
+          "description": "Delete a saved/named query in AWS Athena"
+        },
+        {
+          "name": "List Databases",
+          "description": "List the databases available in an Athena data catalog"
+        },
+        {
+          "name": "List Table Metadata",
+          "description": "List tables and their column/partition metadata for an Athena database"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 12,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -1338,9 +1470,25 @@
         {
           "name": "Delete Webhook",
           "description": "Delete a webhook from Attio"
+        },
+        {
+          "name": "List Attributes",
+          "description": "List the attributes (schema fields) defined on an Attio object or list"
+        },
+        {
+          "name": "Get Attribute",
+          "description": "Get a single attribute (schema field) on an Attio object or list"
+        },
+        {
+          "name": "Create Attribute",
+          "description": "Create a new attribute (schema field) on an Attio object or list"
+        },
+        {
+          "name": "Update Attribute",
+          "description": "Update an attribute (schema field) on an Attio object or list"
         }
       ],
-      "operationCount": 41,
+      "operationCount": 45,
       "triggers": [
         {
           "id": "attio_record_created",
@@ -1754,7 +1902,7 @@
       "slug": "aws-secrets-manager",
       "name": "AWS Secrets Manager",
       "description": "Connect to AWS Secrets Manager",
-      "longDescription": "Integrate AWS Secrets Manager into the workflow. Can retrieve, create, update, list, and delete secrets.",
+      "longDescription": "Integrate AWS Secrets Manager into the workflow. Can retrieve, create, update, list, delete, describe, tag, untag, restore, and rotate secrets.",
       "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
       "iconName": "SecretsManagerIcon",
       "docsUrl": "https://docs.sim.ai/integrations/secrets_manager",
@@ -1778,9 +1926,29 @@
         {
           "name": "Delete Secret",
           "description": "Delete a secret from AWS Secrets Manager"
+        },
+        {
+          "name": "Describe Secret",
+          "description": "Retrieve full metadata for a secret in AWS Secrets Manager, including rotation configuration and replication status, without exposing the secret value"
+        },
+        {
+          "name": "Tag Secret",
+          "description": "Attach tags to a secret in AWS Secrets Manager"
+        },
+        {
+          "name": "Untag Secret",
+          "description": "Remove tags from a secret in AWS Secrets Manager"
+        },
+        {
+          "name": "Restore Secret",
+          "description": "Cancel a scheduled deletion for a secret in AWS Secrets Manager, restoring access to it"
+        },
+        {
+          "name": "Rotate Secret",
+          "description": "Start or reconfigure rotation for a secret in AWS Secrets Manager"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -1793,7 +1961,7 @@
       "slug": "aws-ses",
       "name": "AWS SES",
       "description": "Send emails and manage templates with AWS Simple Email Service",
-      "longDescription": "Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates and retrieve account sending quota and verified identity information.",
+      "longDescription": "Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates, identities, configuration sets, and the account suppression list, and retrieve account sending quota and verified identity information.",
       "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
       "iconName": "SESIcon",
       "docsUrl": "https://docs.sim.ai/integrations/ses",
@@ -1833,9 +2001,49 @@
         {
           "name": "Delete Template",
           "description": "Delete an existing SES email template"
+        },
+        {
+          "name": "Update Template",
+          "description": "Update the subject, HTML, and text content of an existing SES email template"
+        },
+        {
+          "name": "Send Custom Verification Email",
+          "description": "Send a branded custom verification email to an address using a custom verification email template"
+        },
+        {
+          "name": "Create Email Identity",
+          "description": "Start verification of a new SES email address or domain identity"
+        },
+        {
+          "name": "Get Email Identity",
+          "description": "Retrieve verification status, DKIM, Mail-From, and policy details for an SES identity"
+        },
+        {
+          "name": "Delete Email Identity",
+          "description": "Delete a verified SES email address or domain identity"
+        },
+        {
+          "name": "Put Suppressed Destination",
+          "description": "Add an email address to the account-level SES suppression list"
+        },
+        {
+          "name": "Get Suppressed Destination",
+          "description": "Retrieve details for a specific email address on the SES suppression list"
+        },
+        {
+          "name": "List Suppressed Destinations",
+          "description": "List email addresses on the account-level SES suppression list"
+        },
+        {
+          "name": "Delete Suppressed Destination",
+          "description": "Remove an email address from the account-level SES suppression list"
+        },
+        {
+          "name": "Create Configuration Set",
+          "description": "Create an SES configuration set to control tracking, delivery, reputation, sending, and suppression behavior for emails"
         }
       ],
-      "operationCount": 9,
+      "operationCount": 19,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -1858,6 +2066,14 @@
           "description": "Assume an IAM role and receive temporary security credentials"
         },
         {
+          "name": "Assume Role With Web Identity",
+          "description": "Assume an IAM role using an OIDC/OAuth 2.0 web identity token (e.g. GitHub Actions OIDC, EKS IRSA, Google/Facebook federation) and receive temporary security credentials"
+        },
+        {
+          "name": "Assume Role With SAML",
+          "description": "Assume an IAM role using a SAML 2.0 authentication response from an enterprise identity provider and receive temporary security credentials"
+        },
+        {
           "name": "Get Caller Identity",
           "description": "Get details about the IAM user or role whose credentials are used to call the API"
         },
@@ -1870,7 +2086,7 @@
           "description": "Get the AWS account ID associated with an access key"
         }
       ],
-      "operationCount": 4,
+      "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -1887,8 +2103,21 @@
       "bgColor": "linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)",
       "iconName": "TextractIcon",
       "docsUrl": "https://docs.sim.ai/integrations/textract",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Analyze Document (Text, Tables, Forms)",
+          "description": ""
+        },
+        {
+          "name": "Analyze Expense (Invoices & Receipts)",
+          "description": "Extract structured invoice and receipt fields using AWS Textract AnalyzeExpense"
+        },
+        {
+          "name": "Analyze Identity Document",
+          "description": "Extract identity document fields using AWS Textract AnalyzeID"
+        }
+      ],
+      "operationCount": 3,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -2325,7 +2554,7 @@
         },
         {
           "name": "Discover",
-          "description": "AI-powered web discovery that finds and ranks results by intent. Returns up to 1,000 results with optional cleaned page content for RAG and verification."
+          "description": "AI-powered web discovery that finds and ranks results by intent. Returns up to 20 results with optional cleaned page content for RAG and verification."
         },
         {
           "name": "Sync Scrape",
@@ -2373,6 +2602,65 @@
       "category": "tools",
       "integrationType": "ai",
       "tags": ["web-scraping", "automation", "agentic"]
+    },
+    {
+      "type": "buffer",
+      "slug": "buffer",
+      "name": "Buffer",
+      "description": "Schedule and publish social media posts across connected channels",
+      "longDescription": "Integrate Buffer into your workflow. Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channels, and capture content ideas using the Buffer API.",
+      "bgColor": "#FFFFFF",
+      "iconName": "BufferIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/buffer",
+      "operations": [
+        {
+          "name": "Create Post",
+          "description": "Create a post in Buffer for a channel — add it to the queue, share it immediately, schedule it for a specific time, or save it as a draft, optionally with an image or video attachment"
+        },
+        {
+          "name": "Edit Post",
+          "description": "Edit an existing Buffer post — update its text, schedule, or media. Attaching new media replaces the existing attachments"
+        },
+        {
+          "name": "Get Posts",
+          "description": "List posts in a Buffer organization, optionally filtered by channel and status (draft, needs_approval, scheduled, sending, sent, error)"
+        },
+        {
+          "name": "Get Post",
+          "description": "Get a single Buffer post by ID, including its status, schedule, and media"
+        },
+        {
+          "name": "Delete Post",
+          "description": "Delete a Buffer post by ID"
+        },
+        {
+          "name": "Get Channels",
+          "description": "List the social media channels connected to a Buffer organization, including their channel IDs (needed to create posts)"
+        },
+        {
+          "name": "Create Idea",
+          "description": "Save a content idea to a Buffer organization for later drafting and scheduling"
+        },
+        {
+          "name": "Get Ideas",
+          "description": "List content ideas saved in a Buffer organization"
+        },
+        {
+          "name": "Get Idea Groups",
+          "description": "List idea groups (board columns) in a Buffer organization, including the group IDs used when creating ideas"
+        },
+        {
+          "name": "Get Account",
+          "description": "Get the authenticated Buffer account, including its organizations and their IDs (needed for channel and post operations)"
+        }
+      ],
+      "operationCount": 10,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "marketing",
+      "tags": ["marketing", "scheduling", "automation"]
     },
     {
       "type": "calcom",
@@ -2607,7 +2895,7 @@
       "slug": "clerk",
       "name": "Clerk",
       "description": "Manage users, organizations, and sessions in Clerk",
-      "longDescription": "Integrate Clerk authentication and user management into your workflow. Create, update, delete, and list users. Manage organizations and their memberships. Monitor and control user sessions.",
+      "longDescription": "Integrate Clerk authentication and user management into your workflow. Create, update, delete, ban, lock, and list users. Manage organizations, their memberships, and invitations. Monitor and control user sessions. Maintain allowlist/blocklist identifiers, JWT templates, and actor tokens.",
       "bgColor": "#131316",
       "iconName": "ClerkIcon",
       "docsUrl": "https://docs.sim.ai/integrations/clerk",
@@ -2633,6 +2921,26 @@
           "description": "Delete a user from your Clerk application"
         },
         {
+          "name": "Ban User",
+          "description": "Ban a user, preventing them from signing in"
+        },
+        {
+          "name": "Unban User",
+          "description": "Remove a ban from a user, allowing them to sign in again"
+        },
+        {
+          "name": "Lock User",
+          "description": "Lock a user account, blocking sign-in attempts"
+        },
+        {
+          "name": "Unlock User",
+          "description": "Unlock a previously locked user account"
+        },
+        {
+          "name": "Get User OAuth Token",
+          "description": "Retrieve a user's OAuth access token for a connected external provider (e.g. Google, GitHub, Microsoft) obtained via Clerk SSO"
+        },
+        {
           "name": "List Organizations",
           "description": "List all organizations in your Clerk application with optional filtering"
         },
@@ -2645,6 +2953,38 @@
           "description": "Create a new organization in your Clerk application"
         },
         {
+          "name": "Update Organization",
+          "description": "Update an existing organization in your Clerk application"
+        },
+        {
+          "name": "Delete Organization",
+          "description": "Delete an organization from your Clerk application"
+        },
+        {
+          "name": "List Organization Memberships",
+          "description": "List members of a Clerk organization with optional filtering and pagination"
+        },
+        {
+          "name": "Add Organization Member",
+          "description": "Add a user as a member of a Clerk organization with a given role"
+        },
+        {
+          "name": "Update Organization Membership",
+          "description": "Change a member's role within a Clerk organization"
+        },
+        {
+          "name": "Remove Organization Member",
+          "description": "Remove a member from a Clerk organization"
+        },
+        {
+          "name": "Create Organization Invitation",
+          "description": "Invite a user by email to join a Clerk organization with a given role"
+        },
+        {
+          "name": "List Organization Invitations",
+          "description": "List pending and past invitations for a Clerk organization"
+        },
+        {
           "name": "List Sessions",
           "description": "List sessions for a user or client in your Clerk application"
         },
@@ -2655,11 +2995,122 @@
         {
           "name": "Revoke Session",
           "description": "Revoke a session to immediately invalidate it"
+        },
+        {
+          "name": "List Allowlist Identifiers",
+          "description": "List email/phone/web3-wallet identifiers on your Clerk instance allowlist"
+        },
+        {
+          "name": "Create Allowlist Identifier",
+          "description": "Add an email, phone number, or web3 wallet to your Clerk instance allowlist"
+        },
+        {
+          "name": "Delete Allowlist Identifier",
+          "description": "Remove an identifier from your Clerk instance allowlist"
+        },
+        {
+          "name": "List Blocklist Identifiers",
+          "description": "List email/phone/web3-wallet identifiers on your Clerk instance blocklist"
+        },
+        {
+          "name": "Create Blocklist Identifier",
+          "description": "Add an email, phone number, or web3 wallet to your Clerk instance blocklist to prevent sign-ups"
+        },
+        {
+          "name": "Delete Blocklist Identifier",
+          "description": "Remove an identifier from your Clerk instance blocklist"
+        },
+        {
+          "name": "List JWT Templates",
+          "description": "List custom JWT templates configured on your Clerk instance"
+        },
+        {
+          "name": "Get JWT Template",
+          "description": "Retrieve a single custom JWT template by ID from Clerk"
+        },
+        {
+          "name": "Create Actor Token",
+          "description": "Create an actor token to impersonate a user (God Mode / act-as-user), e.g. for support tooling"
+        },
+        {
+          "name": "Revoke Actor Token",
+          "description": "Revoke an actor token before it is used or expires"
         }
       ],
-      "operationCount": 11,
-      "triggers": [],
-      "triggerCount": 0,
+      "operationCount": 34,
+      "triggers": [
+        {
+          "id": "clerk_user_created",
+          "name": "Clerk User Created",
+          "description": "Trigger workflow when a Clerk user is created"
+        },
+        {
+          "id": "clerk_user_updated",
+          "name": "Clerk User Updated",
+          "description": "Trigger workflow when a Clerk user is updated"
+        },
+        {
+          "id": "clerk_user_deleted",
+          "name": "Clerk User Deleted",
+          "description": "Trigger workflow when a Clerk user is deleted"
+        },
+        {
+          "id": "clerk_session_created",
+          "name": "Clerk Session Created",
+          "description": "Trigger workflow when a Clerk session is created"
+        },
+        {
+          "id": "clerk_session_ended",
+          "name": "Clerk Session Ended",
+          "description": "Trigger workflow when a Clerk session ends"
+        },
+        {
+          "id": "clerk_session_removed",
+          "name": "Clerk Session Removed",
+          "description": "Trigger workflow when a Clerk session is removed"
+        },
+        {
+          "id": "clerk_session_revoked",
+          "name": "Clerk Session Revoked",
+          "description": "Trigger workflow when a Clerk session is revoked"
+        },
+        {
+          "id": "clerk_organization_created",
+          "name": "Clerk Organization Created",
+          "description": "Trigger workflow when a Clerk organization is created"
+        },
+        {
+          "id": "clerk_organization_updated",
+          "name": "Clerk Organization Updated",
+          "description": "Trigger workflow when a Clerk organization is updated"
+        },
+        {
+          "id": "clerk_organization_deleted",
+          "name": "Clerk Organization Deleted",
+          "description": "Trigger workflow when a Clerk organization is deleted"
+        },
+        {
+          "id": "clerk_organization_membership_created",
+          "name": "Clerk Organization Membership Created",
+          "description": "Trigger workflow when a Clerk organization membership is created"
+        },
+        {
+          "id": "clerk_organization_membership_updated",
+          "name": "Clerk Organization Membership Updated",
+          "description": "Trigger workflow when a Clerk organization membership is updated"
+        },
+        {
+          "id": "clerk_organization_membership_deleted",
+          "name": "Clerk Organization Membership Deleted",
+          "description": "Trigger workflow when a Clerk organization membership is deleted"
+        },
+        {
+          "id": "clerk_webhook",
+          "name": "Clerk Webhook",
+          "description": "Trigger workflow on any Clerk webhook event"
+        }
+      ],
+      "triggerCount": 14,
       "authType": "none",
       "category": "tools",
       "integrationType": "security",
@@ -2789,6 +3240,324 @@
       "tags": ["data-warehouse", "data-analytics"]
     },
     {
+      "type": "clickup",
+      "slug": "clickup",
+      "name": "ClickUp",
+      "description": "Interact with ClickUp",
+      "longDescription": "Integrate ClickUp into the workflow. Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields. Can also trigger workflows on ClickUp events like task, list, folder, space, and goal changes.",
+      "bgColor": "#FFFFFF",
+      "iconName": "ClickUpIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/clickup",
+      "operations": [
+        {
+          "name": "Create Task",
+          "description": "Create a new task in a ClickUp list"
+        },
+        {
+          "name": "Get Task",
+          "description": "Retrieve a task from ClickUp by ID"
+        },
+        {
+          "name": "Update Task",
+          "description": "Update an existing task in ClickUp"
+        },
+        {
+          "name": "Delete Task",
+          "description": "Delete a task from ClickUp"
+        },
+        {
+          "name": "Get Tasks",
+          "description": "List the tasks in a ClickUp list (100 tasks per page; increment page until an empty result to paginate)"
+        },
+        {
+          "name": "Search Tasks",
+          "description": "Search tasks across a ClickUp workspace with filters for lists, folders, spaces, statuses, assignees, tags, and due dates (100 tasks per page; increment page until an empty result to paginate)"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Add a comment to a ClickUp task"
+        },
+        {
+          "name": "Get Comments",
+          "description": "Retrieve comments on a ClickUp task, newest first (25 per page; paginate with start and startId)"
+        },
+        {
+          "name": "Update Comment",
+          "description": "Update the content, assignee, or resolved state of a ClickUp task comment"
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete a comment from a ClickUp task"
+        },
+        {
+          "name": "Upload Attachment",
+          "description": "Upload a file to a ClickUp task as an attachment"
+        },
+        {
+          "name": "Add Tag to Task",
+          "description": "Add an existing space tag to a ClickUp task"
+        },
+        {
+          "name": "Remove Tag from Task",
+          "description": "Remove a tag from a ClickUp task"
+        },
+        {
+          "name": "Get Space Tags",
+          "description": "List the task tags available in a ClickUp space"
+        },
+        {
+          "name": "Get Task Members",
+          "description": "List the workspace members who have explicit access to a ClickUp task"
+        },
+        {
+          "name": "Get List Members",
+          "description": "List the workspace members who have explicit access to a ClickUp list"
+        },
+        {
+          "name": "Get Custom Fields",
+          "description": "List the custom fields accessible in a ClickUp list"
+        },
+        {
+          "name": "Set Custom Field Value",
+          "description": "Set the value of a custom field on a ClickUp task (the value shape depends on the field type)"
+        },
+        {
+          "name": "Remove Custom Field Value",
+          "description": "Remove the value of a custom field from a ClickUp task (does not delete the field itself)"
+        },
+        {
+          "name": "Create Checklist",
+          "description": "Add a new checklist to a ClickUp task"
+        },
+        {
+          "name": "Update Checklist",
+          "description": "Rename or reorder a checklist on a ClickUp task"
+        },
+        {
+          "name": "Delete Checklist",
+          "description": "Delete a checklist from a ClickUp task"
+        },
+        {
+          "name": "Create Checklist Item",
+          "description": "Add an item to a checklist on a ClickUp task"
+        },
+        {
+          "name": "Update Checklist Item",
+          "description": "Update a checklist item on a ClickUp task — rename, assign, resolve, or nest it"
+        },
+        {
+          "name": "Delete Checklist Item",
+          "description": "Delete an item from a checklist on a ClickUp task"
+        },
+        {
+          "name": "Get Time Entries",
+          "description": "List time entries in a ClickUp workspace within a date range (defaults to the last 30 days for the authenticated user)"
+        },
+        {
+          "name": "Create Time Entry",
+          "description": "Create a manual time entry in a ClickUp workspace, optionally linked to a task"
+        },
+        {
+          "name": "Update Time Entry",
+          "description": "Update a time entry in a ClickUp workspace — description, start/end times, task, or billable state"
+        },
+        {
+          "name": "Delete Time Entry",
+          "description": "Delete a time entry from a ClickUp workspace"
+        },
+        {
+          "name": "Start Timer",
+          "description": "Start a timer for the authenticated user in a ClickUp workspace"
+        },
+        {
+          "name": "Stop Timer",
+          "description": "Stop the authenticated user's currently running timer in a ClickUp workspace"
+        },
+        {
+          "name": "Get Running Timer",
+          "description": "Get the currently running time entry in a ClickUp workspace (null when no timer is running)"
+        },
+        {
+          "name": "Get Workspaces",
+          "description": "List the ClickUp workspaces (teams) available to the connected account"
+        },
+        {
+          "name": "Get Spaces",
+          "description": "List the spaces in a ClickUp workspace"
+        },
+        {
+          "name": "Get Folders",
+          "description": "List the folders in a ClickUp space"
+        },
+        {
+          "name": "Get Lists",
+          "description": "List the lists in a ClickUp folder, or the folderless lists in a space when a space ID is provided instead"
+        },
+        {
+          "name": "Create Folder",
+          "description": "Create a new folder in a ClickUp space"
+        },
+        {
+          "name": "Create List",
+          "description": "Create a new list in a ClickUp folder, or a folderless list in a space when a space ID is provided instead"
+        }
+      ],
+      "operationCount": 38,
+      "triggers": [
+        {
+          "id": "clickup_task_created",
+          "name": "ClickUp Task Created",
+          "description": "Trigger workflow when a task is created in ClickUp"
+        },
+        {
+          "id": "clickup_task_updated",
+          "name": "ClickUp Task Updated",
+          "description": "Trigger workflow when a task is updated in ClickUp"
+        },
+        {
+          "id": "clickup_task_deleted",
+          "name": "ClickUp Task Deleted",
+          "description": "Trigger workflow when a task is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_task_status_updated",
+          "name": "ClickUp Task Status Updated",
+          "description": "Trigger workflow when the status of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_task_priority_updated",
+          "name": "ClickUp Task Priority Updated",
+          "description": "Trigger workflow when the priority of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_task_assignee_updated",
+          "name": "ClickUp Task Assignee Updated",
+          "description": "Trigger workflow when the assignees of a task change in ClickUp"
+        },
+        {
+          "id": "clickup_task_due_date_updated",
+          "name": "ClickUp Task Due Date Updated",
+          "description": "Trigger workflow when the due date of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_task_tag_updated",
+          "name": "ClickUp Task Tag Updated",
+          "description": "Trigger workflow when the tags of a task change in ClickUp"
+        },
+        {
+          "id": "clickup_task_moved",
+          "name": "ClickUp Task Moved",
+          "description": "Trigger workflow when a task is moved to a different list in ClickUp"
+        },
+        {
+          "id": "clickup_task_comment_posted",
+          "name": "ClickUp Task Comment Posted",
+          "description": "Trigger workflow when a comment is posted on a task in ClickUp"
+        },
+        {
+          "id": "clickup_task_comment_updated",
+          "name": "ClickUp Task Comment Updated",
+          "description": "Trigger workflow when a task comment is updated in ClickUp"
+        },
+        {
+          "id": "clickup_task_time_estimate_updated",
+          "name": "ClickUp Task Time Estimate Updated",
+          "description": "Trigger workflow when the time estimate of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_task_time_tracked_updated",
+          "name": "ClickUp Task Time Tracked Updated",
+          "description": "Trigger workflow when the tracked time of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_list_created",
+          "name": "ClickUp List Created",
+          "description": "Trigger workflow when a list is created in ClickUp"
+        },
+        {
+          "id": "clickup_list_updated",
+          "name": "ClickUp List Updated",
+          "description": "Trigger workflow when a list is updated in ClickUp"
+        },
+        {
+          "id": "clickup_list_deleted",
+          "name": "ClickUp List Deleted",
+          "description": "Trigger workflow when a list is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_folder_created",
+          "name": "ClickUp Folder Created",
+          "description": "Trigger workflow when a folder is created in ClickUp"
+        },
+        {
+          "id": "clickup_folder_updated",
+          "name": "ClickUp Folder Updated",
+          "description": "Trigger workflow when a folder is updated in ClickUp"
+        },
+        {
+          "id": "clickup_folder_deleted",
+          "name": "ClickUp Folder Deleted",
+          "description": "Trigger workflow when a folder is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_space_created",
+          "name": "ClickUp Space Created",
+          "description": "Trigger workflow when a space is created in ClickUp"
+        },
+        {
+          "id": "clickup_space_updated",
+          "name": "ClickUp Space Updated",
+          "description": "Trigger workflow when a space is updated in ClickUp"
+        },
+        {
+          "id": "clickup_space_deleted",
+          "name": "ClickUp Space Deleted",
+          "description": "Trigger workflow when a space is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_goal_created",
+          "name": "ClickUp Goal Created",
+          "description": "Trigger workflow when a goal is created in ClickUp"
+        },
+        {
+          "id": "clickup_goal_updated",
+          "name": "ClickUp Goal Updated",
+          "description": "Trigger workflow when a goal is updated in ClickUp"
+        },
+        {
+          "id": "clickup_goal_deleted",
+          "name": "ClickUp Goal Deleted",
+          "description": "Trigger workflow when a goal is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_key_result_created",
+          "name": "ClickUp Key Result Created",
+          "description": "Trigger workflow when a key result is created in ClickUp"
+        },
+        {
+          "id": "clickup_key_result_updated",
+          "name": "ClickUp Key Result Updated",
+          "description": "Trigger workflow when a key result is updated in ClickUp"
+        },
+        {
+          "id": "clickup_key_result_deleted",
+          "name": "ClickUp Key Result Deleted",
+          "description": "Trigger workflow when a key result is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_webhook",
+          "name": "ClickUp Webhook",
+          "description": "Trigger workflow on any ClickUp event (subscribes to all events)"
+        }
+      ],
+      "triggerCount": 29,
+      "authType": "oauth",
+      "oauthServiceId": "clickup",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["project-management", "ticketing", "automation"]
+    },
+    {
       "type": "cloudflare",
       "slug": "cloudflare",
       "name": "Cloudflare",
@@ -2836,11 +3605,11 @@
         },
         {
           "name": "Get Zone Settings",
-          "description": "Gets all settings for a zone including SSL mode, minification, caching level, and security settings."
+          "description": "Gets all settings for a zone including SSL mode, caching level, and security settings."
         },
         {
           "name": "Update Zone Setting",
-          "description": "Updates a specific zone setting such as SSL mode, security level, cache level, minification, or other configuration."
+          "description": "Updates a specific zone setting such as SSL mode, security level, cache level, or other configuration."
         },
         {
           "name": "DNS Analytics",
@@ -2864,7 +3633,7 @@
       "slug": "cloudformation",
       "name": "CloudFormation",
       "description": "Manage and inspect AWS CloudFormation stacks, resources, and drift",
-      "longDescription": "Integrate AWS CloudFormation into workflows. Describe stacks, list resources, detect drift, view stack events, retrieve templates, and validate templates. Requires AWS access key and secret access key.",
+      "longDescription": "Integrate AWS CloudFormation into workflows. Create, update, and delete stacks, preview changes with change sets, describe stacks, list resources, detect drift, view stack events, and retrieve or validate templates. Requires AWS access key and secret access key.",
       "bgColor": "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)",
       "iconName": "CloudFormationIcon",
       "docsUrl": "https://docs.sim.ai/integrations/cloudformation",
@@ -2872,6 +3641,34 @@
         {
           "name": "Describe Stacks",
           "description": "List and describe CloudFormation stacks"
+        },
+        {
+          "name": "Create Stack",
+          "description": "Create a new CloudFormation stack from a template"
+        },
+        {
+          "name": "Update Stack",
+          "description": "Update an existing CloudFormation stack with a new or previous template"
+        },
+        {
+          "name": "Delete Stack",
+          "description": "Delete a CloudFormation stack and its resources"
+        },
+        {
+          "name": "Cancel Update Stack",
+          "description": "Cancel an in-progress stack update and roll back to the last known stable state"
+        },
+        {
+          "name": "Create Change Set",
+          "description": "Preview the changes a stack create or update would make before applying them"
+        },
+        {
+          "name": "Describe Change Set",
+          "description": "View the resource changes a change set would make and its execution status"
+        },
+        {
+          "name": "Execute Change Set",
+          "description": "Apply a previously created and reviewed change set to its stack"
         },
         {
           "name": "List Stack Resources",
@@ -2894,11 +3691,15 @@
           "description": "Retrieve the template body for a CloudFormation stack"
         },
         {
+          "name": "Get Template Summary",
+          "description": "Get a summary of a template or deployed stack: resource types, required capabilities, and parameters, without full validation"
+        },
+        {
           "name": "Validate Template",
           "description": "Validate a CloudFormation template for syntax and structural correctness"
         }
       ],
-      "operationCount": 7,
+      "operationCount": 15,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -2921,6 +3722,10 @@
           "description": "Run a CloudWatch Log Insights query against one or more log groups"
         },
         {
+          "name": "Filter Log Events",
+          "description": "Search log events across all streams in a log group by filter pattern and time range, without writing a Log Insights query"
+        },
+        {
           "name": "Describe Log Groups",
           "description": "List available CloudWatch log groups"
         },
@@ -2931,6 +3736,10 @@
         {
           "name": "Describe Log Streams",
           "description": "List log streams within a CloudWatch log group"
+        },
+        {
+          "name": "Set Log Group Retention",
+          "description": "Set (or clear, for never-expire) the retention period for a CloudWatch log group"
         },
         {
           "name": "List Metrics",
@@ -2949,6 +3758,10 @@
           "description": "List and filter CloudWatch alarms"
         },
         {
+          "name": "Describe Alarm History",
+          "description": "Retrieve state-change and configuration history for CloudWatch alarms"
+        },
+        {
           "name": "Mute Alarm",
           "description": "Create a CloudWatch alarm mute rule that suppresses alarms for a fixed duration"
         },
@@ -2957,7 +3770,7 @@
           "description": "Delete a CloudWatch alarm mute rule, restoring alarm notifications"
         }
       ],
-      "operationCount": 10,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -2984,12 +3797,20 @@
           "description": "Get the current state of a CodePipeline pipeline, including stage and action status and pending approval tokens"
         },
         {
+          "name": "Get Pipeline Structure",
+          "description": "Get the structure of a CodePipeline pipeline, including its stages, actions, and variables"
+        },
+        {
           "name": "List Pipelines",
           "description": "List all CodePipeline pipelines in an AWS account and region"
         },
         {
           "name": "List Executions",
           "description": "List recent executions of a CodePipeline pipeline with status and source revisions"
+        },
+        {
+          "name": "List Action Executions",
+          "description": "List action-level execution history for a CodePipeline pipeline, including per-action status, timing, and error details"
         },
         {
           "name": "Get Execution",
@@ -3006,9 +3827,17 @@
         {
           "name": "Approve / Reject Approval",
           "description": "Approve or reject a pending CodePipeline manual approval action. The approval token is available from Get Pipeline State on the pending approval action"
+        },
+        {
+          "name": "Disable Stage Transition",
+          "description": "Prevent artifacts from transitioning into or out of a CodePipeline stage, freezing the pipeline at that point"
+        },
+        {
+          "name": "Enable Stage Transition",
+          "description": "Re-enable artifacts transitioning into or out of a CodePipeline stage after it was disabled"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 12,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -3419,23 +4248,11 @@
           "description": "Retrieve brand data for a public company by its stock ticker symbol."
         },
         {
-          "name": "Get Brand (Simplified)",
-          "description": "Retrieve essential brand data for a domain: title, colors, logos, and backdrops."
-        },
-        {
           "name": "Identify Transaction",
           "description": "Identify the brand behind a raw bank/card transaction descriptor and return its brand data."
-        },
-        {
-          "name": "Prefetch Domain",
-          "description": "Queue a domain for brand-data prefetching to reduce latency on later requests (subscribers; 0 credits)."
-        },
-        {
-          "name": "Prefetch by Email",
-          "description": "Queue an email's domain for brand-data prefetching to reduce later latency (subscribers; 0 credits). Free/disposable emails are rejected."
         }
       ],
-      "operationCount": 22,
+      "operationCount": 19,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4021,6 +4838,10 @@
           "description": "Delete a message from a Discord channel"
         },
         {
+          "name": "Bulk Delete Messages",
+          "description": "Delete 2-100 messages from a Discord channel in a single request"
+        },
+        {
           "name": "Add Reaction",
           "description": "Add a reaction emoji to a Discord message"
         },
@@ -4035,6 +4856,10 @@
         {
           "name": "Unpin Message",
           "description": "Unpin a message in a Discord channel"
+        },
+        {
+          "name": "Get Pinned Messages",
+          "description": "Retrieve all pinned messages in a Discord channel"
         },
         {
           "name": "Create Thread",
@@ -4069,6 +4894,10 @@
           "description": "Get information about a Discord channel"
         },
         {
+          "name": "List Channels",
+          "description": "List all channels in a Discord server"
+        },
+        {
           "name": "Create Role",
           "description": "Create a new role in a Discord server"
         },
@@ -4087,6 +4916,10 @@
         {
           "name": "Remove Role",
           "description": "Remove a role from a member in a Discord server"
+        },
+        {
+          "name": "List Roles",
+          "description": "List all roles in a Discord server"
         },
         {
           "name": "Kick Member",
@@ -4137,7 +4970,7 @@
           "description": "Delete a Discord webhook"
         }
       ],
-      "operationCount": 35,
+      "operationCount": 39,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4274,7 +5107,7 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
-      "tags": ["monitoring", "incident-management", "observability"]
+      "tags": ["monitoring", "incident-management"]
     },
     {
       "type": "dropbox",
@@ -4323,11 +5156,23 @@
           "description": "Create a shareable link for a file or folder in Dropbox"
         },
         {
+          "name": "List Shared Links",
+          "description": "List shared links for a path, or for the entire account if no path is given"
+        },
+        {
           "name": "Search Files",
           "description": "Search for files and folders in Dropbox"
+        },
+        {
+          "name": "List Revisions",
+          "description": "List the revision history for a file in Dropbox (files only, not folders)"
+        },
+        {
+          "name": "Restore File",
+          "description": "Restore a specific revision of a file to the given path"
         }
       ],
-      "operationCount": 10,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -4342,7 +5187,7 @@
       "name": "Dropcontact",
       "description": "Enrich B2B contacts with verified email, phone, and company data",
       "longDescription": "Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.",
-      "bgColor": "#0066FF",
+      "bgColor": "#0ABA9F",
       "iconName": "DropcontactIcon",
       "docsUrl": "https://docs.sim.ai/tools/dropcontact",
       "operations": [
@@ -4451,9 +5296,25 @@
         {
           "name": "Get QR Code",
           "description": "Generate a customizable QR code (PNG) for a short link, with control over size, error correction, colors, and margin."
+        },
+        {
+          "name": "List Domains",
+          "description": "Retrieve the custom domains registered in the workspace, so links can be created against the right domain."
+        },
+        {
+          "name": "List Tags",
+          "description": "Retrieve the tags defined in the workspace, so the right tag IDs can be assigned to links."
+        },
+        {
+          "name": "Create Tag",
+          "description": "Create a new tag in the workspace for organizing and filtering short links."
+        },
+        {
+          "name": "List Folders",
+          "description": "Retrieve the folders defined in the workspace, so the right folder ID can be used to organize links."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 17,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4554,13 +5415,54 @@
       "type": "elevenlabs",
       "slug": "elevenlabs",
       "name": "ElevenLabs",
-      "description": "Convert text to speech with ElevenLabs",
-      "longDescription": "Integrate ElevenLabs into the workflow. Can convert text to speech.",
+      "description": "Generate and transform audio with ElevenLabs",
+      "longDescription": "Integrate ElevenLabs into the workflow. Convert text to speech, generate sound effects, transform voices, isolate audio, and manage voices, models, and account settings.",
       "bgColor": "#181C1E",
       "iconName": "ElevenLabsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/elevenlabs",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Text to Speech",
+          "description": "Convert text to speech using ElevenLabs voices"
+        },
+        {
+          "name": "Sound Effects",
+          "description": "Generate a sound effect from a text prompt using ElevenLabs"
+        },
+        {
+          "name": "Speech to Speech",
+          "description": "Convert audio into a chosen ElevenLabs voice while preserving content and emotion"
+        },
+        {
+          "name": "Audio Isolation",
+          "description": "Remove background noise from an audio file, isolating the speech using ElevenLabs"
+        },
+        {
+          "name": "List Voices",
+          "description": "List the voices available in your ElevenLabs account"
+        },
+        {
+          "name": "Get Voice",
+          "description": "Get metadata and settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "Get Voice Settings",
+          "description": "Get the configured settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "Edit Voice Settings",
+          "description": "Update the settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "List Models",
+          "description": "List the models available in ElevenLabs"
+        },
+        {
+          "name": "Get User Info",
+          "description": "Get account and subscription information for the ElevenLabs user"
+        }
+      ],
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4966,6 +5868,10 @@
           "description": "List recent meetings recorded by the user or shared to their team."
         },
         {
+          "name": "List Meeting Types",
+          "description": "List meeting types configured in your Fathom organization."
+        },
+        {
           "name": "Get Summary",
           "description": "Get the call summary for a specific meeting recording."
         },
@@ -4982,7 +5888,7 @@
           "description": "List teams in your Fathom organization."
         }
       ],
-      "operationCount": 5,
+      "operationCount": 6,
       "triggers": [
         {
           "id": "fathom_new_meeting",
@@ -5079,12 +5985,28 @@
           "description": "Extract structured content from web pages with comprehensive metadata support. Converts content to markdown or HTML while capturing SEO metadata, Open Graph tags, and page information."
         },
         {
+          "name": "Batch Scrape",
+          "description": "Scrape multiple URLs in a single batch job and retrieve structured content from each page."
+        },
+        {
+          "name": "Batch Scrape Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl batch scrape job by its job ID."
+        },
+        {
           "name": "Search",
           "description": "Search for information on the web using Firecrawl"
         },
         {
           "name": "Crawl",
           "description": "Crawl entire websites and extract structured content from all accessible pages"
+        },
+        {
+          "name": "Crawl Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl crawl job by its job ID."
+        },
+        {
+          "name": "Cancel Crawl",
+          "description": "Cancel an in-progress Firecrawl crawl job by its job ID."
         },
         {
           "name": "Map",
@@ -5095,15 +6017,23 @@
           "description": "Extract structured data from entire webpages using natural language prompts and JSON schema. Powerful agentic feature for intelligent data extraction."
         },
         {
+          "name": "Extract Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl extract job by its job ID."
+        },
+        {
           "name": "Agent",
           "description": "Autonomous web data extraction agent. Searches and gathers information based on natural language prompts without requiring specific URLs."
         },
         {
           "name": "Parse Document",
           "description": "Parse uploaded documents (PDF, DOCX, HTML, etc.) into clean markdown using Firecrawl. Supports .html, .htm, .pdf, .docx, .doc, .odt, .rtf, .xlsx, .xls."
+        },
+        {
+          "name": "Credit Usage",
+          "description": "Retrieve the remaining and allocated Firecrawl credits for the team."
         }
       ],
-      "operationCount": 7,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -5175,6 +6105,37 @@
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["meeting", "note-taking"]
+    },
+    {
+      "type": "flint",
+      "slug": "flint",
+      "name": "Flint",
+      "description": "Run background agent tasks on your Flint sites",
+      "longDescription": "Create background agent tasks that modify your Flint sites from natural-language prompts, generate batches of pages from a template, and check task status and results.",
+      "bgColor": "#F6F54F",
+      "iconName": "FlintIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/flint",
+      "operations": [
+        {
+          "name": "Create Task",
+          "description": "Start a background Flint agent task that modifies a site from a natural-language prompt."
+        },
+        {
+          "name": "Generate Pages",
+          "description": "Start a background Flint agent task that generates up to 10 pages from a template page."
+        },
+        {
+          "name": "Get Task",
+          "description": "Get the status and results of a background Flint agent task."
+        }
+      ],
+      "operationCount": 3,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "marketing",
+      "tags": ["automation", "seo", "agentic"]
     },
     {
       "type": "gamma",
@@ -5290,6 +6251,10 @@
           "description": "Request reviewers for a pull request"
         },
         {
+          "name": "Create PR review",
+          "description": "Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A body is required for REQUEST_CHANGES and COMMENT reviews."
+        },
+        {
           "name": "Get file content",
           "description": "Get the content of a file from a GitHub repository. Supports files up to 1MB. Content is returned decoded and human-readable."
         },
@@ -5308,6 +6273,14 @@
         {
           "name": "Get directory tree",
           "description": "Get the contents of a directory in a GitHub repository. Returns a list of files and subdirectories. Use empty path or omit to get root directory contents."
+        },
+        {
+          "name": "Get README",
+          "description": "Get the preferred README for a GitHub repository, with its content decoded to plain text."
+        },
+        {
+          "name": "List tags",
+          "description": "List tags for a GitHub repository. Returns tag names with their commit SHA and download URLs."
         },
         {
           "name": "List branches",
@@ -5380,6 +6353,10 @@
         {
           "name": "Get release",
           "description": "Get detailed information about a specific GitHub release by ID. Returns release metadata including assets and download URLs."
+        },
+        {
+          "name": "Get latest release",
+          "description": "Get the latest published, non-draft, non-prerelease release for a GitHub repository. Returns release metadata including assets and download URLs."
         },
         {
           "name": "Delete release",
@@ -5558,7 +6535,7 @@
           "description": "List users who have starred a repository"
         }
       ],
-      "operationCount": 83,
+      "operationCount": 87,
       "triggers": [
         {
           "id": "github_issue_opened",
@@ -5737,6 +6714,14 @@
           "description": "Create a new branch in a GitLab project repository"
         },
         {
+          "name": "Delete Branch",
+          "description": "Delete a branch from a GitLab project repository"
+        },
+        {
+          "name": "Compare Branches",
+          "description": "Compare two branches, tags, or commits in a GitLab project repository"
+        },
+        {
           "name": "Get MR Changes",
           "description": "Get the file changes (diffs) of a GitLab merge request"
         },
@@ -5755,9 +6740,17 @@
         {
           "name": "Play Job",
           "description": "Trigger (play) a manual GitLab job"
+        },
+        {
+          "name": "List Releases",
+          "description": "List releases in a GitLab project"
+        },
+        {
+          "name": "Create Release",
+          "description": "Create a new release in a GitLab project"
         }
       ],
-      "operationCount": 31,
+      "operationCount": 35,
       "triggers": [
         {
           "id": "gitlab_push",
@@ -5957,8 +6950,32 @@
           "description": "List Gong Engage flows (sales engagement sequences)."
         },
         {
+          "name": "Assign Flow Prospects",
+          "description": "Assign up to 200 CRM prospects (contacts or leads) to a Gong Engage flow."
+        },
+        {
+          "name": "Unassign Flow Prospects",
+          "description": "Remove a prospect from Gong Engage flows. Omit the flow ID to remove the prospect from all flows they are assigned to."
+        },
+        {
+          "name": "Get Prospect Flows",
+          "description": "Get the Gong Engage flows currently assigned to the given CRM prospects."
+        },
+        {
           "name": "Get Coaching",
           "description": "Retrieve coaching metrics for a manager from Gong."
+        },
+        {
+          "name": "Ask Anything",
+          "description": "Ask a natural-language question about a CRM account, deal, contact, or lead. Gong answers from up to 60 calls and 500 emails associated with the entity. Consumes Gong credits."
+        },
+        {
+          "name": "Get Brief",
+          "description": "Generate an AI brief (configured in Gong Agent Studio) for a CRM account, deal, contact, or lead. Consumes Gong credits."
+        },
+        {
+          "name": "Get Logs",
+          "description": "Retrieve Gong log entries of a specific type within a time range."
         },
         {
           "name": "Lookup Email",
@@ -5967,9 +6984,17 @@
         {
           "name": "Lookup Phone",
           "description": "Find all references to a phone number in Gong (calls, email messages, meetings, CRM data, and associated contacts)."
+        },
+        {
+          "name": "Purge Email Address",
+          "description": "Erase all Gong data (calls, email messages, leads, contacts) referencing an email address. Asynchronous and irreversible."
+        },
+        {
+          "name": "Purge Phone Number",
+          "description": "Erase all Gong data (calls, leads, contacts) referencing a phone number. Asynchronous and irreversible."
         }
       ],
-      "operationCount": 21,
+      "operationCount": 29,
       "triggers": [
         {
           "id": "gong_webhook",
@@ -6033,6 +7058,41 @@
       "tags": ["marketing", "google-workspace", "data-analytics"]
     },
     {
+      "type": "google_appsheet",
+      "slug": "google-appsheet",
+      "name": "Google AppSheet",
+      "description": "Read, add, edit, and delete rows in a Google AppSheet table",
+      "longDescription": "Integrate Google AppSheet into your workflow. Find, add, edit, and delete rows in an AppSheet table using the AppSheet API. Requires an AppSheet Enterprise plan with the API enabled and an Application Access Key.",
+      "bgColor": "#FFFFFF",
+      "iconName": "GoogleAppsheetIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/google_appsheet",
+      "operations": [
+        {
+          "name": "Find Rows",
+          "description": "Read rows from an AppSheet table. Omit the selector to return every row, or provide a Selector expression (Filter/Select/OrderBy/Top) to narrow and shape the results."
+        },
+        {
+          "name": "Add Rows",
+          "description": "Add new rows to an AppSheet table. The key column value must be provided explicitly, or omitted when its Initial value expression generates it automatically (e.g. UNIQUEID())."
+        },
+        {
+          "name": "Edit Rows",
+          "description": "Update existing rows in an AppSheet table. Each row must explicitly include the key column name and value, plus any columns to change."
+        },
+        {
+          "name": "Delete Rows",
+          "description": "Delete rows from an AppSheet table. Each row only needs to include the key column name and value."
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["spreadsheet", "automation", "google-workspace"]
+    },
+    {
       "type": "google_bigquery",
       "slug": "google-bigquery",
       "name": "Google BigQuery",
@@ -6047,8 +7107,20 @@
           "description": "Run a SQL query against Google BigQuery and return the results"
         },
         {
+          "name": "Get Query Results",
+          "description": "Fetch results for a previously submitted BigQuery job, or the next page of a Run Query result"
+        },
+        {
           "name": "List Datasets",
           "description": "List all datasets in a Google BigQuery project"
+        },
+        {
+          "name": "Create Dataset",
+          "description": "Create a new dataset in a Google BigQuery project"
+        },
+        {
+          "name": "Delete Dataset",
+          "description": "Delete a dataset from a Google BigQuery project"
         },
         {
           "name": "List Tables",
@@ -6059,11 +7131,23 @@
           "description": "Get metadata and schema for a Google BigQuery table"
         },
         {
+          "name": "Create Table",
+          "description": "Create a new table in a Google BigQuery dataset"
+        },
+        {
+          "name": "Delete Table",
+          "description": "Delete a table from a Google BigQuery dataset"
+        },
+        {
+          "name": "List Table Data",
+          "description": "Preview rows from a Google BigQuery table without running a query. Pair with Get Table to know the column order."
+        },
+        {
           "name": "Insert Rows",
           "description": "Insert rows into a Google BigQuery table using streaming insert"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -6158,8 +7242,20 @@
           "description": "Create a new secondary calendar"
         },
         {
+          "name": "Update Calendar",
+          "description": "Update a secondary calendar's metadata (title, description, location, time zone)"
+        },
+        {
+          "name": "Delete Calendar",
+          "description": "Permanently delete a secondary calendar (not the primary calendar)"
+        },
+        {
           "name": "Share Calendar",
           "description": "Grant a user, group, or domain access to a calendar by creating an ACL rule"
+        },
+        {
+          "name": "Update Sharing",
+          "description": "Change the access role granted by an existing calendar sharing (ACL) rule"
         },
         {
           "name": "List Sharing",
@@ -6170,7 +7266,7 @@
           "description": "Revoke an access control rule (sharing) from a calendar"
         }
       ],
-      "operationCount": 15,
+      "operationCount": 18,
       "triggers": [
         {
           "id": "google_calendar_poller",
@@ -6233,8 +7329,8 @@
       "type": "google_docs",
       "slug": "google-docs",
       "name": "Google Docs",
-      "description": "Read, write, and create documents",
-      "longDescription": "Integrate Google Docs into the workflow. Can read, write, and create documents.",
+      "description": "Read, write, create, and edit documents",
+      "longDescription": "Integrate Google Docs into the workflow. Read, write, and create documents, insert text, tables, images, and page breaks, find and replace text, and apply text styling.",
       "bgColor": "#FFFFFF",
       "iconName": "GoogleDocsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/google_docs",
@@ -6250,9 +7346,57 @@
         {
           "name": "Create Document",
           "description": "Create a new Google Docs document"
+        },
+        {
+          "name": "Insert Text",
+          "description": "Insert text at a specific index in a Google Docs document. When no index is provided, text is appended to the end of the document. Text is inserted literally; Markdown is not interpreted."
+        },
+        {
+          "name": "Find & Replace Text",
+          "description": "Replace all occurrences of a search string with new text across a Google Docs document."
+        },
+        {
+          "name": "Insert Table",
+          "description": "Insert an empty table with the given number of rows and columns into a Google Docs document. When no index is provided, the table is appended to the end of the document."
+        },
+        {
+          "name": "Insert Image",
+          "description": "Insert an inline image from a public URL into a Google Docs document. The image must be publicly accessible and under 50 MB. When no index is provided, the image is appended to the end of the document."
+        },
+        {
+          "name": "Insert Page Break",
+          "description": "Insert a page break into a Google Docs document. When no index is provided, the page break is appended to the end of the document."
+        },
+        {
+          "name": "Apply Text Style",
+          "description": "Apply bold, italic, underline, and/or font size to a range of text in a Google Docs document, identified by its start and end character index."
+        },
+        {
+          "name": "Apply Paragraph Style",
+          "description": "Apply a named paragraph style (such as a heading or title) and/or alignment to the paragraphs overlapping a range of text in a Google Docs document, identified by its start and end character index."
+        },
+        {
+          "name": "Create Bullets",
+          "description": "Add bulleted or numbered list formatting to the paragraphs overlapping a range of text in a Google Docs document, using a chosen bullet glyph preset."
+        },
+        {
+          "name": "Delete Bullets",
+          "description": "Remove bullet or numbered list formatting from the paragraphs overlapping a range of text in a Google Docs document, identified by its start and end character index."
+        },
+        {
+          "name": "Delete Content Range",
+          "description": "Delete all content between a start and end character index in a Google Docs document. The endIndex is exclusive and must be greater than the startIndex."
+        },
+        {
+          "name": "Create Named Range",
+          "description": "Create a named range over a span of content in a Google Docs document so it can be referenced or deleted later. The name may be 1-256 characters and need not be unique."
+        },
+        {
+          "name": "Delete Named Range",
+          "description": "Delete one or more named ranges from a Google Docs document by their ID or by name. Provide exactly one of namedRangeId or name; deleting by name removes all ranges sharing that name. The content itself is not removed."
         }
       ],
-      "operationCount": 3,
+      "operationCount": 15,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -6340,11 +7484,35 @@
           "description": "List all permissions (who has access) for a file in Google Drive"
         },
         {
+          "name": "Export File",
+          "description": "Export a Google Workspace file (Docs, Sheets, Slides, Drawings) to a chosen format such as PDF, DOCX, XLSX, or CSV"
+        },
+        {
+          "name": "List Revisions",
+          "description": "List the revision history of a file in Google Drive"
+        },
+        {
+          "name": "Get Revision",
+          "description": "Get metadata for a specific revision of a file in Google Drive"
+        },
+        {
+          "name": "List Comments",
+          "description": "List comments on a file in Google Drive"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Add a comment to a file in Google Drive"
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete a comment from a file in Google Drive"
+        },
+        {
           "name": "Get Drive Info",
           "description": "Get information about the user and their Google Drive (storage quota, capabilities)"
         }
       ],
-      "operationCount": 18,
+      "operationCount": 24,
       "triggers": [
         {
           "id": "google_drive_poller",
@@ -6536,6 +7704,10 @@
           "description": "Search for places using a text query"
         },
         {
+          "name": "Nearby Places",
+          "description": "Search for places of a given type within a radius of a location"
+        },
+        {
           "name": "Place Details",
           "description": "Get detailed information about a specific place"
         },
@@ -6576,7 +7748,7 @@
           "description": "Get solar potential and panel insights for the building nearest a location"
         }
       ],
-      "operationCount": 15,
+      "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -7049,11 +8221,11 @@
       "type": "google_vault",
       "slug": "google-vault",
       "name": "Google Vault",
-      "description": "Search, export, and manage holds/exports for Vault matters",
-      "longDescription": "Connect Google Vault to create exports, list exports, and manage holds within matters.",
+      "description": "Search, export, and manage matters, holds, exports, and saved queries in Vault",
+      "longDescription": "Connect Google Vault to manage the full matter lifecycle, create and manage holds and exports, and save reusable search queries for eDiscovery and compliance.",
       "bgColor": "#E8F0FE",
       "iconName": "GoogleVaultIcon",
-      "docsUrl": "https://developers.google.com/vault",
+      "docsUrl": "https://docs.sim.ai/integrations/google_vault",
       "operations": [
         {
           "name": "Create Export",
@@ -7062,6 +8234,10 @@
         {
           "name": "List Exports",
           "description": "List exports for a matter"
+        },
+        {
+          "name": "Delete Export",
+          "description": "Delete an export from a matter"
         },
         {
           "name": "Download Export File",
@@ -7076,15 +8252,71 @@
           "description": "List holds for a matter"
         },
         {
+          "name": "Update Hold",
+          "description": "Replace the name, query, and scope of an existing hold. This is a full-resource update: fetch the current hold first (Vault List Holds) and resupply every field you want to keep — any field left blank is cleared, not left unchanged."
+        },
+        {
+          "name": "Delete Hold",
+          "description": "Delete a hold and release its covered accounts"
+        },
+        {
+          "name": "Add Held Accounts",
+          "description": "Add accounts to an existing hold"
+        },
+        {
+          "name": "Remove Held Accounts",
+          "description": "Remove accounts from an existing hold"
+        },
+        {
           "name": "Create Matter",
           "description": "Create a new matter in Google Vault"
         },
         {
           "name": "List Matters",
           "description": "List matters, or get a specific matter if matterId is provided"
+        },
+        {
+          "name": "Update Matter",
+          "description": "Update the name and/or description of a matter"
+        },
+        {
+          "name": "Close Matter",
+          "description": "Close a matter"
+        },
+        {
+          "name": "Reopen Matter",
+          "description": "Reopen a closed matter"
+        },
+        {
+          "name": "Delete Matter",
+          "description": "Permanently delete a matter (must be closed first)"
+        },
+        {
+          "name": "Undelete Matter",
+          "description": "Restore a deleted matter"
+        },
+        {
+          "name": "Add Matter Collaborator",
+          "description": "Add a collaborator (or transfer ownership) to a matter"
+        },
+        {
+          "name": "Remove Matter Collaborator",
+          "description": "Remove a collaborator from a matter"
+        },
+        {
+          "name": "Create Saved Query",
+          "description": "Save a reusable search query in a matter"
+        },
+        {
+          "name": "List Saved Queries",
+          "description": "List saved queries in a matter, or get a specific one if savedQueryId is provided"
+        },
+        {
+          "name": "Delete Saved Query",
+          "description": "Delete a saved query from a matter"
         }
       ],
-      "operationCount": 7,
+      "operationCount": 22,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -7099,7 +8331,7 @@
       "name": "Grafana",
       "description": "Interact with Grafana dashboards, alerts, and annotations",
       "longDescription": "Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data sources, folders, and monitor health status.",
-      "bgColor": "#F46800",
+      "bgColor": "#FFFFFF",
       "iconName": "GrafanaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/grafana",
       "operations": [
@@ -7213,7 +8445,7 @@
       "tags": ["monitoring", "data-analytics"]
     },
     {
-      "type": "grain",
+      "type": "grain_v2",
       "slug": "grain",
       "name": "Grain",
       "description": "Access meeting recordings, transcripts, and AI summaries",
@@ -7235,10 +8467,6 @@
           "description": "Get the full transcript of a recording"
         },
         {
-          "name": "List Views",
-          "description": "List available Grain views for webhook subscriptions"
-        },
-        {
           "name": "List Teams",
           "description": "List all teams in the workspace"
         },
@@ -7248,61 +8476,76 @@
         },
         {
           "name": "Create Webhook",
-          "description": "Create a webhook to receive recording events"
+          "description": "Create a webhook for a specific Grain event type (v2 API)"
         },
         {
           "name": "List Webhooks",
-          "description": "List all webhooks for the account"
+          "description": "List webhooks for the account (v2 API)"
         },
         {
           "name": "Delete Webhook",
-          "description": "Delete a webhook by ID"
+          "description": "Delete a webhook by ID (v2 API)"
         }
       ],
-      "operationCount": 9,
+      "operationCount": 8,
       "triggers": [
         {
-          "id": "grain_item_added",
-          "name": "Grain Item Added",
-          "description": "Trigger when a new item is added to a Grain view (recording, highlight, or story)"
+          "id": "grain_recording_added_v2",
+          "name": "Grain Recording Added",
+          "description": "Trigger when a new recording is added in Grain"
         },
         {
-          "id": "grain_item_updated",
-          "name": "Grain Item Updated",
-          "description": "Trigger when an item is updated in a Grain view (recording, highlight, or story)"
-        },
-        {
-          "id": "grain_webhook",
-          "name": "Grain All Events",
-          "description": "Trigger on all actions (added, updated, removed) in a Grain view"
-        },
-        {
-          "id": "grain_recording_created",
-          "name": "Grain Recording Created",
-          "description": "Trigger workflow when a new recording is added in Grain"
-        },
-        {
-          "id": "grain_recording_updated",
+          "id": "grain_recording_updated_v2",
           "name": "Grain Recording Updated",
-          "description": "Trigger workflow when a recording is updated in Grain"
+          "description": "Trigger when a recording is updated in Grain"
         },
         {
-          "id": "grain_highlight_created",
-          "name": "Grain Highlight Created",
-          "description": "Trigger workflow when a new highlight/clip is created in Grain"
+          "id": "grain_recording_deleted_v2",
+          "name": "Grain Recording Deleted",
+          "description": "Trigger when a recording is deleted in Grain"
         },
         {
-          "id": "grain_highlight_updated",
+          "id": "grain_highlight_added_v2",
+          "name": "Grain Highlight Added",
+          "description": "Trigger when a new highlight/clip is created in Grain"
+        },
+        {
+          "id": "grain_highlight_updated_v2",
           "name": "Grain Highlight Updated",
-          "description": "Trigger workflow when a highlight/clip is updated in Grain"
+          "description": "Trigger when a highlight/clip is updated in Grain"
         },
         {
-          "id": "grain_story_created",
-          "name": "Grain Story Created",
-          "description": "Trigger workflow when a new story is created in Grain"
+          "id": "grain_highlight_deleted_v2",
+          "name": "Grain Highlight Deleted",
+          "description": "Trigger when a highlight/clip is deleted in Grain"
+        },
+        {
+          "id": "grain_story_added_v2",
+          "name": "Grain Story Added",
+          "description": "Trigger when a new story is created in Grain"
+        },
+        {
+          "id": "grain_story_updated_v2",
+          "name": "Grain Story Updated",
+          "description": "Trigger when a story is updated in Grain"
+        },
+        {
+          "id": "grain_story_deleted_v2",
+          "name": "Grain Story Deleted",
+          "description": "Trigger when a story is deleted in Grain"
+        },
+        {
+          "id": "grain_upload_status_v2",
+          "name": "Grain Upload Status",
+          "description": "Trigger on progress updates for recordings uploaded to Grain"
+        },
+        {
+          "id": "grain_all_events_v2",
+          "name": "Grain All Events",
+          "description": "Trigger on every Grain event (recordings, highlights, stories, uploads)"
         }
       ],
-      "triggerCount": 8,
+      "triggerCount": 11,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "productivity",
@@ -7483,7 +8726,7 @@
       "slug": "hex",
       "name": "Hex",
       "description": "Run and manage Hex projects",
-      "longDescription": "Integrate Hex into your workflow. Run projects, check run status, manage collections and groups, list users, and view data connections. Requires a Hex API token.",
+      "longDescription": "Integrate Hex into your workflow. Run projects, check run status, manage collections and groups (including membership and deactivating users), list users, and view data connections. Requires a Hex API token.",
       "bgColor": "#14151A",
       "iconName": "HexIcon",
       "docsUrl": "https://docs.sim.ai/integrations/hex",
@@ -7545,15 +8788,35 @@
           "description": "Create a new collection in the Hex workspace to organize projects."
         },
         {
+          "name": "Update Collection",
+          "description": "Update the name or description of an existing Hex collection."
+        },
+        {
           "name": "List Data Connections",
           "description": "List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, BigQuery)."
         },
         {
           "name": "Get Data Connection",
           "description": "Retrieve details for a specific data connection including type, description, and configuration flags."
+        },
+        {
+          "name": "Create Group",
+          "description": "Create a new group in the Hex workspace, optionally with initial members."
+        },
+        {
+          "name": "Update Group",
+          "description": "Rename a Hex group or add/remove members from it."
+        },
+        {
+          "name": "Delete Group",
+          "description": "Delete a group from the Hex workspace."
+        },
+        {
+          "name": "Deactivate User",
+          "description": "Deactivate a user in the Hex workspace."
         }
       ],
-      "operationCount": 16,
+      "operationCount": 21,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -8023,8 +9286,29 @@
         }
       ],
       "operationCount": 46,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "incidentio_incident_created",
+          "name": "incident.io Incident Created",
+          "description": "Trigger workflow when an incident is created in incident.io"
+        },
+        {
+          "id": "incidentio_incident_updated",
+          "name": "incident.io Incident Updated",
+          "description": "Trigger workflow when an incident is updated in incident.io"
+        },
+        {
+          "id": "incidentio_incident_status_updated",
+          "name": "incident.io Incident Status Updated",
+          "description": "Trigger workflow when an incident"
+        },
+        {
+          "id": "incidentio_alert_created",
+          "name": "incident.io Alert Created",
+          "description": "Trigger workflow when an alert is created in incident.io"
+        }
+      ],
+      "triggerCount": 4,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -8074,7 +9358,7 @@
       "slug": "instantly",
       "name": "Instantly",
       "description": "Manage Instantly leads, campaigns, emails, and lead lists",
-      "longDescription": "Integrate Instantly API V2 into workflows. Create and list leads, manage lead interest status, delete leads in bulk, list and create campaigns, reply to emails, and manage lead lists.",
+      "longDescription": "Integrate Instantly API V2 into workflows. Create, update, and list leads, manage lead interest status, delete leads in bulk, list, create, patch, activate, pause, and delete campaigns, reply to emails, and manage lead lists.",
       "bgColor": "#FFFFFF",
       "iconName": "InstantlyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/instantly",
@@ -8090,6 +9374,10 @@
         {
           "name": "Create Lead",
           "description": "Creates an Instantly V2 lead in a campaign or lead list."
+        },
+        {
+          "name": "Patch Lead",
+          "description": "Updates fields on an existing Instantly V2 lead."
         },
         {
           "name": "Delete Leads",
@@ -8116,6 +9404,14 @@
           "description": "Activates, starts, or resumes an Instantly V2 campaign."
         },
         {
+          "name": "Pause Campaign",
+          "description": "Pauses a running Instantly V2 campaign, stopping further email sends."
+        },
+        {
+          "name": "Delete Campaign",
+          "description": "Permanently deletes an Instantly V2 campaign."
+        },
+        {
           "name": "List Emails",
           "description": "Retrieves Instantly V2 Unibox emails with search and pagination filters."
         },
@@ -8132,7 +9428,7 @@
           "description": "Creates an Instantly V2 lead list."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 16,
       "triggers": [
         {
           "id": "instantly_webhook",
@@ -8551,9 +9847,29 @@
         {
           "name": "Search Users",
           "description": "Search for Jira users by email address or display name. Returns matching users with their accountId, displayName, and emailAddress."
+        },
+        {
+          "name": "List Projects",
+          "description": "List Jira projects visible to the user, with optional name/key filtering and pagination. Returns each project with id, key, name, and type."
+        },
+        {
+          "name": "Get Project",
+          "description": "Get the details of a single Jira project by its ID or key, including its type, lead, components, issue types, and versions."
+        },
+        {
+          "name": "Get Transitions",
+          "description": "Get the workflow transitions available for an issue in its current status. Use the returned transition IDs with the Transition Issue operation."
+        },
+        {
+          "name": "List Issue Types",
+          "description": "List all issue types visible to the user across projects (e.g., Task, Bug, Story, Epic, Subtask). Useful for discovering valid issue types before creating an issue."
+        },
+        {
+          "name": "Get Fields",
+          "description": "Get all system and custom fields defined in the Jira instance. Useful for discovering custom field IDs (e.g., customfield_10001) to use when writing or updating issues."
         }
       ],
-      "operationCount": 25,
+      "operationCount": 30,
       "triggers": [
         {
           "id": "jira_issue_created",
@@ -8857,6 +10173,89 @@
       "tags": ["customer-support", "ticketing", "incident-management"]
     },
     {
+      "type": "jupyter",
+      "slug": "jupyter",
+      "name": "Jupyter",
+      "description": "Manage files, notebooks, kernels, and sessions on a Jupyter server",
+      "longDescription": "Integrate a self-hosted Jupyter server into the workflow. Browse, read, create, upload, rename, copy, and delete files and notebooks; start, stop, restart, and interrupt kernels; and manage sessions that bind notebooks to kernels.",
+      "bgColor": "#FFFFFF",
+      "iconName": "JupyterIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/jupyter",
+      "operations": [
+        {
+          "name": "List Contents",
+          "description": "List files, notebooks, and subdirectories at a path on a Jupyter server"
+        },
+        {
+          "name": "Get Content",
+          "description": "Read a file or notebook from a Jupyter server"
+        },
+        {
+          "name": "Create File",
+          "description": "Create a file, notebook, or directory on a Jupyter server"
+        },
+        {
+          "name": "Upload File",
+          "description": "Upload a file to a Jupyter server"
+        },
+        {
+          "name": "Rename Content",
+          "description": "Rename or move a file, notebook, or directory on a Jupyter server"
+        },
+        {
+          "name": "Delete Content",
+          "description": "Delete a file, notebook, or directory on a Jupyter server"
+        },
+        {
+          "name": "Copy Content",
+          "description": "Duplicate a file or notebook into a directory on a Jupyter server"
+        },
+        {
+          "name": "List Kernels",
+          "description": "List running kernels on a Jupyter server"
+        },
+        {
+          "name": "Start Kernel",
+          "description": "Start a new kernel on a Jupyter server"
+        },
+        {
+          "name": "Stop Kernel",
+          "description": "Shut down a running kernel on a Jupyter server"
+        },
+        {
+          "name": "Restart Kernel",
+          "description": "Restart a running kernel on a Jupyter server"
+        },
+        {
+          "name": "Interrupt Kernel",
+          "description": "Interrupt a running kernel on a Jupyter server"
+        },
+        {
+          "name": "List Kernel Specs",
+          "description": "List available kernel specs (languages/runtimes) on a Jupyter server"
+        },
+        {
+          "name": "List Sessions",
+          "description": "List active sessions (notebook-to-kernel bindings) on a Jupyter server"
+        },
+        {
+          "name": "Create Session",
+          "description": "Create a session that binds a notebook path to a (new or existing) kernel"
+        },
+        {
+          "name": "Delete Session",
+          "description": "Delete a session on a Jupyter server (does not shut down its kernel)"
+        }
+      ],
+      "operationCount": 16,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["automation", "data-analytics"]
+    },
+    {
       "type": "kalshi_v2",
       "slug": "kalshi",
       "name": "Kalshi",
@@ -9019,9 +10418,21 @@
         {
           "name": "Create Runs Batch",
           "description": "Forward multiple runs to LangSmith in a single batch."
+        },
+        {
+          "name": "Update Run",
+          "description": "Patch an existing LangSmith run with outputs, status, or timing once it completes."
+        },
+        {
+          "name": "Get Run",
+          "description": "Retrieve a single LangSmith run by ID."
+        },
+        {
+          "name": "Create Feedback",
+          "description": "Attach a score, correction, or comment to a LangSmith run."
         }
       ],
-      "operationCount": 2,
+      "operationCount": 5,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -9749,7 +11160,7 @@
         },
         {
           "name": "Mark Chat as Read",
-          "description": "Mark all messages in a chat as read"
+          "description": "Mark messages in a chat as read (only applies to 1:1 iMessage/RCS; no effect on group chats)"
         },
         {
           "name": "Leave Chat",
@@ -9865,8 +11276,39 @@
         }
       ],
       "operationCount": 34,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "linq_message_received",
+          "name": "Linq Message Received",
+          "description": "Trigger workflow when an inbound message is received"
+        },
+        {
+          "id": "linq_message_delivered",
+          "name": "Linq Message Delivered",
+          "description": "Trigger workflow when a message is delivered"
+        },
+        {
+          "id": "linq_message_failed",
+          "name": "Linq Message Failed",
+          "description": "Trigger workflow when a message fails to deliver"
+        },
+        {
+          "id": "linq_message_read",
+          "name": "Linq Message Read",
+          "description": "Trigger workflow when a message is read"
+        },
+        {
+          "id": "linq_reaction_added",
+          "name": "Linq Reaction Added",
+          "description": "Trigger workflow when a reaction is added to a message"
+        },
+        {
+          "id": "linq_webhook",
+          "name": "Linq Webhook (All Events)",
+          "description": "Trigger on any Linq webhook event (messages, reactions, chats, and more)"
+        }
+      ],
+      "triggerCount": 6,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
@@ -9912,7 +11354,7 @@
         },
         {
           "name": "List Transactional Emails",
-          "description": "Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, last updated timestamp, and data variables."
+          "description": "Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, created/updated timestamps, and data variables."
         },
         {
           "name": "Create Contact Property",
@@ -9921,11 +11363,64 @@
         {
           "name": "List Contact Properties",
           "description": "Retrieve a list of contact properties from your Loops account. Returns each property with its key, label, and data type. Can filter to show all properties or only custom ones."
+        },
+        {
+          "name": "Check Contact Suppression",
+          "description": "Check whether a Loops contact is on the suppression list (bounced, complained, or unsubscribed) by email address or userId."
+        },
+        {
+          "name": "Remove Contact Suppression",
+          "description": "Remove a Loops contact from the suppression list by email address or userId, allowing them to receive emails again. Subject to a team removal quota."
+        },
+        {
+          "name": "Get Transactional Email",
+          "description": "Retrieve a single transactional email template from your Loops account by its ID, including its data variables and draft/published message IDs."
         }
       ],
-      "operationCount": 10,
-      "triggers": [],
-      "triggerCount": 0,
+      "operationCount": 13,
+      "triggers": [
+        {
+          "id": "loops_email_delivered",
+          "name": "Loops Email Delivered",
+          "description": "Trigger workflow when a Loops email is delivered"
+        },
+        {
+          "id": "loops_email_opened",
+          "name": "Loops Email Opened",
+          "description": "Trigger workflow when a Loops email is opened"
+        },
+        {
+          "id": "loops_email_clicked",
+          "name": "Loops Email Clicked",
+          "description": "Trigger workflow when a link in a Loops email is clicked"
+        },
+        {
+          "id": "loops_email_hard_bounced",
+          "name": "Loops Email Hard Bounced",
+          "description": "Trigger workflow when a Loops email hard bounces"
+        },
+        {
+          "id": "loops_email_soft_bounced",
+          "name": "Loops Email Soft Bounced",
+          "description": "Trigger workflow when a Loops email soft bounces"
+        },
+        {
+          "id": "loops_campaign_email_sent",
+          "name": "Loops Campaign Email Sent",
+          "description": "Trigger workflow when a Loops campaign email is sent"
+        },
+        {
+          "id": "loops_loop_email_sent",
+          "name": "Loops Loop Email Sent",
+          "description": "Trigger workflow when a Loops loop email is sent"
+        },
+        {
+          "id": "loops_transactional_email_sent",
+          "name": "Loops Transactional Email Sent",
+          "description": "Trigger workflow when a Loops transactional email is sent"
+        }
+      ],
+      "triggerCount": 8,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
@@ -10392,7 +11887,7 @@
       "slug": "microsoft-dataverse",
       "name": "Microsoft Dataverse",
       "description": "Manage records in Microsoft Dataverse tables",
-      "longDescription": "Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, and relevance search. Works with Dynamics 365, Power Platform, and custom Dataverse environments.",
+      "longDescription": "Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, relevance search, and table metadata lookup. Works with Dynamics 365, Power Platform, and custom Dataverse environments.",
       "bgColor": "#FFFFFF",
       "iconName": "MicrosoftDataverseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/microsoft_dataverse",
@@ -10451,7 +11946,7 @@
         },
         {
           "name": "Download File",
-          "description": "Download a file from a file or image column on a Dataverse record. Returns the file content as a base64-encoded string along with file metadata from response headers."
+          "description": "Download a file from a file or image column on a Dataverse record. Stores the file in execution storage and returns a file reference, plus the base64 content and metadata directly."
         },
         {
           "name": "Associate Records",
@@ -10462,11 +11957,15 @@
           "description": "Remove an association between two records in Microsoft Dataverse. For collection-valued navigation properties, provide the target record ID. For single-valued navigation properties, only the navigation property name is needed."
         },
         {
+          "name": "Get Table Metadata",
+          "description": "Retrieve table (entity) and column (attribute) definitions for a Microsoft Dataverse table by its singular logical name. Use this to look up the correct entity set name and column logical names before building record data for other operations."
+        },
+        {
           "name": "WhoAmI",
           "description": "Retrieve the current authenticated user information from Microsoft Dataverse. Useful for testing connectivity and getting the user ID, business unit ID, and organization ID."
         }
       ],
-      "operationCount": 17,
+      "operationCount": 18,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -10492,9 +11991,29 @@
         {
           "name": "Write Data",
           "description": "Write data to a Microsoft Excel spreadsheet"
+        },
+        {
+          "name": "Clear Range",
+          "description": "Clear the values and/or formatting of a range in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Format Range",
+          "description": "Apply fill color and/or font formatting to a range in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Create Table",
+          "description": "Create a new table over a range of cells in a Microsoft Excel workbook"
+        },
+        {
+          "name": "Sort Range",
+          "description": "Sort a range or table by a column in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Delete Worksheet",
+          "description": "Delete a worksheet (sheet) from a Microsoft Excel workbook"
         }
       ],
-      "operationCount": 2,
+      "operationCount": 7,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -10538,6 +12057,26 @@
           "description": "Get details of a specific Microsoft Planner plan"
         },
         {
+          "name": "Create Plan",
+          "description": "Create a new Microsoft Planner plan owned by a Microsoft 365 group"
+        },
+        {
+          "name": "Update Plan",
+          "description": "Rename a Microsoft Planner plan"
+        },
+        {
+          "name": "Get Plan Details",
+          "description": "Get detailed information about a plan including category descriptions and sharing"
+        },
+        {
+          "name": "Update Plan Details",
+          "description": "Update a plan's category (color label) descriptions and shared-with user list in Microsoft Planner"
+        },
+        {
+          "name": "Delete Plan",
+          "description": "Delete a Microsoft Planner plan"
+        },
+        {
           "name": "List Buckets",
           "description": "List all buckets in a Microsoft Planner plan"
         },
@@ -10566,7 +12105,7 @@
           "description": "Update task details including description, checklist items, and references in Microsoft Planner"
         }
       ],
-      "operationCount": 13,
+      "operationCount": 18,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -10580,7 +12119,7 @@
       "slug": "microsoft-teams",
       "name": "Microsoft Teams",
       "description": "Manage messages, reactions, and members in Teams",
-      "longDescription": "Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list team/channel members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`",
+      "longDescription": "Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list teams, chats, channels, and their members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`",
       "bgColor": "#FFFFFF",
       "iconName": "MicrosoftTeamsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/microsoft_teams",
@@ -10640,17 +12179,38 @@
         {
           "name": "List Channel Members",
           "description": "List all members of a Microsoft Teams channel"
+        },
+        {
+          "name": "List Chat Members",
+          "description": "List all members of a Microsoft Teams chat"
+        },
+        {
+          "name": "List Teams",
+          "description": "List the Microsoft Teams the current user is a direct member of"
+        },
+        {
+          "name": "List Chats",
+          "description": "List the Microsoft Teams chats the current user is part of"
+        },
+        {
+          "name": "List Channels",
+          "description": "List all channels in a Microsoft Teams team"
         }
       ],
-      "operationCount": 14,
+      "operationCount": 18,
       "triggers": [
         {
           "id": "microsoftteams_webhook",
           "name": "Microsoft Teams Channel",
           "description": "Trigger workflow from Microsoft Teams channel messages via outgoing webhooks"
+        },
+        {
+          "id": "microsoftteams_chat_subscription",
+          "name": "Microsoft Teams Chat",
+          "description": "Trigger workflow from new messages in Microsoft Teams chats via Microsoft Graph subscriptions"
         }
       ],
-      "triggerCount": 1,
+      "triggerCount": 2,
       "authType": "oauth",
       "oauthServiceId": "microsoft-teams",
       "category": "tools",
@@ -10741,6 +12301,14 @@
           "description": "Update column values of an item on a Monday.com board"
         },
         {
+          "name": "Change Column Value",
+          "description": "Update a single column's value on a Monday.com item"
+        },
+        {
+          "name": "Duplicate Item",
+          "description": "Duplicate an existing item on a Monday.com board"
+        },
+        {
           "name": "Delete Item",
           "description": "Delete an item from a Monday.com board"
         },
@@ -10763,9 +12331,21 @@
         {
           "name": "Create Group",
           "description": "Create a new group on a Monday.com board"
+        },
+        {
+          "name": "Get Groups",
+          "description": "Get the groups on a Monday.com board"
+        },
+        {
+          "name": "Create Board",
+          "description": "Create a new board in Monday.com"
+        },
+        {
+          "name": "Create Column",
+          "description": "Create a new column on a Monday.com board"
         }
       ],
-      "operationCount": 13,
+      "operationCount": 18,
       "triggers": [
         {
           "id": "monday_item_created",
@@ -10903,7 +12483,8 @@
       "triggerCount": 0,
       "authType": "none",
       "category": "tools",
-      "integrationType": "databases"
+      "integrationType": "databases",
+      "tags": ["data-analytics"]
     },
     {
       "type": "neo4j",
@@ -11253,8 +12834,8 @@
       "type": "onedrive",
       "slug": "onedrive",
       "name": "OneDrive",
-      "description": "Create, upload, download, list, and delete files",
-      "longDescription": "Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list files, and delete files or folders.",
+      "description": "Create, upload, download, search, move, copy, share, and delete files",
+      "longDescription": "Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list and search files, move or rename files, copy files, create sharing links, and delete files or folders.",
       "bgColor": "#FFFFFF",
       "iconName": "MicrosoftOneDriveIcon",
       "docsUrl": "https://docs.sim.ai/integrations/onedrive",
@@ -11280,11 +12861,35 @@
           "description": "List files and folders in OneDrive"
         },
         {
+          "name": "Search Files",
+          "description": "Search for files and folders across OneDrive by name, metadata, or content (recursive)"
+        },
+        {
+          "name": "Get Item Info",
+          "description": "Get metadata for a specific OneDrive file or folder by ID, or the drive root"
+        },
+        {
+          "name": "Get Drive Info",
+          "description": "Get information about the OneDrive drive, including storage quota"
+        },
+        {
+          "name": "Move/Rename File",
+          "description": "Move a file or folder to a new parent folder, rename it, or both"
+        },
+        {
+          "name": "Copy File",
+          "description": "Copy a file or folder to another location within OneDrive"
+        },
+        {
+          "name": "Create Sharing Link",
+          "description": "Create a view or edit sharing link for a OneDrive file or folder"
+        },
+        {
           "name": "Delete File",
           "description": "Delete a file or folder from OneDrive"
         }
       ],
-      "operationCount": 6,
+      "operationCount": 12,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -11297,8 +12902,8 @@
       "type": "outlook",
       "slug": "outlook",
       "name": "Outlook",
-      "description": "Send, read, draft, forward, and move Outlook email messages",
-      "longDescription": "Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.",
+      "description": "Send, read, search, reply, organize, and manage Outlook email",
+      "longDescription": "Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can be used in trigger mode to trigger a workflow when a new email is received.",
       "bgColor": "#FFFFFF",
       "iconName": "OutlookIcon",
       "docsUrl": "https://docs.sim.ai/integrations/outlook",
@@ -11316,12 +12921,28 @@
           "description": "Read emails from Outlook"
         },
         {
+          "name": "Search Email",
+          "description": "Search Outlook messages using a free-text query (Microsoft Graph $search)"
+        },
+        {
+          "name": "Reply to Email",
+          "description": "Reply to the sender of an Outlook message with a comment"
+        },
+        {
+          "name": "Reply All",
+          "description": "Reply to all recipients of an Outlook message with a comment"
+        },
+        {
           "name": "Forward Email",
           "description": "Forward an existing Outlook message to specified recipients"
         },
         {
           "name": "Move Email",
           "description": "Move emails between Outlook folders"
+        },
+        {
+          "name": "Copy Email",
+          "description": "Copy an Outlook message to another folder"
         },
         {
           "name": "Mark as Read",
@@ -11332,15 +12953,31 @@
           "description": "Mark an Outlook message as unread"
         },
         {
+          "name": "Set Categories & Flag",
+          "description": "Set the categories, follow-up flag, and importance on an Outlook message"
+        },
+        {
           "name": "Delete Email",
           "description": "Delete an Outlook message (move to Deleted Items)"
         },
         {
-          "name": "Copy Email",
-          "description": "Copy an Outlook message to another folder"
+          "name": "List Folders",
+          "description": "List mail folders in the root of the Outlook mailbox"
+        },
+        {
+          "name": "Create Folder",
+          "description": "Create a new mail folder in the root of the Outlook mailbox"
+        },
+        {
+          "name": "List Attachments",
+          "description": "List the attachments on an Outlook message (metadata only, without contents)"
+        },
+        {
+          "name": "Get Attachment",
+          "description": "Get a single attachment on an Outlook message, including its file contents"
         }
       ],
-      "operationCount": 9,
+      "operationCount": 17,
       "triggers": [
         {
           "id": "outlook_poller",
@@ -11360,7 +12997,7 @@
       "slug": "pagerduty",
       "name": "PagerDuty",
       "description": "Manage incidents and on-call schedules with PagerDuty",
-      "longDescription": "Integrate PagerDuty into your workflow to list, create, and update incidents, add notes, list services, and check on-call schedules.",
+      "longDescription": "Integrate PagerDuty into your workflow to list, get, create, update, snooze, and merge incidents, add notes and list alerts, look up services and escalation policies, check on-call schedules, list users, and send monitoring events through the Events API v2.",
       "bgColor": "#06AC38",
       "iconName": "PagerDutyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/pagerduty",
@@ -11368,6 +13005,10 @@
         {
           "name": "List Incidents",
           "description": "List incidents from PagerDuty with optional filters."
+        },
+        {
+          "name": "Get Incident",
+          "description": "Get a single incident from PagerDuty by ID."
         },
         {
           "name": "Create Incident",
@@ -11378,19 +13019,51 @@
           "description": "Update an incident in PagerDuty (acknowledge, resolve, change urgency, etc.)."
         },
         {
+          "name": "Snooze Incident",
+          "description": "Snooze a triggered PagerDuty incident for a number of seconds, after which it returns to triggered."
+        },
+        {
+          "name": "Merge Incidents",
+          "description": "Merge one or more source incidents into a target incident. Source incidents are resolved and their alerts move to the target."
+        },
+        {
           "name": "Add Note",
           "description": "Add a note to an existing PagerDuty incident."
+        },
+        {
+          "name": "List Incident Alerts",
+          "description": "List the individual alerts attached to a PagerDuty incident."
         },
         {
           "name": "List Services",
           "description": "List services from PagerDuty with optional name filter."
         },
         {
+          "name": "Get Service",
+          "description": "Get a single service from PagerDuty by ID."
+        },
+        {
           "name": "List On-Calls",
           "description": "List current on-call entries from PagerDuty."
+        },
+        {
+          "name": "List Escalation Policies",
+          "description": "List escalation policies from PagerDuty with an optional name filter."
+        },
+        {
+          "name": "List Schedules",
+          "description": "List on-call schedules from PagerDuty with an optional name filter."
+        },
+        {
+          "name": "List Users",
+          "description": "List users from PagerDuty with an optional name/email filter."
+        },
+        {
+          "name": "Send Event",
+          "description": "Send a trigger, acknowledge, or resolve event to PagerDuty Events API v2 using a service integration key. Used to page from monitoring/alerting sources without a PagerDuty user account."
         }
       ],
-      "operationCount": 6,
+      "operationCount": 15,
       "triggers": [
         {
           "id": "pagerduty_incident_triggered",
@@ -11678,7 +13351,7 @@
       "slug": "pinecone",
       "name": "Pinecone",
       "description": "Use Pinecone vector database",
-      "longDescription": "Integrate Pinecone into the workflow. Can generate embeddings, upsert text, search with text, fetch vectors, and search with vectors.",
+      "longDescription": "Integrate Pinecone into the workflow. Generate embeddings, upsert and update text records, delete vectors, search with text or vectors, fetch and list vectors, inspect index statistics, and manage indexes.",
       "bgColor": "#0D1117",
       "iconName": "PineconeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/pinecone",
@@ -11692,6 +13365,14 @@
           "description": "Insert or update text records in a Pinecone index"
         },
         {
+          "name": "Update Vector",
+          "description": "Update the values, sparse values, or metadata of a vector in a Pinecone namespace"
+        },
+        {
+          "name": "Delete Vectors",
+          "description": "Delete vectors from a Pinecone namespace by IDs, by metadata filter, or delete all"
+        },
+        {
           "name": "Search With Text",
           "description": "Search for similar text in a Pinecone index"
         },
@@ -11702,9 +13383,25 @@
         {
           "name": "Fetch Vectors",
           "description": "Fetch vectors by ID from a Pinecone index"
+        },
+        {
+          "name": "List Vector IDs",
+          "description": "List vector IDs in a Pinecone namespace by prefix (serverless indexes only)"
+        },
+        {
+          "name": "Describe Index Stats",
+          "description": "Get statistics about a Pinecone index, including per-namespace vector counts"
+        },
+        {
+          "name": "List Indexes",
+          "description": "List all Pinecone indexes in the project"
+        },
+        {
+          "name": "Describe Index",
+          "description": "Get the configuration and status of a Pinecone index by name"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -11943,7 +13640,8 @@
       "triggerCount": 0,
       "authType": "none",
       "category": "tools",
-      "integrationType": "databases"
+      "integrationType": "databases",
+      "tags": ["data-analytics"]
     },
     {
       "type": "posthog",
@@ -11981,15 +13679,19 @@
         },
         {
           "name": "List Insights",
-          "description": "List all insights in a PostHog project. Returns insight configurations, filters, and metadata."
+          "description": "List all insights in a PostHog project. Returns insight configurations and metadata."
         },
         {
           "name": "Get Insight",
-          "description": "Get a specific insight by ID from PostHog. Returns detailed insight configuration, filters, and metadata."
+          "description": "Get a specific insight by ID from PostHog. Returns detailed insight configuration and metadata."
         },
         {
           "name": "Create Insight",
-          "description": "Create a new insight in PostHog. Requires insight name and configuration filters or query."
+          "description": "Create a new insight in PostHog. Requires insight name and a query configuration."
+        },
+        {
+          "name": "Update Insight",
+          "description": "Update an existing insight in PostHog. Can modify name, description, query, dashboards, tags, and favorited status."
         },
         {
           "name": "List Dashboards",
@@ -11998,6 +13700,10 @@
         {
           "name": "Get Dashboard",
           "description": "Get a specific dashboard by ID from PostHog. Returns detailed dashboard configuration, tiles, and metadata."
+        },
+        {
+          "name": "Create Dashboard",
+          "description": "Create a new dashboard in PostHog. Optionally seed it from a built-in template, then attach insights to it afterward."
         },
         {
           "name": "List Actions",
@@ -12014,6 +13720,10 @@
         {
           "name": "Create Cohort",
           "description": "Create a new cohort in PostHog. Requires cohort name and filter or query configuration."
+        },
+        {
+          "name": "Update Cohort",
+          "description": "Update an existing cohort in PostHog. Can modify name, description, filters, query, static membership, and deleted status."
         },
         {
           "name": "List Annotations",
@@ -12060,6 +13770,10 @@
           "description": "Create a new experiment in PostHog"
         },
         {
+          "name": "Update Experiment",
+          "description": "Update an existing experiment in PostHog. Use this to change dates, archive an experiment, or adjust its parameters and filters."
+        },
+        {
           "name": "List Surveys",
           "description": "List all surveys in a PostHog project. Surveys allow you to collect feedback from users."
         },
@@ -12074,6 +13788,10 @@
         {
           "name": "Update Survey",
           "description": "Update an existing survey in PostHog. Can modify questions, appearance, conditions, and other settings."
+        },
+        {
+          "name": "Delete Survey",
+          "description": "Delete a survey from PostHog. Use this to remove expired or unused surveys."
         },
         {
           "name": "List Session Recordings",
@@ -12128,7 +13846,7 @@
           "description": "Get detailed information about a specific organization by ID. Returns comprehensive organization settings, features, usage, and team information."
         }
       ],
-      "operationCount": 43,
+      "operationCount": 48,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -12959,6 +14677,10 @@
           "description": "Retrieve details of a previously sent email by its ID"
         },
         {
+          "name": "Cancel Email",
+          "description": "Cancel a scheduled email before it is sent"
+        },
+        {
           "name": "Create Contact",
           "description": "Create a new contact in Resend"
         },
@@ -12979,11 +14701,39 @@
           "description": "Delete a contact from Resend by ID or email"
         },
         {
+          "name": "Create Audience",
+          "description": "Create a new audience in Resend"
+        },
+        {
+          "name": "Get Audience",
+          "description": "Retrieve details of an audience by ID"
+        },
+        {
+          "name": "List Audiences",
+          "description": "List all audiences in Resend"
+        },
+        {
+          "name": "Delete Audience",
+          "description": "Delete an audience from Resend by ID"
+        },
+        {
+          "name": "Create Broadcast",
+          "description": "Create a broadcast email for an audience in Resend"
+        },
+        {
+          "name": "Send Broadcast",
+          "description": "Send a broadcast immediately or schedule it for later"
+        },
+        {
+          "name": "Get Broadcast",
+          "description": "Retrieve details of a broadcast by ID"
+        },
+        {
           "name": "List Domains",
           "description": "List all verified domains in your Resend account"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 16,
       "triggers": [
         {
           "id": "resend_email_sent",
@@ -13084,8 +14834,39 @@
         }
       ],
       "operationCount": 10,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "revenuecat_initial_purchase",
+          "name": "RevenueCat Initial Purchase",
+          "description": "Trigger workflow when a subscriber makes their first purchase in RevenueCat"
+        },
+        {
+          "id": "revenuecat_renewal",
+          "name": "RevenueCat Renewal",
+          "description": "Trigger workflow when a RevenueCat subscription renews"
+        },
+        {
+          "id": "revenuecat_cancellation",
+          "name": "RevenueCat Cancellation",
+          "description": "Trigger workflow when a subscriber cancels a RevenueCat subscription"
+        },
+        {
+          "id": "revenuecat_expiration",
+          "name": "RevenueCat Expiration",
+          "description": "Trigger workflow when a RevenueCat subscription expires"
+        },
+        {
+          "id": "revenuecat_non_renewing_purchase",
+          "name": "RevenueCat Non-Renewing Purchase",
+          "description": "Trigger workflow when a subscriber makes a non-renewing purchase in RevenueCat"
+        },
+        {
+          "id": "revenuecat_product_change",
+          "name": "RevenueCat Product Change",
+          "description": "Trigger workflow when a subscriber changes their RevenueCat subscription product"
+        }
+      ],
+      "triggerCount": 6,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "commerce",
@@ -13455,6 +15236,281 @@
       "tags": ["hiring"]
     },
     {
+      "type": "rocketlane",
+      "slug": "rocketlane",
+      "name": "Rocketlane",
+      "description": "Manage client onboarding projects, tasks, time tracking, and invoices",
+      "longDescription": "Integrate Rocketlane into your workflow. Rocketlane is a professional-services automation platform for client onboarding and project delivery. Create and manage projects, tasks, phases, custom fields, time entries, time-offs, spaces, documents, resource allocations, and invoices.",
+      "bgColor": "#000000",
+      "iconName": "RocketlaneIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/rocketlane",
+      "operations": [
+        {
+          "name": "Create Project",
+          "description": "Create a new Rocketlane project with a customer, owner, dates, team members, templates, financials, and custom fields"
+        },
+        {
+          "name": "Get Project",
+          "description": "Retrieve a Rocketlane project by its unique identifier"
+        },
+        {
+          "name": "List Projects",
+          "description": "List Rocketlane projects with optional filters, sorting, and token-based pagination"
+        },
+        {
+          "name": "Update Project",
+          "description": "Update a Rocketlane project by ID, including name, dates, visibility, owner, status, and custom fields"
+        },
+        {
+          "name": "Archive Project",
+          "description": "Archive a Rocketlane project by ID, making it dormant while preserving its details and history"
+        },
+        {
+          "name": "Delete Project",
+          "description": "Permanently delete a Rocketlane project by ID (irreversible; only Admins, Super Users, and Project Owners can delete)"
+        },
+        {
+          "name": "Add Project Members",
+          "description": "Add team members and customer stakeholders to a Rocketlane project"
+        },
+        {
+          "name": "Remove Project Members",
+          "description": "Remove team members from a Rocketlane project"
+        },
+        {
+          "name": "Import Template",
+          "description": "Import a project template into an existing Rocketlane project"
+        },
+        {
+          "name": "List Placeholders",
+          "description": "List the placeholders of a Rocketlane project"
+        },
+        {
+          "name": "Assign Placeholder",
+          "description": "Assign a placeholder in a Rocketlane project to a user"
+        },
+        {
+          "name": "Unassign Placeholder",
+          "description": "Unassign a placeholder from its user in a Rocketlane project"
+        },
+        {
+          "name": "Create Task",
+          "description": "Create a new task in a Rocketlane project"
+        },
+        {
+          "name": "Get Task",
+          "description": "Retrieve detailed information about a Rocketlane task by its unique identifier"
+        },
+        {
+          "name": "List Tasks",
+          "description": "Retrieve all Rocketlane tasks with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Task",
+          "description": "Update the properties of an existing Rocketlane task by its unique identifier"
+        },
+        {
+          "name": "Delete Task",
+          "description": "Permanently delete a Rocketlane task by its unique identifier"
+        },
+        {
+          "name": "Move Task to Phase",
+          "description": "Move a Rocketlane task to a given phase, associating the task with that phase"
+        },
+        {
+          "name": "Add Task Assignees",
+          "description": "Add members as assignees to a Rocketlane task"
+        },
+        {
+          "name": "Remove Task Assignees",
+          "description": "Remove assignees from a Rocketlane task"
+        },
+        {
+          "name": "Add Task Followers",
+          "description": "Add members as followers to a Rocketlane task"
+        },
+        {
+          "name": "Remove Task Followers",
+          "description": "Remove followers from a Rocketlane task"
+        },
+        {
+          "name": "Add Task Dependencies",
+          "description": "Add finish-to-start dependencies between a Rocketlane task and other tasks"
+        },
+        {
+          "name": "Remove Task Dependencies",
+          "description": "Remove dependencies from a Rocketlane task"
+        },
+        {
+          "name": "Create Phase",
+          "description": "Create a new phase in a Rocketlane project"
+        },
+        {
+          "name": "Get Phase",
+          "description": "Retrieve a single Rocketlane phase by ID"
+        },
+        {
+          "name": "List Phases",
+          "description": "List phases of a Rocketlane project, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Phase",
+          "description": "Update the name, dates, status, or privacy of an existing Rocketlane phase"
+        },
+        {
+          "name": "Delete Phase",
+          "description": "Permanently delete a Rocketlane phase by ID"
+        },
+        {
+          "name": "Create Field",
+          "description": "Create a custom field in your Rocketlane account, with options for SINGLE_CHOICE and MULTIPLE_CHOICE field types"
+        },
+        {
+          "name": "Get Field",
+          "description": "Retrieve a single Rocketlane field by ID"
+        },
+        {
+          "name": "List Fields",
+          "description": "List fields in your Rocketlane account, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Field",
+          "description": "Update the label, description, enabled state, or privacy of an existing Rocketlane field"
+        },
+        {
+          "name": "Delete Field",
+          "description": "Permanently delete a Rocketlane field by ID"
+        },
+        {
+          "name": "Add Field Option",
+          "description": "Add a new option to an existing SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane field"
+        },
+        {
+          "name": "Update Field Option",
+          "description": "Update the label or color of an existing option on a SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane field"
+        },
+        {
+          "name": "Create Time Entry",
+          "description": "Create a time entry in Rocketlane against an adhoc activity, task, project phase, or project"
+        },
+        {
+          "name": "Get Time Entry",
+          "description": "Get a single Rocketlane time entry by ID"
+        },
+        {
+          "name": "List Time Entries",
+          "description": "List Rocketlane time entries with optional filters, sorting, and cursor-based pagination"
+        },
+        {
+          "name": "Search Time Entries",
+          "description": "Search Rocketlane time entries with filters, sorting, and pagination (deprecated by Rocketlane in favor of listing time entries with filters)"
+        },
+        {
+          "name": "Update Time Entry",
+          "description": "Update a Rocketlane time entry by ID. The activityName, notes, billable, and minutes properties can be updated"
+        },
+        {
+          "name": "Delete Time Entry",
+          "description": "Permanently delete a Rocketlane time entry by ID"
+        },
+        {
+          "name": "List Time Entry Categories",
+          "description": "List the time entry categories configured in Rocketlane"
+        },
+        {
+          "name": "Create Time-Off",
+          "description": "Create a time-off for a team member in Rocketlane. Holidays and weekends within the date range are automatically excluded from the duration."
+        },
+        {
+          "name": "Get Time-Off",
+          "description": "Retrieve a Rocketlane time-off by its ID"
+        },
+        {
+          "name": "List Time-Offs",
+          "description": "List time-offs in Rocketlane with optional date, type, and user filters, sorting, and pagination"
+        },
+        {
+          "name": "Delete Time-Off",
+          "description": "Permanently delete a Rocketlane time-off by its ID"
+        },
+        {
+          "name": "Get User",
+          "description": "Retrieve a Rocketlane user by their ID"
+        },
+        {
+          "name": "List Users",
+          "description": "List users in your Rocketlane account, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Create Space",
+          "description": "Create a new space in a Rocketlane project"
+        },
+        {
+          "name": "Get Space",
+          "description": "Retrieve a Rocketlane space by its ID"
+        },
+        {
+          "name": "List Spaces",
+          "description": "List spaces in a Rocketlane project, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Space",
+          "description": "Update a Rocketlane space by its ID"
+        },
+        {
+          "name": "Delete Space",
+          "description": "Permanently delete a Rocketlane space by its ID"
+        },
+        {
+          "name": "Create Space Document",
+          "description": "Create a new space document in a Rocketlane space"
+        },
+        {
+          "name": "Get Space Document",
+          "description": "Retrieve a Rocketlane space document by its ID"
+        },
+        {
+          "name": "List Space Documents",
+          "description": "List space documents in a Rocketlane project, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Space Document",
+          "description": "Update a Rocketlane space document by its ID"
+        },
+        {
+          "name": "Delete Space Document",
+          "description": "Permanently delete a Rocketlane space document by its ID"
+        },
+        {
+          "name": "List Resource Allocations",
+          "description": "List resource allocations in Rocketlane within a date range, with optional member, project, and placeholder filters, sorting, and pagination"
+        },
+        {
+          "name": "Get Invoice",
+          "description": "Retrieve a Rocketlane invoice by its ID"
+        },
+        {
+          "name": "List Invoices",
+          "description": "Search invoices in Rocketlane with date, amount, company, invoice-number, and status filters, sorting, and pagination"
+        },
+        {
+          "name": "Get Invoice Line Items",
+          "description": "List line items of a Rocketlane invoice"
+        },
+        {
+          "name": "Get Invoice Payments",
+          "description": "List payments recorded against a Rocketlane invoice"
+        }
+      ],
+      "operationCount": 64,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["project-management", "automation"]
+    },
+    {
       "type": "rootly",
       "slug": "rootly",
       "name": "Rootly",
@@ -13630,8 +15686,29 @@
         }
       ],
       "operationCount": 41,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "rootly_incident_created",
+          "name": "Rootly Incident Created",
+          "description": "Trigger workflow when a new incident is created in Rootly"
+        },
+        {
+          "id": "rootly_incident_updated",
+          "name": "Rootly Incident Updated",
+          "description": "Trigger workflow when an incident is updated in Rootly"
+        },
+        {
+          "id": "rootly_incident_resolved",
+          "name": "Rootly Incident Resolved",
+          "description": "Trigger workflow when an incident is resolved in Rootly"
+        },
+        {
+          "id": "rootly_alert_created",
+          "name": "Rootly Alert Created",
+          "description": "Trigger workflow when a new alert is created in Rootly"
+        }
+      ],
+      "triggerCount": 4,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -13641,8 +15718,8 @@
       "type": "s3",
       "slug": "s3",
       "name": "S3",
-      "description": "Upload, download, list, and manage S3 files",
-      "longDescription": "Integrate S3 into the workflow. Upload files, download objects, list bucket contents, delete objects, and copy objects between buckets. Requires AWS access key and secret access key.",
+      "description": "Upload, download, list, and manage S3 files and buckets",
+      "longDescription": "Integrate S3 into the workflow. Upload, download, copy, and delete objects (individually or in batches), inspect object metadata, generate time-limited presigned URLs, list bucket contents, and create, list, or delete buckets. Requires AWS access key and secret access key.",
       "bgColor": "linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)",
       "iconName": "S3Icon",
       "docsUrl": "https://docs.sim.ai/integrations/s3",
@@ -13664,11 +15741,35 @@
           "description": "Delete an object from an AWS S3 bucket"
         },
         {
+          "name": "Delete Objects (Batch)",
+          "description": "Delete multiple objects from an AWS S3 bucket in a single batch request"
+        },
+        {
           "name": "Copy Object",
           "description": "Copy an object within or between AWS S3 buckets"
+        },
+        {
+          "name": "Head Object (Metadata)",
+          "description": "Retrieve metadata for an S3 object without downloading its body"
+        },
+        {
+          "name": "Presigned URL",
+          "description": "Generate a time-limited presigned URL to download or upload an S3 object"
+        },
+        {
+          "name": "List Buckets",
+          "description": "List the S3 buckets owned by the authenticated AWS account"
+        },
+        {
+          "name": "Create Bucket",
+          "description": "Create a new AWS S3 bucket in the specified region"
+        },
+        {
+          "name": "Delete Bucket",
+          "description": "Delete an empty AWS S3 bucket"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -14554,8 +16655,34 @@
         }
       ],
       "operationCount": 13,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "sentry_issue_created",
+          "name": "Sentry Issue Created",
+          "description": "Trigger workflow when a new issue is created in Sentry"
+        },
+        {
+          "id": "sentry_issue_resolved",
+          "name": "Sentry Issue Resolved",
+          "description": "Trigger workflow when an issue is resolved in Sentry"
+        },
+        {
+          "id": "sentry_error_created",
+          "name": "Sentry Error Created",
+          "description": "Trigger workflow when a new error event is created in Sentry"
+        },
+        {
+          "id": "sentry_issue_alert",
+          "name": "Sentry Issue Alert",
+          "description": "Trigger workflow when a Sentry issue alert rule fires"
+        },
+        {
+          "id": "sentry_metric_alert",
+          "name": "Sentry Metric Alert",
+          "description": "Trigger workflow when a Sentry metric alert changes state (critical, warning, resolved)"
+        }
+      ],
+      "triggerCount": 5,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -14696,7 +16823,8 @@
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
-      "integrationType": "documents"
+      "integrationType": "documents",
+      "tags": ["document-processing", "automation"]
     },
     {
       "type": "sharepoint_v2",
@@ -14715,6 +16843,18 @@
         {
           "name": "Read Page",
           "description": "Read a specific page from a SharePoint site"
+        },
+        {
+          "name": "Update Page",
+          "description": "Update the title and/or content of a SharePoint page"
+        },
+        {
+          "name": "Publish Page",
+          "description": "Publish the latest version of a SharePoint page, making it available to all users"
+        },
+        {
+          "name": "Delete Page",
+          "description": "Delete a page from a SharePoint site"
         },
         {
           "name": "List Sites",
@@ -14737,11 +16877,31 @@
           "description": "Add a new item to a SharePoint list"
         },
         {
+          "name": "Get List Item",
+          "description": "Get a single item (with field values) from a SharePoint list"
+        },
+        {
+          "name": "Delete List Item",
+          "description": "Delete an item from a SharePoint list"
+        },
+        {
           "name": "Upload File",
           "description": "Upload files to a SharePoint document library"
+        },
+        {
+          "name": "Download File",
+          "description": "Download a file from a SharePoint document library"
+        },
+        {
+          "name": "Get Drive Item",
+          "description": "Get metadata for a file or folder in a SharePoint document library"
+        },
+        {
+          "name": "Delete File",
+          "description": "Delete a file (or folder) from a SharePoint document library"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -14883,9 +17043,13 @@
         {
           "name": "Visit Duration (Desktop)",
           "description": "Get average desktop visit duration over time (in seconds)"
+        },
+        {
+          "name": "Page Views",
+          "description": "Get total page views over time (desktop and mobile combined)"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -15077,9 +17241,37 @@
         {
           "name": "Publish View",
           "description": "Publish a static view to a user's Home tab in Slack. Used to create or update the app's Home tab experience."
+        },
+        {
+          "name": "Schedule Message",
+          "description": "Schedule a message to be sent to a Slack channel or DM at a future time."
+        },
+        {
+          "name": "List Scheduled Messages",
+          "description": "List pending scheduled messages in a Slack workspace, optionally filtered by channel."
+        },
+        {
+          "name": "Delete Scheduled Message",
+          "description": "Delete a pending scheduled message before it posts to Slack."
+        },
+        {
+          "name": "Archive Conversation",
+          "description": "Archive a Slack channel so it is closed to new activity."
+        },
+        {
+          "name": "Rename Conversation",
+          "description": "Rename an existing Slack channel."
+        },
+        {
+          "name": "Set Conversation Topic",
+          "description": "Set the topic for a Slack channel (max 250 characters)."
+        },
+        {
+          "name": "Set Conversation Purpose",
+          "description": "Set the purpose (description) for a Slack channel (max 250 characters)."
         }
       ],
-      "operationCount": 35,
+      "operationCount": 42,
       "triggers": [
         {
           "id": "slack_webhook",
@@ -15096,11 +17288,11 @@
       "landingContent": {
         "install": {
           "heading": "Add Sim to your Slack workspace",
-          "intro": "Sim connects to Slack through Slack’s official OAuth flow. The “Add to Slack” button lives inside your Sim account (after sign-in) — connect from there and the Sim bot is installed in your Slack workspace. The steps below show exactly how to reach it.",
+          "intro": "Sim connects to Slack through Slack’s official OAuth flow. The “Add to Slack” button lives inside your Sim account (after sign-in). Connect from there and the Sim bot is installed in your Slack workspace. The steps below show exactly how to reach it.",
           "steps": [
             {
               "title": "Create your free Sim account",
-              "body": "Sign up at sim.ai — no credit card required."
+              "body": "Sign up at sim.ai. No credit card required."
             },
             {
               "title": "Add a Slack block",
@@ -15120,7 +17312,7 @@
           "body": "Sim requests only the Slack permissions its actions and triggers need, and never shows private channel names or messages to people who are not members of those channels in Slack.",
           "href": "/privacy"
         },
-        "aiDisclaimer": "Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete — review automated outputs before relying on them, especially for important communications."
+        "aiDisclaimer": "Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete, so review automated outputs before relying on them, especially for important communications."
       }
     },
     {
@@ -15138,7 +17330,8 @@
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
-      "integrationType": "email"
+      "integrationType": "email",
+      "tags": ["messaging", "automation"]
     },
     {
       "type": "sportmonks",
@@ -16266,7 +18459,8 @@
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
-      "integrationType": "devops"
+      "integrationType": "devops",
+      "tags": ["automation"]
     },
     {
       "type": "stagehand",
@@ -16576,7 +18770,7 @@
         },
         {
           "name": "Introspect Schema",
-          "description": "Introspect Supabase database schema to get table structures, columns, and relationships"
+          "description": "Introspect Supabase database schema from its OpenAPI spec to get table and column structures (best-effort primary/foreign key detection)"
         },
         {
           "name": "Storage: Upload File",
@@ -16611,8 +18805,20 @@
           "description": "Create a temporary signed URL for a file in a Supabase storage bucket"
         },
         {
+          "name": "Storage: Create Signed Upload URL",
+          "description": "Create a temporary signed URL a client can use to upload directly to a Supabase storage bucket"
+        },
+        {
           "name": "Storage: Create Bucket",
           "description": "Create a new storage bucket in Supabase"
+        },
+        {
+          "name": "Storage: Update Bucket",
+          "description": "Update the configuration of an existing Supabase storage bucket"
+        },
+        {
+          "name": "Storage: Empty Bucket",
+          "description": "Delete all objects inside a Supabase storage bucket without deleting the bucket itself"
         },
         {
           "name": "Storage: List Buckets",
@@ -16623,7 +18829,7 @@
           "description": "Delete a storage bucket in Supabase"
         }
       ],
-      "operationCount": 23,
+      "operationCount": 26,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -16674,6 +18880,10 @@
           "description": "Enable or disable key expiry on a device"
         },
         {
+          "name": "Expire Device Key",
+          "description": "Immediately expire a device's node key, requiring it to re-authenticate before it can reconnect to the tailnet"
+        },
+        {
           "name": "List DNS Nameservers",
           "description": "Get the DNS nameservers configured for the tailnet"
         },
@@ -16702,6 +18912,14 @@
           "description": "List all users in the tailnet"
         },
         {
+          "name": "Suspend User",
+          "description": "Suspend a user's access to the tailnet"
+        },
+        {
+          "name": "Delete User",
+          "description": "Delete a user from the tailnet"
+        },
+        {
           "name": "Create Auth Key",
           "description": "Create a new auth key for the tailnet to pre-authorize devices"
         },
@@ -16720,9 +18938,13 @@
         {
           "name": "Get ACL",
           "description": "Get the current ACL policy for the tailnet"
+        },
+        {
+          "name": "Set ACL",
+          "description": "Replace the ACL policy file for the tailnet"
         }
       ],
-      "operationCount": 20,
+      "operationCount": 24,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -16770,7 +18992,7 @@
       "slug": "telegram",
       "name": "Telegram",
       "description": "Interact with Telegram",
-      "longDescription": "Integrate Telegram into the workflow. Can send and delete messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat.",
+      "longDescription": "Integrate Telegram into the workflow. Send, edit, forward, copy, pin, and delete messages; send media, locations, contacts, and polls; react to messages; show chat actions; and look up chat and member info. Can be used in trigger mode to start a workflow when a message is sent to a chat.",
       "bgColor": "#FFFFFF",
       "iconName": "TelegramIcon",
       "docsUrl": "https://docs.sim.ai/integrations/telegram",
@@ -16800,11 +19022,59 @@
           "description": "Send documents (PDF, ZIP, DOC, etc.) to Telegram channels or users through the Telegram Bot API."
         },
         {
+          "name": "Send Location",
+          "description": "Send a point on the map to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Contact",
+          "description": "Send a phone contact to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Poll",
+          "description": "Send a native poll to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Chat Action",
+          "description": "Show a status action such as a typing indicator in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Edit Message Text",
+          "description": "Edit the text of an existing message in a Telegram chat or channel through the Telegram Bot API."
+        },
+        {
+          "name": "Forward Message",
+          "description": "Forward a message from one Telegram chat to another through the Telegram Bot API."
+        },
+        {
+          "name": "Copy Message",
+          "description": "Copy a message to another Telegram chat without a forward header through the Telegram Bot API."
+        },
+        {
           "name": "Delete Message",
           "description": "Delete messages in Telegram channels or chats through the Telegram Bot API. Requires the message ID of the message to delete."
+        },
+        {
+          "name": "Pin Message",
+          "description": "Pin a message in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Unpin Message",
+          "description": "Unpin a pinned message in a Telegram chat through the Telegram Bot API. Unpins the most recent pinned message when no message ID is given."
+        },
+        {
+          "name": "Set Message Reaction",
+          "description": "Set or remove an emoji reaction on a message in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Get Chat",
+          "description": "Get up-to-date information about a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Get Chat Member",
+          "description": "Get information about a member of a Telegram chat through the Telegram Bot API."
         }
       ],
-      "operationCount": 7,
+      "operationCount": 19,
       "triggers": [
         {
           "id": "telegram_webhook",
@@ -17129,7 +19399,7 @@
       "slug": "tinybird",
       "name": "Tinybird",
       "description": "Send events, query data, and manage Data Sources with Tinybird",
-      "longDescription": "Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, and manage Data Sources by appending from a URL, truncating, or deleting rows by condition.",
+      "longDescription": "Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, manage Data Sources by appending from a URL, truncating, or deleting rows by condition, and poll the status of asynchronous jobs.",
       "bgColor": "#2EF598",
       "iconName": "TinybirdIcon",
       "docsUrl": "https://docs.sim.ai/integrations/tinybird",
@@ -17157,9 +19427,13 @@
         {
           "name": "Delete Data Source Rows",
           "description": "Delete rows from a Tinybird Data Source matching a SQL condition."
+        },
+        {
+          "name": "Get Job Status",
+          "description": "Check the status of an asynchronous Tinybird job (import, delete, etc.) by ID."
         }
       ],
-      "operationCount": 6,
+      "operationCount": 7,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -17171,8 +19445,8 @@
       "type": "trello",
       "slug": "trello",
       "name": "Trello",
-      "description": "Manage Trello lists, cards, and activity",
-      "longDescription": "Integrate with Trello to list board lists, list cards, create cards, update cards, review activity, and add comments.",
+      "description": "Manage Trello lists, cards, checklists, and activity",
+      "longDescription": "Integrate with Trello to list, search, create, update, and delete cards and lists, manage checklists and checklist items, assign labels and members, review activity, and add comments.",
       "bgColor": "#0052CC",
       "iconName": "TrelloIcon",
       "docsUrl": "https://docs.sim.ai/integrations/trello",
@@ -17186,12 +19460,24 @@
           "description": "List cards from a Trello board or list"
         },
         {
+          "name": "Search",
+          "description": "Search Trello cards and boards by keyword"
+        },
+        {
           "name": "Create Card",
           "description": "Create a new card in a Trello list"
         },
         {
+          "name": "Get Card",
+          "description": "Retrieve a single Trello card by ID"
+        },
+        {
           "name": "Update Card",
           "description": "Update an existing card on Trello"
+        },
+        {
+          "name": "Delete Card",
+          "description": "Permanently delete a Trello card"
         },
         {
           "name": "Get Actions",
@@ -17200,9 +19486,57 @@
         {
           "name": "Add Comment",
           "description": "Add a comment to a Trello card"
+        },
+        {
+          "name": "Add Checklist",
+          "description": "Add a checklist to a Trello card"
+        },
+        {
+          "name": "Add Checklist Item",
+          "description": "Add an item to a Trello checklist"
+        },
+        {
+          "name": "Update Checklist Item",
+          "description": "Check off, uncheck, or rename a Trello checklist item"
+        },
+        {
+          "name": "Add Label",
+          "description": "Attach an existing label to a Trello card"
+        },
+        {
+          "name": "Remove Label",
+          "description": "Detach a label from a Trello card"
+        },
+        {
+          "name": "Add Member",
+          "description": "Assign a member to a Trello card"
+        },
+        {
+          "name": "Remove Member",
+          "description": "Unassign a member from a Trello card"
+        },
+        {
+          "name": "List Members",
+          "description": "List members of a Trello board"
+        },
+        {
+          "name": "Create Board",
+          "description": "Create a new Trello board"
+        },
+        {
+          "name": "Get Board",
+          "description": "Retrieve a single Trello board by ID"
+        },
+        {
+          "name": "Create List",
+          "description": "Create a new list on a Trello board"
+        },
+        {
+          "name": "Update List",
+          "description": "Rename, move, archive, or reopen a Trello list"
         }
       ],
-      "operationCount": 6,
+      "operationCount": 21,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -17417,8 +19751,19 @@
       "docsUrl": "https://docs.sim.ai/integrations/twilio_sms",
       "operations": [],
       "operationCount": 0,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "twilio_sms_received",
+          "name": "Twilio SMS Received",
+          "description": "Trigger workflow when an inbound SMS or MMS message is received via Twilio"
+        },
+        {
+          "id": "twilio_sms_status",
+          "name": "Twilio Message Status",
+          "description": "Trigger workflow when a Twilio message status changes (sent, delivered, failed)"
+        }
+      ],
+      "triggerCount": 2,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
@@ -18245,12 +20590,37 @@
       "slug": "whatsapp",
       "name": "WhatsApp",
       "description": "Send WhatsApp messages",
-      "longDescription": "Integrate WhatsApp into the workflow. Can send messages.",
+      "longDescription": "Integrate WhatsApp into the workflow. Send text, template, media, and interactive messages, react to messages, and mark messages as read through the WhatsApp Cloud API.",
       "bgColor": "#25D366",
       "iconName": "WhatsAppIcon",
       "docsUrl": "https://docs.sim.ai/integrations/whatsapp",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Send Message",
+          "description": "Send a text message through the WhatsApp Cloud API."
+        },
+        {
+          "name": "Send Template",
+          "description": "Send a pre-approved WhatsApp template message with a language and optional variable components."
+        },
+        {
+          "name": "Send Media",
+          "description": "Send an image, document, video, or audio message via a public link or an uploaded media ID."
+        },
+        {
+          "name": "Send Interactive",
+          "description": "Send an interactive WhatsApp message with reply buttons or a selectable list."
+        },
+        {
+          "name": "Send Reaction",
+          "description": "React to a WhatsApp message with an emoji. Send an empty emoji to remove an existing reaction."
+        },
+        {
+          "name": "Mark As Read",
+          "description": "Mark a received WhatsApp message as read so the sender sees blue checkmarks."
+        }
+      ],
+      "operationCount": 6,
       "triggers": [
         {
           "id": "whatsapp_webhook",
@@ -18262,7 +20632,7 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "automation"]
+      "tags": ["messaging", "automation", "customer-support", "marketing"]
     },
     {
       "type": "wikipedia",
@@ -18339,7 +20709,7 @@
       "slug": "wordpress",
       "name": "WordPress",
       "description": "Manage WordPress content",
-      "longDescription": "Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports WordPress.com sites via OAuth and self-hosted WordPress sites using Application Passwords authentication.",
+      "longDescription": "Integrate with WordPress.com to create, update, and manage posts, pages, media, comments, categories, tags, and users. Connects to WordPress.com sites via OAuth.",
       "bgColor": "#21759B",
       "iconName": "WordpressIcon",
       "docsUrl": "https://docs.sim.ai/integrations/wordpress",
@@ -18421,12 +20791,36 @@
           "description": "Create a new category in WordPress.com"
         },
         {
+          "name": "Update Category",
+          "description": "Update an existing category in WordPress.com"
+        },
+        {
+          "name": "Delete Category",
+          "description": "Delete a category from WordPress.com"
+        },
+        {
+          "name": "Get Category",
+          "description": "Get a single category from WordPress.com by ID"
+        },
+        {
           "name": "List Categories",
           "description": "List categories from WordPress.com"
         },
         {
           "name": "Create Tag",
           "description": "Create a new tag in WordPress.com"
+        },
+        {
+          "name": "Update Tag",
+          "description": "Update an existing tag in WordPress.com"
+        },
+        {
+          "name": "Delete Tag",
+          "description": "Delete a tag from WordPress.com"
+        },
+        {
+          "name": "Get Tag",
+          "description": "Get a single tag from WordPress.com by ID"
         },
         {
           "name": "List Tags",
@@ -18449,7 +20843,7 @@
           "description": "Search across all content types in WordPress.com (posts, pages, media)"
         }
       ],
-      "operationCount": 26,
+      "operationCount": 32,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",

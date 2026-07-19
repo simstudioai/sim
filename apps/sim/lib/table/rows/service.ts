@@ -16,7 +16,6 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, inArray, lte, notInArray, type SQL, sql } from 'drizzle-orm'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   assertRowCapacity,
   getMaxRowsPerTable,
@@ -25,7 +24,7 @@ import {
   wouldExceedRowLimit,
 } from '@/lib/table/billing'
 import { getColumnId } from '@/lib/table/column-keys'
-import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
+import { getMaxPageBytes, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { nKeysBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
 import {
@@ -41,11 +40,10 @@ import {
   deleteOrderedRowsByIds,
   insertOrderedRow,
   nextRowPosition,
-  reserveBatchPositions,
-  reserveInsertPosition,
   resolveBatchInsertOrderKeys,
   resolveInsertOrderKey,
 } from '@/lib/table/rows/ordering'
+import { trimRowsToByteBudget } from '@/lib/table/rows/paging'
 import { buildFilterClause, buildSortClause, escapeLikePattern } from '@/lib/table/sql'
 import { fireTableTrigger } from '@/lib/table/trigger'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
@@ -280,20 +278,14 @@ export async function batchInsertRowsWithTx(
   })
 
   await acquireRowOrderLock(trx, data.tableId)
-  const fractionalOrdering = await isFeatureEnabled('tables-fractional-ordering')
-  // Undo restore passes exact saved keys; otherwise derive from positions/append.
+  // Undo restore passes exact saved keys; otherwise append after the current max.
   const orderKeys =
     data.orderKeys && data.orderKeys.length > 0
       ? data.orderKeys
-      : await resolveBatchInsertOrderKeys(trx, data.tableId, data.rows.length, data.positions)
-  let positions: number[]
-  if (fractionalOrdering) {
-    // order_key authoritative — best-effort append positions, no shift.
-    const start = await nextRowPosition(trx, data.tableId)
-    positions = Array.from({ length: data.rows.length }, (_, i) => start + i)
-  } else {
-    positions = await reserveBatchPositions(trx, data.tableId, data.rows.length, data.positions)
-  }
+      : await resolveBatchInsertOrderKeys(trx, data.tableId, data.rows.length)
+  // order_key is authoritative — best-effort append positions, no shift.
+  const start = await nextRowPosition(trx, data.tableId)
+  const positions = Array.from({ length: data.rows.length }, (_, i) => start + i)
   const rowsToInsert = data.rows.map((rowData, i) => buildRow(rowData, positions[i], orderKeys[i]))
   const insertedRows = await trx.insert(userTableRows).values(rowsToInsert).returning()
 
@@ -667,7 +659,7 @@ export async function upsertRow(
         tableId: data.tableId,
         workspaceId: data.workspaceId,
         data: data.data,
-        position: await reserveInsertPosition(trx, data.tableId),
+        position: await nextRowPosition(trx, data.tableId),
         orderKey: await resolveInsertOrderKey(trx, data.tableId),
         createdAt: now,
         updatedAt: now,
@@ -737,18 +729,17 @@ export async function upsertRow(
 /**
  * Canonical ORDER BY for a table's rows, shared by `queryRows` (the paginated
  * list) and `findRowMatches` so a match's ordinal lines up with its index in
- * the list. Order: explicit data sort (if any) → fractional `order_key` or
- * legacy `position` → `id`. The `id` tiebreak is always appended so equal
- * positions order deterministically — without it two separate query executions
- * (a find vs a list page) could shuffle ties and misalign ordinals.
+ * the list. Order: explicit data sort (if any) → fractional `order_key` → `id`.
+ * The `id` tiebreak is always appended so equal keys order deterministically —
+ * without it two separate query executions (a find vs a list page) could shuffle
+ * ties and misalign ordinals.
  */
 function buildRowOrderBySql(
   sort: Sort | undefined,
   tableName: string,
-  columns: ColumnDefinition[],
-  fractionalOrderingEnabled: boolean
+  columns: ColumnDefinition[]
 ): SQL {
-  const primary = fractionalOrderingEnabled ? `${tableName}.order_key` : `${tableName}.position`
+  const primary = `${tableName}.order_key`
   const id = `${tableName}.id`
   if (sort && Object.keys(sort).length > 0) {
     const sortClause = buildSortClause(sort, tableName, columns)
@@ -813,8 +804,7 @@ export async function findRowMatches(
     if (filterClause) whereClause = and(baseConditions, filterClause)
   }
 
-  const fractionalOrdering = await isFeatureEnabled('tables-fractional-ordering')
-  const orderBySql = buildRowOrderBySql(options.sort, tableName, columns, fractionalOrdering)
+  const orderBySql = buildRowOrderBySql(options.sort, tableName, columns)
   const pattern = `%${escapeLikePattern(options.q)}%`
 
   const result = await db.transaction(async (trx) => {
@@ -968,10 +958,7 @@ export async function queryRows(
 
   // Hide rows a running delete job is about to remove — both the page and the count below share
   // this clause, so totals stay consistent with the visible rows.
-  const [deleteMask, fractionalOrdering] = await Promise.all([
-    pendingDeleteMask(table),
-    isFeatureEnabled('tables-fractional-ordering'),
-  ])
+  const deleteMask = await pendingDeleteMask(table)
 
   const baseConditions = and(
     eq(userTableRows.tableId, table.id),
@@ -1004,7 +991,7 @@ export async function queryRows(
       .select()
       .from(userTableRows)
       .where(pageWhere ?? baseConditions)
-      .orderBy(buildRowOrderBySql(sort, tableName, columns, fractionalOrdering))
+      .orderBy(buildRowOrderBySql(sort, tableName, columns))
     return after ? query.limit(limit) : query.limit(limit).offset(offset)
   }
 
@@ -1028,7 +1015,12 @@ export async function queryRows(
           .then((r) => Number(r[0].count))
     : null
 
-  const [rows, totalCount] = await Promise.all([rowsPromise, countPromise])
+  const [fetchedRows, totalCount] = await Promise.all([rowsPromise, countPromise])
+
+  // Dev-preview byte cut (TABLE_MAX_PAGE_BYTES, off by default): clients terminate on
+  // empty page / totalCount, never page fullness, so a short page is safe to return.
+  const maxPageBytes = getMaxPageBytes()
+  const rows = maxPageBytes === null ? fetchedRows : trimRowsToByteBudget(fetchedRows, maxPageBytes)
 
   const executionsByRow = withExecutions
     ? await loadExecutionsByRow(
@@ -1112,13 +1104,23 @@ class GuardRejected extends Error {
  * @param data - Update data
  * @param table - Table definition
  * @param requestId - Request ID for logging
+ * @param options - Internal persistence controls
  * @returns Updated row
  * @throws Error if row not found or validation fails
  */
+export interface UpdateRowOptions {
+  /**
+   * `patch` sends only changed keys to Postgres via JSONB concatenation while
+   * retaining the same merged-row validation and returned shape.
+   */
+  dataWriteMode?: 'replace' | 'patch'
+}
+
 export async function updateRow(
   data: UpdateRowData,
   table: TableDefinition,
-  requestId: string
+  requestId: string,
+  options: UpdateRowOptions = {}
 ): Promise<TableRow | null> {
   // Get existing row
   const existingRow = await getRowById(data.tableId, data.rowId, data.workspaceId)
@@ -1171,6 +1173,14 @@ export async function updateRow(
   }
 
   const now = new Date()
+  const persistedDataPatch: RowData = {}
+  for (const columnId of Object.keys(data.data)) {
+    persistedDataPatch[columnId] = mergedData[columnId]
+  }
+  const persistedData =
+    options.dataWriteMode === 'patch'
+      ? sql`${userTableRows.data} || ${JSON.stringify(persistedDataPatch)}::jsonb`
+      : mergedData
 
   // Cell-task partial writes pass `cancellationGuard` so the upsert into
   // `tableRowExecutions` is a no-op when (a) a stop click already wrote
@@ -1184,7 +1194,7 @@ export async function updateRow(
     .transaction(async (trx) => {
       await trx
         .update(userTableRows)
-        .set({ data: mergedData, updatedAt: now })
+        .set({ data: persistedData, updatedAt: now })
         .where(eq(userTableRows.id, data.rowId))
 
       const result = await writeExecutionsPatch(

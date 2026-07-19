@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ChipTextarea, chipFieldSurfaceClass, cn } from '@sim/emcn'
 import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { ChipTextarea, chipFieldSurfaceClass } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import {
   applyFrontmatter,
@@ -17,7 +16,7 @@ import { EditorBubbleMenu } from './menus/bubble-menu'
 import { LinkHoverCard } from './menus/link-hover-card'
 import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
-import '@/components/emcn/components/code/code.css'
+import '@sim/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
 
 interface RichMarkdownFieldProps {
@@ -39,6 +38,8 @@ interface RichMarkdownFieldProps {
   error?: boolean
   /** Enables the `@` mention menu scoped to this workspace. Omit to disable mentions. */
   workspaceId?: string
+  /** Force the `@` tag-insertion menu off even with a workspace set (existing tags still render). */
+  disableTagging?: boolean
   /**
    * Intercepts a plain-text paste before the editor handles it. Return `true` to consume the paste
    * (e.g. a full document the host destructures elsewhere); `false` to fall through to normal
@@ -63,6 +64,7 @@ function LoadedRichMarkdownField({
   maxHeight = 360,
   error = false,
   workspaceId,
+  disableTagging,
   onPasteText,
 }: RichMarkdownFieldProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -95,6 +97,7 @@ function LoadedRichMarkdownField({
   const editor = useEditor({
     extensions,
     editable: !disabled && !isStreaming,
+    enablePasteRules: false,
     autofocus: autoFocus ? 'end' : false,
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
@@ -167,7 +170,7 @@ function LoadedRichMarkdownField({
     if (editor.isEditable !== !disabled) editor.setEditable(!disabled)
   }, [editor, value, isStreaming, disabled])
 
-  useEditorMentions(editor, workspaceId)
+  useEditorMentions(editor, workspaceId, { disableTagging })
 
   return (
     <div

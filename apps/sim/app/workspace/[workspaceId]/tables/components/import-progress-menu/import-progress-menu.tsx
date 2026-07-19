@@ -1,7 +1,5 @@
 'use client'
 
-import { createLogger } from '@sim/logger'
-import { useTranslations } from 'next-intl'
 import {
   Button,
   DropdownMenu,
@@ -9,8 +7,9 @@ import {
   DropdownMenuTrigger,
   ProgressItem,
   toast,
-} from '@/components/emcn'
-import { CircleAlert, CircleCheck, Loader } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { CircleAlert, CircleCheck, Loader } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
 import { cancelTableJob, downloadExportResult } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 import { getImportStage } from './import-stage'
@@ -31,7 +30,6 @@ interface ImportProgressMenuProps {
  * both the tables list and the in-table view.
  */
 export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuProps) {
-  const t = useTranslations('auto')
   const imports = useWorkspaceImports(workspaceId, tableId)
   const dismiss = useImportTrayStore((state) => state.dismiss)
   const dismissJob = useImportTrayStore((state) => state.dismissJob)
@@ -98,7 +96,7 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
                     className='text-[var(--brand-primary)] hover-hover:underline'
                     onClick={() => download(row)}
                   >
-                    {t('download')}
+                    Download
                   </button>
                 ) : (
                   stage.detail

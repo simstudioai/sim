@@ -1,16 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ComboboxOption } from '@sim/emcn'
+import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@sim/emcn'
+import { Columns3, Rows3, Table as TableIcon } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useParams, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { debounce, useQueryStates } from 'nuqs'
-import type { ComboboxOption } from '@/components/emcn'
-import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@/components/emcn'
-import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
+import { useQueryStates } from 'nuqs'
 import type { TableDefinition } from '@/lib/table'
 import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES, generateUniqueTableName } from '@/lib/table/constants'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
   FilterTag,
   ResourceAction,
@@ -28,11 +28,8 @@ import {
 } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import {
-  DEFAULT_TABLE_SORT_COLUMN,
-  DEFAULT_TABLE_SORT_DIRECTION,
-  TABLE_SORT_COLUMNS,
-  type TableSortColumn,
   tablesParsers,
+  tablesSortParams,
   tablesUrlKeys,
 } from '@/app/workspace/[workspaceId]/tables/search-params'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -48,14 +45,13 @@ import {
 } from '@/hooks/queries/tables'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useUrlSort } from '@/hooks/use-url-sort'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
 const logger = createLogger('Tables')
-
-/** Debounce window for `search` URL writes; the input itself stays instant. */
-const SEARCH_DEBOUNCE_MS = 300 as const
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
@@ -67,8 +63,6 @@ const COLUMNS: ResourceColumn[] = [
 ]
 
 export function Tables() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -102,46 +96,26 @@ export function Tables() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [activeTable, setActiveTable] = useState<TableDefinition | null>(null)
 
-  const [
-    {
-      search: urlSearchTerm,
-      sort: sortColumn,
-      dir: sortDirection,
-      rows: rowCountFilter,
-      owner: ownerFilter,
-    },
-    setTableFilters,
-  ] = useQueryStates(tablesParsers, tablesUrlKeys)
+  const [{ search: urlSearchTerm, rows: rowCountFilter, owner: ownerFilter }, setTableFilters] =
+    useQueryStates(tablesParsers, tablesUrlKeys)
+
+  const {
+    sort: sortColumn,
+    dir: sortDirection,
+    activeSort,
+    onSort,
+    onClear,
+  } = useUrlSort(tablesSortParams, tablesUrlKeys)
 
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
    * write is debounced. The in-memory filter below still reads a debounced value
    * so it doesn't recompute on every keystroke.
    */
-  const setSearchTerm = useCallback(
-    (value: string) => {
-      const trimmed = value.trim()
-      const next = trimmed.length > 0 ? trimmed : null
-      setTableFilters(
-        { search: next },
-        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
-      )
-    },
-    [setTableFilters]
+  const setSearchTerm = useDebouncedSearchSetter((value, options) =>
+    setTableFilters({ search: value }, options)
   )
-  const debouncedSearchTerm = useDebounce(urlSearchTerm, 300)
-
-  /**
-   * The resolved sort is exposed to the sort menu only when it differs from the
-   * default, mirroring the prior `null`-means-default semantics.
-   */
-  const activeSort = useMemo(
-    () =>
-      sortColumn === DEFAULT_TABLE_SORT_COLUMN && sortDirection === DEFAULT_TABLE_SORT_DIRECTION
-        ? null
-        : { column: sortColumn, direction: sortDirection },
-    [sortColumn, sortDirection]
-  )
+  const debouncedSearchTerm = useDebounce(urlSearchTerm, SEARCH_DEBOUNCE_MS)
 
   const setRowCountFilter = useCallback(
     (next: string[]) => setTableFilters({ rows: next }),
@@ -171,9 +145,8 @@ export function Tables() {
   } = useContextMenu()
 
   const processedTables = useMemo(() => {
-    let result = debouncedSearchTerm
-      ? tables.filter((t) => t.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
-      : tables
+    const query = debouncedSearchTerm.trim().toLowerCase()
+    let result = query ? tables.filter((t) => t.name.toLowerCase().includes(query)) : tables
 
     if (rowCountFilter.length > 0) {
       result = result.filter((t) => {
@@ -186,11 +159,9 @@ export function Tables() {
     if (ownerFilter.length > 0) {
       result = result.filter((t) => ownerFilter.includes(t.createdBy))
     }
-    const col = activeSort?.column ?? 'updated'
-    const dir = activeSort?.direction ?? 'desc'
     return [...result].sort((a, b) => {
       let cmp = 0
-      switch (col) {
+      switch (sortColumn) {
         case 'name':
           cmp = a.name.localeCompare(b.name)
           break
@@ -213,9 +184,9 @@ export function Tables() {
           break
         }
       }
-      return dir === 'asc' ? cmp : -cmp
+      return sortDirection === 'asc' ? cmp : -cmp
     })
-  }, [tables, debouncedSearchTerm, rowCountFilter, ownerFilter, activeSort, members])
+  }, [tables, debouncedSearchTerm, rowCountFilter, ownerFilter, sortColumn, sortDirection, members])
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -280,19 +251,10 @@ export function Tables() {
         { id: 'updated', label: 'Last Updated' },
       ],
       active: activeSort,
-      onSort: (column, direction) => {
-        const sort = (TABLE_SORT_COLUMNS as readonly string[]).includes(column)
-          ? (column as TableSortColumn)
-          : DEFAULT_TABLE_SORT_COLUMN
-        setTableFilters({ sort, dir: direction })
-      },
-      onClear: () =>
-        setTableFilters({
-          sort: DEFAULT_TABLE_SORT_COLUMN,
-          dir: DEFAULT_TABLE_SORT_DIRECTION,
-        }),
+      onSort,
+      onClear,
     }),
-    [activeSort, setTableFilters]
+    [activeSort, onSort, onClear]
   )
 
   const rowCountDisplayLabel = useMemo(() => {
@@ -342,9 +304,7 @@ export function Tables() {
     () => (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>
-            {t('row_count')}
-          </span>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Row Count</span>
           <ChipCombobox
             options={[
               { value: 'empty', label: 'Empty' },
@@ -364,9 +324,7 @@ export function Tables() {
         </div>
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-1.5'>
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>
-              {t('owner')}
-            </span>
+            <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
             <ChipCombobox
               options={memberOptions}
               multiSelect
@@ -376,7 +334,7 @@ export function Tables() {
                 <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
               }
               searchable
-              searchPlaceholder={tI18n('search_members')}
+              searchPlaceholder='Search members...'
               showAllOption
               allOptionLabel='All'
               className='w-full'
@@ -392,7 +350,7 @@ export function Tables() {
             }}
             className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
           >
-            {t('clear_all_filters')}
+            Clear all filters
           </button>
         )}
       </div>
@@ -639,7 +597,7 @@ export function Tables() {
       <Resource onContextMenu={handleContentContextMenu}>
         <Resource.Header
           icon={TableIcon}
-          title={t('tables')}
+          title='Tables'
           actions={headerActions}
           aside={headerAside}
         />
@@ -721,8 +679,8 @@ export function Tables() {
           setIsDeleteDialogOpen(open)
           if (!open) setActiveTable(null)
         }}
-        srTitle={tI18n('delete_table')}
-        title={t('delete_table')}
+        srTitle='Delete Table'
+        title='Delete Table'
         text={[
           'Are you sure you want to delete ',
           { text: activeTable?.name ?? 'this table', bold: true },

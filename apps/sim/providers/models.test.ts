@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getBaseModelProviders,
+  getHostedModels,
   orderModelIdsByReleaseDate,
   PROVIDER_DEFINITIONS,
 } from '@/providers/models'
@@ -132,5 +133,164 @@ describe('sakana provider definition', () => {
     const baseModels = getBaseModelProviders()
     expect(baseModels.fugu).toBe('sakana')
     expect(baseModels['fugu-ultra']).toBe('sakana')
+  })
+})
+
+describe('nvidia provider definition', () => {
+  const nvidia = PROVIDER_DEFINITIONS.nvidia
+
+  const expectedModels = [
+    { id: 'nvidia/llama-3.1-nemotron-70b-instruct', contextWindow: 128000 },
+    { id: 'nvidia/llama-3.1-nemotron-ultra-253b-v1', contextWindow: 131072 },
+    { id: 'nvidia/llama-3.3-nemotron-super-49b-v1.5', contextWindow: 131072 },
+    { id: 'nvidia/nemotron-3-nano-30b-a3b', contextWindow: 262144 },
+    { id: 'nvidia/nemotron-3-super-120b-a12b', contextWindow: 1048576 },
+    { id: 'nvidia/nemotron-3-ultra-550b-a55b', contextWindow: 1048576 },
+  ]
+
+  it('is registered with the current-gen Super model as the default', () => {
+    expect(nvidia).toBeDefined()
+    expect(nvidia.id).toBe('nvidia')
+    expect(nvidia.defaultModel).toBe('nvidia/nemotron-3-super-120b-a12b')
+    expect(nvidia.modelPatterns).toEqual([/^nvidia\//])
+  })
+
+  it('exposes all six Nemotron models with the documented context windows', () => {
+    expect(nvidia.models.map((m) => m.id)).toEqual(expectedModels.map((m) => m.id))
+    for (const expected of expectedModels) {
+      const model = nvidia.models.find((m) => m.id === expected.id)
+      expect(model?.contextWindow).toBe(expected.contextWindow)
+    }
+  })
+
+  it('routes every nvidia model ID to the nvidia provider', () => {
+    const baseModels = getBaseModelProviders()
+    for (const expected of expectedModels) {
+      expect(baseModels[expected.id]).toBe('nvidia')
+    }
+  })
+})
+
+describe('zai provider definition', () => {
+  const zai = PROVIDER_DEFINITIONS.zai
+
+  const expectedModels = [
+    { id: 'glm-5.2', contextWindow: 1000000 },
+    { id: 'glm-5.1', contextWindow: 200000 },
+    { id: 'glm-5', contextWindow: 200000 },
+    { id: 'glm-5-turbo', contextWindow: 200000 },
+    { id: 'glm-4.7', contextWindow: 200000 },
+    { id: 'glm-4.7-flashx', contextWindow: 200000 },
+    { id: 'glm-4.6', contextWindow: 200000 },
+    { id: 'glm-4.5', contextWindow: 128000 },
+    { id: 'glm-4.5-air', contextWindow: 128000 },
+    { id: 'glm-4.5-x', contextWindow: 128000 },
+    { id: 'glm-4.5-airx', contextWindow: 128000 },
+    { id: 'glm-4-32b-0414-128k', contextWindow: 128000 },
+  ]
+
+  it('is registered with a bare glm-4.6 as the default model', () => {
+    expect(zai).toBeDefined()
+    expect(zai.id).toBe('zai')
+    expect(zai.defaultModel).toBe('glm-4.6')
+    expect(zai.defaultModel.startsWith('zai/')).toBe(false)
+    // No fallback pattern — an unscoped `/^glm/` would overmatch unrelated self-hosted
+    // "glm-*" models and misroute them to Z.ai's hosted billing.
+    expect(zai.modelPatterns).toEqual([])
+  })
+
+  it('exposes every GLM model with the documented context window', () => {
+    expect(zai.models.map((m) => m.id)).toEqual(expectedModels.map((m) => m.id))
+    for (const expected of expectedModels) {
+      const model = zai.models.find((m) => m.id === expected.id)
+      expect(model?.contextWindow).toBe(expected.contextWindow)
+    }
+  })
+
+  it('routes every bare glm-* model ID to the zai provider', () => {
+    const baseModels = getBaseModelProviders()
+    for (const expected of expectedModels) {
+      expect(baseModels[expected.id]).toBe('zai')
+    }
+  })
+
+  it('is included in getHostedModels since Sim provides the Z.ai key server-side', () => {
+    expect(getHostedModels()).toContain('glm-4.6')
+  })
+})
+
+describe('kimi provider definition', () => {
+  const kimi = PROVIDER_DEFINITIONS.kimi
+
+  const expectedModels = [
+    { id: 'kimi-k3', contextWindow: 1048576 },
+    { id: 'kimi-k2.7-code', contextWindow: 262144 },
+    { id: 'kimi-k2.7-code-highspeed', contextWindow: 262144 },
+    { id: 'kimi-k2.6', contextWindow: 262144 },
+  ]
+
+  it('is registered with kimi-k2.6 as the default model', () => {
+    expect(kimi).toBeDefined()
+    expect(kimi.id).toBe('kimi')
+    // kimi-k2.6 (not the flagship kimi-k3) — k3 access is tier-gated on Moonshot accounts,
+    // and the default must be a model every account can serve.
+    expect(kimi.defaultModel).toBe('kimi-k2.6')
+    // No fallback pattern — an unscoped `/^kimi/` would overmatch Kimi weights re-hosted by
+    // other providers and misroute them to Moonshot's hosted billing.
+    expect(kimi.modelPatterns).toEqual([])
+  })
+
+  it('exposes every Kimi model with the documented context window', () => {
+    expect(kimi.models.map((m) => m.id)).toEqual(expectedModels.map((m) => m.id))
+    for (const expected of expectedModels) {
+      const model = kimi.models.find((m) => m.id === expected.id)
+      expect(model?.contextWindow).toBe(expected.contextWindow)
+    }
+  })
+
+  it('declares no temperature capability since every current Kimi model pins it server-side', () => {
+    expect(kimi.capabilities?.temperature).toBeUndefined()
+    for (const model of kimi.models) {
+      expect(model.capabilities.temperature).toBeUndefined()
+    }
+  })
+
+  it('exposes the thinking toggle only on kimi-k2.6', () => {
+    for (const model of kimi.models) {
+      const hasToggle = model.id === 'kimi-k2.6'
+      if (hasToggle) {
+        expect(model.capabilities.thinking).toEqual({
+          levels: ['disabled', 'enabled'],
+          default: 'enabled',
+        })
+      } else {
+        expect(model.capabilities.thinking).toBeUndefined()
+      }
+    }
+  })
+
+  it('routes every kimi model ID to the kimi provider', () => {
+    const baseModels = getBaseModelProviders()
+    for (const expected of expectedModels) {
+      expect(baseModels[expected.id]).toBe('kimi')
+    }
+  })
+
+  it('is included in getHostedModels since Sim provides the Kimi key server-side', () => {
+    expect(getHostedModels()).toContain('kimi-k3')
+  })
+})
+
+describe('xai provider definition', () => {
+  const xai = PROVIDER_DEFINITIONS.xai
+
+  it('is registered with grok-4.5 as the default model', () => {
+    expect(xai).toBeDefined()
+    expect(xai.id).toBe('xai')
+    expect(xai.defaultModel).toBe('grok-4.5')
+  })
+
+  it('is included in getHostedModels since Sim provides the xAI key server-side', () => {
+    expect(getHostedModels()).toContain('grok-4.5')
   })
 })

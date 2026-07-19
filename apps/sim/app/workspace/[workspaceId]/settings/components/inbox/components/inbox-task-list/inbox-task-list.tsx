@@ -1,14 +1,20 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
+import { Badge, ChipInput, ChipSelect, Search } from '@sim/emcn'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { ArrowRight, Paperclip } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Badge, ChipInput, ChipSelect, Search } from '@/components/emcn'
+import { useQueryStates } from 'nuqs'
+import {
+  type InboxStatusFilter,
+  inboxTaskParsers,
+  inboxTaskUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/inbox/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },
@@ -19,7 +25,7 @@ const STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected' },
 ] as const
 
-type StatusFilter = (typeof STATUS_OPTIONS)[number]['value']
+type StatusFilter = InboxStatusFilter
 
 const STATUS_BADGES: Record<
   string,
@@ -33,14 +39,23 @@ const STATUS_BADGES: Record<
 }
 
 export function InboxTaskList() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [searchTerm, setSearchTerm] = useState('')
+  const [{ status: statusFilter, search: searchTerm }, setInboxFilters] = useQueryStates(
+    inboxTaskParsers,
+    inboxTaskUrlKeys
+  )
+
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. Filtering below is cheap in-memory over the loaded
+   * tasks, so it reads the instant value too.
+   */
+  const setSearchTerm = useDebouncedSearchSetter((value, options) =>
+    setInboxFilters({ search: value }, options)
+  )
 
   const { data: config } = useInboxConfig(workspaceId)
   const { data: tasksData, isLoading } = useInboxTasks(workspaceId, {
@@ -50,7 +65,7 @@ export function InboxTaskList() {
   const filteredTasks = useMemo(() => {
     if (!tasksData?.tasks) return []
     if (!searchTerm.trim()) return tasksData.tasks
-    const term = searchTerm.toLowerCase()
+    const term = searchTerm.trim().toLowerCase()
     return tasksData.tasks.filter(
       (t) =>
         t.subject?.toLowerCase().includes(term) ||
@@ -73,7 +88,7 @@ export function InboxTaskList() {
       <div className='flex items-center gap-2'>
         <ChipInput
           icon={Search}
-          placeholder={t('search_tasks')}
+          placeholder='Search tasks...'
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className='min-w-0 flex-1'
@@ -83,7 +98,7 @@ export function InboxTaskList() {
           value={statusFilter}
           onChange={(value) => {
             if (STATUS_OPTIONS.some((option) => option.value === value)) {
-              setStatusFilter(value as StatusFilter)
+              setInboxFilters({ status: value as StatusFilter })
             }
           }}
           options={STATUS_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value }))}
@@ -100,7 +115,7 @@ export function InboxTaskList() {
             <SettingsEmptyState>
               {config?.address
                 ? `No email tasks yet. Send an email to ${config.address} to get started.`
-                : tI18n('no_email_tasks_yet')}
+                : 'No email tasks yet.'}
             </SettingsEmptyState>
           )
         ) : (
@@ -109,49 +124,37 @@ export function InboxTaskList() {
               const statusBadge = STATUS_BADGES[task.status] || STATUS_BADGES.received
               const isClickable =
                 task.chatId && (task.status === 'completed' || task.status === 'failed')
-              return (
-                <div
-                  key={task.id}
-                  className={`flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors ${
-                    isClickable
-                      ? 'cursor-pointer hover-hover:bg-[var(--surface-active)]'
-                      : 'cursor-default'
-                  }`}
-                  role='button'
-                  aria-disabled={!isClickable}
-                  tabIndex={isClickable ? 0 : undefined}
-                  onClick={() => handleTaskClick(task)}
-                  onKeyDown={(e) => {
-                    if (isClickable && (e.key === 'Enter' || e.key === ' ')) {
-                      e.preventDefault()
-                      handleTaskClick(task)
-                    }
-                  }}
-                >
+              const rowClassName = `flex w-full items-center gap-2.5 rounded-lg p-2 text-left transition-colors ${
+                isClickable
+                  ? 'cursor-pointer hover-hover:bg-[var(--surface-active)]'
+                  : 'cursor-default'
+              }`
+              const rowContent = (
+                <>
                   <div className='flex min-w-0 flex-1 flex-col'>
                     <div className='flex min-w-0 items-center gap-1.5'>
-                      <span className='truncate text-[14px] text-[var(--text-body)]'>
+                      <span className='truncate text-[var(--text-body)] text-sm'>
                         {task.subject}
                       </span>
                       {task.hasAttachments && (
                         <Paperclip className='size-[12px] flex-shrink-0 text-[var(--text-muted)]' />
                       )}
                     </div>
-                    <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                    <span className='truncate text-[var(--text-muted)] text-caption'>
                       {task.fromName || task.fromEmail}
                     </span>
                     {task.status === 'rejected' && task.rejectionReason && (
-                      <span className='truncate text-[12px] text-[var(--text-muted)] line-through'>
+                      <span className='truncate text-[var(--text-muted)] text-caption line-through'>
                         {formatRejectionReason(task.rejectionReason)}
                       </span>
                     )}
                     {task.status === 'failed' && task.errorMessage && (
-                      <span className='truncate text-[12px] text-[var(--text-error)]'>
+                      <span className='truncate text-[var(--text-error)] text-caption'>
                         {task.errorMessage}
                       </span>
                     )}
                     {task.status === 'completed' && task.resultSummary && (
-                      <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                      <span className='truncate text-[var(--text-muted)] text-caption'>
                         {task.resultSummary}
                       </span>
                     )}
@@ -159,13 +162,13 @@ export function InboxTaskList() {
                       task.status !== 'failed' &&
                       task.status !== 'rejected' &&
                       task.bodyPreview && (
-                        <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                        <span className='truncate text-[var(--text-muted)] text-caption'>
                           {task.bodyPreview}
                         </span>
                       )}
                   </div>
                   <div className='flex flex-shrink-0 items-center gap-2'>
-                    <span className='whitespace-nowrap text-[12px] text-[var(--text-muted)]'>
+                    <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
                       {formatRelativeTime(task.createdAt)}
                     </span>
                     <Badge variant={statusBadge.variant} className='text-xs'>
@@ -178,6 +181,21 @@ export function InboxTaskList() {
                       <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
                     )}
                   </div>
+                </>
+              )
+
+              return isClickable ? (
+                <button
+                  key={task.id}
+                  type='button'
+                  className={rowClassName}
+                  onClick={() => handleTaskClick(task)}
+                >
+                  {rowContent}
+                </button>
+              ) : (
+                <div key={task.id} className={rowClassName}>
+                  {rowContent}
                 </div>
               )
             })}
@@ -196,6 +214,8 @@ function formatRejectionReason(reason: string): string {
       return 'Automated sender'
     case 'rate_limit_exceeded':
       return 'Rate limit exceeded'
+    case 'not_entitled':
+      return 'Plan no longer includes Sim Mailer'
     default:
       return reason
   }

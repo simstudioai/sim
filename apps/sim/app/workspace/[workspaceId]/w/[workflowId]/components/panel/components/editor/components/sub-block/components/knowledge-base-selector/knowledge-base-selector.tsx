@@ -1,11 +1,10 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
+import { Combobox, type ComboboxOption } from '@sim/emcn'
 import { useQueries } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Combobox, type ComboboxOption } from '@/components/emcn'
 import { PackageSearchIcon } from '@/components/icons'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -33,7 +32,6 @@ export function KnowledgeBaseSelector({
   isPreview = false,
   previewValue,
 }: KnowledgeBaseSelectorProps) {
-  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -212,7 +210,7 @@ export function KnowledgeBaseSelector({
         isLoading={isKnowledgeBasesLoading}
         error={error}
         searchable
-        searchPlaceholder={t('search_knowledge_bases')}
+        searchPlaceholder='Search knowledge bases...'
         overlayContent={
           !isMultiSelect && selectedKnowledgeBases[0]
             ? (() => {

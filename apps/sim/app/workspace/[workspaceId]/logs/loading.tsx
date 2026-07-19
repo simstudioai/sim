@@ -1,8 +1,7 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
-import { Library, RefreshCw } from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
+import { Library, RefreshCw } from '@sim/emcn'
+import { Download } from '@sim/emcn/icons'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,
@@ -25,15 +24,13 @@ const ACTIONS: ChromeActionSpec[] = [
 ]
 
 export default function LogsLoading() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   return (
     <ResourceChromeFallback
       icon={Library}
-      title={t('logs')}
+      title='Logs'
       columns={COLUMNS}
       actions={ACTIONS}
-      searchPlaceholder={tI18n('search_logs')}
+      searchPlaceholder='Search logs...'
       hasSort
       hasFilter
     />

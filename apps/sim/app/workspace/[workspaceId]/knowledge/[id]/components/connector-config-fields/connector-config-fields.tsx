@@ -1,8 +1,7 @@
 'use client'
 
+import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@sim/emcn'
 import { ArrowLeftRight, Info } from 'lucide-react'
-import { useTranslations } from 'next-intl'
-import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@/components/emcn'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import type {
   ConfigFieldMap,
@@ -49,7 +48,6 @@ export function ConnectorConfigFields({
   onToggleCanonicalMode,
   disabled,
 }: ConnectorConfigFieldsProps) {
-  const t = useTranslations('auto')
   return (
     <>
       {connectorConfig.configFields.map((field) => {
@@ -108,9 +106,7 @@ export function ConnectorConfigFields({
                       </Button>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top'>
-                      {field.mode === 'basic'
-                        ? t('switch_to_manual_input')
-                        : t('switch_to_selector')}
+                      {field.mode === 'basic' ? 'Switch to manual input' : 'Switch to selector'}
                     </Tooltip.Content>
                   </Tooltip.Root>
                 )}

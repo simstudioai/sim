@@ -1,10 +1,6 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import {
   Checkbox,
   ChipConfirmModal,
@@ -15,11 +11,22 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipTimePicker,
   Label,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { useParams } from 'next/navigation'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
+import { useTimezone } from '@/hooks/queries/general-settings'
 import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
-import { cleanCellValue, formatValueForInput } from '../../utils'
+import {
+  cleanCellValue,
+  dateValueToLocalParts,
+  formatValueForInput,
+  localPartsToDateValue,
+  todayLocalCalendarDate,
+} from '../../utils'
 
 const logger = createLogger('RowModal')
 
@@ -35,14 +42,15 @@ export interface RowModalProps {
 
 function cleanRowData(
   columns: ColumnDefinition[],
-  rowData: Record<string, unknown>
+  rowData: Record<string, unknown>,
+  timeZone: string
 ): Record<string, unknown> {
   const cleanData: Record<string, unknown> = {}
 
   columns.forEach((col) => {
     const value = rowData[col.name]
     try {
-      cleanData[col.name] = cleanCellValue(value, col)
+      cleanData[col.name] = cleanCellValue(value, col, timeZone)
     } catch {
       throw new Error(`Invalid JSON for field: ${col.name}`)
     }
@@ -60,8 +68,6 @@ function cleanRowData(
  * prop (e.g. the row id) so React remounts with the new row's values.
  */
 export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess }: RowModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const tableId = table.id
@@ -69,6 +75,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
   const schema = table?.schema
   const columns = schema?.columns || []
 
+  const timeZone = useTimezone()
   const [rowData, setRowData] = useState<Record<string, unknown>>(() =>
     mode === 'edit' && row ? row.data : {}
   )
@@ -84,7 +91,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
     setError(null)
 
     try {
-      const cleanData = cleanRowData(columns, rowData)
+      const cleanData = cleanRowData(columns, rowData, timeZone)
 
       if (row) {
         await updateRowMutation.mutateAsync({ rowId: row.id, data: cleanData })
@@ -152,11 +159,11 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
   }
 
   return (
-    <ChipModal open={isOpen} onOpenChange={handleClose} srTitle={tI18n('edit_row')} size='lg'>
-      <ChipModalHeader onClose={handleClose}>{t('edit_row')}</ChipModalHeader>
+    <ChipModal open={isOpen} onOpenChange={handleClose} srTitle='Edit Row' size='lg'>
+      <ChipModalHeader onClose={handleClose}>Edit Row</ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-tertiary)] text-small'>
-          {t('update_values_for')} {table?.name ?? 'table'}
+          Update values for {table?.name ?? 'table'}
         </p>
         <form onSubmit={handleFormSubmit} className='contents'>
           <button type='submit' hidden disabled={isSubmitting} />
@@ -191,16 +198,13 @@ interface ColumnFieldProps {
 }
 
 function ColumnField({ column, value, onChange }: ColumnFieldProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const checkboxId = useId()
+  const timeZone = useTimezone()
   const title = (
     <>
       {column.name}
       {column.unique && (
-        <span className='ml-1.5 font-normal text-[var(--text-tertiary)] text-xs'>
-          {t('unique')}
-        </span>
+        <span className='ml-1.5 font-normal text-[var(--text-tertiary)] text-xs'>(unique)</span>
       )}
     </>
   )
@@ -219,7 +223,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
             htmlFor={checkboxId}
             className='font-normal text-[var(--text-tertiary)] text-small'
           >
-            {value ? tI18n('true') : tI18n('false')}
+            {value ? 'True' : 'False'}
           </Label>
         </div>
       </ChipModalField>
@@ -236,21 +240,37 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
         mono
         value={formatValueForInput(value, column.type)}
         onChange={onChange}
-        placeholder={t('label')}
+        placeholder='{"key": "value"}'
         rows={4}
       />
     )
   }
 
   if (column.type === 'date') {
+    const parts = dateValueToLocalParts(formatValueForInput(value, 'date'))
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
-        <ChipDatePicker
-          value={formatValueForInput(value, column.type) || undefined}
-          onChange={onChange}
-          placeholder={t('select_date')}
-          fullWidth
-        />
+        <div className='flex items-center gap-2'>
+          <ChipDatePicker
+            value={parts.day ?? undefined}
+            today={todayLocalCalendarDate(timeZone)}
+            onChange={(day) => onChange(localPartsToDateValue(day, parts.time, timeZone))}
+            placeholder='Select date'
+            flush
+            className='flex-1'
+          />
+          <ChipTimePicker
+            value={parts.time?.slice(0, 5)}
+            onChange={(time) =>
+              onChange(
+                localPartsToDateValue(parts.day ?? todayLocalCalendarDate(timeZone), time, timeZone)
+              )
+            }
+            placeholder='Add time'
+            flush
+            className='w-[110px]'
+          />
+        </div>
       </ChipModalField>
     )
   }

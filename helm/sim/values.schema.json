@@ -108,11 +108,13 @@
           "properties": {
             "BETTER_AUTH_SECRET": {
               "type": "string",
-              "description": "Auth secret (minimum 32 characters required when not using existingSecret)"
+              "anyOf": [{ "minLength": 32 }, { "const": "" }],
+              "description": "Auth secret (minimum 32 characters required when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "ENCRYPTION_KEY": {
               "type": "string",
-              "description": "Encryption key (minimum 32 characters required when not using existingSecret)"
+              "anyOf": [{ "minLength": 32 }, { "const": "" }],
+              "description": "Encryption key (minimum 32 characters required when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "NEXT_PUBLIC_APP_URL": {
               "type": "string",
@@ -186,6 +188,10 @@
               "type": "string",
               "description": "AWS region for SES (e.g., 'us-east-1'). Credentials are resolved via the standard AWS provider chain (env vars, IRSA, EC2/ECS task role, SSO)."
             },
+            "AZURE_ACS_CONNECTION_STRING": {
+              "type": "string",
+              "description": "Azure Communication Services connection string (email provider — used when Resend/SES/SMTP are not configured)."
+            },
             "SMTP_HOST": {
               "type": "string",
               "description": "SMTP server hostname. When set together with SMTP_PORT, enables the SMTP mail provider."
@@ -205,6 +211,14 @@
             "SMTP_SECURE": {
               "type": "string",
               "description": "Set to 'true' to force TLS on connect. Defaults to true when SMTP_PORT=465."
+            },
+            "GMAIL_CREDENTIALS_JSON": {
+              "type": "string",
+              "description": "Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider."
+            },
+            "GMAIL_SENDER": {
+              "type": "string",
+              "description": "Google Workspace user the Gmail service account impersonates when sending (e.g., noreply@yourdomain.com)."
             },
             "GOOGLE_CLIENT_ID": {
               "type": "string",
@@ -270,6 +284,26 @@
               "type": "string",
               "description": "ElevenLabs API key for text-to-speech in deployed chat"
             },
+            "KB_OPENAI_MODEL_NAME": {
+              "type": "string",
+              "description": "Azure deployment name serving the configured KB embedding model (used only when AZURE_OPENAI_* credentials are set)."
+            },
+            "WAND_OPENAI_MODEL_NAME": {
+              "type": "string",
+              "description": "Wand generation model deployment name (works with both regular OpenAI and Azure OpenAI)."
+            },
+            "OCR_AZURE_ENDPOINT": {
+              "type": "string",
+              "description": "Azure Mistral OCR service endpoint."
+            },
+            "OCR_AZURE_MODEL_NAME": {
+              "type": "string",
+              "description": "Azure Mistral OCR model name."
+            },
+            "OCR_AZURE_API_KEY": {
+              "type": "string",
+              "description": "Azure Mistral OCR API key."
+            },
             "RATE_LIMIT_WINDOW_MS": {
               "type": "string",
               "description": "Rate limit window duration in milliseconds"
@@ -294,6 +328,10 @@
               "type": "string",
               "description": "Free tier async API executions per minute"
             },
+            "RATE_LIMIT_FREE_API_ENDPOINT": {
+              "type": "string",
+              "description": "Free tier v1 API endpoint requests per minute"
+            },
             "RATE_LIMIT_PRO_ASYNC": {
               "type": "string",
               "description": "Pro tier async API executions per minute"
@@ -305,6 +343,22 @@
             "RATE_LIMIT_ENTERPRISE_ASYNC": {
               "type": "string",
               "description": "Enterprise tier async API executions per minute"
+            },
+            "BILLING_CONCURRENCY_LIMIT_FREE": {
+              "type": "string",
+              "description": "In-flight executions per free billing account"
+            },
+            "BILLING_CONCURRENCY_LIMIT_PRO": {
+              "type": "string",
+              "description": "In-flight executions per Pro-tier billing account (Pro and Pro for Teams)"
+            },
+            "BILLING_CONCURRENCY_LIMIT_TEAM": {
+              "type": "string",
+              "description": "In-flight executions per Max-tier billing account (Max and Max for Teams)"
+            },
+            "BILLING_CONCURRENCY_LIMIT_ENTERPRISE": {
+              "type": "string",
+              "description": "Default in-flight executions per Enterprise billing account"
             },
             "MANUAL_EXECUTION_LIMIT": {
               "type": "string",
@@ -408,7 +462,8 @@
           "properties": {
             "BETTER_AUTH_SECRET": {
               "type": "string",
-              "description": "Auth secret (minimum 32 characters required when not using existingSecret)"
+              "anyOf": [{ "minLength": 32 }, { "const": "" }],
+              "description": "Auth secret (minimum 32 characters required when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "NEXT_PUBLIC_APP_URL": {
               "type": "string",
@@ -504,7 +559,8 @@
             },
             "password": {
               "type": "string",
-              "description": "PostgreSQL password (minimum 8 characters when not using existingSecret)"
+              "anyOf": [{ "minLength": 8 }, { "const": "" }],
+              "description": "PostgreSQL password (minimum 8 characters when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "existingSecret": {
               "type": "object",
@@ -709,12 +765,12 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable the Presidio PII redaction sidecar"
+          "description": "Enable the Presidio PII redaction service"
         },
         "replicaCount": {
           "type": "integer",
           "minimum": 1,
-          "description": "Number of PII sidecar replicas"
+          "description": "Number of PII service replicas"
         },
         "image": {
           "type": "object",

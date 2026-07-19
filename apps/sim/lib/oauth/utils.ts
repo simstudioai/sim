@@ -122,6 +122,14 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'mute.write': 'Mute and unmute users',
   'offline.access': 'Access account when not using the application',
 
+  // TikTok scopes
+  'user.info.basic': "Read a user's profile info (open id, avatar, display name)",
+  'user.info.profile': "Read a user's profile info (bio, verification status, username)",
+  'user.info.stats': "Read a user's stats (follower, following, likes, and video counts)",
+  'video.publish': "Directly post content to a user's TikTok profile",
+  'video.upload': "Share content to a creator's account as a draft for further edit and post",
+  'video.list': "Read a user's public TikTok videos",
+
   // Airtable scopes
   'data.records:read': 'Read records',
   'data.records:write': 'Write to records',
@@ -242,13 +250,6 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'GroupMember.ReadWrite.All': 'Read and write all group memberships',
   'Directory.Read.All': 'Read directory data',
 
-  // Discord scopes
-  identify: 'Read Discord user',
-  bot: 'Read Discord bot',
-  'messages.read': 'Read Discord messages',
-  guilds: 'Read Discord guilds',
-  'guilds.members.read': 'Read Discord guild members',
-
   // Reddit scopes
   identity: 'Access Reddit identity',
   submit: 'Submit posts and comments',
@@ -277,8 +278,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // Slack scopes
   'channels:read': 'View public channels',
   'channels:history': 'Read channel messages',
+  'channels:manage': 'Create, archive, and rename public channels',
   'groups:read': 'View private channels',
   'groups:history': 'Read private messages',
+  'groups:write': 'Create, archive, and manage private channels',
   'chat:write': 'Send messages',
   'chat:write.public': 'Post to public channels',
   'assistant:write': 'Set assistant thread status, title, and suggested prompts',
@@ -292,6 +295,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'canvases:read': 'Read canvas sections',
   'canvases:write': 'Create, edit, and delete canvas documents',
   'reactions:write': 'Add emoji reactions to messages',
+  'reactions:read': 'View emoji reactions on messages',
 
   // Webflow scopes
   'sites:read': 'View Webflow sites',
@@ -354,6 +358,13 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
 
   // LinkedIn scopes
   w_member_social: 'Access LinkedIn profile',
+
+  // Instagram scopes (Business Login for Instagram)
+  instagram_business_basic: 'Access Instagram professional profile and media',
+  instagram_business_content_publish: 'Publish photos, videos, reels, and stories',
+  instagram_business_manage_comments: 'Read, reply to, hide, and delete comments',
+  instagram_business_manage_messages: 'Read conversations and send Instagram Direct messages',
+  instagram_business_manage_insights: 'Read account and media insights',
 
   // Box scopes
   root_readwrite: 'Read and write all files and folders in Box account',
@@ -512,7 +523,13 @@ export function getServiceConfigByServiceId(serviceId: string): OAuthServiceConf
 export function getServiceConfigByProviderId(providerId: string): OAuthServiceConfig | null {
   for (const provider of Object.values(OAUTH_PROVIDERS)) {
     for (const [key, service] of Object.entries(provider.services)) {
-      if (service.providerId === providerId || key === providerId) {
+      // Also resolve a service-account provider id (e.g. `slack-custom-bot`) back
+      // to its owning service so its credentials group under that integration.
+      if (
+        service.providerId === providerId ||
+        key === providerId ||
+        service.serviceAccountProviderId === providerId
+      ) {
         return service
       }
     }

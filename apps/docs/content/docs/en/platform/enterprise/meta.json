@@ -4,10 +4,12 @@
     "index",
     "sso",
     "access-control",
+    "custom-blocks",
     "whitelabeling",
     "audit-logs",
     "data-retention",
-    "data-drains"
+    "data-drains",
+    "forks"
   ],
   "defaultOpen": false
 }

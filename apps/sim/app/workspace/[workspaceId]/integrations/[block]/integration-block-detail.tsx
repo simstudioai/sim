@@ -1,19 +1,20 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import { useQueryState } from 'nuqs'
-import { Chip, ChipDropdown, ChipLink } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { getClientCredentialAccountDescriptor } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { getTokenServiceAccountDescriptor } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   blockTypeToIconMap,
   type Integration,
   resolveOAuthServiceForIntegration,
 } from '@/lib/integrations'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
+import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
@@ -21,12 +22,17 @@ import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integr
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
+import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
+import { getBlock } from '@/blocks'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import {
   getSuggestedSkillsForBlock,
   getTemplatesForBlock,
   type ScopedBlockTemplate,
 } from '@/blocks/registry'
+import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
@@ -45,7 +51,7 @@ interface IntegrationBlockDetailProps {
 }
 
 export function IntegrationBlockDetail({ integration, workspaceId }: IntegrationBlockDetailProps) {
-  const t = useTranslations('auto')
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   useOAuthReturnRouter()
   const router = useRouter()
   const [connectMode, setConnectMode] = useQueryState(connectParam.key, connectParam.parser)
@@ -55,10 +61,12 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   const oauthService = resolveOAuthServiceForIntegration(integration)
   const [oauthOpen, setOAuthOpen] = useState(false)
 
-  const { data: credentials = [] } = useWorkspaceCredentials({
+  const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
     workspaceId,
     enabled: Boolean(workspaceId),
   })
+
+  useScrollRestoration(scrollContainerRef, { ready: !credentialsLoading })
 
   const connectedCredentials = useMemo(() => {
     if (!oauthService) return []
@@ -70,7 +78,29 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     )
   }, [credentials, oauthService])
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)
-  const hasServiceAccount = Boolean(oauthService?.serviceAccountProviderId)
+  const isSlackBot = oauthService?.serviceAccountProviderId === SLACK_CUSTOM_BOT_PROVIDER_ID
+  const blockOverlayVersion = useCustomBlockOverlayVersion()
+  // Custom Slack bots ride the slack_v2 preview flag: the setup surface stays
+  // hidden until that block is revealed for this viewer.
+  const slackBotPreviewHidden = useMemo(() => {
+    if (!isSlackBot) return false
+    const v2 = getBlock('slack_v2')
+    return !v2 || isHiddenUnder(overlayVisibility(), v2)
+  }, [isSlackBot, blockOverlayVersion])
+  const hasServiceAccount =
+    Boolean(oauthService?.serviceAccountProviderId) && !slackBotPreviewHidden
+  // Vendor-accurate connect label: token-paste and client-credential
+  // providers use their own noun ("Add API key", "Add server-to-server app");
+  // only true service-account providers (Google, Atlassian) say
+  // "Add service account".
+  const nounDescriptor =
+    getTokenServiceAccountDescriptor(oauthService?.serviceAccountProviderId) ??
+    getClientCredentialAccountDescriptor(oauthService?.serviceAccountProviderId)
+  const serviceAccountConnectLabel = isSlackBot
+    ? 'Set up a custom bot'
+    : nounDescriptor
+      ? `Add ${nounDescriptor.connectNoun}`
+      : 'Add service account'
   const hasHandledConnectQueryRef = useRef(false)
 
   useEffect(() => {
@@ -81,10 +111,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     if (connectMode === CONNECT_MODE.oauth && oauthService) {
       setOAuthOpen(true)
       handled = true
-    } else if (
-      connectMode === CONNECT_MODE.serviceAccount &&
-      oauthService?.serviceAccountProviderId
-    ) {
+    } else if (connectMode === CONNECT_MODE.serviceAccount && hasServiceAccount) {
       setServiceAccountOpen(true)
       handled = true
     }
@@ -92,7 +119,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
 
     hasHandledConnectQueryRef.current = true
     void setConnectMode(null, { history: 'replace', scroll: false })
-  }, [connectMode, oauthService, setConnectMode])
+  }, [connectMode, oauthService, hasServiceAccount, setConnectMode])
 
   const connectOptions = oauthService
     ? [
@@ -103,7 +130,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
         },
         {
           value: CONNECT_MODE.serviceAccount,
-          label: 'Add service account',
+          label: serviceAccountConnectLabel,
           icon: oauthService.serviceIcon,
         },
       ]
@@ -123,7 +150,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
         <ChipLink href={`/workspace/${workspaceId}/integrations`} leftIcon={ArrowLeft}>
-          {t('integrations')}
+          Integrations
         </ChipLink>
         <div className='ml-auto flex items-center'>
           {oauthService ? (
@@ -131,7 +158,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
               <ChipDropdown
                 variant='primary'
                 leftIcon={Plus}
-                placeholder={t('add_to_sim')}
+                placeholder='Add to Sim'
                 showSelectedCheck={false}
                 options={connectOptions}
                 onChange={handleSelectConnectOption}
@@ -139,12 +166,12 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
               />
             ) : (
               <Chip variant='primary' leftIcon={Plus} onClick={() => setOAuthOpen(true)}>
-                {t('add_to_sim')}
+                Add to Sim
               </Chip>
             )
           ) : (
             <Chip variant='primary' leftIcon={Plus} onClick={handleAddInChat}>
-              {t('add_to_sim')}
+              Add to Sim
             </Chip>
           )}
         </div>
@@ -162,7 +189,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           serviceIcon={oauthService.serviceIcon}
         />
       )}
-      {oauthService?.serviceAccountProviderId && (
+      {hasServiceAccount && oauthService?.serviceAccountProviderId && (
         <ConnectServiceAccountModal
           open={serviceAccountOpen}
           onOpenChange={setServiceAccountOpen}
@@ -172,14 +199,20 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           serviceIcon={oauthService.serviceIcon}
         />
       )}
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+      <div
+        ref={scrollContainerRef}
+        className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'
+      >
         <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
           <div className='flex flex-col gap-3'>
             {Icon ? (
               <IntegrationTile blockType={integration.type} icon={Icon} />
             ) : (
               <div
-                className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] text-white'
+                className={cn(
+                  'flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)]',
+                  getTileIconColorClass(integration.bgColor)
+                )}
                 style={{ background: integration.bgColor }}
               >
                 {integration.name.charAt(0)}
@@ -192,7 +225,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           </div>
 
           {connectedCredentials.length > 0 && (
-            <IntegrationSection label={t('connected')}>
+            <IntegrationSection label='Connected'>
               {connectedCredentials.map((credential) => (
                 <Link
                   key={credential.id}
@@ -242,7 +275,6 @@ interface TemplatesSectionProps {
 }
 
 function TemplatesSection({ integration, templates, workspaceId }: TemplatesSectionProps) {
-  const t = useTranslations('auto')
   const router = useRouter()
 
   const handleSelect = (prompt: string) => {
@@ -252,7 +284,7 @@ function TemplatesSection({ integration, templates, workspaceId }: TemplatesSect
 
   return (
     <section className='flex flex-col'>
-      <span className='pl-0.5 text-[var(--text-muted)] text-small'>{t('templates')}</span>
+      <span className='pl-0.5 text-[var(--text-muted)] text-small'>Templates</span>
       <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
       <div className='-mx-2 flex flex-col gap-y-0.5'>
         {templates.map((template) => {

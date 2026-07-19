@@ -1,9 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Plus } from 'lucide-react'
-import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import {
   ArrowRight,
   Button,
@@ -19,11 +16,13 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   type ComboboxOption,
+  cn,
+  handleKeyboardActivation,
   Search,
-} from '@/components/emcn'
-import { getSubscriptionAccessState } from '@/lib/billing/client'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+} from '@sim/emcn'
+import { ArrowLeft, Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
@@ -32,16 +31,17 @@ import {
 } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
+import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
@@ -63,8 +63,6 @@ export function AddConnectorModal({
   knowledgeBaseId,
   initialConnectorType,
 }: AddConnectorModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [step, setStep] = useState<Step>(() => (initialConnectorType ? 'configure' : 'select-type'))
   const [selectedType, setSelectedType] = useState<string | null>(initialConnectorType ?? null)
   const [syncInterval, setSyncInterval] = useState(1440)
@@ -78,11 +76,10 @@ export function AddConnectorModal({
   const [searchTerm, setSearchTerm] = useState('')
 
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { ownerBilling } = useWorkspaceHostContext()
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
-  const { data: subscriptionResponse } = useSubscriptionData({ enabled: isBillingEnabled })
-  const subscriptionAccess = getSubscriptionAccessState(subscriptionResponse?.data)
-  const hasMaxAccess = !isBillingEnabled || subscriptionAccess.hasUsableMaxAccess
+  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling, isBillingEnabled)
 
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
@@ -226,9 +223,7 @@ export function AddConnectorModal({
       <ChipModal
         open={open}
         onOpenChange={(val) => !isCreating && onOpenChange(val)}
-        srTitle={
-          step === 'select-type' ? tI18n('connect_source') : `Configure ${connectorConfig?.name}`
-        }
+        srTitle={step === 'select-type' ? 'Connect Source' : `Configure ${connectorConfig?.name}`}
         size='md'
       >
         <ChipModalHeader onClose={() => onOpenChange(false)}>
@@ -247,7 +242,7 @@ export function AddConnectorModal({
               {`Configure ${connectorConfig?.name}`}
             </span>
           ) : (
-            tI18n('connect_source')
+            'Connect Source'
           )}
         </ChipModalHeader>
 
@@ -258,7 +253,7 @@ export function AddConnectorModal({
             <div className='flex min-h-0 flex-col px-2'>
               <ChipInput
                 icon={Search}
-                placeholder={t('search_sources')}
+                placeholder='Search sources...'
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -275,7 +270,7 @@ export function AddConnectorModal({
                   {filteredEntries.length === 0 && (
                     <div className='rounded-lg bg-[var(--surface-3)] px-3 py-8 text-center text-[var(--text-muted)] text-caption'>
                       {CONNECTOR_ENTRIES.length === 0
-                        ? tI18n('no_connectors_available')
+                        ? 'No connectors available.'
                         : `No sources found matching "${searchTerm}"`}
                     </div>
                   )}
@@ -290,7 +285,7 @@ export function AddConnectorModal({
                   title={
                     connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.label
                       ? connectorConfig.auth.label
-                      : tI18n('api_key')
+                      : 'API Key'
                   }
                 >
                   <ChipInput
@@ -303,12 +298,12 @@ export function AddConnectorModal({
                     placeholder={
                       connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.placeholder
                         ? connectorConfig.auth.placeholder
-                        : tI18n('enter_api_key')
+                        : 'Enter API key'
                     }
                   />
                 </ChipModalField>
               ) : (
-                <ChipModalField type='custom' title={t('account')}>
+                <ChipModalField type='custom' title='Account'>
                   <ChipCombobox
                     options={[
                       ...credentials.map(
@@ -352,7 +347,7 @@ export function AddConnectorModal({
               />
 
               {connectorConfig.tagDefinitions && connectorConfig.tagDefinitions.length > 0 && (
-                <ChipModalField type='custom' title={t('metadata_tags')}>
+                <ChipModalField type='custom' title='Metadata Tags'>
                   <div className='flex flex-col gap-2'>
                     {connectorConfig.tagDefinitions.map((tagDef) => (
                       <div
@@ -394,7 +389,7 @@ export function AddConnectorModal({
                 </ChipModalField>
               )}
 
-              <ChipModalField type='custom' title={t('sync_frequency')}>
+              <ChipModalField type='custom' title='Sync Frequency'>
                 <ButtonGroup
                   value={String(syncInterval)}
                   onValueChange={(val) => setSyncInterval(Number(val))}
@@ -482,7 +477,12 @@ function ConnectorTypeCard({ type, config, onClick }: ConnectorTypeCardProps) {
           )}
           style={brandBg ? { background: brandBg } : undefined}
         >
-          <Icon className={cn('size-5', brandBg ? 'text-white' : 'text-[var(--text-icon)]')} />
+          <Icon
+            className={cn(
+              'size-5',
+              brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
+            )}
+          />
         </div>
       </div>
       <div className='flex min-w-0 flex-1 flex-col'>

@@ -1,8 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { useTranslations } from 'next-intl'
-import { ChipConfirmModal } from '@/components/emcn'
+import { ChipConfirmModal } from '@sim/emcn'
 
 interface DeleteKnowledgeBaseModalProps {
   /**
@@ -38,14 +37,12 @@ export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
   isDeleting,
   knowledgeBaseName,
 }: DeleteKnowledgeBaseModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   return (
     <ChipConfirmModal
       open={isOpen}
       onOpenChange={onClose}
-      srTitle={tI18n('delete_knowledge_base')}
-      title={t('delete_knowledge_base')}
+      srTitle='Delete Knowledge Base'
+      title='Delete Knowledge Base'
       text={
         knowledgeBaseName
           ? [

@@ -1,9 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import dynamic from 'next/dynamic'
-import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -13,8 +10,10 @@ import {
   ChipModalHeader,
   ChipModalTabs,
   chipFieldSurfaceClass,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+  cn,
+} from '@sim/emcn'
+import dynamic from 'next/dynamic'
+import { useParams } from 'next/navigation'
 import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/skill-import'
 import { parseSkillMarkdown } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import type { SkillDefinition } from '@/hooks/queries/skills'
@@ -57,8 +56,6 @@ export function SkillModal({
   onDelete,
   initialValues,
 }: SkillModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -182,11 +179,11 @@ export function SkillModal({
     <ChipModal
       open={open}
       onOpenChange={onOpenChange}
-      srTitle={isEditing ? tI18n('edit_skill') : tI18n('add_skill')}
+      srTitle={isEditing ? 'Edit Skill' : 'Add Skill'}
       size='lg'
     >
       <ChipModalHeader onClose={() => onOpenChange(false)}>
-        {isEditing ? tI18n('edit_skill') : tI18n('add_skill')}
+        {isEditing ? 'Edit Skill' : 'Add Skill'}
       </ChipModalHeader>
 
       <ChipModalBody>
@@ -205,35 +202,35 @@ export function SkillModal({
           <>
             <ChipModalField
               type='input'
-              title={t('name')}
+              title='Name'
               value={name}
               onChange={(value) => {
                 setName(value)
                 if (errors.name || errors.general)
                   setErrors((prev) => ({ ...prev, name: undefined, general: undefined }))
               }}
-              placeholder={t('my_skill_name')}
+              placeholder='my-skill-name'
               required
               error={errors.name}
-              hint={t('lowercase_letters_numbers_and_hyphens_e')}
+              hint='Lowercase letters, numbers, and hyphens (e.g. my-skill)'
             />
 
             <ChipModalField
               type='input'
-              title={t('description')}
+              title='Description'
               value={description}
               onChange={(value) => {
                 setDescription(value)
                 if (errors.description || errors.general)
                   setErrors((prev) => ({ ...prev, description: undefined, general: undefined }))
               }}
-              placeholder={t('what_this_skill_does_and_when')}
+              placeholder='What this skill does and when to use it...'
               maxLength={1024}
               required
               error={errors.description}
             />
 
-            <ChipModalField type='custom' title={t('content')} required error={errors.content}>
+            <ChipModalField type='custom' title='Content' required error={errors.content}>
               <RichMarkdownField
                 key={`${initialValues?.id ?? 'new'}:${contentSeed}`}
                 value={content}
@@ -242,7 +239,7 @@ export function SkillModal({
                   if (errors.content || errors.general)
                     setErrors((prev) => ({ ...prev, content: undefined, general: undefined }))
                 }}
-                placeholder={t('skill_instructions_in_markdown')}
+                placeholder='Skill instructions in markdown...'
                 minHeight={200}
                 disabled={readOnly || saving}
                 error={!!errors.content}

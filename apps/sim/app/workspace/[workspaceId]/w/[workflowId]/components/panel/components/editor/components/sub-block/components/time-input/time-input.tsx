@@ -1,7 +1,6 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
-import { TimePicker } from '@/components/emcn'
+import { TimePicker } from '@sim/emcn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -39,7 +38,6 @@ export function TimeInput({
   className,
   disabled = false,
 }: TimeInputProps) {
-  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
 
@@ -62,7 +60,7 @@ export function TimeInput({
     <TimePicker
       value={value || undefined}
       onChange={handleChange}
-      placeholder={placeholder || t('select_time')}
+      placeholder={placeholder || 'Select time'}
       disabled={isPreview || disabled}
       className={className}
       overlayContent={

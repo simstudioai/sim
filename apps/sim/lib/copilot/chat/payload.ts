@@ -3,13 +3,18 @@ import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
+import { getBlockVisibilityForCopilot, visibilitySignature } from '@/lib/copilot/block-visibility'
 import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
-import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
+import {
+  filterExposedIntegrationTools,
+  getExposedIntegrationTools,
+} from '@/lib/copilot/integration-tools'
+import { buildTaggedMcpToolSchemas } from '@/lib/copilot/mcp-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
+import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
-import { buildUserSkillTool } from '@/lib/mothership/skills'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { stripVersionSuffix } from '@/tools/utils'
 
@@ -28,6 +33,8 @@ interface BuildPayloadParams {
   model: string
   provider?: string
   contexts?: Array<{ type: string; content: string; tag?: string; path?: string }>
+  /** MCP servers explicitly tagged on this turn. Untagged servers stay unavailable. */
+  mcpServerIds?: string[]
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
   commands?: string[]
   chatId?: string
@@ -36,24 +43,34 @@ interface BuildPayloadParams {
   workspaceContext?: string
   vfs?: VfsSnapshotV1
   userPermission?: string
+  /** Plan/flag-gated org capabilities (e.g. "custom-blocks") the mothership gates tools/prompts on. */
+  entitlements?: string[]
   userTimezone?: string
   userMetadata?: {
     name?: string
     email?: string
     timezone?: string
   }
-  includeMothershipTools?: boolean
 }
 
 export interface ToolSchema {
   name: string
   description: string
   input_schema: Record<string, unknown>
+  outputs?: Record<string, unknown>
   defer_loading?: boolean
   executeLocally?: boolean
   params?: Record<string, unknown>
   /** Canonical integration service/folder (e.g. "slack"), for server-side grouping. */
   service?: string
+  /**
+   * Operation stem within the service — the VFS doc filename without `.json`
+   * (e.g. "list_users" for id "slack_list_users"). Stamped so the server can
+   * hand agents the exact `components/integrations/{service}/{operation}.json`
+   * path instead of making them derive it from the id (deriving is how the id
+   * gets guessed as the filename).
+   */
+  operation?: string
   oauth?: { required: boolean; provider: string }
 }
 
@@ -73,9 +90,12 @@ const integrationToolSchemaCache = new LRUCache<string, IntegrationToolSchemaCac
 function getIntegrationToolSchemaCacheKey(
   userId: string,
   workspaceId: string | undefined,
-  schemaSurface: string
+  schemaSurface: string,
+  visSignature: string
 ): string {
-  return JSON.stringify([userId, workspaceId ?? null, schemaSurface])
+  // The visibility signature keys the entry to the viewer's gated projection —
+  // two users in one workspace with different preview reveals must not share.
+  return JSON.stringify([userId, workspaceId ?? null, schemaSurface, visSignature])
 }
 
 function cloneToolSchemas(toolSchemas: ToolSchema[]): ToolSchema[] {
@@ -85,6 +105,7 @@ function cloneToolSchemas(toolSchemas: ToolSchema[]): ToolSchema[] {
       input_schema: { ...tool.input_schema },
     }
     if (tool.params) cloned.params = { ...tool.params }
+    if (tool.outputs) cloned.outputs = structuredClone(tool.outputs)
     if (tool.oauth) cloned.oauth = { ...tool.oauth }
     return cloned
   })
@@ -110,7 +131,13 @@ export async function buildIntegrationToolSchemas(
   workspaceId?: string
 ): Promise<ToolSchema[]> {
   const schemaSurface = options.schemaSurface ?? 'copilot'
-  const cacheKey = getIntegrationToolSchemaCacheKey(userId, workspaceId, schemaSurface)
+  const vis = await getBlockVisibilityForCopilot(userId, workspaceId)
+  const cacheKey = getIntegrationToolSchemaCacheKey(
+    userId,
+    workspaceId,
+    schemaSurface,
+    visibilitySignature(vis)
+  )
   const cached = integrationToolSchemaCache.get(cacheKey)
   if (cached) {
     return cloneToolSchemas(await cached.promise)
@@ -120,7 +147,8 @@ export async function buildIntegrationToolSchemas(
     userId,
     messageId,
     { schemaSurface },
-    workspaceId
+    workspaceId,
+    vis
   ).catch((error) => {
     integrationToolSchemaCache.delete(cacheKey)
     throw error
@@ -137,7 +165,8 @@ async function buildIntegrationToolSchemasUncached(
   userId: string,
   messageId: string | undefined,
   options: Required<BuildIntegrationToolSchemasOptions>,
-  workspaceId?: string
+  workspaceId?: string,
+  vis: BlockVisibilityState | null = null
 ): Promise<ToolSchema[]> {
   const reqLogger = logger.withMetadata({ messageId })
   const integrationTools: ToolSchema[] = []
@@ -186,7 +215,8 @@ async function buildIntegrationToolSchemasUncached(
       }
     }
 
-    for (const { toolId, config: toolConfig, service } of getExposedIntegrationTools()) {
+    const exposedTools = filterExposedIntegrationTools(getExposedIntegrationTools(), vis)
+    for (const { toolId, config: toolConfig, service, operation } of exposedTools) {
       try {
         if (allowedIntegrations && toolIdToBlockType) {
           const owningBlock = toolIdToBlockType.get(stripVersionSuffix(toolId))
@@ -196,17 +226,32 @@ async function buildIntegrationToolSchemasUncached(
         }
         const userSchema = createUserToolSchema(toolConfig, {
           surface: options.schemaSurface,
+          // On hosted deployments the executor injects hosted keys server-side,
+          // so the gateway schema must not force the model to supply one (the
+          // model never sees the key either way).
+          hostedKeySupport: isHosted,
         })
         const catalogEntry = getToolEntry(toolId)
         integrationTools.push({
           name: toolId,
           service,
+          operation,
           description: getCopilotToolDescription(toolConfig, {
             isHosted,
             fallbackName: toolId,
             appendEmailTagline: shouldAppendEmailTagline,
           }),
           input_schema: { ...userSchema },
+          ...(toolConfig.outputs && {
+            outputs: Object.fromEntries(
+              Object.entries(toolConfig.outputs)
+                .filter(([, output]) => output != null)
+                .map(([key, output]) => [
+                  key,
+                  { type: output.type, description: output.description },
+                ])
+            ),
+          }),
           defer_loading: true,
           executeLocally:
             catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
@@ -286,7 +331,8 @@ export async function buildCopilotRequestPayload(
           f.key,
           filename,
           mediaType,
-          f.size
+          f.size,
+          userMessageId
         )
         // Encode the read path per the percent-encoded VFS convention (matches
         // files/ and the uploads glob output). The materialize_file `fileName`
@@ -324,30 +370,26 @@ export async function buildCopilotRequestPayload(
   const allContexts = [...(contexts ?? []), ...uploadContexts]
 
   let integrationTools: ToolSchema[] = []
-  const mothershipTools: ToolSchema[] = []
+  let mothershipTools: ToolSchema[] = []
   const payloadLogger = logger.withMetadata({ messageId: userMessageId })
 
-  if (effectiveMode === 'build') {
+  // "superagent" is a legacy wire value for Direct Action mode; both modes
+  // execute connected-service operations through the main-agent gateway.
+  if (effectiveMode === 'build' || effectiveMode === 'superagent') {
     integrationTools = await buildIntegrationToolSchemas(
       userId,
       userMessageId,
       { schemaSurface: 'copilot' },
       params.workspaceId
     )
+  }
 
-    if (params.includeMothershipTools && params.workspaceId) {
-      // Expose all workspace user-created skills via the single load_user_skill
-      // tool. Available to every user; content is fetched sim-side when the
-      // model calls it.
-      try {
-        const userSkillTool = await buildUserSkillTool(params.workspaceId)
-        if (userSkillTool) mothershipTools.push(userSkillTool)
-      } catch (error) {
-        logger.warn('Failed to build load_user_skill tool', {
-          error: toError(error).message,
-        })
-      }
-    }
+  if (params.workspaceId && params.mcpServerIds?.length) {
+    mothershipTools = await buildTaggedMcpToolSchemas(
+      userId,
+      params.workspaceId,
+      params.mcpServerIds
+    )
   }
 
   return {
@@ -370,6 +412,7 @@ export async function buildCopilotRequestPayload(
     ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),
     ...(params.vfs ? { vfs: params.vfs } : {}),
     ...(params.userPermission ? { userPermission: params.userPermission } : {}),
+    ...(params.entitlements?.length ? { entitlements: params.entitlements } : {}),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     ...(params.userMetadata &&
     (params.userMetadata.name || params.userMetadata.email || params.userMetadata.timezone)

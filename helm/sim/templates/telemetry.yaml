@@ -125,10 +125,8 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "sim.serviceAccountName" . }}
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 10001
-        fsGroup: 10001
+      automountServiceAccountToken: false
+      {{- include "sim.podSecurityContext" .Values.telemetry | nindent 6 }}
       containers:
         - name: otel-collector
           image: {{ include "sim.image" (dict "imageRoot" .Values.telemetry.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
@@ -177,6 +175,7 @@ spec:
             failureThreshold: 3
           resources:
             {{- toYaml .Values.telemetry.resources | nindent 12 }}
+          {{- include "sim.containerSecurityContext" .Values.telemetry | nindent 10 }}
       volumes:
         - name: otel-config
           configMap:

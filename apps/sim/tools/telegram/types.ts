@@ -962,6 +962,92 @@ export interface TelegramDeleteMessageParams extends TelegramAuthParams {
   messageId: number
 }
 
+export interface TelegramEditMessageTextParams extends TelegramAuthParams {
+  messageId: number
+  text: string
+}
+
+export interface TelegramForwardMessageParams extends TelegramAuthParams {
+  fromChatId: string
+  messageId: number
+}
+
+export interface TelegramCopyMessageParams extends TelegramAuthParams {
+  fromChatId: string
+  messageId: number
+  caption?: string
+}
+
+export interface TelegramSendLocationParams extends TelegramAuthParams {
+  latitude: number
+  longitude: number
+}
+
+export interface TelegramSendContactParams extends TelegramAuthParams {
+  phoneNumber: string
+  firstName: string
+  lastName?: string
+  vcard?: string
+}
+
+export interface TelegramSendPollParams extends TelegramAuthParams {
+  question: string
+  options: string[]
+  isAnonymous?: boolean
+  allowsMultipleAnswers?: boolean
+}
+
+export interface TelegramPinMessageParams extends TelegramAuthParams {
+  messageId: number
+  disableNotification?: boolean
+}
+
+export interface TelegramUnpinMessageParams extends TelegramAuthParams {
+  messageId?: number
+}
+
+export interface TelegramSetMessageReactionParams extends TelegramAuthParams {
+  messageId: number
+  reaction?: string
+  isBig?: boolean
+}
+
+export interface TelegramSendChatActionParams extends TelegramAuthParams {
+  action: string
+}
+
+export type TelegramGetChatParams = TelegramAuthParams
+
+export interface TelegramGetChatMemberParams extends TelegramAuthParams {
+  userId: number
+}
+
+export interface TelegramChatFullInfo {
+  id: number
+  type: string
+  title?: string
+  username?: string
+  first_name?: string
+  last_name?: string
+  description?: string
+  bio?: string
+  invite_link?: string
+  linked_chat_id?: number
+}
+
+export interface TelegramUser {
+  id: number
+  is_bot: boolean
+  first_name?: string
+  last_name?: string
+  username?: string
+}
+
+export interface TelegramChatMember {
+  status: string
+  user: TelegramUser
+}
+
 export interface TelegramSendMessageResponse extends ToolResponse {
   output: {
     message: string
@@ -1008,6 +1094,39 @@ export interface TelegramSendDocumentResponse extends ToolResponse {
   }
 }
 
+export interface TelegramCopyMessageResponse extends ToolResponse {
+  output: {
+    message: string
+    data?: {
+      message_id: number
+    }
+  }
+}
+
+export interface TelegramBooleanResponse extends ToolResponse {
+  output: {
+    message: string
+    data?: {
+      ok: boolean
+      result: boolean
+    }
+  }
+}
+
+export interface TelegramGetChatResponse extends ToolResponse {
+  output: {
+    message: string
+    data?: TelegramChatFullInfo
+  }
+}
+
+export interface TelegramGetChatMemberResponse extends ToolResponse {
+  output: {
+    message: string
+    data?: TelegramChatMember
+  }
+}
+
 // ============================================================================
 // Response Union (supports all output types)
 // ============================================================================
@@ -1019,6 +1138,10 @@ export type TelegramResponse =
   | TelegramSendMediaResponse
   | TelegramSendDocumentResponse
   | TelegramDeleteMessageResponse
+  | TelegramCopyMessageResponse
+  | TelegramBooleanResponse
+  | TelegramGetChatResponse
+  | TelegramGetChatMemberResponse
   | Message
   | User
   | Chat
@@ -1038,3 +1161,4 @@ export type TelegramResponse =
   | WebhookInfo
   | null
   | undefined
+

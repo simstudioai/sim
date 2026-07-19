@@ -1,10 +1,6 @@
-'use client'
-
 import type { ComponentType } from 'react'
-import { useMemo } from 'react'
 import Link from 'next/link'
-import { useTranslations } from 'next-intl'
-import { getProviderColor } from '@/app/(landing)/models/components/consts'
+import { getProviderColor } from '@/app/(landing)/models/components/constants'
 import type { CatalogModel } from '@/app/(landing)/models/utils'
 import {
   formatPrice,
@@ -12,10 +8,11 @@ import {
   MODEL_CATALOG_PROVIDERS,
 } from '@/app/(landing)/models/utils'
 
-/** Providers that host other providers' models — deprioritized to avoid duplicates. */
-const RESELLER_PROVIDERS = new Set(
-  MODEL_CATALOG_PROVIDERS.filter((p) => p.isReseller).map((p) => p.id)
-)
+/** Flagship providers featured in the landing-page comparison, in display order. */
+const FEATURED_COMPARISON_PROVIDER_IDS = ['anthropic', 'openai', 'google']
+
+/** Max latest models pulled from each featured provider. */
+const MAX_MODELS_PER_PROVIDER = 4
 
 const PROVIDER_ICON_MAP: Record<string, ComponentType<{ className?: string }>> = (() => {
   const map: Record<string, ComponentType<{ className?: string }>> = {}
@@ -31,22 +28,22 @@ function selectComparisonModels(models: CatalogModel[]): CatalogModel[] {
   const seen = new Set<string>()
   const result: CatalogModel[] = []
 
-  const sorted = [...models].sort((a, b) => {
-    const score = (m: CatalogModel) => {
-      const reseller = RESELLER_PROVIDERS.has(m.providerId) ? -50 : 0
-      const reasoning = m.capabilities.reasoningEffort || m.capabilities.thinking ? 10 : 0
-      const context = (m.contextWindow ?? 0) / 100000
-      return reseller + reasoning + context
-    }
-    return score(b) - score(a)
-  })
+  for (const providerId of FEATURED_COMPARISON_PROVIDER_IDS) {
+    const providerModels = models
+      .filter((model) => model.providerId === providerId && !model.deprecated)
+      .sort((a, b) => (b.releaseDate ?? '').localeCompare(a.releaseDate ?? ''))
 
-  for (const model of sorted) {
-    if (result.length >= 10) break
-    const nameKey = model.displayName.toLowerCase()
-    if (seen.has(nameKey)) continue
-    seen.add(nameKey)
-    result.push(model)
+    let takenForProvider = 0
+    for (const model of providerModels) {
+      if (takenForProvider >= MAX_MODELS_PER_PROVIDER) break
+
+      const nameKey = model.displayName.toLowerCase()
+      if (seen.has(nameKey)) continue
+
+      seen.add(nameKey)
+      result.push(model)
+      takenForProvider += 1
+    }
   }
 
   return result
@@ -62,7 +59,7 @@ function ModelLabel({ model }: ModelLabelProps) {
   return (
     <div className='flex w-[90px] shrink-0 items-center justify-end gap-1.5 sm:w-[140px] lg:w-[180px]'>
       {Icon && <Icon className='size-3.5 shrink-0' />}
-      <span className='truncate font-medium text-[13px] text-[var(--landing-text)] leading-none tracking-[-0.01em]'>
+      <span className='truncate text-[13px] text-[var(--text-primary)] leading-none tracking-[-0.01em]'>
         {model.displayName}
       </span>
     </div>
@@ -74,32 +71,32 @@ interface ChartProps {
 }
 
 function StackedCostChart({ models }: ChartProps) {
-  const t = useTranslations('auto')
-  const data = useMemo(() => {
-    const entries = models
-      .map((model) => ({
-        model,
-        input: model.pricing.input,
-        output: model.pricing.output,
-        total: model.pricing.input + model.pricing.output,
-      }))
-      .filter((e) => e.total > 0)
-      .sort((a, b) => a.total - b.total)
+  const entries = models
+    .reduce<Array<{ model: CatalogModel; input: number; output: number; total: number }>>(
+      (acc, model) => {
+        const total = model.pricing.input + model.pricing.output
+        if (total > 0) {
+          acc.push({ model, input: model.pricing.input, output: model.pricing.output, total })
+        }
+        return acc
+      },
+      []
+    )
+    .sort((a, b) => a.total - b.total)
 
-    const maxTotal = entries.length > 0 ? Math.max(...entries.map((e) => e.total)) : 0
-    return { entries, maxTotal }
-  }, [models])
+  const maxTotal = entries.length > 0 ? Math.max(...entries.map((e) => e.total)) : 0
+  const data = { entries, maxTotal }
 
   if (data.entries.length === 0) return null
 
   return (
     <div className='flex flex-col gap-3'>
       <div className='flex flex-col gap-1'>
-        <h3 className='text-[20px] text-white leading-[100%] tracking-[-0.02em] lg:text-[24px]'>
-          {t('cost')}
+        <h3 className='text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'>
+          Cost
         </h3>
-        <span className='font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
-          {t('per_1m_tokens')}
+        <span className='text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
+          Per 1M tokens
         </span>
       </div>
 
@@ -113,7 +110,7 @@ function StackedCostChart({ models }: ChartProps) {
             <Link
               key={model.id}
               href={model.href}
-              className='-mx-2 flex items-center gap-3 rounded-md px-2 transition-colors hover:bg-[var(--landing-bg-elevated)]'
+              className='-mx-2 flex items-center gap-3 rounded-md px-2 transition-colors hover:bg-[var(--surface-hover)]'
             >
               <ModelLabel model={model} />
               <div className='relative flex h-7 min-w-0 flex-1 items-center'>
@@ -138,8 +135,8 @@ function StackedCostChart({ models }: ChartProps) {
                     }}
                   />
                 </div>
-                <span className='shrink-0 font-mono text-[11px] text-[var(--landing-text-muted)] sm:ml-2.5 sm:text-xs'>
-                  {formatPrice(input)} {t('input')} {formatPrice(output)} {t('output')}
+                <span className='shrink-0 text-[11px] text-[var(--text-muted)] sm:ml-2.5 sm:text-xs'>
+                  {formatPrice(input)} input / {formatPrice(output)} output
                 </span>
               </div>
             </Link>
@@ -151,30 +148,27 @@ function StackedCostChart({ models }: ChartProps) {
 }
 
 function ContextWindowChart({ models }: ChartProps) {
-  const t = useTranslations('auto')
-  const data = useMemo(() => {
-    const entries = models
-      .map((model) => ({
-        model,
-        value: model.contextWindow,
-      }))
-      .filter((e): e is { model: CatalogModel; value: number } => e.value !== null && e.value > 0)
-      .sort((a, b) => a.value - b.value)
+  const entries = models
+    .map((model) => ({
+      model,
+      value: model.contextWindow,
+    }))
+    .filter((e): e is { model: CatalogModel; value: number } => e.value !== null && e.value > 0)
+    .sort((a, b) => a.value - b.value)
 
-    const maxValue = entries.length > 0 ? Math.max(...entries.map((e) => e.value)) : 0
-    return { entries, maxValue }
-  }, [models])
+  const maxValue = entries.length > 0 ? Math.max(...entries.map((e) => e.value)) : 0
+  const data = { entries, maxValue }
 
   if (data.entries.length === 0) return null
 
   return (
     <div className='flex flex-col gap-3'>
       <div className='flex flex-col gap-1'>
-        <h3 className='text-[20px] text-white leading-[100%] tracking-[-0.02em] lg:text-[24px]'>
-          {t('context_window')}
+        <h3 className='text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'>
+          Context window
         </h3>
-        <span className='font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
-          {t('max_tokens')}
+        <span className='text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
+          Max tokens
         </span>
       </div>
 
@@ -187,7 +181,7 @@ function ContextWindowChart({ models }: ChartProps) {
             <Link
               key={model.id}
               href={model.href}
-              className='-mx-2 flex items-center gap-3 rounded-md px-2 transition-colors hover:bg-[var(--landing-bg-elevated)]'
+              className='-mx-2 flex items-center gap-3 rounded-md px-2 transition-colors hover:bg-[var(--surface-hover)]'
             >
               <ModelLabel model={model} />
               <div className='relative flex h-7 min-w-0 flex-1 items-center'>
@@ -199,7 +193,7 @@ function ContextWindowChart({ models }: ChartProps) {
                     opacity: 0.8,
                   }}
                 />
-                <span className='ml-2.5 shrink-0 font-mono text-[11px] text-[var(--landing-text-muted)] sm:text-xs'>
+                <span className='ml-2.5 shrink-0 text-[11px] text-[var(--text-muted)] sm:text-xs'>
                   {formatTokenCount(value)}
                 </span>
               </div>
@@ -216,30 +210,29 @@ interface ModelComparisonChartsProps {
 }
 
 export function ModelComparisonCharts({ models }: ModelComparisonChartsProps) {
-  const t = useTranslations('auto')
-  const comparisonModels = useMemo(() => selectComparisonModels(models), [models])
+  const comparisonModels = selectComparisonModels(models)
 
   return (
     <section aria-labelledby='comparison-heading'>
       <div className='px-6 pt-10 pb-4'>
         <h2
           id='comparison-heading'
-          className='mb-2 text-[20px] text-white leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+          className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
         >
-          {t('compare_models')}
+          Compare models
         </h2>
-        <p className='font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
-          {t('side_by_side_comparison_of_top')}
+        <p className='text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
+          Side-by-side comparison of top models across key metrics.
         </p>
       </div>
 
-      <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+      <div className='h-px w-full bg-[var(--border)]' />
 
       <div className='flex flex-col sm:flex-row'>
         <div className='flex-1 p-6'>
           <StackedCostChart models={comparisonModels} />
         </div>
-        <div className='h-px w-full bg-[var(--landing-bg-elevated)] sm:h-auto sm:w-px' />
+        <div className='h-px w-full bg-[var(--border)] sm:h-auto sm:w-px' />
         <div className='flex-1 p-6'>
           <ContextWindowChart models={comparisonModels} />
         </div>

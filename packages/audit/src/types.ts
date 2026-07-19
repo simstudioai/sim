@@ -19,6 +19,11 @@ export const AuditAction = {
   CHAT_UPDATED: 'chat.updated',
   CHAT_DELETED: 'chat.deleted',
 
+  // Custom Blocks (deploy-as-block)
+  CUSTOM_BLOCK_PUBLISHED: 'custom_block.published',
+  CUSTOM_BLOCK_UPDATED: 'custom_block.updated',
+  CUSTOM_BLOCK_DELETED: 'custom_block.deleted',
+
   // Custom Tools
   CUSTOM_TOOL_CREATED: 'custom_tool.created',
   CUSTOM_TOOL_UPDATED: 'custom_tool.updated',
@@ -33,17 +38,18 @@ export const AuditAction = {
 
   // Billing
   CREDIT_PURCHASED: 'credit.purchased',
+  CREDIT_ISSUED: 'credit.issued',
+  INVOICE_PAYMENT_SUCCEEDED: 'invoice.payment_succeeded',
+  INVOICE_PAYMENT_FAILED: 'invoice.payment_failed',
+  OVERAGE_BILLED: 'billing.overage_billed',
+  CHARGE_DISPUTE_OPENED: 'charge.dispute_opened',
+  CHARGE_DISPUTE_CLOSED: 'charge.dispute_closed',
 
-  // Credential Sets
-  CREDENTIAL_SET_CREATED: 'credential_set.created',
-  CREDENTIAL_SET_UPDATED: 'credential_set.updated',
-  CREDENTIAL_SET_DELETED: 'credential_set.deleted',
-  CREDENTIAL_SET_MEMBER_REMOVED: 'credential_set_member.removed',
-  CREDENTIAL_SET_MEMBER_LEFT: 'credential_set_member.left',
-  CREDENTIAL_SET_INVITATION_CREATED: 'credential_set_invitation.created',
-  CREDENTIAL_SET_INVITATION_ACCEPTED: 'credential_set_invitation.accepted',
-  CREDENTIAL_SET_INVITATION_RESENT: 'credential_set_invitation.resent',
-  CREDENTIAL_SET_INVITATION_REVOKED: 'credential_set_invitation.revoked',
+  // Subscriptions
+  SUBSCRIPTION_CREATED: 'subscription.created',
+  SUBSCRIPTION_CANCELLED: 'subscription.cancelled',
+  SUBSCRIPTION_TRANSFERRED: 'subscription.transferred',
+  ENTERPRISE_SUBSCRIPTION_PROVISIONED: 'subscription.enterprise_provisioned',
 
   // Connector Documents
   CONNECTOR_DOCUMENT_RESTORED: 'connector_document.restored',
@@ -66,6 +72,7 @@ export const AuditAction = {
   FILE_MOVED: 'file.moved',
   FILE_SHARED: 'file.shared',
   FILE_SHARE_DISABLED: 'file.share_disabled',
+  FILE_DOWNLOADED: 'file.downloaded',
 
   // Folders
   FOLDER_CREATED: 'folder.created',
@@ -112,6 +119,7 @@ export const AuditAction = {
   CREDENTIAL_RENAMED: 'credential.renamed',
   CREDENTIAL_RECONNECTED: 'credential.reconnected',
   CREDENTIAL_DELETED: 'credential.deleted',
+  CREDENTIAL_ACCESSED: 'credential.accessed',
   CREDENTIAL_MEMBER_ADDED: 'credential_member.added',
   CREDENTIAL_MEMBER_REMOVED: 'credential_member.removed',
   CREDENTIAL_MEMBER_ROLE_CHANGED: 'credential_member.role_changed',
@@ -135,6 +143,7 @@ export const AuditAction = {
   ORG_INVITATION_REVOKED: 'org_invitation.revoked',
   ORG_INVITATION_RESENT: 'org_invitation.resent',
   ORG_SEAT_PROVISIONED: 'org_seat.provisioned',
+  ORG_SEAT_DEPROVISIONED: 'org_seat.deprovisioned',
   ORG_PLAN_CONVERTED: 'org_plan.converted',
 
   // Permission Groups
@@ -159,6 +168,7 @@ export const AuditAction = {
   TABLE_UPDATED: 'table.updated',
   TABLE_DELETED: 'table.deleted',
   TABLE_RESTORED: 'table.restored',
+  TABLE_EXPORTED: 'table.exported',
 
   // Webhooks
   WEBHOOK_CREATED: 'webhook.created',
@@ -175,13 +185,22 @@ export const AuditAction = {
   WORKFLOW_DEPLOYMENT_REVERTED: 'workflow.deployment_reverted',
   WORKFLOW_LOCKED: 'workflow.locked',
   WORKFLOW_UNLOCKED: 'workflow.unlocked',
+  WORKFLOW_FORK_SYNC_EXCLUDED: 'workflow.fork_sync_excluded',
+  WORKFLOW_FORK_SYNC_INCLUDED: 'workflow.fork_sync_included',
   WORKFLOW_VARIABLES_UPDATED: 'workflow.variables_updated',
+  WORKFLOW_PUBLIC_API_TOGGLED: 'workflow.public_api_toggled',
+  WORKFLOW_EXPORTED: 'workflow.exported',
 
   // Workspaces
   WORKSPACE_CREATED: 'workspace.created',
   WORKSPACE_UPDATED: 'workspace.updated',
   WORKSPACE_DELETED: 'workspace.deleted',
   WORKSPACE_DUPLICATED: 'workspace.duplicated',
+  WORKSPACE_FORKED: 'workspace.forked',
+  WORKSPACE_FORK_PROMOTED: 'workspace.fork_promoted',
+  WORKSPACE_FORK_ROLLED_BACK: 'workspace.fork_rolled_back',
+  WORKSPACE_FORK_UNLINKED: 'workspace.fork_unlinked',
+  WORKSPACE_EXPORTED: 'workspace.exported',
 } as const
 
 export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction]
@@ -196,7 +215,7 @@ export const AuditResourceType = {
   CHAT: 'chat',
   CONNECTOR: 'connector',
   CREDENTIAL: 'credential',
-  CREDENTIAL_SET: 'credential_set',
+  CUSTOM_BLOCK: 'custom_block',
   CUSTOM_TOOL: 'custom_tool',
   DATA_DRAIN: 'data_drain',
   DOCUMENT: 'document',
@@ -211,6 +230,7 @@ export const AuditResourceType = {
   PERMISSION_GROUP: 'permission_group',
   SCHEDULE: 'schedule',
   SKILL: 'skill',
+  SUBSCRIPTION: 'subscription',
   TABLE: 'table',
   WEBHOOK: 'webhook',
   WORKFLOW: 'workflow',

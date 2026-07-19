@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useTranslations } from 'next-intl'
-import { Chip, ChipCopyInput, ChipLink, Send } from '@/components/emcn'
-import { ArrowLeft, Key } from '@/components/emcn/icons'
+import { Chip, ChipCopyInput, ChipLink, Send } from '@sim/emcn'
+import { ArrowLeft, Key } from '@sim/emcn/icons'
 import {
   AddPeopleModal,
   CredentialDetailHeading,
@@ -24,8 +23,6 @@ interface SecretDetailProps {
 }
 
 export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const secretsHref = `/workspace/${workspaceId}/settings/secrets`
 
   const { data: credential = null, isPending } = useWorkspaceCredential(credentialId)
@@ -39,7 +36,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
 
   const back = (
     <ChipLink href={secretsHref} onClick={guard.handleBackClick} leftIcon={ArrowLeft}>
-      {t('secrets')}
+      Secrets
     </ChipLink>
   )
 
@@ -50,12 +47,12 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
       <>
         {isAdmin && !isPersonal && (
           <Chip leftIcon={Send} onClick={() => setIsShareModalOpen(true)}>
-            {t('share')}
+            Share
           </Chip>
         )}
         {canEditValue && (
           <Chip onClick={valueField.save} disabled={!valueField.isDirty || valueField.isSaving}>
-            {valueField.isSaving ? 'Saving...' : tI18n('save')}
+            {valueField.isSaving ? 'Saving...' : 'Save'}
           </Chip>
         )}
       </>
@@ -64,7 +61,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
   if (isPending && !credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>{t('loading')}</p>
+        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Loading…</p>
       </CredentialDetailLayout>
     )
   }
@@ -72,9 +69,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
   if (!credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>
-          {t('secret_not_found')}
-        </p>
+        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Secret not found.</p>
       </CredentialDetailLayout>
     )
   }
@@ -88,24 +83,24 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
           subtitle={
             isPersonal
               ? valueField.isConflicted
-                ? tI18n('overridden_by_a_workspace_variable')
-                : tI18n('personal_secret')
-              : tI18n('workspace_secret')
+                ? 'Overridden by a workspace variable'
+                : 'Personal secret'
+              : 'Workspace secret'
           }
         />
 
-        <DetailSection title={t('key')}>
-          <ChipCopyInput value={credential.envKey || ''} copyLabel={tI18n('copy_key')} />
+        <DetailSection title='Key'>
+          <ChipCopyInput value={credential.envKey || ''} copyLabel='Copy key' />
         </DetailSection>
 
-        <DetailSection title={t('value')}>
+        <DetailSection title='Value'>
           <SecretValueField
             value={valueField.value}
             onChange={valueField.setValue}
             canEdit={valueField.canEdit}
             unmasked={valueField.isConflicted}
             readOnly={valueField.isConflicted}
-            placeholder={t('enter_value')}
+            placeholder='Enter value'
           />
         </DetailSection>
 

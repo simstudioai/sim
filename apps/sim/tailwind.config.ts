@@ -1,11 +1,20 @@
 import type { Config } from 'tailwindcss'
 
 export default {
-  darkMode: ['class'],
+  // Nesting-aware dark variant: `dark:` utilities apply inside a `.dark` subtree
+  // UNLESS they sit inside a nested `.light` island. The landing page pins
+  // itself light (a `.light` wrapper) while the visitor's `<html>` may carry
+  // `.dark`; without this exclusion, `dark:` utilities on emcn components (e.g.
+  // the `primary` chip's `dark:bg-white`) would leak through and render
+  // white-on-white. `:where()` keeps specificity equal to base utilities so the
+  // normal (non-island) dark-mode cascade is unchanged.
+  darkMode: ['variant', '&:where(.dark, .dark *):not(:where(.light, .light *))'],
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
+    '../../packages/emcn/src/**/*.{js,ts,jsx,tsx}',
+    '../../packages/workflow-renderer/src/**/*.{js,ts,jsx,tsx}',
     '!./app/node_modules/**',
     '!**/node_modules/**',
   ],
@@ -180,10 +189,6 @@ export default {
           from: { opacity: '0' },
           to: { opacity: '1' },
         },
-        'thinking-block': {
-          '0%, 100%': { opacity: '0.15' },
-          '30%, 55%': { opacity: '1' },
-        },
         'slide-in-right': {
           from: { transform: 'translateX(40px)' },
           to: { transform: 'translateX(0)' },
@@ -200,6 +205,38 @@ export default {
           from: { height: 'var(--radix-collapsible-content-height)' },
           to: { height: '0' },
         },
+        'hero-stage-fade': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        'hero-cursor-press': {
+          '0%, 100%': { transform: 'scale(1)' },
+          '45%': { transform: 'scale(0.8)' },
+        },
+        'hero-modal-in': {
+          from: { opacity: '0', transform: 'translateY(10px) scale(0.97)' },
+          to: { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
+        'hero-kb-content-morph': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        'hero-file-drop': {
+          from: { opacity: '0', transform: 'translateY(-44px) scale(0.96)' },
+          '60%': { opacity: '1' },
+          to: { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
+        'hero-node-pop': {
+          from: { opacity: '0', transform: 'scale(0)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
+        'hero-graph-pulse': {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.22)' },
+        },
+        'hero-edge-draw': {
+          to: { strokeDashoffset: '0' },
+        },
       },
       animation: {
         'caret-blink': 'caret-blink 1.25s ease-out infinite',
@@ -210,11 +247,18 @@ export default {
         'ring-pulse': 'ring-pulse 1.5s ease-in-out infinite',
         'stream-fade-in': 'stream-fade-in 300ms ease-out forwards',
         'stream-fade-in-delayed': 'stream-fade-in 300ms ease-out 1.5s forwards',
-        'thinking-block': 'thinking-block 1.6s ease-in-out infinite',
         'slide-in-right': 'slide-in-right 350ms ease-out forwards',
         'slide-in-bottom': 'slide-in-bottom 400ms cubic-bezier(0.16, 1, 0.3, 1)',
         'collapsible-down': 'collapsible-down 300ms cubic-bezier(0.4, 0, 0.2, 1)',
         'collapsible-up': 'collapsible-up 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+        'hero-stage-fade': 'hero-stage-fade 420ms cubic-bezier(0.23, 1, 0.32, 1) both',
+        'hero-cursor-press': 'hero-cursor-press 340ms cubic-bezier(0.23, 1, 0.32, 1)',
+        'hero-modal-in': 'hero-modal-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'hero-kb-content-morph':
+          'hero-kb-content-morph 420ms cubic-bezier(0.22, 1, 0.36, 1) 260ms forwards',
+        'hero-file-drop': 'hero-file-drop 480ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'hero-node-pop': 'hero-node-pop 440ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'hero-edge-draw': 'hero-edge-draw 520ms ease-out forwards',
       },
     },
   },

@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Settings2 } from 'lucide-react'
-import { useTranslations } from 'next-intl'
 import {
   Button,
   Checkbox,
@@ -10,8 +8,9 @@ import {
   ChipModalBody,
   ChipModalField,
   ChipModalHeader,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+  cn,
+} from '@sim/emcn'
+import { Settings2 } from 'lucide-react'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -24,24 +23,19 @@ interface SelectedCountDisplayProps {
 }
 
 function SelectedCountDisplay({ noneSelected, allSelected, count }: SelectedCountDisplayProps) {
-  const t = useTranslations('auto')
   if (noneSelected) {
     return (
-      <span className='truncate font-medium text-[var(--text-muted)] text-sm'>
-        {t('none_selected')}
-      </span>
+      <span className='truncate font-medium text-[var(--text-muted)] text-sm'>None selected</span>
     )
   }
   if (allSelected) {
     return (
-      <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
-        {t('all_selected')}
-      </span>
+      <span className='truncate font-medium text-[var(--text-primary)] text-sm'>All selected</span>
     )
   }
   return (
     <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
-      {count} {t('selected')}
+      {count} selected
     </span>
   )
 }
@@ -67,8 +61,6 @@ export function GroupedCheckboxList({
   disabled = false,
   maxHeight = 400,
 }: GroupedCheckboxListProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const [open, setOpen] = useState(false)
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
@@ -144,7 +136,7 @@ export function GroupedCheckboxList({
       >
         <span className='flex flex-1 items-center gap-2 truncate text-[var(--text-muted)]'>
           <Settings2 className='size-4 flex-shrink-0 opacity-50' />
-          <span className='truncate'>{t('configure_pii_types')}</span>
+          <span className='truncate'>Configure PII Types</span>
         </span>
         <SelectedCountDisplay
           noneSelected={noneSelected}
@@ -152,20 +144,13 @@ export function GroupedCheckboxList({
           count={selectedValues.length}
         />
       </Button>
-      <ChipModal
-        open={open}
-        onOpenChange={setOpen}
-        srTitle={tI18n('select_pii_types_to_detect')}
-        size='lg'
-      >
-        <ChipModalHeader onClose={() => setOpen(false)}>
-          {t('select_pii_types_to_detect')}
-        </ChipModalHeader>
+      <ChipModal open={open} onOpenChange={setOpen} srTitle='Select PII Types to Detect' size='lg'>
+        <ChipModalHeader onClose={() => setOpen(false)}>Select PII Types to Detect</ChipModalHeader>
         <ChipModalBody onWheel={(e) => e.stopPropagation()}>
           <ChipModalField
             type='custom'
-            title={t('pii_types')}
-            hint={t('choose_which_types_of_personally_identifiable')}
+            title='PII types'
+            hint='Choose which types of personally identifiable information to detect and block.'
           >
             <div className='flex items-center justify-between border-[var(--border)] border-b pb-3'>
               <div className='flex items-center gap-2'>
@@ -185,13 +170,12 @@ export function GroupedCheckboxList({
                   htmlFor='select-all'
                   className='cursor-pointer font-medium text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
                 >
-                  {t('select_all_entities')}
+                  Select all entities
                 </label>
               </div>
               <Button variant='ghost' onClick={handleClear} disabled={disabled || noneSelected}>
                 <span className='flex items-center gap-1'>
-                  {t('clear')}
-                  {!noneSelected && <span>({selectedValues.length})</span>}
+                  Clear{!noneSelected && <span>({selectedValues.length})</span>}
                 </span>
               </Button>
             </div>

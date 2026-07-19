@@ -11,7 +11,7 @@ export const truncateTableTool: ToolConfig<
   id: 'clickhouse_truncate_table',
   name: 'ClickHouse Truncate Table',
   description: 'Remove all rows from a ClickHouse table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

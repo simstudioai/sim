@@ -1,7 +1,6 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
-import { File as FilesIcon, FolderPlus, Plus, Upload } from '@/components/emcn'
+import { File as FilesIcon, FolderPlus, Plus, Upload } from '@sim/emcn'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,
@@ -23,15 +22,13 @@ const ACTIONS: ChromeActionSpec[] = [
 ]
 
 export default function FilesLoading() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   return (
     <ResourceChromeFallback
       icon={FilesIcon}
-      title={t('files')}
+      title='Files'
       columns={COLUMNS}
       actions={ACTIONS}
-      searchPlaceholder={tI18n('search_files')}
+      searchPlaceholder='Search files...'
       hasSort
       hasFilter
     />

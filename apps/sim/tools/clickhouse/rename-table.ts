@@ -8,7 +8,7 @@ export const renameTableTool: ToolConfig<ClickHouseRenameTableParams, ClickHouse
   id: 'clickhouse_rename_table',
   name: 'ClickHouse Rename Table',
   description: 'Rename a ClickHouse table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

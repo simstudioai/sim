@@ -1,3 +1,7 @@
+import {
+  normalizeWorkflowBlockName,
+  RESERVED_WORKFLOW_BLOCK_NAMES,
+} from '@sim/workflow-types/workflow'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import type { LoopType, ParallelType } from '@/lib/workflows/types'
 
@@ -151,11 +155,12 @@ export const SPECIAL_REFERENCE_PREFIXES = [
   REFERENCE.PREFIX.VARIABLE,
 ] as const
 
-export const RESERVED_BLOCK_NAMES = [
-  REFERENCE.PREFIX.LOOP,
-  REFERENCE.PREFIX.PARALLEL,
-  REFERENCE.PREFIX.VARIABLE,
-] as const
+/**
+ * Delegates to the shared implementation in `@sim/workflow-types` so the
+ * client store and the realtime persistence layer agree on the same reserved
+ * names. Values intentionally mirror REFERENCE.PREFIX.{LOOP,PARALLEL,VARIABLE} above.
+ */
+export const RESERVED_BLOCK_NAMES = RESERVED_WORKFLOW_BLOCK_NAMES
 
 export const LOOP_REFERENCE = {
   ITERATION: 'iteration',
@@ -207,7 +212,7 @@ export const HTTP = {
 } as const
 
 export const AGENT = {
-  DEFAULT_MODEL: 'claude-sonnet-4-6',
+  DEFAULT_MODEL: 'claude-sonnet-5',
   get DEFAULT_FUNCTION_TIMEOUT() {
     return getMaxExecutionTimeout()
   },
@@ -221,18 +226,6 @@ export const MCP = {
   TOOL_PREFIX: 'mcp-',
 } as const
 
-export const CREDENTIAL_SET = {
-  PREFIX: 'credentialSet:',
-} as const
-
-export function isCredentialSetValue(value: string | null | undefined): boolean {
-  return typeof value === 'string' && value.startsWith(CREDENTIAL_SET.PREFIX)
-}
-
-export function extractCredentialSetId(value: string): string {
-  return value.slice(CREDENTIAL_SET.PREFIX.length)
-}
-
 export const MEMORY = {
   DEFAULT_SLIDING_WINDOW_SIZE: 10,
   DEFAULT_SLIDING_WINDOW_TOKENS: 4000,
@@ -242,21 +235,16 @@ export const MEMORY = {
 } as const
 
 export const ROUTER = {
-  DEFAULT_MODEL: 'claude-sonnet-4-6',
+  DEFAULT_MODEL: 'claude-sonnet-5',
   DEFAULT_TEMPERATURE: 0,
   INFERENCE_TEMPERATURE: 0.1,
 } as const
 
 export const EVALUATOR = {
-  DEFAULT_MODEL: 'claude-sonnet-4-6',
+  DEFAULT_MODEL: 'claude-sonnet-5',
   DEFAULT_TEMPERATURE: 0.1,
   RESPONSE_SCHEMA_NAME: 'evaluation_response',
   JSON_INDENT: 2,
-} as const
-
-export const CONDITION = {
-  ELSE_LABEL: 'else',
-  ELSE_TITLE: 'else',
 } as const
 
 export const PAUSE_RESUME = {
@@ -490,12 +478,10 @@ export function escapeRegExp(value: string): string {
  * spaces and dots. Used for both block names and variable names to ensure
  * consistent matching.
  *
- * Dots are stripped because `.` is the reference path delimiter — a name like
- * "Trigger.dev 1" must normalize to "triggerdev1" so the reference
- * `<triggerdev1.output>` parses unambiguously. Dotted names could never be
- * referenced before (the first path segment cut the name at the dot), so
- * stripping dots cannot break any previously working reference.
+ * Delegates to the shared implementation in `@sim/workflow-types` so the
+ * client store and the realtime persistence layer normalize block names
+ * identically when checking for reserved/duplicate names.
  */
 export function normalizeName(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, '').replace(/\./g, '')
+  return normalizeWorkflowBlockName(name)
 }

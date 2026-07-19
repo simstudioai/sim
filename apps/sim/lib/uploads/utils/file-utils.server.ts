@@ -16,6 +16,8 @@ import { StorageService } from '@/lib/uploads'
 import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
 import {
   extractStorageKey,
+  getFileExtension,
+  getMimeTypeFromExtension,
   inferContextFromKey,
   isInternalFileUrl,
   processSingleFileToUserFile,
@@ -47,6 +49,12 @@ export interface ResolveFileInputOptions {
   userId: string
   requestId: string
   logger: Logger
+  /**
+   * Expiry for presigned URLs minted for stored files, in seconds.
+   * Defaults to 5 minutes; raise it only when the external service fetches
+   * the URL later than the current request (e.g. scheduled publishing).
+   */
+  presignExpirySeconds?: number
 }
 
 /**
@@ -60,7 +68,7 @@ export interface ResolveFileInputOptions {
 export async function resolveFileInputToUrl(
   options: ResolveFileInputOptions
 ): Promise<FileResolutionResult> {
-  const { file, filePath, userId, requestId, logger } = options
+  const { file, filePath, userId, requestId, logger, presignExpirySeconds = 5 * 60 } = options
 
   if (file) {
     let userFile: UserFile
@@ -75,19 +83,11 @@ export async function resolveFileInputToUrl(
       }
     }
 
-    let fileUrl = userFile.url || ''
-
-    // Handle internal URLs
-    if (fileUrl && isInternalFileUrl(fileUrl)) {
-      const resolution = await resolveInternalFileUrl(fileUrl, userId, requestId, logger)
-      if (resolution.error) {
-        return { error: resolution.error }
-      }
-      fileUrl = resolution.fileUrl || ''
-    }
-
-    // Generate presigned URL if we have a key but no URL
-    if (!fileUrl && userFile.key) {
+    // A stored file always gets a freshly minted presigned URL scoped to the
+    // requested expiry — an embedded url (internal serve path or a previously
+    // minted presigned link) may be stale, shorter-lived than required, or
+    // point at a different object than the verified key.
+    if (userFile.key) {
       const context = resolveTrustedFileContext(userFile.key, userFile.context)
       const hasAccess = await verifyFileAccess(userFile.key, userId, undefined, context, false)
 
@@ -100,7 +100,30 @@ export async function resolveFileInputToUrl(
         return { error: { status: 404, message: 'File not found' } }
       }
 
-      fileUrl = await StorageService.generatePresignedDownloadUrl(userFile.key, context, 5 * 60)
+      const fileUrl = await StorageService.generatePresignedDownloadUrl(
+        userFile.key,
+        context,
+        presignExpirySeconds
+      )
+      return { fileUrl }
+    }
+
+    let fileUrl = userFile.url || ''
+
+    // Without a key, the schema guarantees the url references an uploaded
+    // file, so resolve the internal serve path to a presigned URL.
+    if (fileUrl && isInternalFileUrl(fileUrl)) {
+      const resolution = await resolveInternalFileUrl(
+        fileUrl,
+        userId,
+        requestId,
+        logger,
+        presignExpirySeconds
+      )
+      if (resolution.error) {
+        return { error: resolution.error }
+      }
+      fileUrl = resolution.fileUrl || ''
     }
 
     return { fileUrl }
@@ -110,7 +133,13 @@ export async function resolveFileInputToUrl(
     let fileUrl = filePath
 
     if (isInternalFileUrl(filePath)) {
-      const resolution = await resolveInternalFileUrl(filePath, userId, requestId, logger)
+      const resolution = await resolveInternalFileUrl(
+        filePath,
+        userId,
+        requestId,
+        logger,
+        presignExpirySeconds
+      )
       if (resolution.error) {
         return { error: resolution.error }
       }
@@ -147,6 +176,8 @@ export interface DownloadFileFromUrlOptions {
   timeoutMs?: number
   /** Hard cap on the number of bytes read from the source. */
   maxBytes?: number
+  /** Cancels an external download when the surrounding request or execution stops. */
+  signal?: AbortSignal
   /**
    * Principal the download is performed on behalf of. Required to authorize
    * internal (`/api/files/serve/...`) URLs: the resolved storage key is checked
@@ -174,7 +205,9 @@ export async function downloadFileFromUrl(
   fileUrl: string,
   options: DownloadFileFromUrlOptions = {}
 ): Promise<Buffer> {
-  const { timeoutMs = getMaxExecutionTimeout(), maxBytes, userId } = options
+  const { timeoutMs = getMaxExecutionTimeout(), maxBytes, signal, userId } = options
+
+  signal?.throwIfAborted()
 
   if (isInternalFileUrl(fileUrl)) {
     if (!userId) {
@@ -208,6 +241,7 @@ export async function downloadFileFromUrl(
   const response = await secureFetchWithPinnedIP(fileUrl, urlValidation.resolvedIP!, {
     timeout: timeoutMs,
     maxResponseBytes: maxBytes,
+    signal,
   })
 
   if (!response.ok) {
@@ -225,7 +259,8 @@ export async function resolveInternalFileUrl(
   filePath: string,
   userId: string,
   requestId: string,
-  logger: Logger
+  logger: Logger,
+  presignExpirySeconds = 5 * 60
 ): Promise<{ fileUrl?: string; error?: { status: number; message: string } }> {
   if (!isInternalFileUrl(filePath)) {
     return { fileUrl: filePath }
@@ -245,7 +280,11 @@ export async function resolveInternalFileUrl(
       return { error: { status: 404, message: 'File not found' } }
     }
 
-    const fileUrl = await StorageService.generatePresignedDownloadUrl(storageKey, context, 5 * 60)
+    const fileUrl = await StorageService.generatePresignedDownloadUrl(
+      storageKey,
+      context,
+      presignExpirySeconds
+    )
     logger.info(`[${requestId}] Generated presigned URL for ${context} file`)
     return { fileUrl }
   } catch (error) {
@@ -297,4 +336,69 @@ export async function downloadFileFromStorage(
   }
 
   return buffer
+}
+
+/**
+ * Result of {@link downloadServableFileFromStorage}: the bytes a consumer should
+ * actually attach/upload, plus the content type that matches those bytes.
+ */
+export interface ServableFile {
+  buffer: Buffer
+  contentType: string
+}
+
+/**
+ * Downloads a workspace file and resolves it to its SERVABLE bytes — the variant
+ * every tool that hands a file to an external service (email attachments, chat
+ * uploads, provider file inputs) should use instead of {@link downloadFileFromStorage}.
+ *
+ * AI-generated docs (pdf/docx/pptx/xlsx) store their generation SOURCE as the
+ * primary file and keep the rendered binary in a separate content-addressed
+ * artifact store. A raw download therefore yields source text under a `.pdf`
+ * name — the file the recipient cannot open. This swaps in the compiled artifact
+ * (and the correct binary content type) via the same resolver the file-serve
+ * route uses, so the serve and attachment paths resolve identically. Non-doc files
+ * and real uploaded binaries pass through unchanged, carrying `userFile.type` when set.
+ *
+ * Throws `DocCompileUserError` when a generated doc's artifact is not ready (still
+ * compiling) — callers should surface a retryable error rather than attach source.
+ */
+export async function downloadServableFileFromStorage(
+  userFile: UserFile,
+  requestId: string,
+  logger: Logger,
+  options: { maxBytes?: number; signal?: AbortSignal; ownerKey?: string } = {}
+): Promise<ServableFile> {
+  const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
+    maxBytes: options.maxBytes,
+  })
+
+  // Cheap pre-filter so only generated-doc candidates pay for the heavier resolver
+  // import below.
+  const ext = getFileExtension(userFile.name)
+  if (ext !== 'pdf' && ext !== 'docx' && ext !== 'pptx' && ext !== 'xlsx') {
+    return { buffer, contentType: userFile.type || getMimeTypeFromExtension(ext) }
+  }
+
+  const { parseWorkspaceFileKey } = await import(
+    '@/lib/uploads/contexts/workspace/workspace-file-manager'
+  )
+  const workspaceId = userFile.key ? (parseWorkspaceFileKey(userFile.key) ?? undefined) : undefined
+
+  const { resolveServableDocBytes } = await import('@/lib/copilot/tools/server/files/doc-compile')
+  const resolved = await resolveServableDocBytes({
+    rawBuffer: buffer,
+    fileName: userFile.name,
+    workspaceId,
+    ownerKey: options.ownerKey,
+    signal: options.signal,
+  })
+
+  // Re-check: the raw download enforced maxBytes on the source, but a generated doc
+  // resolves to a larger artifact.
+  if (options.maxBytes !== undefined && resolved.buffer.length > options.maxBytes) {
+    assertKnownSizeWithinLimit(resolved.buffer.length, options.maxBytes, 'servable file download')
+  }
+
+  return resolved
 }

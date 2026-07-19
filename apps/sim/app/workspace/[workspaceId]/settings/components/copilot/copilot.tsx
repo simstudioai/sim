@@ -1,10 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { formatDate } from '@sim/utils/formatting'
-import { Plus } from 'lucide-react'
-import { useTranslations } from 'next-intl'
 import {
   Chip,
   ChipConfirmModal,
@@ -15,9 +11,14 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   SecretReveal,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { formatDate } from '@sim/utils/formatting'
+import { Plus } from 'lucide-react'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   type CopilotKey,
   useCopilotKeys,
@@ -27,13 +28,17 @@ import {
 
 const logger = createLogger('CopilotSettings')
 
+/** Formats a key's last-used timestamp, falling back to "Never" when unset. */
+function formatLastUsed(dateString?: string | null): string {
+  if (!dateString) return 'Never'
+  return formatDate(new Date(dateString))
+}
+
 /**
  * Copilot Keys management component for handling API keys used with the Copilot feature.
  * Provides functionality to create, view, and delete copilot API keys.
  */
 export function Copilot() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const { data: keys = [], isLoading } = useCopilotKeys()
   const generateKey = useGenerateCopilotKey()
   const deleteKeyMutation = useDeleteCopilotKey()
@@ -44,7 +49,7 @@ export function Copilot() {
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const [deleteKey, setDeleteKey] = useState<CopilotKey | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [createError, setCreateError] = useState<string | null>(null)
 
   const filteredKeys = useMemo(() => {
@@ -97,14 +102,22 @@ export function Copilot() {
     }
   }
 
-  const formatLastUsed = (dateString?: string | null) => {
-    if (!dateString) return 'Never'
-    return formatDate(new Date(dateString))
-  }
-
   const hasKeys = keys.length > 0
   const showEmptyState = !hasKeys
   const showNoResults = searchTerm.trim() && filteredKeys.length === 0 && keys.length > 0
+
+  const actions: SettingsAction[] = [
+    {
+      text: 'Create API key',
+      icon: Plus,
+      variant: 'primary',
+      onSelect: () => {
+        setIsCreateDialogOpen(true)
+        setCreateError(null)
+      },
+      disabled: isLoading,
+    },
+  ]
 
   return (
     <>
@@ -114,36 +127,24 @@ export function Copilot() {
           onChange: setSearchTerm,
           placeholder: 'Search API keys...',
         }}
-        actions={
-          <Chip
-            leftIcon={Plus}
-            variant='primary'
-            onClick={() => {
-              setIsCreateDialogOpen(true)
-              setCreateError(null)
-            }}
-            disabled={isLoading}
-          >
-            {t('create_api_key')}
-          </Chip>
-        }
+        actions={actions}
       >
         {isLoading ? null : showEmptyState ? (
-          <SettingsEmptyState>{t('click_create_api_key_above_to')}</SettingsEmptyState>
+          <SettingsEmptyState>Click "Create API key" above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
             {filteredKeys.map((key) => (
               <div key={key.id} className='flex items-center justify-between gap-3'>
                 <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                   <div className='flex items-center gap-1.5'>
-                    <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
-                      {key.name || tI18n('unnamed_key')}
+                    <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
+                      {key.name || 'Unnamed Key'}
                     </span>
                     <span className='text-[var(--text-secondary)] text-sm'>
-                      {t('last_used')} {formatLastUsed(key.lastUsed).toLowerCase()})
+                      (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                     </span>
                   </div>
-                  <p className='truncate text-[12px] text-[var(--text-muted)]'>{key.displayKey}</p>
+                  <p className='truncate text-[var(--text-muted)] text-caption'>{key.displayKey}</p>
                 </div>
                 <Chip
                   className='flex-shrink-0'
@@ -152,14 +153,13 @@ export function Copilot() {
                     setShowDeleteDialog(true)
                   }}
                 >
-                  {t('delete')}
+                  Delete
                 </Chip>
               </div>
             ))}
             {showNoResults && (
               <SettingsEmptyState variant='inline'>
-                {t('no_api_keys_found_matching')}
-                {searchTerm}"
+                No API keys found matching "{searchTerm}"
               </SettingsEmptyState>
             )}
           </div>
@@ -169,24 +169,25 @@ export function Copilot() {
       <ChipModal
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
-        srTitle={tI18n('create_new_api_key')}
+        srTitle='Create new API key'
       >
         <ChipModalHeader onClose={() => setIsCreateDialogOpen(false)}>
-          {t('create_new_api_key')}
+          Create new API key
         </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            {t('this_key_will_allow_access_to')}
+            This key will allow access to Chat features. Make sure to copy it after creation as you
+            won't be able to see it again.
           </p>
           <ChipModalField
             type='input'
-            title={t('key_name')}
+            title='Key name'
             value={newKeyName}
             onChange={(value) => {
               setNewKeyName(value)
               if (createError) setCreateError(null)
             }}
-            placeholder={t('e_g_development_production')}
+            placeholder='e.g., Development, Production'
             required
           />
           <ChipModalError>{createError}</ChipModalError>
@@ -213,7 +214,7 @@ export function Copilot() {
             setNewKey(null)
           }
         }}
-        srTitle={tI18n('your_api_key_has_been_created')}
+        srTitle='Your API key has been created'
       >
         <ChipModalHeader
           onClose={() => {
@@ -221,10 +222,10 @@ export function Copilot() {
             setNewKey(null)
           }}
         >
-          {t('your_api_key_has_been_created')}
+          Your API key has been created
         </ChipModalHeader>
         <ChipModalBody>
-          <ChipModalField type='custom' title={t('copy_it_now_it_won_t')}>
+          <ChipModalField type='custom' title="Copy it now — it won't be shown again">
             {newKey && <SecretReveal value={newKey} />}
           </ChipModalField>
         </ChipModalBody>
@@ -251,8 +252,8 @@ export function Copilot() {
             setDeleteKey(null)
           }
         }}
-        srTitle={tI18n('delete_api_key')}
-        title={t('delete_api_key')}
+        srTitle='Delete API key'
+        title='Delete API key'
         text={[
           'Deleting ',
           { text: deleteKey?.name || 'Unnamed Key', bold: true },

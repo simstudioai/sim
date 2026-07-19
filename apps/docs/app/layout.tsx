@@ -72,7 +72,7 @@ export const metadata = {
       {
         url: `${DOCS_BASE_URL}/api/og?title=Sim%20Documentation`,
         width: 1200,
-        height: 630,
+        height: 675,
         alt: 'Sim Documentation',
       },
     ],

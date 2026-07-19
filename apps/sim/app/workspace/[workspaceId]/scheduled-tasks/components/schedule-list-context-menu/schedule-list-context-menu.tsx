@@ -1,13 +1,7 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Plus } from '@/components/emcn/icons'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 
 interface ScheduleListContextMenuProps {
   isOpen: boolean
@@ -24,7 +18,6 @@ export function ScheduleListContextMenu({
   onCreateSchedule,
   disableCreate = false,
 }: ScheduleListContextMenuProps) {
-  const t = useTranslations('auto')
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -51,7 +44,7 @@ export function ScheduleListContextMenu({
         {onCreateSchedule && (
           <DropdownMenuItem disabled={disableCreate} onSelect={onCreateSchedule}>
             <Plus />
-            {t('new_scheduled_task')}
+            New scheduled task
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

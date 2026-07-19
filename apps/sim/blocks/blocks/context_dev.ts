@@ -14,15 +14,7 @@ const URL_OPS = [
   'extract_product',
 ]
 /** Operations whose primary input is a bare domain. */
-const DOMAIN_OPS = [
-  'map',
-  'get_brand',
-  'get_brand_simplified',
-  'extract_products',
-  'scrape_fonts',
-  'scrape_styleguide',
-  'prefetch_domain',
-]
+const DOMAIN_OPS = ['map', 'get_brand', 'extract_products', 'scrape_fonts', 'scrape_styleguide']
 /** Classification operations keyed on a domain-or-name input. */
 const CLASSIFY_OPS = ['classify_naics', 'classify_sic']
 /** Brand operations that accept language/speed tuning. */
@@ -49,7 +41,6 @@ const MAX_AGE_OPS = [
   'get_brand_by_name',
   'get_brand_by_email',
   'get_brand_by_ticker',
-  'get_brand_simplified',
 ]
 /** Operations that accept a post-load browser wait. */
 const WAIT_FOR_OPS = ['scrape_markdown', 'scrape_html', 'scrape_images', 'screenshot', 'crawl']
@@ -118,10 +109,7 @@ export const ContextDevBlock: BlockConfig<ContextDevScrapeMarkdownResponse> = {
         { label: 'Get Brand by Name', id: 'get_brand_by_name' },
         { label: 'Get Brand by Email', id: 'get_brand_by_email' },
         { label: 'Get Brand by Ticker', id: 'get_brand_by_ticker' },
-        { label: 'Get Brand (Simplified)', id: 'get_brand_simplified' },
         { label: 'Identify Transaction', id: 'identify_transaction' },
-        { label: 'Prefetch Domain', id: 'prefetch_domain' },
-        { label: 'Prefetch by Email', id: 'prefetch_by_email' },
       ],
       value: () => 'scrape_markdown',
     },
@@ -170,8 +158,8 @@ export const ContextDevBlock: BlockConfig<ContextDevScrapeMarkdownResponse> = {
       title: 'Work Email',
       type: 'short-input',
       placeholder: 'name@company.com',
-      condition: { field: 'operation', value: ['get_brand_by_email', 'prefetch_by_email'] },
-      required: { field: 'operation', value: ['get_brand_by_email', 'prefetch_by_email'] },
+      condition: { field: 'operation', value: 'get_brand_by_email' },
+      required: { field: 'operation', value: 'get_brand_by_email' },
     },
     {
       id: 'ticker',
@@ -314,6 +302,22 @@ Do not include any explanations, markdown formatting, or other text outside the 
       id: 'queryFanout',
       title: 'Query Fan-out',
       type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'numResults',
+      title: 'Number of Results',
+      type: 'short-input',
+      placeholder: '10 to 100 (default 10)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'country',
+      title: 'Country',
+      type: 'short-input',
+      placeholder: 'ISO 3166-1 alpha-2 code (e.g., US)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'search' },
     },
@@ -524,6 +528,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
       placeholder: 'Enter your Context.dev API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {
@@ -546,10 +551,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
       'context_dev_get_brand_by_name',
       'context_dev_get_brand_by_email',
       'context_dev_get_brand_by_ticker',
-      'context_dev_get_brand_simplified',
       'context_dev_identify_transaction',
-      'context_dev_prefetch_domain',
-      'context_dev_prefetch_by_email',
     ],
     config: {
       tool: (params) =>
@@ -634,6 +636,8 @@ Do not include any explanations, markdown formatting, or other text outside the 
             const exclude = toStringArray(params.excludeDomains)
             if (exclude?.length) result.excludeDomains = exclude
             setString('freshness')
+            setNumber('numResults')
+            setString('country')
             setBool('queryFanout')
             setBool('markdownEnabled')
             setNumber('timeoutMS')
@@ -726,11 +730,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
             setNumber('maxAgeMs')
             setNumber('timeoutMS')
             break
-          case 'get_brand_simplified':
-            setString('domain')
-            setNumber('maxAgeMs')
-            setNumber('timeoutMS')
-            break
           case 'identify_transaction':
             setString('transactionInfo')
             setString('countryGl')
@@ -740,14 +739,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
             setBool('highConfidenceOnly')
             setString('forceLanguage')
             setBool('maxSpeed')
-            setNumber('timeoutMS')
-            break
-          case 'prefetch_domain':
-            setString('domain')
-            setNumber('timeoutMS')
-            break
-          case 'prefetch_by_email':
-            setString('email')
             setNumber('timeoutMS')
             break
         }
@@ -764,7 +755,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
     input: { type: 'string', description: 'Domain or company name for classification' },
     query: { type: 'string', description: 'Web search query' },
     name: { type: 'string', description: 'Company name for brand lookup' },
-    email: { type: 'string', description: 'Work email for brand lookup or prefetch' },
+    email: { type: 'string', description: 'Work email for brand lookup' },
     ticker: { type: 'string', description: 'Stock ticker for brand lookup' },
     transactionInfo: { type: 'string', description: 'Transaction descriptor to identify' },
     schema: { type: 'json', description: 'JSON schema for structured extraction' },
@@ -831,7 +822,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
     meta: { type: 'json', description: 'Sitemap discovery stats' },
     query: { type: 'string', description: 'The query that was searched' },
     status: { type: 'string', description: 'Operation status' },
-    message: { type: 'string', description: 'Prefetch result message' },
     urlsAnalyzed: { type: 'json', description: 'URLs analyzed during extraction' },
     data: { type: 'json', description: 'Structured data extracted from the site' },
     isProductPage: { type: 'boolean', description: 'Whether the URL is a product page' },

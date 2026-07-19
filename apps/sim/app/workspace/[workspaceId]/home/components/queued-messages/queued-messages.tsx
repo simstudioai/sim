@@ -1,10 +1,8 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { cn, Tooltip } from '@sim/emcn'
 import { ArrowUp, ChevronDown, ChevronRight, Paperclip, Pencil, Trash2, X } from 'lucide-react'
-import { useTranslations } from 'next-intl'
-import { Tooltip } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -29,8 +27,6 @@ export function QueuedMessages({
   onEdit,
   onCancelEdit,
 }: QueuedMessagesProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [isExpanded, setIsExpanded] = useState(true)
   const [isNarrow, setIsNarrow] = useState(false)
   const roRef = useRef<ResizeObserver | null>(null)
@@ -66,7 +62,7 @@ export function QueuedMessages({
           <ChevronRight className='size-[14px] text-[var(--text-icon)]' />
         )}
         <span className='font-medium text-[var(--text-secondary)] text-small'>
-          {messageQueue.length} {t('queued')}
+          {messageQueue.length} Queued
         </span>
       </button>
 
@@ -133,7 +129,7 @@ export function QueuedMessages({
                         </button>
                       </Tooltip.Trigger>
                       <Tooltip.Content side='top' sideOffset={4}>
-                        {t('cancel_edit')}
+                        Cancel edit
                       </Tooltip.Content>
                     </Tooltip.Root>
                   ) : (
@@ -153,7 +149,7 @@ export function QueuedMessages({
                           </button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top' sideOffset={4}>
-                          {isDispatching ? tI18n('sending_now') : tI18n('edit_queued_message')}
+                          {isDispatching ? 'Sending now' : 'Edit queued message'}
                         </Tooltip.Content>
                       </Tooltip.Root>
 
@@ -172,7 +168,7 @@ export function QueuedMessages({
                           </button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top' sideOffset={4}>
-                          {t('send_now')}
+                          Send now
                         </Tooltip.Content>
                       </Tooltip.Root>
 
@@ -190,7 +186,7 @@ export function QueuedMessages({
                           </button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top' sideOffset={4}>
-                          {t('remove_from_queue')}
+                          Remove from queue
                         </Tooltip.Content>
                       </Tooltip.Root>
                     </>

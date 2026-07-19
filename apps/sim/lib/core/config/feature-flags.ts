@@ -1,4 +1,6 @@
 import { fetchAppConfigProfile } from '@/lib/core/config/appconfig'
+import type { AppConfigGateContext, AppConfigGateRule } from '@/lib/core/config/appconfig-rules'
+import { matchesRule, parseGateConfig } from '@/lib/core/config/appconfig-rules'
 import { env, isTruthy } from '@/lib/core/config/env'
 import { isAppConfigEnabled } from '@/lib/core/config/env-flags'
 
@@ -11,15 +13,11 @@ const FEATURE_FLAGS_PROFILE = 'feature-flags'
 
 /**
  * A single flag's gating rule. A flag is ON for a context when ANY clause matches:
- * the global `enabled` default, the org/user allowlists, or `admins` for platform
- * admins. An absent clause never matches.
+ * the global `enabled` default, the org/user allowlists, or `adminEnabled` for
+ * platform admins. An absent clause never matches. Shape shared with the other
+ * AppConfig gating documents via {@link AppConfigGateRule}.
  */
-export interface FeatureFlagRule {
-  enabled?: boolean
-  orgIds?: string[]
-  userIds?: string[]
-  adminEnabled?: boolean
-}
+export type FeatureFlagRule = AppConfigGateRule
 
 export type FeatureFlagsConfig = Record<string, FeatureFlagRule>
 
@@ -28,11 +26,7 @@ export type FeatureFlagsConfig = Record<string, FeatureFlagRule>
  * its clause. Admin status is resolved internally from `userId`; `isAdmin` is an
  * optional fast-path override for callers that already know it (e.g. admin routes).
  */
-export interface FeatureFlagContext {
-  userId?: string | null
-  orgId?: string | null
-  isAdmin?: boolean
-}
+export type FeatureFlagContext = AppConfigGateContext
 
 /**
  * Registry of known feature flags. Each maps to the secret consulted ONLY when
@@ -62,10 +56,6 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
-  'tables-fractional-ordering': {
-    description: 'Order table rows by fractional order_key instead of legacy integer position',
-    fallback: 'TABLES_FRACTIONAL_ORDERING',
-  },
   'mothership-beta': {
     description:
       'Mothership beta plan/changelog artifact surfaces in the copilot VFS and doc compiler. ' +
@@ -90,12 +80,37 @@ const FEATURE_FLAGS = {
       'agree.',
     fallback: 'PII_REDACTION',
   },
+  'pii-granular-redaction': {
+    description:
+      'Expose the execution-altering PII redaction stages (redact the workflow input and every ' +
+      'block output in-flight) in the Data Retention config, layered on top of pii-redaction. ' +
+      'Global on/off only — gates the config surfaces (route write + UI). Because stored rules ' +
+      'are the source of truth for the executor, a granular stage can only run once it was ' +
+      'writable, so the executor is never flag-gated at runtime (avoiding a fail-open leak).',
+    fallback: 'PII_GRANULAR_REDACTION',
+  },
   'trigger-eu-region': {
     description:
       'Route Trigger.dev runs to eu-central-1 instead of the default us-east-1. Global on/off ' +
       'only — resolved without user/org context at every task-trigger call site via ' +
       'resolveTriggerRegion, so the whole deployment switches regions together.',
     fallback: 'TRIGGER_EU_REGION',
+  },
+  'workspace-forking': {
+    description:
+      'Runtime rollout gate for workspace forking (fork/promote/rollback), layered on top of ' +
+      'the existing FORKING_ENABLED / Enterprise-plan gate at the shared assertForkingEnabled ' +
+      'choke point. Enforced ONLY where AppConfig is the source of truth (Sim Cloud), so ' +
+      'operators can dark-launch forking to specific orgs/users/admins without touching ' +
+      'self-hosted/local behaviour. Fallback mirrors FORKING_ENABLED for off-AppConfig reads.',
+    fallback: 'FORKING_ENABLED',
+  },
+  'deploy-as-block': {
+    description:
+      'Publish a deployed workflow as a reusable, org-wide custom block (custom name/SVG icon/' +
+      'description; Start inputs become block inputs). Gates the Deploy-modal "Block" tab and the ' +
+      'custom-block publish/list routes. Off-AppConfig falls back to DEPLOY_AS_BLOCK.',
+    fallback: 'DEPLOY_AS_BLOCK',
   },
 } satisfies Record<string, FeatureFlagDefinition>
 
@@ -116,36 +131,6 @@ function fallbackFlags(): FeatureFlagsConfig {
   return flags
 }
 
-function normalizeIds(values: unknown): string[] | undefined {
-  if (!Array.isArray(values)) return undefined
-  const ids = Array.from(new Set(values.map((v) => String(v).trim()).filter(Boolean)))
-  return ids.length > 0 ? ids : undefined
-}
-
-function normalizeRule(value: unknown): FeatureFlagRule | null {
-  if (!value || typeof value !== 'object') return null
-  const obj = value as Record<string, unknown>
-  const rule: FeatureFlagRule = {}
-  if (typeof obj.enabled === 'boolean') rule.enabled = obj.enabled
-  if (typeof obj.adminEnabled === 'boolean') rule.adminEnabled = obj.adminEnabled
-  const orgIds = normalizeIds(obj.orgIds)
-  if (orgIds) rule.orgIds = orgIds
-  const userIds = normalizeIds(obj.userIds)
-  if (userIds) rule.userIds = userIds
-  return rule
-}
-
-/** Coerce an arbitrary AppConfig/JSON value into a config, dropping malformed entries. */
-function parseConfig(json: unknown): FeatureFlagsConfig {
-  const obj = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>
-  const flags: FeatureFlagsConfig = {}
-  for (const [name, value] of Object.entries(obj)) {
-    const rule = normalizeRule(value)
-    if (rule) flags[name] = rule
-  }
-  return flags
-}
-
 /**
  * Resolve platform-admin status lazily. Dynamically imported so the DB-backed
  * helper (and `@sim/db`) stay out of this config module's load graph for callers
@@ -158,17 +143,15 @@ async function resolveAdmin(userId: string): Promise<boolean> {
 
 /**
  * The admin clause is resolved last and lazily: a global/userId/orgId match
- * short-circuits before any DB read, a rule without `admins` never queries, and a
- * missing `userId` resolves to `false` without a query.
+ * short-circuits before any DB read, a rule without `adminEnabled` never queries,
+ * and a missing `userId` resolves to `false` without a query.
  */
 async function evaluate(
   rule: FeatureFlagRule | undefined,
   ctx: FeatureFlagContext
 ): Promise<boolean> {
   if (!rule) return false
-  if (rule.enabled) return true
-  if (ctx.userId && rule.userIds?.includes(ctx.userId)) return true
-  if (ctx.orgId && rule.orgIds?.includes(ctx.orgId)) return true
+  if (matchesRule(rule, ctx, false)) return true
   if (rule.adminEnabled) {
     const admin = ctx.isAdmin ?? (ctx.userId ? await resolveAdmin(ctx.userId) : false)
     if (admin) return true
@@ -190,7 +173,7 @@ export async function getFeatureFlags(): Promise<FeatureFlagsConfig> {
       environment: env.APPCONFIG_ENVIRONMENT as string,
       profile: FEATURE_FLAGS_PROFILE,
     },
-    parseConfig
+    parseGateConfig
   )
 
   return value ?? fallbackFlags()

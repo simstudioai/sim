@@ -1,20 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Button, ChipCombobox, ChipInput, cn, FieldDivider, Label, Switch, toast } from '@sim/emcn'
+import { X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
-import { useTranslations } from 'next-intl'
-import {
-  Button,
-  ChipCombobox,
-  ChipInput,
-  FieldDivider,
-  Label,
-  Switch,
-  toast,
-} from '@/components/emcn'
-import { X } from '@/components/emcn/icons'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
-import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition } from '@/lib/table'
 import {
   FieldError,
@@ -57,14 +47,13 @@ interface ColumnConfigSidebarProps {
  * sidebar relied on.
  */
 export function ColumnConfigSidebar(props: ColumnConfigSidebarProps) {
-  const t = useTranslations('auto')
   // Mount the form body with `key` keyed on the config identity so opening a
   // different column / mode remounts and re-seeds state from props.
   const open = props.config !== null
   return (
     <aside
       role='dialog'
-      aria-label={t('configure_column')}
+      aria-label='Configure column'
       className={cn(
         'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] transition-transform duration-200 ease-out',
         open ? 'translate-x-0 shadow-overlay' : 'translate-x-full'
@@ -93,8 +82,6 @@ function ColumnConfigBody({
   tableId,
   onColumnRename,
 }: ColumnConfigBodyProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
   const addColumn = useAddTableColumn({ workspaceId, tableId })
 
@@ -169,15 +156,13 @@ function ColumnConfigBody({
   return (
     <div className='flex h-full flex-col'>
       <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
-        <h2 className='font-medium text-[var(--text-primary)] text-small'>
-          {t('configure_column')}
-        </h2>
+        <h2 className='font-medium text-[var(--text-primary)] text-small'>Configure column</h2>
         <Button
           variant='ghost'
           size='sm'
           onClick={onClose}
           className='!p-1 size-7'
-          aria-label={t('close')}
+          aria-label='Close'
         >
           <X className='size-[14px]' />
         </Button>
@@ -185,7 +170,7 @@ function ColumnConfigBody({
 
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
         <div className='flex flex-col gap-[9.5px]'>
-          <RequiredLabel htmlFor='column-sidebar-name'>{t('column_name')}</RequiredLabel>
+          <RequiredLabel htmlFor='column-sidebar-name'>Column name</RequiredLabel>
           <ChipInput
             id='column-sidebar-name'
             value={nameInput}
@@ -198,9 +183,7 @@ function ColumnConfigBody({
             error={Boolean((showValidation && !trimmedName) || nameError)}
             aria-invalid={(showValidation && !trimmedName) || nameError ? true : undefined}
           />
-          {showValidation && !trimmedName && (
-            <FieldError message={tI18n('column_name_is_required')} />
-          )}
+          {showValidation && !trimmedName && <FieldError message='Column name is required' />}
           {nameError && !(showValidation && !trimmedName) && <FieldError message={nameError} />}
         </div>
 
@@ -208,7 +191,7 @@ function ColumnConfigBody({
           <>
             <FieldDivider />
             <div className='flex flex-col gap-[9.5px]'>
-              <RequiredLabel>{t('type')}</RequiredLabel>
+              <RequiredLabel>Type</RequiredLabel>
               <ChipCombobox
                 options={PLAIN_COLUMN_TYPE_OPTIONS.map((o) => ({
                   label: o.label,
@@ -217,7 +200,7 @@ function ColumnConfigBody({
                 }))}
                 value={typeInput}
                 onChange={(v) => setTypeInput(v as ColumnDefinition['type'])}
-                placeholder={t('select_type')}
+                placeholder='Select type'
                 maxHeight={260}
               />
             </div>
@@ -227,7 +210,7 @@ function ColumnConfigBody({
         <FieldDivider />
         <div className='flex flex-col gap-[9.5px]'>
           <div className='flex items-center justify-between pl-0.5'>
-            <Label htmlFor='column-sidebar-unique'>{t('unique')}</Label>
+            <Label htmlFor='column-sidebar-unique'>Unique</Label>
             <Switch
               id='column-sidebar-unique'
               checked={uniqueInput}
@@ -239,10 +222,10 @@ function ColumnConfigBody({
 
       <div className='flex items-center justify-end gap-2 border-[var(--border)] border-t px-2 py-3'>
         <Button variant='default' size='sm' onClick={onClose}>
-          {t('cancel')}
+          Cancel
         </Button>
         <Button variant='primary' size='sm' onClick={handleSave} disabled={saveDisabled}>
-          {saveDisabled ? 'Saving…' : tI18n('save')}
+          {saveDisabled ? 'Saving…' : 'Save'}
         </Button>
       </div>
     </div>

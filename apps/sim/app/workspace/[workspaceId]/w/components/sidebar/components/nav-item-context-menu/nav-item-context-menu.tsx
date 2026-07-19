@@ -1,13 +1,7 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Duplicate, SquareArrowUpRight } from '@/components/emcn/icons'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@sim/emcn'
+import { Duplicate, SquareArrowUpRight } from '@sim/emcn/icons'
 
 interface NavItemContextMenuProps {
   isOpen: boolean
@@ -26,7 +20,6 @@ export function NavItemContextMenu({
   onOpenInNewTab,
   onCopyLink,
 }: NavItemContextMenuProps) {
-  const t = useTranslations('auto')
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -55,7 +48,7 @@ export function NavItemContextMenu({
           }}
         >
           <SquareArrowUpRight />
-          {t('open_in_new_tab')}
+          Open in new tab
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => {
@@ -64,7 +57,7 @@ export function NavItemContextMenu({
           }}
         >
           <Duplicate />
-          {t('copy_link')}
+          Copy link
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

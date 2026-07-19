@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button, cn, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
 import { isEqual } from 'es-toolkit'
 import {
   BookOpen,
@@ -17,13 +18,13 @@ import { useTranslations } from 'next-intl'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { Button, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@/components/emcn'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
   hasAdvancedValues,
   isCanonicalPair,
+  isStandaloneAdvancedMode,
   resolveCanonicalMode,
   shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
@@ -50,6 +51,7 @@ import {
   isBlockProtected,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
@@ -187,7 +189,7 @@ export function Editor() {
 
   const hasAdvancedOnlyFields = useMemo(() => {
     for (const subBlock of subBlocksForCanonical) {
-      if (subBlock.mode !== 'advanced') continue
+      if (!isStandaloneAdvancedMode(subBlock.mode)) continue
       if (canonicalIndex.canonicalIdBySubBlockId[subBlock.id]) continue
 
       if (
@@ -222,7 +224,8 @@ export function Editor() {
 
     for (const subBlock of subBlocks) {
       const isStandaloneAdvanced =
-        subBlock.mode === 'advanced' && !canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+        isStandaloneAdvancedMode(subBlock.mode) &&
+        !canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
 
       if (isStandaloneAdvanced) {
         advancedOnly.push(subBlock)
@@ -378,7 +381,10 @@ export function Editor() {
               >
                 <IconComponent
                   icon={isSubflow ? subflowConfig?.icon : blockConfig?.icon}
-                  className='size-[12px] text-[var(--white)]'
+                  className={cn(
+                    'size-[12px]',
+                    getTileIconColorClass(isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor)
+                  )}
                 />
               </div>
             )}

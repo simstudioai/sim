@@ -1,11 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { formatDateTime } from '@sim/utils/formatting'
-import { FileText, MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
-import { useTranslations } from 'next-intl'
 import {
   Button,
+  cn,
   Input,
   Popover,
   PopoverContent,
@@ -13,8 +11,9 @@ import {
   PopoverTrigger,
   Skeleton,
   Tooltip,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { formatDateTime } from '@sim/utils/formatting'
+import { FileText, MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
@@ -56,8 +55,6 @@ export function Versions({
   onPromoteToLive,
   onLoadDeployment,
 }: VersionsProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [editingVersion, setEditingVersion] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
   const [openDropdown, setOpenDropdown] = useState<number | null>(null)
@@ -187,7 +184,7 @@ export function Versions({
   if (versions.length === 0) {
     return (
       <div className='flex h-[120px] items-center justify-center rounded-sm border border-[var(--border)] text-[var(--text-placeholder)] text-small'>
-        {t('no_deployments_yet')}
+        No deployments yet
       </div>
     )
   }
@@ -196,13 +193,13 @@ export function Versions({
     <div className='overflow-hidden rounded-sm border border-[var(--border)]'>
       <div className='flex h-[30px] items-center bg-[var(--surface-1)] px-4'>
         <div className={cn(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS)}>
-          <span className={HEADER_TEXT_CLASS}>{t('version')}</span>
+          <span className={HEADER_TEXT_CLASS}>Version</span>
         </div>
         <div className={cn(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS)}>
-          <span className={HEADER_TEXT_CLASS}>{t('deployed_by')}</span>
+          <span className={HEADER_TEXT_CLASS}>Deployed by</span>
         </div>
         <div className={cn(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
-          <span className={HEADER_TEXT_CLASS}>{t('timestamp')}</span>
+          <span className={HEADER_TEXT_CLASS}>Timestamp</span>
         </div>
         <div className={cn(COLUMN_WIDTHS.ACTIONS, COLUMN_BASE_CLASS)} />
       </div>
@@ -210,6 +207,20 @@ export function Versions({
       <div className='bg-[var(--surface-2)]'>
         {versions.map((v) => {
           const isSelected = selectedVersion === v.version
+          const operationStatus =
+            !v.isActive && v.latestOperationStatus !== 'active' ? v.latestOperationStatus : null
+          const isOperationPending =
+            operationStatus === 'preparing' || operationStatus === 'activating'
+          /** Exactly one parenthetical per row; selection already highlights the row. */
+          const rowLabel = v.isActive
+            ? 'live'
+            : isOperationPending
+              ? 'pending'
+              : operationStatus === 'failed'
+                ? 'failed'
+                : isSelected
+                  ? 'selected'
+                  : null
 
           return (
             <div
@@ -236,9 +247,23 @@ export function Versions({
                   <div
                     className={cn(
                       'size-[6px] shrink-0 rounded-xs',
-                      v.isActive ? 'bg-[var(--indicator-active)]' : 'bg-[var(--indicator-inactive)]'
+                      v.isActive
+                        ? 'bg-[var(--indicator-active)]'
+                        : isOperationPending
+                          ? 'bg-amber-400'
+                          : operationStatus === 'failed'
+                            ? 'bg-red-400'
+                            : 'bg-[var(--indicator-inactive)]'
                     )}
-                    title={v.isActive ? tI18n('live') : tI18n('inactive')}
+                    title={
+                      v.isActive
+                        ? 'Live'
+                        : isOperationPending
+                          ? 'Pending'
+                          : operationStatus === 'failed'
+                            ? 'Failed'
+                            : 'Inactive'
+                    }
                   />
                   {editingVersion === v.version ? (
                     <Input
@@ -272,13 +297,8 @@ export function Versions({
                         v{v.version}
                       </span>
                       {v.name && <span className='truncate'>{v.name}</span>}
-                      {v.isActive && (
-                        <span className='shrink-0 text-[var(--text-tertiary)]'>{t('live')}</span>
-                      )}
-                      {isSelected && (
-                        <span className='shrink-0 text-[var(--text-tertiary)]'>
-                          {t('selected')}
-                        </span>
+                      {rowLabel && (
+                        <span className='shrink-0 text-[var(--text-tertiary)]'>({rowLabel})</span>
                       )}
                     </span>
                   )}
@@ -287,7 +307,7 @@ export function Versions({
 
               <div className={cn(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS, 'min-w-0')}>
                 <span className={cn('block truncate text-[var(--text-tertiary)]', ROW_TEXT_CLASS)}>
-                  {v.deployedBy || tI18n('unknown')}
+                  {v.deployedBy || 'Unknown'}
                 </span>
               </div>
 
@@ -325,7 +345,7 @@ export function Versions({
                     {v.description ? (
                       <p className='line-clamp-3 text-caption'>{v.description}</p>
                     ) : (
-                      <p className='text-caption'>{t('add_description')}</p>
+                      <p className='text-caption'>Add description</p>
                     )}
                   </Tooltip.Content>
                 </Tooltip.Root>
@@ -346,23 +366,21 @@ export function Versions({
                   <PopoverContent align='end' sideOffset={4} minWidth={160} maxWidth={200} border>
                     <PopoverItem onClick={() => handleStartRename(v.version, v.name)}>
                       <Pencil className='size-3' />
-                      <span>{t('rename')}</span>
+                      <span>Rename</span>
                     </PopoverItem>
                     <PopoverItem onClick={() => handleOpenDescriptionModal(v.version)}>
                       <FileText className='size-3' />
-                      <span>
-                        {v.description ? tI18n('edit_description') : tI18n('add_description')}
-                      </span>
+                      <span>{v.description ? 'Edit description' : 'Add description'}</span>
                     </PopoverItem>
                     {!v.isActive && (
                       <PopoverItem onClick={() => handlePromote(v.version)}>
                         <RotateCcw className='size-3' />
-                        <span>{t('promote_to_live')}</span>
+                        <span>Promote to live</span>
                       </PopoverItem>
                     )}
                     <PopoverItem onClick={() => handleLoadDeployment(v.version)}>
                       <SendToBack className='size-3' />
-                      <span>{t('load_deployment')}</span>
+                      <span>Load deployment</span>
                     </PopoverItem>
                   </PopoverContent>
                 </Popover>

@@ -15,7 +15,7 @@ import {
   Redo,
   SquareArrowUpRight,
   X,
-} from '@/components/emcn'
+} from '@sim/emcn'
 import type { WorkflowLogSummary } from '@/lib/api/contracts/logs'
 
 interface LogRowContextMenuProps {

@@ -11,10 +11,8 @@ import {
   useRef,
   useState,
 } from 'react'
+import { Badge, ChevronDown, cn } from '@sim/emcn'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useTranslations } from 'next-intl'
-import { Badge, ChevronDown } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
 import {
   isLargeArrayManifest,
@@ -746,7 +744,6 @@ export const StructuredOutput = memo(function StructuredOutput({
   onMatchCountChange,
   contentRef,
 }: StructuredOutputProps) {
-  const t = useTranslations('auto')
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() =>
     computeInitialPaths(data, isError)
   )
@@ -926,9 +923,9 @@ export const StructuredOutput = memo(function StructuredOutput({
     return (
       <div ref={setContainerRef} className={containerClass}>
         <div className={STYLES.row}>
-          <span className={STYLES.keyName}>{t('running')}</span>
+          <span className={STYLES.keyName}>running</span>
           <Badge variant='green' className={STYLES.badge}>
-            {t('running_2')}
+            Running
           </Badge>
         </div>
       </div>
@@ -939,7 +936,7 @@ export const StructuredOutput = memo(function StructuredOutput({
   if (rootEntries.length === 0 && !isError) {
     return (
       <div ref={setContainerRef} className={containerClass}>
-        <span className={STYLES.emptyValue}>{t('null')}</span>
+        <span className={STYLES.emptyValue}>null</span>
       </div>
     )
   }

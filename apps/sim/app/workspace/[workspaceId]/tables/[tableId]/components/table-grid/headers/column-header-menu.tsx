@@ -1,9 +1,8 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslations } from 'next-intl'
-import { ChevronDown } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
+import { ChevronDown } from '@sim/emcn/icons'
 import type { WorkflowGroup } from '@/lib/table'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COL_WIDTH, SELECTION_TINT_BG } from '../constants'
@@ -89,7 +88,6 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   stickyLeft,
   isLastPinned,
 }: ColumnHeaderMenuProps) {
-  const t = useTranslations('auto')
   const renameInputRef = useRef<HTMLInputElement>(null)
   const didDragRef = useRef(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -324,7 +322,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             className='flex h-full shrink-0 cursor-pointer items-center pr-2.5 pl-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--text-primary)] group-hover:opacity-100'
             onClick={handleChevronClick}
             draggable={false}
-            aria-label={t('column_options')}
+            aria-label='Column options'
           >
             <ChevronDown className='size-[10px] shrink-0' />
           </button>

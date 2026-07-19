@@ -3,6 +3,7 @@
  *
  * @vitest-environment node
  */
+import { getErrorMessage } from '@sim/utils/errors'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +15,9 @@ const {
   mockCreateSingleDocument,
   mockProcessDocumentsWithQueue,
   mockValidateFileType,
+  mockResolveBillingAttribution,
+  mockResolveSystemBillingAttribution,
+  mockCheckAttributedUsageLimits,
 } = vi.hoisted(() => ({
   mockAuthenticateRequest: vi.fn(),
   mockResolveKnowledgeBase: vi.fn(),
@@ -22,7 +26,23 @@ const {
   mockCreateSingleDocument: vi.fn(),
   mockProcessDocumentsWithQueue: vi.fn(),
   mockValidateFileType: vi.fn(),
+  mockResolveBillingAttribution: vi.fn(),
+  mockResolveSystemBillingAttribution: vi.fn(),
+  mockCheckAttributedUsageLimits: vi.fn(),
 }))
+
+const SYSTEM_BILLING_ATTRIBUTION = {
+  actorUserId: 'owner-after-transfer',
+  workspaceId: 'ws-1',
+  organizationId: 'org-after-transfer',
+  billedAccountUserId: 'owner-after-transfer',
+  billingEntity: { type: 'organization' as const, id: 'org-after-transfer' },
+  billingPeriod: {
+    start: '2026-07-01T00:00:00.000Z',
+    end: '2026-08-01T00:00:00.000Z',
+  },
+  payerSubscription: null,
+}
 
 vi.mock('@/app/api/v1/middleware', () => ({
   authenticateRequest: mockAuthenticateRequest,
@@ -32,13 +52,19 @@ vi.mock('@/app/api/v1/knowledge/utils', () => ({
   resolveKnowledgeBase: mockResolveKnowledgeBase,
   serializeDate: (date: unknown) => (date instanceof Date ? date.toISOString() : date),
   handleError: (_requestId: string, error: unknown) =>
-    new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'error' }), {
+    new Response(JSON.stringify({ error: getErrorMessage(error, 'error') }), {
       status: 500,
     }),
 }))
 
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
   checkActorUsageLimits: mockCheckActorUsageLimits,
+}))
+
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  resolveBillingAttribution: mockResolveBillingAttribution,
+  resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
+  checkAttributedUsageLimits: mockCheckAttributedUsageLimits,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
@@ -98,6 +124,13 @@ describe('v1 knowledge document upload route', () => {
     })
     mockResolveKnowledgeBase.mockResolvedValue({ kb: { id: 'kb-1', workspaceId: 'ws-1' } })
     mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
+    mockResolveBillingAttribution.mockResolvedValue({
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+      billingEntity: { type: 'organization', id: 'org-1' },
+    })
+    mockResolveSystemBillingAttribution.mockResolvedValue(SYSTEM_BILLING_ATTRIBUTION)
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mockValidateFileType.mockReturnValue(null)
     mockUploadWorkspaceFile.mockResolvedValue({
       url: 'https://example.com/file.txt',
@@ -163,5 +196,44 @@ describe('v1 knowledge document upload route', () => {
     expect(data.success).toBe(true)
     expect(mockUploadWorkspaceFile).toHaveBeenCalledTimes(1)
     expect(mockCreateSingleDocument).toHaveBeenCalledTimes(1)
+    expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+    })
+    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
+  })
+
+  it('uses one atomic system actor and payer snapshot for a workspace API key', async () => {
+    mockAuthenticateRequest.mockResolvedValue({
+      requestId: 'req-1',
+      userId: 'key-creator',
+      rateLimit: { keyType: 'workspace' },
+    })
+    const file = new File(['hello world'], 'file.txt', { type: 'text/plain' })
+    const req = new NextRequest('http://localhost:3000/api/v1/knowledge/kb-1/documents', {
+      method: 'POST',
+      headers: { 'content-length': '1024' },
+      body: buildFormData(file),
+    })
+
+    const response = await POST(req, routeContext)
+
+    expect(response.status).toBe(200)
+    expect(mockResolveSystemBillingAttribution).toHaveBeenCalledWith('ws-1')
+    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(SYSTEM_BILLING_ATTRIBUTION)
+    expect(mockCreateSingleDocument).toHaveBeenCalledWith(
+      expect.any(Object),
+      'kb-1',
+      'req-1',
+      'owner-after-transfer'
+    )
+    expect(mockProcessDocumentsWithQueue).toHaveBeenCalledWith(
+      expect.any(Array),
+      'kb-1',
+      {},
+      'req-1',
+      SYSTEM_BILLING_ATTRIBUTION
+    )
   })
 })

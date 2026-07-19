@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from 'react'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+import { handleKeyboardActivation } from '@sim/emcn'
 import {
   type SegmentSelectionMode,
   useDashboardSegments,

@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import {
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -11,9 +12,8 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Workflow } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { Workflow } from '@sim/emcn/icons'
 import {
   buildFileFolderTree,
   buildWorkflowFolderTree,

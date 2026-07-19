@@ -110,12 +110,6 @@ Open a connection from the **Connected** list to manage it:
 If you disconnect an integration that is used in a workflow, that workflow will fail at any block referencing it. Update blocks before disconnecting.
 </Callout>
 
-## Email polling groups
-
-The Gmail and Outlook email triggers can watch several team members' inboxes through a single trigger, called an **email polling group** (Team and Enterprise plans). An admin creates a group under **Settings → Email Polling**, picks Gmail or Outlook, and invites members by email; each invitee connects their own inbox through a link. On an email trigger, select the group from the credentials dropdown instead of a single account, and the trigger routes everyone's mail through the workflow.
-
-Inviting someone to a group grants inbox access for that trigger only, which is separate from workspace membership.
-
 <FAQ items={[
   { question: "Does Sim handle OAuth token refresh automatically?", answer: "Yes. When an integration is used during execution, Sim checks whether the access token has expired and automatically refreshes it using the stored refresh token before making the API call. You do not need to handle token refresh manually." },
   { question: "Can I connect multiple accounts for the same service?", answer: "Yes. You can connect multiple accounts per service (for example, two separate Gmail accounts). Each block lets you select which account to use from the account dropdown. This is useful when different workflows need different identities or permissions." },

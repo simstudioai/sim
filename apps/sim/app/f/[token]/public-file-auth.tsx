@@ -1,13 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { cn, Input, Label } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Eye, EyeOff } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Input, Label, Loader } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
-import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
+import { AuthSubmitButton } from '@/app/(auth)/components'
 import { PublicFileAuthShell } from '@/app/f/[token]/public-file-auth-shell'
 import { usePublicFileAuth } from '@/hooks/queries/public-shares'
 
@@ -20,8 +18,6 @@ interface PublicFileAuthProps {
  * `file_auth_{shareId}` cookie is set and the page re-renders the viewer.
  */
 export function PublicFileAuth({ token }: PublicFileAuthProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const router = useRouter()
   const authenticate = usePublicFileAuth(token)
   const [password, setPassword] = useState('')
@@ -43,10 +39,7 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
   }
 
   return (
-    <PublicFileAuthShell
-      title={t('password_required')}
-      subtitle={tI18n('this_file_is_password_protected')}
-    >
+    <PublicFileAuthShell title='Password Required' subtitle='This file is password-protected'>
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -55,7 +48,7 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
         className='space-y-6'
       >
         <div className='space-y-2'>
-          <Label htmlFor='password'>{t('password')}</Label>
+          <Label htmlFor='password'>Password</Label>
           <div className='relative'>
             <Input
               id='password'
@@ -65,7 +58,7 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
               autoCapitalize='none'
               autoComplete='current-password'
               autoCorrect='off'
-              placeholder={t('enter_password')}
+              placeholder='Enter password'
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value)
@@ -79,8 +72,8 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
             <button
               type='button'
               onClick={() => setShowPassword(!showPassword)}
-              className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] hover:text-[var(--landing-text)]'
-              aria-label={showPassword ? tI18n('hide_password') : tI18n('show_password')}
+              className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -88,20 +81,13 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
           {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}
         </div>
 
-        <button
-          type='submit'
-          disabled={!password.trim() || authenticate.isPending}
-          className={AUTH_SUBMIT_BTN}
+        <AuthSubmitButton
+          disabled={!password.trim()}
+          loading={authenticate.isPending}
+          loadingLabel='Authenticating…'
         >
-          {authenticate.isPending ? (
-            <span className='flex items-center gap-2'>
-              <Loader className='size-4' animate />
-              {t('authenticating')}
-            </span>
-          ) : (
-            tI18n('continue')
-          )}
-        </button>
+          Continue
+        </AuthSubmitButton>
       </form>
     </PublicFileAuthShell>
   )

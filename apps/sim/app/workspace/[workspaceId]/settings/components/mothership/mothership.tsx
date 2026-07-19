@@ -1,12 +1,10 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
+import { Badge, Button, ChipInput, ChipSelect, cn, Label, Skeleton } from '@sim/emcn'
+import { formatDateTime } from '@sim/utils/formatting'
 import { useQueryStates } from 'nuqs'
-import { Badge, Button, ChipInput, ChipSelect, Label, Skeleton } from '@/components/emcn'
 import { AnthropicIcon, OpenAIIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
 import {
   BYOKKeyManager,
   type BYOKManagerProvider,
@@ -80,7 +78,9 @@ function formatCost(cost: number) {
 
 function formatDate(d: string | null | undefined) {
   if (!d) return '—'
-  return new Date(d).toLocaleString()
+  const date = new Date(d)
+  if (Number.isNaN(date.getTime())) return '—'
+  return formatDateTime(date)
 }
 
 function Divider() {
@@ -92,7 +92,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export function Mothership() {
-  const t = useTranslations('auto')
   const [{ tab: activeTab, env: environment }, setMothershipParams] = useQueryStates(
     mothershipParsers,
     mothershipUrlKeys
@@ -105,13 +104,13 @@ export function Mothership() {
     <SettingsPanel>
       <div className='flex flex-col gap-6'>
         <div className='flex items-center gap-2'>
-          <Label className='text-[var(--text-secondary)] text-sm'>{t('environment')}</Label>
+          <Label className='text-[var(--text-secondary)] text-sm'>Environment</Label>
           <ChipSelect
             align='start'
             dropdownWidth={160}
             value={environment}
             onChange={(value) => setMothershipParams({ env: value as MothershipEnv })}
-            placeholder={t('select_environment')}
+            placeholder='Select environment'
             options={ENV_OPTIONS}
           />
         </div>
@@ -139,7 +138,7 @@ export function Mothership() {
 
         <div className='flex items-center gap-3'>
           <div className='flex items-center gap-2'>
-            <Label className='text-[var(--text-secondary)] text-caption'>{t('from')}</Label>
+            <Label className='text-[var(--text-secondary)] text-caption'>From</Label>
             <ChipInput
               type='datetime-local'
               value={start}
@@ -147,7 +146,7 @@ export function Mothership() {
             />
           </div>
           <div className='flex items-center gap-2'>
-            <Label className='text-[var(--text-secondary)] text-caption'>{t('to')}</Label>
+            <Label className='text-[var(--text-secondary)] text-caption'>To</Label>
             <ChipInput type='datetime-local' value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
         </div>
@@ -165,9 +164,8 @@ export function Mothership() {
 }
 
 function ByokTab() {
-  const t = useTranslations('auto')
-  const params = useParams()
-  const workspaceId = (params?.workspaceId as string) || ''
+  const [targetWorkspaceId, setTargetWorkspaceId] = useState('')
+  const workspaceId = targetWorkspaceId.trim()
 
   const { data, isLoading } = useMothershipByokKeys(workspaceId)
   const upsert = useUpsertMothershipByok()
@@ -179,21 +177,38 @@ function ByokTab() {
   )
 
   return (
-    <BYOKKeyManager
-      providers={ENTERPRISE_BYOK_PROVIDERS}
-      configuredProviderIds={configuredProviderIds}
-      isLoading={isLoading}
-      isSaving={upsert.isPending}
-      isDeleting={del.isPending}
-      showSearch={false}
-      description={t('store_a_customer_provided_anthropic_or')}
-      onSave={async (provider, apiKey) => {
-        await upsert.mutateAsync({ workspaceId, provider, apiKey })
-      }}
-      onDelete={async (provider) => {
-        await del.mutateAsync({ workspaceId, provider })
-      }}
-    />
+    <div className='flex flex-col gap-4'>
+      <div className='flex items-center gap-2'>
+        <Label className='text-[var(--text-secondary)] text-sm'>Target workspace</Label>
+        <ChipInput
+          value={targetWorkspaceId}
+          onChange={(event) => setTargetWorkspaceId(event.target.value)}
+          placeholder='Workspace ID'
+          className='w-[280px]'
+        />
+      </div>
+      {workspaceId ? (
+        <BYOKKeyManager
+          providers={ENTERPRISE_BYOK_PROVIDERS}
+          configuredProviderIds={configuredProviderIds}
+          isLoading={isLoading}
+          isSaving={upsert.isPending}
+          isDeleting={del.isPending}
+          showSearch={false}
+          description="Store a customer-provided Anthropic or OpenAI key for this workspace. It is encrypted at rest in the mothership and used only for this workspace's enterprise requests."
+          onSave={async (provider, apiKey) => {
+            await upsert.mutateAsync({ workspaceId, provider, apiKey })
+          }}
+          onDelete={async (provider) => {
+            await del.mutateAsync({ workspaceId, provider })
+          }}
+        />
+      ) : (
+        <SettingsEmptyState variant='inline'>
+          Enter a workspace ID to manage its Mothership BYOK keys.
+        </SettingsEmptyState>
+      )}
+    </div>
   )
 }
 
@@ -206,7 +221,6 @@ function OverviewTab({
   start: string
   end: string
 }) {
-  const t = useTranslations('auto')
   const { data: breakdown, isLoading: breakdownLoading } = useMothershipUserBreakdown(
     environment,
     start,
@@ -222,17 +236,13 @@ function OverviewTab({
     <div className='flex flex-col gap-5'>
       <div className='grid grid-cols-4 gap-3'>
         <StatCard
-          label={t('total_requests')}
+          label='Total Requests'
           value={breakdown?.total_requests}
           loading={breakdownLoading}
         />
+        <StatCard label='Unique Users' value={breakdown?.total_users} loading={breakdownLoading} />
         <StatCard
-          label={t('unique_users')}
-          value={breakdown?.total_users}
-          loading={breakdownLoading}
-        />
-        <StatCard
-          label={t('total_cost')}
+          label='Total Cost'
           value={
             breakdown?.users
               ? formatCost(
@@ -246,7 +256,7 @@ function OverviewTab({
           loading={breakdownLoading}
         />
         <StatCard
-          label={t('avg_cost_request')}
+          label='Avg Cost/Request'
           value={
             breakdown?.total_requests && breakdown.users
               ? formatCost(
@@ -261,7 +271,7 @@ function OverviewTab({
         />
       </div>
 
-      <SectionLabel>{t('user_breakdown')}</SectionLabel>
+      <SectionLabel>User Breakdown</SectionLabel>
       {breakdownLoading && (
         <div className='flex flex-col gap-2'>
           {Array.from({ length: 5 }).map((_, i) => (
@@ -272,10 +282,10 @@ function OverviewTab({
       {breakdown?.users && (
         <div className='flex flex-col gap-0.5'>
           <div className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-[var(--text-tertiary)] text-caption'>
-            <span className='flex-1'>{t('user_id')}</span>
-            <span className='w-[100px] text-right'>{t('requests')}</span>
-            <span className='w-[100px] text-right'>{t('cost')}</span>
-            <span className='w-[160px] text-right'>{t('last_request')}</span>
+            <span className='flex-1'>User ID</span>
+            <span className='w-[100px] text-right'>Requests</span>
+            <span className='w-[100px] text-right'>Cost</span>
+            <span className='w-[160px] text-right'>Last Request</span>
           </div>
           {breakdown.users.map(
             (u: {
@@ -288,7 +298,7 @@ function OverviewTab({
                 key={u.user_id}
                 className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-small last:border-b-0'
               >
-                <span className='flex-1 truncate font-mono text-[12px] text-[var(--text-primary)]'>
+                <span className='flex-1 truncate font-mono text-[var(--text-primary)] text-caption'>
                   {u.user_id}
                 </span>
                 <span className='w-[100px] text-right text-[var(--text-secondary)]'>
@@ -307,10 +317,7 @@ function OverviewTab({
       )}
 
       <Divider />
-      <SectionLabel>
-        {t('recent_requests')}
-        {requests?.count ?? '…'})
-      </SectionLabel>
+      <SectionLabel>Recent Requests ({requests?.count ?? '…'})</SectionLabel>
       {requestsLoading && (
         <div className='flex flex-col gap-2'>
           {Array.from({ length: 5 }).map((_, i) => (
@@ -322,13 +329,13 @@ function OverviewTab({
         <div className='max-h-[400px] overflow-auto'>
           <div className='flex flex-col gap-0.5'>
             <div className='sticky top-0 z-10 flex items-center gap-3 border-[var(--border-secondary)] border-b bg-[var(--surface-1)] px-3 py-2 text-[var(--text-tertiary)] text-caption'>
-              <span className='w-[180px]'>{t('request_id')}</span>
-              <span className='w-[80px]'>{t('model')}</span>
-              <span className='w-[80px] text-right'>{t('duration')}</span>
-              <span className='w-[80px] text-right'>{t('cost')}</span>
-              <span className='w-[60px] text-right'>{t('tools')}</span>
-              <span className='w-[70px] text-right'>{t('status')}</span>
-              <span className='flex-1 text-right'>{t('time')}</span>
+              <span className='w-[180px]'>Request ID</span>
+              <span className='w-[80px]'>Model</span>
+              <span className='w-[80px] text-right'>Duration</span>
+              <span className='w-[80px] text-right'>Cost</span>
+              <span className='w-[60px] text-right'>Tools</span>
+              <span className='w-[70px] text-right'>Status</span>
+              <span className='flex-1 text-right'>Time</span>
             </div>
             {requests.requests
               .slice(0, 100)
@@ -347,7 +354,7 @@ function OverviewTab({
                     key={r.request_id}
                     className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-1.5 text-small last:border-b-0'
                   >
-                    <span className='w-[180px] truncate font-mono text-[11px] text-[var(--text-primary)]'>
+                    <span className='w-[180px] truncate font-mono text-[var(--text-primary)] text-xs'>
                       {r.request_id ?? '—'}
                     </span>
                     <span className='w-[80px] truncate text-[var(--text-secondary)] text-caption'>
@@ -364,9 +371,9 @@ function OverviewTab({
                     </span>
                     <span className='w-[70px] text-right'>
                       {r.error ? (
-                        <Badge variant='red'>{t('error')}</Badge>
+                        <Badge variant='red'>Error</Badge>
                       ) : r.aborted ? (
-                        <Badge variant='amber'>{t('abort')}</Badge>
+                        <Badge variant='amber'>Abort</Badge>
                       ) : (
                         <Badge variant='green'>OK</Badge>
                       )}
@@ -385,8 +392,6 @@ function OverviewTab({
 }
 
 function LicensesTab({ environment }: { environment: MothershipEnv }) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const { data, isLoading, refetch } = useMothershipLicenses(environment)
   const generateLicense = useGenerateLicense(environment)
   const [newName, setNewName] = useState('')
@@ -413,26 +418,22 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
 
   return (
     <div className='flex flex-col gap-5'>
-      <SectionLabel>{t('generate_license')}</SectionLabel>
+      <SectionLabel>Generate License</SectionLabel>
       <div className='flex items-end gap-2'>
         <div className='flex flex-col gap-1'>
-          <Label className='text-[var(--text-secondary)] text-caption'>
-            {t('enterprise_name')}
-          </Label>
+          <Label className='text-[var(--text-secondary)] text-caption'>Enterprise Name</Label>
           <ChipInput
             value={newName}
             onChange={(e) => {
               setNewName(e.target.value)
               setGeneratedKey(null)
             }}
-            placeholder={t('e_g_acme_corp')}
+            placeholder='e.g. Acme Corp'
             className='w-[200px]'
           />
         </div>
         <div className='flex flex-col gap-1'>
-          <Label className='text-[var(--text-secondary)] text-caption'>
-            {t('expiration_optional')}
-          </Label>
+          <Label className='text-[var(--text-secondary)] text-caption'>Expiration (optional)</Label>
           <ChipInput
             type='date'
             value={newExpiry}
@@ -446,16 +447,16 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
           onClick={handleGenerate}
           disabled={generateLicense.isPending || !newName.trim()}
         >
-          {generateLicense.isPending ? 'Generating...' : tI18n('generate')}
+          {generateLicense.isPending ? 'Generating...' : 'Generate'}
         </Button>
       </div>
 
       {generatedKey && (
         <div className='rounded-md border border-[var(--border-secondary)] bg-[var(--surface-hover)] p-3'>
           <p className='mb-1 text-[var(--text-secondary)] text-caption'>
-            {t('license_key_only_shown_once')}
+            License key (only shown once):
           </p>
-          <code className='block break-all font-mono text-[12px] text-[var(--text-primary)]'>
+          <code className='block break-all font-mono text-[var(--text-primary)] text-caption'>
             {generatedKey}
           </code>
         </div>
@@ -466,7 +467,7 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
       )}
 
       <Divider />
-      <SectionLabel>{t('all_licenses')}</SectionLabel>
+      <SectionLabel>All Licenses</SectionLabel>
 
       {isLoading && (
         <div className='flex flex-col gap-2'>
@@ -479,13 +480,13 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
       {data?.licenses && (
         <div className='flex flex-col gap-0.5'>
           <div className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-[var(--text-tertiary)] text-caption'>
-            <span className='flex-1'>{t('name')}</span>
-            <span className='w-[100px] text-right'>{t('validations')}</span>
-            <span className='w-[140px] text-right'>{t('expiration')}</span>
-            <span className='w-[140px] text-right'>{t('created')}</span>
+            <span className='flex-1'>Name</span>
+            <span className='w-[100px] text-right'>Validations</span>
+            <span className='w-[140px] text-right'>Expiration</span>
+            <span className='w-[140px] text-right'>Created</span>
           </div>
           {data.licenses.length === 0 && (
-            <SettingsEmptyState variant='inline'>{t('no_licenses_found')}</SettingsEmptyState>
+            <SettingsEmptyState variant='inline'>No licenses found.</SettingsEmptyState>
           )}
           {data.licenses.map(
             (lic: {
@@ -504,7 +505,7 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
                   {lic.count}
                 </span>
                 <span className='w-[140px] text-right text-[var(--text-tertiary)] text-caption'>
-                  {lic.expiration_date ? formatDate(lic.expiration_date) : tI18n('never')}
+                  {lic.expiration_date ? formatDate(lic.expiration_date) : 'Never'}
                 </span>
                 <span className='w-[140px] text-right text-[var(--text-tertiary)] text-caption'>
                   {formatDate(lic.created_at)}
@@ -533,7 +534,7 @@ function StatCard({
       {loading ? (
         <Skeleton className='mt-1 h-[24px] w-[80px] rounded-sm' />
       ) : (
-        <p className='mt-1 font-medium text-[18px] text-[var(--text-primary)]'>{value ?? '—'}</p>
+        <p className='mt-1 font-medium text-[var(--text-primary)] text-lg'>{value ?? '—'}</p>
       )}
     </div>
   )

@@ -1,17 +1,12 @@
 'use client'
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { MoreHorizontal, Pin } from 'lucide-react'
-import Link from 'next/link'
-import { useParams, usePathname, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { usePostHog } from 'posthog-js/react'
 import {
   Button,
   Chip,
   ChipLink,
   chipVariants,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -23,7 +18,7 @@ import {
   Skeleton,
   Tooltip,
   Upload,
-} from '@/components/emcn'
+} from '@sim/emcn'
 import {
   BookOpen,
   Calendar,
@@ -38,10 +33,14 @@ import {
   Table,
   Task,
   Workflow,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { MoreHorizontal, Pin } from 'lucide-react'
+import Link from 'next/link'
+import { useParams, usePathname, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { cn } from '@/lib/core/utils/cn'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
@@ -87,6 +86,7 @@ import {
   groupWorkflowsByFolder,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
@@ -110,6 +110,7 @@ import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useProvidersStore } from '@/stores/providers'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
@@ -119,18 +120,20 @@ export function SidebarTooltip({
   label,
   enabled,
   side = 'right',
+  shortcut,
 }: {
   children: React.ReactElement
   label: string
   enabled: boolean
   side?: 'right' | 'bottom'
+  shortcut?: string
 }) {
   if (!enabled) return children
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
       <Tooltip.Content side={side}>
-        <p>{label}</p>
+        {shortcut ? <Tooltip.Shortcut keys={shortcut}>{label}</Tooltip.Shortcut> : <p>{label}</p>}
       </Tooltip.Content>
     </Tooltip.Root>
   )
@@ -171,7 +174,6 @@ const SidebarChatItem = memo(function SidebarChatItem({
   onMorePointerDown: () => void
   onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, chatId: string) => void
 }) {
-  const t = useTranslations('auto')
   const dragGhostRef = useRef<HTMLElement | null>(null)
 
   function handleDragStart(e: React.DragEvent) {
@@ -238,7 +240,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
             )}
             <button
               type='button'
-              aria-label={t('chat_options')}
+              aria-label='Chat options'
               onPointerDown={onMorePointerDown}
               onClick={(e) => {
                 e.preventDefault()
@@ -359,8 +361,6 @@ interface SidebarProps {
 }
 
 export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
@@ -377,6 +377,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
   const { config: permissionConfig, filterBlocks } = usePermissionConfig()
   const { navigateToSettings, getSettingsHref } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
+  const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const providers = useProvidersStore((state) => state.providers)
   const providerModelSignature = useMemo(
     () =>
@@ -388,7 +389,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
 
   useEffect(() => {
     initializeSearchData(filterBlocks)
-  }, [initializeSearchData, filterBlocks, providerModelSignature])
+  }, [initializeSearchData, filterBlocks, providerModelSignature, customBlockOverlayVersion])
 
   const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
@@ -1074,16 +1075,21 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
     fileInputRef.current?.click()
   }
 
+  const requestLeave = useSettingsDirtyStore((s) => s.requestLeave)
+
   const handleWorkspaceSwitch = useCallback(
-    async (workspace: Workspace) => {
+    (workspace: Workspace) => {
       if (workspace.id === workspaceId) {
         setIsWorkspaceMenuOpen(false)
         return
       }
-      await switchWorkspace(workspace)
+      // Close the switcher first so the settings discard dialog (if any) is visible.
       setIsWorkspaceMenuOpen(false)
+      requestLeave(() => {
+        void switchWorkspace(workspace)
+      })
     },
-    [workspaceId, switchWorkspace]
+    [workspaceId, switchWorkspace, requestLeave]
   )
 
   const handleSidebarClick = (e: React.MouseEvent<HTMLElement>) => {
@@ -1230,6 +1236,12 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
           handleCreateWorkflow()
         },
       },
+      {
+        id: 'toggle-sidebar',
+        handler: () => {
+          toggleCollapsed()
+        },
+      },
     ])
   )
 
@@ -1254,7 +1266,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
         <aside
           className='sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)]'
           data-collapsed={isCollapsed || undefined}
-          aria-label={t('workspace_sidebar')}
+          aria-label='Workspace sidebar'
           onClick={handleSidebarClick}
         >
           <div className='flex h-full flex-col'>
@@ -1280,7 +1292,12 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                 isCollapsed={isCollapsed}
                 onExpandSidebar={toggleCollapsed}
               />
-              <SidebarTooltip label={t('collapse_sidebar')} enabled={!isCollapsed} side='bottom'>
+              <SidebarTooltip
+                label='Collapse sidebar'
+                enabled={!isCollapsed}
+                side='bottom'
+                shortcut={isMac ? '⌘B' : 'Ctrl+B'}
+              >
                 <button
                   type='button'
                   onClick={toggleCollapsed}
@@ -1288,7 +1305,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                     'ml-2 flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 hover-hover:bg-[var(--surface-active)]',
                     isCollapsed ? 'w-0 opacity-0' : 'w-[30px] opacity-100'
                   )}
-                  aria-label={t('collapse_sidebar')}
+                  aria-label='Collapse sidebar'
                   tabIndex={isCollapsed ? -1 : undefined}
                 >
                   <PanelLeft className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
@@ -1331,22 +1348,22 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                   <div ref={scrollContentRef} className='flex flex-col'>
                     <div className='chats-section flex flex-shrink-0 flex-col'>
                       <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
-                        <div className='text-[var(--text-muted)] text-small'>{t('chats')}</div>
+                        <div className='text-[var(--text-muted)] text-small'>Chats</div>
                       </div>
                       {isCollapsed ? (
                         <CollapsedSidebarMenu
                           icon={chatsCollapsedIcon}
                           hover={chatsHover}
-                          ariaLabel={t('chats')}
+                          ariaLabel='Chats'
                           className='mt-2'
                         >
                           {chatsLoading ? (
                             <DropdownMenuItem disabled>
                               <Loader className='h-[14px] w-[14px]' animate />
-                              {t('loading')}
+                              Loading...
                             </DropdownMenuItem>
                           ) : chats.length === 0 ? (
-                            <DropdownMenuItem disabled>{t('no_chats_yet')}</DropdownMenuItem>
+                            <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
                           ) : (
                             chats.map((chat) => (
                               <CollapsedChatFlyoutItem
@@ -1376,7 +1393,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                             <>
                               {chats.length === 0 ? (
                                 <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>
-                                  {t('no_chats_yet')}
+                                  No chats yet
                                 </div>
                               ) : null}
                               {/* `selectChatOnly` populates `selectedChats` on every click, so
@@ -1441,9 +1458,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                                     'text-[var(--text-muted)] text-small'
                                   )}
                                 >
-                                  {chats.length > visibleChatCount
-                                    ? tI18n('see_more')
-                                    : tI18n('see_less')}
+                                  {chats.length > visibleChatCount ? 'See more' : 'See less'}
                                 </button>
                               )}
                             </>
@@ -1454,7 +1469,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
 
                     <div className={cn(SIDEBAR_SECTION_GAP_CLASS, 'flex flex-shrink-0 flex-col')}>
                       <div className='px-4 pb-2'>
-                        <div className='text-[var(--text-muted)] text-small'>{t('workspace')}</div>
+                        <div className='text-[var(--text-muted)] text-small'>Workspace</div>
                       </div>
                       <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
                         {workspaceNavItems.map((item) => (
@@ -1476,7 +1491,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                       )}
                     >
                       <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
-                        <div className='text-[var(--text-muted)] text-small'>{t('workflows')}</div>
+                        <div className='text-[var(--text-muted)] text-small'>Workflows</div>
                         {!isCollapsed && (
                           <div className='flex items-center justify-center gap-2'>
                             <DropdownMenu>
@@ -1497,7 +1512,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                                   </DropdownMenuTrigger>
                                 </Tooltip.Trigger>
                                 <Tooltip.Content>
-                                  <p>{t('more_actions')}</p>
+                                  <p>More actions</p>
                                 </Tooltip.Content>
                               </Tooltip.Root>
                               <DropdownMenuContent
@@ -1510,16 +1525,14 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                                   disabled={!canEdit || isImporting}
                                 >
                                   <Upload />
-                                  {isImporting ? 'Importing...' : tI18n('import_workflow')}
+                                  {isImporting ? 'Importing...' : 'Import workflow'}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onSelect={handleCreateFolder}
                                   disabled={!canEdit || isCreatingFolder}
                                 >
                                   <FolderPlus />
-                                  {isCreatingFolder
-                                    ? tI18n('creating_folder')
-                                    : tI18n('create_folder')}
+                                  {isCreatingFolder ? 'Creating folder...' : 'Create folder'}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -1536,10 +1549,10 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                               </Tooltip.Trigger>
                               <Tooltip.Content>
                                 {isCreatingWorkflow ? (
-                                  <p>{t('creating_workflow')}</p>
+                                  <p>Creating workflow...</p>
                                 ) : (
                                   <Tooltip.Shortcut keys={isMac ? '⌘⇧P' : 'Ctrl+Shift+P'}>
-                                    {t('new_workflow')}
+                                    New workflow
                                   </Tooltip.Shortcut>
                                 )}
                               </Tooltip.Content>
@@ -1551,17 +1564,17 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                         <CollapsedSidebarMenu
                           icon={workflowsCollapsedIcon}
                           hover={workflowsHover}
-                          ariaLabel={t('workflows')}
+                          ariaLabel='Workflows'
                           className='mt-2'
                           primaryAction={workflowsPrimaryAction}
                         >
                           {workflowsLoading && regularWorkflows.length === 0 ? (
                             <DropdownMenuItem disabled>
                               <Loader className='h-[14px] w-[14px]' animate />
-                              {t('loading')}
+                              Loading...
                             </DropdownMenuItem>
                           ) : regularWorkflows.length === 0 ? (
-                            <DropdownMenuItem disabled>{t('no_workflows_yet')}</DropdownMenuItem>
+                            <DropdownMenuItem disabled>No workflows yet</DropdownMenuItem>
                           ) : (
                             <>
                               {collapsedRootItems.map((item) =>
@@ -1638,7 +1651,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                   )}
                 >
                   <DropdownMenu>
-                    <SidebarTooltip label={t('help')} enabled={showCollapsedTooltips}>
+                    <SidebarTooltip label='Help' enabled={showCollapsedTooltips}>
                       <DropdownMenuTrigger asChild>
                         <button
                           type='button'
@@ -1647,7 +1660,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                         >
                           <HelpCircle className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                           <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>
-                            {t('help')}
+                            Help
                           </span>
                         </button>
                       </DropdownMenuTrigger>
@@ -1655,11 +1668,11 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                     <DropdownMenuContent align='start' side='top' sideOffset={4}>
                       <DropdownMenuItem onSelect={handleOpenDocs}>
                         <BookOpen className='h-[14px] w-[14px]' />
-                        {t('docs')}
+                        Docs
                       </DropdownMenuItem>
                       <DropdownMenuItem onSelect={handleOpenHelpFromMenu}>
                         <HelpCircle className='h-[14px] w-[14px]' />
-                        {t('report_an_issue')}
+                        Report an issue
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -1734,7 +1747,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
           role={isCollapsed ? 'button' : 'separator'}
           tabIndex={0}
           aria-orientation={isCollapsed ? undefined : 'vertical'}
-          aria-label={isCollapsed ? tI18n('expand_sidebar') : tI18n('resize_sidebar')}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Resize sidebar'}
         />
       </div>
 

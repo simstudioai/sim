@@ -7,8 +7,8 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Duplicate as DuplicateIcon, Pause, Pencil, Play, Trash } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Duplicate as DuplicateIcon, Pause, Pencil, Play, Trash } from '@sim/emcn/icons'
 import type { ScheduledTask } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
 
 interface TaskContextMenuProps {

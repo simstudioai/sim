@@ -1,8 +1,7 @@
 'use client'
 
 import { type CSSProperties, useMemo } from 'react'
-import { useTranslations } from 'next-intl'
-import { Avatar, AvatarFallback, AvatarImage, Tooltip } from '@/components/emcn'
+import { Avatar, AvatarFallback, AvatarImage, Tooltip } from '@sim/emcn'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
@@ -39,7 +38,6 @@ interface UserAvatarProps {
  * Falls back to colored circle with initials if image fails to load.
  */
 function UserAvatar({ user, index }: UserAvatarProps) {
-  const tI18n = useTranslations('auto')
   const color = getUserColor(user.userId)
   const initials = user.userName ? user.userName.charAt(0).toUpperCase() : '?'
 
@@ -48,7 +46,7 @@ function UserAvatar({ user, index }: UserAvatarProps) {
       {user.avatarUrl && (
         <AvatarImage
           src={user.avatarUrl}
-          alt={user.userName ? `${user.userName}'s avatar` : tI18n('user_avatar')}
+          alt={user.userName ? `${user.userName}'s avatar` : 'User avatar'}
           referrerPolicy='no-referrer'
         />
       )}
@@ -83,7 +81,6 @@ function UserAvatar({ user, index }: UserAvatarProps) {
  * @returns Avatar stack for workflow presence
  */
 export function Avatars({ workflowId }: AvatarsProps) {
-  const t = useTranslations('auto')
   const { currentWorkflowId, currentSocketId } = useSocket()
   const presenceUsers = usePresenceStore((state) => state.presenceUsers)
   const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
@@ -143,8 +140,7 @@ export function Avatars({ workflowId }: AvatarsProps) {
             </Avatar>
           </Tooltip.Trigger>
           <Tooltip.Content side='bottom'>
-            {overflowCount} {t('more_user')}
-            {overflowCount > 1 ? 's' : ''}
+            {overflowCount} more user{overflowCount > 1 ? 's' : ''}
           </Tooltip.Content>
         </Tooltip.Root>
       )}

@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevScrapeHtmlParams,
   ContextDevScrapeHtmlResponse,
@@ -20,6 +21,8 @@ export const contextDevScrapeHtmlTool: ToolConfig<
   name: 'Context.dev Scrape HTML',
   description: 'Scrape any URL and return the raw HTML content of the page.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevScrapeHtmlParams>(),
 
   params: {
     url: {
@@ -99,7 +102,8 @@ export const contextDevScrapeHtmlTool: ToolConfig<
     url: { type: 'string', description: 'The scraped URL' },
     type: {
       type: 'string',
-      description: 'Detected content type (html, xml, json, text, csv, markdown, svg, pdf)',
+      description:
+        'Detected content type (html, xml, json, text, csv, markdown, svg, pdf, doc, docx)',
     },
     ...CREDIT_OUTPUTS,
   },

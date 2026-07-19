@@ -5,6 +5,8 @@ const withMDX = createMDX()
 
 const config: NextConfig = {
   reactStrictMode: true,
+  productionBrowserSourceMaps: true,
+  transpilePackages: ['@sim/emcn', '@sim/workflow-renderer'],
   images: {
     unoptimized: true,
   },

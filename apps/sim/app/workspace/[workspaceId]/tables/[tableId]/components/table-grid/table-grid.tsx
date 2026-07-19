@@ -2,20 +2,20 @@
 
 import type React from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { cn, toast, useToast } from '@sim/emcn'
+import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { usePostHog } from 'posthog-js/react'
-import { toast, useToast } from '@/components/emcn'
-import { Loader, TableX } from '@/components/emcn/icons'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
-import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -91,6 +91,11 @@ export interface SelectionSnapshot {
   /** Total running/queued workflow runs across ALL rows. Drives the page-header
    *  RunStatusControl ("N running, Stop all"). */
   totalRunning: number
+  /** Whether any LOADED cell has actually been claimed by a worker
+   *  (`status === 'running'`). False while the in-flight set is all
+   *  queued/pending stamps — the header control then reads "Queueing"
+   *  instead of labeling queued work as running. */
+  hasRunningCell: boolean
   /** Whether any dispatch is active (pending/dispatching). Keeps the RunStatusControl
    *  + Stop-all visible during a run even when the per-row count momentarily reads 0
    *  (e.g. the first window of an auto-fired/capped dispatch before cells stamp). */
@@ -400,13 +405,27 @@ export function TableGrid({
   const { data: tableRunState } = useTableRunState(tableId)
   const activeDispatches = tableRunState?.dispatches
   const runningByRowId = tableRunState?.runningByRowId ?? EMPTY_RUNNING_BY_ROW
-  // Actual in-flight cell count = sum of the live per-row map (kept current by
-  // applyCell's SSE deltas, and the same source the per-row gutter uses). The
-  // dispatch-scope `runningCellCount` over-counts already-completed groups on
-  // rows still inside a dispatch's scope — e.g. a cascade where 3 of 4 columns
-  // finished would read "4 running" instead of "1".
+  // In-flight cell count = sum of the server-derived per-row map (refetched on
+  // a throttle as cell SSE events arrive, stamped optimistically on run-click
+  // — the same source the per-row gutter uses).
   const totalRunning = Object.values(runningByRowId).reduce((sum, n) => sum + n, 0)
   const hasActiveDispatch = (activeDispatches?.length ?? 0) > 0
+  // Claimed-cell signal for the "Queueing" vs "N running" label. Two sources
+  // OR'd: the loaded-rows scan flips instantly via SSE claim events, and the
+  // server's table-wide flag covers runs whose active window has scrolled
+  // past the loaded pages (where the scan alone would read "Queueing" for the
+  // rest of a long run).
+  const hasRunningLoaded = useMemo(() => {
+    for (const row of rows) {
+      const executions = row.executions
+      if (!executions) continue
+      for (const exec of Object.values(executions)) {
+        if (exec?.status === 'running') return true
+      }
+    }
+    return false
+  }, [rows])
+  const hasRunningCell = hasRunningLoaded || (tableRunState?.hasRunning ?? false)
 
   // True "select all" total: the filter-scoped COUNT(*) when a filter is active, else the whole
   // table. Drives the delete-confirm count and the action-bar cell count.
@@ -489,6 +508,10 @@ export function TableGrid({
   const workflowsRef = useRef(workflows)
   workflowsRef.current = workflows
 
+  const timeZone = useTimezone()
+  const timeZoneRef = useRef(timeZone)
+  timeZoneRef.current = timeZone
+
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const createRowMutation = useCreateTableRow({ workspaceId, tableId })
   const batchCreateRowsMutation = useBatchCreateTableRows({ workspaceId, tableId })
@@ -506,7 +529,10 @@ export function TableGrid({
     rowIds?: string[],
     limit?: RunLimit
   ) {
-    onRunColumn(groupId, runMode, rowIds, limit)
+    // Table-scoped runs (Run all / Run empty / Run N empty) honor the active
+    // filter; an explicit rowIds scope (Run selected) already names its rows.
+    const filter = rowIds ? undefined : (queryOptions.filter ?? undefined)
+    onRunColumn(groupId, runMode, rowIds, limit, filter)
   }
 
   const handleViewWorkflow = useCallback(
@@ -993,14 +1019,13 @@ export function TableGrid({
     const anchorId = contextMenu.row.id
     // Fractional ordering: express intent by neighbor id, not integer position.
     const intent = offset === 0 ? { beforeRowId: anchorId } : { afterRowId: anchorId }
-    const position = contextMenu.row.position + offset
     createRef.current(
       { data: {}, ...intent },
       {
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
           if (newRowId) {
-            pushUndoRef.current({ type: 'create-row', rowId: newRowId, position })
+            pushUndoRef.current({ type: 'create-row', rowId: newRowId })
           }
         },
       }
@@ -1072,7 +1097,6 @@ export function TableGrid({
     const contextRow = contextMenu.row
     if (!contextRow) return
     const rowData = { ...contextRow.data }
-    const position = contextRow.position + 1
     const sourceArrayIndex = rowsRef.current.findIndex((r) => r.id === contextRow.id)
     closeContextMenu()
     createRef.current(
@@ -1084,7 +1108,6 @@ export function TableGrid({
             pushUndoRef.current({
               type: 'create-row',
               rowId: newRowId,
-              position,
               data: rowData,
             })
           }
@@ -1119,11 +1142,9 @@ export function TableGrid({
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
           if (newRowId) {
-            const maxPosition = rowsRef.current.reduce((max, r) => Math.max(max, r.position), -1)
             pushUndoRef.current({
               type: 'create-row',
               rowId: newRowId,
-              position: maxPosition + 1,
             })
           }
         },
@@ -1412,7 +1433,7 @@ export function TableGrid({
             }
           }
         } else if (column.type === 'date') {
-          text = storageToDisplay(String(val))
+          text = storageToDisplay(String(val), { seconds: true })
         } else {
           text = String(val)
         }
@@ -2163,7 +2184,7 @@ export function TableGrid({
             onSuccess: (response: Record<string, unknown>) => {
               const newRowId = extractCreatedRowId(response)
               if (newRowId) {
-                pushUndoRef.current({ type: 'create-row', rowId: newRowId, position })
+                pushUndoRef.current({ type: 'create-row', rowId: newRowId })
               }
               setSelectionAnchor({ rowIndex: anchor.rowIndex + 1, colIndex })
               setSelectionFocus(null)
@@ -2701,14 +2722,10 @@ export function TableGrid({
 
       const currentCols = columnsRef.current
       const currentRows = rowsRef.current
-      // Captured once before the loop so each new row in the batch gets a unique,
-      // sequential position via `+ (newRowIndex - currentRows.length)` below.
-      const lastRowPosition = currentRows.reduce((max, r) => Math.max(max, r.position), -1)
 
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const updateBatch: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const createBatchRows: Array<Record<string, unknown>> = []
-      const createBatchPositions: number[] = []
 
       for (let r = 0; r < pasteRows.length; r++) {
         const targetArrayIndex = currentAnchor.rowIndex + r
@@ -2720,7 +2737,8 @@ export function TableGrid({
           try {
             rowData[currentCols[targetCol].key] = cleanCellValue(
               pasteRows[r][c],
-              currentCols[targetCol]
+              currentCols[targetCol],
+              timeZoneRef.current
             )
           } catch {
             /* skip invalid values */
@@ -2739,7 +2757,6 @@ export function TableGrid({
           updateBatch.push({ rowId: existingRow.id, data: rowData })
         } else {
           createBatchRows.push(rowData)
-          createBatchPositions.push(lastRowPosition + 1 + (targetArrayIndex - currentRows.length))
         }
       }
 
@@ -2757,20 +2774,18 @@ export function TableGrid({
 
       if (createBatchRows.length > 0) {
         batchCreateRef.current(
-          { rows: createBatchRows, positions: createBatchPositions },
+          { rows: createBatchRows },
           {
             onSuccess: (response) => {
               const createdRows = response?.data?.rows ?? []
               const undoRows: Array<{
                 rowId: string
-                position: number
                 data: Record<string, unknown>
               }> = []
               for (let i = 0; i < createdRows.length; i++) {
                 if (createdRows[i]?.id) {
                   undoRows.push({
                     rowId: createdRows[i].id,
-                    position: createBatchPositions[i],
                     data: createBatchRows[i],
                   })
                 }
@@ -3282,10 +3297,9 @@ export function TableGrid({
   }, [rowSelection, rows])
 
   // `runningByRowId` + `totalRunning` come from `useTableRunState` above —
-  // backend-bootstrapped via `countRunningCells` and kept live by
-  // `applyCell`'s SSE-driven delta. Counts only cells whose worker has
-  // actually claimed the cell (`status === 'running'`), ignoring optimistic
-  // queued/pending stamps.
+  // server-derived via `countRunningCells` (queued/running/pending), refetched
+  // on a throttle as cell SSE events arrive, plus optimistic stamps on
+  // run-click.
 
   // Context-menu wrappers: act on `contextMenuRowIds`, then close the menu.
   // Mirror the action bar's Play / Refresh split: Play fills empty/failed,
@@ -3523,6 +3537,7 @@ export function TableGrid({
       sameStats &&
       prev.runningInActionBarSelection === runningInActionBarSelection &&
       prev.totalRunning === totalRunning &&
+      prev.hasRunningCell === hasRunningCell &&
       prev.hasActiveDispatch === hasActiveDispatch &&
       prev.hasWorkflowColumns === hasWorkflowColumns &&
       prev.actionBarRowIds.length === actionBarRowIds.length &&
@@ -3534,6 +3549,7 @@ export function TableGrid({
       actionBarRowIds,
       runningInActionBarSelection,
       totalRunning,
+      hasRunningCell,
       hasActiveDispatch,
       hasWorkflowColumns,
       selectedRunScope,
@@ -3546,6 +3562,7 @@ export function TableGrid({
     actionBarRowIds,
     runningInActionBarSelection,
     totalRunning,
+    hasRunningCell,
     hasActiveDispatch,
     hasWorkflowColumns,
     selectedRunScope,
@@ -3648,6 +3665,7 @@ export function TableGrid({
                                 onSelectGroup={handleGroupSelect}
                                 onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
                                 onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
+                                hasActiveFilter={Boolean(queryOptions.filter)}
                                 selectedRowIds={selectedRowIds}
                                 onInsertLeft={
                                   userPermissions.canEdit ? handleInsertColumnLeft : undefined

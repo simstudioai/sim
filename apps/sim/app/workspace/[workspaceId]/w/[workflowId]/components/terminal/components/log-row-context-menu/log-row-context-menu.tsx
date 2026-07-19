@@ -1,14 +1,7 @@
 'use client'
 
 import { memo, type RefObject } from 'react'
-import { useTranslations } from 'next-intl'
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
-} from '@/components/emcn'
+import { Popover, PopoverAnchor, PopoverContent, PopoverDivider, PopoverItem } from '@sim/emcn'
 import type {
   ContextMenuPosition,
   TerminalFilters,
@@ -46,7 +39,6 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   onClearConsole,
   onFixInCopilot,
 }: LogRowContextMenuProps) {
-  const t = useTranslations('auto')
   const hasRunId = entry?.executionId != null
 
   const isBlockFiltered = entry ? filters.blockIds.has(entry.blockId) : false
@@ -80,7 +72,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
                 onClose()
               }}
             >
-              {t('copy_run_id')}
+              Copy Run ID
             </PopoverItem>
             <PopoverDivider />
           </>
@@ -95,7 +87,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
                 onClose()
               }}
             >
-              {t('fix_in_chat')}
+              Fix in Chat
             </PopoverItem>
             <PopoverDivider />
           </>
@@ -111,7 +103,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
                 onClose()
               }}
             >
-              {t('filter_by_block')}
+              Filter by Block
             </PopoverItem>
             <PopoverItem
               showCheck={isStatusFiltered}
@@ -120,7 +112,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
                 onClose()
               }}
             >
-              {t('filter_by_status')}
+              Filter by Status
             </PopoverItem>
           </>
         )}
@@ -133,7 +125,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
             onClose()
           }}
         >
-          {t('clear_console')}
+          Clear Console
         </PopoverItem>
       </PopoverContent>
     </Popover>

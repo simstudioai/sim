@@ -8,7 +8,8 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
@@ -81,10 +82,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
       if (denied) return denied
 
-      const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+      let downloadedContentType = ''
+      try {
+        const result = await downloadServableFileFromStorage(userFile, requestId, logger)
+        uploadBody = result.buffer
+        downloadedContentType = result.contentType
+      } catch (error) {
+        const notReady = docNotReadyResponse(error)
+        if (notReady) return notReady
+        return NextResponse.json(
+          { success: false, error: getErrorMessage(error, 'Failed to download file') },
+          { status: 500 }
+        )
+      }
 
-      uploadBody = buffer
-      uploadContentType = validatedData.contentType || userFile.type || 'application/octet-stream'
+      uploadContentType =
+        validatedData.contentType ||
+        downloadedContentType ||
+        userFile.type ||
+        'application/octet-stream'
     } else if (validatedData.content) {
       uploadBody = Buffer.from(validatedData.content, 'utf-8')
       uploadContentType = validatedData.contentType || 'text/plain'

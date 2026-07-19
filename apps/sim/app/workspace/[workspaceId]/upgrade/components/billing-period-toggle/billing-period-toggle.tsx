@@ -1,7 +1,6 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
-import { ChipSwitch, ChipTag } from '@/components/emcn'
+import { ChipSwitch, ChipTag } from '@sim/emcn'
 import { ANNUAL_DISCOUNT_RATE } from '@/lib/billing/constants'
 
 /**
@@ -29,10 +28,9 @@ type Period = 'annual' | 'monthly'
  * with an inline brand-tinted discount badge on the annual segment.
  */
 export function BillingPeriodToggle({ isAnnual, onChange, className }: BillingPeriodToggleProps) {
-  const t = useTranslations('auto')
   return (
     <ChipSwitch<Period>
-      aria-label={t('billing_period')}
+      aria-label='Billing period'
       value={isAnnual ? 'annual' : 'monthly'}
       onChange={(next) => onChange(next === 'annual')}
       className={className}
@@ -41,7 +39,7 @@ export function BillingPeriodToggle({ isAnnual, onChange, className }: BillingPe
           value: 'annual',
           label: (
             <>
-              {t('annual')}
+              Annual
               <ChipTag variant='mono' className={isAnnual ? undefined : 'text-inherit'}>
                 {DISCOUNT_LABEL}
               </ChipTag>

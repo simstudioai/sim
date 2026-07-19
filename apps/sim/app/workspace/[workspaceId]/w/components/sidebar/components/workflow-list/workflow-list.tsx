@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import clsx from 'clsx'
 import { useTranslations } from 'next-intl'
 import { useShallow } from 'zustand/react/shallow'
@@ -343,9 +343,14 @@ export const WorkflowList = memo(function WorkflowList({
     folderDescendantIds,
   })
 
+  /** Mirror `workflowId` into a stable ref so the list context stays referentially stable across navigation. */
+  const activeWorkflowIdRef = useRef(workflowId)
+  activeWorkflowIdRef.current = workflowId
+
   const listContextValue = useSidebarListContextValue({
     isAnyDragActive: isDragging,
     dragDisabled,
+    activeWorkflowIdRef,
     onWorkflowClick: handleWorkflowClick,
     onFolderClick: handleFolderClick,
     onItemDragStart: handleDragStart,
@@ -382,13 +387,17 @@ export const WorkflowList = memo(function WorkflowList({
             style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
             {...createWorkflowDragHandlers(workflow.id, folderId)}
           >
-            <WorkflowItem workflow={workflow} active={isWorkflowActive(workflow.id)} />
+            <WorkflowItem
+              workspaceId={workspaceId}
+              workflow={workflow}
+              active={isWorkflowActive(workflow.id)}
+            />
           </div>
           <DropIndicatorLine show={showAfter} level={level} position='after' />
         </div>
       )
     },
-    [dropIndicator, isWorkflowActive, createWorkflowDragHandlers]
+    [workspaceId, dropIndicator, isWorkflowActive, createWorkflowDragHandlers]
   )
 
   const renderFolderSection = useCallback(
@@ -447,7 +456,7 @@ export const WorkflowList = memo(function WorkflowList({
             style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
             {...createFolderDragHandlers(folder.id, parentFolderId)}
           >
-            <FolderItem folder={folder} />
+            <FolderItem workspaceId={workspaceId} folder={folder} />
           </div>
           <DropIndicatorLine show={showAfter} level={level} position='after' />
 
@@ -473,6 +482,7 @@ export const WorkflowList = memo(function WorkflowList({
       )
     },
     [
+      workspaceId,
       workflowsByFolder,
       expandedFolders,
       dropIndicator,

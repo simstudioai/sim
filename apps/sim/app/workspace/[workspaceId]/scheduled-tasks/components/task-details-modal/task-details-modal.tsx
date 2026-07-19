@@ -1,18 +1,16 @@
 'use client'
-
-import { format } from 'date-fns'
-import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import {
-  Calendar,
   ChipModal,
   ChipModalBody,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
   chipFieldSurfaceClass,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+  cn,
+} from '@sim/emcn'
+import { Calendar } from '@sim/emcn/icons'
+import { format } from 'date-fns'
+import { useParams } from 'next/navigation'
 import {
   PromptEditor,
   usePromptEditor,
@@ -46,7 +44,6 @@ interface TaskDetailsModalProps {
  * Status and the run time as copy fields, the prompt as a view-only chip editor.
  */
 export function TaskDetailsModal({ task, onClose }: TaskDetailsModalProps) {
-  const tI18n = useTranslations('auto')
   return (
     <ChipModal
       open={task !== null}
@@ -54,7 +51,7 @@ export function TaskDetailsModal({ task, onClose }: TaskDetailsModalProps) {
         if (!open) onClose()
       }}
       size='md'
-      srTitle={tI18n('scheduled_task')}
+      srTitle='Scheduled task'
     >
       {/* Key by the occurrence id so switching tasks while the modal stays open
           remounts the content — the editor seeds prompt + contexts on mount, so
@@ -70,7 +67,6 @@ export function TaskDetailsModal({ task, onClose }: TaskDetailsModalProps) {
  * queries from firing on page load and re-seeds from the task on each open.
  */
 function TaskDetailsContent({ task, onClose }: { task: ScheduledTask; onClose: () => void }) {
-  const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   /**
    * Seed the stored resource mentions (files, tables, knowledge) as the editor's
@@ -89,18 +85,18 @@ function TaskDetailsContent({ task, onClose }: { task: ScheduledTask; onClose: (
   return (
     <>
       <ChipModalHeader icon={Calendar} onClose={onClose}>
-        {t('scheduled_task')}
+        Scheduled task
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='copy' title={t('status')} value={STATUS_COPY[task.status].label} />
+        <ChipModalField type='copy' title='Status' value={STATUS_COPY[task.status].label} />
         <ChipModalField
           type='copy'
           title={STATUS_COPY[task.status].timeTitle}
           value={format(task.runAt, "EEEE, MMMM d, yyyy 'at' h:mm a")}
         />
-        <ChipModalField type='custom' title={t('prompt')}>
+        <ChipModalField type='custom' title='Prompt'>
           <div className={cn(chipFieldSurfaceClass, 'max-h-[200px] overflow-y-auto px-1 py-0.5')}>
-            <PromptEditor editor={editor} readOnly aria-label={t('prompt')} />
+            <PromptEditor editor={editor} readOnly aria-label='Prompt' />
           </div>
         </ChipModalField>
       </ChipModalBody>

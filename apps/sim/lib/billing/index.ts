@@ -4,21 +4,17 @@
  */
 
 export * from '@/lib/billing/calculations/usage-monitor'
-export * from '@/lib/billing/core/api-access'
 export * from '@/lib/billing/core/billing'
 export * from '@/lib/billing/core/organization'
 export * from '@/lib/billing/core/subscription'
 export {
   getHighestPrioritySubscription as getActiveSubscription,
-  hasCredentialSetsAccess,
   hasPaidSubscription,
   hasSSOAccess,
   isEnterpriseOrgAdminOrOwner,
   isEnterprisePlan as hasEnterprisePlan,
   isOrganizationOnEnterprisePlan,
-  isOrganizationOnTeamOrEnterprisePlan,
   isProPlan as hasProPlan,
-  isTeamOrgAdminOrOwner,
   isTeamPlan as hasTeamPlan,
   isWorkspaceOnEnterprisePlan,
   sendPlanWelcomeEmail,

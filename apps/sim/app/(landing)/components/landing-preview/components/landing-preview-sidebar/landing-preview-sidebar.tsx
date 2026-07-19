@@ -1,7 +1,5 @@
 'use client'
-
-import { useTranslations } from 'next-intl'
-import { ChevronDown, Home, Library } from '@/components/emcn'
+import { ChevronDown, cn, Home, Library } from '@sim/emcn'
 import {
   Calendar,
   Database,
@@ -11,8 +9,7 @@ import {
   Settings,
   Table,
   Workflow,
-} from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn/icons'
 import type { PreviewWorkflow } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
 export type SidebarView =
@@ -32,22 +29,6 @@ interface LandingPreviewSidebarProps {
   onSelectHome: () => void
   onSelectNav: (id: SidebarView) => void
 }
-
-/**
- * Hardcoded dark-theme equivalents of the real sidebar CSS variables.
- * The preview lives inside a `dark` wrapper but CSS variable cascade
- * isn't guaranteed, so we pin the hex values directly.
- */
-const C = {
-  SURFACE_1: '#1e1e1e',
-  SURFACE_2: '#252525',
-  SURFACE_ACTIVE: '#363636',
-  BORDER: '#2c2c2c',
-  TEXT_PRIMARY: '#e6e6e6',
-  TEXT_BODY: '#cdcdcd',
-  TEXT_ICON: '#939393',
-  BRAND: '#33C482',
-} as const
 
 const WORKSPACE_NAV = [
   { id: 'tables', label: 'Tables', icon: Table },
@@ -76,8 +57,8 @@ function NavItem({
   if (!onClick) {
     return (
       <div className='pointer-events-none mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2'>
-        <Icon className='size-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
-        <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
+        <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+        <span className='truncate text-[13px] text-[var(--text-body)]' style={{ fontWeight: 450 }}>
           {label}
         </span>
       </div>
@@ -93,8 +74,8 @@ function NavItem({
         isActive && 'bg-[var(--c-active)]'
       )}
     >
-      <Icon className='size-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
-      <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
+      <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <span className='truncate text-[13px] text-[var(--text-body)]' style={{ fontWeight: 450 }}>
         {label}
       </span>
     </button>
@@ -104,7 +85,7 @@ function NavItem({
 /**
  * Lightweight sidebar replicating the real workspace sidebar layout and sizing.
  * Starts from the workspace header (no logo/collapse row).
- * Only workflow items are interactive — everything else is pointer-events-none.
+ * Only workflow items are interactive - everything else is pointer-events-none.
  */
 export function LandingPreviewSidebar({
   workflows,
@@ -114,39 +95,30 @@ export function LandingPreviewSidebar({
   onSelectHome,
   onSelectNav,
 }: LandingPreviewSidebarProps) {
-  const t = useTranslations('auto')
   const isHomeActive = activeView === 'home'
 
   return (
     <div
-      className='flex h-full w-[248px] flex-shrink-0 flex-col pt-3'
-      style={
-        { backgroundColor: C.SURFACE_1, '--c-active': C.SURFACE_ACTIVE } as React.CSSProperties
-      }
+      className='flex h-full w-[248px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3'
+      style={{ '--c-active': 'var(--surface-active)' } as React.CSSProperties}
     >
       {/* Workspace Header */}
       <div className='flex-shrink-0 px-2.5'>
-        <div
-          className='pointer-events-none flex h-[32px] w-full items-center gap-2 rounded-[8px] border pr-2 pl-[5px]'
-          style={{ borderColor: C.BORDER, backgroundColor: C.SURFACE_2 }}
-        >
+        <div className='pointer-events-none flex h-[32px] w-full items-center gap-2 rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] pr-2 pl-[5px]'>
           <div className='flex size-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-white'>
             <svg width='10' height='10' viewBox='0 0 10 10' fill='none'>
               <path
                 d='M1 9C1 4.58 4.58 1 9 1'
-                stroke='#1e1e1e'
+                stroke='var(--surface-1)'
                 strokeWidth='1.8'
                 strokeLinecap='round'
               />
             </svg>
           </div>
-          <span
-            className='min-w-0 flex-1 truncate text-left font-medium text-[13px]'
-            style={{ color: C.TEXT_PRIMARY }}
-          >
-            {t('superark')}
+          <span className='min-w-0 flex-1 truncate text-left font-medium text-[13px] text-[var(--text-primary)]'>
+            Superark
           </span>
-          <ChevronDown className='h-[8px] w-[10px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
+          <ChevronDown className='h-[8px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
         </div>
       </div>
 
@@ -160,20 +132,21 @@ export function LandingPreviewSidebar({
             isHomeActive && 'bg-[var(--c-active)]'
           )}
         >
-          <Home className='size-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
-          <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
-            {t('home')}
+          <Home className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+          <span
+            className='truncate text-[13px] text-[var(--text-body)]'
+            style={{ fontWeight: 450 }}
+          >
+            Home
           </span>
         </button>
-        <NavItem icon={Search} label={t('search')} />
+        <NavItem icon={Search} label='Search' />
       </div>
 
       {/* Workspace */}
       <div className='mt-3.5 flex flex-shrink-0 flex-col'>
         <div className='px-4 pb-1.5'>
-          <div className='text-[12px]' style={{ color: C.TEXT_ICON }}>
-            {t('workspace')}
-          </div>
+          <div className='text-[12px] text-[var(--text-icon)]'>Workspace</div>
         </div>
         <div className='flex flex-col gap-0.5 px-2'>
           {WORKSPACE_NAV.map((item) => (
@@ -193,9 +166,7 @@ export function LandingPreviewSidebar({
         {/* Workflows */}
         <div className='flex flex-col'>
           <div className='px-4'>
-            <div className='text-[12px]' style={{ color: C.TEXT_ICON }}>
-              {t('workflows')}
-            </div>
+            <div className='text-[12px] text-[var(--text-icon)]'>Workflows</div>
           </div>
           <div className='mt-1.5 flex flex-col gap-0.5 px-2'>
             {workflows.map((workflow) => {
@@ -206,14 +177,14 @@ export function LandingPreviewSidebar({
                   type='button'
                   onClick={() => onSelectWorkflow(workflow.id)}
                   className={cn(
-                    'mx-0.5 flex h-[28px] w-full items-center gap-2 rounded-[8px] px-2 transition-colors hover-hover:bg-[#363636]',
-                    isActive && 'bg-[#363636]'
+                    'mx-0.5 flex h-[28px] w-full items-center gap-2 rounded-[8px] px-2 transition-colors hover-hover:bg-[var(--surface-active)]',
+                    isActive && 'bg-[var(--surface-active)]'
                   )}
                 >
                   <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                   <div
-                    className='min-w-0 flex-1 truncate text-left text-[13px]'
-                    style={{ color: C.TEXT_BODY, fontWeight: 450 }}
+                    className='min-w-0 flex-1 truncate text-left text-[13px] text-[var(--text-body)]'
+                    style={{ fontWeight: 450 }}
                   >
                     {workflow.name}
                   </div>

@@ -2,10 +2,8 @@
 
 import type React from 'react'
 import { useRef, useState } from 'react'
+import { Button, cn, Input, Label, Tooltip } from '@sim/emcn'
 import { ArrowLeftRight, ArrowUp } from 'lucide-react'
-import { useTranslations } from 'next-intl'
-import { Button, Input, Label, Tooltip } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 
 /**
@@ -45,8 +43,6 @@ export function ParameterWithLabel({
   isPreview,
   children,
 }: ParameterWithLabelProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [isSearchActive, setIsSearchActive] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -102,7 +98,7 @@ export function ParameterWithLabel({
                 className='-my-1 h-5 px-2 py-0 text-xs'
                 onClick={handleSearchClick}
               >
-                {t('generate')}
+                Generate
               </Button>
             ) : (
               <div className='-my-1 flex min-w-[120px] max-w-[280px] flex-1 items-center gap-1'>
@@ -129,7 +125,7 @@ export function ParameterWithLabel({
                     'h-5 min-w-[80px] flex-1 text-xs',
                     isStreaming && 'text-muted-foreground'
                   )}
-                  placeholder={t('generate_with_ai')}
+                  placeholder='Generate with AI...'
                 />
                 <Button
                   variant='primary'
@@ -158,8 +154,8 @@ export function ParameterWithLabel({
                   disabled={canonicalToggle.disabled || disabled}
                   aria-label={
                     canonicalToggle.mode === 'advanced'
-                      ? tI18n('switch_to_selector')
-                      : tI18n('switch_to_manual_id')
+                      ? 'Switch to selector'
+                      : 'Switch to manual ID'
                   }
                 >
                   <ArrowLeftRight
@@ -175,8 +171,8 @@ export function ParameterWithLabel({
               <Tooltip.Content side='top'>
                 <p>
                   {canonicalToggle.mode === 'advanced'
-                    ? tI18n('switch_to_selector')
-                    : tI18n('switch_to_manual_id')}
+                    ? 'Switch to selector'
+                    : 'Switch to manual ID'}
                 </p>
               </Tooltip.Content>
             </Tooltip.Root>

@@ -3,6 +3,7 @@ import type {
   MicrosoftAdListGroupMembersResponse,
 } from '@/tools/microsoft_ad/types'
 import { MEMBER_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
+import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listGroupMembersTool: ToolConfig<
@@ -27,9 +28,9 @@ export const listGroupMembersTool: ToolConfig<
     },
     groupId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Group ID',
+      description: 'Group ID. Not needed when Next Page is provided to fetch a later page.',
     },
     top: {
       type: 'number',
@@ -37,9 +38,17 @@ export const listGroupMembersTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Maximum number of members to return (default 100, max 999)',
     },
+    nextLink: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results',
+    },
   },
   request: {
     url: (params) => {
+      if (params.nextLink) return assertGraphNextPageUrl(params.nextLink)
       const groupId = params.groupId?.trim()
       if (!groupId) throw new Error('Group ID is required')
       const queryParts = ['$select=id,displayName,mail']
@@ -64,6 +73,7 @@ export const listGroupMembersTool: ToolConfig<
       output: {
         members,
         memberCount: members.length,
+        nextLink: getGraphNextPageUrl(data) ?? null,
       },
     }
   },
@@ -74,5 +84,10 @@ export const listGroupMembersTool: ToolConfig<
       properties: MEMBER_OUTPUT_PROPERTIES,
     },
     memberCount: { type: 'number', description: 'Number of members returned' },
+    nextLink: {
+      type: 'string',
+      description: 'Continuation URL for the next page of results, or null if there are no more',
+      optional: true,
+    },
   },
 }

@@ -5,7 +5,8 @@ import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { resolveCredentialAccessToken } from '@/app/api/auth/oauth/utils'
+import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 
 const logger = createLogger('PipedrivePipelinesAPI')
 
@@ -36,7 +37,9 @@ interface PipedrivePipelinesPage {
  * `PIPEDRIVE_MAX_PIPELINES_PAGES`; logs a warning rather than silently dropping
  * pipelines when the cap is hit.
  */
-async function fetchAllPipelines(accessToken: string): Promise<PipedrivePipeline[]> {
+async function fetchAllPipelines(
+  authHeaders: Record<string, string>
+): Promise<PipedrivePipeline[]> {
   const pipelines: PipedrivePipeline[] = []
   let start = 0
 
@@ -46,10 +49,7 @@ async function fetchAllPipelines(accessToken: string): Promise<PipedrivePipeline
     url.searchParams.set('limit', String(PIPEDRIVE_PAGE_LIMIT))
 
     const response = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers: authHeaders,
     })
 
     if (!response.ok) {
@@ -106,12 +106,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
 
-    const accessToken = await refreshAccessTokenIfNeeded(
+    const tokenResult = await resolveCredentialAccessToken(
       credential,
       authz.credentialOwnerUserId,
       requestId
     )
-    if (!accessToken) {
+    if (!tokenResult) {
       logger.error('Failed to get access token', {
         credentialId: credential,
         userId: authz.credentialOwnerUserId,
@@ -124,7 +124,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     let allPipelines: PipedrivePipeline[]
     try {
-      allPipelines = await fetchAllPipelines(accessToken)
+      allPipelines = await fetchAllPipelines(getPipedriveAuthHeaders(tokenResult))
     } catch (error) {
       if (error instanceof PipedriveFetchError) {
         logger.error('Failed to fetch Pipedrive pipelines', {

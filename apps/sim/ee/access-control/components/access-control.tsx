@@ -1,12 +1,8 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { ArrowRight, Plus } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Checkbox,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -15,7 +11,12 @@ import {
   ChipModalHeader,
   ChipTag,
   Label,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { ArrowRight, Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -28,10 +29,16 @@ import {
   usePermissionGroups,
   useUserPermissionConfig,
 } from '@/ee/access-control/hooks/permission-groups'
+import { useOrganizationBilling } from '@/hooks/queries/organization'
 
 const logger = createLogger('AccessControl')
 
-export function AccessControl() {
+interface AccessControlProps {
+  isOrganizationAdmin: boolean
+  organizationId: string
+}
+
+export function AccessControl({ isOrganizationAdmin, organizationId }: AccessControlProps) {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
 
@@ -43,8 +50,9 @@ export function AccessControl() {
    */
   const { data: userPermissionConfig, isPending: entitlementLoading } =
     useUserPermissionConfig(workspaceId)
-  const organizationId = userPermissionConfig?.organizationId ?? undefined
-  const currentUserIsOrgAdmin = userPermissionConfig?.isOrgAdmin ?? false
+  const { data: organizationBillingData, isPending: organizationBillingLoading } =
+    useOrganizationBilling(organizationId)
+  const currentUserIsOrgAdmin = isOrganizationAdmin
 
   const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
     organizationId,
@@ -54,12 +62,14 @@ export function AccessControl() {
     useOrganizationWorkspaces(organizationId, !!organizationId && currentUserIsOrgAdmin)
 
   const accessControlEnabledLocally = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
-  const isEntitled = accessControlEnabledLocally || !!userPermissionConfig?.entitled
+  const isEntitled =
+    accessControlEnabledLocally ||
+    !!userPermissionConfig?.entitled ||
+    isEnterprise(organizationBillingData?.data?.subscriptionPlan)
   const canManage = isEntitled && currentUserIsOrgAdmin && !!organizationId
 
   const isLoading =
-    !workspaceId ||
-    entitlementLoading ||
+    (workspaceId ? entitlementLoading : organizationBillingLoading) ||
     (!!organizationId && currentUserIsOrgAdmin && groupsLoading)
 
   const createPermissionGroup = useCreatePermissionGroup()
@@ -107,7 +117,7 @@ export function AccessControl() {
       setNewGroupWorkspaceIds([])
     } catch (error) {
       logger.error('Failed to create permission group', error)
-      setCreateError(error instanceof Error ? error.message : 'Failed to create permission group')
+      setCreateError(getErrorMessage(error, 'Failed to create permission group'))
     }
   }, [
     newGroupName,
@@ -164,16 +174,19 @@ export function AccessControl() {
           onChange: setSearchTerm,
           placeholder: 'Search permission groups...',
         }}
-        actions={
-          <Chip leftIcon={Plus} variant='primary' onClick={() => setShowCreateModal(true)}>
-            Create Group
-          </Chip>
-        }
+        actions={[
+          {
+            text: 'Create group',
+            icon: Plus,
+            variant: 'primary',
+            onSelect: () => setShowCreateModal(true),
+          },
+        ]}
       >
         <SettingsSection label={`Permission groups (${permissionGroups.length})`}>
           {permissionGroups.length === 0 ? (
             <SettingsEmptyState variant='inline'>
-              No permission groups yet. Click "Create Group" to get started.
+              No permission groups yet. Click "Create group" to get started.
             </SettingsEmptyState>
           ) : filteredGroups.length === 0 ? (
             <SettingsEmptyState variant='inline'>
@@ -190,16 +203,14 @@ export function AccessControl() {
                 >
                   <div className='flex min-w-0 flex-1 flex-col'>
                     <div className='flex items-center gap-2'>
-                      <span className='truncate text-[14px] text-[var(--text-body)]'>
-                        {group.name}
-                      </span>
+                      <span className='truncate text-[var(--text-body)] text-sm'>{group.name}</span>
                       {group.isDefault && (
                         <ChipTag variant='gray' className='flex-shrink-0'>
                           Default
                         </ChipTag>
                       )}
                     </div>
-                    <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                    <span className='truncate text-[var(--text-muted)] text-caption'>
                       {group.isDefault
                         ? 'Everyone in the organization'
                         : `${

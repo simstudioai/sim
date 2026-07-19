@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type { ContextDevCrawlParams, ContextDevCrawlResponse } from '@/tools/context_dev/types'
 import { CRAWL_RESULT_OUTPUT_PROPERTIES } from '@/tools/context_dev/types'
 import {
@@ -14,6 +15,8 @@ export const contextDevCrawlTool: ToolConfig<ContextDevCrawlParams, ContextDevCr
   name: 'Context.dev Crawl',
   description: 'Crawl an entire website and return each discovered page as clean markdown.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevCrawlParams>(),
 
   params: {
     url: {

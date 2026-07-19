@@ -232,6 +232,11 @@ export const campaignOutputs = {
   status: { type: 'number', description: 'Campaign status', optional: true },
 } satisfies ToolConfig['outputs']
 
+export const campaignActionOutputs = {
+  ...campaignOutputs,
+  message: { type: 'string', description: 'Confirmation message from Instantly', optional: true },
+} satisfies ToolConfig['outputs']
+
 export const campaignsListOutputs = {
   campaigns: {
     type: 'array',
@@ -340,6 +345,11 @@ async function parseJsonResponse(response: Response): Promise<unknown> {
   } catch {
     return null
   }
+}
+
+export function getMessage(value: unknown): string | null {
+  const data = asRecord(value)
+  return typeof data.message === 'string' ? data.message : null
 }
 
 function extractInstantlyError(value: unknown, fallback: string): string {

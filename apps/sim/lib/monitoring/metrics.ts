@@ -29,6 +29,7 @@ import {
   StandardUnit,
 } from '@aws-sdk/client-cloudwatch'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 
 const logger = createLogger('HostedKeyMetrics')
 
@@ -133,7 +134,7 @@ export async function flushHostedKeyMetrics(): Promise<void> {
       // Telemetry must never break the request path — log and drop the batch.
       logger.warn('PutMetricData failed; dropping batch', {
         count: MetricData.length,
-        error: err instanceof Error ? err.message : String(err),
+        error: getErrorMessage(err),
       })
     }
   }

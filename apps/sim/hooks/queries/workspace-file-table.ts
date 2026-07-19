@@ -9,6 +9,8 @@ import {
  * Query keys for the streamed CSV file-viewer preview. `key` (storage object key) and
  * `version` (the record's `updatedAt`) are folded in so a re-upload or edit busts the cache.
  */
+export const WORKSPACE_CSV_PREVIEW_STALE_TIME = 30 * 1000
+
 export const workspaceFileTableKeys = {
   all: ['workspaceFileTable'] as const,
   previews: () => [...workspaceFileTableKeys.all, 'preview'] as const,
@@ -45,6 +47,6 @@ export function useWorkspaceCsvPreview(
     queryKey: workspaceFileTableKeys.preview(workspaceId, fileId, key, version),
     queryFn: ({ signal }) => fetchWorkspaceCsvPreview(workspaceId, fileId, key, version, signal),
     enabled: !!workspaceId && !!fileId && !!key && (options?.enabled ?? true),
-    staleTime: 30 * 1000,
+    staleTime: WORKSPACE_CSV_PREVIEW_STALE_TIME,
   })
 }

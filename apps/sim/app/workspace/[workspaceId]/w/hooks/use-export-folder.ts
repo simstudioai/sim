@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import { getFolderById } from '@/lib/folders/tree'
 import {
   downloadFile,
@@ -19,6 +18,10 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 const logger = createLogger('useExportFolder')
 
 interface UseExportFolderProps {
+  /**
+   * Active workspace id
+   */
+  workspaceId: string | undefined
   /**
    * The folder ID to export
    */
@@ -91,8 +94,7 @@ function collectSubfolders(
 /**
  * Hook for managing folder export to ZIP.
  */
-export function useExportFolder({ folderId, onSuccess }: UseExportFolderProps) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+export function useExportFolder({ workspaceId, folderId, onSuccess }: UseExportFolderProps) {
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const { data: folders = {} } = useFolderMap(workspaceId)
   const [isExporting, setIsExporting] = useState(false)

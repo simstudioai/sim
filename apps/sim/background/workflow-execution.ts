@@ -2,6 +2,11 @@ import { createLogger, runWithRequestContext } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
+import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+import {
+  assertBillingAttributionSnapshot,
+  type BillingAttributionSnapshot,
+} from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -13,6 +18,7 @@ import {
   wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
+import { WORKFLOW_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
@@ -38,7 +44,8 @@ export function buildWorkflowCorrelation(
 export type WorkflowExecutionPayload = {
   workflowId: string
   userId: string
-  workspaceId?: string
+  billingAttribution: BillingAttributionSnapshot
+  workspaceId: string
   input?: any
   triggerType?: CoreTriggerType
   executionId?: string
@@ -47,6 +54,8 @@ export type WorkflowExecutionPayload = {
   metadata?: Record<string, any>
   callChain?: string[]
   executionMode?: 'sync' | 'stream' | 'async'
+  /** Upstream preprocessing already consumed rate-limit quota and owns the usage reservation. */
+  admissionCompleted?: boolean
 }
 
 /**
@@ -59,6 +68,19 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
   const correlation = buildWorkflowCorrelation(payload)
   const executionId = correlation.executionId
   const requestId = correlation.requestId
+  let billingAttribution: BillingAttributionSnapshot
+  try {
+    billingAttribution = assertBillingAttributionSnapshot(payload.billingAttribution)
+    if (
+      billingAttribution.actorUserId !== payload.userId ||
+      billingAttribution.workspaceId !== payload.workspaceId
+    ) {
+      throw new Error('Workflow job billing attribution does not match its actor and workspace')
+    }
+  } catch (error) {
+    await releaseExecutionSlot(executionId)
+    throw error
+  }
 
   return runWithRequestContext({ requestId }, async () => {
     logger.info(`[${requestId}] Starting workflow execution job: ${workflowId}`, {
@@ -77,10 +99,12 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
         triggerType: triggerType,
         executionId: executionId,
         requestId: requestId,
-        checkRateLimit: true,
+        checkRateLimit: payload.admissionCompleted !== true,
         checkDeployment: true,
+        skipUsageLimits: payload.admissionCompleted === true,
         loggingSession: loggingSession,
         triggerData: { correlation },
+        billingAttribution,
       })
 
       if (!preprocessResult.success) {
@@ -108,6 +132,7 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
         workflowId,
         workspaceId,
         userId: actorUserId,
+        billingAttribution: preprocessResult.billingAttribution,
         sessionUserId: undefined,
         workflowUserId: workflow.userId,
         triggerType: payload.triggerType || 'api',
@@ -206,5 +231,8 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
 export const workflowExecutionTask = task({
   id: 'workflow-execution',
   machine: 'medium-1x',
+  queue: {
+    concurrencyLimit: WORKFLOW_EXECUTION_CONCURRENCY_LIMIT,
+  },
   run: executeWorkflowJob,
 })

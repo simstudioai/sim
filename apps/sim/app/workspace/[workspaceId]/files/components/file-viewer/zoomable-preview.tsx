@@ -2,8 +2,7 @@
 
 import type { MouseEvent, ReactNode } from 'react'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { useTranslations } from 'next-intl'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { PreviewToolbar } from './preview-toolbar'
 import { bindPreviewWheelZoom } from './preview-wheel-zoom'
 
@@ -74,7 +73,6 @@ export function ZoomablePreview({
   initialScale = 'actual',
   resetKey,
 }: ZoomablePreviewProps) {
-  const t = useTranslations('auto')
   const [zoom, setZoom] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [containerSize, setContainerSize] = useState<Size>({ width: 0, height: 0 })
@@ -262,7 +260,7 @@ export function ZoomablePreview({
       <div
         ref={viewportRef}
         role='application'
-        aria-label={t('zoomable_preview')}
+        aria-label='Zoomable preview'
         className='relative min-h-0 flex-1 cursor-grab overflow-hidden'
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}

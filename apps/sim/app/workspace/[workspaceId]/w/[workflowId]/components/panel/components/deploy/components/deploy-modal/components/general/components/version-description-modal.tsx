@@ -1,9 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import dynamic from 'next/dynamic'
-import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import {
   ChipConfirmModal,
   ChipModal,
@@ -13,8 +10,10 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   chipFieldSurfaceClass,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+  cn,
+} from '@sim/emcn'
+import dynamic from 'next/dynamic'
+import { useParams } from 'next/navigation'
 import {
   useGenerateVersionDescription,
   useUpdateDeploymentVersion,
@@ -31,7 +30,7 @@ const RichMarkdownField = dynamic(
   }
 )
 
-/** A high cap that only guards against abuse — no visible counter; normal descriptions never reach it. */
+/** A high cap that only guards against abuse — a counter message appears only when exceeded. */
 const MAX_DESCRIPTION_LENGTH = 50_000
 
 interface VersionDescriptionModalProps {
@@ -51,8 +50,6 @@ export function VersionDescriptionModal({
   versionName,
   currentDescription,
 }: VersionDescriptionModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -127,31 +124,35 @@ export function VersionDescriptionModal({
       <ChipModal
         open={open}
         onOpenChange={(openState) => !openState && handleCloseAttempt()}
-        srTitle={tI18n('version_description')}
+        srTitle='Version Description'
       >
-        <ChipModalHeader onClose={() => handleCloseAttempt()}>
-          {t('version_description')}
-        </ChipModalHeader>
+        <ChipModalHeader onClose={() => handleCloseAttempt()}>Version Description</ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
             type='custom'
             title={
               <span>
-                {currentDescription ? tI18n('edit_the') : tI18n('add_a')} {t('description_for')}{' '}
+                {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
               </span>
+            }
+            error={
+              isTooLong
+                ? `Description exceeds the ${MAX_DESCRIPTION_LENGTH.toLocaleString()}-character limit (currently ${description.length.toLocaleString()})`
+                : undefined
             }
           >
             <RichMarkdownField
               value={description}
               onChange={setDescription}
-              placeholder={t('describe_the_changes_in_this_deployment')}
+              placeholder='Describe the changes in this deployment version...'
               minHeight={240}
               maxHeight={420}
               disabled={isGenerating}
               isStreaming={isGenerating}
-              error={description.length > MAX_DESCRIPTION_LENGTH}
+              error={isTooLong}
               workspaceId={workspaceId}
+              disableTagging
             />
           </ChipModalField>
           <ChipModalError>
@@ -179,10 +180,10 @@ export function VersionDescriptionModal({
       <ChipConfirmModal
         open={showUnsavedChangesAlert}
         onOpenChange={setShowUnsavedChangesAlert}
-        srTitle={tI18n('unsaved_changes')}
-        title={t('unsaved_changes')}
-        text={tI18n('you_have_unsaved_changes_are_you')}
-        dismissLabel={tI18n('keep_editing')}
+        srTitle='Unsaved Changes'
+        title='Unsaved Changes'
+        text='You have unsaved changes. Are you sure you want to discard them?'
+        dismissLabel='Keep editing'
         confirm={{
           label: 'Discard Changes',
           onClick: handleDiscardChanges,

@@ -1,8 +1,7 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
-import { Plus, Upload } from '@/components/emcn'
-import { Table as TableIcon } from '@/components/emcn/icons'
+import { Plus, Upload } from '@sim/emcn'
+import { Table as TableIcon } from '@sim/emcn/icons'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,
@@ -23,15 +22,13 @@ const ACTIONS: ChromeActionSpec[] = [
 ]
 
 export default function TablesLoading() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   return (
     <ResourceChromeFallback
       icon={TableIcon}
-      title={t('tables')}
+      title='Tables'
       columns={COLUMNS}
       actions={ACTIONS}
-      searchPlaceholder={tI18n('search_tables')}
+      searchPlaceholder='Search tables...'
       hasSort
       hasFilter
     />

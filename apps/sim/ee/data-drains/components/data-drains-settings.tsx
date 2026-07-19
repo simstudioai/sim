@@ -1,13 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/predicates'
-import { toError } from '@sim/utils/errors'
-import { ChevronDown, Plus } from 'lucide-react'
 import {
   Badge,
-  Chip,
   ChipConfirmModal,
   ChipModal,
   ChipModalBody,
@@ -16,6 +11,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipSelect,
+  cn,
   Switch,
   Table,
   TableBody,
@@ -24,16 +20,15 @@ import {
   TableHeader,
   TableRow,
   toast,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { ChevronDown, Plus } from 'lucide-react'
 import type { CreateDataDrainBody, DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
-import { useSession } from '@/lib/auth/auth-client'
-import { cn } from '@/lib/core/utils/cn'
 import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
-import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { InfoNote } from '@/ee/components/info-note'
 import { DESTINATION_FORM_REGISTRY } from '@/ee/data-drains/destinations/registry'
 import {
   useCreateDataDrain,
@@ -44,7 +39,6 @@ import {
   useTestDataDrain,
   useUpdateDataDrain,
 } from '@/ee/data-drains/hooks/data-drains'
-import { useOrganizations } from '@/hooks/queries/organization'
 
 const logger = createLogger('DataDrainsSettings')
 
@@ -79,17 +73,16 @@ const DESTINATION_OPTIONS = DESTINATION_TYPES.map((t) => ({
   label: DESTINATION_LABELS[t],
 }))
 
-export function DataDrainsSettings() {
-  const { data: session, isPending: sessionPending } = useSession()
-  const { data: orgsData, isLoading: orgsLoading } = useOrganizations()
-  const activeOrganization = orgsData?.activeOrganization
-  const orgId = activeOrganization?.id
+interface DataDrainsSettingsProps {
+  organizationId: string
+}
 
-  const userEmail = session?.user?.email
-  const userRole = getUserRole(activeOrganization, userEmail)
-  const canManage = isOrgAdminRole(userRole)
-
-  const { data: drains, isLoading: drainsLoading, error: drainsError } = useDataDrains(orgId)
+export function DataDrainsSettings({ organizationId }: DataDrainsSettingsProps) {
+  const {
+    data: drains,
+    isLoading: drainsLoading,
+    error: drainsError,
+  } = useDataDrains(organizationId)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [expandedDrainId, setExpandedDrainId] = useState<string | null>(null)
@@ -107,34 +100,19 @@ export function DataDrainsSettings() {
         ].some((value) => value.toLowerCase().includes(query))
       )
 
-  if (sessionPending || orgsLoading || drainsLoading) {
-    return null
-  }
-
-  if (!orgId) {
-    return (
-      <SettingsEmptyState>
-        Data drains are configured per organization. Join or create one to continue.
-      </SettingsEmptyState>
-    )
-  }
-
-  if (!canManage) {
-    return (
-      <SettingsEmptyState>
-        Only organization owners and admins can configure data drains.
-      </SettingsEmptyState>
-    )
-  }
+  if (drainsLoading) return null
 
   return (
     <>
       <SettingsPanel
-        actions={
-          <Chip leftIcon={Plus} variant='primary' onClick={() => setCreateOpen(true)}>
-            New Drain
-          </Chip>
-        }
+        actions={[
+          {
+            text: 'New drain',
+            icon: Plus,
+            variant: 'primary',
+            onSelect: () => setCreateOpen(true),
+          },
+        ]}
         search={{
           value: searchTerm,
           onChange: setSearchTerm,
@@ -142,11 +120,6 @@ export function DataDrainsSettings() {
         }}
       >
         <div className='flex flex-col gap-4.5'>
-          <InfoNote>
-            Drains continuously export Sim data to your own storage on a schedule. Combine with Data
-            Retention to satisfy long-term compliance archives.
-          </InfoNote>
-
           <div>
             {drainsError ? (
               <div className='flex h-full flex-col items-center justify-center gap-2'>
@@ -173,7 +146,7 @@ export function DataDrainsSettings() {
                       <DrainRow
                         key={drain.id}
                         drain={drain}
-                        organizationId={orgId}
+                        organizationId={organizationId}
                         expanded={expandedDrainId === drain.id}
                         onToggleExpand={() =>
                           setExpandedDrainId(expandedDrainId === drain.id ? null : drain.id)
@@ -188,14 +161,14 @@ export function DataDrainsSettings() {
                 </SettingsEmptyState>
               )
             ) : (
-              <SettingsEmptyState>Click "New Drain" above to get started</SettingsEmptyState>
+              <SettingsEmptyState>Click "New drain" above to get started</SettingsEmptyState>
             )}
           </div>
         </div>
       </SettingsPanel>
 
       {createOpen && (
-        <CreateDrainModal organizationId={orgId} onClose={() => setCreateOpen(false)} />
+        <CreateDrainModal organizationId={organizationId} onClose={() => setCreateOpen(false)} />
       )}
     </>
   )

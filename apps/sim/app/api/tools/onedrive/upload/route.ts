@@ -13,7 +13,8 @@ import {
   getExtensionFromMimeType,
   processSingleFileToUserFile,
 } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { normalizeExcelValues } from '@/tools/onedrive/utils'
 
@@ -114,8 +115,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (denied) return denied
 
       try {
-        fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
+        const result = await downloadServableFileFromStorage(userFile, requestId, logger)
+        fileBuffer = result.buffer
+        mimeType = result.contentType || userFile.type || 'application/octet-stream'
       } catch (error) {
+        const notReady = docNotReadyResponse(error)
+        if (notReady) return notReady
         logger.error(`[${requestId}] Failed to download file from storage:`, error)
         return NextResponse.json(
           {
@@ -125,8 +130,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { status: 500 }
         )
       }
-
-      mimeType = userFile.type || 'application/octet-stream'
     }
 
     const maxSize = 250 * 1024 * 1024

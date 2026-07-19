@@ -2,32 +2,44 @@ import { toError } from '@sim/utils/errors'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getCredentialActorContext } from '@/lib/credentials/access'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
+import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 export async function executeOAuthGetAuthLink(
   rawParams: Record<string, unknown>,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   const providerName = String(rawParams.providerName || rawParams.provider_name || '')
+  const rawCredentialId = rawParams.credentialId || rawParams.credential_id
+  const credentialId = rawCredentialId ? String(rawCredentialId) : undefined
   const baseUrl = getBaseUrl()
   try {
     if (!context.workspaceId || !context.userId) {
       throw new Error('workspaceId and userId are required to generate an OAuth link')
     }
-    await ensureWorkspaceAccess(context.workspaceId, context.userId, 'write')
+    const workspaceAccess = await ensureWorkspaceAccess(
+      context.workspaceId,
+      context.userId,
+      'write'
+    )
     const result = await generateOAuthLink(
       context.workspaceId,
       context.workflowId,
       context.chatId,
       providerName,
-      baseUrl
+      baseUrl,
+      credentialId ? { credentialId, userId: context.userId, workspaceAccess } : undefined
     )
+    const action = credentialId ? 'reconnect' : 'connect'
     return {
       success: true,
       output: {
-        message: `Authorization URL generated for ${result.serviceName}.`,
+        message: credentialId
+          ? `Reconnect authorization URL generated for ${result.serviceName}. Completing it re-authorizes credential ${credentialId} in place — its id stays the same.`
+          : `Authorization URL generated for ${result.serviceName}.`,
         oauth_url: result.url,
-        instructions: `Open this URL in your browser to connect ${result.serviceName}: ${result.url}`,
+        instructions: `Open this URL in your browser to ${action} ${result.serviceName}: ${result.url}`,
         provider: result.serviceName,
         providerId: result.providerId,
       },
@@ -72,13 +84,20 @@ export async function executeOAuthRequestAccess(
  * calls Better Auth, so the draft's TTL starts at click and the signed `state`
  * cookie is planted in the user's browser and the OAuth callback's state check
  * passes.
+ *
+ * When `reconnect` is set, the URL carries the existing credential id so the
+ * authorize endpoint creates a reconnect draft and the OAuth callback rebinds
+ * the credential in place instead of creating a new one. Validation happens
+ * here too (not just at click time) so a bad id fails in the tool result where
+ * the agent can see it, rather than as a silent browser redirect.
  */
 async function generateOAuthLink(
   workspaceId: string | undefined,
   workflowId: string | undefined,
   chatId: string | undefined,
   providerName: string,
-  baseUrl: string
+  baseUrl: string,
+  reconnect?: { credentialId: string; userId: string; workspaceAccess: WorkspaceAccess }
 ): Promise<{ url: string; providerId: string; serviceName: string }> {
   if (!workspaceId) {
     throw new Error('workspaceId is required to generate an OAuth link')
@@ -105,6 +124,39 @@ async function generateOAuthLink(
   }
 
   const { providerId, name: serviceName } = matched
+
+  if (reconnect) {
+    if (providerId === 'trello' || providerId === 'shopify') {
+      throw new Error(
+        `Reconnect is not supported for ${serviceName} from chat. Ask the user to open the ` +
+          `integrations page and press Reconnect on the credential there.`
+      )
+    }
+    const actor = await getCredentialActorContext(reconnect.credentialId, reconnect.userId, {
+      workspaceAccess: reconnect.workspaceAccess,
+    })
+    if (!actor.credential || actor.credential.workspaceId !== workspaceId) {
+      throw new Error(
+        `Credential "${reconnect.credentialId}" was not found in this workspace. Read ` +
+          `environment/credentials.json for valid credential ids.`
+      )
+    }
+    if (actor.credential.type !== 'oauth') {
+      throw new Error(
+        `Credential "${reconnect.credentialId}" is not an OAuth credential and cannot be reconnected.`
+      )
+    }
+    if (actor.credential.providerId !== providerId) {
+      throw new Error(
+        `Credential "${reconnect.credentialId}" belongs to provider "${actor.credential.providerId}", ` +
+          `not "${providerId}". Pass the matching providerName.`
+      )
+    }
+    if (!actor.isAdmin) {
+      throw new Error('Admin access on the credential is required to reconnect it.')
+    }
+  }
+
   const callbackURL =
     workflowId && workspaceId
       ? `${baseUrl}/workspace/${workspaceId}/w/${workflowId}`
@@ -114,6 +166,12 @@ async function generateOAuthLink(
 
   if (providerId === 'trello') {
     return { url: `${baseUrl}/api/auth/trello/authorize`, providerId, serviceName }
+  }
+  if (providerId === 'instagram') {
+    const authorizeUrl = new URL(`${baseUrl}/api/auth/instagram/authorize`)
+    authorizeUrl.searchParams.set('returnUrl', callbackURL)
+    authorizeUrl.searchParams.set('workspaceId', workspaceId)
+    return { url: authorizeUrl.toString(), providerId, serviceName }
   }
   if (providerId === 'shopify') {
     const returnUrl = encodeURIComponent(callbackURL)
@@ -138,6 +196,9 @@ async function generateOAuthLink(
   authorizeUrl.searchParams.set('providerId', providerId)
   authorizeUrl.searchParams.set('workspaceId', workspaceId)
   authorizeUrl.searchParams.set('callbackURL', callbackURL)
+  if (reconnect) {
+    authorizeUrl.searchParams.set('credentialId', reconnect.credentialId)
+  }
 
   return { url: authorizeUrl.toString(), providerId, serviceName }
 }

@@ -1,13 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChipInput, cn, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Chip, ChipInput, Tooltip, toast } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import {
   clearPendingCredentialCreateRequest,
   PENDING_CREDENTIAL_CREATE_REQUEST_EVENT,
@@ -19,7 +18,9 @@ import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/cr
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { isValidEnvVarName } from '@/executor/constants'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import {
@@ -58,10 +59,9 @@ interface SecretRowMenuProps {
  * Organization member menu so the settings experience is consistent.
  */
 function SecretRowMenu({ onCopyName, onViewDetails, onDelete }: SecretRowMenuProps) {
-  const t = useTranslations('auto')
   return (
     <RowActionsMenu
-      label={t('secret_actions')}
+      label='Secret actions'
       triggerClassName='ml-2'
       actions={[
         ...(onViewDetails ? [{ label: 'View details', onSelect: onViewDetails }] : []),
@@ -175,10 +175,14 @@ function parseEnvVarLine(line: string): UIEnvironmentVariable | null {
 
 /** Parses an array of raw text lines, returning only valid non-empty KEY=VALUE entries. */
 function parseValidEnvVars(lines: string[]): UIEnvironmentVariable[] {
-  return lines
-    .map(parseEnvVarLine)
-    .filter((parsed): parsed is UIEnvironmentVariable => parsed !== null)
-    .filter(({ key, value }) => key && value)
+  const result: UIEnvironmentVariable[] = []
+  for (const line of lines) {
+    const parsed = parseEnvVarLine(line)
+    if (parsed?.key && parsed.value) {
+      result.push(parsed)
+    }
+  }
+  return result
 }
 
 interface WorkspaceVariableRowProps {
@@ -195,7 +199,7 @@ interface WorkspaceVariableRowProps {
   onRenameEnd: (key: string, value: string) => void
   onValueChange: (key: string, value: string) => void
   onDelete: (key: string) => void
-  onViewDetails: (envKey: string) => void
+  onViewDetails?: (envKey: string) => void
 }
 
 function WorkspaceVariableRow({
@@ -241,7 +245,7 @@ function WorkspaceVariableRow({
       />
       <SecretRowMenu
         onCopyName={() => copyName(envKey)}
-        onViewDetails={hasCredential ? () => onViewDetails(envKey) : undefined}
+        onViewDetails={hasCredential && onViewDetails ? () => onViewDetails(envKey) : undefined}
         onDelete={canEdit ? () => onDelete(envKey) : undefined}
       />
     </div>
@@ -261,7 +265,6 @@ function NewWorkspaceVariableRow({
   onUpdate,
   onPaste,
 }: NewWorkspaceVariableRowProps) {
-  const t = useTranslations('auto')
   const keyError = validateEnvVarKey(envVar.key)
   const hasContent = Boolean(envVar.key || envVar.value)
 
@@ -287,7 +290,7 @@ function NewWorkspaceVariableRow({
         value={envVar.value}
         onChange={(next) => onUpdate(index, 'value', next)}
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
-        placeholder={t('enter_value')}
+        placeholder='Enter value'
         name={`new_workspace_value_${envVar.id || index}_${generateShortId()}`}
         className='ml-0'
       />
@@ -317,8 +320,6 @@ function NewWorkspaceVariableRow({
 }
 
 export function SecretsManager() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -351,8 +352,10 @@ export function SecretsManager() {
   const queryClient = useQueryClient()
 
   const isWorkspaceAdmin = workspacePermissions?.viewer?.isAdmin ?? false
-  const canCreateWorkspaceSecret =
-    isWorkspaceAdmin || workspacePermissions?.viewer?.permissionType === 'write'
+  const canCreateWorkspaceSecret = canMutateWorkspaceSettingsSection('secrets', {
+    canEdit: isWorkspaceAdmin || workspacePermissions?.viewer?.permissionType === 'write',
+    canAdmin: isWorkspaceAdmin,
+  })
 
   const isLoading = isPersonalLoading || isWorkspaceLoading
 
@@ -360,7 +363,7 @@ export function SecretsManager() {
   const [newWorkspaceRows, setNewWorkspaceRows] = useState<UIEnvironmentVariable[]>([
     createEmptyEnvVar(),
   ])
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
   const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
@@ -505,16 +508,6 @@ export function SecretsManager() {
       })
     })
   }, [])
-
-  useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault()
-    }
-    if (hasChanges) {
-      window.addEventListener('beforeunload', handler)
-    }
-    return () => window.removeEventListener('beforeunload', handler)
-  }, [hasChanges])
 
   /**
    * Navigation guard: intercept link clicks in the capture phase before
@@ -786,9 +779,10 @@ export function SecretsManager() {
     }
 
     const personalChanged = (() => {
-      const initialMap = new Map(
-        initialVarsRef.current.filter((v) => v.key && v.value).map((v) => [v.key, v.value])
-      )
+      const initialMap = new Map<string, string>()
+      for (const v of initialVarsRef.current) {
+        if (v.key && v.value) initialMap.set(v.key, v.value)
+      }
       const currentKeys = Object.keys(validVariables)
       if (initialMap.size !== currentKeys.length) return true
       for (const [key, value] of Object.entries(validVariables)) {
@@ -886,7 +880,7 @@ export function SecretsManager() {
           onPaste={(e) => handlePaste(e, originalIndex)}
           unmasked={isConflicted}
           readOnly={isConflicted}
-          placeholder={isConflicted ? tI18n('workspace_override_active') : tI18n('enter_value')}
+          placeholder={isConflicted ? 'Workspace override active' : 'Enter value'}
           name={`env_variable_value_${envVar.id || originalIndex}_${generateShortId()}`}
           className={cn(isConflicted && 'cursor-not-allowed opacity-50')}
         />
@@ -915,7 +909,8 @@ export function SecretsManager() {
               'mt-[-4px] text-[var(--text-error)] text-caption leading-tight'
             )}
           >
-            {t('workspace_variable_with_the_same_name')}
+            Workspace variable with the same name overrides this. Rename your personal key to use
+            it.
           </div>
         )}
       </div>
@@ -926,13 +921,14 @@ export function SecretsManager() {
 
   return (
     <>
-      <div className='hidden'>
+      <div className='hidden' aria-hidden='true'>
         <input
           type='text'
           name='fakeusernameremembered'
           autoComplete='username'
           tabIndex={-1}
           readOnly
+          aria-hidden='true'
         />
         <input
           type='password'
@@ -940,6 +936,7 @@ export function SecretsManager() {
           autoComplete='current-password'
           tabIndex={-1}
           readOnly
+          aria-hidden='true'
         />
         <input
           type='email'
@@ -947,6 +944,7 @@ export function SecretsManager() {
           autoComplete='email'
           tabIndex={-1}
           readOnly
+          aria-hidden='true'
         />
       </div>
 
@@ -957,33 +955,27 @@ export function SecretsManager() {
           onChange: setSearchTerm,
           placeholder: 'Search secrets...',
         }}
-        actions={
-          <>
-            {hasChanges && (
-              <Chip onClick={handleCancel} disabled={isListSaving}>
-                {t('discard')}
-              </Chip>
-            )}
-            {hasConflicts || hasInvalidKeys ? (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <div className='inline-flex'>
-                    <Chip disabled>{t('save')}</Chip>
-                  </div>
-                </Tooltip.Trigger>
-                {hasConflicts ? (
-                  <Tooltip.Content>{t('resolve_all_conflicts_before_saving')}</Tooltip.Content>
-                ) : (
-                  <Tooltip.Content>{t('fix_invalid_variable_names_before_saving')}</Tooltip.Content>
-                )}
-              </Tooltip.Root>
-            ) : (
-              <Chip onClick={handleSave} disabled={isLoading || !hasChanges || isListSaving}>
-                {isListSaving ? 'Saving...' : tI18n('save')}
-              </Chip>
-            )}
-          </>
-        }
+        actions={[
+          ...(hasChanges
+            ? [
+                {
+                  text: 'Discard',
+                  onSelect: handleCancel,
+                  disabled: isListSaving,
+                } satisfies SettingsAction,
+              ]
+            : []),
+          {
+            text: isListSaving ? 'Saving...' : 'Save',
+            onSelect: handleSave,
+            disabled: hasConflicts || hasInvalidKeys || isLoading || !hasChanges || isListSaving,
+            tooltip: hasConflicts
+              ? 'Resolve all conflicts before saving'
+              : hasInvalidKeys
+                ? 'Fix invalid variable names before saving'
+                : undefined,
+          },
+        ]}
       >
         {!isLoading && (
           <div className='flex flex-col gap-7'>
@@ -991,7 +983,7 @@ export function SecretsManager() {
               filteredWorkspaceEntries.length > 0 ||
               filteredNewWorkspaceRows.length > 0) && (
               <section className='flex flex-col'>
-                <span className='pl-0.5 text-[var(--text-muted)] text-small'>{t('workspace')}</span>
+                <span className='pl-0.5 text-[var(--text-muted)] text-small'>Workspace</span>
                 <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
                 <div className={`${GRID_COLS} gap-y-2`}>
                   {(searchTerm.trim()
@@ -999,7 +991,7 @@ export function SecretsManager() {
                     : Object.entries(workspaceVars)
                   ).map(([key, value]) => {
                     const cred = workspaceEnvKeyToCredential.get(key)
-                    const canEditRow = cred?.role === 'admin'
+                    const canEditRow = canCreateWorkspaceSecret && cred?.role === 'admin'
                     return (
                       <WorkspaceVariableRow
                         key={key}
@@ -1015,7 +1007,9 @@ export function SecretsManager() {
                         onRenameEnd={handleWorkspaceKeyRename}
                         onValueChange={handleWorkspaceValueChange}
                         onDelete={handleDeleteWorkspaceVar}
-                        onViewDetails={handleViewDetails}
+                        onViewDetails={
+                          canCreateWorkspaceSecret && cred ? handleViewDetails : undefined
+                        }
                       />
                     )
                   })}
@@ -1038,7 +1032,7 @@ export function SecretsManager() {
 
             {(!searchTerm.trim() || filteredEnvVars.length > 0) && (
               <section className='flex flex-col'>
-                <span className='pl-0.5 text-[var(--text-muted)] text-small'>{t('personal')}</span>
+                <span className='pl-0.5 text-[var(--text-muted)] text-small'>Personal</span>
                 <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
                 <div className={`${GRID_COLS} gap-y-2`}>
                   {filteredEnvVars.map(({ envVar, originalIndex }) => (
@@ -1057,9 +1051,7 @@ export function SecretsManager() {
                 Object.keys(workspaceVars).length > 0 ||
                 newWorkspaceRows.length > 0) && (
                 <SettingsEmptyState variant='inline'>
-                  {t('no_secrets_found_matching_ldquo')}
-                  {searchTerm}
-                  {t('rdquo')}
+                  No secrets found matching &ldquo;{searchTerm}&rdquo;
                 </SettingsEmptyState>
               )}
           </div>

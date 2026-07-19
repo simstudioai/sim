@@ -134,6 +134,21 @@ describe('resolvePiModelKey', () => {
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
   })
 
+  it('cloud mode falls back to a stored workspace key for xAI', async () => {
+    mockGetProviderFromModel.mockReturnValue('xai')
+    mockGetBYOKKey.mockResolvedValue({ apiKey: 'xai-workspace-key', isBYOK: true })
+
+    const result = await resolvePiModelKey({
+      model: 'grok-4.5',
+      mode: 'cloud',
+      workspaceId: 'ws-1',
+    })
+
+    expect(result).toEqual({ providerId: 'xai', apiKey: 'xai-workspace-key', isBYOK: true })
+    expect(mockGetBYOKKey).toHaveBeenCalledWith('ws-1', 'xai')
+    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
+  })
+
   it('cloud mode rejects when no user key is available (never a hosted key)', async () => {
     mockGetProviderFromModel.mockReturnValue('anthropic')
     mockGetBYOKKey.mockResolvedValue(null)

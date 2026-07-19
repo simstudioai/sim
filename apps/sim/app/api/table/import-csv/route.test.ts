@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { hybridAuthMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,7 +41,7 @@ vi.mock('@/app/api/table/utils', async () => {
         { status: error.code === 'FILE_TOO_LARGE' ? 413 : 400 }
       ),
     rowWriteErrorResponse: (error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = getErrorMessage(error)
       return message.includes('row limit')
         ? NextResponse.json({ error: message }, { status: 400 })
         : null

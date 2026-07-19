@@ -48,12 +48,12 @@ export const discordUpdateChannelTool: ToolConfig<
 
   request: {
     url: (params: DiscordUpdateChannelParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId}`
+      return `https://discord.com/api/v10/channels/${params.channelId.trim()}`
     },
     method: 'PATCH',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
     body: (params: DiscordUpdateChannelParams) => {
       const body: any = {}

@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ChipInput, Info, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useTranslations } from 'next-intl'
-import { ChipInput, Info, toast } from '@/components/emcn'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -136,7 +136,7 @@ export function UsageLimitField({
               : String(dollarsToCredits(currentLimit))
         }
         disabled={!canEdit}
-        inputClassName={tI18n('appearance_textfield_webkit_inner_spin_button')}
+        inputClassName='[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
       />
     </SettingsSection>
   )

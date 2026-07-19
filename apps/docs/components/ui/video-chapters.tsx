@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CirclePlay } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /** Parse a chapter timestamp ("M:SS" or "H:MM:SS") into seconds. */
@@ -26,9 +25,10 @@ interface VideoChaptersProps {
 }
 
 /**
- * Right-rail panel listing the current video's chapters, styled to match the
- * Academy's course panels. Rows are skip-to controls; they activate once the
- * lesson's video is recorded.
+ * Right-rail list of the current video's chapters — flat and borderless to
+ * match the docs' "On this page" TOC (small muted label, hover-highlighted
+ * rows). Rows are skip-to controls; they activate once the lesson's video is
+ * recorded.
  */
 export function VideoChapters({ title = 'Chapters', chapters, className }: VideoChaptersProps) {
   // Chapters only seek when a VideoPlaceholder with a real video is on the page.
@@ -42,13 +42,8 @@ export function VideoChapters({ title = 'Chapters', chapters, className }: Video
   }, [])
 
   return (
-    <aside
-      className={cn(
-        'not-prose rounded-xl border border-[var(--border-1)] bg-[var(--surface-3)] p-5',
-        className
-      )}
-    >
-      <h2 className='mt-0 mb-3 font-semibold text-[var(--text-primary)] text-lg'>{title}</h2>
+    <aside className={cn('not-prose', className)}>
+      <p className='mb-2 px-2.5 font-medium text-[0.8125rem] text-[var(--text-muted)]'>{title}</p>
       <ul className='m-0 flex list-none flex-col gap-0.5 p-0'>
         {chapters.map((chapter) => (
           <li key={chapter.title}>
@@ -61,12 +56,11 @@ export function VideoChapters({ title = 'Chapters', chapters, className }: Video
                   new CustomEvent('academy:seek', { detail: { time: parseTime(chapter.time) } })
                 )
               }}
-              className='flex w-full cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-[var(--text-secondary)] text-sm transition-colors hover:bg-[var(--surface-active)] disabled:cursor-default disabled:hover:bg-transparent'
+              className='flex w-full cursor-pointer items-baseline gap-3 rounded-lg px-2.5 py-2 text-left text-[var(--text-secondary)] text-sm transition-colors hover:bg-[var(--surface-active)] disabled:cursor-default disabled:hover:bg-transparent'
             >
-              <CirclePlay className='mt-0.5 size-4 shrink-0' />
               <span className='min-w-0 flex-1 break-words'>{chapter.title}</span>
               {chapter.time && (
-                <span className='mt-0.5 shrink-0 text-[var(--text-muted)] text-xs tabular-nums'>
+                <span className='shrink-0 text-[var(--text-muted)] text-xs tabular-nums'>
                   {chapter.time}
                 </span>
               )}

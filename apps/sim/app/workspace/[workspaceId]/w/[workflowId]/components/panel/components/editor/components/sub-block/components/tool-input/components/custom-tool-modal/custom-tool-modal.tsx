@@ -1,8 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { AlertCircle, ArrowUp } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
@@ -12,6 +8,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipModalTabs,
+  cn,
   Input,
   Label,
   Popover,
@@ -20,8 +17,11 @@ import {
   PopoverItem,
   PopoverScrollArea,
   PopoverSection,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { AlertCircle, ArrowUp } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,
@@ -832,12 +832,14 @@ try {
         </ChipModalHeader>
 
         {/*
-          flex-none + overflow-visible opt this body out of the chrome's
-          scroll container: the caret-anchored EnvVar/Tag autocomplete
-          dropdowns are absolute-positioned inside it and must spill past
-          the body's bounds rather than clip against a scroll boundary.
+          The body is the scroll region so tall schema/code content stays inside
+          the modal and the footer (Next/Save) is always reachable. The EnvVar,
+          Tag, and schema-param autocompletes render their menus in portaled
+          popovers (never clipped by this scroll boundary) and anchor to a
+          caret-positioned element inside the editor wrapper, so the menus track
+          the caret as the body scrolls.
         */}
-        <ChipModalBody className='flex-none gap-2 overflow-visible px-4'>
+        <ChipModalBody className='gap-2 px-4'>
           <ChipModalTabs
             tabs={[
               { value: 'schema', label: 'Schema' },

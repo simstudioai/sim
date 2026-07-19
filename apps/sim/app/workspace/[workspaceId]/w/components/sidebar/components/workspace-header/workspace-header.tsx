@@ -1,14 +1,13 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { MoreHorizontal } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { memo, type ReactElement, useEffect, useRef, useState } from 'react'
 import {
   ChevronDown,
   Chip,
   ChipConfirmModal,
+  chipGeometryClass,
   chipVariants,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuSeparator,
@@ -16,19 +15,55 @@ import {
   Plus,
   Send,
   Skeleton,
-} from '@/components/emcn'
-import { ManageWorkspace, PanelLeft } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+  Tooltip,
+} from '@sim/emcn'
+import { ManageWorkspace, PanelLeft } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { MoreHorizontal } from 'lucide-react'
+import { useActiveOrganization } from '@/lib/auth/auth-client'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
-import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
+import {
+  CreateWorkspaceModal,
+  type CreateWorkspaceTarget,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 const logger = createLogger('WorkspaceHeader')
+
+/**
+ * Derives the single-letter avatar initial for a workspace, ignoring the word
+ * "workspace" in the name (e.g. "Acme Workspace" → "A").
+ */
+function getWorkspaceInitial(name: string | undefined): string {
+  const stripped = (name ?? '').replace(/workspace/gi, '').trim()
+  return (stripped[0] || name?.[0] || 'W').toUpperCase()
+}
+
+interface DisabledReasonTooltipProps {
+  reason: string | null
+  children: ReactElement
+}
+
+/**
+ * Wraps a menu item in a tooltip explaining why the action is unavailable.
+ * Renders the child as-is when there is no reason to show.
+ */
+function DisabledReasonTooltip({ reason, children }: DisabledReasonTooltipProps) {
+  if (!reason) return children
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
+      <Tooltip.Content>
+        <p>{reason}</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
 
 interface WorkspaceHeaderProps {
   /** The active workspace object */
@@ -95,8 +130,6 @@ function WorkspaceHeaderImpl({
   isCollapsed = false,
   onExpandSidebar,
 }: WorkspaceHeaderProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -116,12 +149,14 @@ function WorkspaceHeaderImpl({
   const isContextMenuOpeningRef = useRef(false)
   const contextMenuClosedRef = useRef(true)
   const hasInputFocusedRef = useRef(false)
+  const renameInputRef = useRef<HTMLInputElement | null>(null)
 
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => {
     setIsMounted(true)
   }, [])
 
+  const { data: viewerActiveOrganization } = useActiveOrganization()
   const { navigateToSettings } = useSettingsNavigation()
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
@@ -132,6 +167,17 @@ function WorkspaceHeaderImpl({
   const { isInvitationsDisabled: isInvitationsDisabledByConfig } = usePermissionConfig()
   const inviteDisabledReason = activeWorkspaceFull?.inviteDisabledReason ?? null
   const isInvitationsDisabled = isInvitationsDisabledByConfig || inviteDisabledReason !== null
+  const createWorkspaceTarget: CreateWorkspaceTarget =
+    workspaceCreationPolicy?.workspaceMode === 'organization' &&
+    workspaceCreationPolicy.organizationId
+      ? {
+          type: 'organization',
+          organizationName:
+            viewerActiveOrganization?.id === workspaceCreationPolicy.organizationId
+              ? viewerActiveOrganization.name
+              : 'your organization',
+        }
+      : { type: 'personal' }
 
   /**
    * Save and exit edit mode when popover closes
@@ -146,11 +192,7 @@ function WorkspaceHeaderImpl({
     }
   }, [isWorkspaceMenuOpen, editingWorkspaceId, editingName, workspaces, onRenameWorkspace])
 
-  const workspaceInitial = (() => {
-    const name = activeWorkspace?.name || ''
-    const stripped = name.replace(/workspace/gi, '').trim()
-    return (stripped[0] || name[0] || 'W').toUpperCase()
-  })()
+  const workspaceInitial = getWorkspaceInitial(activeWorkspace?.name)
 
   /**
    * Opens the context menu for a workspace at the specified position
@@ -275,7 +317,7 @@ function WorkspaceHeaderImpl({
       {isMounted && isCollapsed ? (
         <button
           type='button'
-          aria-label={t('expand_sidebar')}
+          aria-label='Expand sidebar'
           onClick={onExpandSidebar}
           className={chipVariants({ fullWidth: true })}
         >
@@ -287,7 +329,7 @@ function WorkspaceHeaderImpl({
                 {activeWorkspaceFull.logoUrl ? (
                   <img
                     src={activeWorkspaceFull.logoUrl}
-                    alt={activeWorkspaceFull.name || tI18n('workspace_logo')}
+                    alt={activeWorkspaceFull.name || 'Workspace logo'}
                     className='size-[16px] rounded-sm object-cover group-hover:invisible'
                   />
                 ) : (
@@ -324,7 +366,7 @@ function WorkspaceHeaderImpl({
           <DropdownMenuTrigger asChild>
             <button
               type='button'
-              aria-label={t('switch_workspace')}
+              aria-label='Switch workspace'
               className={cn(chipVariants(), 'min-w-0 max-w-full')}
               title={activeWorkspace?.name}
               onContextMenu={(e) => {
@@ -337,7 +379,7 @@ function WorkspaceHeaderImpl({
                 activeWorkspaceFull.logoUrl ? (
                   <img
                     src={activeWorkspaceFull.logoUrl}
-                    alt={activeWorkspaceFull.name || tI18n('workspace_logo')}
+                    alt={activeWorkspaceFull.name || 'Workspace logo'}
                     className='size-[16px] flex-shrink-0 rounded-sm object-cover'
                   />
                 ) : (
@@ -376,14 +418,13 @@ function WorkspaceHeaderImpl({
           >
             {isWorkspacesLoading ? (
               <div className='px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption'>
-                {t('loading_workspaces')}
+                Loading workspaces...
               </div>
             ) : (
               <>
                 <div className='-mx-1.5 flex max-h-[94px] flex-col gap-0.5 overflow-y-auto px-1.5'>
                   {workspaces.map((workspace) => {
-                    const stripped = workspace.name.replace(/workspace/gi, '').trim()
-                    const initial = (stripped[0] || workspace.name[0] || 'W').toUpperCase()
+                    const initial = getWorkspaceInitial(workspace.name)
                     const isActive = workspace.id === workspaceId
                     const isMenuOpen = menuOpenWorkspaceId === workspace.id
 
@@ -396,7 +437,7 @@ function WorkspaceHeaderImpl({
                             {workspace.logoUrl ? (
                               <img
                                 src={workspace.logoUrl}
-                                alt={workspace.name || tI18n('workspace_logo')}
+                                alt={workspace.name || 'Workspace logo'}
                                 className='size-[16px] flex-shrink-0 rounded-sm object-cover'
                               />
                             ) : (
@@ -411,6 +452,7 @@ function WorkspaceHeaderImpl({
                             )}
                             <input
                               ref={(el) => {
+                                renameInputRef.current = el
                                 if (el && !hasInputFocusedRef.current) {
                                   hasInputFocusedRef.current = true
                                   el.focus()
@@ -488,7 +530,7 @@ function WorkspaceHeaderImpl({
                             {workspace.logoUrl ? (
                               <img
                                 src={workspace.logoUrl}
-                                alt={workspace.name || tI18n('workspace_logo')}
+                                alt={workspace.name || 'Workspace logo'}
                                 className='size-[16px] flex-shrink-0 rounded-sm object-cover'
                               />
                             ) : (
@@ -506,7 +548,7 @@ function WorkspaceHeaderImpl({
                             </span>
                             <button
                               type='button'
-                              aria-label={t('workspace_options')}
+                              aria-label='Workspace options'
                               onMouseDown={() => {
                                 isContextMenuOpeningRef.current = true
                               }}
@@ -533,62 +575,67 @@ function WorkspaceHeaderImpl({
                 <DropdownMenuSeparator className='mx-0' />
 
                 <div className='flex flex-col gap-0.5'>
-                  <Chip
-                    leftIcon={Plus}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setIsWorkspaceMenuOpen(false)
-                      if (!canCreateWorkspace) {
-                        if (isBillingEnabled) navigateToSettings({ section: 'billing' })
-                        return
-                      }
-                      setIsCreateModalOpen(true)
-                    }}
-                    disabled={isCreatingWorkspace}
-                    title={createWorkspaceDisabledReason ?? undefined}
-                    fullWidth
-                    flush
-                    className='w-full select-none disabled:pointer-events-none disabled:opacity-50'
-                  >
-                    {t('new_workspace')}
-                  </Chip>
+                  <DisabledReasonTooltip reason={createWorkspaceDisabledReason}>
+                    <Chip
+                      leftIcon={Plus}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!canCreateWorkspace) return
+                        setIsWorkspaceMenuOpen(false)
+                        setIsCreateModalOpen(true)
+                      }}
+                      disabled={isCreatingWorkspace}
+                      aria-disabled={!canCreateWorkspace || undefined}
+                      fullWidth
+                      flush
+                      className={cn(
+                        'select-none',
+                        !canCreateWorkspace &&
+                          'cursor-not-allowed opacity-60 hover-hover:bg-transparent'
+                      )}
+                    >
+                      New workspace
+                    </Chip>
+                  </DisabledReasonTooltip>
                 </div>
 
                 <DropdownMenuSeparator className='mx-0' />
-                <Chip
-                  leftIcon={Send}
-                  onClick={() => {
-                    setIsWorkspaceMenuOpen(false)
-                    if (isInvitationsDisabled) {
-                      if (isBillingEnabled) navigateToSettings({ section: 'billing' })
-                      return
-                    }
-                    setIsInviteModalOpen(true)
-                  }}
-                  title={inviteDisabledReason ?? undefined}
-                  fullWidth
-                  flush
-                  className='w-full select-none'
-                >
-                  {t('invite_teammates')}
-                </Chip>
-                <Chip
-                  leftIcon={ManageWorkspace}
-                  onClick={() => {
-                    setIsWorkspaceMenuOpen(false)
-                    if (isInvitationsDisabled) {
-                      if (isBillingEnabled) navigateToSettings({ section: 'billing' })
-                      return
-                    }
-                    navigateToSettings({ section: 'teammates' })
-                  }}
-                  title={inviteDisabledReason ?? undefined}
-                  fullWidth
-                  flush
-                  className='w-full select-none'
-                >
-                  {t('manage_workspace')}
-                </Chip>
+                <DisabledReasonTooltip reason={inviteDisabledReason}>
+                  <Chip
+                    leftIcon={Send}
+                    onClick={() => {
+                      setIsWorkspaceMenuOpen(false)
+                      if (isInvitationsDisabled) {
+                        if (isBillingEnabled) navigateToSettings({ section: 'billing' })
+                        return
+                      }
+                      setIsInviteModalOpen(true)
+                    }}
+                    fullWidth
+                    flush
+                    className='select-none'
+                  >
+                    Invite teammates
+                  </Chip>
+                </DisabledReasonTooltip>
+                <DisabledReasonTooltip reason={inviteDisabledReason}>
+                  <Chip
+                    leftIcon={ManageWorkspace}
+                    onClick={() => {
+                      setIsWorkspaceMenuOpen(false)
+                      if (isInvitationsDisabled) {
+                        if (isBillingEnabled) navigateToSettings({ section: 'billing' })
+                        return
+                      }
+                      navigateToSettings({ section: 'teammates' })
+                    }}
+                    fullWidth
+                    flush
+                    className='select-none'
+                  >
+                    Manage workspace
+                  </Chip>
+                </DisabledReasonTooltip>
               </>
             )}
           </DropdownMenuContent>
@@ -596,9 +643,10 @@ function WorkspaceHeaderImpl({
       ) : (
         <button
           type='button'
-          aria-label={t('switch_workspace')}
+          aria-label='Switch workspace'
           className={cn(
-            'mx-0.5 h-[30px] items-center gap-2 rounded-lg px-2',
+            chipGeometryClass,
+            'mx-0.5',
             isCollapsed ? 'flex' : 'inline-flex min-w-0 max-w-full'
           )}
           title={activeWorkspace?.name}
@@ -608,7 +656,7 @@ function WorkspaceHeaderImpl({
             activeWorkspaceFull.logoUrl ? (
               <img
                 src={activeWorkspaceFull.logoUrl}
-                alt={activeWorkspaceFull.name || tI18n('workspace_logo')}
+                alt={activeWorkspaceFull.name || 'Workspace logo'}
                 className='size-[16px] flex-shrink-0 rounded-sm object-cover'
               />
             ) : (
@@ -646,6 +694,7 @@ function WorkspaceHeaderImpl({
             menuRef={contextMenuRef}
             onClose={closeContextMenu}
             onRename={handleRenameAction}
+            renameInputRef={renameInputRef}
             onDelete={handleDeleteAction}
             onLeave={handleLeaveAction}
             onUploadLogo={handleUploadLogoAction}
@@ -667,6 +716,7 @@ function WorkspaceHeaderImpl({
           setIsCreateModalOpen(false)
         }}
         isCreating={isCreatingWorkspace}
+        target={createWorkspaceTarget}
       />
 
       <InviteModal
@@ -687,8 +737,8 @@ function WorkspaceHeaderImpl({
       <ChipConfirmModal
         open={isLeaveModalOpen}
         onOpenChange={() => setIsLeaveModalOpen(false)}
-        srTitle={tI18n('leave_workspace')}
-        title={t('leave_workspace')}
+        srTitle='Leave workspace'
+        title='Leave workspace'
         text={[
           'Are you sure you want to leave ',
           { text: leaveTarget?.name ?? 'this workspace', bold: true },

@@ -64,6 +64,10 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
         { label: 'Create Webhook', id: 'create_webhook' },
         { label: 'Update Webhook', id: 'update_webhook' },
         { label: 'Delete Webhook', id: 'delete_webhook' },
+        { label: 'List Attributes', id: 'list_attributes' },
+        { label: 'Get Attribute', id: 'get_attribute' },
+        { label: 'Create Attribute', id: 'create_attribute' },
+        { label: 'Update Attribute', id: 'update_attribute' },
       ],
       value: () => 'list_records',
     },
@@ -430,7 +434,19 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
         { label: 'Yes', id: 'true' },
       ],
       value: () => 'false',
-      condition: { field: 'operation', value: ['create_task', 'update_task'] },
+      condition: { field: 'operation', value: 'create_task' },
+    },
+    {
+      id: 'taskIsCompletedUpdate',
+      title: 'Completed',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged', id: 'unchanged' },
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'unchanged',
+      condition: { field: 'operation', value: 'update_task' },
     },
     {
       id: 'taskLinkedRecords',
@@ -662,7 +678,20 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
         { label: 'Read Only', id: 'read-only' },
       ],
       value: () => 'full-access',
-      condition: { field: 'operation', value: ['create_list', 'update_list'] },
+      condition: { field: 'operation', value: 'create_list' },
+    },
+    {
+      id: 'listWorkspaceAccessUpdate',
+      title: 'Workspace Access',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged', id: 'unchanged' },
+        { label: 'Full Access', id: 'full-access' },
+        { label: 'Read & Write', id: 'read-and-write' },
+        { label: 'Read Only', id: 'read-only' },
+      ],
+      value: () => 'unchanged',
+      condition: { field: 'operation', value: 'update_list' },
     },
 
     // List entry fields
@@ -824,28 +853,96 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
       required: { field: 'operation', value: 'create_comment' },
     },
     {
+      id: 'commentTarget',
+      title: 'Comment On',
+      type: 'dropdown',
+      options: [
+        { label: 'List Entry', id: 'entry' },
+        { label: 'Record', id: 'record' },
+        { label: 'Reply to Thread', id: 'thread' },
+      ],
+      value: () => 'entry',
+      condition: { field: 'operation', value: 'create_comment' },
+    },
+    {
       id: 'commentList',
       title: 'List',
       type: 'short-input',
       placeholder: 'List ID or slug',
-      condition: { field: 'operation', value: 'create_comment' },
-      required: { field: 'operation', value: 'create_comment' },
+      condition: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'entry' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'entry' },
+      },
     },
     {
       id: 'commentEntryId',
       title: 'Entry ID',
       type: 'short-input',
       placeholder: 'List entry ID to comment on',
-      condition: { field: 'operation', value: 'create_comment' },
-      required: { field: 'operation', value: 'create_comment' },
+      condition: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'entry' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'entry' },
+      },
+    },
+    {
+      id: 'commentRecordObject',
+      title: 'Record Object',
+      type: 'short-input',
+      placeholder: 'Object ID or slug the record belongs to',
+      condition: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'record' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'record' },
+      },
+    },
+    {
+      id: 'commentRecordId',
+      title: 'Record ID',
+      type: 'short-input',
+      placeholder: 'Record ID to comment on directly',
+      condition: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'record' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'record' },
+      },
     },
     {
       id: 'commentThreadId',
       title: 'Thread ID',
       type: 'short-input',
-      placeholder: 'Reply to thread (optional, omit to start new)',
-      condition: { field: 'operation', value: 'create_comment' },
-      mode: 'advanced',
+      placeholder: 'Thread ID to reply to',
+      condition: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'thread' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'thread' },
+      },
     },
     {
       id: 'commentCreatedAt',
@@ -983,6 +1080,208 @@ workspace-member.created
       },
     },
 
+    // Attribute fields
+    {
+      id: 'attributeTarget',
+      title: 'Target',
+      type: 'dropdown',
+      options: [
+        { label: 'Object', id: 'objects' },
+        { label: 'List', id: 'lists' },
+      ],
+      value: () => 'objects',
+      condition: {
+        field: 'operation',
+        value: ['list_attributes', 'get_attribute', 'create_attribute', 'update_attribute'],
+      },
+      required: {
+        field: 'operation',
+        value: ['list_attributes', 'get_attribute', 'create_attribute', 'update_attribute'],
+      },
+    },
+    {
+      id: 'attributeIdentifier',
+      title: 'Object or List ID/Slug',
+      type: 'short-input',
+      placeholder: 'e.g. people, companies',
+      condition: {
+        field: 'operation',
+        value: ['list_attributes', 'get_attribute', 'create_attribute', 'update_attribute'],
+      },
+      required: {
+        field: 'operation',
+        value: ['list_attributes', 'get_attribute', 'create_attribute', 'update_attribute'],
+      },
+    },
+    {
+      id: 'attributeId',
+      title: 'Attribute ID or Slug',
+      type: 'short-input',
+      placeholder: 'e.g. email_addresses',
+      condition: { field: 'operation', value: ['get_attribute', 'update_attribute'] },
+      required: { field: 'operation', value: ['get_attribute', 'update_attribute'] },
+    },
+    {
+      id: 'attributeTitle',
+      title: 'Title',
+      type: 'short-input',
+      placeholder: 'e.g. Lead Source',
+      condition: { field: 'operation', value: ['create_attribute', 'update_attribute'] },
+      required: { field: 'operation', value: 'create_attribute' },
+    },
+    {
+      id: 'attributeApiSlug',
+      title: 'API Slug',
+      type: 'short-input',
+      placeholder: 'e.g. lead_source',
+      condition: { field: 'operation', value: ['create_attribute', 'update_attribute'] },
+      required: { field: 'operation', value: 'create_attribute' },
+    },
+    {
+      id: 'attributeType',
+      title: 'Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Text', id: 'text' },
+        { label: 'Number', id: 'number' },
+        { label: 'Checkbox', id: 'checkbox' },
+        { label: 'Currency', id: 'currency' },
+        { label: 'Date', id: 'date' },
+        { label: 'Timestamp', id: 'timestamp' },
+        { label: 'Rating', id: 'rating' },
+        { label: 'Status', id: 'status' },
+        { label: 'Select', id: 'select' },
+        { label: 'Record Reference', id: 'record-reference' },
+        { label: 'Actor Reference', id: 'actor-reference' },
+        { label: 'Location', id: 'location' },
+        { label: 'Domain', id: 'domain' },
+        { label: 'Email Address', id: 'email-address' },
+        { label: 'Phone Number', id: 'phone-number' },
+      ],
+      condition: { field: 'operation', value: 'create_attribute' },
+      required: { field: 'operation', value: 'create_attribute' },
+    },
+    {
+      id: 'attributeDescription',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Describe the attribute',
+      condition: { field: 'operation', value: ['create_attribute', 'update_attribute'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'attributeIsRequired',
+      title: 'Required',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'create_attribute' },
+      mode: 'advanced',
+    },
+    {
+      id: 'attributeIsRequiredUpdate',
+      title: 'Required',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged', id: 'unchanged' },
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'unchanged',
+      condition: { field: 'operation', value: 'update_attribute' },
+      mode: 'advanced',
+    },
+    {
+      id: 'attributeIsUnique',
+      title: 'Unique',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'create_attribute' },
+      mode: 'advanced',
+    },
+    {
+      id: 'attributeIsUniqueUpdate',
+      title: 'Unique',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged', id: 'unchanged' },
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'unchanged',
+      condition: { field: 'operation', value: 'update_attribute' },
+      mode: 'advanced',
+    },
+    {
+      id: 'attributeIsMultiselect',
+      title: 'Multiselect',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'create_attribute' },
+      mode: 'advanced',
+    },
+    {
+      id: 'attributeIsArchived',
+      title: 'Archived',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged', id: 'unchanged' },
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'unchanged',
+      condition: { field: 'operation', value: 'update_attribute' },
+      mode: 'advanced',
+    },
+    {
+      id: 'attributeConfig',
+      title: 'Config',
+      type: 'code',
+      placeholder: '{"default_currency_code": "USD", "display_type": "text"}',
+      condition: { field: 'operation', value: ['create_attribute', 'update_attribute'] },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `Generate Attio attribute type configuration as a JSON object.
+
+### CONTEXT
+{context}
+
+### CRITICAL INSTRUCTION
+Return ONLY the JSON object. No explanations, no markdown, no extra text.
+
+### EXAMPLES
+Currency: {"default_currency_code": "USD", "display_type": "text"}
+Record reference: {"allowed_objects": ["people", "companies"]}`,
+        placeholder: 'Describe the attribute configuration...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'attributeShowArchived',
+      title: 'Show Archived',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'list_attributes' },
+      mode: 'advanced',
+    },
+
     // Shared limit
     {
       id: 'limit',
@@ -1000,6 +1299,7 @@ workspace-member.created
           'query_list_entries',
           'list_threads',
           'list_webhooks',
+          'list_attributes',
         ],
       },
     },
@@ -1018,8 +1318,22 @@ workspace-member.created
           'query_list_entries',
           'list_threads',
           'list_webhooks',
+          'list_attributes',
         ],
       },
+    },
+    {
+      id: 'taskSort',
+      title: 'Sort',
+      type: 'dropdown',
+      options: [
+        { label: 'Created At (asc)', id: 'created_at:asc' },
+        { label: 'Created At (desc)', id: 'created_at:desc' },
+        { label: 'Completed At (asc)', id: 'completed_at:asc' },
+        { label: 'Completed At (desc)', id: 'completed_at:desc' },
+      ],
+      condition: { field: 'operation', value: 'list_tasks' },
+      mode: 'advanced',
     },
     ...getTrigger('attio_record_created').subBlocks,
     ...getTrigger('attio_record_updated').subBlocks,
@@ -1116,6 +1430,10 @@ workspace-member.created
       'attio_create_webhook',
       'attio_update_webhook',
       'attio_delete_webhook',
+      'attio_list_attributes',
+      'attio_get_attribute',
+      'attio_create_attribute',
+      'attio_update_attribute',
     ],
     config: {
       tool: (params) => `attio_${params.operation}`,
@@ -1123,92 +1441,285 @@ workspace-member.created
         const cleanParams: Record<string, unknown> = {
           oauthCredential: params.oauthCredential,
         }
+        const op = params.operation
 
-        // Record params
-        if (params.objectType) cleanParams.objectType = params.objectType
-        if (params.recordId) cleanParams.recordId = params.recordId
-        if (params.matchingAttribute) cleanParams.matchingAttribute = params.matchingAttribute
-        if (params.values) cleanParams.values = params.values
-        if (params.filter) cleanParams.filter = params.filter
-        if (params.sorts) cleanParams.sorts = params.sorts
-        if (params.query) cleanParams.query = params.query
-        if (params.objects) cleanParams.objects = params.objects
+        // Record params — each field is only sent for the operations whose subBlock condition
+        // actually exposes it, so a stale value left over from switching operations never leaks
+        // into an unrelated request (cleanParams keys are reused across several operation families).
+        if (
+          [
+            'list_records',
+            'get_record',
+            'create_record',
+            'update_record',
+            'delete_record',
+            'assert_record',
+          ].includes(op) &&
+          params.objectType
+        )
+          cleanParams.objectType = params.objectType
+        if (['get_record', 'update_record', 'delete_record'].includes(op) && params.recordId)
+          cleanParams.recordId = params.recordId
+        if (op === 'assert_record' && params.matchingAttribute)
+          cleanParams.matchingAttribute = params.matchingAttribute
+        if (['create_record', 'update_record', 'assert_record'].includes(op) && params.values)
+          cleanParams.values = params.values
+        if (op === 'list_records' && params.filter) cleanParams.filter = params.filter
+        if (op === 'list_records' && params.sorts) cleanParams.sorts = params.sorts
+        if (op === 'search_records' && params.query) cleanParams.query = params.query
+        if (op === 'search_records' && params.objects) cleanParams.objects = params.objects
 
         // Note params
-        if (params.noteParentObject) cleanParams.parentObject = params.noteParentObject
-        if (params.noteParentRecordId) cleanParams.parentRecordId = params.noteParentRecordId
-        if (params.noteTitle) cleanParams.title = params.noteTitle
-        if (params.noteContent) cleanParams.content = params.noteContent
-        if (params.noteFormat) cleanParams.format = params.noteFormat
-        if (params.noteId) cleanParams.noteId = params.noteId
-        if (params.noteCreatedAt) cleanParams.createdAt = params.noteCreatedAt
-        if (params.noteMeetingId) cleanParams.meetingId = params.noteMeetingId
+        if (['list_notes', 'create_note'].includes(op) && params.noteParentObject)
+          cleanParams.parentObject = params.noteParentObject
+        if (['list_notes', 'create_note'].includes(op) && params.noteParentRecordId)
+          cleanParams.parentRecordId = params.noteParentRecordId
+        if (op === 'create_note' && params.noteTitle) cleanParams.title = params.noteTitle
+        if (op === 'create_note' && params.noteContent) cleanParams.content = params.noteContent
+        if (op === 'create_note' && params.noteFormat) cleanParams.format = params.noteFormat
+        if (op === 'create_note' && params.noteCreatedAt)
+          cleanParams.createdAt = params.noteCreatedAt
+        if (op === 'create_note' && params.noteMeetingId)
+          cleanParams.meetingId = params.noteMeetingId
+        if (['get_note', 'delete_note'].includes(op) && params.noteId)
+          cleanParams.noteId = params.noteId
 
         // Task params
-        if (params.taskContent) cleanParams.content = params.taskContent
-        if (params.taskDeadline) cleanParams.deadlineAt = params.taskDeadline
-        if (params.taskIsCompleted !== undefined)
+        if (op === 'create_task' && params.taskContent) cleanParams.content = params.taskContent
+        if (['create_task', 'update_task'].includes(op) && params.taskDeadline)
+          cleanParams.deadlineAt = params.taskDeadline
+        if (op === 'create_task' && params.taskIsCompleted !== undefined)
           cleanParams.isCompleted =
             params.taskIsCompleted === 'true' || params.taskIsCompleted === true
-        if (params.taskLinkedRecords) cleanParams.linkedRecords = params.taskLinkedRecords
-        if (params.taskAssignees) cleanParams.assignees = params.taskAssignees
-        if (params.taskId) cleanParams.taskId = params.taskId
-        if (params.taskFilterObject) cleanParams.linkedObject = params.taskFilterObject
-        if (params.taskFilterRecordId) cleanParams.linkedRecordId = params.taskFilterRecordId
-        if (params.taskFilterAssignee) cleanParams.assignee = params.taskFilterAssignee
-        if (params.taskFilterCompleted && params.taskFilterCompleted !== 'all')
+        if (op === 'update_task') {
+          // taskIsCompletedUpdate is the current control; taskIsCompleted is a fallback for blocks
+          // saved before the split, when that field applied to both create_task and update_task.
+          if (
+            params.taskIsCompletedUpdate !== undefined &&
+            params.taskIsCompletedUpdate !== 'unchanged'
+          ) {
+            cleanParams.isCompleted =
+              params.taskIsCompletedUpdate === 'true' || params.taskIsCompletedUpdate === true
+          } else if (
+            params.taskIsCompletedUpdate === undefined &&
+            params.taskIsCompleted !== undefined
+          ) {
+            cleanParams.isCompleted =
+              params.taskIsCompleted === 'true' || params.taskIsCompleted === true
+          }
+        }
+        if (['create_task', 'update_task'].includes(op) && params.taskLinkedRecords)
+          cleanParams.linkedRecords = params.taskLinkedRecords
+        if (['create_task', 'update_task'].includes(op) && params.taskAssignees)
+          cleanParams.assignees = params.taskAssignees
+        if (['get_task', 'update_task', 'delete_task'].includes(op) && params.taskId)
+          cleanParams.taskId = params.taskId
+        if (op === 'list_tasks' && params.taskFilterObject)
+          cleanParams.linkedObject = params.taskFilterObject
+        if (op === 'list_tasks' && params.taskFilterRecordId)
+          cleanParams.linkedRecordId = params.taskFilterRecordId
+        if (op === 'list_tasks' && params.taskFilterAssignee)
+          cleanParams.assignee = params.taskFilterAssignee
+        if (
+          op === 'list_tasks' &&
+          params.taskFilterCompleted &&
+          params.taskFilterCompleted !== 'all'
+        )
           cleanParams.isCompleted = params.taskFilterCompleted === 'true'
+        if (op === 'list_tasks' && params.taskSort) cleanParams.sort = params.taskSort
 
         // Object params
-        if (params.objectIdOrSlug) cleanParams.object = params.objectIdOrSlug
-        if (params.objectApiSlug) cleanParams.apiSlug = params.objectApiSlug
-        if (params.objectSingularNoun) cleanParams.singularNoun = params.objectSingularNoun
-        if (params.objectPluralNoun) cleanParams.pluralNoun = params.objectPluralNoun
+        if (['get_object', 'update_object'].includes(op) && params.objectIdOrSlug)
+          cleanParams.object = params.objectIdOrSlug
+        if (['create_object', 'update_object'].includes(op) && params.objectApiSlug)
+          cleanParams.apiSlug = params.objectApiSlug
+        if (['create_object', 'update_object'].includes(op) && params.objectSingularNoun)
+          cleanParams.singularNoun = params.objectSingularNoun
+        if (['create_object', 'update_object'].includes(op) && params.objectPluralNoun)
+          cleanParams.pluralNoun = params.objectPluralNoun
 
         // List params
-        if (params.listIdOrSlug) cleanParams.list = params.listIdOrSlug
-        if (params.listName) cleanParams.name = params.listName
-        if (params.listParentObject) cleanParams.parentObject = params.listParentObject
-        if (params.listApiSlug) cleanParams.apiSlug = params.listApiSlug
-        if (params.listWorkspaceAccess) cleanParams.workspaceAccess = params.listWorkspaceAccess
+        if (
+          [
+            'get_list',
+            'update_list',
+            'query_list_entries',
+            'get_list_entry',
+            'create_list_entry',
+            'update_list_entry',
+            'delete_list_entry',
+          ].includes(op) &&
+          params.listIdOrSlug
+        )
+          cleanParams.list = params.listIdOrSlug
+        if (['create_list', 'update_list'].includes(op) && params.listName)
+          cleanParams.name = params.listName
+        if (op === 'create_list' && params.listParentObject)
+          cleanParams.parentObject = params.listParentObject
+        if (['create_list', 'update_list'].includes(op) && params.listApiSlug)
+          cleanParams.apiSlug = params.listApiSlug
+        if (op === 'create_list' && params.listWorkspaceAccess)
+          cleanParams.workspaceAccess = params.listWorkspaceAccess
+        if (op === 'update_list') {
+          // listWorkspaceAccessUpdate is the current control; listWorkspaceAccess is a fallback
+          // for blocks saved before the split, when that field applied to both create and update.
+          if (
+            params.listWorkspaceAccessUpdate &&
+            params.listWorkspaceAccessUpdate !== 'unchanged'
+          ) {
+            cleanParams.workspaceAccess = params.listWorkspaceAccessUpdate
+          } else if (!params.listWorkspaceAccessUpdate && params.listWorkspaceAccess) {
+            cleanParams.workspaceAccess = params.listWorkspaceAccess
+          }
+        }
 
         // List entry params
-        if (params.entryId) cleanParams.entryId = params.entryId
-        if (params.entryParentRecordId) cleanParams.parentRecordId = params.entryParentRecordId
-        if (params.entryParentObject) cleanParams.parentObject = params.entryParentObject
-        if (params.entryValues) cleanParams.entryValues = params.entryValues
-        if (params.entryFilter) cleanParams.filter = params.entryFilter
-        if (params.entrySorts) cleanParams.sorts = params.entrySorts
+        if (
+          ['get_list_entry', 'update_list_entry', 'delete_list_entry'].includes(op) &&
+          params.entryId
+        )
+          cleanParams.entryId = params.entryId
+        if (op === 'create_list_entry' && params.entryParentRecordId)
+          cleanParams.parentRecordId = params.entryParentRecordId
+        if (op === 'create_list_entry' && params.entryParentObject)
+          cleanParams.parentObject = params.entryParentObject
+        if (['create_list_entry', 'update_list_entry'].includes(op) && params.entryValues)
+          cleanParams.entryValues = params.entryValues
+        if (op === 'query_list_entries' && params.entryFilter)
+          cleanParams.filter = params.entryFilter
+        if (op === 'query_list_entries' && params.entrySorts) cleanParams.sorts = params.entrySorts
 
         // Member params
-        if (params.memberId) cleanParams.memberId = params.memberId
+        if (op === 'get_member' && params.memberId) cleanParams.memberId = params.memberId
 
         // Comment params
-        if (params.commentContent) cleanParams.content = params.commentContent
-        if (params.commentFormat) cleanParams.format = params.commentFormat
-        if (params.commentAuthorType) cleanParams.authorType = params.commentAuthorType
-        if (params.commentAuthorId) cleanParams.authorId = params.commentAuthorId
-        if (params.commentList) cleanParams.list = params.commentList
-        if (params.commentEntryId) cleanParams.entryId = params.commentEntryId
-        if (params.commentThreadId) cleanParams.threadId = params.commentThreadId
-        if (params.commentCreatedAt) cleanParams.createdAt = params.commentCreatedAt
-        if (params.commentId) cleanParams.commentId = params.commentId
+        if (op === 'create_comment') {
+          if (params.commentContent) cleanParams.content = params.commentContent
+          if (params.commentFormat) cleanParams.format = params.commentFormat
+          if (params.commentAuthorType) cleanParams.authorType = params.commentAuthorType
+          if (params.commentAuthorId) cleanParams.authorId = params.commentAuthorId
+          // Blocks saved before commentTarget existed have no value for it — fall back to the
+          // pre-existing behavior (entry-based comment, or thread reply if a thread ID was set).
+          const commentTarget =
+            params.commentTarget ?? (params.commentThreadId ? 'thread' : 'entry')
+          if (commentTarget === 'entry') {
+            if (params.commentList) cleanParams.list = params.commentList
+            if (params.commentEntryId) cleanParams.entryId = params.commentEntryId
+          } else if (commentTarget === 'record') {
+            if (params.commentRecordObject) cleanParams.recordObject = params.commentRecordObject
+            if (params.commentRecordId) cleanParams.recordId = params.commentRecordId
+          } else if (commentTarget === 'thread') {
+            if (params.commentThreadId) cleanParams.threadId = params.commentThreadId
+          }
+          if (params.commentCreatedAt) cleanParams.createdAt = params.commentCreatedAt
+        }
+        if (['get_comment', 'delete_comment'].includes(op) && params.commentId)
+          cleanParams.commentId = params.commentId
 
         // Thread params
-        if (params.threadId) cleanParams.threadId = params.threadId
-        if (params.threadFilterRecordId) cleanParams.recordId = params.threadFilterRecordId
-        if (params.threadFilterObject) cleanParams.object = params.threadFilterObject
-        if (params.threadFilterEntryId) cleanParams.entryId = params.threadFilterEntryId
-        if (params.threadFilterList) cleanParams.list = params.threadFilterList
+        if (op === 'get_thread' && params.threadId) cleanParams.threadId = params.threadId
+        if (op === 'list_threads' && params.threadFilterRecordId)
+          cleanParams.recordId = params.threadFilterRecordId
+        if (op === 'list_threads' && params.threadFilterObject)
+          cleanParams.object = params.threadFilterObject
+        if (op === 'list_threads' && params.threadFilterEntryId)
+          cleanParams.entryId = params.threadFilterEntryId
+        if (op === 'list_threads' && params.threadFilterList)
+          cleanParams.list = params.threadFilterList
 
         // Webhook params
-        if (params.webhookId) cleanParams.webhookId = params.webhookId
-        if (params.webhookTargetUrl) cleanParams.targetUrl = params.webhookTargetUrl
-        if (params.webhookSubscriptions) cleanParams.subscriptions = params.webhookSubscriptions
+        if (['get_webhook', 'update_webhook', 'delete_webhook'].includes(op) && params.webhookId)
+          cleanParams.webhookId = params.webhookId
+        if (['create_webhook', 'update_webhook'].includes(op) && params.webhookTargetUrl)
+          cleanParams.targetUrl = params.webhookTargetUrl
+        if (['create_webhook', 'update_webhook'].includes(op) && params.webhookSubscriptions)
+          cleanParams.subscriptions = params.webhookSubscriptions
 
-        // Shared params
-        if (params.limit) cleanParams.limit = Number(params.limit)
-        if (params.offset) cleanParams.offset = Number(params.offset)
+        // Attribute params
+        const attributeOps = [
+          'list_attributes',
+          'get_attribute',
+          'create_attribute',
+          'update_attribute',
+        ]
+        if (attributeOps.includes(op) && params.attributeTarget)
+          cleanParams.target = params.attributeTarget
+        if (attributeOps.includes(op) && params.attributeIdentifier)
+          cleanParams.identifier = params.attributeIdentifier
+        if (['get_attribute', 'update_attribute'].includes(op) && params.attributeId)
+          cleanParams.attribute = params.attributeId
+        if (['create_attribute', 'update_attribute'].includes(op) && params.attributeTitle)
+          cleanParams.title = params.attributeTitle
+        if (['create_attribute', 'update_attribute'].includes(op) && params.attributeApiSlug)
+          cleanParams.apiSlug = params.attributeApiSlug
+        if (op === 'create_attribute' && params.attributeType)
+          cleanParams.type = params.attributeType
+        if (['create_attribute', 'update_attribute'].includes(op) && params.attributeDescription)
+          cleanParams.description = params.attributeDescription
+        if (op === 'create_attribute' && params.attributeIsRequired !== undefined)
+          cleanParams.isRequired =
+            params.attributeIsRequired === 'true' || params.attributeIsRequired === true
+        if (
+          op === 'update_attribute' &&
+          params.attributeIsRequiredUpdate !== undefined &&
+          params.attributeIsRequiredUpdate !== 'unchanged'
+        )
+          cleanParams.isRequired =
+            params.attributeIsRequiredUpdate === 'true' || params.attributeIsRequiredUpdate === true
+        if (op === 'create_attribute' && params.attributeIsUnique !== undefined)
+          cleanParams.isUnique =
+            params.attributeIsUnique === 'true' || params.attributeIsUnique === true
+        if (
+          op === 'update_attribute' &&
+          params.attributeIsUniqueUpdate !== undefined &&
+          params.attributeIsUniqueUpdate !== 'unchanged'
+        )
+          cleanParams.isUnique =
+            params.attributeIsUniqueUpdate === 'true' || params.attributeIsUniqueUpdate === true
+        if (op === 'create_attribute' && params.attributeIsMultiselect !== undefined)
+          cleanParams.isMultiselect =
+            params.attributeIsMultiselect === 'true' || params.attributeIsMultiselect === true
+        if (
+          op === 'update_attribute' &&
+          params.attributeIsArchived !== undefined &&
+          params.attributeIsArchived !== 'unchanged'
+        )
+          cleanParams.isArchived =
+            params.attributeIsArchived === 'true' || params.attributeIsArchived === true
+        if (['create_attribute', 'update_attribute'].includes(op) && params.attributeConfig)
+          cleanParams.config = params.attributeConfig
+        if (op === 'list_attributes' && params.attributeShowArchived !== undefined)
+          cleanParams.showArchived =
+            params.attributeShowArchived === 'true' || params.attributeShowArchived === true
+
+        // Shared pagination params — only meaningful for list-style operations
+        if (
+          [
+            'list_records',
+            'search_records',
+            'list_notes',
+            'list_tasks',
+            'query_list_entries',
+            'list_threads',
+            'list_webhooks',
+            'list_attributes',
+          ].includes(op) &&
+          params.limit
+        )
+          cleanParams.limit = Number(params.limit)
+        if (
+          [
+            'list_records',
+            'list_notes',
+            'list_tasks',
+            'query_list_entries',
+            'list_threads',
+            'list_webhooks',
+            'list_attributes',
+          ].includes(op) &&
+          params.offset
+        )
+          cleanParams.offset = Number(params.offset)
 
         return cleanParams
       },
@@ -1237,6 +1748,7 @@ workspace-member.created
     taskContent: { type: 'string', description: 'Task content' },
     taskDeadline: { type: 'string', description: 'Task deadline' },
     taskIsCompleted: { type: 'string', description: 'Task completion status' },
+    taskIsCompletedUpdate: { type: 'string', description: 'Task completion status (update)' },
     taskLinkedRecords: { type: 'json', description: 'Linked records JSON array' },
     taskAssignees: { type: 'json', description: 'Assignees JSON array' },
     taskId: { type: 'string', description: 'Task ID' },
@@ -1249,6 +1761,10 @@ workspace-member.created
     listParentObject: { type: 'string', description: 'List parent object' },
     listApiSlug: { type: 'string', description: 'List API slug' },
     listWorkspaceAccess: { type: 'string', description: 'List workspace-level access' },
+    listWorkspaceAccessUpdate: {
+      type: 'string',
+      description: 'List workspace-level access (update)',
+    },
     entryId: { type: 'string', description: 'List entry ID' },
     entryParentRecordId: { type: 'string', description: 'Record ID for list entry' },
     entryParentObject: { type: 'string', description: 'Record object type for list entry' },
@@ -1260,8 +1776,11 @@ workspace-member.created
     commentFormat: { type: 'string', description: 'Comment format' },
     commentAuthorType: { type: 'string', description: 'Comment author type' },
     commentAuthorId: { type: 'string', description: 'Comment author ID' },
+    commentTarget: { type: 'string', description: 'What the comment is attached to' },
     commentList: { type: 'string', description: 'List for comment' },
     commentEntryId: { type: 'string', description: 'Entry ID for comment' },
+    commentRecordObject: { type: 'string', description: 'Object for record comment' },
+    commentRecordId: { type: 'string', description: 'Record ID for record comment' },
     commentThreadId: { type: 'string', description: 'Thread ID to reply to' },
     commentCreatedAt: { type: 'string', description: 'Comment creation timestamp (backdate)' },
     commentId: { type: 'string', description: 'Comment ID' },
@@ -1269,6 +1788,34 @@ workspace-member.created
     webhookId: { type: 'string', description: 'Webhook ID' },
     webhookTargetUrl: { type: 'string', description: 'Webhook target URL' },
     webhookSubscriptions: { type: 'json', description: 'Webhook event subscriptions' },
+    attributeTarget: {
+      type: 'string',
+      description: 'Whether the attribute is on an object or list',
+    },
+    attributeIdentifier: { type: 'string', description: 'The object or list ID or slug' },
+    attributeId: { type: 'string', description: 'The attribute ID or slug' },
+    attributeTitle: { type: 'string', description: 'The attribute display title' },
+    attributeApiSlug: { type: 'string', description: 'The attribute API slug' },
+    attributeType: { type: 'string', description: 'The attribute value type' },
+    attributeDescription: { type: 'string', description: 'The attribute description' },
+    attributeIsRequired: { type: 'string', description: 'Whether the attribute is required' },
+    attributeIsRequiredUpdate: {
+      type: 'string',
+      description: 'Whether the attribute is required (update)',
+    },
+    attributeIsUnique: { type: 'string', description: 'Whether the attribute is unique' },
+    attributeIsUniqueUpdate: {
+      type: 'string',
+      description: 'Whether the attribute is unique (update)',
+    },
+    attributeIsMultiselect: { type: 'string', description: 'Whether the attribute is multiselect' },
+    attributeIsArchived: { type: 'string', description: 'Whether the attribute is archived' },
+    attributeConfig: { type: 'json', description: 'Type-dependent attribute configuration' },
+    attributeShowArchived: {
+      type: 'string',
+      description: 'Whether to include archived attributes',
+    },
+    taskSort: { type: 'string', description: 'Task list sort order' },
     limit: { type: 'string', description: 'Maximum number of results' },
     offset: { type: 'string', description: 'Number of results to skip for pagination' },
   },
@@ -1289,6 +1836,7 @@ workspace-member.created
     content: { type: 'string', description: 'Task or note content' },
     deadlineAt: { type: 'string', description: 'Task deadline' },
     isCompleted: { type: 'boolean', description: 'Task completion status' },
+    completedAt: { type: 'string', description: 'When the task was completed' },
     linkedRecords: { type: 'json', description: 'Linked records' },
     assignees: { type: 'json', description: 'Task assignees' },
     objects: { type: 'json', description: 'Array of objects' },
@@ -1322,6 +1870,32 @@ workspace-member.created
     deleted: { type: 'boolean', description: 'Whether the item was deleted' },
     createdAt: { type: 'string', description: 'When the item was created' },
     success: { type: 'boolean', description: 'Whether the operation succeeded' },
+    attributes: { type: 'json', description: 'Array of attributes' },
+    attributeId: { type: 'string', description: 'The attribute ID' },
+    description: { type: 'string', description: 'The attribute description' },
+    type: { type: 'string', description: 'The attribute value type' },
+    isSystemAttribute: {
+      type: 'boolean',
+      description: 'Whether this is a built-in system attribute',
+    },
+    isWritable: { type: 'boolean', description: 'Whether the attribute can be written to' },
+    isRequired: { type: 'boolean', description: 'Whether the attribute is required' },
+    isUnique: { type: 'boolean', description: 'Whether the attribute enforces uniqueness' },
+    isMultiselect: { type: 'boolean', description: 'Whether the attribute is multiselect' },
+    isDefaultValueEnabled: {
+      type: 'boolean',
+      description: 'Whether this attribute has a default value enabled',
+    },
+    isArchived: { type: 'boolean', description: 'Whether the attribute is archived' },
+    defaultValue: {
+      type: 'json',
+      description: 'The default value for this attribute, if enabled',
+    },
+    relationship: {
+      type: 'json',
+      description: 'The related attribute, if this attribute is part of a relationship',
+    },
+    config: { type: 'json', description: 'Type-dependent attribute configuration' },
   },
 }
 

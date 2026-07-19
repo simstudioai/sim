@@ -1,6 +1,5 @@
 import { db } from '@sim/db'
 import {
-  a2aAgent,
   apiKey,
   chat,
   webhook,
@@ -15,11 +14,12 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { cleanupWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { env } from '@/lib/core/config/env'
-import { getRedisClient } from '@/lib/core/config/redis'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
+import { releaseWebhookPathClaims } from '@/lib/webhooks/path-claims'
+import { supersedeInFlightDeploymentOperations } from '@/lib/workflows/persistence/deployment-operations'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowLifecycle')
@@ -87,30 +87,6 @@ async function cleanupExternalWebhooksForWorkflow(
   }
 }
 
-async function clearA2AAgentCardCache(workflowId: string, requestId: string): Promise<void> {
-  const redis = getRedisClient()
-  if (!redis) {
-    return
-  }
-
-  try {
-    const agents = await db
-      .select({ id: a2aAgent.id })
-      .from(a2aAgent)
-      .where(and(eq(a2aAgent.workflowId, workflowId), isNull(a2aAgent.archivedAt)))
-
-    if (agents.length === 0) {
-      return
-    }
-
-    await redis.del(...agents.map((agent) => `a2a:agent:${agent.id}:card`))
-  } catch (error) {
-    logger.warn(`[${requestId}] Failed to clear A2A agent card cache for workflow ${workflowId}`, {
-      error,
-    })
-  }
-}
-
 export async function archiveWorkflow(
   workflowId: string,
   options: ArchiveWorkflowOptions
@@ -131,9 +107,10 @@ export async function archiveWorkflow(
     .from(workflowMcpTool)
     .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
 
-  await clearA2AAgentCardCache(workflowId, options.requestId)
-
   await db.transaction(async (tx) => {
+    await supersedeInFlightDeploymentOperations(tx, workflowId)
+    await releaseWebhookPathClaims(tx, workflowId)
+
     await tx
       .update(workflowSchedule)
       .set({
@@ -177,15 +154,6 @@ export async function archiveWorkflow(
         isActive: false,
       })
       .where(eq(workflowDeploymentVersion.workflowId, workflowId))
-
-    await tx
-      .update(a2aAgent)
-      .set({
-        archivedAt: now,
-        updatedAt: now,
-        isPublished: false,
-      })
-      .where(and(eq(a2aAgent.workflowId, workflowId), isNull(a2aAgent.archivedAt)))
 
     await tx
       .update(workflow)
@@ -312,11 +280,6 @@ export async function restoreWorkflow(
       .update(workflowMcpTool)
       .set({ archivedAt: null, updatedAt: now })
       .where(eq(workflowMcpTool.workflowId, workflowId))
-
-    await tx
-      .update(a2aAgent)
-      .set({ archivedAt: null, updatedAt: now })
-      .where(eq(a2aAgent.workflowId, workflowId))
   })
 
   logger.info(`[${options.requestId}] Restored workflow ${workflowId}`)

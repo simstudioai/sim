@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import * as schema from '@sim/db'
 import {
   instrumentPoolClient,
+  resolveDbUrl,
   workflow,
   workflowBlocks,
   workflowEdges,
@@ -23,7 +24,15 @@ import {
 import { randomFloat } from '@sim/utils/random'
 import { loadWorkflowFromNormalizedTablesRaw } from '@sim/workflow-persistence/load'
 import { mergeSubBlockValues } from '@sim/workflow-persistence/subblocks'
-import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
+import {
+  filterAcyclicEdges,
+  filterUniqueWorkflowEdges,
+  getWorkflowBlockNameConflict,
+  getWorkflowEdgeScopeDropReason,
+  isKnownWorkflowTriggerBlock,
+  isWorkflowAnnotationOnlyBlockType,
+  isWorkflowBlockProtected,
+} from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -31,14 +40,183 @@ import { env } from '@/env'
 
 const logger = createLogger('SocketDatabase')
 
-const connectionString = env.DATABASE_URL
+interface PersistedEdgeRecord {
+  sourceBlockId: string
+  targetBlockId: string
+  sourceHandle: string | null
+  targetHandle: string | null
+}
+
+function toEdgeHandles(edge: PersistedEdgeRecord) {
+  return {
+    source: edge.sourceBlockId,
+    target: edge.targetBlockId,
+    sourceHandle: edge.sourceHandle,
+    targetHandle: edge.targetHandle,
+  }
+}
+
+interface EdgeAddCandidate {
+  id?: string
+  source: string
+  target: string
+  sourceHandle?: string | null
+  targetHandle?: string | null
+}
+
+interface FilterEdgesForPersistResult<T> {
+  safeEdges: T[]
+  droppedCounts: Record<string, number>
+  droppedDuplicates: number
+  droppedCyclic: number
+}
+
+/**
+ * Runs the full server-side edge-add validation pipeline — missing block,
+ * protected target, annotation-only block, trigger-block target, scope
+ * boundary, duplicate, cycle — against one or more candidate edges. Shared by
+ * the single-edge `ADD` and `BATCH_ADD_EDGES` handlers so the two paths
+ * can't drift out of sync with each other, the same way the client and
+ * realtime layers already share these rules via `@sim/workflow-types`.
+ */
+async function filterEdgesForPersist<T extends EdgeAddCandidate>(
+  tx: any,
+  workflowId: string,
+  candidates: T[]
+): Promise<FilterEdgesForPersistResult<T>> {
+  const connectedBlockIds = new Set<string>()
+  for (const edge of candidates) {
+    connectedBlockIds.add(edge.source)
+    connectedBlockIds.add(edge.target)
+  }
+
+  const connectedBlocks = await tx
+    .select({
+      id: workflowBlocks.id,
+      type: workflowBlocks.type,
+      locked: workflowBlocks.locked,
+      triggerMode: workflowBlocks.triggerMode,
+      data: workflowBlocks.data,
+    })
+    .from(workflowBlocks)
+    .where(
+      and(
+        eq(workflowBlocks.workflowId, workflowId),
+        inArray(workflowBlocks.id, Array.from(connectedBlockIds))
+      )
+    )
+
+  type EdgeBlockRecord = (typeof connectedBlocks)[number]
+  const blocksById: Record<string, EdgeBlockRecord> = Object.fromEntries(
+    connectedBlocks.map((b: EdgeBlockRecord) => [b.id, b])
+  )
+
+  const parentIds = new Set<string>()
+  for (const block of connectedBlocks) {
+    const parentId = (block.data as Record<string, unknown> | null)?.parentId as string | undefined
+    if (parentId && !blocksById[parentId]) {
+      parentIds.add(parentId)
+    }
+  }
+
+  if (parentIds.size > 0) {
+    const parentBlocks = await tx
+      .select({
+        id: workflowBlocks.id,
+        type: workflowBlocks.type,
+        locked: workflowBlocks.locked,
+        data: workflowBlocks.data,
+      })
+      .from(workflowBlocks)
+      .where(
+        and(
+          eq(workflowBlocks.workflowId, workflowId),
+          inArray(workflowBlocks.id, Array.from(parentIds))
+        )
+      )
+    for (const b of parentBlocks) {
+      blocksById[b.id] = b
+    }
+  }
+
+  const droppedCounts: Record<string, number> = {}
+  const countDrop = (reason: string) => {
+    droppedCounts[reason] = (droppedCounts[reason] ?? 0) + 1
+  }
+
+  // Mirrors the client's validateEdges rule order: missing block, protected
+  // target, annotation-only block, trigger-block target, scope boundary.
+  // `scopeDropReason`'s detail (which names the specific block ids/scopes)
+  // is dropped in favor of a stable 'scope boundary' key so droppedCounts
+  // aggregates across edges instead of gaining one free-text key per edge.
+  const structurallyValidEdges = candidates.filter((edge) => {
+    const sourceBlock = blocksById[edge.source]
+    const targetBlock = blocksById[edge.target]
+
+    if (!sourceBlock || !targetBlock) {
+      countDrop('missing block')
+      return false
+    }
+    if (isWorkflowBlockProtected(edge.target, blocksById)) {
+      countDrop('protected target block')
+      return false
+    }
+    if (
+      isWorkflowAnnotationOnlyBlockType(sourceBlock.type) ||
+      isWorkflowAnnotationOnlyBlockType(targetBlock.type)
+    ) {
+      countDrop('annotation-only block')
+      return false
+    }
+    if (isKnownWorkflowTriggerBlock(targetBlock)) {
+      countDrop('trigger block target')
+      return false
+    }
+    if (getWorkflowEdgeScopeDropReason(edge, blocksById)) {
+      countDrop('scope boundary')
+      return false
+    }
+    return true
+  })
+
+  if (structurallyValidEdges.length === 0) {
+    return { safeEdges: [], droppedCounts, droppedDuplicates: 0, droppedCyclic: 0 }
+  }
+
+  const existingEdgesForCycleCheck: PersistedEdgeRecord[] = await tx
+    .select({
+      sourceBlockId: workflowEdges.sourceBlockId,
+      targetBlockId: workflowEdges.targetBlockId,
+      sourceHandle: workflowEdges.sourceHandle,
+      targetHandle: workflowEdges.targetHandle,
+    })
+    .from(workflowEdges)
+    .where(eq(workflowEdges.workflowId, workflowId))
+  const existingEdgeEndpoints = existingEdgesForCycleCheck.map(toEdgeHandles)
+
+  const uniqueEdges = filterUniqueWorkflowEdges(structurallyValidEdges, existingEdgeEndpoints)
+  const safeEdges = filterAcyclicEdges(uniqueEdges, existingEdgeEndpoints)
+
+  return {
+    safeEdges,
+    droppedCounts,
+    droppedDuplicates: structurallyValidEdges.length - uniqueEdges.length,
+    droppedCyclic: uniqueEdges.length - safeEdges.length,
+  }
+}
+
+// Both realtime pools (this socketDb + the shared @sim/db pool) resolve the
+// realtime-keyed URL when set, falling back to the shared DATABASE_URL.
+const connectionString =
+  resolveDbUrl('DATABASE_URL', process.env.SIM_DB_ROLE ?? 'realtime') ?? env.DATABASE_URL
+// Realtime process footprint = this socketDb pool + the shared @sim/db pool.
 const socketDb = drizzle(
   instrumentPoolClient(
     postgres(connectionString, {
       prepare: false,
       idle_timeout: 10,
       connect_timeout: 20,
-      max: 15,
+      max: 10,
       onnotice: () => {},
       connection: { application_name: process.env.DB_APP_NAME ?? 'sim-realtime' },
     }),
@@ -224,6 +402,15 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
     }
 
     await db.transaction(async (tx) => {
+      // This UPDATE is also this workflow's write-serialization point, not
+      // just a timestamp bump: it takes a row lock on `workflow` for the
+      // rest of the transaction, so two concurrent persistWorkflowOperation
+      // calls for the same workflowId cannot interleave — the second blocks
+      // here until the first commits or rolls back. Every handler dispatched
+      // below (including the edge-add validate-then-insert sequence in
+      // filterEdgesForPersist) relies on this to read a consistent snapshot;
+      // do not make this UPDATE conditional/skippable as an optimization
+      // without replacing the serialization it provides.
       await tx
         .update(workflow)
         .set({ updatedAt: new Date(timestamp) })
@@ -401,6 +588,22 @@ async function handleBlockOperationTx(
         }
       }
 
+      const siblingBlocks = await tx
+        .select({ id: workflowBlocks.id, name: workflowBlocks.name })
+        .from(workflowBlocks)
+        .where(eq(workflowBlocks.workflowId, workflowId))
+      const siblingNamesById: Record<string, string> = Object.fromEntries(
+        siblingBlocks.map((b: { id: string; name: string }) => [b.id, b.name])
+      )
+
+      const nameConflict = getWorkflowBlockNameConflict(payload.id, payload.name, siblingNamesById)
+      if (nameConflict) {
+        logger.info(
+          `Skipping rename of block ${payload.id} - name conflict: ${nameConflict.reason}`
+        )
+        break
+      }
+
       await tx
         .update(workflowBlocks)
         .set({
@@ -568,6 +771,39 @@ async function handleBlockOperationTx(
       logger.debug(
         `Updated block canonical mode: ${payload.id} -> ${payload.canonicalId}: ${payload.canonicalMode}`
       )
+      break
+    }
+
+    case BLOCK_OPERATIONS.REPLACE_CANONICAL_MODES: {
+      if (!payload.id || !payload.data?.canonicalModes) {
+        throw new Error('Missing required fields for replace canonical modes operation')
+      }
+
+      const existingBlock = await tx
+        .select({ data: workflowBlocks.data })
+        .from(workflowBlocks)
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .limit(1)
+
+      const currentData = (existingBlock?.[0]?.data as Record<string, unknown>) || {}
+
+      const updateResult = await tx
+        .update(workflowBlocks)
+        .set({
+          data: {
+            ...currentData,
+            canonicalModes: payload.data.canonicalModes,
+          },
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
+
+      if (updateResult.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      logger.debug(`Replaced block canonical modes: ${payload.id}`)
       break
     }
 
@@ -782,27 +1018,54 @@ async function handleBlocksOperationTx(
       }
 
       if (edges && edges.length > 0) {
-        const edgeValues = edges.map((edge: Record<string, unknown>) => ({
-          id: edge.id as string,
-          workflowId,
-          sourceBlockId: edge.source as string,
-          targetBlockId: edge.target as string,
-          sourceHandle: (edge.sourceHandle as string | null) || null,
-          targetHandle: (edge.targetHandle as string | null) || null,
-        }))
-
-        await tx
-          .insert(workflowEdges)
-          .values(edgeValues)
-          .onConflictDoUpdate({
-            target: workflowEdges.id,
-            set: {
-              sourceBlockId: sql`excluded.source_block_id`,
-              targetBlockId: sql`excluded.target_block_id`,
-              sourceHandle: sql`excluded.source_handle`,
-              targetHandle: sql`excluded.target_handle`,
-            },
+        // Runs after the block insert above, so filterEdgesForPersist's
+        // blocksById lookup (a plain `tx.select` from `workflowBlocks`) also
+        // sees the blocks this same batch just inserted — reads observe a
+        // transaction's own prior writes.
+        const candidates: EdgeAddCandidate[] = (edges as Array<Record<string, unknown>>).map(
+          (e) => ({
+            id: e.id as string,
+            source: e.source as string,
+            target: e.target as string,
+            sourceHandle: (e.sourceHandle as string | null) ?? null,
+            targetHandle: (e.targetHandle as string | null) ?? null,
           })
+        )
+
+        const { safeEdges, droppedCounts, droppedDuplicates, droppedCyclic } =
+          await filterEdgesForPersist(tx, workflowId, candidates)
+
+        if (safeEdges.length < edges.length) {
+          logger.info(`Dropped ${edges.length - safeEdges.length} invalid edge(s)`, {
+            droppedCounts,
+            droppedDuplicates,
+            droppedCyclic,
+          })
+        }
+
+        if (safeEdges.length > 0) {
+          const edgeValues = safeEdges.map((edge) => ({
+            id: edge.id as string,
+            workflowId,
+            sourceBlockId: edge.source,
+            targetBlockId: edge.target,
+            sourceHandle: edge.sourceHandle || null,
+            targetHandle: edge.targetHandle || null,
+          }))
+
+          await tx
+            .insert(workflowEdges)
+            .values(edgeValues)
+            .onConflictDoUpdate({
+              target: workflowEdges.id,
+              set: {
+                sourceBlockId: sql`excluded.source_block_id`,
+                targetBlockId: sql`excluded.target_block_id`,
+                sourceHandle: sql`excluded.source_handle`,
+                targetHandle: sql`excluded.target_handle`,
+              },
+            })
+        }
       }
 
       if (loops && Object.keys(loops).length > 0) {
@@ -1244,57 +1507,28 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         throw new Error('Missing required fields for add edge operation')
       }
 
-      const edgeBlocks = await tx
-        .select({
-          id: workflowBlocks.id,
-          locked: workflowBlocks.locked,
-          data: workflowBlocks.data,
-        })
-        .from(workflowBlocks)
-        .where(
-          and(
-            eq(workflowBlocks.workflowId, workflowId),
-            inArray(workflowBlocks.id, [payload.source, payload.target])
-          )
-        )
-
-      type EdgeBlockRecord = (typeof edgeBlocks)[number]
-      const blocksById: Record<string, EdgeBlockRecord> = Object.fromEntries(
-        edgeBlocks.map((b: EdgeBlockRecord) => [b.id, b])
+      const { safeEdges, droppedCounts, droppedDuplicates } = await filterEdgesForPersist(
+        tx,
+        workflowId,
+        [
+          {
+            id: payload.id,
+            source: payload.source,
+            target: payload.target,
+            sourceHandle: payload.sourceHandle ?? null,
+            targetHandle: payload.targetHandle ?? null,
+          },
+        ]
       )
 
-      const parentIds = new Set<string>()
-      for (const block of edgeBlocks) {
-        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
-          | string
-          | undefined
-        if (parentId && !blocksById[parentId]) {
-          parentIds.add(parentId)
-        }
-      }
-
-      // Fetch parent blocks if needed
-      if (parentIds.size > 0) {
-        const parentBlocks = await tx
-          .select({
-            id: workflowBlocks.id,
-            locked: workflowBlocks.locked,
-            data: workflowBlocks.data,
-          })
-          .from(workflowBlocks)
-          .where(
-            and(
-              eq(workflowBlocks.workflowId, workflowId),
-              inArray(workflowBlocks.id, Array.from(parentIds))
-            )
-          )
-        for (const b of parentBlocks) {
-          blocksById[b.id] = b
-        }
-      }
-
-      if (isWorkflowBlockProtected(payload.target, blocksById)) {
-        logger.info(`Skipping edge add - target block is protected`)
+      if (safeEdges.length === 0) {
+        const [structuralDropReason] = Object.keys(droppedCounts)
+        const reason = structuralDropReason
+          ? structuralDropReason
+          : droppedDuplicates > 0
+            ? 'duplicate edge already exists'
+            : `would create a cycle: ${payload.source} -> ${payload.target}`
+        logger.info(`Skipping edge add - ${reason}`)
         break
       }
 
@@ -1519,81 +1753,37 @@ async function handleEdgesOperationTx(
 
       logger.info(`Batch adding ${edges.length} edges to workflow ${workflowId}`)
 
-      // Get all connected block IDs to check lock status
-      const connectedBlockIds = new Set<string>()
-      edges.forEach((e: Record<string, unknown>) => {
-        connectedBlockIds.add(e.source as string)
-        connectedBlockIds.add(e.target as string)
-      })
+      const candidates: EdgeAddCandidate[] = (edges as Array<Record<string, unknown>>).map((e) => ({
+        id: e.id as string,
+        source: e.source as string,
+        target: e.target as string,
+        sourceHandle: (e.sourceHandle as string | null) ?? null,
+        targetHandle: (e.targetHandle as string | null) ?? null,
+      }))
 
-      // Fetch blocks to check lock status
-      const connectedBlocks = await tx
-        .select({
-          id: workflowBlocks.id,
-          locked: workflowBlocks.locked,
-          data: workflowBlocks.data,
+      const { safeEdges, droppedCounts, droppedDuplicates, droppedCyclic } =
+        await filterEdgesForPersist(tx, workflowId, candidates)
+
+      if (safeEdges.length < edges.length) {
+        logger.info(`Dropped ${edges.length - safeEdges.length} invalid edge(s)`, {
+          droppedCounts,
+          droppedDuplicates,
+          droppedCyclic,
         })
-        .from(workflowBlocks)
-        .where(
-          and(
-            eq(workflowBlocks.workflowId, workflowId),
-            inArray(workflowBlocks.id, Array.from(connectedBlockIds))
-          )
-        )
-
-      type AddEdgeBlockRecord = (typeof connectedBlocks)[number]
-      const blocksById: Record<string, AddEdgeBlockRecord> = Object.fromEntries(
-        connectedBlocks.map((b: AddEdgeBlockRecord) => [b.id, b])
-      )
-
-      // Collect parent IDs that need to be fetched
-      const parentIds = new Set<string>()
-      for (const block of connectedBlocks) {
-        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
-          | string
-          | undefined
-        if (parentId && !blocksById[parentId]) {
-          parentIds.add(parentId)
-        }
       }
-
-      // Fetch parent blocks if needed
-      if (parentIds.size > 0) {
-        const parentBlocks = await tx
-          .select({
-            id: workflowBlocks.id,
-            locked: workflowBlocks.locked,
-            data: workflowBlocks.data,
-          })
-          .from(workflowBlocks)
-          .where(
-            and(
-              eq(workflowBlocks.workflowId, workflowId),
-              inArray(workflowBlocks.id, Array.from(parentIds))
-            )
-          )
-        for (const b of parentBlocks) {
-          blocksById[b.id] = b
-        }
-      }
-
-      // Filter edges - only add edges where target block is not protected
-      const safeEdges = (edges as Array<Record<string, unknown>>).filter(
-        (e) => !isWorkflowBlockProtected(e.target as string, blocksById)
-      )
 
       if (safeEdges.length === 0) {
-        logger.info('All edges target protected blocks, skipping add')
+        logger.info('All edges were invalid, duplicate, or would create a cycle, skipping add')
         return
       }
 
-      const edgeValues = safeEdges.map((edge: Record<string, unknown>) => ({
+      const edgeValues = safeEdges.map((edge) => ({
         id: edge.id as string,
         workflowId,
-        sourceBlockId: edge.source as string,
-        targetBlockId: edge.target as string,
-        sourceHandle: (edge.sourceHandle as string | null) || null,
-        targetHandle: (edge.targetHandle as string | null) || null,
+        sourceBlockId: edge.source,
+        targetBlockId: edge.target,
+        sourceHandle: edge.sourceHandle || null,
+        targetHandle: edge.targetHandle || null,
       }))
 
       await tx

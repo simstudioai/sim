@@ -1,7 +1,14 @@
+import {
+  Badge,
+  Button,
+  Combobox,
+  type ComboboxOption,
+  cn,
+  handleKeyboardActivation,
+  Label,
+  Trash,
+} from '@sim/emcn'
 import { Plus } from 'lucide-react'
-import { Badge, Button, Combobox, type ComboboxOption, Label, Trash } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { SortRule } from '@/lib/table/query-builder/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'

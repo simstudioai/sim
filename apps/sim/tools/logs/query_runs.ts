@@ -34,7 +34,7 @@ export const logsQueryRunsTool: ToolConfig<LogsQueryRunsParams, LogsQueryRunsRes
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated trigger types (api, webhook, schedule, manual, chat, mcp, a2a, workflow, sim, …)',
+        'Comma-separated trigger types (api, webhook, schedule, manual, chat, mcp, workflow, sim, …)',
     },
     startDate: {
       type: 'string',

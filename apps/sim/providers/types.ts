@@ -1,3 +1,4 @@
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { ProviderTimingSegment, StreamingExecution, UserFile } from '@/executor/types'
 
 export type ProviderId =
@@ -12,6 +13,10 @@ export type ProviderId =
   | 'cerebras'
   | 'groq'
   | 'sakana'
+  | 'nvidia'
+  | 'meta'
+  | 'zai'
+  | 'kimi'
   | 'mistral'
   | 'ollama'
   | 'ollama-cloud'
@@ -182,6 +187,12 @@ export interface ProviderRequest {
   thinkingLevel?: string
   isDeployedContext?: boolean
   callChain?: string[]
+  /**
+   * Immutable actor/payer decision captured before execution. Propagated into
+   * the `_context` of every tool the LLM invokes so internal routes that
+   * require the billing attribution header (e.g. knowledge search) receive it.
+   */
+  billingAttribution?: BillingAttributionSnapshot
   /** Previous interaction ID for multi-turn Interactions API requests (deep research follow-ups) */
   previousInteractionId?: string
   abortSignal?: AbortSignal

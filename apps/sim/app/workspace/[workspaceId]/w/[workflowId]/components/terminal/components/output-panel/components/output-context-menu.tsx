@@ -1,14 +1,7 @@
 'use client'
 
 import { memo, type RefObject } from 'react'
-import { useTranslations } from 'next-intl'
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
-} from '@/components/emcn'
+import { Popover, PopoverAnchor, PopoverContent, PopoverDivider, PopoverItem } from '@sim/emcn'
 import type { ContextMenuPosition } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 
 export interface OutputContextMenuProps {
@@ -50,7 +43,6 @@ export const OutputContextMenu = memo(function OutputContextMenu({
   onClearConsole,
   hasSelection,
 }: OutputContextMenuProps) {
-  const t = useTranslations('auto')
   return (
     <Popover
       open={isOpen}
@@ -77,7 +69,7 @@ export const OutputContextMenu = memo(function OutputContextMenu({
             onClose()
           }}
         >
-          {t('copy_selection')}
+          Copy Selection
         </PopoverItem>
         <PopoverItem
           onClick={() => {
@@ -85,7 +77,7 @@ export const OutputContextMenu = memo(function OutputContextMenu({
             onClose()
           }}
         >
-          {t('copy_all')}
+          Copy All
         </PopoverItem>
         <PopoverItem
           onClick={() => {
@@ -93,19 +85,19 @@ export const OutputContextMenu = memo(function OutputContextMenu({
             onClose()
           }}
         >
-          {t('search')}
+          Search
         </PopoverItem>
 
         {/* Display settings - toggles don't close menu */}
         <PopoverDivider />
         <PopoverItem showCheck={structuredView} onClick={onToggleStructuredView}>
-          {t('structured_view')}
+          Structured View
         </PopoverItem>
         <PopoverItem showCheck={wrapText} onClick={onToggleWrap}>
-          {t('wrap_text')}
+          Wrap Text
         </PopoverItem>
         <PopoverItem showCheck={openOnRun} onClick={onToggleOpenOnRun}>
-          {t('open_on_run')}
+          Open on Run
         </PopoverItem>
 
         {/* Destructive action */}
@@ -116,7 +108,7 @@ export const OutputContextMenu = memo(function OutputContextMenu({
             onClose()
           }}
         >
-          {t('clear_console')}
+          Clear Console
         </PopoverItem>
       </PopoverContent>
     </Popover>

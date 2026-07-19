@@ -6,7 +6,7 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
   id: 'google_vault_create_matters_export',
   name: 'Vault Create Export',
   description: 'Create an export in a matter',
-  version: '1.0',
+  version: '1.0.0',
 
   oauth: {
     required: true,
@@ -100,12 +100,26 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
             ? { orgUnitInfo: { orgUnitId: params.orgUnitId } }
             : {}
 
-      const searchMethod = emails.length > 0 ? 'ACCOUNT' : params.orgUnitId ? 'ORG_UNIT' : undefined
+      const method =
+        emails.length > 0
+          ? 'ACCOUNT'
+          : params.orgUnitId
+            ? 'ORG_UNIT'
+            : params.corpus === 'MAIL'
+              ? 'ENTIRE_ORG'
+              : undefined
+
+      if (!method) {
+        throw new Error(
+          `Account Emails or Org Unit ID is required to scope a ${params.corpus} export ` +
+            '(only MAIL exports can search the entire organization with no scope).'
+        )
+      }
 
       const query: any = {
         corpus: params.corpus,
         dataScope: 'ALL_DATA',
-        searchMethod: searchMethod,
+        method,
         terms: params.terms || undefined,
         startTime: params.startTime || undefined,
         endTime: params.endTime || undefined,

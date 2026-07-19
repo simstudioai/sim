@@ -29,6 +29,10 @@ import { fetchWorkspaceCredentialList } from '@/hooks/queries/utils/fetch-worksp
  */
 const OAUTH_CREDENTIALS_KEY = ['oauthCredentials'] as const
 
+export const WORKSPACE_CREDENTIAL_LIST_STALE_TIME = 60 * 1000
+export const WORKSPACE_CREDENTIAL_DETAIL_STALE_TIME = 60 * 1000
+export const WORKSPACE_CREDENTIAL_MEMBER_LIST_STALE_TIME = 30 * 1000
+
 export type {
   WorkspaceCredential,
   WorkspaceCredentialMember,
@@ -44,7 +48,7 @@ export function prefetchWorkspaceCredentials(queryClient: QueryClient, workspace
   queryClient.prefetchQuery({
     queryKey: workspaceCredentialKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchWorkspaceCredentialList(workspaceId, signal),
-    staleTime: 60 * 1000,
+    staleTime: WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
   })
 }
 
@@ -71,7 +75,7 @@ export function useWorkspaceCredentials(params: {
       return data.credentials ?? []
     },
     enabled: Boolean(workspaceId) && enabled,
-    staleTime: 60 * 1000,
+    staleTime: WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
   })
 }
 
@@ -87,7 +91,7 @@ export function useWorkspaceCredential(credentialId?: string, enabled = true) {
       return data.credential ?? null
     },
     enabled: Boolean(credentialId) && enabled,
-    staleTime: 60 * 1000,
+    staleTime: WORKSPACE_CREDENTIAL_DETAIL_STALE_TIME,
   })
 }
 
@@ -132,6 +136,13 @@ export function useUpdateWorkspaceCredential() {
           displayName: payload.displayName,
           description: payload.description,
           serviceAccountJson: payload.serviceAccountJson,
+          signingSecret: payload.signingSecret,
+          botToken: payload.botToken,
+          apiToken: payload.apiToken,
+          domain: payload.domain,
+          clientId: payload.clientId,
+          clientSecret: payload.clientSecret,
+          orgId: payload.orgId,
         },
       })
     },
@@ -216,7 +227,7 @@ export function useWorkspaceCredentialMembers(credentialId?: string) {
       return data.members ?? []
     },
     enabled: Boolean(credentialId),
-    staleTime: 30 * 1000,
+    staleTime: WORKSPACE_CREDENTIAL_MEMBER_LIST_STALE_TIME,
   })
 }
 

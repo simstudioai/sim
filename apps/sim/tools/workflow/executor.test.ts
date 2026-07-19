@@ -52,6 +52,39 @@ describe('workflowExecutorTool', () => {
       })
     })
 
+    it.concurrent('should declare parentWorkspaceId when the context has a workspace', () => {
+      const params = {
+        workflowId: 'test-workflow-id',
+        inputMapping: { name: 'Test' },
+        _context: { workspaceId: 'workspace-parent' },
+      }
+
+      const result = buildBody(params)
+
+      expect(result).toEqual({
+        input: { name: 'Test' },
+        triggerType: 'workflow',
+        useDraftState: true,
+        parentWorkspaceId: 'workspace-parent',
+      })
+    })
+
+    it.concurrent('should omit parentWorkspaceId when the context has no workspace', () => {
+      const params = {
+        workflowId: 'test-workflow-id',
+        inputMapping: { name: 'Test' },
+        _context: { isDeployedContext: true },
+      }
+
+      const result = buildBody(params)
+
+      expect(result).toEqual({
+        input: { name: 'Test' },
+        triggerType: 'workflow',
+        useDraftState: false,
+      })
+    })
+
     it.concurrent('should parse JSON string inputMapping (UI-provided via tool-input)', () => {
       const params = {
         workflowId: 'test-workflow-id',

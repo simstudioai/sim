@@ -10,7 +10,10 @@ import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { getPlanType, isEnterprise, isMax, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
+import {
+  CONTACT_OWNER_TO_UPGRADE_REASON,
+  UPGRADE_TO_INVITE_REASON,
+} from '@/lib/workspaces/policy-constants'
 
 const logger = createLogger('WorkspacePolicy')
 
@@ -40,6 +43,33 @@ export interface WorkspaceInvitePolicy {
   upgradeRequired: boolean
 }
 
+/** Caller-facing invite flags derived from an evaluated invite policy. */
+export interface WorkspaceInviteFlags {
+  inviteMembersEnabled: boolean
+  inviteDisabledReason: string | null
+  inviteUpgradeRequired: boolean
+}
+
+/**
+ * Derives the caller-facing invite flags for a workspace response. Only the
+ * billed user can act on an upgrade, so everyone else gets the contact-owner
+ * message when invites are disabled.
+ */
+export function resolveInviteFlags(
+  invitePolicy: WorkspaceInvitePolicy,
+  callerIsBilledUser: boolean
+): WorkspaceInviteFlags {
+  return {
+    inviteMembersEnabled: invitePolicy.allowed,
+    inviteDisabledReason: invitePolicy.allowed
+      ? null
+      : callerIsBilledUser
+        ? (invitePolicy.reason ?? UPGRADE_TO_INVITE_REASON)
+        : CONTACT_OWNER_TO_UPGRADE_REASON,
+    inviteUpgradeRequired: invitePolicy.upgradeRequired && callerIsBilledUser,
+  }
+}
+
 export interface WorkspaceCreationPolicy {
   canCreate: boolean
   workspaceMode: WorkspaceMode
@@ -54,6 +84,13 @@ export interface WorkspaceCreationPolicy {
 interface GetWorkspaceCreationPolicyParams {
   userId: string
   activeOrganizationId?: string | null
+  /**
+   * When true, `activeOrganizationId` is authoritative: it is used exactly as given
+   * (including `null`, which means a personal workspace) and never falls back to the
+   * caller's membership org. Forks set this so the child always lands in the SOURCE's
+   * org, not whatever org the acting user happens to belong to.
+   */
+  pinOrganization?: boolean
 }
 
 export function isOrganizationWorkspace(
@@ -215,9 +252,12 @@ export async function getInvitePlanCategoryForUser(userId: string): Promise<Plan
 export async function getWorkspaceCreationPolicy({
   userId,
   activeOrganizationId,
+  pinOrganization = false,
 }: GetWorkspaceCreationPolicyParams): Promise<WorkspaceCreationPolicy> {
   const membership = await getUserOrganization(userId)
-  const organizationId = activeOrganizationId ?? membership?.organizationId ?? null
+  const organizationId = pinOrganization
+    ? (activeOrganizationId ?? null)
+    : (activeOrganizationId ?? membership?.organizationId ?? null)
   const orgRole =
     organizationId == null
       ? undefined

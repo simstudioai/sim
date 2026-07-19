@@ -2,10 +2,10 @@
 
 import type React from 'react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
+import { useToast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
-import { useToast } from '@/components/emcn'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import {
   useWorkspacePermissionsQuery,
@@ -244,36 +244,4 @@ export function useUserPermissionsContext(): WorkspaceUserPermissions & {
 } {
   const { userPermissions } = useWorkspacePermissionsContext()
   return userPermissions
-}
-
-/**
- * Lightweight permissions provider for sandbox/academy contexts.
- * Grants full edit access without any API calls or workspace dependencies.
- */
-export function SandboxWorkspacePermissionsProvider({ children }: { children: React.ReactNode }) {
-  const sandboxPermissions = useMemo(
-    (): WorkspacePermissionsContextType => ({
-      workspacePermissions: null,
-      permissionsLoading: false,
-      permissionsError: null,
-      updatePermissions: () => {},
-      refetchPermissions: async () => {},
-      userPermissions: {
-        canRead: true,
-        canEdit: true,
-        canAdmin: false,
-        userPermissions: 'write',
-        isLoading: false,
-        error: null,
-        isOfflineMode: false,
-      },
-    }),
-    []
-  )
-
-  return (
-    <WorkspacePermissionsContext.Provider value={sandboxPermissions}>
-      {children}
-    </WorkspacePermissionsContext.Provider>
-  )
 }

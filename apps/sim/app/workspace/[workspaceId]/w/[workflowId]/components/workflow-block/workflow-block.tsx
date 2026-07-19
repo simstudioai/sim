@@ -1,16 +1,13 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import { SubBlockRowView, WorkflowBlockView } from '@sim/workflow-renderer'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
-import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
+import { type NodeProps, useUpdateNodeInternals } from 'reactflow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { Badge, Tooltip } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
-import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import {
@@ -47,6 +44,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
@@ -70,6 +68,9 @@ const logger = createLogger('WorkflowBlock')
 
 /** Stable empty object to avoid creating new references */
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
+
+/** Stable empty map for rows that never resolve MCP tool names */
+const EMPTY_MCP_TOOL_NAMES: ReadonlyMap<string, string> = new Map()
 
 interface SubBlockRowProps {
   title: string
@@ -277,17 +278,23 @@ const SubBlockRow = memo(function SubBlockRow({
   }, [subBlock?.type, rawValue, mcpServers])
 
   const { data: mcpToolsData = [] } = useMcpToolsQuery(workspaceId || '')
+  const mcpToolNamesById = useMemo(() => {
+    if (subBlock?.type !== 'mcp-tool-selector' && subBlock?.type !== 'tool-input') {
+      return EMPTY_MCP_TOOL_NAMES
+    }
+    const names = new Map<string, string>()
+    for (const t of mcpToolsData) {
+      const toolId = createMcpToolId(t.serverId, t.name)
+      if (!names.has(toolId)) names.set(toolId, t.name)
+    }
+    return names
+  }, [subBlock?.type, mcpToolsData])
   const mcpToolDisplayName = useMemo(() => {
     if (subBlock?.type !== 'mcp-tool-selector' || typeof rawValue !== 'string') {
       return null
     }
-
-    const tool = mcpToolsData.find((t) => {
-      const toolId = createMcpToolId(t.serverId, t.name)
-      return toolId === rawValue
-    })
-    return tool?.name ?? null
-  }, [subBlock?.type, rawValue, mcpToolsData])
+    return mcpToolNamesById.get(rawValue) ?? null
+  }, [subBlock?.type, rawValue, mcpToolNamesById])
 
   const { data: tables = [] } = useTablesList(workspaceId || '')
   const tableDisplayName = useMemo(() => {
@@ -332,11 +339,16 @@ const SubBlockRow = memo(function SubBlockRow({
     [subBlock, rawValue, workflowVariables]
   )
 
-  /** Hydrates tool references to display names. */
+  /**
+   * Hydrates tool references to display names. The overlay version is a dep
+   * because resolveToolsLabel reads getBlock, whose custom-block results
+   * change when the client overlay hydrates (see client-overlay.ts).
+   */
   const { data: customTools = [] } = useCustomTools(workspaceId || '')
+  const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const toolsDisplayValue = useMemo(
-    () => resolveToolsLabel(subBlock, rawValue, customTools),
-    [subBlock, rawValue, customTools]
+    () => resolveToolsLabel(subBlock, rawValue, customTools, mcpToolNamesById),
+    [subBlock, rawValue, customTools, mcpToolNamesById, customBlockOverlayVersion]
   )
 
   const filterDisplayValue = useMemo(
@@ -373,25 +385,7 @@ const SubBlockRow = memo(function SubBlockRow({
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (
-    <div className='flex items-center gap-2'>
-      <span
-        className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
-        title={title}
-      >
-        {title}
-      </span>
-      {displayValue !== undefined && (
-        <span
-          className={cn(
-            'flex-1 truncate text-right text-[var(--text-primary)] text-sm',
-            isMonospaceField && 'font-mono'
-          )}
-          title={displayValue}
-        >
-          {displayValue}
-        </span>
-      )}
-    </div>
+    <SubBlockRowView title={title} displayValue={displayValue} isMonospace={isMonospaceField} />
   )
 }, areSubBlockRowPropsEqual)
 
@@ -400,12 +394,12 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   data,
   selected,
 }: NodeProps<WorkflowBlockProps>) {
-  const { type, config, name, isPending, isSandbox } = data
+  const { type, config, name, isPending } = data
 
   const contentRef = useRef<HTMLDivElement>(null)
 
   const params = useParams()
-  const workspaceId = isSandbox ? '' : (params.workspaceId as string)
+  const workspaceId = params.workspaceId as string
 
   const {
     currentWorkflow,
@@ -418,7 +412,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     runPathStatus,
   } = useBlockVisual({ blockId: id, data, isPending, isSelected: selected })
 
-  const currentWorkflowId = isSandbox ? '' : (params.workflowId as string) || activeWorkflowId || ''
+  const currentWorkflowId = (params.workflowId as string) || activeWorkflowId || ''
 
   const currentBlock = currentWorkflow.getBlockById(id)
 
@@ -633,38 +627,15 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const hasContentBelowHeader = subBlockRows.length > 0 || shouldShowDefaultHandles
 
   /**
-   * Reusable styles and positioning for Handle components.
-   */
-  const getHandleClasses = (position: 'left' | 'right' | 'top' | 'bottom', isError = false) => {
-    const baseClasses = '!z-[0] !cursor-crosshair !border-none !transition-[colors] !duration-150'
-    const colorClasses = isError ? '!bg-[var(--text-error)]' : '!bg-[var(--workflow-edge)]'
-
-    const positionClasses = {
-      left: '!left-[-8px] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none hover-hover:!left-[-11px] hover-hover:!w-[10px] hover-hover:!rounded-l-full',
-      right:
-        '!right-[-8px] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none hover-hover:!right-[-11px] hover-hover:!w-[10px] hover-hover:!rounded-r-full',
-      top: '!top-[-8px] !h-[7px] !w-5 !rounded-t-[2px] !rounded-b-none hover-hover:!top-[-11px] hover-hover:!h-[10px] hover-hover:!rounded-t-full',
-      bottom:
-        '!bottom-[-8px] !h-[7px] !w-5 !rounded-b-[2px] !rounded-t-none hover-hover:!bottom-[-11px] hover-hover:!h-[10px] hover-hover:!rounded-b-full',
-    }
-
-    return cn(baseClasses, colorClasses, positionClasses[position])
-  }
-
-  const getHandleStyle = (position: 'horizontal' | 'vertical') => {
-    if (position === 'horizontal') {
-      return { top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px`, transform: 'translateY(-50%)' }
-    }
-    return { left: '50%', transform: 'translateX(-50%)' }
-  }
-
-  /**
    * Compute per-condition rows (title/value/id) for condition blocks so we can render
    * one row per condition statement with its own output handle.
    */
   const conditionRows = useMemo(() => {
     if (type !== 'condition') return [] as { id: string; title: string; value: string }[]
-    return getConditionRows(id, topologySubBlocks.conditions?.value)
+    return getConditionRows(id, topologySubBlocks.conditions?.value).map((cond) => ({
+      ...cond,
+      value: getDisplayValue(cond.value),
+    }))
   }, [type, topologySubBlocks, id])
 
   /**
@@ -674,7 +645,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    */
   const routerRows = useMemo(() => {
     if (type !== 'router_v2') return [] as { id: string; value: string }[]
-    return getRouterRows(id, topologySubBlocks.routes?.value)
+    return getRouterRows(id, topologySubBlocks.routes?.value).map((route) => ({
+      ...route,
+      value: getDisplayValue(route.value),
+    }))
   }, [type, topologySubBlocks, id])
 
   /**
@@ -741,399 +715,116 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     type === 'schedule' && !isLoadingScheduleInfo && scheduleInfo !== null
   const isWorkflowSelector = type === 'workflow' || type === 'workflow_input'
 
-  return (
-    <div className='group relative'>
-      <div
-        ref={contentRef}
-        role='button'
-        tabIndex={0}
-        onClick={handleClick}
-        onKeyDown={(event) => handleKeyboardActivation(event, handleClick)}
-        className={cn(
-          'workflow-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-lg border border-[var(--border-1)] bg-[var(--surface-2)] [&:active]:cursor-grabbing'
-        )}
-      >
-        {isPending && (
-          <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-amber-500 px-2 py-0.5 text-white text-xs'>
-            Next Step
-          </div>
-        )}
+  const wouldCreateConnectionCycle = (source: string, target: string) =>
+    wouldCreateCycle(useWorkflowStore.getState().edges, source, target)
 
-        {!data.isPreview && !data.isEmbedded && (
-          <ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} />
-        )}
+  const webhookProviderName = webhookProvider ? getProviderName(webhookProvider) : undefined
 
-        {shouldShowDefaultHandles && (
-          <Handle
-            type='target'
-            position={horizontalHandles ? Position.Left : Position.Top}
-            id='target'
-            className={getHandleClasses(horizontalHandles ? 'left' : 'top')}
-            style={getHandleStyle(horizontalHandles ? 'horizontal' : 'vertical')}
-            data-nodeid={id}
-            data-handleid='target'
-            isConnectableStart={false}
-            isConnectableEnd={true}
-            isValidConnection={(connection) => {
-              if (connection.source === id) return false
-              const edges = useWorkflowStore.getState().edges
-              return !wouldCreateCycle(edges, connection.source!, connection.target!)
-            }}
-          />
-        )}
-
-        <div
-          className={cn(
-            'flex items-center justify-between p-2',
-            hasContentBelowHeader && 'border-[var(--border-1)] border-b'
-          )}
-        >
-          <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
-            <div
-              className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-md'
-              style={{
-                background: isEnabled ? config.bgColor : 'gray',
-              }}
-            >
-              <config.icon className='size-[16px] text-white' />
-            </div>
-            <span
-              className={cn(
-                'truncate font-medium text-md',
-                !isEnabled && runPathStatus !== 'success' && 'text-[var(--text-muted)]'
-              )}
-              title={name}
-            >
-              {name}
-            </span>
-          </div>
-          <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
-            {isWorkflowSelector &&
-              childWorkflowId &&
-              typeof childIsDeployed === 'boolean' &&
-              (!childIsDeployed || childNeedsRedeploy) && (
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Badge
-                      variant={!childIsDeployed ? 'red' : 'amber'}
-                      className={userPermissions.canAdmin ? 'cursor-pointer' : 'cursor-not-allowed'}
-                      dot
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (childWorkflowId && !isDeploying && userPermissions.canAdmin) {
-                          deployChildWorkflow({ workflowId: childWorkflowId })
-                        }
-                      }}
-                    >
-                      {isDeploying ? 'Deploying...' : !childIsDeployed ? 'undeployed' : 'redeploy'}
-                    </Badge>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>
-                    <span className='text-sm'>
-                      {!userPermissions.canAdmin
-                        ? 'Admin permission required to deploy'
-                        : !childIsDeployed
-                          ? 'Click to deploy'
-                          : 'Click to redeploy'}
-                    </span>
-                  </Tooltip.Content>
-                </Tooltip.Root>
-              )}
-            {!isEnabled && !isLocked && <Badge variant='gray-secondary'>disabled</Badge>}
-            {isLocked && <Badge variant='gray-secondary'>locked</Badge>}
-
-            {type === 'schedule' && shouldShowScheduleBadge && scheduleInfo?.isDisabled && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Badge
-                    variant='amber'
-                    className='cursor-pointer'
-                    dot
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (scheduleInfo?.id) {
-                        reactivateSchedule(scheduleInfo.id)
-                      }
-                    }}
-                  >
-                    disabled
-                  </Badge>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <span className='text-sm'>Click to reactivate</span>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            )}
-
-            {showWebhookIndicator && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Badge variant='orange' dot>
-                    Webhook
-                  </Badge>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top' className='max-w-[300px]'>
-                  {webhookProvider && webhookPath ? (
-                    <>
-                      <p className='text-sm'>{getProviderName(webhookProvider)} Webhook</p>
-                      <p className='mt-1 text-muted-foreground text-xs'>Path: {webhookPath}</p>
-                    </>
-                  ) : (
-                    <p className='text-muted-foreground text-sm'>
-                      This workflow is triggered by a webhook.
-                    </p>
-                  )}
-                </Tooltip.Content>
-              </Tooltip.Root>
-            )}
-
-            {isWebhookConfigured && isWebhookDisabled && webhookId && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Badge
-                    variant='amber'
-                    className='cursor-pointer'
-                    dot
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      reactivateWebhook(webhookId)
-                    }}
-                  >
-                    disabled
-                  </Badge>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <span className='text-sm'>Click to reactivate</span>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            )}
-            {/* {isActive && (
-              <div className='mr-0.5 ml-2 flex size-[16px] items-center justify-center'>
-                <div
-                  className='h-full w-full animate-spin-slow rounded-full border-[2.5px] border-[rgba(255,102,0,0.25)] border-t-[var(--warning)]'
-                  aria-hidden='true'
-                />
-              </div>
-            )} */}
-          </div>
-        </div>
-
-        {hasContentBelowHeader && (
-          <div className='flex flex-col gap-2 p-2'>
-            {type === 'condition' ? (
-              conditionRows.map((cond) => (
-                <SubBlockRow key={cond.id} title={cond.title} value={getDisplayValue(cond.value)} />
-              ))
-            ) : type === 'router_v2' ? (
-              <>
-                <SubBlockRow
-                  key='context'
-                  title='Context'
-                  value={getDisplayValue(subBlockState.context?.value)}
-                />
-                {routerRows.map((route, index) => (
+  const rows =
+    type === 'condition' || type === 'router_v2' ? null : (
+      <>
+        {subBlockRows.map((row, rowIndex) =>
+          row.flatMap((subBlock) => {
+            const rawValue = subBlockState[subBlock.id]?.value
+            if (subBlock.type === 'mcp-dynamic-args') {
+              const schema = subBlockState._toolSchema?.value as
+                | { properties?: Record<string, unknown> }
+                | undefined
+              const properties = schema?.properties
+              if (properties && typeof properties === 'object') {
+                const args = (rawValue && typeof rawValue === 'object' ? rawValue : {}) as Record<
+                  string,
+                  unknown
+                >
+                return Object.keys(properties).map((paramName) => (
                   <SubBlockRow
-                    key={route.id}
-                    title={`Route ${index + 1}`}
-                    value={getDisplayValue(route.value)}
+                    key={`${subBlock.id}-${paramName}-${rowIndex}`}
+                    title={formatParameterLabel(paramName)}
+                    value={getDisplayValue(args[paramName])}
                   />
-                ))}
-              </>
-            ) : (
-              subBlockRows.map((row, rowIndex) =>
-                row.flatMap((subBlock) => {
-                  const rawValue = subBlockState[subBlock.id]?.value
-                  if (subBlock.type === 'mcp-dynamic-args') {
-                    const schema = subBlockState._toolSchema?.value as
-                      | { properties?: Record<string, unknown> }
-                      | undefined
-                    const properties = schema?.properties
-                    if (properties && typeof properties === 'object') {
-                      const args = (
-                        rawValue && typeof rawValue === 'object' ? rawValue : {}
-                      ) as Record<string, unknown>
-                      return Object.keys(properties).map((paramName) => (
-                        <SubBlockRow
-                          key={`${subBlock.id}-${paramName}-${rowIndex}`}
-                          title={formatParameterLabel(paramName)}
-                          value={getDisplayValue(args[paramName])}
-                        />
-                      ))
-                    }
-                    return []
-                  }
-                  return [
-                    <SubBlockRow
-                      key={`${subBlock.id}-${rowIndex}`}
-                      title={subBlock.title ?? subBlock.id}
-                      value={getDisplayValue(rawValue)}
-                      subBlock={subBlock}
-                      rawValue={rawValue}
-                      workspaceId={workspaceId}
-                      workflowId={currentWorkflowId}
-                      blockId={id}
-                      allSubBlockValues={subBlockState}
-                      displayAdvancedOptions={effectiveAdvanced}
-                      canonicalIndex={canonicalIndex}
-                      canonicalModeOverrides={canonicalModeOverrides}
-                    />,
-                  ]
-                })
-              )
-            )}
-            {shouldShowDefaultHandles && <SubBlockRow title='error' />}
-          </div>
+                ))
+              }
+              return []
+            }
+            return [
+              <SubBlockRow
+                key={`${subBlock.id}-${rowIndex}`}
+                title={subBlock.title ?? subBlock.id}
+                value={getDisplayValue(rawValue)}
+                subBlock={subBlock}
+                rawValue={rawValue}
+                workspaceId={workspaceId}
+                workflowId={currentWorkflowId}
+                blockId={id}
+                allSubBlockValues={subBlockState}
+                displayAdvancedOptions={effectiveAdvanced}
+                canonicalIndex={canonicalIndex}
+                canonicalModeOverrides={canonicalModeOverrides}
+              />,
+            ]
+          })
         )}
+      </>
+    )
 
-        {type === 'condition' && (
-          <>
-            {conditionRows.map((cond, condIndex) => {
-              const topOffset =
-                HANDLE_POSITIONS.CONDITION_START_Y +
-                condIndex * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
-              return (
-                <Handle
-                  key={`handle-${cond.id}`}
-                  type='source'
-                  position={Position.Right}
-                  id={`condition-${cond.id}`}
-                  className={getHandleClasses('right')}
-                  style={{ top: `${topOffset}px`, transform: 'translateY(-50%)' }}
-                  data-nodeid={id}
-                  data-handleid={`condition-${cond.id}`}
-                  isConnectableStart={true}
-                  isConnectableEnd={false}
-                  isValidConnection={(connection) => {
-                    if (connection.target === id) return false
-                    const edges = useWorkflowStore.getState().edges
-                    return !wouldCreateCycle(edges, connection.source!, connection.target!)
-                  }}
-                />
-              )
-            })}
-            <Handle
-              type='source'
-              position={Position.Right}
-              id='error'
-              className={getHandleClasses('right', true)}
-              style={{
-                right: '-7px',
-                top: 'auto',
-                bottom: `${HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET}px`,
-                transform: 'translateY(50%)',
-              }}
-              data-nodeid={id}
-              data-handleid='error'
-              isConnectableStart={true}
-              isConnectableEnd={false}
-              isValidConnection={(connection) => {
-                if (connection.target === id) return false
-                const edges = useWorkflowStore.getState().edges
-                return !wouldCreateCycle(edges, connection.source!, connection.target!)
-              }}
-            />
-          </>
-        )}
-
-        {type === 'router_v2' && (
-          <>
-            {routerRows.map((route, routeIndex) => {
-              // +1 row offset for context row at the top
-              const topOffset =
-                HANDLE_POSITIONS.CONDITION_START_Y +
-                (routeIndex + 1) * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
-              return (
-                <Handle
-                  key={`handle-${route.id}`}
-                  type='source'
-                  position={Position.Right}
-                  id={`router-${route.id}`}
-                  className={getHandleClasses('right')}
-                  style={{ top: `${topOffset}px`, transform: 'translateY(-50%)' }}
-                  data-nodeid={id}
-                  data-handleid={`router-${route.id}`}
-                  isConnectableStart={true}
-                  isConnectableEnd={false}
-                  isValidConnection={(connection) => {
-                    if (connection.target === id) return false
-                    const edges = useWorkflowStore.getState().edges
-                    return !wouldCreateCycle(edges, connection.source!, connection.target!)
-                  }}
-                />
-              )
-            })}
-            <Handle
-              type='source'
-              position={Position.Right}
-              id='error'
-              className={getHandleClasses('right', true)}
-              style={{
-                right: '-7px',
-                top: 'auto',
-                bottom: `${HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET}px`,
-                transform: 'translateY(50%)',
-              }}
-              data-nodeid={id}
-              data-handleid='error'
-              isConnectableStart={true}
-              isConnectableEnd={false}
-              isValidConnection={(connection) => {
-                if (connection.target === id) return false
-                const edges = useWorkflowStore.getState().edges
-                return !wouldCreateCycle(edges, connection.source!, connection.target!)
-              }}
-            />
-          </>
-        )}
-
-        {type !== 'condition' && type !== 'router_v2' && type !== 'response' && (
-          <>
-            <Handle
-              type='source'
-              position={horizontalHandles ? Position.Right : Position.Bottom}
-              id='source'
-              className={getHandleClasses(horizontalHandles ? 'right' : 'bottom')}
-              style={getHandleStyle(horizontalHandles ? 'horizontal' : 'vertical')}
-              data-nodeid={id}
-              data-handleid='source'
-              isConnectableStart={true}
-              isConnectableEnd={false}
-              isValidConnection={(connection) => {
-                if (connection.target === id) return false
-                const edges = useWorkflowStore.getState().edges
-                return !wouldCreateCycle(edges, connection.source!, connection.target!)
-              }}
-            />
-
-            {shouldShowDefaultHandles && (
-              <Handle
-                type='source'
-                position={Position.Right}
-                id='error'
-                className={getHandleClasses('right', true)}
-                style={{
-                  right: '-7px',
-                  top: 'auto',
-                  bottom: `${HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET}px`,
-                  transform: 'translateY(50%)',
-                }}
-                data-nodeid={id}
-                data-handleid='error'
-                isConnectableStart={true}
-                isConnectableEnd={false}
-                isValidConnection={(connection) => {
-                  if (connection.target === id) return false
-                  const edges = useWorkflowStore.getState().edges
-                  return !wouldCreateCycle(edges, connection.source!, connection.target!)
-                }}
-              />
-            )}
-          </>
-        )}
-        {hasRing && (
-          <div className={cn('pointer-events-none absolute inset-0 z-40 rounded-lg', ringStyles)} />
-        )}
-      </div>
-    </div>
+  return (
+    <WorkflowBlockView
+      id={id}
+      type={type}
+      name={name}
+      isPending={isPending}
+      isEnabled={isEnabled}
+      isLocked={isLocked}
+      hasRing={hasRing}
+      ringStyles={ringStyles}
+      runPathStatus={runPathStatus}
+      Icon={config.icon}
+      iconBgColor={config.bgColor}
+      horizontalHandles={horizontalHandles}
+      shouldShowDefaultHandles={shouldShowDefaultHandles}
+      hasContentBelowHeader={hasContentBelowHeader}
+      conditionRows={conditionRows}
+      routerRows={routerRows}
+      routerContextValue={getDisplayValue(subBlockState.context?.value)}
+      wouldCreateConnectionCycle={wouldCreateConnectionCycle}
+      isWorkflowSelector={isWorkflowSelector}
+      childWorkflowId={childWorkflowId}
+      childIsDeployed={childIsDeployed}
+      childNeedsRedeploy={childNeedsRedeploy}
+      isDeploying={isDeploying}
+      canAdmin={userPermissions.canAdmin}
+      onDeployChild={() => {
+        if (childWorkflowId && !isDeploying && userPermissions.canAdmin) {
+          deployChildWorkflow({ workflowId: childWorkflowId })
+        }
+      }}
+      shouldShowScheduleBadge={shouldShowScheduleBadge}
+      scheduleIsDisabled={Boolean(scheduleInfo?.isDisabled)}
+      onReactivateSchedule={() => {
+        if (scheduleInfo?.id) {
+          reactivateSchedule(scheduleInfo.id)
+        }
+      }}
+      showWebhookIndicator={showWebhookIndicator}
+      webhookProvider={webhookProvider}
+      webhookPath={webhookPath}
+      webhookProviderName={webhookProviderName}
+      isWebhookConfigured={isWebhookConfigured}
+      isWebhookDisabled={isWebhookDisabled}
+      webhookId={webhookId}
+      onReactivateWebhook={() => {
+        if (webhookId) {
+          reactivateWebhook(webhookId)
+        }
+      }}
+      onSelect={handleClick}
+      contentRef={contentRef}
+      actionBar={
+        !data.isPreview && !data.isEmbedded ? (
+          <ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} />
+        ) : undefined
+      }
+      rows={rows}
+    />
   )
 }, shouldSkipBlockRender)

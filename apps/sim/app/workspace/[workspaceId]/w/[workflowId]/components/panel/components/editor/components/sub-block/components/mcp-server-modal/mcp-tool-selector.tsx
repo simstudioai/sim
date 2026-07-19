@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { Combobox } from '@sim/emcn'
 import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Combobox } from '@/components/emcn/components'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -29,7 +28,6 @@ export function McpToolSelector({
   previewValue,
   previewContextValues,
 }: McpToolSelectorProps) {
-  const tI18n = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -128,7 +126,7 @@ export function McpToolSelector({
       selectedValue={selectedToolId}
       onChange={handleComboboxChange}
       onOpenChange={handleOpenChange}
-      placeholder={serverValue ? label : tI18n('select_server_first')}
+      placeholder={serverValue ? label : 'Select server first'}
       disabled={isDisabled}
       editable={true}
       filterOptions={true}

@@ -1,15 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { cn, Input, Label } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { normalizeEmail } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Input, Label, Loader } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { publicFileSSOContract } from '@/lib/api/contracts/public-shares'
-import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
+import { AuthSubmitButton } from '@/app/(auth)/components'
 import { PublicFileAuthShell } from '@/app/f/[token]/public-file-auth-shell'
 
 interface PublicFileSSOAuthProps {
@@ -22,22 +21,20 @@ interface PublicFileSSOAuthProps {
  * sign-in the page gate authorizes via the Sim session.
  */
 export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   const handleAuthenticate = async () => {
-    if (!quickValidateEmail(email.trim().toLowerCase()).isValid) {
+    if (!quickValidateEmail(normalizeEmail(email)).isValid) {
       setError('Please enter a valid email address.')
       return
     }
     setError(null)
     setIsLoading(true)
     try {
-      const normalizedEmail = email.trim().toLowerCase()
+      const normalizedEmail = normalizeEmail(email)
       const { eligible } = await requestJson(publicFileSSOContract, {
         params: { token },
         body: { email: normalizedEmail },
@@ -59,8 +56,8 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
 
   return (
     <PublicFileAuthShell
-      title={t('sso_authentication')}
-      subtitle={tI18n('this_file_requires_sso_authentication')}
+      title='SSO Authentication'
+      subtitle='This file requires SSO authentication'
     >
       <form
         onSubmit={(e) => {
@@ -70,7 +67,7 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
         className='space-y-6'
       >
         <div className='space-y-2'>
-          <Label htmlFor='email'>{t('work_email')}</Label>
+          <Label htmlFor='email'>Work Email</Label>
           <Input
             id='email'
             name='email'
@@ -79,7 +76,7 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
             autoCapitalize='none'
             autoComplete='email'
             autoCorrect='off'
-            placeholder={t('enter_your_work_email')}
+            placeholder='Enter your work email'
             value={email}
             onChange={(e) => {
               setEmail(e.target.value)
@@ -90,16 +87,13 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
           {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}
         </div>
 
-        <button type='submit' disabled={!email.trim() || isLoading} className={AUTH_SUBMIT_BTN}>
-          {isLoading ? (
-            <span className='flex items-center gap-2'>
-              <Loader className='size-4' animate />
-              {t('redirecting_to_sso')}
-            </span>
-          ) : (
-            tI18n('continue_with_sso')
-          )}
-        </button>
+        <AuthSubmitButton
+          disabled={!email.trim()}
+          loading={isLoading}
+          loadingLabel='Redirecting to SSO…'
+        >
+          Continue with SSO
+        </AuthSubmitButton>
       </form>
     </PublicFileAuthShell>
   )

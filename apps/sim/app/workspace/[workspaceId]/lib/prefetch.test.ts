@@ -12,7 +12,7 @@ vi.mock('@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch', () => ({
   prefetchInternalJson: mockPrefetchInternalJson,
 }))
 
-vi.mock('@/components/emcn', () => ({
+vi.mock('@sim/emcn', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 

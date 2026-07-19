@@ -1,4 +1,8 @@
-import { createParser, parseAsString } from 'nuqs/server'
+import { createParser, parseAsArrayOf, parseAsString } from 'nuqs/server'
+import { createSortParams } from '@/lib/url-state'
+
+/** Sortable list columns, matching the `Resource.Options` sort menu. */
+export const FILE_SORT_COLUMNS = ['name', 'size', 'type', 'created', 'owner', 'updated'] as const
 
 /**
  * Parser for the `new` flag. Preserves the prior `?new=1` wire format on
@@ -46,4 +50,42 @@ export const filesParsers = {
 export const filesUrlKeys = {
   history: 'push',
   clearOnDefault: true,
+} as const
+
+/**
+ * Co-located, typed URL query-param definitions for the Files list's
+ * filter/search/sort view-state, grouped separately from the navigation params
+ * above because filter writes must never land in the browser history.
+ *
+ * - `search` is the file/folder name filter. The input is controlled directly
+ *   by the nuqs value; only its URL write is debounced via
+ *   `useDebouncedSearchSetter` — never written on every keystroke.
+ * - `type` filters by file kind (document/image/audio/video); `size` filters by
+ *   size bucket (small/medium/large); `uploadedBy` filters by uploader user id
+ *   (URL key `uploaded-by`). All three are multi-select arrays.
+ */
+export const filesFilterParsers = {
+  search: parseAsString.withDefault(''),
+  type: parseAsArrayOf(parseAsString).withDefault([]),
+  size: parseAsArrayOf(parseAsString).withDefault([]),
+  uploadedBy: parseAsArrayOf(parseAsString).withDefault([]),
+} as const
+
+/**
+ * `sort` / `dir` follow the shared sort convention (two scalar params) in
+ * nullable mode (no `defaultSort`) because "no active sort" is behaviorally
+ * distinct from explicitly sorting by the fallback column: with no sort, files
+ * order by updated/desc but folders by name/asc, while an explicit updated/desc
+ * sorts both sections by updatedAt. Collapsing the explicit selection into a
+ * clean URL would make that folder ordering unreachable. Clearing the sort
+ * writes `null`, which strips both params.
+ */
+export const filesSortParams = createSortParams(FILE_SORT_COLUMNS)
+
+/** Filter/search/sort view-state: clean URLs, no back-stack churn. */
+export const filesFilterUrlKeys = {
+  history: 'replace',
+  shallow: true,
+  clearOnDefault: true,
+  urlKeys: { uploadedBy: 'uploaded-by' },
 } as const

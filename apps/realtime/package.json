@@ -9,8 +9,8 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "DB_APP_NAME=sim-realtime bun --watch src/index.ts",
-    "start": "DB_APP_NAME=sim-realtime bun src/index.ts",
+    "dev": "SIM_DB_ROLE=realtime DB_APP_NAME=sim-realtime bun --watch src/index.ts",
+    "start": "SIM_DB_ROLE=realtime DB_APP_NAME=sim-realtime bun src/index.ts",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
@@ -43,7 +43,7 @@
     "@sim/tsconfig": "workspace:*",
     "@types/node": "24.2.1",
     "socket.io-client": "4.8.1",
-    "typescript": "^5.7.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.0"
   }
 }

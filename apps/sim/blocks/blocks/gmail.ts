@@ -1,4 +1,4 @@
-import { Card } from '@/components/emcn/icons'
+import { ClipboardList } from '@sim/emcn/icons'
 import { GmailIcon, LemlistIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
@@ -687,7 +687,7 @@ export const GmailBlockMeta = {
       alsoIntegrations: ['slack'],
     },
     {
-      icon: Card,
+      icon: ClipboardList,
       title: 'Invoice processor',
       prompt:
         'Build a workflow that processes invoice PDFs from Gmail, extracts vendor name, amount, due date, and line items, then logs everything to a tracking table and sends a Slack alert for invoices due within 7 days.',

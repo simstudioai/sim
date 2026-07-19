@@ -1,14 +1,8 @@
 'use client'
 
 import { memo } from 'react'
-import { useTranslations } from 'next-intl'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/emcn'
-import { FolderPlus, Plus, Upload } from '@/components/emcn/icons'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@sim/emcn'
+import { FolderPlus, Plus, Upload } from '@sim/emcn/icons'
 
 interface FilesListContextMenuProps {
   isOpen: boolean
@@ -33,7 +27,6 @@ export const FilesListContextMenu = memo(function FilesListContextMenu({
   disableCreateFolder = false,
   disableUpload = false,
 }: FilesListContextMenuProps) {
-  const t = useTranslations('auto')
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -53,19 +46,19 @@ export const FilesListContextMenu = memo(function FilesListContextMenu({
         {onCreateFile && (
           <DropdownMenuItem disabled={disableCreate} onSelect={onCreateFile}>
             <Plus />
-            {t('new_file')}
+            New file
           </DropdownMenuItem>
         )}
         {onCreateFolder && (
           <DropdownMenuItem disabled={disableCreateFolder} onSelect={onCreateFolder}>
             <FolderPlus />
-            {t('new_folder')}
+            New folder
           </DropdownMenuItem>
         )}
         {onUploadFile && (
           <DropdownMenuItem disabled={disableUpload} onSelect={onUploadFile}>
             <Upload />
-            {t('upload_file')}
+            Upload file
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

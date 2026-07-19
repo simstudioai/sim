@@ -2,11 +2,9 @@
 
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Button, cn, Tooltip } from '@sim/emcn'
 import { ArrowLeft } from 'lucide-react'
-import { useTranslations } from 'next-intl'
-import { Button, Tooltip } from '@/components/emcn'
 import { redactApiKeys } from '@/lib/core/security/redaction'
-import { cn } from '@/lib/core/utils/cn'
 import { PreviewEditor } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-editor'
 import {
   getLeftmostBlockId,
@@ -170,7 +168,6 @@ export function Preview({
   autoSelectLeftmost = true,
   showBlockCloseButton = true,
 }: PreviewProps) {
-  const t = useTranslations('auto')
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH)
   const panelWidthRef = useRef(DEFAULT_PANEL_WIDTH)
   panelWidthRef.current = panelWidth
@@ -304,10 +301,10 @@ export function Preview({
                 className='flex h-[28px] items-center gap-[5px] rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 text-[var(--text-secondary)] shadow-sm hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
               >
                 <ArrowLeft className='size-[12px]' />
-                <span className='font-medium text-caption'>{t('back')}</span>
+                <span className='font-medium text-caption'>Back</span>
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='bottom'>{t('go_back_to_parent_workflow')}</Tooltip.Content>
+            <Tooltip.Content side='bottom'>Go back to parent workflow</Tooltip.Content>
           </Tooltip.Root>
           {currentWorkflowName && (
             <div className='flex h-[28px] max-w-[200px] items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-sm'>

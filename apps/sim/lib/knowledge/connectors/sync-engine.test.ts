@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { authOAuthUtilsMock, urlsMock } from '@sim/testing'
+import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({ db: {} }))
@@ -226,6 +227,24 @@ describe('classifyExternalDoc', () => {
       type: 'unchanged',
     })
   })
+
+  it('forces re-hydration of an unchanged deferred doc when forceRehydrate is set', async () => {
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+    const deferred = { ...base, content: '', contentDeferred: true }
+    // Same hash → normally unchanged, but forceRehydrate promotes it to update.
+    expect(classifyExternalDoc(deferred, { id: 'doc-1', contentHash: 'h1' }, true)).toEqual({
+      type: 'update',
+      existingId: 'doc-1',
+    })
+  })
+
+  it('does not force re-hydration of a non-deferred doc (content already final)', async () => {
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+    // Ready (non-deferred) content with an unchanged hash stays unchanged even under forceRehydrate.
+    expect(classifyExternalDoc(base, { id: 'doc-1', contentHash: 'h1' }, true)).toEqual({
+      type: 'unchanged',
+    })
+  })
 })
 
 describe('chunkOpsByByteBudget', () => {
@@ -233,7 +252,7 @@ describe('chunkOpsByByteBudget', () => {
   const addOp = (sizeBytes?: number) => ({
     type: 'add' as const,
     extDoc: {
-      externalId: `e-${Math.random()}`,
+      externalId: `e-${generateShortId()}`,
       title: 'f',
       content: 'x',
       contentHash: 'h',
@@ -244,7 +263,7 @@ describe('chunkOpsByByteBudget', () => {
   const skipOp = (sizeBytes: number) => ({
     type: 'skip' as const,
     extDoc: {
-      externalId: `s-${Math.random()}`,
+      externalId: `s-${generateShortId()}`,
       title: 'f',
       content: '',
       contentHash: 'h',

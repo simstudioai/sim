@@ -52,7 +52,12 @@ describe('POST /api/guardrails/mask-batch', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.masked).toEqual(['M(a@b.com)', 'M(hello)'])
-    expect(mockMaskPIIBatch).toHaveBeenCalledWith(['a@b.com', 'hello'], ['EMAIL_ADDRESS'], 'en')
+    expect(mockMaskPIIBatch).toHaveBeenCalledWith(
+      ['a@b.com', 'hello'],
+      ['EMAIL_ADDRESS'],
+      'en',
+      undefined
+    )
   })
 
   it('rejects an invalid body with 400', async () => {

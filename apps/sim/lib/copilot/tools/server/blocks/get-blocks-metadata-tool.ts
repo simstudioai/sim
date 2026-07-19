@@ -7,6 +7,7 @@ import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/env-flags'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { getBlock } from '@/blocks/registry'
 import {
   AuthMode,
@@ -14,6 +15,7 @@ import {
   isHiddenFromDisplay,
   type SubBlockConfig,
 } from '@/blocks/types'
+import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { tools as toolsRegistry } from '@/tools/registry'
@@ -168,6 +170,43 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           logger.debug('Skipping block hidden from toolbar', { blockId })
           continue
         }
+
+        // getBlock is pure, so the viewer's visibility must be checked
+        // explicitly: unrevealed preview blocks and kill-switched types stay
+        // out of the agent's metadata (the router wraps this tool in
+        // withBlockVisibility).
+        if (isHiddenUnder(overlayVisibility(), blockConfig)) {
+          logger.debug('Skipping block gated by visibility', { blockId })
+          continue
+        }
+
+        if (isCustomBlockType(blockId)) {
+          // Custom (deploy-as-block) blocks run a bound workflow via an internal
+          // `workflow_executor`; the agent never configures a workflowId/inputMapping.
+          // Present it as self-contained: its visible input fields + curated outputs,
+          // no tools/operations.
+          const visibleSubBlocks = (blockConfig.subBlocks || []).filter((sb) => !sb.hidden)
+          const outputs = blockConfig.outputs
+            ? Object.fromEntries(
+                Object.entries(blockConfig.outputs).filter(([_, def]) => !isHiddenFromDisplay(def))
+              )
+            : undefined
+          metadata = {
+            id: blockId,
+            name: blockConfig.name || blockId,
+            description: blockConfig.longDescription || blockConfig.description || '',
+            bestPractices: blockConfig.bestPractices,
+            inputSchema: visibleSubBlocks.map(processSubBlock),
+            inputDefinitions: {},
+            tools: [],
+            triggers: [],
+            operationInputSchema: {},
+            outputs,
+          }
+          result[blockId] = removeNullish(metadata) as CopilotBlockMetadata
+          continue
+        }
+
         const tools: CopilotToolMetadata[] = Array.isArray(blockConfig.tools?.access)
           ? blockConfig.tools!.access.map((toolId) => {
               const tool = toolsRegistry[toolId]

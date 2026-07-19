@@ -38,9 +38,14 @@ export const mcpTransportSchema = z.enum(['streamable-http'])
 
 export const mcpAuthTypeSchema = z.enum(['none', 'headers', 'oauth'])
 
+const consecutiveFailuresSchema = z.preprocess(
+  (value) => (typeof value === 'number' ? value : undefined),
+  z.number().default(0)
+)
+
 export const mcpServerStatusConfigSchema = z
   .object({
-    consecutiveFailures: z.number().default(0),
+    consecutiveFailures: consecutiveFailuresSchema,
     lastSuccessfulDiscovery: z.string().nullable().default(null),
   })
   .passthrough()
@@ -50,10 +55,12 @@ export const mcpToolSchemaPropertySchema: z.ZodType<McpToolSchemaProperty> = z.l
     .object({
       type: z.union([z.string(), z.array(z.string())]).optional(),
       description: z.string().optional(),
-      items: mcpToolSchemaPropertySchema.optional(),
+      items: z
+        .union([mcpToolSchemaPropertySchema, z.array(mcpToolSchemaPropertySchema)])
+        .optional(),
       properties: z.record(z.string(), mcpToolSchemaPropertySchema).optional(),
       required: z.array(z.string()).optional(),
-      enum: z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+      enum: z.array(z.unknown()).optional(),
       default: z.unknown().optional(),
     })
     .passthrough()

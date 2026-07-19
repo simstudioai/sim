@@ -1,9 +1,6 @@
 'use client'
 
 import { memo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -11,7 +8,11 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@/components/emcn'
+  toast,
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'
 import type { ChunkingConfig } from '@/lib/knowledge/types'
 
 const logger = createLogger('EditKnowledgeBaseModal')
@@ -38,8 +39,6 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
   chunkingConfig,
   onSave,
 }: EditKnowledgeBaseModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [name, setName] = useState(initialName)
   const [description, setDescription] = useState(initialDescription)
   const [nameError, setNameError] = useState<string | null>(null)
@@ -63,31 +62,36 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
     }
   }
 
-  const validate = (): boolean => {
-    let valid = true
+  const validate = (): string | null => {
+    let firstError: string | null = null
 
     if (!name.trim()) {
       setNameError('Name is required')
-      valid = false
+      firstError ??= 'Name is required'
     } else if (name.trim().length > 100) {
       setNameError('Name must be less than 100 characters')
-      valid = false
+      firstError ??= 'Name must be less than 100 characters'
     } else {
       setNameError(null)
     }
 
-    if (description.length > 500) {
-      setDescriptionError('Description must be less than 500 characters')
-      valid = false
+    if (description.length > KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH) {
+      const message = `Description must be ${KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH} characters or less`
+      setDescriptionError(message)
+      firstError ??= message
     } else {
       setDescriptionError(null)
     }
 
-    return valid
+    return firstError
   }
 
   const handleSubmit = async () => {
-    if (!validate()) return
+    const validationError = validate()
+    if (validationError) {
+      toast.error(validationError)
+      return
+    }
 
     setIsSubmitting(true)
     setError(null)
@@ -107,63 +111,55 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
   const isDirty = name !== initialName || description !== initialDescription
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={tI18n('edit_knowledge_base')}>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>
-        {t('edit_knowledge_base')}
-      </ChipModalHeader>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Edit Knowledge Base'>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>Edit Knowledge Base</ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='input'
-          title={t('name')}
+          title='Name'
           value={name}
           onChange={setName}
-          placeholder={t('enter_knowledge_base_name')}
+          placeholder='Enter knowledge base name'
           required
           error={nameError ?? undefined}
           autoComplete='off'
         />
         <ChipModalField
           type='textarea'
-          title={t('description')}
+          title='Description'
           value={description}
           onChange={setDescription}
-          placeholder={t('describe_this_knowledge_base_optional')}
+          placeholder='Describe this knowledge base (optional)'
           rows={4}
           error={descriptionError ?? undefined}
         />
         {chunkingConfig && (
-          <ChipModalField type='custom' title={t('chunking_configuration')}>
+          <ChipModalField type='custom' title='Chunking Configuration'>
             <div className='grid grid-cols-3 gap-2'>
               <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
-                  {t('max_size')}
-                </p>
+                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>Max Size</p>
                 <p className='font-medium text-[var(--text-primary)] text-sm'>
                   {chunkingConfig.maxSize.toLocaleString()}
                   <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
-                    {t('tokens')}
+                    tokens
                   </span>
                 </p>
               </div>
               <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
-                  {t('min_size')}
-                </p>
+                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>Min Size</p>
                 <p className='font-medium text-[var(--text-primary)] text-sm'>
                   {chunkingConfig.minSize.toLocaleString()}
                   <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
-                    {t('chars')}
+                    chars
                   </span>
                 </p>
               </div>
               <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
-                  {t('overlap')}
-                </p>
+                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>Overlap</p>
                 <p className='font-medium text-[var(--text-primary)] text-sm'>
                   {chunkingConfig.overlap.toLocaleString()}
                   <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
-                    {t('tokens')}
+                    tokens
                   </span>
                 </p>
               </div>

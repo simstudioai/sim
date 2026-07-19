@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Tooltip } from '@/components/emcn'
+import { Tooltip } from '@sim/emcn'
 
 export type WorkspaceRoleSource = 'owner' | 'explicit' | 'org-admin'
 export type CredentialRoleSource = 'explicit' | 'workspace-admin'

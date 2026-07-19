@@ -1,9 +1,6 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -11,7 +8,9 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 
 const logger = createLogger('RenameDocumentModal')
 
@@ -34,8 +33,6 @@ export function RenameDocumentModal({
   initialName,
   onSave,
 }: RenameDocumentModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [name, setName] = useState(initialName)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -85,18 +82,18 @@ export function RenameDocumentModal({
   }
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={tI18n('rename_document')}>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>{t('rename_document')}</ChipModalHeader>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Rename Document'>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>Rename Document</ChipModalHeader>
       <ChipModalBody onKeyDown={handleKeyDown}>
         <ChipModalField
           type='input'
-          title={t('name')}
+          title='Name'
           value={name}
           onChange={(value) => {
             setName(value)
             setError(null)
           }}
-          placeholder={t('enter_document_name')}
+          placeholder='Enter document name'
           maxLength={255}
           autoComplete='off'
           disabled={isSubmitting}

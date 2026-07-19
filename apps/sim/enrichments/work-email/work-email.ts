@@ -1,5 +1,5 @@
+import { Mail } from '@sim/emcn/icons'
 import { filterUndefined } from '@sim/utils/object'
-import { Mail } from '@/components/emcn/icons'
 import { normalizeDomain, splitName, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
 
@@ -8,7 +8,7 @@ import type { EnrichmentConfig } from '@/enrichments/types'
  * available identifiers (company domain, LinkedIn URL) via a provider waterfall:
  * deterministic finders first (Hunter, Findymail by name then by LinkedIn), then
  * enrichment/reveal providers (Prospeo, Wiza), then People Data Labs as a broad
- * record-match fallback, then Datagma, LeadMagic, Dropcontact, Icypeas, and Enrow
+ * record-match fallback, then Datagma, LeadMagic, Dropcontact, and Enrow
  * as additional finders. Each provider opportunistically uses whatever
  * identifiers the row provides and self-skips when it has none usable, so adding
  * more inputs widens coverage. First email wins; all providers support hosted keys.
@@ -183,26 +183,6 @@ export const workEmailEnrichment: EnrichmentConfig = {
           website: website || undefined,
           linkedin: linkedin || undefined,
         })
-      },
-      mapOutput: (output) => {
-        const email = str(output.email)
-        return email ? { email } : null
-      },
-    }),
-    toolProvider({
-      id: 'icypeas',
-      label: 'Icypeas',
-      toolId: 'icypeas_find_email',
-      buildParams: (inputs) => {
-        // Icypeas only requires domainOrCompany; firstname/lastname are optional,
-        // so a mononym still runs with firstname alone rather than self-skipping.
-        const fullName = str(inputs.fullName)
-        const domainOrCompany = normalizeDomain(inputs.companyDomain)
-        if (!fullName || !domainOrCompany) return null
-        const name = splitName(inputs.fullName)
-        return name
-          ? { firstname: name.firstName, lastname: name.lastName, domainOrCompany }
-          : { firstname: fullName, domainOrCompany }
       },
       mapOutput: (output) => {
         const email = str(output.email)

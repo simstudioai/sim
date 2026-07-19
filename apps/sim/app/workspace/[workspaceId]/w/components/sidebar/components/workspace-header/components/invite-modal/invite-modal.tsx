@@ -1,9 +1,6 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -11,12 +8,16 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   toast,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useBatchSendWorkspaceInvitations } from '@/hooks/queries/invitations'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
 
@@ -43,8 +44,6 @@ export function InviteModal({
   inviteDisabledReason = null,
   organizationId = null,
 }: InviteModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [emails, setEmails] = useState<string[]>([])
   const [inviteRole, setInviteRole] = useState<PermissionType>('admin')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -53,10 +52,15 @@ export function InviteModal({
   const workspaceId = params.workspaceId as string
 
   const { data: session } = useSession()
+  const hostContext = useWorkspaceHostContext()
   const { workspacePermissions, userPermissions: userPerms } = useWorkspacePermissionsContext()
+  const canViewOrganizationBilling =
+    Boolean(organizationId) &&
+    hostContext.hostOrganizationId === organizationId &&
+    hostContext.viewer.isHostOrganizationAdmin
 
   const { data: organizationBillingData } = useOrganizationBilling(organizationId ?? '', {
-    enabled: open && isBillingEnabled,
+    enabled: open && isBillingEnabled && canViewOrganizationBilling,
   })
 
   const batchSendInvitations = useBatchSendWorkspaceInvitations()
@@ -70,7 +74,7 @@ export function InviteModal({
   // Only Enterprise plans have a fixed seat cap that gates invites. Team/Pro
   // seats are provisioned automatically when an invitee accepts.
   const isEnterpriseOrg = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
-  const hasSeatData = !!organizationId && isEnterpriseOrg && totalSeats > 0
+  const hasSeatData = canViewOrganizationBilling && isEnterpriseOrg && totalSeats > 0
   const exceedsSeatCapacity = hasSeatData && userPerms.canAdmin && emails.length > availableSeats
   const seatLimitReason = exceedsSeatCapacity
     ? `Only ${availableSeats} internal seat${availableSeats === 1 ? '' : 's'} available. External workspace invites do not require seats.`
@@ -78,6 +82,10 @@ export function InviteModal({
 
   const validateEmail = useCallback(
     (email: string): string | null => {
+      const formatResult = quickValidateEmail(email)
+      if (!formatResult.isValid) {
+        return formatResult.reason ?? 'Invalid email'
+      }
       if (workspacePermissions?.users?.some((user) => user.email === email)) {
         return `${email} is already a teammate in this workspace`
       }
@@ -172,13 +180,11 @@ export function InviteModal({
       onOpenChange={handleOpenChange}
       srTitle={`Invite teammates to ${workspaceName || 'workspace'}`}
     >
-      <ChipModalHeader onClose={() => handleOpenChange(false)}>
-        {t('invite_teammates')}
-      </ChipModalHeader>
+      <ChipModalHeader onClose={() => handleOpenChange(false)}>Invite teammates</ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='emails'
-          title={t('emails')}
+          title='Emails'
           value={emails}
           onChange={handleEmailsChange}
           validate={validateEmail}
@@ -186,17 +192,17 @@ export function InviteModal({
           hint={fieldHint}
           placeholder={
             !canInviteMembers
-              ? inviteDisabledReason || tI18n('only_administrators_can_invite_new_teammates')
-              : tI18n('enter_emails')
+              ? inviteDisabledReason || 'Only administrators can invite new teammates'
+              : 'Enter emails'
           }
           disabled={isSubmitting || !canInviteMembers}
         />
         <ChipModalField
           type='dropdown'
-          title={t('invite_as')}
+          title='Invite as'
           options={ROLE_OPTIONS}
           value={inviteRole}
-          placeholder={t('select_role')}
+          placeholder='Select role'
           align='start'
           onChange={(role) => setInviteRole(role as PermissionType)}
         />

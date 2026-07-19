@@ -1,14 +1,13 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Eye, Pencil, Plus, SquareArrowUpRight, TagIcon, Trash } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Eye, Pencil, Plus, SquareArrowUpRight, TagIcon, Trash } from '@sim/emcn/icons'
 
 interface DocumentContextMenuProps {
   isOpen: boolean
@@ -23,7 +22,6 @@ interface DocumentContextMenuProps {
   onAddDocument?: () => void
   isDocumentEnabled?: boolean
   hasDocument: boolean
-  hasTags?: boolean
   disableRename?: boolean
   disableToggleEnabled?: boolean
   disableDelete?: boolean
@@ -51,7 +49,6 @@ export function DocumentContextMenu({
   onAddDocument,
   isDocumentEnabled = true,
   hasDocument,
-  hasTags = false,
   disableRename = false,
   disableToggleEnabled = false,
   disableDelete = false,
@@ -60,7 +57,6 @@ export function DocumentContextMenu({
   enabledCount = 0,
   disabledCount = 0,
 }: DocumentContextMenuProps) {
-  const t = useTranslations('auto')
   const isMultiSelect = selectedCount > 1
 
   const getToggleLabel = () => {
@@ -72,7 +68,7 @@ export function DocumentContextMenu({
   }
 
   const hasNavigationSection = !isMultiSelect && (!!onOpenInNewTab || !!onOpenSource)
-  const hasEditSection = !isMultiSelect && (!!onRename || (hasTags && !!onViewTags))
+  const hasEditSection = !isMultiSelect && (!!onRename || !!onViewTags)
   const hasStateSection = !!onToggleEnabled
   const hasDestructiveSection = !!onDelete
 
@@ -103,13 +99,13 @@ export function DocumentContextMenu({
             {!isMultiSelect && onOpenInNewTab && (
               <DropdownMenuItem onSelect={onOpenInNewTab}>
                 <SquareArrowUpRight />
-                {t('open_in_new_tab')}
+                Open in new tab
               </DropdownMenuItem>
             )}
             {!isMultiSelect && onOpenSource && (
               <DropdownMenuItem onSelect={onOpenSource}>
                 <SquareArrowUpRight />
-                {t('open_source')}
+                Open source
               </DropdownMenuItem>
             )}
             {hasNavigationSection &&
@@ -120,13 +116,13 @@ export function DocumentContextMenu({
             {!isMultiSelect && onRename && (
               <DropdownMenuItem disabled={disableRename} onSelect={onRename}>
                 <Pencil />
-                {t('rename')}
+                Rename
               </DropdownMenuItem>
             )}
-            {!isMultiSelect && hasTags && onViewTags && (
+            {!isMultiSelect && onViewTags && (
               <DropdownMenuItem onSelect={onViewTags}>
                 <TagIcon />
-                {t('view_tags')}
+                Tags
               </DropdownMenuItem>
             )}
             {hasEditSection && (hasStateSection || hasDestructiveSection) && (
@@ -144,7 +140,7 @@ export function DocumentContextMenu({
             {onDelete && (
               <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
                 <Trash />
-                {t('delete')}
+                Delete
               </DropdownMenuItem>
             )}
           </>
@@ -152,7 +148,7 @@ export function DocumentContextMenu({
           onAddDocument && (
             <DropdownMenuItem disabled={disableAddDocument} onSelect={onAddDocument}>
               <Plus />
-              {t('add_document')}
+              Add document
             </DropdownMenuItem>
           )
         )}

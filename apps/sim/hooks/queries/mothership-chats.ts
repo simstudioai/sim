@@ -63,6 +63,7 @@ export const mothershipChatKeys = {
 
 /** Shared by the `useMothershipChats` hook and the workspace sidebar prefetch. */
 export const MOTHERSHIP_CHAT_LIST_STALE_TIME = 60 * 1000
+export const MOTHERSHIP_CHAT_HISTORY_STALE_TIME = 30 * 1000
 
 function assertValid(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -262,7 +263,7 @@ export function useMothershipChatHistory(chatId: string | undefined) {
   return useQuery({
     queryKey: mothershipChatKeys.detail(chatId),
     queryFn: chatId ? ({ signal }) => fetchMothershipChatHistory(chatId, signal) : skipToken,
-    staleTime: 30 * 1000,
+    staleTime: MOTHERSHIP_CHAT_HISTORY_STALE_TIME,
   })
 }
 
@@ -674,12 +675,12 @@ export function useCreateMothershipChat(workspaceId?: string) {
 async function forkChat(params: {
   chatId: string
   upToMessageId: string
-}): Promise<{ id: string }> {
+}): Promise<{ id: string; failedFileCopies?: number }> {
   const data = await requestJson(forkMothershipChatContract, {
     params: { chatId: params.chatId },
     body: { upToMessageId: params.upToMessageId },
   })
-  return { id: data.id }
+  return { id: data.id, failedFileCopies: data.failedFileCopies }
 }
 
 export function useForkMothershipChat(workspaceId?: string) {

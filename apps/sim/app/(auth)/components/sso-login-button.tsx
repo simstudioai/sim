@@ -1,11 +1,8 @@
 'use client'
-
+import { Chip, cn } from '@sim/emcn'
 import { useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Button } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { cn } from '@/lib/core/utils/cn'
-import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
+import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 
 interface SSOLoginButtonProps {
   callbackURL?: string
@@ -18,7 +15,6 @@ export function SSOLoginButton({
   className,
   variant = 'outline',
 }: SSOLoginButtonProps) {
-  const t = useTranslations('auto')
   const router = useRouter()
 
   if (!isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))) {
@@ -30,18 +26,19 @@ export function SSOLoginButton({
     router.push(ssoUrl)
   }
 
-  const outlineBtnClasses = cn(
-    'w-full rounded-sm border-[var(--landing-border-strong)] py-1.5 text-sm'
-  )
-
   return (
-    <Button
-      type='button'
+    <Chip
+      variant={variant === 'primary' ? 'primary' : undefined}
+      fullWidth
+      flush
       onClick={handleSSOClick}
-      variant={variant === 'outline' ? 'outline' : undefined}
-      className={cn(variant === 'outline' ? outlineBtnClasses : AUTH_SUBMIT_BTN, className)}
+      className={cn(
+        AUTH_BUTTON_CLASS,
+        variant === 'outline' && 'border border-[var(--border-1)]',
+        className
+      )}
     >
-      {t('sign_in_with_sso')}
-    </Button>
+      Sign in with SSO
+    </Chip>
   )
 }

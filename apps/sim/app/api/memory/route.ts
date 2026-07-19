@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { memory } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, like } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -224,7 +225,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       { status: 200 }
     )
   } catch (error: any) {
-    if (error.code === '23505') {
+    if (getPostgresErrorCode(error) === '23505') {
       return NextResponse.json(
         { success: false, error: { message: 'Memory with this key already exists' } },
         { status: 409 }

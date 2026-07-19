@@ -2,10 +2,8 @@
 
 import type React from 'react'
 import { useState } from 'react'
-import { AlertCircle } from 'lucide-react'
-import { useTranslations } from 'next-intl'
-import { createPortal } from 'react-dom'
 import {
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -17,8 +15,9 @@ import {
   ModalContent,
   ModalDescription,
   ModalHeader,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { AlertCircle } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { Preview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useExecutionSnapshot } from '@/hooks/queries/logs'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -62,7 +61,6 @@ export function ExecutionSnapshot({
   isOpen = false,
   onClose = () => {},
 }: ExecutionSnapshotProps) {
-  const t = useTranslations('auto')
   const { data, isLoading, error } = useExecutionSnapshot(executionId)
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -98,7 +96,7 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
             <Loader className='size-[16px]' animate />
-            <span className='text-small'>{t('loading_run_snapshot')}</span>
+            <span className='text-small'>Loading run snapshot…</span>
           </div>
         </div>
       )
@@ -112,9 +110,7 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-2 text-[var(--text-error)]'>
             <AlertCircle className='size-[16px]' />
-            <span className='text-small'>
-              {t('failed_to_load_run_snapshot')} {error.message}
-            </span>
+            <span className='text-small'>Failed to load run snapshot: {error.message}</span>
           </div>
         </div>
       )
@@ -128,7 +124,7 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
             <Loader className='size-[16px]' animate />
-            <span className='text-small'>{t('loading_run_snapshot')}</span>
+            <span className='text-small'>Loading run snapshot…</span>
           </div>
         </div>
       )
@@ -142,13 +138,14 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-3 text-[var(--text-warning)]'>
             <AlertCircle className='size-[20px]' />
-            <span className='font-medium text-base'>{t('logged_state_not_found')}</span>
+            <span className='font-medium text-base'>Logged State Not Found</span>
           </div>
           <div className='max-w-md text-center text-[var(--text-secondary)] text-small'>
-            {t('this_log_was_migrated_from_the')}
+            This log was migrated from the old logging system. The workflow state at the time of
+            this run is not available.
           </div>
           <div className='text-[var(--text-tertiary)] text-caption'>
-            {t('note')} {workflowState._note}
+            Note: {workflowState._note}
           </div>
         </div>
       )
@@ -197,7 +194,7 @@ export function ExecutionSnapshot({
             >
               <DropdownMenuItem onSelect={handleCopyExecutionId}>
                 <Duplicate />
-                {t('copy_run_id')}
+                Copy Run ID
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>,
@@ -217,11 +214,11 @@ export function ExecutionSnapshot({
           }}
         >
           <ModalContent size='full' className='flex h-[90vh] flex-col'>
-            <ModalHeader>{t('workflow_state')}</ModalHeader>
+            <ModalHeader>Workflow State</ModalHeader>
 
             <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
               <ModalDescription className='sr-only'>
-                {t('view_the_workflow_state_snapshot_for')}
+                View the workflow state snapshot for this execution
               </ModalDescription>
               {renderContent()}
             </ModalBody>

@@ -1,4 +1,5 @@
 import { type JSX, type MouseEvent, memo, useCallback, useMemo, useRef, useState } from 'react'
+import { Button, cn, Input, Label, Tooltip } from '@sim/emcn'
 import { isEqual } from 'es-toolkit'
 import {
   AlertTriangle,
@@ -9,9 +10,6 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
-import { cn } from '@/lib/core/utils/cn'
-import { useBlockText } from '@/lib/i18n/use-block-text'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import {
   CheckboxList,
@@ -60,7 +58,9 @@ const SLACK_OVERRIDES: SelectorOverrides = {
   transformContext: (context, deps) => {
     const authMethod = deps.authMethod as string
     const oauthCredential =
-      authMethod === 'bot_token' ? String(deps.botToken ?? '') : String(deps.credential ?? '')
+      authMethod === 'bot_token'
+        ? String(deps.customBotCredential ?? deps.botToken ?? '')
+        : String(deps.credential ?? deps.customBotCredential ?? deps.triggerCredentials ?? '')
     return { ...context, oauthCredential }
   },
 }
@@ -236,8 +236,7 @@ const renderLabel = (
     show: boolean
     onClick: () => void
     tooltip: string
-  },
-  tb: (text: string | undefined | null) => string = (text) => text ?? ''
+  }
 ): JSX.Element | null => {
   if (config.type === 'switch') return null
   if (!config.title) return null
@@ -252,7 +251,7 @@ const renderLabel = (
   return (
     <div className='flex items-center justify-between gap-1.5 pl-0.5'>
       <Label className='flex items-baseline gap-1.5 whitespace-nowrap'>
-        {tb(config.title)}
+        {config.title}
         {required && <span className='ml-0.5'>*</span>}
         {labelSuffix}
         {config.type === 'code' &&
@@ -471,7 +470,6 @@ function SubBlockComponent({
   dependencyContext,
   isSearchHighlighted,
 }: SubBlockProps): JSX.Element {
-  const tb = useBlockText()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -791,7 +789,7 @@ function SubBlockComponent({
           <Switch
             blockId={blockId}
             subBlockId={config.id}
-            title={tb(config.title)}
+            title={config.title ?? ''}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
@@ -845,7 +843,7 @@ function SubBlockComponent({
           <GroupedCheckboxList
             blockId={blockId}
             subBlockId={config.id}
-            title={tb(config.title)}
+            title={config.title ?? ''}
             options={config.options as { label: string; id: string; group?: string }[]}
             isPreview={isPreview}
             subBlockValues={subBlockValues ?? {}}
@@ -908,6 +906,7 @@ function SubBlockComponent({
             acceptedTypes={config.acceptedTypes || '*'}
             multiple={config.multiple === true}
             maxSize={config.maxSize}
+            requiresCloudStorage={config.requiresCloudStorage === true}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
@@ -1210,8 +1209,7 @@ function SubBlockComponent({
         },
         labelSuffix,
         false,
-        externalLink,
-        tb
+        externalLink
       )}
       {renderInput()}
     </div>

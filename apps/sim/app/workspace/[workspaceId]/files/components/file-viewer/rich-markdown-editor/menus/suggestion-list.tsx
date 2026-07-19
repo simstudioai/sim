@@ -1,6 +1,6 @@
 import { type ReactNode, type RefObject, useEffect } from 'react'
+import { cn } from '@sim/emcn'
 import type { Editor } from '@tiptap/core'
-import { cn } from '@/lib/core/utils/cn'
 import {
   SUGGESTION_GROUP_LABEL_CLASS,
   SUGGESTION_ITEM_CLASS,

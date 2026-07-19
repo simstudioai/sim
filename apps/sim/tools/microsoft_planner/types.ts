@@ -41,6 +41,10 @@ interface PlannerContainer {
   url?: string
 }
 
+interface PlannerAppliedCategories {
+  [category: string]: boolean
+}
+
 export interface PlannerTask {
   id?: string
   planId: string
@@ -61,6 +65,7 @@ export interface PlannerTask {
   conversationThreadId?: string
   priority?: number
   assignments?: Record<string, PlannerAssignment>
+  appliedCategories?: PlannerAppliedCategories
   bucketId?: string
   details?: {
     description?: string
@@ -69,7 +74,7 @@ export interface PlannerTask {
   }
 }
 
-interface PlannerBucket {
+export interface PlannerBucket {
   id: string
   name: string
   planId: string
@@ -77,7 +82,7 @@ interface PlannerBucket {
   '@odata.etag'?: string
 }
 
-interface PlannerPlan {
+export interface PlannerPlan {
   id: string
   title: string
   owner?: string
@@ -86,7 +91,14 @@ interface PlannerPlan {
   '@odata.etag'?: string
 }
 
-interface PlannerTaskDetails {
+export interface PlannerPlanDetails {
+  id: string
+  categoryDescriptions?: Record<string, string | null>
+  sharedWith?: Record<string, boolean>
+  '@odata.etag'?: string
+}
+
+export interface PlannerTaskDetails {
   id: string
   description?: string
   previewType?: string
@@ -153,6 +165,28 @@ export interface MicrosoftPlannerReadPlanResponse extends ToolResponse {
   }
 }
 
+export interface MicrosoftPlannerCreatePlanResponse extends ToolResponse {
+  output: {
+    plan: PlannerPlan
+    metadata: MicrosoftPlannerMetadata
+  }
+}
+
+export interface MicrosoftPlannerDeletePlanResponse extends ToolResponse {
+  output: {
+    deleted: boolean
+    metadata: MicrosoftPlannerMetadata
+  }
+}
+
+export interface MicrosoftPlannerGetPlanDetailsResponse extends ToolResponse {
+  output: {
+    planDetails: PlannerPlanDetails
+    etag: string
+    metadata: MicrosoftPlannerMetadata
+  }
+}
+
 export interface MicrosoftPlannerListBucketsResponse extends ToolResponse {
   output: {
     buckets: PlannerBucket[]
@@ -203,6 +237,20 @@ export interface MicrosoftPlannerUpdateTaskDetailsResponse extends ToolResponse 
   }
 }
 
+export interface MicrosoftPlannerUpdatePlanResponse extends ToolResponse {
+  output: {
+    plan: PlannerPlan
+    metadata: MicrosoftPlannerMetadata
+  }
+}
+
+export interface MicrosoftPlannerUpdatePlanDetailsResponse extends ToolResponse {
+  output: {
+    planDetails: PlannerPlanDetails
+    metadata: MicrosoftPlannerMetadata
+  }
+}
+
 export interface MicrosoftPlannerToolParams {
   accessToken: string
   planId?: string
@@ -221,6 +269,9 @@ export interface MicrosoftPlannerToolParams {
   checklist?: Record<string, any>
   references?: Record<string, any>
   previewType?: string
+  appliedCategories?: string
+  categoryDescriptions?: Record<string, any>
+  sharedWith?: Record<string, any>
 }
 
 export type MicrosoftPlannerResponse =
@@ -230,6 +281,9 @@ export type MicrosoftPlannerResponse =
   | MicrosoftPlannerDeleteTaskResponse
   | MicrosoftPlannerListPlansResponse
   | MicrosoftPlannerReadPlanResponse
+  | MicrosoftPlannerCreatePlanResponse
+  | MicrosoftPlannerDeletePlanResponse
+  | MicrosoftPlannerGetPlanDetailsResponse
   | MicrosoftPlannerListBucketsResponse
   | MicrosoftPlannerReadBucketResponse
   | MicrosoftPlannerCreateBucketResponse
@@ -237,3 +291,5 @@ export type MicrosoftPlannerResponse =
   | MicrosoftPlannerDeleteBucketResponse
   | MicrosoftPlannerGetTaskDetailsResponse
   | MicrosoftPlannerUpdateTaskDetailsResponse
+  | MicrosoftPlannerUpdatePlanResponse
+  | MicrosoftPlannerUpdatePlanDetailsResponse

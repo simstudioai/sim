@@ -1,10 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { Eye, EyeOff, Search } from 'lucide-react'
-import { useTranslations } from 'next-intl'
 import {
   Button,
   Chip,
@@ -15,8 +11,11 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+  cn,
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { Eye, EyeOff, Search } from 'lucide-react'
 import {
   CHIP_FIELD_INPUT,
   CHIP_FIELD_SHELL,
@@ -24,6 +23,7 @@ import {
 import { BYOKProviderKeysModal } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-provider-keys-modal'
 import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 const logger = createLogger('BYOKKeyManager')
@@ -59,6 +59,7 @@ interface BYOKKeyManagerBaseProps {
   isLoading: boolean
   isSaving?: boolean
   isDeleting?: boolean
+  readOnly?: boolean
   /** Labeled provider groups. When omitted, renders a single flat list. */
   sections?: BYOKProviderSection[]
   /** Optional subtitle shown above the provider list. */
@@ -126,13 +127,12 @@ const NO_KEYS: BYOKManagerKey[] = []
  * the page chrome (background, scroll container, and `max-w` centering).
  */
 export function BYOKKeyManager(props: BYOKKeyManagerProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const {
     providers,
     isLoading,
     isSaving = false,
     isDeleting = false,
+    readOnly = false,
     sections,
     description,
     showSearch = true,
@@ -250,9 +250,10 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
 
   const renderActions = (provider: BYOKManagerProvider) => {
     if (!hasStoredKey(provider.id)) {
+      if (readOnly) return null
       return (
         <Chip variant='primary' onClick={() => openEditModal(provider.id)}>
-          {t('add_key')}
+          Add Key
         </Chip>
       )
     }
@@ -261,18 +262,21 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
       const keyCount = getProviderKeys(provider.id).length
       return (
         <div className='flex flex-shrink-0 items-center gap-2'>
-          <span className='text-[12px] text-[var(--text-muted)]'>
+          <span className='text-[var(--text-muted)] text-caption'>
             {keyCount} {keyCount === 1 ? 'key' : 'keys'}
           </span>
-          <Chip onClick={() => setManagingProviderId(provider.id)}>{t('manage')}</Chip>
+          <Chip onClick={() => setManagingProviderId(provider.id)}>
+            {readOnly ? 'View' : 'Manage'}
+          </Chip>
         </div>
       )
     }
 
+    if (readOnly) return null
     return (
       <div className='flex flex-shrink-0 items-center gap-2'>
-        <Chip onClick={() => openEditModal(provider.id)}>{t('update')}</Chip>
-        <Chip onClick={() => openDeleteConfirm(provider.id)}>{t('delete')}</Chip>
+        <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
+        <Chip onClick={() => openDeleteConfirm(provider.id)}>Delete</Chip>
       </div>
     )
   }
@@ -281,21 +285,13 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
     const Icon = provider.icon
 
     return (
-      <div key={provider.id} className='flex items-center justify-between gap-2.5'>
-        <div className='flex min-w-0 items-center gap-2.5'>
-          <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
-            <Icon className='size-5' />
-          </div>
-          <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-            <span className='truncate text-[14px] text-[var(--text-body)]'>{provider.name}</span>
-            <span className='truncate text-[12px] text-[var(--text-muted)]'>
-              {provider.description}
-            </span>
-          </div>
-        </div>
-
-        {renderActions(provider)}
-      </div>
+      <SettingsResourceRow
+        key={provider.id}
+        icon={<Icon />}
+        title={provider.name}
+        description={provider.description}
+        trailing={renderActions(provider)}
+      />
     )
   }
 
@@ -309,7 +305,8 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               strokeWidth={2}
             />
             <input
-              placeholder={t('search_providers')}
+              aria-label='Search providers'
+              placeholder='Search providers...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={isLoading}
@@ -328,8 +325,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
           </div>
         ) : showNoResults ? (
           <SettingsEmptyState variant='inline'>
-            {t('no_providers_found_matching')}
-            {searchTerm}"
+            No providers found matching "{searchTerm}"
           </SettingsEmptyState>
         ) : sections ? (
           <div className='flex flex-col gap-7'>
@@ -360,6 +356,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
           provider={managingMeta}
           keys={managingProviderId ? getProviderKeys(managingProviderId) : NO_KEYS}
           maxKeys={props.maxKeysPerProvider}
+          readOnly={readOnly}
           onAddKey={() => managingProviderId && openEditModal(managingProviderId)}
           onUpdateKey={(key) => managingProviderId && openEditModal(managingProviderId, key)}
           onDeleteKey={(key) => managingProviderId && openDeleteConfirm(managingProviderId, key.id)}
@@ -371,13 +368,12 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
         onOpenChange={(open) => {
           if (!open) closeEditModal()
         }}
-        srTitle={tI18n('add_update_api_key')}
+        srTitle='Add/Update API Key'
       >
         <ChipModalHeader onClose={closeEditModal}>
           {editingMeta && (
             <>
-              {isUpdatingExistingKey ? tI18n('update') : tI18n('add')} {editingMeta.name}{' '}
-              {t('api_key')}
+              {isUpdatingExistingKey ? 'Update' : 'Add'} {editingMeta.name} API Key
             </>
           )}
         </ChipModalHeader>
@@ -387,11 +383,12 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               ? `Requests are distributed evenly across all ${editingMeta?.name} keys in this workspace. Your key is encrypted and stored securely.`
               : `This key will be used for all ${editingMeta?.name} requests in this workspace. Your key is encrypted and stored securely.`}
           </p>
-          <ChipModalField type='custom' title={t('api_key')} required>
+          <ChipModalField type='custom' title='API Key' required>
             <input
               type='text'
               name='fakeusernameremembered'
               autoComplete='username'
+              aria-hidden='true'
               style={{
                 position: 'absolute',
                 left: '-9999px',
@@ -403,6 +400,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
             />
             <div className={CHIP_FIELD_SHELL}>
               <input
+                aria-label='API Key'
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKeyInput}
                 onChange={(e) => {
@@ -425,7 +423,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
                 variant='quiet'
                 className='size-[18px] shrink-0 rounded-sm p-0'
                 onClick={() => setShowApiKey(!showApiKey)}
-                aria-label={showApiKey ? tI18n('hide_api_key') : tI18n('show_api_key')}
+                aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
               >
                 {showApiKey ? <EyeOff className='size-[13px]' /> : <Eye className='size-[13px]' />}
               </Button>
@@ -434,10 +432,10 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
           {props.multiKey && (
             <ChipModalField
               type='input'
-              title={t('name')}
+              title='Name'
               value={nameInput}
               onChange={setNameInput}
-              placeholder={t('e_g_production_key')}
+              placeholder='e.g. Production key'
               maxLength={120}
               onSubmit={handleSave}
             />
@@ -460,8 +458,8 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
         onOpenChange={(open) => {
           if (!open) setDeleteConfirm(null)
         }}
-        srTitle={tI18n('delete_api_key')}
-        title={t('delete_api_key')}
+        srTitle='Delete API Key'
+        title='Delete API Key'
         text={[
           'Are you sure you want to delete the ',
           { text: deleteMeta?.name ?? 'selected', bold: true },

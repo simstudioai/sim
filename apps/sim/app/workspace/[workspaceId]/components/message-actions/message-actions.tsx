@@ -1,9 +1,6 @@
 'use client'
 
 import { memo, useEffect, useRef, useState } from 'react'
-import { GitBranch } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
 import {
   Check,
   ChipModal,
@@ -11,19 +8,22 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  cn,
   Duplicate,
+  Split,
   ThumbsDown,
   ThumbsUp,
   Tooltip,
   toast,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { useParams, useRouter } from 'next/navigation'
+import { isLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useFolderStore } from '@/stores/folders/store'
 
-const SPECIAL_TAGS = 'thinking|options|usage_upgrade|credential|mothership-error|file'
+const SPECIAL_TAGS = 'thinking|options|usage_upgrade|credential|mothership-error|file|question'
 
 function toPlainText(raw: string): string {
   return (
@@ -62,8 +62,6 @@ export const MessageActions = memo(function MessageActions({
   requestId,
   messageId,
 }: MessageActionsProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const router = useRouter()
   const params = useParams<{ workspaceId: string }>()
   const { chatId } = useChatSurface()
@@ -156,6 +154,11 @@ export const MessageActions = memo(function MessageActions({
     if (!chatId || !messageId || forkChat.isPending) return
     try {
       const result = await forkChat.mutateAsync({ chatId, upToMessageId: messageId })
+      if (result.failedFileCopies) {
+        toast.warning(
+          `${result.failedFileCopies} file${result.failedFileCopies === 1 ? '' : 's'} could not be copied to the fork`
+        )
+      }
       useFolderStore.getState().clearChatSelection()
       router.push(`/workspace/${params.workspaceId}/chat/${result.id}`)
     } catch {
@@ -165,7 +168,10 @@ export const MessageActions = memo(function MessageActions({
 
   const hasContent = Boolean(content)
   const canSubmitFeedback = Boolean(chatId && userQuery)
-  const canFork = false
+  // A live (just-streamed) assistant message carries a synthetic id that the
+  // persisted transcript doesn't know — forking it would 400. The button
+  // appears once the transcript refetch swaps in the persisted message id.
+  const canFork = Boolean(chatId && messageId && !isLiveAssistantMessageId(messageId))
   if (!hasContent && !canSubmitFeedback && !canFork) return null
 
   return (
@@ -176,7 +182,7 @@ export const MessageActions = memo(function MessageActions({
             <Tooltip.Trigger asChild>
               <button
                 type='button'
-                aria-label={t('copy_message')}
+                aria-label='Copy message'
                 onClick={copyToClipboard}
                 className={BUTTON_CLASS}
               >
@@ -184,7 +190,7 @@ export const MessageActions = memo(function MessageActions({
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
-              {copied ? tI18n('copied_message') : tI18n('copy_message')}
+              {copied ? 'Copied message' : 'Copy message'}
             </Tooltip.Content>
           </Tooltip.Root>
         )}
@@ -194,27 +200,27 @@ export const MessageActions = memo(function MessageActions({
               <Tooltip.Trigger asChild>
                 <button
                   type='button'
-                  aria-label={t('like')}
+                  aria-label='Like'
                   onClick={() => handleFeedbackClick('up')}
                   className={BUTTON_CLASS}
                 >
                   <ThumbsUp className={ICON_CLASS} />
                 </button>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>{t('good_response')}</Tooltip.Content>
+              <Tooltip.Content side='top'>Good response</Tooltip.Content>
             </Tooltip.Root>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <button
                   type='button'
-                  aria-label={t('dislike')}
+                  aria-label='Dislike'
                   onClick={() => handleFeedbackClick('down')}
                   className={BUTTON_CLASS}
                 >
                   <ThumbsDown className={ICON_CLASS} />
                 </button>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>{t('bad_response')}</Tooltip.Content>
+              <Tooltip.Content side='top'>Bad response</Tooltip.Content>
             </Tooltip.Root>
           </>
         )}
@@ -223,15 +229,15 @@ export const MessageActions = memo(function MessageActions({
             <Tooltip.Trigger asChild>
               <button
                 type='button'
-                aria-label={t('fork_from_here')}
+                aria-label='Branch in new chat'
                 onClick={handleFork}
                 disabled={forkChat.isPending}
                 className={cn(BUTTON_CLASS, forkChat.isPending && 'cursor-not-allowed opacity-50')}
               >
-                <GitBranch className={ICON_CLASS} />
+                <Split className={ICON_CLASS} />
               </button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>{t('fork_from_here')}</Tooltip.Content>
+            <Tooltip.Content side='top'>Branch in new chat</Tooltip.Content>
           </Tooltip.Root>
         )}
       </div>
@@ -239,24 +245,20 @@ export const MessageActions = memo(function MessageActions({
       <ChipModal
         open={pendingFeedback !== null}
         onOpenChange={handleModalClose}
-        srTitle={tI18n('give_feedback')}
+        srTitle='Give feedback'
       >
-        <ChipModalHeader onClose={() => handleModalClose(false)}>
-          {t('give_feedback')}
-        </ChipModalHeader>
+        <ChipModalHeader onClose={() => handleModalClose(false)}>Give feedback</ChipModalHeader>
         <ChipModalBody>
           <div className='flex items-start justify-between gap-2 px-2'>
             <p className='font-medium text-[var(--text-secondary)] text-sm'>
-              {pendingFeedback === 'up'
-                ? tI18n('what_did_you_like')
-                : tI18n('what_could_be_improved')}
+              {pendingFeedback === 'up' ? 'What did you like?' : 'What could be improved?'}
             </p>
             {pendingFeedback === 'down' && requestId && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <button
                     type='button'
-                    aria-label={t('copy_request_id')}
+                    aria-label='Copy request ID'
                     onClick={copyRequestId}
                     className='flex size-[22px] shrink-0 items-center justify-center rounded-full text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
                   >
@@ -268,14 +270,14 @@ export const MessageActions = memo(function MessageActions({
                   </button>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>
-                  {copiedRequestId ? tI18n('copied_request_id') : tI18n('copy_request_id')}
+                  {copiedRequestId ? 'Copied request ID' : 'Copy request ID'}
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
           </div>
           <ChipModalField
             type='textarea'
-            title={t('feedback')}
+            title='Feedback'
             value={feedbackText}
             onChange={setFeedbackText}
             rows={6}
@@ -283,8 +285,8 @@ export const MessageActions = memo(function MessageActions({
             resizable
             placeholder={
               pendingFeedback === 'up'
-                ? tI18n('tell_us_what_was_helpful')
-                : tI18n('tell_us_what_went_wrong')
+                ? 'Tell us what was helpful...'
+                : 'Tell us what went wrong...'
             }
           />
         </ChipModalBody>

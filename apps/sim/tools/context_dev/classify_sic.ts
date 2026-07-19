@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevClassifySicParams,
   ContextDevClassifySicResponse,
@@ -21,6 +22,8 @@ export const contextDevClassifySicTool: ToolConfig<
   name: 'Context.dev Classify SIC',
   description: 'Classify a brand into SIC industry codes from its domain or company name.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevClassifySicParams>(),
 
   params: {
     input: {

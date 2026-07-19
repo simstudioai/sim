@@ -26,9 +26,17 @@
       "types": "./src/helpers.ts",
       "default": "./src/helpers.ts"
     },
+    "./media-embed": {
+      "types": "./src/media-embed.ts",
+      "default": "./src/media-embed.ts"
+    },
     "./formatting": {
       "types": "./src/formatting.ts",
       "default": "./src/formatting.ts"
+    },
+    "./fractional-indexing": {
+      "types": "./src/fractional-indexing.ts",
+      "default": "./src/fractional-indexing.ts"
     },
     "./object": {
       "types": "./src/object.ts",
@@ -55,7 +63,7 @@
   "dependencies": {},
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "typescript": "^5.7.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.0"
   }
 }

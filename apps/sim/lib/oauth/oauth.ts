@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import {
   AirtableIcon,
   AsanaIcon,
@@ -7,6 +8,7 @@ import {
   AzureIcon,
   BoxCompanyIcon,
   CalComIcon,
+  ClickUpIcon,
   ConfluenceIcon,
   DocuSignIcon,
   DropboxIcon,
@@ -24,6 +26,7 @@ import {
   GoogleSheetsIcon,
   GoogleTasksIcon,
   HubspotIcon,
+  InstagramIcon,
   JiraIcon,
   LinearIcon,
   LinkedInIcon,
@@ -43,6 +46,7 @@ import {
   ShopifyIcon,
   SlackIcon,
   SpotifyIcon,
+  TikTokIcon,
   TrelloIcon,
   VertexIcon,
   WealthboxIcon,
@@ -52,6 +56,11 @@ import {
   ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
+import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import type { OAuthProviderConfig } from './types'
 
 const logger = createLogger('OAuth')
@@ -427,6 +436,28 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'x',
   },
+  tiktok: {
+    name: 'TikTok',
+    icon: TikTokIcon,
+    services: {
+      tiktok: {
+        name: 'TikTok',
+        description: 'Read profile info and videos, and publish content to TikTok.',
+        providerId: 'tiktok',
+        icon: TikTokIcon,
+        baseProviderIcon: TikTokIcon,
+        scopes: [
+          'user.info.basic',
+          'user.info.profile',
+          'user.info.stats',
+          'video.publish',
+          'video.upload',
+          'video.list',
+        ],
+      },
+    },
+    defaultService: 'tiktok',
+  },
   atlassian: {
     name: 'Atlassian',
     icon: JiraIcon,
@@ -566,6 +597,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Airtable',
         description: 'Manage Airtable bases, tables, and records.',
         providerId: 'airtable',
+        serviceAccountProviderId: 'airtable-service-account',
         icon: AirtableIcon,
         baseProviderIcon: AirtableIcon,
         scopes: [
@@ -587,12 +619,29 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Notion',
         description: 'Connect to your Notion workspace to manage pages and databases.',
         providerId: 'notion',
+        serviceAccountProviderId: 'notion-service-account',
         icon: NotionIcon,
         baseProviderIcon: NotionIcon,
         scopes: [],
       },
     },
     defaultService: 'notion',
+  },
+  clickup: {
+    name: 'ClickUp',
+    icon: ClickUpIcon,
+    services: {
+      clickup: {
+        name: 'ClickUp',
+        description: 'Manage tasks, lists, and comments in ClickUp.',
+        providerId: 'clickup',
+        serviceAccountProviderId: 'clickup-service-account',
+        icon: ClickUpIcon,
+        baseProviderIcon: ClickUpIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'clickup',
   },
   linear: {
     name: 'Linear',
@@ -602,6 +651,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Linear',
         description: 'Manage issues and projects in Linear.',
         providerId: 'linear',
+        serviceAccountProviderId: 'linear-service-account',
         icon: LinearIcon,
         baseProviderIcon: LinearIcon,
         scopes: ['read', 'write'],
@@ -617,6 +667,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Monday.com',
         description: 'Manage boards, items, and groups in Monday.com.',
         providerId: 'monday',
+        serviceAccountProviderId: 'monday-service-account',
         icon: MondayIcon,
         baseProviderIcon: MondayIcon,
         scopes: [
@@ -643,6 +694,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: BoxCompanyIcon,
         baseProviderIcon: BoxCompanyIcon,
         scopes: ['root_readwrite', 'sign_requests.readwrite'],
+        serviceAccountProviderId: 'box-service-account',
       },
     },
     defaultService: 'box',
@@ -678,6 +730,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Shopify',
         description: 'Manage products, orders, and customers in your Shopify store.',
         providerId: 'shopify',
+        serviceAccountProviderId: 'shopify-service-account',
         icon: ShopifyIcon,
         baseProviderIcon: ShopifyIcon,
         scopes: [
@@ -700,6 +753,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Slack',
         description: 'Use Slack messaging, files, reactions, views, and canvases.',
         providerId: 'slack',
+        serviceAccountProviderId: 'slack-custom-bot',
         icon: SlackIcon,
         baseProviderIcon: SlackIcon,
         scopes: [
@@ -711,7 +765,12 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'groups:write',
           'chat:write',
           'chat:write.public',
-          // TODO: Add 'assistant:write' once Slack app review is approved
+          // TODO: Re-add once Slack app review approves these. Requesting a scope
+          // the app is not yet approved for makes Slack reject the entire
+          // authorization with "unapproved permissions requested", breaking connect.
+          // 'assistant:write',
+          // 'app_mentions:read',
+          // 'im:history',
           'im:write',
           'im:read',
           'users:read',
@@ -722,6 +781,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'canvases:write',
           'reactions:write',
           'reactions:read',
+          // TODO: Add 'pins:read' once Slack app review is approved
         ],
       },
     },
@@ -767,6 +827,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Wealthbox',
         description: 'Manage contacts, notes, and tasks in your Wealthbox CRM.',
         providerId: 'wealthbox',
+        serviceAccountProviderId: 'wealthbox-service-account',
         icon: WealthboxIcon,
         baseProviderIcon: WealthboxIcon,
         scopes: ['login', 'data'],
@@ -782,6 +843,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Webflow',
         description: 'Manage Webflow CMS collections, sites, and content.',
         providerId: 'webflow',
+        serviceAccountProviderId: 'webflow-service-account',
         icon: WebflowIcon,
         baseProviderIcon: WebflowIcon,
         scopes: ['cms:read', 'cms:write', 'sites:read', 'sites:write', 'forms:read'],
@@ -797,6 +859,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Trello',
         description: 'Manage Trello boards, cards, and workflows.',
         providerId: 'trello',
+        serviceAccountProviderId: 'trello-service-account',
         icon: TrelloIcon,
         baseProviderIcon: TrelloIcon,
         scopes: ['read', 'write'],
@@ -812,6 +875,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Asana',
         description: 'Manage Asana projects, tasks, and workflows.',
         providerId: 'asana',
+        serviceAccountProviderId: 'asana-service-account',
         icon: AsanaIcon,
         baseProviderIcon: AsanaIcon,
         scopes: ['default'],
@@ -827,6 +891,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Attio',
         description: 'Manage records, notes, tasks, lists, comments, and more in Attio CRM.',
         providerId: 'attio',
+        serviceAccountProviderId: 'attio-service-account',
         icon: AttioIcon,
         baseProviderIcon: AttioIcon,
         scopes: [
@@ -852,6 +917,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Cal.com',
         description: 'Manage Cal.com bookings, event types, and schedules.',
         providerId: 'calcom',
+        serviceAccountProviderId: 'calcom-service-account',
         icon: CalComIcon,
         baseProviderIcon: CalComIcon,
         scopes: [],
@@ -882,6 +948,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Pipedrive',
         description: 'Manage deals, contacts, and sales pipeline in Pipedrive CRM.',
         providerId: 'pipedrive',
+        serviceAccountProviderId: 'pipedrive-service-account',
         icon: PipedriveIcon,
         baseProviderIcon: PipedriveIcon,
         scopes: [
@@ -905,6 +972,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'HubSpot',
         description: 'Access and manage your HubSpot CRM data.',
         providerId: 'hubspot',
+        serviceAccountProviderId: 'hubspot-service-account',
         icon: HubspotIcon,
         baseProviderIcon: HubspotIcon,
         scopes: [
@@ -948,6 +1016,27 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'linkedin',
   },
+  instagram: {
+    name: 'Instagram',
+    icon: InstagramIcon,
+    services: {
+      instagram: {
+        name: 'Instagram',
+        description: 'Publish content, moderate comments, and message on Instagram.',
+        providerId: 'instagram',
+        icon: InstagramIcon,
+        baseProviderIcon: InstagramIcon,
+        scopes: [
+          'instagram_business_basic',
+          'instagram_business_content_publish',
+          'instagram_business_manage_comments',
+          'instagram_business_manage_messages',
+          'instagram_business_manage_insights',
+        ],
+      },
+    },
+    defaultService: 'instagram',
+  },
   salesforce: {
     name: 'Salesforce',
     icon: SalesforceIcon,
@@ -956,6 +1045,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Salesforce',
         description: 'Access and manage your Salesforce CRM data.',
         providerId: 'salesforce',
+        serviceAccountProviderId: 'salesforce-service-account',
         icon: SalesforceIcon,
         baseProviderIcon: SalesforceIcon,
         scopes: ['api', 'refresh_token', 'openid'],
@@ -986,6 +1076,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'cloud_recording:read:list_recording_files',
           'cloud_recording:delete:recording_file',
         ],
+        serviceAccountProviderId: 'zoom-service-account',
       },
     },
     defaultService: 'zoom',
@@ -1057,6 +1148,17 @@ interface ProviderAuthConfig {
    * instead of the default application/x-www-form-urlencoded. Used by Notion.
    */
   useJsonBody?: boolean
+  /**
+   * Token refresh strategy. `instagram_long_lived` uses Meta's GET
+   * `refresh_access_token?grant_type=ig_refresh_token` flow instead of a
+   * standard OAuth refresh_token POST.
+   */
+  refreshStrategy?: 'standard' | 'instagram_long_lived'
+  /**
+   * Body param name to use for the client identifier instead of the standard `client_id`.
+   * TikTok requires `client_key` instead.
+   */
+  clientIdParamName?: string
 }
 
 /**
@@ -1091,6 +1193,21 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: true,
         supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'tiktok': {
+      const { clientId, clientSecret } = getCredentials(
+        env.TIKTOK_CLIENT_ID,
+        env.TIKTOK_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://open.tiktokapis.com/v2/oauth/token/',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+        // TikTok requires `client_key` in the token request body instead of `client_id`.
+        clientIdParamName: 'client_key',
       }
     }
     case 'confluence': {
@@ -1172,6 +1289,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'clickup': {
+      const { clientId, clientSecret } = getCredentials(
+        env.CLICKUP_CLIENT_ID,
+        env.CLICKUP_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.clickup.com/api/v2/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
       }
     }
     case 'linear': {
@@ -1340,6 +1470,20 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         supportsRefreshTokenRotation: false,
       }
     }
+    case 'instagram': {
+      const { clientId, clientSecret } = getCredentials(
+        env.INSTAGRAM_CLIENT_ID,
+        env.INSTAGRAM_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://graph.instagram.com/refresh_access_token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+        refreshStrategy: 'instagram_long_lived',
+      }
+    }
     case 'salesforce': {
       const { clientId, clientSecret } = getCredentials(
         env.SALESFORCE_CLIENT_ID,
@@ -1455,7 +1599,7 @@ function buildAuthRequest(
     headers.Authorization = `Basic ${basicAuth}`
   } else {
     // Use body credentials - include client credentials in request body
-    bodyParams.client_id = config.clientId
+    bodyParams[config.clientIdParamName || 'client_id'] = config.clientId
     if (config.clientSecret) {
       bodyParams.client_secret = config.clientSecret
     }
@@ -1497,8 +1641,12 @@ export type RefreshTokenResult = RefreshTokenSuccess | RefreshTokenFailure
 
 function extractErrorCode(value: unknown): string | undefined {
   if (value && typeof value === 'object' && 'error' in value) {
-    const code = (value as { error: unknown }).error
-    if (typeof code === 'string') return code
+    const error = (value as { error: unknown }).error
+    if (typeof error === 'string') return error
+    if (error && typeof error === 'object' && 'code' in error) {
+      const code = (error as { code: unknown }).code
+      if (typeof code === 'string' || typeof code === 'number') return String(code)
+    }
   }
   return undefined
 }
@@ -1512,6 +1660,68 @@ function extractErrorCode(value: unknown): string | undefined {
  */
 const TOKEN_REFRESH_TIMEOUT_MS = 15_000
 
+async function refreshInstagramLongLivedToken(
+  config: ProviderAuthConfig,
+  longLivedToken: string,
+  providerId: string
+): Promise<RefreshTokenResult> {
+  const url = new URL(config.tokenEndpoint)
+  url.searchParams.set('grant_type', 'ig_refresh_token')
+  url.searchParams.set('access_token', longLivedToken)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    signal: AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS),
+  })
+
+  const responseText = await readResponseTextWithLimit(response, {
+    maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+    label: 'Instagram token refresh response',
+  })
+  let responseData: unknown = responseText
+  try {
+    responseData = JSON.parse(responseText)
+  } catch {
+    responseData = responseText
+  }
+
+  if (!response.ok) {
+    const errorSummary = truncate(responseText, 1000)
+    logger.error('Instagram long-lived token refresh failed:', {
+      status: response.status,
+      statusText: response.statusText,
+      error: errorSummary,
+      parsedError: responseData,
+      providerId,
+      tokenEndpoint: config.tokenEndpoint,
+    })
+    return {
+      ok: false,
+      errorCode: extractErrorCode(responseData),
+      message: `Failed to refresh token: ${response.status} ${errorSummary}`,
+    }
+  }
+
+  const payload = parseInstagramLongLivedToken(responseData)
+  if (!payload) {
+    logger.warn('Invalid Instagram refresh response', { providerId })
+    return { ok: false, message: 'Invalid Instagram token refresh response' }
+  }
+
+  logger.info('Instagram long-lived token refreshed successfully', {
+    expiresIn: payload.expires_in,
+    providerId,
+  })
+
+  // Instagram returns a new long-lived token; store it as both access and refresh.
+  return {
+    ok: true,
+    accessToken: payload.access_token,
+    expiresIn: payload.expires_in,
+    refreshToken: payload.access_token,
+  }
+}
+
 export async function refreshOAuthToken(
   providerId: string,
   refreshToken: string
@@ -1520,6 +1730,10 @@ export async function refreshOAuthToken(
     const provider = getBaseProviderForService(providerId)
 
     const config = getProviderAuthConfig(provider)
+
+    if (config.refreshStrategy === 'instagram_long_lived') {
+      return await refreshInstagramLongLivedToken(config, refreshToken, providerId)
+    }
 
     const { headers, bodyParams, useJsonBody } = buildAuthRequest(config, refreshToken)
 

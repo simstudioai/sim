@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { nonEmptyIdSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 
 export const workspaceScopeSchema = z.enum(['active', 'archived', 'all'])
@@ -23,6 +24,9 @@ export const workspaceSchema = z.object({
   inviteMembersEnabled: z.boolean().optional(),
   inviteDisabledReason: z.string().nullable().optional(),
   inviteUpgradeRequired: z.boolean().optional(),
+  // Source workspace id when this was created as a fork (null otherwise). Optional
+  // because not every workspace response builder includes the column.
+  forkedFromWorkspaceId: z.string().nullable().optional(),
 })
 
 export type Workspace = z.output<typeof workspaceSchema>
@@ -197,17 +201,73 @@ export const workspaceOwnerBillingSchema = z.object({
   isEnterprise: z.boolean(),
   isOrgScoped: z.boolean(),
   organizationId: z.string().nullable(),
+  billingInterval: z.enum(['month', 'year']),
+  billingBlocked: z.boolean(),
+  billingBlockedReason: z.enum(['payment_failed', 'dispute']).nullable(),
 })
 
 export type WorkspaceOwnerBilling = z.output<typeof workspaceOwnerBillingSchema>
 
-export const getWorkspaceOwnerBillingContract = defineRouteContract({
+export const workspaceHostContextSchema = z.object({
+  workspace: z.object({
+    id: nonEmptyIdSchema,
+    name: z.string().min(1),
+    workspaceMode: workspaceModeSchema,
+    billedAccountUserId: nonEmptyIdSchema,
+  }),
+  hostOrganizationId: nonEmptyIdSchema.nullable(),
+  ownerBilling: workspaceOwnerBillingSchema,
+  viewer: z.object({
+    permission: workspacePermissionSchema,
+    isHostOrganizationMember: z.boolean(),
+    isHostOrganizationAdmin: z.boolean(),
+  }),
+})
+
+export type WorkspaceHostContext = z.output<typeof workspaceHostContextSchema>
+
+export const getWorkspaceHostContextContract = defineRouteContract({
   method: 'GET',
-  path: '/api/workspaces/[id]/owner-billing',
+  path: '/api/workspaces/[id]/host-context',
   params: workspaceParamsSchema,
   response: {
     mode: 'json',
-    schema: workspaceOwnerBillingSchema,
+    schema: workspaceHostContextSchema,
+  },
+})
+
+export const workspaceCreditAvailabilitySchema = z.object({
+  remainingDollars: z.number().nonnegative().nullable(),
+  scope: z.enum(['payer', 'member', 'effective']),
+})
+
+export type WorkspaceCreditAvailability = z.output<typeof workspaceCreditAvailabilitySchema>
+
+export const getWorkspaceCreditAvailabilityContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/credit-availability',
+  params: workspaceParamsSchema,
+  response: {
+    mode: 'json',
+    schema: workspaceCreditAvailabilitySchema,
+  },
+})
+
+export const workspaceUsageGateSchema = z.object({
+  isExceeded: z.boolean(),
+  message: z.string().min(1).nullable(),
+  scope: z.enum(['actor', 'payer', 'member']).nullable(),
+})
+
+export type WorkspaceUsageGate = z.output<typeof workspaceUsageGateSchema>
+
+export const getWorkspaceUsageGateContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/usage-gate',
+  params: workspaceParamsSchema,
+  response: {
+    mode: 'json',
+    schema: workspaceUsageGateSchema,
   },
 })
 

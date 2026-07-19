@@ -157,7 +157,6 @@ export function useWebhookManagement({
 
         const {
           credentialId: _credId,
-          credentialSetId: _credSetId,
           userId: _userId,
           historyId: _historyId,
           lastCheckedTimestamp: _lastChecked,

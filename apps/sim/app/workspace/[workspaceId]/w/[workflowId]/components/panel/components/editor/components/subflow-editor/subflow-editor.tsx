@@ -1,8 +1,5 @@
 'use client'
 
-import { ChevronUp } from 'lucide-react'
-import { useTranslations } from 'next-intl'
-import SimpleCodeEditor from 'react-simple-code-editor'
 import {
   Code as CodeEditor,
   Combobox,
@@ -10,7 +7,9 @@ import {
   getCodeEditorProps,
   Input,
   Label,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { ChevronUp } from 'lucide-react'
+import SimpleCodeEditor from 'react-simple-code-editor'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import {
   formatDisplayText,
@@ -68,8 +67,6 @@ export function SubflowEditor({
   userCanEdit,
   isConnectionsAtMinHeight,
 }: SubflowEditorProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const {
     subflowConfig,
@@ -135,14 +132,14 @@ export function SubflowEditor({
             className='rounded-md'
           >
             <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-              {currentBlock.type === 'loop' ? tI18n('loop_type') : tI18n('parallel_type')}
+              {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
             </Label>
             <Combobox
               options={typeOptions}
               value={currentType || ''}
               onChange={handleSubflowTypeChange}
               disabled={!userCanEdit}
-              placeholder={t('select_type')}
+              placeholder='Select type...'
             />
           </div>
 
@@ -157,7 +154,7 @@ export function SubflowEditor({
               {isCountMode
                 ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
                 : isConditionMode
-                  ? tI18n('while_condition')
+                  ? 'While Condition'
                   : `${currentBlock.type === 'loop' ? 'Collection' : 'Parallel'} Items`}
             </Label>
 
@@ -177,7 +174,7 @@ export function SubflowEditor({
                   })}
                 </div>
                 <div className='text-[var(--text-muted)] text-micro'>
-                  {t('enter_a_whole_number_greater_than')}
+                  Enter a whole number greater than 0.
                 </div>
               </div>
             ) : (
@@ -185,7 +182,7 @@ export function SubflowEditor({
                 <CodeEditor.Container>
                   <CodeEditor.Content>
                     <CodeEditor.Placeholder gutterWidth={0} show={editorValue.length === 0}>
-                      {isConditionMode ? '<counter.value> < 10' : tI18n('item1_item2_item3')}
+                      {isConditionMode ? '<counter.value> < 10' : "['item1', 'item2', 'item3']"}
                     </CodeEditor.Placeholder>
 
                     <SimpleCodeEditor
@@ -227,7 +224,7 @@ export function SubflowEditor({
               className='relative mt-4 rounded-md'
             >
               <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-                {t('parallel_batch_size')}
+                Parallel Batch Size
               </Label>
               <Input
                 type='text'
@@ -243,7 +240,7 @@ export function SubflowEditor({
                 })}
               </div>
               <div className='text-[var(--text-muted)] text-micro'>
-                {t('run_1_to_20_parallel_branches')}
+                Run 1 to 20 parallel branches at a time.
               </div>
             </div>
           )}
@@ -278,9 +275,7 @@ export function SubflowEditor({
             }}
             role='button'
             tabIndex={0}
-            aria-label={
-              isConnectionsAtMinHeight ? tI18n('expand_connections') : tI18n('collapse_connections')
-            }
+            aria-label={isConnectionsAtMinHeight ? 'Expand connections' : 'Collapse connections'}
           >
             <ChevronUp
               className={
@@ -288,9 +283,7 @@ export function SubflowEditor({
                 (!isConnectionsAtMinHeight ? ' rotate-180' : '')
               }
             />
-            <div className='font-medium text-[var(--text-primary)] text-small'>
-              {t('connections')}
-            </div>
+            <div className='font-medium text-[var(--text-primary)] text-small'>Connections</div>
           </div>
 
           <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>

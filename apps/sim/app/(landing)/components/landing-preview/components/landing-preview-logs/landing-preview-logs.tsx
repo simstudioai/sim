@@ -1,11 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useTranslations } from 'next-intl'
-import { ArrowUpDown, Badge, Library, ListFilter, Search } from '@/components/emcn'
-import type { BadgeProps } from '@/components/emcn/components/badge/badge'
-import { Download, Workflow } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+import type { BadgeProps } from '@sim/emcn'
+import { ArrowUpDown, Badge, cn, Library, ListFilter, Search } from '@sim/emcn'
+import { Download, Workflow } from '@sim/emcn/icons'
 
 interface LogRow {
   id: string
@@ -21,24 +19,15 @@ interface LogRow {
 type BadgeVariant = BadgeProps['variant']
 
 const STATUS_VARIANT: Record<LogRow['status'], BadgeVariant> = {
-  completed: 'gray',
-  error: 'red',
-  running: 'amber',
+  completed: 'gray-secondary',
+  error: 'gray',
+  running: 'gray',
 }
 
 const STATUS_LABELS: Record<LogRow['status'], string> = {
   completed: 'Completed',
   error: 'Error',
   running: 'Running',
-}
-
-const TRIGGER_VARIANT: Record<LogRow['trigger'], BadgeVariant> = {
-  webhook: 'orange',
-  api: 'blue',
-  schedule: 'green',
-  manual: 'gray-secondary',
-  mcp: 'cyan',
-  chat: 'purple',
 }
 
 const MOCK_LOGS: LogRow[] = [
@@ -126,7 +115,6 @@ const COL_HEADERS: { key: SortKey; label: string }[] = [
 ]
 
 export function LandingPreviewLogs() {
-  const t = useTranslations('auto')
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -163,40 +151,41 @@ export function LandingPreviewLogs() {
 
   return (
     <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-      {/* Header */}
-      <div className='border-[var(--border)] border-b px-6 py-2.5'>
-        <div className='flex items-center justify-between'>
+      {/* Header - fixed 44px to align with the chat title bar across the split. */}
+      <div className='flex h-[44px] flex-shrink-0 items-center border-[var(--border)] border-b px-6'>
+        <div className='flex w-full items-center justify-between'>
           <div className='flex items-center gap-3'>
-            <Library className='h-[14px] w-[14px] text-[var(--text-icon)]' />
-            <h1 className='font-medium text-[var(--text-body)] text-sm'>{t('logs')}</h1>
+            <Library className='size-[14px] text-[var(--text-icon)]' />
+            <span className='font-medium text-[var(--text-body)] text-sm'>Logs</span>
           </div>
           <div className='flex items-center gap-1'>
             <div className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
-              <Download className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
-              {t('export')}
+              <Download className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
+              Export
             </div>
             <button
               type='button'
               onClick={() => setActiveTab('logs')}
-              className='rounded-md px-2 py-1 text-caption transition-colors'
-              style={{
-                backgroundColor: activeTab === 'logs' ? 'var(--surface-active)' : 'transparent',
-                color: activeTab === 'logs' ? 'var(--text-body)' : 'var(--text-secondary)',
-              }}
+              className={cn(
+                'rounded-md px-2 py-1 text-caption transition-colors',
+                activeTab === 'logs'
+                  ? 'bg-[var(--surface-active)] text-[var(--text-body)]'
+                  : 'text-[var(--text-secondary)]'
+              )}
             >
-              {t('logs')}
+              Logs
             </button>
             <button
               type='button'
               onClick={() => setActiveTab('dashboard')}
-              className='rounded-md px-2 py-1 text-caption transition-colors'
-              style={{
-                backgroundColor:
-                  activeTab === 'dashboard' ? 'var(--surface-active)' : 'transparent',
-                color: activeTab === 'dashboard' ? 'var(--text-body)' : 'var(--text-secondary)',
-              }}
+              className={cn(
+                'rounded-md px-2 py-1 text-caption transition-colors',
+                activeTab === 'dashboard'
+                  ? 'bg-[var(--surface-active)] text-[var(--text-body)]'
+                  : 'text-[var(--text-secondary)]'
+              )}
             >
-              {t('dashboard')}
+              Dashboard
             </button>
           </div>
         </div>
@@ -206,33 +195,34 @@ export function LandingPreviewLogs() {
       <div className='border-[var(--border)] border-b px-6 py-2.5'>
         <div className='flex items-center justify-between'>
           <div className='flex flex-1 items-center gap-2.5'>
-            <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+            <Search className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
             <input
               type='text'
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('search_logs')}
+              placeholder='Search logs...'
+              aria-label='Search logs'
               className='flex-1 bg-transparent text-[var(--text-body)] text-caption outline-none placeholder:text-[var(--text-subtle)]'
             />
           </div>
           <div className='flex items-center gap-1.5'>
             <div className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
-              <ListFilter className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
-              {t('filter')}
+              <ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
+              Filter
             </div>
             <button
               type='button'
               onClick={() => handleSort(sortKey ?? 'workflowName')}
               className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-3)]'
             >
-              <ArrowUpDown className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
-              {t('sort')}
+              <ArrowUpDown className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
+              Sort
             </button>
           </div>
         </div>
       </div>
 
-      {/* Table — uses <table> for pixel-perfect column alignment with headers */}
+      {/* Table - uses <table> for pixel-perfect column alignment with headers */}
       <div className='min-h-0 flex-1 overflow-hidden'>
         <table className='w-full table-fixed text-sm'>
           <colgroup>
@@ -259,7 +249,7 @@ export function LandingPreviewLogs() {
                     )}
                   >
                     {label}
-                    {sortKey === key && <ArrowUpDown className='h-[10px] w-[10px] opacity-60' />}
+                    {sortKey === key && <ArrowUpDown className='size-[10px] opacity-60' />}
                   </button>
                 </th>
               ))}
@@ -291,7 +281,7 @@ export function LandingPreviewLogs() {
                   {log.cost}
                 </td>
                 <td className='px-6 align-middle'>
-                  <Badge variant={TRIGGER_VARIANT[log.trigger]} size='sm'>
+                  <Badge variant='gray-secondary' size='sm'>
                     {log.triggerLabel}
                   </Badge>
                 </td>

@@ -1,9 +1,6 @@
 'use client'
 
 import { type ComponentType, type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useTranslations } from 'next-intl'
 import {
   Badge,
   ChipModal,
@@ -15,10 +12,13 @@ import {
   InfoCard,
   InfoCardItem,
   InfoCardList,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthReturnContext } from '@/lib/credentials/client-state'
 import { ADD_CONNECTOR_SEARCH_PARAM, writeOAuthReturnContext } from '@/lib/credentials/client-state'
+import { defaultCredentialDisplayName } from '@/lib/credentials/display-name'
 import {
   getProviderIdFromServiceId,
   OAUTH_PROVIDERS,
@@ -31,18 +31,6 @@ import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
 
 const logger = createLogger('ConnectOAuthModal')
 
-/** Server-enforced max for `WorkspaceCredential.displayName` — see `lib/api/contracts/credentials.ts`. */
-const DISPLAY_NAME_MAX_LENGTH = 255
-
-/**
- * Reserved tail budget when truncating the username so the auto-numbering
- * disambiguator (e.g. `" 9999"`) always fits within {@link DISPLAY_NAME_MAX_LENGTH}.
- */
-const COLLISION_SUFFIX_RESERVATION = 5
-
-/** Upper bound for the auto-numbering search — pathological if ever reached. */
-const MAX_COLLISION_INDEX = 10000
-
 const EMPTY_SCOPES: readonly string[] = []
 
 type ServiceIcon = ComponentType<{ className?: string }>
@@ -50,44 +38,6 @@ type ServiceIcon = ComponentType<{ className?: string }>
 /** Scopes hidden from the permissions list — always present on Google flows. */
 function isHiddenScope(scope: string): boolean {
   return scope.includes('userinfo.email') || scope.includes('userinfo.profile')
-}
-
-/**
- * Default credential display name. Produces `"{Name}'s {Service}"` when the
- * user's name is known, falling back to `"My {Service}"` otherwise. The
- * username is truncated so the full string (including any auto-numbering
- * disambiguator) stays within {@link DISPLAY_NAME_MAX_LENGTH}.
- *
- * When the base name collides with an existing credential in `takenNames`,
- * `" 2"`, `" 3"`, ... are appended until an unused name is found. Comparison
- * is case-insensitive to match the duplicate-detection used elsewhere in the
- * modal.
- */
-function defaultDisplayName(
-  userName: string | null | undefined,
-  serviceName: string,
-  takenNames: ReadonlySet<string>
-): string {
-  const trimmed = userName?.trim()
-  let base: string
-  if (trimmed) {
-    const suffix = `'s ${serviceName}`
-    const nameBudget = Math.max(
-      0,
-      DISPLAY_NAME_MAX_LENGTH - suffix.length - COLLISION_SUFFIX_RESERVATION
-    )
-    const safeName = trimmed.length > nameBudget ? trimmed.slice(0, nameBudget) : trimmed
-    base = `${safeName}${suffix}`
-  } else {
-    base = `My ${serviceName}`
-  }
-
-  if (!takenNames.has(base.toLowerCase())) return base
-  for (let n = 2; n < MAX_COLLISION_INDEX; n++) {
-    const candidate = `${base} ${n}`
-    if (!takenNames.has(candidate.toLowerCase())) return candidate
-  }
-  return base
 }
 
 /**
@@ -176,7 +126,6 @@ export type ConnectOAuthModalProps =
  * context written here.
  */
 export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
-  const t = useTranslations('auto')
   const { open, onOpenChange, mode } = props
   const isConnect = mode === 'connect'
 
@@ -257,7 +206,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     }
     if (!isConnect || prefilled.current || credentialsLoading) return
     prefilled.current = true
-    setDisplayName(defaultDisplayName(userName, providerName, takenNames))
+    setDisplayName(defaultCredentialDisplayName(userName, providerName, takenNames))
     setDescription('')
     setValidationError(null)
     setSubmitError(null)
@@ -388,22 +337,20 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       <ChipModalBody onKeyDown={handleBodyKeyDown}>
         {!isConnect && (
           <p className='text-[var(--text-tertiary)] text-caption'>
-            {t('the')}
-            {props.toolName}
-            {t('tool_requires_access_to_your_account')}
+            The "{props.toolName}" tool requires access to your account.
           </p>
         )}
 
         {isConnect && (
           <ChipModalField
             type='input'
-            title={t('display_name')}
+            title='Display name'
             value={displayName}
             onChange={(value) => {
               setDisplayName(value)
               if (validationError) setValidationError(null)
             }}
-            placeholder={t('integration_name')}
+            placeholder='Integration name'
             autoComplete='off'
             required
             error={displayNameError}
@@ -413,17 +360,17 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
         {isConnect && (
           <ChipModalField
             type='textarea'
-            title={t('description')}
+            title='Description'
             value={description}
             onChange={setDescription}
-            placeholder={t('optional_description')}
+            placeholder='Optional description'
             maxLength={500}
             minHeight={80}
           />
         )}
 
         {displayScopes.length > 0 && (
-          <ChipModalField type='custom' title={t('permissions_requested')}>
+          <ChipModalField type='custom' title='Permissions requested'>
             <InfoCard>
               <InfoCardList>
                 {displayScopes.map((scope) => (
@@ -432,7 +379,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
                       {getScopeDescription(scope)}
                       {!isConnect && newScopesSet.has(scope) && (
                         <Badge variant='amber' size='sm'>
-                          {t('new')}
+                          New
                         </Badge>
                       )}
                     </span>

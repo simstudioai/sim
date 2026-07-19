@@ -1,9 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useTranslations } from 'next-intl'
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -14,8 +11,10 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   SecretReveal,
-} from '@/components/emcn'
-import { type ApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { type CreatedApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
 
 const logger = createLogger('CreateApiKeyModal')
 
@@ -28,7 +27,7 @@ interface CreateApiKeyModalProps {
   canManageWorkspaceKeys?: boolean
   defaultKeyType?: 'personal' | 'workspace'
   source?: 'settings' | 'deploy_modal'
-  onKeyCreated?: (key: ApiKey) => void
+  onKeyCreated?: (key: CreatedApiKey) => void
 }
 
 const EMPTY_KEY_NAMES: string[] = []
@@ -48,12 +47,10 @@ export function CreateApiKeyModal({
   source = 'settings',
   onKeyCreated,
 }: CreateApiKeyModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const [keyName, setKeyName] = useState('')
   const [keyType, setKeyType] = useState<'personal' | 'workspace'>(defaultKeyType)
   const [createError, setCreateError] = useState<string | null>(null)
-  const [newKey, setNewKey] = useState<ApiKey | null>(null)
+  const [newKey, setNewKey] = useState<CreatedApiKey | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const createApiKeyMutation = useCreateApiKey()
 
@@ -110,11 +107,11 @@ export function CreateApiKeyModal({
   return (
     <>
       {/* Create API Key Dialog */}
-      <ChipModal open={open} onOpenChange={onOpenChange} srTitle={tI18n('create_new_api_key')}>
-        <ChipModalHeader onClose={handleClose}>{t('create_new_api_key')}</ChipModalHeader>
+      <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Create new API key'>
+        <ChipModalHeader onClose={handleClose}>Create new API key</ChipModalHeader>
         <ChipModalBody>
           {canManageWorkspaceKeys && (
-            <ChipModalField type='custom' title={t('api_key_type')}>
+            <ChipModalField type='custom' title='API Key Type'>
               <ButtonGroup
                 value={keyType}
                 onValueChange={(value) => {
@@ -123,21 +120,21 @@ export function CreateApiKeyModal({
                 }}
               >
                 <ButtonGroupItem value='personal' disabled={!allowPersonalApiKeys}>
-                  {t('personal')}
+                  Personal
                 </ButtonGroupItem>
-                <ButtonGroupItem value='workspace'>{t('workspace')}</ButtonGroupItem>
+                <ButtonGroupItem value='workspace'>Workspace</ButtonGroupItem>
               </ButtonGroup>
             </ChipModalField>
           )}
           <ChipModalField
             type='input'
-            title={t('enter_a_name_for_your_api')}
+            title='Enter a name for your API key to help you identify it later.'
             value={keyName}
             onChange={(value) => {
               setKeyName(value)
               if (createError) setCreateError(null)
             }}
-            placeholder={t('e_g_development_production')}
+            placeholder='e.g., Development, Production'
             autoComplete='off'
             required
           />
@@ -146,6 +143,7 @@ export function CreateApiKeyModal({
             type='text'
             name='fakeusernameremembered'
             autoComplete='username'
+            aria-hidden='true'
             style={{
               position: 'absolute',
               left: '-9999px',
@@ -179,13 +177,13 @@ export function CreateApiKeyModal({
             setNewKey(null)
           }
         }}
-        srTitle={tI18n('your_api_key_has_been_created')}
+        srTitle='Your API key has been created'
       >
         <ChipModalHeader onClose={() => setShowNewKeyDialog(false)}>
-          {t('your_api_key_has_been_created')}
+          Your API key has been created
         </ChipModalHeader>
         <ChipModalBody>
-          <ChipModalField type='custom' title={t('copy_it_now_it_won_t')}>
+          <ChipModalField type='custom' title="Copy it now — it won't be shown again">
             {newKey && <SecretReveal value={newKey.key} />}
           </ChipModalField>
         </ChipModalBody>

@@ -2,13 +2,6 @@
 
 import { memo, useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { X } from 'lucide-react'
-import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
 import {
   Button,
   Checkbox,
@@ -22,10 +15,18 @@ import {
   ChipModalHeader,
   ChipTextarea,
   type ComboboxOption,
+  cn,
   Loader,
-} from '@/components/emcn'
+  toast,
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { X } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { type FieldErrors, useForm } from 'react-hook-form'
+import { z } from 'zod'
 import type { StrategyOptions } from '@/lib/chunkers/types'
-import { cn } from '@/lib/core/utils/cn'
+import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
@@ -59,7 +60,13 @@ const FormSchema = z
       .min(1, 'Name is required')
       .max(100, 'Name must be less than 100 characters')
       .refine((value) => value.trim().length > 0, 'Name cannot be empty'),
-    description: z.string().max(500, 'Description must be less than 500 characters').optional(),
+    description: z
+      .string()
+      .max(
+        KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH,
+        `Description must be ${KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH} characters or less`
+      )
+      .optional(),
     minChunkSize: z
       .number()
       .min(1, 'Min chunk size must be at least 1 character')
@@ -121,8 +128,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   open,
   onOpenChange,
 }: CreateBaseModalProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -226,6 +231,15 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   const isSubmitting =
     createKnowledgeBaseMutation.isPending || deleteKnowledgeBaseMutation.isPending || isUploading
 
+  const onInvalid = (formErrors: FieldErrors<FormInputValues>) => {
+    const firstMessage = Object.values(formErrors).find(
+      (fieldError) => typeof fieldError?.message === 'string'
+    )?.message
+    toast.error(
+      typeof firstMessage === 'string' ? firstMessage : 'Please fix the highlighted fields'
+    )
+  }
+
   const onSubmit = async (data: FormValues) => {
     setSubmitStatus(null)
 
@@ -292,17 +306,10 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   }
 
   return (
-    <ChipModal
-      open={open}
-      onOpenChange={handleClose}
-      srTitle={tI18n('create_knowledge_base')}
-      size='lg'
-    >
-      <ChipModalHeader onClose={() => handleClose(false)}>
-        {t('create_knowledge_base')}
-      </ChipModalHeader>
+    <ChipModal open={open} onOpenChange={handleClose} srTitle='Create Knowledge Base' size='lg'>
+      <ChipModalHeader onClose={() => handleClose(false)}>Create Knowledge Base</ChipModalHeader>
 
-      <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
+      <form onSubmit={handleSubmit(onSubmit, onInvalid)} className='flex min-h-0 flex-1 flex-col'>
         <button type='submit' hidden disabled={isSubmitting || !nameValue?.trim()} />
         <ChipModalBody>
           <input
@@ -314,9 +321,9 @@ export const CreateBaseModal = memo(function CreateBaseModal({
             readOnly
           />
 
-          <ChipModalField type='custom' title={t('name')}>
+          <ChipModalField type='custom' title='Name'>
             <ChipInput
-              placeholder={t('enter_knowledge_base_name')}
+              placeholder='Enter knowledge base name'
               {...register('name')}
               error={Boolean(errors.name)}
               autoComplete='off'
@@ -327,9 +334,9 @@ export const CreateBaseModal = memo(function CreateBaseModal({
             />
           </ChipModalField>
 
-          <ChipModalField type='custom' title={t('description')}>
+          <ChipModalField type='custom' title='Description' error={errors.description?.message}>
             <ChipTextarea
-              placeholder={t('describe_this_knowledge_base_optional')}
+              placeholder='Describe this knowledge base (optional)'
               rows={4}
               {...register('description')}
               error={Boolean(errors.description)}
@@ -337,7 +344,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
           </ChipModalField>
 
           <div className='flex gap-3'>
-            <ChipModalField type='custom' title={t('min_chunk_size_characters')} className='flex-1'>
+            <ChipModalField type='custom' title='Min Chunk Size (characters)' className='flex-1'>
               <ChipInput
                 type='number'
                 min={1}
@@ -351,7 +358,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
               />
             </ChipModalField>
 
-            <ChipModalField type='custom' title={t('max_chunk_size_tokens')} className='flex-1'>
+            <ChipModalField type='custom' title='Max Chunk Size (tokens)' className='flex-1'>
               <ChipInput
                 type='number'
                 min={100}
@@ -368,8 +375,8 @@ export const CreateBaseModal = memo(function CreateBaseModal({
 
           <ChipModalField
             type='custom'
-            title={t('overlap_tokens')}
-            hint={t('1_token_4_characters_max_chunk')}
+            title='Overlap (tokens)'
+            hint='1 token ≈ 4 characters. Max chunk size and overlap are in tokens.'
           >
             <ChipInput
               type='number'
@@ -386,8 +393,8 @@ export const CreateBaseModal = memo(function CreateBaseModal({
 
           <ChipModalField
             type='custom'
-            title={t('chunking_strategy')}
-            hint={t('auto_detects_the_best_strategy_based')}
+            title='Chunking Strategy'
+            hint='Auto detects the best strategy based on file content type.'
           >
             <ChipCombobox
               options={STRATEGY_COMBOBOX_OPTIONS}
@@ -402,12 +409,12 @@ export const CreateBaseModal = memo(function CreateBaseModal({
             <>
               <ChipModalField
                 type='custom'
-                title={t('regex_pattern')}
+                title='Regex Pattern'
                 error={errors.regexPattern?.message}
-                hint={t('text_will_be_split_at_each')}
+                hint='Text will be split at each match of this regex pattern.'
               >
                 <ChipInput
-                  placeholder={t('e_g_n_n_or_s')}
+                  placeholder='e.g. \\n\\n or (?<=\\})\\s*(?=\\{)'
                   {...register('regexPattern')}
                   error={Boolean(errors.regexPattern)}
                   autoComplete='off'
@@ -417,8 +424,8 @@ export const CreateBaseModal = memo(function CreateBaseModal({
 
               <ChipModalField
                 type='custom'
-                title={t('chunk_boundaries')}
-                hint={t('preserve_boundaries_exactly_recommended_when_eac')}
+                title='Chunk Boundaries'
+                hint='Preserve boundaries exactly. Recommended when each match is a discrete record (e.g. one QA pair per chunk).'
               >
                 <label
                   htmlFor='regexStrictBoundaries'
@@ -432,7 +439,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                     }
                   />
                   <span className='text-[var(--text-primary)] text-sm'>
-                    {t('each_match_is_its_own_chunk')}
+                    Each match is its own chunk (don&apos;t merge)
                   </span>
                 </label>
               </ChipModalField>
@@ -442,11 +449,11 @@ export const CreateBaseModal = memo(function CreateBaseModal({
           {strategyValue === 'recursive' && (
             <ChipModalField
               type='custom'
-              title={t('custom_separators_optional')}
-              hint={t('comma_separated_list_of_delimiters_in')}
+              title='Custom Separators (optional)'
+              hint='Comma-separated list of delimiters in priority order. Leave empty for default separators.'
             >
               <ChipInput
-                placeholder={t('e_g_n_n_n')}
+                placeholder='e.g. \n\n, \n, . ,  '
                 {...register('customSeparators')}
                 autoComplete='off'
                 data-form-type='other'
@@ -456,16 +463,16 @@ export const CreateBaseModal = memo(function CreateBaseModal({
 
           <ChipModalField
             type='file'
-            title={t('upload_documents')}
+            title='Upload Documents'
             accept={ACCEPT_ATTRIBUTE}
             multiple
             onChange={processFiles}
-            description={t('pdf_doc_docx_txt_csv_xls')}
+            description='PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB each)'
             error={fileError}
           />
 
           {files.length > 0 && (
-            <ChipModalField type='custom' title={t('selected_files')}>
+            <ChipModalField type='custom' title='Selected Files'>
               <div className='space-y-2'>
                 {files.map((file, index) => {
                   const fileStatus = uploadProgress.fileStatuses?.[index]
@@ -530,7 +537,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                     : 'Creating...'
                 : 'Creating...'
               : 'Create',
-            onClick: handleSubmit(onSubmit),
+            onClick: handleSubmit(onSubmit, onInvalid),
             disabled: isSubmitting || !nameValue?.trim(),
           }}
         />

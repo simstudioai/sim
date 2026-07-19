@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { INTEGRATIONS } from '@/lib/integrations'
 import { IntegrationBlockDetail } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail'
-import { IntegrationBlockFallback } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-block-fallback'
+import { IntegrationBlockDetailFallback } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail-fallback'
 
 export async function generateMetadata({
   params,
@@ -27,7 +27,7 @@ export default async function IntegrationBlockPage({
   if (!integration) notFound()
 
   return (
-    <Suspense fallback={<IntegrationBlockFallback workspaceId={workspaceId} />}>
+    <Suspense fallback={<IntegrationBlockDetailFallback workspaceId={workspaceId} />}>
       <IntegrationBlockDetail integration={integration} workspaceId={workspaceId} />
     </Suspense>
   )

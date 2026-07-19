@@ -1,12 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button, cn, Input, toast } from '@sim/emcn'
 import { ChevronDown, ChevronRight, ChevronUp, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useShallow } from 'zustand/react/shallow'
-import { Button, Input, toast } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
 import { buildWorkflowSearchReplacePlan } from '@/lib/workflows/search-replace/replacements'
@@ -37,7 +36,10 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/float'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { getBlock } from '@/blocks'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
+import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
+import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
@@ -174,6 +176,15 @@ export function WorkflowSearchReplace() {
   const prevIsOpenRef = useRef(false)
   const afterReplaceIndexRef = useRef<number | null>(null)
   const { data: workspaceCredentials } = useWorkspaceCredentials({ workspaceId, enabled: isOpen })
+  const { data: customTools = [] } = useCustomTools(isOpen && workspaceId ? workspaceId : '')
+  const { mcpTools } = useMcpTools(isOpen && workspaceId ? workspaceId : '')
+  const mcpToolNamesById = useMemo(() => {
+    const names = new Map<string, string>()
+    for (const t of mcpTools) {
+      if (!names.has(t.id)) names.set(t.id, t.name)
+    }
+    return names
+  }, [mcpTools])
 
   useRegisterGlobalCommands([
     createCommand({
@@ -206,6 +217,8 @@ export function WorkflowSearchReplace() {
     [workspaceCredentials]
   )
 
+  /** Overlay version invalidates getBlock-resolved tool names in the index. */
+  const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const matches = useMemo(
     () =>
       indexWorkflowSearchMatches({
@@ -219,10 +232,15 @@ export function WorkflowSearchReplace() {
         workspaceId,
         workflowId,
         credentialTypeById,
+        customTools,
+        mcpToolNamesById,
       }),
     [
       currentWorkflow.isSnapshotView,
       credentialTypeById,
+      customBlockOverlayVersion,
+      customTools,
+      mcpToolNamesById,
       query,
       readonlyReason,
       searchBlocks,

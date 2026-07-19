@@ -1,10 +1,9 @@
 'use client'
 
 import type React from 'react'
+import { Button, ChipInput } from '@sim/emcn'
+import { Loader, X } from '@sim/emcn/icons'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { useTranslations } from 'next-intl'
-import { Button, ChipInput } from '@/components/emcn'
-import { Loader, X } from '@/components/emcn/icons'
 
 export interface TableFindProps {
   query: string
@@ -40,7 +39,6 @@ export function TableFind({
   isDirty,
   inputRef,
 }: TableFindProps) {
-  const t = useTranslations('auto')
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -68,7 +66,7 @@ export function TableFind({
       <ChipInput
         ref={inputRef}
         value={query}
-        placeholder={t('search')}
+        placeholder='Search'
         className='w-[200px]'
         onChange={(e) => onQueryChange(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -79,8 +77,8 @@ export function TableFind({
       <Button
         variant='ghost'
         className='size-8 shrink-0 p-0'
-        aria-label={t('previous_match')}
-        title={t('previous_match_shift_enter')}
+        aria-label='Previous match'
+        title='Previous match (Shift+Enter)'
         disabled={!hasMatches}
         onClick={onPrev}
       >
@@ -89,8 +87,8 @@ export function TableFind({
       <Button
         variant='ghost'
         className='size-8 shrink-0 p-0'
-        aria-label={t('next_match')}
-        title={t('next_match_enter')}
+        aria-label='Next match'
+        title='Next match (Enter)'
         disabled={!hasMatches}
         onClick={onNext}
       >
@@ -99,8 +97,8 @@ export function TableFind({
       <Button
         variant='ghost'
         className='size-8 shrink-0 p-0'
-        aria-label={t('close_find')}
-        title={t('close_esc')}
+        aria-label='Close find'
+        title='Close (Esc)'
         onClick={onClose}
       >
         <X className='size-[14px] text-[var(--text-icon)]' />

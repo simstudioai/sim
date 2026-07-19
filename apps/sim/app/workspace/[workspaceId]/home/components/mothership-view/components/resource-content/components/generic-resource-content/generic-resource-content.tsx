@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useTranslations } from 'next-intl'
-import { PillsRing } from '@/components/emcn'
+import { PillsRing } from '@sim/emcn'
+import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import type { GenericResourceData } from '@/app/workspace/[workspaceId]/home/types'
 
 interface GenericResourceContentProps {
@@ -11,7 +11,6 @@ interface GenericResourceContentProps {
 
 // TODO: Emir — replace with rich UI (status icons, collapsible result cards, copy-to-clipboard, etc.)
 export function GenericResourceContent({ data }: GenericResourceContentProps) {
-  const t = useTranslations('auto')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -25,7 +24,7 @@ export function GenericResourceContent({ data }: GenericResourceContentProps) {
   if (data.entries.length === 0) {
     return (
       <div className='flex h-full items-center justify-center'>
-        <p className='text-[13px] text-[var(--text-muted)]'>{t('no_results_yet')}</p>
+        <p className='text-[13px] text-[var(--text-muted)]'>No results yet</p>
       </div>
     )
   }
@@ -42,16 +41,16 @@ export function GenericResourceContent({ data }: GenericResourceContentProps) {
               />
             )}
             <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-              {entry.displayTitle}
+              {getToolStatusDisplayTitle(entry.displayTitle, entry.status)}
             </span>
             {entry.status === 'error' && (
-              <span className='ml-auto text-[12px] text-[var(--text-error)]'>{t('error')}</span>
+              <span className='ml-auto text-[12px] text-[var(--text-error)]'>Error</span>
             )}
             {entry.status === 'skipped' && (
-              <span className='ml-auto text-[12px] text-[var(--text-muted)]'>{t('skipped')}</span>
+              <span className='ml-auto text-[12px] text-[var(--text-muted)]'>Skipped</span>
             )}
             {entry.status === 'rejected' && (
-              <span className='ml-auto text-[12px] text-[var(--text-muted)]'>{t('rejected')}</span>
+              <span className='ml-auto text-[12px] text-[var(--text-muted)]'>Rejected</span>
             )}
           </div>
           {entry.streamingArgs && (

@@ -10,9 +10,11 @@ export const hasBlobConfig = !!(
   env.AZURE_STORAGE_CONTAINER_NAME &&
   ((env.AZURE_ACCOUNT_NAME && env.AZURE_ACCOUNT_KEY) || env.AZURE_CONNECTION_STRING)
 )
+const hasGcsConfig = !!env.GCS_BUCKET_NAME
 
 export const USE_BLOB_STORAGE = hasBlobConfig
 export const USE_S3_STORAGE = hasS3Config && !USE_BLOB_STORAGE
+export const USE_GCS_STORAGE = hasGcsConfig && !USE_BLOB_STORAGE && !USE_S3_STORAGE
 
 export const S3_CONFIG = {
   bucket: env.S3_BUCKET_NAME || '',
@@ -33,6 +35,38 @@ export const BLOB_CONFIG = {
   accountKey: env.AZURE_ACCOUNT_KEY || '',
   connectionString: env.AZURE_CONNECTION_STRING || '',
   containerName: env.AZURE_STORAGE_CONTAINER_NAME || '',
+}
+
+export const GCS_CONFIG = {
+  bucket: env.GCS_BUCKET_NAME || '',
+}
+
+export const GCS_KB_CONFIG = {
+  bucket: env.GCS_KB_BUCKET_NAME || '',
+}
+
+export const GCS_EXECUTION_FILES_CONFIG = {
+  bucket: env.GCS_EXECUTION_FILES_BUCKET_NAME || '',
+}
+
+export const GCS_CHAT_CONFIG = {
+  bucket: env.GCS_CHAT_BUCKET_NAME || '',
+}
+
+export const GCS_COPILOT_CONFIG = {
+  bucket: env.GCS_COPILOT_BUCKET_NAME || '',
+}
+
+export const GCS_PROFILE_PICTURES_CONFIG = {
+  bucket: env.GCS_PROFILE_PICTURES_BUCKET_NAME || '',
+}
+
+export const GCS_OG_IMAGES_CONFIG = {
+  bucket: env.GCS_OG_IMAGES_BUCKET_NAME || '',
+}
+
+export const GCS_WORKSPACE_LOGOS_CONFIG = {
+  bucket: env.GCS_WORKSPACE_LOGOS_BUCKET_NAME || '',
 }
 
 export const S3_KB_CONFIG = {
@@ -122,17 +156,28 @@ export const BLOB_WORKSPACE_LOGOS_CONFIG = {
 /**
  * Get the current storage provider as a human-readable string
  */
-export function getStorageProvider(): 'Azure Blob' | 'S3' | 'Local' {
+export function getStorageProvider(): 'Azure Blob' | 'S3' | 'GCS' | 'Local' {
   if (USE_BLOB_STORAGE) return 'Azure Blob'
   if (USE_S3_STORAGE) return 'S3'
+  if (USE_GCS_STORAGE) return 'GCS'
   return 'Local'
 }
 
 /**
- * Check if we're using any cloud storage (S3 or Blob)
+ * Check if we're using any cloud storage (S3, Blob, or GCS)
  */
 export function isUsingCloudStorage(): boolean {
-  return USE_S3_STORAGE || USE_BLOB_STORAGE
+  return USE_S3_STORAGE || USE_BLOB_STORAGE || USE_GCS_STORAGE
+}
+
+/**
+ * Provider segment used in `/api/files/serve/<prefix>/<key>` paths returned to
+ * clients after a direct upload. Defaults to `s3` to preserve historical paths.
+ */
+export function getServeStoragePrefix(): 'blob' | 's3' | 'gcs' {
+  if (USE_BLOB_STORAGE) return 'blob'
+  if (USE_GCS_STORAGE) return 'gcs'
+  return 's3'
 }
 
 /**
@@ -145,6 +190,10 @@ export function getStorageConfig(context: StorageContext): StorageConfig {
 
   if (USE_S3_STORAGE) {
     return getS3Config(context)
+  }
+
+  if (USE_GCS_STORAGE) {
+    return getGcsConfig(context)
   }
 
   return {}
@@ -278,6 +327,39 @@ function getBlobConfig(context: StorageContext): StorageConfig {
 }
 
 /**
+ * Get GCS configuration for a given context.
+ *
+ * Every context falls back to the general bucket when its dedicated bucket is
+ * unset. GCS bucket names are globally unique, so an S3-style literal default
+ * (e.g. `sim-execution-files`) would point at a bucket the operator does not
+ * own; falling back keeps uploads, downloads, and serving consistent when only
+ * `GCS_BUCKET_NAME` is configured.
+ */
+function getGcsConfig(context: StorageContext): StorageConfig {
+  switch (context) {
+    case 'knowledge-base':
+      return { bucket: GCS_KB_CONFIG.bucket || GCS_CONFIG.bucket }
+    case 'chat':
+      return { bucket: GCS_CHAT_CONFIG.bucket || GCS_CONFIG.bucket }
+    case 'copilot':
+      return { bucket: GCS_COPILOT_CONFIG.bucket || GCS_CONFIG.bucket }
+    case 'execution':
+      return { bucket: GCS_EXECUTION_FILES_CONFIG.bucket || GCS_CONFIG.bucket }
+    case 'mothership':
+    case 'workspace':
+      return { bucket: GCS_CONFIG.bucket }
+    case 'profile-pictures':
+      return { bucket: GCS_PROFILE_PICTURES_CONFIG.bucket || GCS_CONFIG.bucket }
+    case 'og-images':
+      return { bucket: GCS_OG_IMAGES_CONFIG.bucket || GCS_CONFIG.bucket }
+    case 'workspace-logos':
+      return { bucket: GCS_WORKSPACE_LOGOS_CONFIG.bucket || GCS_CONFIG.bucket }
+    default:
+      return { bucket: GCS_CONFIG.bucket }
+  }
+}
+
+/**
  * Check if a specific storage context is configured
  * Returns false if the context would fall back to general config but general isn't configured
  */
@@ -293,6 +375,10 @@ export function isStorageContextConfigured(context: StorageContext): boolean {
 
   if (USE_S3_STORAGE) {
     return !!(config.bucket && config.region)
+  }
+
+  if (USE_GCS_STORAGE) {
+    return !!config.bucket
   }
 
   return true

@@ -1,11 +1,9 @@
 'use client'
 
 import type React from 'react'
+import { Button, cn, Tooltip } from '@sim/emcn'
+import { Eye, PlayOutline, RefreshCw, Square } from '@sim/emcn/icons'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
-import { useTranslations } from 'next-intl'
-import { Button, Tooltip } from '@/components/emcn'
-import { Eye, PlayOutline, RefreshCw, Square } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
 
 interface TableActionBarProps {
   /** Number of (row × group) cells the run/stop buttons would target. Drives
@@ -66,8 +64,6 @@ export function TableActionBar({
   isLoading = false,
   className,
 }: TableActionBarProps) {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
   const visible =
     hasWorkflowColumns &&
     selectedCellCount > 0 &&
@@ -96,7 +92,7 @@ export function TableActionBar({
             <div className='pointer-events-auto flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
               <span className='px-1 text-[var(--text-secondary)] text-small'>
                 {selectedCellCount === 1
-                  ? tI18n('selected_1_workflow_cell')
+                  ? 'Selected 1 workflow cell'
                   : `Selected ${selectedCellCount} workflow cells`}
               </span>
 
@@ -125,7 +121,7 @@ export function TableActionBar({
 
                 {onViewExecution && (
                   <ActionIconButton
-                    label={t('view_execution')}
+                    label='View execution'
                     onClick={onViewExecution}
                     disabled={isLoading}
                   >

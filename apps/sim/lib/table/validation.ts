@@ -7,7 +7,8 @@ import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getColumnId } from '@/lib/table/column-keys'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { COLUMN_TYPES, getMaxRowSizeBytes, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { normalizeDateCellValue } from '@/lib/table/dates'
 import { withSeqscanOff } from '@/lib/table/planner'
 import type {
   ColumnDefinition,
@@ -228,8 +229,6 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
       case 'string':
         if (typeof value !== 'string') {
           errors.push(`${column.name} must be string, got ${typeof value}`)
-        } else if (value.length > TABLE_LIMITS.MAX_STRING_VALUE_LENGTH) {
-          errors.push(`${column.name} exceeds max string length`)
         }
         break
       case 'number':
@@ -298,7 +297,10 @@ function coerceValueToColumnType(
       }
       return { ok: false }
     case 'date': {
-      if (typeof value === 'string' && !Number.isNaN(Date.parse(value))) return { ok: true, value }
+      if (typeof value === 'string') {
+        const normalized = normalizeDateCellValue(value)
+        return normalized === null ? { ok: false } : { ok: true, value: normalized }
+      }
       // Date instances and epoch numbers may still be out of the representable
       // range (>±8.64e15ms) — guard `toISOString()`, which throws RangeError on
       // an Invalid Date, so an over-range value degrades to `{ ok: false }`
@@ -354,13 +356,14 @@ export function coerceRowToSchema(data: RowData, schema: TableSchema): Validatio
   return validateRowAgainstSchema(data, schema)
 }
 
-/** Validates row data size is within limits. */
+/** Validates row data size (UTF-8 bytes of the serialized row) is within limits. */
 export function validateRowSize(data: RowData): ValidationResult {
-  const size = JSON.stringify(data).length
-  if (size > TABLE_LIMITS.MAX_ROW_SIZE_BYTES) {
+  const maxRowSizeBytes = getMaxRowSizeBytes()
+  const size = Buffer.byteLength(JSON.stringify(data))
+  if (size > maxRowSizeBytes) {
     return {
       valid: false,
-      errors: [`Row size exceeds limit (${size} bytes > ${TABLE_LIMITS.MAX_ROW_SIZE_BYTES} bytes)`],
+      errors: [`Row size exceeds limit (${size} bytes > ${maxRowSizeBytes} bytes)`],
     }
   }
   return { valid: true, errors: [] }

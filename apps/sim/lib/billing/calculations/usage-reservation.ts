@@ -1,12 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
+import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
-import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
-import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import type { BillingEntity } from '@/lib/billing/core/usage-log'
+import {
+  ADMISSION_ERROR_DESCRIPTOR,
+  type ReservationDenialReason,
+} from '@/lib/core/admission/transient-failure'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
+import { getExecutionReservationTtlMs } from '@/lib/core/execution-limits'
 
 const logger = createLogger('UsageReservation')
 
@@ -22,171 +26,547 @@ const logger = createLogger('UsageReservation')
  * executions per billing entity bounds the worst-case overshoot to roughly this
  * many executions' worth of spend.
  */
-const MAX_CONCURRENT_EXECUTIONS: Record<SubscriptionPlan, number> = {
-  free: 15,
-  pro: 75,
-  team: 150,
-  enterprise: 300,
-}
-
 /**
- * Per-slot reserved cost estimate (dollars). The guaranteed-minimum charge
- * every execution incurs, used to taper admission as recorded usage approaches
- * the cap: an entity may hold at most `floor(headroom / estimate)` concurrent
- * slots, keeping `recordedUsage + reservedSlots * estimate <= limit`. A lone
- * execution is never blocked on headroom alone — the recorded-usage gate
- * (`isExceeded`) governs the single-execution case, so the only residual
- * overshoot is the one already inherent to admission (cost is unknown until the
- * execution finishes).
+ * The guaranteed $0.005 base charge reserved per active execution. This is not
+ * an estimate of final model or tool spend; it only closes the concurrent race
+ * around the minimum charge that every execution is guaranteed to incur.
  */
-const SLOT_COST_ESTIMATE = BASE_EXECUTION_CHARGE
-
-/** Safety buffer added to the reservation TTL beyond the max execution timeout. */
-const RESERVATION_TTL_BUFFER_MS = 60_000
-
-const INFLIGHT_KEY_PREFIX = 'usage:inflight:'
-const POINTER_KEY_PREFIX = 'usage:reservation:'
+const RESERVED_BASE_EXECUTION_CHARGE = BASE_EXECUTION_CHARGE
 
 /**
- * Atomically admit an execution only when both the per-entity concurrency cap
- * and the remaining usage headroom permit it, then record the in-flight slot.
+ * Identifiers are bounded before becoming Redis keys or pointer data. The
+ * configured payer ceiling bounds owner, pointer, member, and sorted-set
+ * cardinality; the hosted Enterprise default is 1,000 and a subscription
+ * metadata override can intentionally replace it. Each generated key is below
+ * 450 bytes and each pointer below 512 bytes. Absolute TTLs bound crash
+ * remnants; pause paths explicitly release them.
+ */
+const MAX_IDENTIFIER_LENGTH = 128
+const MAX_POINTER_BYTES = 512
+const POINTER_VERSION = 1
+const POINTER_KEY_PREFIX = 'usage:reservation:'
+const PAYER_KEY_PREFIX = 'usage:inflight:'
+const OWNER_KEY_PREFIX = 'usage:owner:'
+
+const RESERVE_CREATED = 1
+const RESERVE_PAYER_CONCURRENCY_FULL = 2
+const RESERVE_PAYER_HEADROOM_FULL = 3
+const RESERVE_MEMBER_HEADROOM_FULL = 4
+const RESERVE_DUPLICATE = 5
+
+/**
+ * Atomically prunes expired entries, checks the payer ceiling and optional
+ * member base-charge headroom, then inserts both constraints. All declared keys
+ * share the payer hash tag, so Redis Cluster executes the script in one slot.
  *
- * Prune expired members (crash safety) -> `count = ZCARD` -> reject when
- * `count >= min(maxConcurrency, max(1, headroomSlots))` -> otherwise `ZADD` the
- * slot, refresh the set TTL, and write the per-execution pointer for release.
- * The `max(1, ...)` floor guarantees a lone execution is never blocked on
- * headroom alone; concurrency above the first slot still tapers with headroom.
+ * The script performs only constant-size scalar work plus sorted-set operations
+ * over at most the configured `maxConcurrency` entries. No Lua collection
+ * grows with traffic. Base-charge slots have no floor: zero remaining
+ * guaranteed-minimum charges is a headroom rejection, while duplicate
+ * reservation ids remain idempotent.
  */
 const RESERVE_SCRIPT = `
 local now = tonumber(ARGV[1])
 local expiryScore = tonumber(ARGV[2])
 local maxConcurrency = tonumber(ARGV[3])
-local headroomSlots = tonumber(ARGV[4])
-local pttl = tonumber(ARGV[7])
+local payerBaseChargeSlots = tonumber(ARGV[4])
+local expiryAt = tonumber(ARGV[7])
 redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now)
-local count = redis.call('ZCARD', KEYS[1])
-if headroomSlots < 1 then headroomSlots = 1 end
-local allowed = maxConcurrency
-if headroomSlots < allowed then allowed = headroomSlots end
-if count >= allowed then
+if KEYS[3] then
+  redis.call('ZREMRANGEBYSCORE', KEYS[3], '-inf', now)
+end
+local owner = redis.call('GET', KEYS[2])
+if owner then
+  if owner ~= ARGV[6] then
+    return -1
+  end
+  local payerReservation = redis.call('ZSCORE', KEYS[1], ARGV[5])
+  local memberReservation = true
+  if KEYS[3] then
+    memberReservation = redis.call('ZSCORE', KEYS[3], ARGV[5])
+  end
+  if payerReservation and memberReservation then
+    redis.call('ZADD', KEYS[1], expiryScore, ARGV[5])
+    redis.call('PEXPIREAT', KEYS[1], expiryAt)
+    if KEYS[3] then
+      redis.call('ZADD', KEYS[3], expiryScore, ARGV[5])
+      redis.call('PEXPIREAT', KEYS[3], expiryAt)
+    end
+    redis.call('PEXPIREAT', KEYS[2], expiryAt)
+    return ${RESERVE_DUPLICATE}
+  end
+  redis.call('ZREM', KEYS[1], ARGV[5])
+  if KEYS[3] then
+    redis.call('ZREM', KEYS[3], ARGV[5])
+  end
+  redis.call('DEL', KEYS[2])
+end
+
+if payerBaseChargeSlots > maxConcurrency then payerBaseChargeSlots = maxConcurrency end
+local payerCount = redis.call('ZCARD', KEYS[1])
+if payerCount >= maxConcurrency then
+  return ${RESERVE_PAYER_CONCURRENCY_FULL}
+end
+if payerCount >= payerBaseChargeSlots then
+  return ${RESERVE_PAYER_HEADROOM_FULL}
+end
+
+if KEYS[3] then
+  local memberBaseChargeSlots = tonumber(ARGV[8])
+  if memberBaseChargeSlots > maxConcurrency then memberBaseChargeSlots = maxConcurrency end
+  if redis.call('ZCARD', KEYS[3]) >= memberBaseChargeSlots then
+    return ${RESERVE_MEMBER_HEADROOM_FULL}
+  end
+end
+
+redis.call('ZADD', KEYS[1], expiryScore, ARGV[5])
+redis.call('PEXPIREAT', KEYS[1], expiryAt)
+if KEYS[3] then
+  redis.call('ZADD', KEYS[3], expiryScore, ARGV[5])
+  redis.call('PEXPIREAT', KEYS[3], expiryAt)
+end
+redis.call('SET', KEYS[2], ARGV[6], 'PXAT', expiryAt)
+return ${RESERVE_CREATED}
+`
+
+/**
+ * Registers the execution-to-payer pointer in its own hash slot. This separate
+ * one-key script is cluster-safe and distinguishes an idempotent duplicate from
+ * an execution-id collision.
+ */
+const REGISTER_POINTER_SCRIPT = `
+local existing = redis.call('GET', KEYS[1])
+if not existing then
+  redis.call('SET', KEYS[1], ARGV[1], 'PXAT', ARGV[2])
+  return 1
+end
+if existing == ARGV[1] then
+  redis.call('PEXPIREAT', KEYS[1], ARGV[2])
+  return 2
+end
+return 0
+`
+
+/**
+ * Removes every payer-slot constraint under one atomic owner check. It is used
+ * for both rollback and terminal release; repeated calls return zero without
+ * removing another owner's data.
+ */
+const RELEASE_LOCAL_SCRIPT = `
+local owner = redis.call('GET', KEYS[2])
+if not owner then
   return 0
 end
-redis.call('ZADD', KEYS[1], expiryScore, ARGV[5])
-redis.call('PEXPIRE', KEYS[1], pttl)
-redis.call('SET', KEYS[2], ARGV[6], 'PX', pttl)
+if owner ~= ARGV[2] then
+  return -1
+end
+redis.call('ZREM', KEYS[1], ARGV[1])
+if KEYS[3] then
+  redis.call('ZREM', KEYS[3], ARGV[1])
+end
+redis.call('DEL', KEYS[2])
 return 1
 `
 
 /**
- * Stable per-entity reservation key. Org-scoped subscriptions reserve against
- * the organization's pooled cap; everyone else against their personal cap —
- * mirroring the entity the usage limit itself is enforced on.
+ * Deletes a pointer only when it still identifies the released reservation.
  */
-export function resolveBillingEntityKey(
-  userId: string,
-  subscription: { referenceId?: string | null } | null | undefined
-): string {
-  if (isOrgScopedSubscription(subscription, userId) && subscription?.referenceId) {
-    return `org:${subscription.referenceId}`
+const DELETE_POINTER_SCRIPT = `
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+end
+return 0
+`
+
+interface MemberReservationConstraint {
+  organizationId: string
+  actorUserId: string
+  currentUsage: number
+  limit: number
+}
+
+interface ReservationDescriptor {
+  version: typeof POINTER_VERSION
+  entityKey: string
+  member?: {
+    organizationId: string
+    actorUserId: string
   }
-  return `user:${userId}`
 }
 
-function getMaxConcurrentExecutions(plan: string | null | undefined): number {
-  return MAX_CONCURRENT_EXECUTIONS[getPlanTypeForLimits(plan) as SubscriptionPlan]
+interface LocalReservationKeys {
+  payerKey: string
+  ownerKey: string
+  memberKey?: string
 }
 
-export interface ReserveExecutionSlotParams {
-  userId: string
-  executionId: string
-  subscription: { plan?: string | null; referenceId?: string | null } | null | undefined
+export class UsageReservationUnavailableError extends Error {
+  readonly code = ADMISSION_ERROR_DESCRIPTOR.RESERVATION_INFRASTRUCTURE.code
+  readonly statusCode = ADMISSION_ERROR_DESCRIPTOR.RESERVATION_INFRASTRUCTURE.statusCode
+  readonly retryable = ADMISSION_ERROR_DESCRIPTOR.RESERVATION_INFRASTRUCTURE.retryable
+
+  constructor(message: string, cause?: unknown) {
+    super(message)
+    this.name = 'UsageReservationUnavailableError'
+    this.cause = cause
+  }
+}
+
+/**
+ * Stable reservation key for the already-resolved workspace payer.
+ */
+export function resolveBillingEntityKey(billingEntity: BillingEntity): string {
+  const id = requireBoundedIdentifier(billingEntity.id, 'billing entity')
+  return `${billingEntity.type === 'organization' ? 'org' : 'user'}:${id}`
+}
+
+function requireBoundedIdentifier(value: string, label: string): string {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    Buffer.byteLength(value, 'utf8') > MAX_IDENTIFIER_LENGTH ||
+    !/^[A-Za-z0-9._:-]+$/.test(value)
+  ) {
+    throw new UsageReservationUnavailableError(`Invalid ${label} for usage reservation`)
+  }
+  return value
+}
+
+function requireUsageNumber(value: number, label: string): number {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new UsageReservationUnavailableError(`Invalid ${label} for usage reservation`)
+  }
+  return value
+}
+
+function buildDescriptor(
+  entityKey: string,
+  member: MemberReservationConstraint | undefined
+): ReservationDescriptor {
+  return {
+    version: POINTER_VERSION,
+    entityKey,
+    ...(member
+      ? {
+          member: {
+            organizationId: requireBoundedIdentifier(member.organizationId, 'member organization'),
+            actorUserId: requireBoundedIdentifier(member.actorUserId, 'member actor'),
+          },
+        }
+      : {}),
+  }
+}
+
+function serializeDescriptor(descriptor: ReservationDescriptor): string {
+  const serialized = JSON.stringify(descriptor)
+  if (Buffer.byteLength(serialized, 'utf8') > MAX_POINTER_BYTES) {
+    throw new UsageReservationUnavailableError('Usage reservation pointer exceeds size limit')
+  }
+  return serialized
+}
+
+function parseDescriptor(value: string): ReservationDescriptor | null {
+  if (Buffer.byteLength(value, 'utf8') > MAX_POINTER_BYTES) return null
+  try {
+    const parsed = JSON.parse(value)
+    const entityKey =
+      isRecordLike(parsed) && typeof parsed.entityKey === 'string' ? parsed.entityKey : null
+    const entityMatch =
+      typeof entityKey === 'string' ? entityKey.match(/^(org|user):([A-Za-z0-9._:-]+)$/) : null
+    const entityId = entityMatch?.[2]
+    if (
+      !isRecordLike(parsed) ||
+      parsed.version !== POINTER_VERSION ||
+      typeof entityKey !== 'string' ||
+      typeof entityId !== 'string' ||
+      Buffer.byteLength(entityId, 'utf8') > MAX_IDENTIFIER_LENGTH
+    ) {
+      return null
+    }
+    if (parsed.member === undefined) {
+      return { version: POINTER_VERSION, entityKey }
+    }
+    if (
+      !isRecordLike(parsed.member) ||
+      typeof parsed.member.organizationId !== 'string' ||
+      typeof parsed.member.actorUserId !== 'string'
+    ) {
+      return null
+    }
+    const organizationId = requireBoundedIdentifier(
+      parsed.member.organizationId,
+      'member organization'
+    )
+    const actorUserId = requireBoundedIdentifier(parsed.member.actorUserId, 'member actor')
+    if (parsed.entityKey !== `org:${organizationId}`) return null
+    return {
+      version: POINTER_VERSION,
+      entityKey,
+      member: { organizationId, actorUserId },
+    }
+  } catch {
+    return null
+  }
+}
+
+function buildLocalKeys(
+  descriptor: ReservationDescriptor,
+  reservationId: string
+): LocalReservationKeys {
+  const tag = `{${descriptor.entityKey}}`
+  return {
+    payerKey: `${PAYER_KEY_PREFIX}${tag}:payer`,
+    ownerKey: `${OWNER_KEY_PREFIX}${tag}:${reservationId}`,
+    ...(descriptor.member
+      ? {
+          memberKey: `${PAYER_KEY_PREFIX}${tag}:member:${descriptor.member.organizationId}:${descriptor.member.actorUserId}`,
+        }
+      : {}),
+  }
+}
+
+function localKeyArguments(keys: LocalReservationKeys): string[] {
+  return keys.memberKey
+    ? [keys.payerKey, keys.ownerKey, keys.memberKey]
+    : [keys.payerKey, keys.ownerKey]
+}
+
+async function rollbackCreatedReservation(params: {
+  redis: NonNullable<ReturnType<typeof getRedisClient>>
+  keys: LocalReservationKeys
+  reservationId: string
+  descriptorValue: string
+}): Promise<boolean> {
+  try {
+    const keyArgs = localKeyArguments(params.keys)
+    const result = await params.redis.eval(
+      RELEASE_LOCAL_SCRIPT,
+      keyArgs.length,
+      ...keyArgs,
+      params.reservationId,
+      params.descriptorValue
+    )
+    return result === 0 || result === 1
+  } catch (error) {
+    logger.error('Unable to prove usage reservation rollback', {
+      reservationId: params.reservationId,
+      error: toError(error).message,
+    })
+    return false
+  }
+}
+
+interface ReserveExecutionSlotBaseParams {
+  billingEntity: BillingEntity
+  plan: string | null | undefined
+  /** Optional positive Enterprise subscription metadata override. */
+  enterpriseConcurrencyLimit?: number | null
   /** Recorded usage for the billing entity at admission time (dollars). */
   currentUsage: number
   /** The entity's usage cap (dollars). */
   limit: number
+  /** Optional exact organization-member cap captured by the attributed usage check. */
+  member?: MemberReservationConstraint
 }
 
-export interface ReserveExecutionSlotResult {
-  reserved: boolean
-}
+export type ReserveExecutionSlotParams = ReserveExecutionSlotBaseParams &
+  (
+    | {
+        /** Unique identity for this initial run or durable resume-queue attempt. */
+        reservationId: string
+        executionId?: never
+      }
+    | {
+        /** Legacy initial-execution call sites use the execution id as reservation identity. */
+        executionId: string
+        reservationId?: never
+      }
+  )
+
+export type ReserveExecutionSlotResult =
+  | { reserved: true; created: boolean }
+  | {
+      reserved: false
+      reason: ReservationDenialReason
+    }
 
 /**
  * Atomic admission reservation that closes the usage-cap check-then-use race.
  *
- * No-ops (admits) when billing enforcement is off or Redis is unavailable —
- * the caller's recorded-usage check still runs in those cases, and failing open
- * here matches the rate limiter rather than turning a Redis blip into a full
- * execution outage.
+ * Billing-disabled and self-hosted deployments are no-ops. Hosted deployments
+ * require Redis and fail closed when reservation or pointer ownership cannot be
+ * proven. A newly-created local reservation is rolled back if pointer
+ * registration fails; TTL is only the bounded crash fallback.
  */
 export async function reserveExecutionSlot(
   params: ReserveExecutionSlotParams
 ): Promise<ReserveExecutionSlotResult> {
-  if (!isBillingEnabled) {
-    return { reserved: true }
+  if (!isHosted || !isBillingEnabled) {
+    return { reserved: true, created: false }
   }
 
   const redis = getRedisClient()
   if (!redis) {
-    return { reserved: true }
+    throw new UsageReservationUnavailableError(
+      'Usage admission is temporarily unavailable. Please retry.'
+    )
   }
 
-  const { userId, executionId, subscription, currentUsage, limit } = params
-  const entityKey = resolveBillingEntityKey(userId, subscription)
-  const maxConcurrency = getMaxConcurrentExecutions(subscription?.plan)
-  const headroom = Math.max(0, limit - currentUsage)
-  const headroomSlots = Math.floor(headroom / SLOT_COST_ESTIMATE)
-  const ttlMs = getMaxExecutionTimeout() + RESERVATION_TTL_BUFFER_MS
+  const { billingEntity, plan, member } = params
+  const reservationId = requireBoundedIdentifier(
+    params.reservationId ?? params.executionId,
+    'reservation id'
+  )
+  const entityKey = resolveBillingEntityKey(billingEntity)
+  if (
+    member &&
+    (billingEntity.type !== 'organization' || member.organizationId !== billingEntity.id)
+  ) {
+    throw new UsageReservationUnavailableError(
+      'Member usage reservation does not match its organization payer'
+    )
+  }
+  const descriptor = buildDescriptor(entityKey, member)
+  const descriptorValue = serializeDescriptor(descriptor)
+  const keys = buildLocalKeys(descriptor, reservationId)
+  const keyArgs = localKeyArguments(keys)
+  const pointerKey = `${POINTER_KEY_PREFIX}${reservationId}`
+  const maxConcurrency = getBillingConcurrencyLimit(plan, params.enterpriseConcurrencyLimit)
+  const currentUsage = requireUsageNumber(params.currentUsage, 'payer current usage')
+  const limit = requireUsageNumber(params.limit, 'payer limit')
+  const payerHeadroom = Math.max(0, limit - currentUsage)
+  const payerBaseChargeSlots = Math.floor(payerHeadroom / RESERVED_BASE_EXECUTION_CHARGE)
+  const memberBaseChargeSlots = member
+    ? Math.floor(
+        Math.max(
+          0,
+          requireUsageNumber(member.limit, 'member limit') -
+            requireUsageNumber(member.currentUsage, 'member current usage')
+        ) / RESERVED_BASE_EXECUTION_CHARGE
+      )
+    : -1
+  const ttlMs = getExecutionReservationTtlMs()
   const now = Date.now()
   const expiryScore = now + ttlMs
+  let localResult: unknown
 
   try {
-    const result = await redis.eval(
+    localResult = await redis.eval(
       RESERVE_SCRIPT,
-      2,
-      `${INFLIGHT_KEY_PREFIX}${entityKey}`,
-      `${POINTER_KEY_PREFIX}${executionId}`,
+      keyArgs.length,
+      ...keyArgs,
       now.toString(),
       expiryScore.toString(),
       maxConcurrency.toString(),
-      headroomSlots.toString(),
-      executionId,
-      entityKey,
-      ttlMs.toString()
+      payerBaseChargeSlots.toString(),
+      reservationId,
+      descriptorValue,
+      expiryScore.toString(),
+      memberBaseChargeSlots.toString()
     )
-
-    const reserved = result === 1
-    if (!reserved) {
-      logger.warn('Execution admission throttled — concurrency/usage reservation full', {
-        entityKey,
-        executionId,
-        maxConcurrency,
-        headroomSlots,
-      })
-    }
-    return { reserved }
   } catch (error) {
-    logger.error('Usage reservation error — failing open (admitting execution)', {
+    logger.error('Atomic usage reservation result unavailable — failing closed', {
       error: toError(error).message,
       entityKey,
-      executionId,
+      reservationId,
     })
-    return { reserved: true }
+    throw new UsageReservationUnavailableError(
+      'Usage admission is temporarily unavailable. Please retry.',
+      error
+    )
+  }
+
+  if (localResult === RESERVE_PAYER_CONCURRENCY_FULL) {
+    return { reserved: false, reason: 'payer_concurrency' }
+  }
+  if (localResult === RESERVE_PAYER_HEADROOM_FULL) {
+    return { reserved: false, reason: 'payer_headroom' }
+  }
+  if (localResult === RESERVE_MEMBER_HEADROOM_FULL) {
+    return { reserved: false, reason: 'member_headroom' }
+  }
+  if (localResult !== RESERVE_CREATED && localResult !== RESERVE_DUPLICATE) {
+    throw new UsageReservationUnavailableError(
+      'Usage admission ownership could not be established. Please retry.'
+    )
+  }
+
+  try {
+    const pointerResult = await redis.eval(
+      REGISTER_POINTER_SCRIPT,
+      1,
+      pointerKey,
+      descriptorValue,
+      expiryScore.toString()
+    )
+    if (pointerResult === 1 || pointerResult === 2) {
+      return { reserved: true, created: localResult === RESERVE_CREATED }
+    }
+    throw new UsageReservationUnavailableError(
+      'Reservation id is already reserved by a different payer'
+    )
+  } catch (error) {
+    let pointerState: 'matching' | 'absent' | 'conflicting' | 'unknown' = 'unknown'
+    try {
+      const pointerValue = await redis.get(pointerKey)
+      pointerState =
+        pointerValue === descriptorValue
+          ? 'matching'
+          : pointerValue === null
+            ? 'absent'
+            : 'conflicting'
+    } catch (pointerReadError) {
+      logger.error('Unable to verify usage reservation pointer after write failure', {
+        entityKey,
+        reservationId,
+        error: toError(pointerReadError).message,
+      })
+    }
+    if (pointerState === 'matching') {
+      logger.warn('Usage reservation pointer response unavailable; ownership verified', {
+        entityKey,
+        reservationId,
+      })
+      return { reserved: true, created: localResult === RESERVE_CREATED }
+    }
+    const rollbackProven =
+      localResult === RESERVE_CREATED &&
+      (pointerState === 'absent' || pointerState === 'conflicting')
+        ? await rollbackCreatedReservation({
+            redis,
+            keys,
+            reservationId,
+            descriptorValue,
+          })
+        : false
+    logger.error('Usage reservation pointer registration failed — failing closed', {
+      entityKey,
+      reservationId,
+      rollbackProven,
+      pointerState,
+      duplicateReservation: localResult === RESERVE_DUPLICATE,
+      error: toError(error).message,
+    })
+    throw new UsageReservationUnavailableError(
+      rollbackProven
+        ? 'Usage admission is temporarily unavailable. Reservation was rolled back; please retry.'
+        : 'Usage admission is temporarily unavailable and ownership could not be proven. Please retry.',
+      error
+    )
   }
 }
 
 /**
- * Release the in-flight reservation held for an execution. Best-effort and
- * idempotent — safe to call for executions that never reserved (Redis down,
- * billing disabled) or are released more than once. Must NOT be called for a
- * paused execution that may still resume.
- *
- * Uses discrete single-key commands rather than a Lua script that rebuilds the
- * in-flight key from the pointer value: the entity that owns the slot is only
- * known after reading the pointer, and constructing a key inside Lua bypasses
- * the `KEYS` declaration that Redis Cluster relies on for slot routing.
+ * Releases payer and member constraints atomically and idempotently. The
+ * pointer is read and conditionally deleted first so local cleanup cannot leave
+ * an orphan pointer outside the payer's concurrency bound. TypeScript then
+ * declares every payer-slot key to Lua; no script constructs or accesses an
+ * undeclared key. A crash between phases leaves only local constraints, still
+ * bounded by the payer ceiling and absolute TTL. Paused executions call this
+ * only after their pause snapshot is durable.
  */
-export async function releaseExecutionSlot(executionId: string): Promise<void> {
-  if (!isBillingEnabled) {
+export async function releaseExecutionSlot(reservationId: string): Promise<void> {
+  if (!isHosted || !isBillingEnabled) {
     return
   }
 
@@ -196,15 +576,53 @@ export async function releaseExecutionSlot(executionId: string): Promise<void> {
   }
 
   try {
-    const pointerKey = `${POINTER_KEY_PREFIX}${executionId}`
-    const entityKey = await redis.getdel(pointerKey)
-    if (entityKey) {
-      await redis.zrem(`${INFLIGHT_KEY_PREFIX}${entityKey}`, executionId)
+    const boundedReservationId = requireBoundedIdentifier(reservationId, 'reservation id')
+    const pointerKey = `${POINTER_KEY_PREFIX}${boundedReservationId}`
+    const descriptorValue = await redis.get(pointerKey)
+    if (!descriptorValue) return
+    const descriptor = parseDescriptor(descriptorValue)
+    if (!descriptor) {
+      logger.error('Invalid usage reservation pointer; awaiting TTL cleanup', { reservationId })
+      return
+    }
+    try {
+      const pointerResult = await redis.eval(DELETE_POINTER_SCRIPT, 1, pointerKey, descriptorValue)
+      if (pointerResult !== 1) return
+    } catch (pointerError) {
+      let pointerDeleted = false
+      try {
+        pointerDeleted = (await redis.get(pointerKey)) === null
+      } catch (pointerReadError) {
+        logger.warn('Unable to verify usage reservation pointer deletion', {
+          reservationId,
+          error: toError(pointerReadError).message,
+        })
+      }
+      if (!pointerDeleted) {
+        logger.warn('Usage reservation pointer deletion failed; retaining local constraints', {
+          reservationId,
+          error: toError(pointerError).message,
+        })
+        return
+      }
+    }
+    const keys = buildLocalKeys(descriptor, boundedReservationId)
+    const keyArgs = localKeyArguments(keys)
+    const localResult = await redis.eval(
+      RELEASE_LOCAL_SCRIPT,
+      keyArgs.length,
+      ...keyArgs,
+      boundedReservationId,
+      descriptorValue
+    )
+    if (localResult !== 0 && localResult !== 1) {
+      logger.error('Usage reservation owner mismatch; awaiting TTL cleanup', { reservationId })
+      return
     }
   } catch (error) {
     logger.warn('Failed to release usage reservation', {
       error: toError(error).message,
-      executionId,
+      reservationId,
     })
   }
 }

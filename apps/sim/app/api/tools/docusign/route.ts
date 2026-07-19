@@ -17,7 +17,8 @@ import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 const logger = createLogger('DocuSignAPI')
@@ -228,14 +229,21 @@ async function handleSendEnvelope(
             { status: 413 }
           )
         }
-        const buffer = await downloadFileFromStorage(userFile, 'docusign-send', logger, {
-          maxBytes: MAX_DOCUSIGN_DOCUMENT_BYTES,
-        })
+        const { buffer } = await downloadServableFileFromStorage(
+          userFile,
+          'docusign-send',
+          logger,
+          {
+            maxBytes: MAX_DOCUSIGN_DOCUMENT_BYTES,
+          }
+        )
         assertKnownSizeWithinLimit(buffer.length, MAX_DOCUSIGN_DOCUMENT_BYTES, 'DocuSign document')
         documentBase64 = buffer.toString('base64')
         documentName = userFile.name
       }
     } catch (fileError) {
+      const notReady = docNotReadyResponse(fileError)
+      if (notReady) return notReady
       logger.error('Failed to process file for DocuSign envelope', { fileError })
       return NextResponse.json(
         {

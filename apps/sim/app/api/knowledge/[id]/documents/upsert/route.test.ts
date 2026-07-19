@@ -31,6 +31,15 @@ vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
   checkActorUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
 }))
 
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  resolveBillingAttribution: vi.fn().mockResolvedValue({
+    actorUserId: 'user-1',
+    workspaceId: 'ws-1',
+    billingEntity: { type: 'organization', id: 'org-1' },
+  }),
+  checkAttributedUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
+}))
+
 vi.mock('@/lib/knowledge/documents/service', () => ({
   createDocumentRecords: vi.fn(),
   deleteDocument: vi.fn(),

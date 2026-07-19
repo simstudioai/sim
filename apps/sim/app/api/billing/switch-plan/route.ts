@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -8,8 +9,12 @@ import { billingSwitchPlanContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import {
+  getHighestPriorityPersonalSubscription,
+  getHighestPrioritySubscription,
+} from '@/lib/billing/core/plan'
 import { writeBillingInterval } from '@/lib/billing/core/subscription'
 import { switchLagoSubscriptionPlan } from '@/lib/billing/lago/subscriptions'
 import { getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
@@ -20,9 +25,11 @@ import {
   hasUsableSubscriptionStatus,
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
+import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isBillingEnabled, isLagoBillingProvider } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 
 const logger = createLogger('SwitchPlan')
 
@@ -52,17 +59,34 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const parsed = await parseRequest(billingSwitchPlanContract, request, {})
     if (!parsed.success) return parsed.response
 
-    const { targetPlanName, interval } = parsed.data.body
+    const { targetPlanName, interval, workspaceId } = parsed.data.body
     const userId = session.user.id
 
-    const sub = await getHighestPrioritySubscription(userId)
+    const hostContext = workspaceId
+      ? await getWorkspaceHostContextForViewer(workspaceId, userId)
+      : null
+    if (workspaceId && (!hostContext || !canManageWorkspaceBilling(hostContext, userId))) {
+      return NextResponse.json(
+        { error: 'Only workspace billing administrators can change this plan' },
+        { status: 403 }
+      )
+    }
+
+    const sub = hostContext
+      ? hostContext.hostOrganizationId
+        ? await getOrganizationSubscription(hostContext.hostOrganizationId)
+        : await getHighestPriorityPersonalSubscription(hostContext.workspace.billedAccountUserId)
+      : await getHighestPrioritySubscription(userId)
     if (!sub) {
       return NextResponse.json({ error: 'No active subscription found' }, { status: 404 })
     }
 
+    const billingBlocked = hostContext
+      ? hostContext.ownerBilling.billingBlocked
+      : (await getEffectiveBillingStatus(userId)).billingBlocked
+
     if (isLagoBillingProvider) {
-      const billingStatus = await getEffectiveBillingStatus(userId)
-      if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) {
+      if (!hasUsableSubscriptionAccess(sub.status, billingBlocked)) {
         return NextResponse.json({ error: 'An active subscription is required' }, { status: 400 })
       }
 
@@ -105,8 +129,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'No active subscription found' }, { status: 404 })
     }
 
-    const billingStatus = await getEffectiveBillingStatus(userId)
-    if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) {
+    if (!hasUsableSubscriptionAccess(sub.status, billingBlocked)) {
       return NextResponse.json({ error: 'An active subscription is required' }, { status: 400 })
     }
 
@@ -219,6 +242,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       { from_plan: sub.plan ?? 'unknown', to_plan: targetPlanName, interval: targetInterval },
       { set: { plan: targetPlanName } }
     )
+
+    if (isOrgScopedSubscription(sub, userId)) {
+      recordAudit({
+        actorId: userId,
+        action: AuditAction.ORG_PLAN_CONVERTED,
+        resourceType: AuditResourceType.ORGANIZATION,
+        resourceId: sub.referenceId,
+        description: `Plan converted from ${sub.plan ?? 'unknown'} to ${targetPlanName}`,
+        metadata: {
+          organizationId: sub.referenceId,
+          subscriptionId: sub.id,
+          fromPlan: sub.plan,
+          toPlan: targetPlanName,
+          interval: targetInterval,
+        },
+        request,
+      })
+      captureServerEvent(userId, 'plan_converted', {
+        organization_id: sub.referenceId,
+        from_plan: sub.plan ?? 'unknown',
+        to_plan: targetPlanName,
+      })
+    }
 
     return NextResponse.json({ success: true, plan: targetPlanName, interval: targetInterval })
   } catch (error) {

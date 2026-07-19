@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogCreateCohortParams {
   apiKey: string
   projectId: string
   region: string
+  host?: string
   name: string
   description?: string
   filters?: string
@@ -38,6 +40,7 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
     description:
       'Create a new cohort in PostHog. Requires cohort name and filter or query configuration.',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       apiKey: {
@@ -58,6 +61,13 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
         visibility: 'user-only',
         description: 'PostHog cloud region: "us" or "eu" (default: "us")',
         default: 'us',
+      },
+      host: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description:
+          'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
       },
       name: {
         type: 'string',
@@ -101,7 +111,7 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
 
     request: {
       url: (params) => {
-        const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+        const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
         return `${baseUrl}/api/projects/${params.projectId}/cohorts/`
       },
       method: 'POST',

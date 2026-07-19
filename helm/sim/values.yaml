@@ -111,17 +111,20 @@ app:
     
     # Email & Communication
     # Configure one provider — the mailer auto-detects in priority order:
-    # Resend → AWS SES → SMTP → Azure Communication Services.
+    # Resend → AWS SES → SMTP → Azure Communication Services → Gmail.
     EMAIL_VERIFICATION_ENABLED: ""                        # Set to "true" to enable email verification for user registration and login (default "false" via envDefaults)
     RESEND_API_KEY: ""                                    # Resend API key for transactional emails
     FROM_EMAIL_ADDRESS: ""                                # Complete from address (e.g., "Sim <noreply@domain.com>" or "DoNotReply@domain.com")
     EMAIL_DOMAIN: ""                                      # Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
     AWS_SES_REGION: ""                                    # AWS region for SES (e.g., "us-east-1"); credentials resolved via the standard AWS provider chain (env, IRSA, instance profile)
+    AZURE_ACS_CONNECTION_STRING: ""                       # Azure Communication Services connection string (email provider — used when Resend/SES/SMTP are not configured)
     SMTP_HOST: ""                                         # SMTP server hostname (alternative to Resend/SES)
     SMTP_PORT: ""                                         # SMTP server port (465 for TLS, 587 for STARTTLS, 25 for plain)
     SMTP_USER: ""                                         # SMTP username (optional — omit for unauthenticated relays like MailHog)
     SMTP_PASS: ""                                         # SMTP password (optional — omit for unauthenticated relays)
     SMTP_SECURE: ""                                       # Set to "true" to force TLS on connect; defaults to true when SMTP_PORT=465
+    GMAIL_CREDENTIALS_JSON: ""                            # Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider
+    GMAIL_SENDER: ""                                      # Google Workspace user the Gmail service account impersonates when sending (e.g., noreply@yourdomain.com)
 
 
     # OAuth Integration Credentials (leave empty if not using)
@@ -145,6 +148,13 @@ app:
     AZURE_ANTHROPIC_ENDPOINT: ""                          # Azure AI Foundry endpoint for Anthropic models
     AZURE_ANTHROPIC_API_KEY: ""                           # Azure Anthropic API key
     AZURE_ANTHROPIC_API_VERSION: ""                       # Azure Anthropic API version (e.g., 2023-06-01)
+    KB_OPENAI_MODEL_NAME: ""                              # Azure deployment name serving the configured KB embedding model (used only when AZURE_OPENAI_* credentials are set)
+    WAND_OPENAI_MODEL_NAME: ""                            # Wand generation model deployment name (works with both regular OpenAI and Azure OpenAI)
+
+    # Azure Mistral OCR Configuration (leave empty if not using Azure-hosted OCR for document processing)
+    OCR_AZURE_ENDPOINT: ""                                # Azure Mistral OCR service endpoint
+    OCR_AZURE_MODEL_NAME: ""                              # Azure Mistral OCR model name
+    OCR_AZURE_API_KEY: ""                                 # Azure Mistral OCR API key
 
     # AI Provider API Keys (leave empty if not using)
     OPENAI_API_KEY: ""                                    # Primary OpenAI API key
@@ -157,7 +167,7 @@ app:
     ANTHROPIC_API_KEY_2: ""                               # Additional Anthropic API key for load balancing
     ANTHROPIC_API_KEY_3: ""                               # Additional Anthropic API key for load balancing
     OLLAMA_URL: ""                                        # Ollama local LLM server URL
-    PII_URL: ""                                           # Presidio PII sidecar URL; auto-computed when pii.enabled, override here otherwise
+    PII_URL: ""                                           # Presidio PII service URL; auto-computed when pii.enabled, override here otherwise
     ELEVENLABS_API_KEY: ""                                # ElevenLabs API key for text-to-speech in deployed chat
 
     # UI Branding & Whitelabeling Configuration
@@ -222,8 +232,6 @@ app:
     SSO_TRUSTED_PROVIDER_IDS: ""
 
     # Enterprise Feature Overrides (self-hosted)
-    CREDENTIAL_SETS_ENABLED: ""                           # Enable credential sets (email polling) on self-hosted ("true" to enable)
-    NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED: ""               # Show credential sets settings page ("true" to enable)
     INBOX_ENABLED: ""                                     # Enable Sim Mailer on self-hosted ("true" to enable)
     NEXT_PUBLIC_INBOX_ENABLED: ""                         # Show Sim Mailer settings page ("true" to enable)
     WHITELABELING_ENABLED: ""                             # Enable whitelabeling on self-hosted ("true" to enable)
@@ -282,6 +290,20 @@ app:
     AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: ""            # Azure container for OpenGraph preview images
     AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME: ""      # Azure container for workspace logos
 
+    # Google Cloud Storage Configuration (optional - for file storage)
+    # If configured, files will be stored in GCS instead of local storage
+    # Note: used when neither Azure Blob nor S3 is configured
+    GCS_PROJECT_ID: ""                                    # GCP project ID (optional — inferred from credentials/ADC when unset)
+    GCS_CREDENTIALS_JSON: ""                              # Inline service-account JSON. Leave empty to use Workload Identity / Application Default Credentials
+    GCS_BUCKET_NAME: ""                                   # GCS bucket for workspace files (all other GCS buckets fall back to it)
+    GCS_KB_BUCKET_NAME: ""                                # GCS bucket for knowledge base files
+    GCS_EXECUTION_FILES_BUCKET_NAME: ""                   # GCS bucket for workflow execution files
+    GCS_CHAT_BUCKET_NAME: ""                              # GCS bucket for deployed chat files
+    GCS_COPILOT_BUCKET_NAME: ""                           # GCS bucket for copilot files
+    GCS_PROFILE_PICTURES_BUCKET_NAME: ""                  # GCS bucket for user profile pictures
+    GCS_OG_IMAGES_BUCKET_NAME: ""                         # GCS bucket for OpenGraph preview images
+    GCS_WORKSPACE_LOGOS_BUCKET_NAME: ""                   # GCS bucket for workspace logos
+
   # Operational tunables shipped with the chart. These are rendered as inline `env:` on the
   # app container — NOT written into the chart-managed Secret and NOT required to be mapped
   # when externalSecrets.enabled=true. Override any key by setting `app.envDefaults.KEY` in
@@ -318,6 +340,12 @@ app:
     RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
     RATE_LIMIT_FREE_SYNC: "50"                            # Sync API executions per minute
     RATE_LIMIT_FREE_ASYNC: "200"                          # Async API executions per minute
+
+    # Billing concurrency limits (in-flight executions per billing account)
+    BILLING_CONCURRENCY_LIMIT_FREE: "10"
+    BILLING_CONCURRENCY_LIMIT_PRO: "50"                   # Pro tier (Pro and Pro for Teams)
+    BILLING_CONCURRENCY_LIMIT_TEAM: "200"                 # Max tier (Max and Max for Teams)
+    BILLING_CONCURRENCY_LIMIT_ENTERPRISE: "1000"          # Default; Enterprise subscription metadata can override
 
     # Execution Timeouts (seconds) — sync timeouts apply to synchronous API calls
     EXECUTION_TIMEOUT_FREE: "300"                         # Free tier sync timeout (5 minutes)
@@ -805,14 +833,14 @@ ollama:
   extraVolumes: []
   extraVolumeMounts: []
 
-# Presidio PII redaction sidecar (analyzer + anonymizer combined, port 5001).
+# Presidio PII redaction service (analyzer + anonymizer combined, port 5001).
 # When enabled, the app's PII_URL is auto-wired to this in-cluster service so the
 # Guardrails PII block and on-demand masking work. To additionally enable automatic
 # log redaction, set app.env.PII_REDACTION="true" AND app.env.INTERNAL_API_BASE_URL
 # to the in-cluster app service URL (the redaction path calls the app's own
 # /api/guardrails/mask-batch, which must be reachable from inside the cluster).
 pii:
-  # Enable/disable the PII redaction sidecar
+  # Enable/disable the PII redaction service
   enabled: false
 
   # Image configuration. repository resolves to ghcr.io/simstudioai/pii — the
@@ -844,10 +872,10 @@ pii:
   podSecurityContext: {}
   securityContext: {}
 
-  # Environment variables for the sidecar container
+  # Environment variables for the service container
   env: {}
 
-  # Node scheduling. nodeSelector pins the (memory-heavy, ~4Gi) sidecar to a
+  # Node scheduling. nodeSelector pins the (memory-heavy, ~4Gi) service to a
   # node pool; tolerations are inherited from the top-level `tolerations` key
   # (shared with app/realtime), and topologySpreadConstraints spreads replicas.
   nodeSelector: {}
@@ -1276,6 +1304,18 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # Releases AgentMail inbox + webhook for workspaces whose Sim Mailer plan
+    # lapsed (canceled/downgraded off Max/Enterprise). Tolerates past_due, so a
+    # transient payment failure never tears down a paying customer's inbox.
+    reconcileInboxEntitlement:
+      enabled: true
+      name: reconcile-inbox-entitlement
+      schedule: "0 3 * * *"
+      path: "/api/cron/reconcile-inbox-entitlement"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     workspaceEventsPoll:
       enabled: true
       name: workspace-events-poll
@@ -1308,6 +1348,18 @@ cronjobs:
       name: run-data-drains
       schedule: "0 * * * *"
       path: "/api/cron/run-data-drains"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    # Processes the transactional outbox (deployment side-effects retry / dead-letter)
+    # and reaps stale workspace-fork background-work rows. Both are safety nets behind
+    # the immediate post-commit processing, so frequent runs keep retries timely.
+    outboxProcess:
+      enabled: true
+      name: outbox-process
+      schedule: "*/1 * * * *"
+      path: "/api/webhooks/outbox/process"
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
@@ -1395,6 +1447,15 @@ telemetry:
     tls:
       enabled: false
 
+  # Pod security context (preserves the collector's original UID/GID/fsGroup)
+  podSecurityContext:
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+
+  # Container security context (sim.containerSecurityContext restricted defaults apply)
+  securityContext: {}
+
 # Copilot service configuration (optional microservice)
 copilot:
   # Enable/disable the copilot service
@@ -1436,11 +1497,12 @@ copilot:
       runAsNonRoot: true
       runAsUser: 1001
     
-    # Environment variables (required and optional)
+    # Environment variables that go through the chart-managed Secret (or ExternalSecret
+    # when externalSecrets.enabled=true). Every non-empty key here must have a matching
+    # externalSecrets.remoteRefs.copilot entry under ESO — reserve this block for values
+    # that are genuinely sensitive or user-provided; static operational config belongs in
+    # envDefaults below instead.
     env:
-      PORT: "8080"
-      SERVICE_NAME: "copilot"
-      ENVIRONMENT: "production"
       AGENT_API_DB_ENCRYPTION_KEY: ""
       INTERNAL_API_SECRET: ""
       LICENSE_KEY: ""
@@ -1449,17 +1511,31 @@ copilot:
       SIM_BASE_URL: ""
       SIM_AGENT_API_KEY: ""
       REDIS_URL: ""
-      # Optional configuration
-      LOG_LEVEL: "info"
       CORS_ALLOWED_ORIGINS: ""
       OTEL_EXPORTER_OTLP_ENDPOINT: ""
-    
+
+    # Operational tunables shipped with the chart. Rendered as inline `env:` on the
+    # copilot container — NOT written into the chart-managed Secret and NOT required to
+    # be mapped when externalSecrets.enabled=true. Override any key by setting
+    # copilot.server.envDefaults.KEY in your values file. Move a key into
+    # copilot.server.env above only if it must be treated as secret.
+    envDefaults:
+      PORT: "8080"
+      SERVICE_NAME: "copilot"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "info"
+
     # Optional: additional static environment variables
     extraEnv: []
-    
+
     # Optional: references to existing ConfigMaps/Secrets
     extraEnvFrom: []
-    
+
+    # Optional: additional volumes/mounts (e.g. to back an emptyDir /tmp when
+    # enabling securityContext.readOnlyRootFilesystem)
+    extraVolumes: []
+    extraVolumeMounts: []
+
     # Secret generation configuration (set create=false to use an existing secret)
     secret:
       create: true
@@ -1684,6 +1760,27 @@ externalSecrets:
     externalDatabase:
       # Path to external database password in external store
       password: ""
+
+    # Copilot server secrets (used when copilot.enabled=true and copilot.server.secret.create=true).
+    # Every non-empty copilot.server.env key must have a matching entry here, or template
+    # rendering fails with a clear "map it or remove it" error — same rule as remoteRefs.app.
+    copilot:
+      # Path to AGENT_API_DB_ENCRYPTION_KEY in external store
+      AGENT_API_DB_ENCRYPTION_KEY: ""
+      # Path to INTERNAL_API_SECRET in external store (shared with app/realtime)
+      INTERNAL_API_SECRET: ""
+      # Path to LICENSE_KEY in external store
+      LICENSE_KEY: ""
+      # Path to SIM_BASE_URL in external store
+      SIM_BASE_URL: ""
+      # Path to SIM_AGENT_API_KEY in external store
+      SIM_AGENT_API_KEY: ""
+      # Path to REDIS_URL in external store
+      REDIS_URL: ""
+      # Path to OPENAI_API_KEY_1 in external store (one of OPENAI_API_KEY_1/ANTHROPIC_API_KEY_1 required)
+      OPENAI_API_KEY_1: ""
+      # Path to ANTHROPIC_API_KEY_1 in external store (one of OPENAI_API_KEY_1/ANTHROPIC_API_KEY_1 required)
+      ANTHROPIC_API_KEY_1: ""
 
 # cert-manager configuration
 # Prerequisites: Install cert-manager in your cluster first

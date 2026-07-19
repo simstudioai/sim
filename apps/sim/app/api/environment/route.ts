@@ -14,6 +14,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncPersonalEnvCredentialsForUser } from '@/lib/credentials/environment'
 import type { EnvironmentVariable } from '@/lib/environment/api'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('EnvironmentAPI')
 
@@ -87,6 +88,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         scope: 'personal',
       },
       request: req,
+    })
+
+    captureServerEvent(session.user.id, 'environment_updated', {
+      key_count: Object.keys(variables).length,
+      scope: 'personal',
     })
 
     return NextResponse.json({ success: true })

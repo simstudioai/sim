@@ -1,11 +1,11 @@
 'use client'
 
 import { Component, type ReactNode, useEffect } from 'react'
+import { Button } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { RefreshCw } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { ReactFlowProvider } from 'reactflow'
-import { Button } from '@/components/emcn'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'

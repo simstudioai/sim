@@ -1,7 +1,6 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
-import { Calendar, Plus } from '@/components/emcn'
+import { Calendar, Plus } from '@sim/emcn/icons'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,
@@ -15,6 +14,5 @@ const ACTIONS: ChromeActionSpec[] = [{ text: 'New scheduled task', icon: Plus, v
  * The empty calendar then mounts and its tasks load in.
  */
 export default function ScheduledTasksLoading() {
-  const t = useTranslations('auto')
-  return <ResourceChromeFallback icon={Calendar} title={t('scheduled_tasks')} actions={ACTIONS} />
+  return <ResourceChromeFallback icon={Calendar} title='Scheduled Tasks' actions={ACTIONS} />
 }

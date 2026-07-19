@@ -1,10 +1,9 @@
 'use client'
 
+import { Button } from '@sim/emcn'
+import { Download } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Button } from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
 import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileCards')
@@ -16,7 +15,7 @@ interface FileData {
   type: string
   key: string
   url: string
-  storageProvider?: 's3' | 'blob' | 'local'
+  storageProvider?: 's3' | 'blob' | 'gcs' | 'local'
   bucketName?: string
 }
 
@@ -41,7 +40,6 @@ function formatFileSize(bytes: number): string {
 }
 
 function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps) {
-  const t = useTranslations('auto')
   const router = useRouter()
 
   const handleDownload = () => {
@@ -109,7 +107,7 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
           onClick={handleDownload}
         >
           <Download className='mr-1 size-[10px]' />
-          {t('download')}
+          Download
         </Button>
       </div>
     </div>
@@ -117,7 +115,6 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
 }
 
 export function FileCards({ files, isExecutionFile = false, workspaceId }: FileCardsProps) {
-  const t = useTranslations('auto')
   if (!files || files.length === 0) {
     return null
   }
@@ -125,8 +122,7 @@ export function FileCards({ files, isExecutionFile = false, workspaceId }: FileC
   return (
     <div className='mt-1 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
       <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-        {t('files')}
-        {files.length})
+        Files ({files.length})
       </span>
       {files.map((file, index) => (
         <FileCard

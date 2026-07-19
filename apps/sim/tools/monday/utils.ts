@@ -31,6 +31,24 @@ export function sanitizeLimit(value: number | undefined, defaultVal: number, max
   return Math.min(n, max)
 }
 
+/**
+ * Validates a GraphQL enum literal (e.g., board_kind, column_type) against an
+ * allowlist and returns the bare, unquoted value for safe inlining. GraphQL
+ * enums must NOT be JSON-stringified; this guards against query injection by
+ * rejecting anything outside the provided set.
+ */
+export function sanitizeEnum(
+  value: string | undefined,
+  paramName: string,
+  allowed: readonly string[]
+): string {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  if (!allowed.includes(normalized)) {
+    throw new Error(`Invalid ${paramName}: "${value}". Expected one of: ${allowed.join(', ')}`)
+  }
+  return normalized
+}
+
 export function extractMondayError(data: Record<string, unknown>): string | null {
   if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
     const messages = (data.errors as Array<Record<string, unknown>>)

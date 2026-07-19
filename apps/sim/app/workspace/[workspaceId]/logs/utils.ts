@@ -1,7 +1,7 @@
 import React from 'react'
-import { formatDuration } from '@sim/utils/formatting'
+import { Badge } from '@sim/emcn'
+import { formatDuration, formatRelativeTime } from '@sim/utils/formatting'
 import { format } from 'date-fns'
-import { Badge } from '@/components/emcn'
 import type { WorkflowLogDetail } from '@/lib/api/contracts/logs'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
@@ -72,7 +72,6 @@ const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['va
   chat: 'purple',
   webhook: 'orange',
   mcp: 'cyan',
-  a2a: 'teal',
   copilot: 'pink',
   mothership: 'pink',
   workflow: 'blue-secondary',
@@ -225,23 +224,7 @@ export const formatDate = (dateString: string) => {
     compact: format(date, 'MMM d HH:mm:ss'),
     compactDate: format(date, 'MMM d').toUpperCase(),
     compactTime: format(date, 'h:mm a'),
-    relative: (() => {
-      const now = new Date()
-      const diffMs = now.getTime() - date.getTime()
-      const diffMins = Math.floor(diffMs / 60000)
-
-      if (diffMins < 1) return 'just now'
-      if (diffMins < 60) return `${diffMins}m ago`
-
-      const diffHours = Math.floor(diffMins / 60)
-      if (diffHours < 24) return `${diffHours}h ago`
-
-      const diffDays = Math.floor(diffHours / 24)
-      if (diffDays === 1) return 'yesterday'
-      if (diffDays < 7) return `${diffDays}d ago`
-
-      return format(date, 'MMM d')
-    })(),
+    relative: formatRelativeTime(dateString),
   }
 }
 

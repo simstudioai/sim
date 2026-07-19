@@ -1,34 +1,35 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import {
   Button,
   ChipCombobox,
   ChipInput,
   ChipSelect,
   ChipTextarea,
+  cn,
   Expandable,
   ExpandableContent,
   Label,
   Switch,
   toast,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import type { SsoRegistrationBody } from '@/lib/api/contracts/auth'
 import { useSession } from '@/lib/auth/auth-client'
-import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { getUserRole } from '@/lib/workspaces/organization/utils'
+import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { useConfigureSSO, useSSOProviders } from '@/ee/sso/hooks/sso'
-import { useOrganizations } from '@/hooks/queries/organization'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { useOrganizationBilling } from '@/hooks/queries/organization'
 
 const logger = createLogger('SSO')
 
@@ -98,28 +99,28 @@ const DEFAULT_ERRORS = {
   audience: [],
 }
 
-export function SSO() {
-  const { data: session } = useSession()
-  const { data: orgsData } = useOrganizations()
-  const { data: subscriptionData } = useSubscriptionData()
+interface SSOProps {
+  organizationId: string
+}
 
-  const activeOrganization = orgsData?.activeOrganization
+export function SSO({ organizationId }: SSOProps) {
+  return <OrganizationSsoSettings key={organizationId} organizationId={organizationId} />
+}
+
+function OrganizationSsoSettings({ organizationId }: SSOProps) {
+  const { data: session } = useSession()
+  const { data: organizationBillingData, isLoading: isLoadingOrganizationBilling } =
+    useOrganizationBilling(organizationId)
 
   const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders({
-    organizationId: activeOrganization?.id,
+    organizationId,
   })
 
   const providers = providersData?.providers || []
   const existingProvider = providers[0] as SSOProvider | undefined
 
-  const userEmail = session?.user?.email
   const userId = session?.user?.id
-  const userRole = getUserRole(orgsData?.activeOrganization, userEmail)
-  const isOwner = userRole === 'owner'
-  const isAdmin = userRole === 'admin'
-  const canManageSSO = isOwner || isAdmin
-  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
-  const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
+  const hasEnterprisePlan = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
 
   const isSSOProviderOwner =
     !isBillingEnabled && userId ? providers.some((p) => p.userId === userId) : null
@@ -136,15 +137,17 @@ export function SSO() {
   const [errors, setErrors] = useState<Record<string, string[]>>(DEFAULT_ERRORS)
   const [showErrors, setShowErrors] = useState(false)
 
-  if (isBillingEnabled) {
-    if (!activeOrganization) {
-      return (
-        <SettingsEmptyState>
-          You must be part of an organization to configure Single Sign-On.
-        </SettingsEmptyState>
-      )
-    }
+  const hasChanges = (Object.keys(formData) as (keyof typeof formData)[]).some(
+    (k) => formData[k] !== originalFormData[k]
+  )
 
+  useSettingsUnsavedGuard({ isDirty: hasChanges })
+
+  if (isLoadingProviders || (isBillingEnabled && isLoadingOrganizationBilling)) {
+    return null
+  }
+
+  if (isBillingEnabled) {
     if (!hasEnterprisePlan) {
       return (
         <SettingsEmptyState>
@@ -152,28 +155,8 @@ export function SSO() {
         </SettingsEmptyState>
       )
     }
-
-    if (!canManageSSO) {
-      return (
-        <SettingsEmptyState>
-          Only organization owners and admins can configure Single Sign-On settings.
-        </SettingsEmptyState>
-      )
-    }
   } else {
-    if (activeOrganization && !canManageSSO) {
-      return (
-        <SettingsEmptyState>
-          Only organization owners and admins can configure Single Sign-On settings.
-        </SettingsEmptyState>
-      )
-    }
-    if (
-      !activeOrganization &&
-      !isLoadingProviders &&
-      isSSOProviderOwner === false &&
-      providers.length > 0
-    ) {
+    if (!isLoadingProviders && isSSOProviderOwner === false && providers.length > 0) {
       return (
         <SettingsEmptyState>
           Only the user who configured SSO can manage these settings.
@@ -256,10 +239,14 @@ export function SSO() {
   const hasAnyErrors = (errs: Record<string, string[]>) =>
     Object.values(errs).some((l) => l.length > 0)
 
-  const hasChanges = () =>
-    (Object.keys(formData) as (keyof typeof formData)[]).some(
-      (k) => formData[k] !== originalFormData[k]
-    )
+  const handleDiscard = () => {
+    setIsEditing(false)
+    setFormData(DEFAULT_FORM_DATA)
+    setOriginalFormData(DEFAULT_FORM_DATA)
+    setErrors(DEFAULT_ERRORS)
+    setShowErrors(false)
+    setShowAdvanced(false)
+  }
 
   const isFormValid = () => {
     const requiredFields = ['providerId', 'issuerUrl', 'domain']
@@ -285,8 +272,8 @@ export function SSO() {
     return false
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault()
 
     setShowErrors(true)
     const validation = validateAll(formData)
@@ -304,7 +291,7 @@ export function SSO() {
               providerId: formData.providerId,
               issuer: formData.issuerUrl,
               domain: formData.domain,
-              orgId: activeOrganization?.id,
+              orgId: organizationId,
               mapping: {
                 id: 'sub',
                 email: 'email',
@@ -320,7 +307,7 @@ export function SSO() {
               providerId: formData.providerId,
               issuer: formData.issuerUrl,
               domain: formData.domain,
-              orgId: activeOrganization?.id,
+              orgId: organizationId,
               mapping: {
                 id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
                 email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
@@ -339,6 +326,7 @@ export function SSO() {
       logger.info('SSO provider configured', { providerId: formData.providerId })
       toast.success(isEditing ? 'SSO provider updated' : 'SSO provider configured')
       setFormData(DEFAULT_FORM_DATA)
+      setOriginalFormData(DEFAULT_FORM_DATA)
       setErrors(DEFAULT_ERRORS)
       setShowErrors(false)
       setIsEditing(false)
@@ -427,21 +415,11 @@ export function SSO() {
     }
   }
 
-  if (isLoadingProviders) {
-    return null
-  }
-
   if (existingProvider && !isEditing) {
     const providerCallbackUrl = `${getBaseUrl()}/api/auth/${existingProvider.providerType === 'saml' ? 'sso/saml2/callback' : 'sso/callback'}/${existingProvider.providerId}`
 
     return (
-      <SettingsPanel
-        actions={
-          <Button onClick={handleEdit} variant='primary'>
-            Edit
-          </Button>
-        }
-      >
+      <SettingsPanel actions={[{ text: 'Edit', variant: 'primary', onSelect: handleEdit }]}>
         <div className='flex flex-col gap-4.5'>
           <FormField label='Provider ID'>
             <p className='text-[var(--text-primary)] text-small'>{existingProvider.providerId}</p>
@@ -493,7 +471,7 @@ export function SSO() {
   }
 
   return (
-    <form onSubmit={handleSubmit} autoComplete='off' className='flex h-full flex-col'>
+    <form onSubmit={handleSubmit} autoComplete='off'>
       <input
         type='text'
         name='fakeusernameremembered'
@@ -521,43 +499,26 @@ export function SSO() {
       <input type='text' name='hidden' className='hidden' autoComplete='off' />
 
       <SettingsPanel
-        actions={
-          <>
-            {isEditing && (
-              <Button
-                type='button'
-                variant='default'
-                onClick={() => {
-                  setIsEditing(false)
-                  setFormData(DEFAULT_FORM_DATA)
-                  setErrors(DEFAULT_ERRORS)
-                  setShowErrors(false)
-                  setShowAdvanced(false)
-                }}
-              >
-                Cancel
-              </Button>
-            )}
-            <Button
-              type='submit'
-              variant='primary'
-              disabled={
-                configureSSOMutation.isPending ||
-                hasAnyErrors(errors) ||
-                !isFormValid() ||
-                (isEditing && !hasChanges())
-              }
-            >
-              {configureSSOMutation.isPending
-                ? isEditing
-                  ? 'Updating...'
-                  : 'Saving...'
-                : isEditing
-                  ? 'Update'
-                  : 'Save'}
-            </Button>
-          </>
-        }
+        actions={[
+          ...(isEditing && !hasChanges
+            ? [
+                {
+                  text: 'Cancel',
+                  onSelect: handleDiscard,
+                  disabled: configureSSOMutation.isPending,
+                } satisfies SettingsAction,
+              ]
+            : []),
+          ...saveDiscardActions({
+            dirty: hasChanges,
+            saving: configureSSOMutation.isPending,
+            saveDisabled: hasAnyErrors(errors) || !isFormValid(),
+            saveLabel: isEditing ? 'Update' : 'Save',
+            savingLabel: isEditing ? 'Updating...' : 'Saving...',
+            onSave: () => void handleSubmit(),
+            onDiscard: handleDiscard,
+          }),
+        ]}
       >
         <div className='flex flex-col gap-4.5'>
           <FormField label='Provider Type'>

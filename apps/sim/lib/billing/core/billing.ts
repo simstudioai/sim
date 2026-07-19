@@ -1,13 +1,13 @@
 import { db } from '@sim/db'
 import { member, organization, subscription, userStats } from '@sim/db/schema'
 import { and, desc, eq, inArray } from 'drizzle-orm'
+import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
-  getHighestPrioritySubscription,
+  getHighestPriorityPersonalSubscription,
   resolveBillingInterval,
 } from '@/lib/billing/core/subscription'
-import { getOrgUsageLimit, getUserUsageData } from '@/lib/billing/core/usage'
+import { ensureUserStatsExists } from '@/lib/billing/core/usage'
 import { COPILOT_USAGE_SOURCES, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
-import { getCreditBalance } from '@/lib/billing/credits/balance'
 import {
   computeDailyRefreshConsumed,
   getOrgMemberRefreshBounds,
@@ -18,10 +18,9 @@ import {
   getFreeTierLimit,
   getPlanPricing,
   hasPaidSubscriptionStatus,
-  isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
-import type { DbClient } from '@/lib/db/types'
+import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 export { getPlanPricing }
 
@@ -35,8 +34,8 @@ const logger = createLogger('Billing')
 
 interface GetOrganizationSubscriptionOptions {
   onError?: 'return-null' | 'throw'
-  /** Read-routing client (primary or replica); defaults to the primary. */
-  executor?: DbClient
+  /** Primary/replica client or a caller-owned enforcement transaction. */
+  executor?: DbClient | DbOrTx
 }
 
 /**
@@ -120,8 +119,11 @@ export async function getOrganizationSubscription(
 /**
  * Check if a subscription is scoped to an organization by looking up its
  * `referenceId` in the organization table. This is the authoritative
- * answer — the plan name alone is unreliable because `pro_*` plans can be
- * attached to organizations (and we should treat them as org-scoped).
+ * answer — the plan name alone is unreliable because a team plan can be
+ * transiently user-referenced between checkout and webhook re-homing.
+ * (The converse cannot happen: org-referenced subscriptions only ever
+ * hold Team or Enterprise plans, enforced at checkout authorization and
+ * in the Stripe plan sync.)
  *
  * Use this in server contexts (webhooks, jobs) where we only have the
  * subscription row, not a user perspective. If you do have a user id,
@@ -422,303 +424,152 @@ export async function calculateSubscriptionOverage(sub: {
 }
 
 /**
- * Get comprehensive billing and subscription summary
+ * Returns billing data for the exact personal payer only. Organization
+ * memberships never participate in subscription, usage, credit, or blocked
+ * status resolution.
  */
-export async function getSimplifiedBillingSummary(
-  userId: string,
-  organizationId?: string,
-  executor: DbClient = db
-): Promise<{
-  type: 'individual' | 'organization'
-  plan: string
-  currentUsage: number
-  usageLimit: number
-  percentUsed: number
-  isWarning: boolean
-  isExceeded: boolean
-  daysRemaining: number
-  creditBalance: number
-  billingInterval: 'month' | 'year'
-  // Subscription details
-  isPaid: boolean
-  isPro: boolean
-  isTeam: boolean
-  isEnterprise: boolean
-  /** True when the subscription's `referenceId` is an organization id. */
-  isOrgScoped: boolean
-  /** Present when `isOrgScoped` is true. */
-  organizationId: string | null
-  status: string | null
-  seats: number | null
-  metadata: any
-  stripeSubscriptionId: string | null
-  periodEnd: Date | string | null
-  cancelAtPeriodEnd?: boolean
-  // Usage details
-  usage: {
-    current: number
-    limit: number
-    percentUsed: number
-    isWarning: boolean
-    isExceeded: boolean
-    billingPeriodStart: Date | null
-    billingPeriodEnd: Date | null
-    lastPeriodCost: number
-    lastPeriodCopilotCost: number
-    daysRemaining: number
-    copilotCost: number
-  }
-}> {
+export async function getPersonalBillingSummary(userId: string, executor: DbClient = db) {
   try {
-    // Get subscription and usage data upfront
-    const [subscription, usageData] = await Promise.all([
-      organizationId
-        ? getOrganizationSubscription(organizationId, { executor })
-        : getHighestPrioritySubscription(userId, { executor }),
-      getUserUsageData(userId, executor),
+    await ensureUserStatsExists(userId)
+
+    const [personalSubscription, statsRows] = await Promise.all([
+      getHighestPriorityPersonalSubscription(userId, { executor }),
+      db
+        .select({
+          currentPeriodCost: userStats.currentPeriodCost,
+          currentUsageLimit: userStats.currentUsageLimit,
+          lastPeriodCost: userStats.lastPeriodCost,
+          proPeriodCostSnapshot: userStats.proPeriodCostSnapshot,
+          proPeriodCostSnapshotAt: userStats.proPeriodCostSnapshotAt,
+          currentPeriodCopilotCost: userStats.currentPeriodCopilotCost,
+          lastPeriodCopilotCost: userStats.lastPeriodCopilotCost,
+          creditBalance: userStats.creditBalance,
+          billingBlocked: userStats.billingBlocked,
+          billingBlockedReason: userStats.billingBlockedReason,
+        })
+        .from(userStats)
+        .where(eq(userStats.userId, userId))
+        .limit(1),
     ])
 
-    const plan = subscription?.plan || 'free'
-    const hasPaidEntitlement = hasPaidSubscriptionStatus(subscription?.status)
-    const planIsPaid = hasPaidEntitlement && isPaid(plan)
-    const planIsPro = hasPaidEntitlement && isPro(plan)
-    const planIsTeam = hasPaidEntitlement && isTeam(plan)
-    const planIsEnterprise = hasPaidEntitlement && isEnterprise(plan)
-    const orgScoped = isOrgScopedSubscription(subscription, userId)
-    const subscriptionOrgId = orgScoped && subscription ? subscription.referenceId : null
+    const stats = statsRows[0]
+    if (!stats) {
+      throw new Error(`User stats not found for userId: ${userId}`)
+    }
 
-    if (organizationId) {
-      // Organization billing summary
-      if (!subscription) {
-        return getDefaultBillingSummary('organization')
-      }
-
-      // Pool usage/copilot across all members in one query. Must not use
-      // `getUserUsageData` per-member — it now returns the pool itself
-      // for org-scoped subs, which would N-times-count.
-      const pooled = await aggregateOrgMemberStats(organizationId, executor)
-
-      const rawCurrentUsage = pooled.currentPeriodCost
-      const totalLastPeriodCopilotCost = pooled.lastPeriodCopilotCost
-
-      // Deduct daily-refresh credits against this specific org's pool.
-      // `usageData` is derived from the caller's priority subscription
-      // and may not match the requested org (multi-org admins, personal
-      // priority sub, etc.), so it cannot be reused here.
-      const orgBillingPeriod =
-        subscription.periodStart && subscription.periodEnd
-          ? { start: subscription.periodStart, end: subscription.periodEnd }
-          : null
-      const ledgerUsage = orgBillingPeriod
-        ? await getBillingPeriodUsageCost(
-            { type: 'organization', id: organizationId },
-            orgBillingPeriod,
-            undefined,
-            executor
-          )
-        : 0
-      // Copilot breakdown = member baselines (copilot + MCP) + the copilot-family
-      // ledger for the period (COPILOT_USAGE_SOURCES: copilot/workspace-chat/
-      // mcp_copilot/mothership_block); the baseline columns are no longer incremented.
-      const totalCopilotCost =
-        pooled.currentPeriodCopilotCost +
-        (orgBillingPeriod
-          ? await getBillingPeriodUsageCost(
-              { type: 'organization', id: organizationId },
-              orgBillingPeriod,
-              COPILOT_USAGE_SOURCES,
-              executor
-            )
-          : 0)
-      let refreshDeduction = 0
-      if (isPaid(plan) && subscription.periodStart) {
-        const planDollars = getPlanTierDollars(plan)
-        if (planDollars > 0) {
-          const userBounds = await getOrgMemberRefreshBounds(
-            organizationId,
-            subscription.periodStart,
-            executor
-          )
-          refreshDeduction = await computeDailyRefreshConsumed(
-            {
-              userIds: pooled.memberIds,
-              periodStart: subscription.periodStart,
-              periodEnd: subscription.periodEnd ?? null,
-              planDollars,
-              seats: subscription.seats || 1,
-              userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
-              billingEntity: { type: 'organization', id: organizationId },
-            },
-            executor
-          )
-        }
-      }
-      const effectiveCurrentUsage = Math.max(0, rawCurrentUsage + ledgerUsage - refreshDeduction)
-
-      const { limit: orgUsageLimit } = await getOrgUsageLimit(
-        organizationId,
-        plan,
-        subscription.seats ?? null,
+    const plan = personalSubscription?.plan ?? 'free'
+    const billingPeriod =
+      personalSubscription?.periodStart && personalSubscription.periodEnd
+        ? { start: personalSubscription.periodStart, end: personalSubscription.periodEnd }
+        : defaultBillingPeriod()
+    const [ledgerUsage, copilotLedgerUsage] = await Promise.all([
+      getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod, undefined, executor),
+      getBillingPeriodUsageCost(
+        { type: 'user', id: userId },
+        billingPeriod,
+        COPILOT_USAGE_SOURCES,
         executor
-      )
+      ),
+    ])
 
-      const percentUsed =
-        orgUsageLimit > 0 ? Math.round((effectiveCurrentUsage / orgUsageLimit) * 100) : 0
-      const isExceeded = effectiveCurrentUsage >= orgUsageLimit
-      const isWarning = !isExceeded && percentUsed >= 80
+    const hasPersonalUsageSnapshot =
+      Boolean(personalSubscription) && isPro(plan) && stats.proPeriodCostSnapshotAt !== null
+    const personalUsageBaseline = hasPersonalUsageSnapshot
+      ? stats.proPeriodCostSnapshot
+      : stats.currentPeriodCost
+    const currentUsage = toDecimal(personalUsageBaseline).plus(ledgerUsage)
 
-      // Calculate days remaining in billing period
-      const daysRemaining = subscription.periodEnd
-        ? Math.max(
-            0,
-            Math.ceil((subscription.periodEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-          )
-        : 0
+    let refreshDeduction = 0
+    if (
+      personalSubscription &&
+      isPaid(plan) &&
+      hasPaidSubscriptionStatus(personalSubscription.status) &&
+      personalSubscription.periodStart
+    ) {
+      const planDollars = getPlanTierDollars(plan)
+      if (planDollars > 0) {
+        refreshDeduction = await computeDailyRefreshConsumed(
+          {
+            userIds: [userId],
+            periodStart: personalSubscription.periodStart,
+            periodEnd: hasPersonalUsageSnapshot
+              ? stats.proPeriodCostSnapshotAt
+              : (personalSubscription.periodEnd ?? null),
+            planDollars,
+            billingEntity: { type: 'user', id: userId },
+          },
+          executor
+        )
+      }
+    }
 
-      const orgCredits = await getCreditBalance(userId, executor)
-      const orgBillingInterval = resolveBillingInterval(subscription)
+    const effectiveCurrentUsage = Math.max(0, toNumber(currentUsage) - refreshDeduction)
+    const usageLimit = stats.currentUsageLimit
+      ? toNumber(toDecimal(stats.currentUsageLimit))
+      : getFreeTierLimit()
+    const percentUsed = usageLimit > 0 ? (effectiveCurrentUsage / usageLimit) * 100 : 0
+    const isExceeded = effectiveCurrentUsage >= usageLimit
+    const isWarning = !isExceeded && percentUsed >= 80
+    const daysRemaining = personalSubscription?.periodEnd
+      ? Math.max(
+          0,
+          Math.ceil((personalSubscription.periodEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        )
+      : 0
+    const hasPaidEntitlement = hasPaidSubscriptionStatus(personalSubscription?.status)
+    const billingBlocked = Boolean(stats.billingBlocked)
 
-      return {
-        type: 'organization',
-        plan: subscription.plan,
-        currentUsage: effectiveCurrentUsage,
-        usageLimit: orgUsageLimit,
+    return {
+      type: 'individual' as const,
+      plan,
+      currentUsage: effectiveCurrentUsage,
+      usageLimit,
+      percentUsed,
+      isWarning,
+      isExceeded,
+      daysRemaining,
+      creditBalance: toNumber(toDecimal(stats.creditBalance)),
+      billingInterval: resolveBillingInterval(personalSubscription),
+      isPaid: hasPaidEntitlement && isPaid(plan),
+      isPro: hasPaidEntitlement && isPro(plan),
+      isTeam: hasPaidEntitlement && isTeam(plan),
+      isEnterprise: hasPaidEntitlement && isEnterprise(plan),
+      isOrgScoped: false,
+      organizationId: null,
+      status: personalSubscription?.status ?? null,
+      seats: personalSubscription?.seats ?? null,
+      metadata: personalSubscription?.metadata ?? null,
+      stripeSubscriptionId: personalSubscription?.stripeSubscriptionId ?? null,
+      periodEnd: personalSubscription?.periodEnd ?? null,
+      cancelAtPeriodEnd: personalSubscription?.cancelAtPeriodEnd ?? false,
+      billingBlocked,
+      billingBlockedReason: billingBlocked ? (stats.billingBlockedReason ?? null) : null,
+      blockedByOrgOwner: false,
+      usage: {
+        current: effectiveCurrentUsage,
+        limit: usageLimit,
         percentUsed,
         isWarning,
         isExceeded,
+        billingPeriodStart: personalSubscription?.periodStart ?? null,
+        billingPeriodEnd: personalSubscription?.periodEnd ?? null,
+        lastPeriodCost: toNumber(toDecimal(stats.lastPeriodCost)),
+        lastPeriodCopilotCost: toNumber(toDecimal(stats.lastPeriodCopilotCost)),
         daysRemaining,
-        creditBalance: orgCredits.balance,
-        billingInterval: orgBillingInterval,
-        // Subscription details
-        isPaid: planIsPaid,
-        isPro: planIsPro,
-        isTeam: planIsTeam,
-        isEnterprise: planIsEnterprise,
-        isOrgScoped: true,
-        organizationId: organizationId,
-        status: subscription.status || null,
-        seats: subscription.seats || null,
-        metadata: subscription.metadata || null,
-        stripeSubscriptionId: subscription.stripeSubscriptionId || null,
-        periodEnd: subscription.periodEnd || null,
-        cancelAtPeriodEnd: subscription.cancelAtPeriodEnd || undefined,
-        // Usage details
-        usage: {
-          current: effectiveCurrentUsage,
-          limit: orgUsageLimit,
-          percentUsed,
-          isWarning,
-          isExceeded,
-          billingPeriodStart: subscription.periodStart ?? null,
-          billingPeriodEnd: subscription.periodEnd ?? null,
-          lastPeriodCost: usageData.lastPeriodCost,
-          lastPeriodCopilotCost: totalLastPeriodCopilotCost,
-          daysRemaining,
-          copilotCost: totalCopilotCost,
-        },
-      }
-    }
-
-    const userStatsRows = await executor
-      .select({
-        currentPeriodCopilotCost: userStats.currentPeriodCopilotCost,
-        lastPeriodCopilotCost: userStats.lastPeriodCopilotCost,
-      })
-      .from(userStats)
-      .where(eq(userStats.userId, userId))
-      .limit(1)
-
-    // Copilot baseline (copilot source). MCP copilot usage lives in usage_log and
-    // is added via the copilot ledger below, not a userStats baseline.
-    const copilotCost =
-      userStatsRows.length > 0 ? toNumber(toDecimal(userStatsRows[0].currentPeriodCopilotCost)) : 0
-
-    const lastPeriodCopilotCost =
-      userStatsRows.length > 0 ? toNumber(toDecimal(userStatsRows[0].lastPeriodCopilotCost)) : 0
-
-    const currentUsage = usageData.currentUsage
-    let totalCopilotCost = copilotCost
-    let totalLastPeriodCopilotCost = lastPeriodCopilotCost
-    if (orgScoped && subscription?.referenceId) {
-      const pooled = await aggregateOrgMemberStats(subscription.referenceId, executor)
-      totalCopilotCost = pooled.currentPeriodCopilotCost
-      totalLastPeriodCopilotCost = pooled.lastPeriodCopilotCost
-    }
-
-    // Add the copilot-family ledger (COPILOT_USAGE_SOURCES: copilot/workspace-chat/
-    // mcp_copilot/mothership_block) on top of the baseline; those columns are no
-    // longer incremented per usage.
-    const copilotBillingPeriod =
-      usageData.billingPeriodStart && usageData.billingPeriodEnd
-        ? { start: usageData.billingPeriodStart, end: usageData.billingPeriodEnd }
-        : null
-    if (copilotBillingPeriod) {
-      const copilotEntity =
-        orgScoped && subscription?.referenceId
-          ? ({ type: 'organization', id: subscription.referenceId } as const)
-          : ({ type: 'user', id: userId } as const)
-      totalCopilotCost += await getBillingPeriodUsageCost(
-        copilotEntity,
-        copilotBillingPeriod,
-        COPILOT_USAGE_SOURCES,
-        executor
-      )
-    }
-
-    const percentUsed = usageData.limit > 0 ? (currentUsage / usageData.limit) * 100 : 0
-
-    const daysRemaining = usageData.billingPeriodEnd
-      ? Math.max(
-          0,
-          Math.ceil((usageData.billingPeriodEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-        )
-      : 0
-
-    const userCredits = await getCreditBalance(userId, executor)
-    const individualBillingInterval = resolveBillingInterval(subscription)
-
-    return {
-      type: 'individual',
-      plan,
-      currentUsage,
-      usageLimit: usageData.limit,
-      percentUsed,
-      isWarning: percentUsed >= 80 && percentUsed < 100,
-      isExceeded: currentUsage >= usageData.limit,
-      daysRemaining,
-      creditBalance: userCredits.balance,
-      billingInterval: individualBillingInterval,
-      // Subscription details
-      isPaid: planIsPaid,
-      isPro: planIsPro,
-      isTeam: planIsTeam,
-      isEnterprise: planIsEnterprise,
-      isOrgScoped: orgScoped,
-      organizationId: subscriptionOrgId,
-      status: subscription?.status || null,
-      seats: subscription?.seats || null,
-      metadata: subscription?.metadata || null,
-      stripeSubscriptionId: subscription?.stripeSubscriptionId || null,
-      periodEnd: subscription?.periodEnd || null,
-      cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd || undefined,
-      // Usage details
-      usage: {
-        current: currentUsage,
-        limit: usageData.limit,
-        percentUsed,
-        isWarning: percentUsed >= 80 && percentUsed < 100,
-        isExceeded: currentUsage >= usageData.limit,
-        billingPeriodStart: usageData.billingPeriodStart,
-        billingPeriodEnd: usageData.billingPeriodEnd,
-        lastPeriodCost: usageData.lastPeriodCost,
-        lastPeriodCopilotCost: totalLastPeriodCopilotCost,
-        daysRemaining,
-        copilotCost: totalCopilotCost,
+        copilotCost:
+          (hasPersonalUsageSnapshot ? 0 : toNumber(toDecimal(stats.currentPeriodCopilotCost))) +
+          copilotLedgerUsage,
       },
     }
   } catch (error) {
-    logger.error('Failed to get simplified billing summary', { userId, organizationId, error })
-    return getDefaultBillingSummary(organizationId ? 'organization' : 'individual')
+    logger.error('Failed to get personal billing summary', { userId, error })
+    return {
+      ...getDefaultBillingSummary('individual'),
+      cancelAtPeriodEnd: false,
+      billingBlocked: false,
+      billingBlockedReason: null,
+      blockedByOrgOwner: false,
+    }
   }
 }
 

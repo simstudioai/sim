@@ -8,8 +8,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Upload,
-} from '@/components/emcn'
-import { Database, Download, Duplicate, Pencil, Trash } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Database, Download, Duplicate, Pencil, Trash } from '@sim/emcn/icons'
 
 interface TableContextMenuProps {
   isOpen: boolean

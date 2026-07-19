@@ -8,11 +8,17 @@ import {
   bulkKnowledgeDocumentsContract,
   createKnowledgeDocumentsContract,
   listKnowledgeDocumentsQuerySchema,
+  parseDocumentTagFiltersParam,
 } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import {
+  checkAttributedUsageLimits,
+  requireBillingAttributionHeader,
+  resolveBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   bulkDocumentOperation,
@@ -67,6 +73,18 @@ export const GET = withRouteHandler(
       const { enabledFilter, search, limit, offset, sortBy, sortOrder, tagFilters } =
         queryResult.data
 
+      let parsedTagFilters: TagFilterCondition[] | undefined
+      try {
+        parsedTagFilters = parseDocumentTagFiltersParam(tagFilters) as
+          | TagFilterCondition[]
+          | undefined
+      } catch {
+        return NextResponse.json(
+          { error: 'tagFilters must be a valid JSON array' },
+          { status: 400 }
+        )
+      }
+
       const result = await getDocuments(
         knowledgeBaseId,
         {
@@ -76,7 +94,7 @@ export const GET = withRouteHandler(
           offset,
           ...(sortBy && { sortBy }),
           ...(sortOrder && { sortOrder }),
-          tagFilters: tagFilters as TagFilterCondition[] | undefined,
+          tagFilters: parsedTagFilters,
         },
         requestId
       )
@@ -163,13 +181,26 @@ export const POST = withRouteHandler(
       }
 
       const kbWorkspaceId = accessCheck.knowledgeBase?.workspaceId
+      const billingAttribution = kbWorkspaceId
+        ? auth.authType === AuthType.INTERNAL_JWT
+          ? requireBillingAttributionHeader(req.headers, {
+              actorUserId: userId,
+              workspaceId: kbWorkspaceId,
+            })
+          : await resolveBillingAttribution({
+              actorUserId: userId,
+              workspaceId: kbWorkspaceId,
+            })
+        : undefined
 
-      // Gate KB indexing (pooled + per-member) before accepting work. Runs even for
-      // legacy KBs with no workspace — the uploader's pooled/frozen status is still
-      // enforced (per-member is simply skipped when there's no org workspace). The
-      // authoritative backstop also runs in processDocumentAsync for non-HTTP paths
-      // (connector/cron/retry).
-      const usage = await checkActorUsageLimits(userId, kbWorkspaceId)
+      /**
+       * Gate the workspace payer and uploader before accepting indexing work.
+       * Legacy workspace-less KBs retain account-only enforcement; asynchronous
+       * connector, cron, and retry paths apply the same backstop.
+       */
+      const usage = billingAttribution
+        ? await checkAttributedUsageLimits(billingAttribution)
+        : await checkActorUsageLimits(userId)
       if (usage.isExceeded) {
         return NextResponse.json(
           {
@@ -222,7 +253,8 @@ export const POST = withRouteHandler(
           createdDocuments,
           knowledgeBaseId,
           body.processingOptions ?? {},
-          requestId
+          requestId,
+          billingAttribution
         ).catch((error: unknown) => {
           logger.error(`[${requestId}] Critical error in document processing pipeline:`, error)
         })

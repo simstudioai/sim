@@ -1,20 +1,23 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { ChipConfirmModal, Switch, Tooltip, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Info, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { useTranslations } from 'next-intl'
-import { Chip, ChipConfirmModal, Switch, Tooltip, toast } from '@/components/emcn'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   type ApiKey,
+  type ApiKeyScope,
   useApiKeys,
   useDeleteApiKey,
   useUpdateWorkspaceApiKeySettings,
@@ -24,10 +27,20 @@ import { CreateApiKeyModal } from './components'
 
 const logger = createLogger('ApiKeys')
 
+/** Stable empty references so memoized derivations don't re-run while data loads. */
+const EMPTY_KEYS: ApiKey[] = []
+const EMPTY_KEY_NAMES: string[] = []
+
 /** Copies an API key's name and confirms with a toast. */
 function copyKeyName(name: string) {
   void navigator.clipboard.writeText(name)
   toast.success('Copied name to clipboard')
+}
+
+/** Formats an API key's last-used timestamp, or "Never" when unused. */
+function formatLastUsed(dateString?: string | null): string {
+  if (!dateString) return 'Never'
+  return formatDate(new Date(dateString))
 }
 
 interface ApiKeyRowMenuProps {
@@ -42,11 +55,10 @@ interface ApiKeyRowMenuProps {
  * Teammates row menu so the settings experience is consistent.
  */
 function ApiKeyRowMenu({ keyName, onDelete, canDelete = true }: ApiKeyRowMenuProps) {
-  const t = useTranslations('auto')
   return (
     <div className='flex-shrink-0'>
       <RowActionsMenu
-        label={t('api_key_actions')}
+        label='API key actions'
         actions={[
           { label: 'Copy name', onSelect: () => copyKeyName(keyName) },
           { label: 'Delete', destructive: true, disabled: !canDelete, onSelect: onDelete },
@@ -56,30 +68,37 @@ function ApiKeyRowMenu({ keyName, onDelete, canDelete = true }: ApiKeyRowMenuPro
   )
 }
 
-export function ApiKeys() {
-  const tI18n = useTranslations('auto')
-  const t = useTranslations('auto')
+interface ApiKeysProps {
+  scope?: ApiKeyScope
+}
+
+export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const { data: session } = useSession()
   const userId = session?.user?.id
-  const params = useParams()
+  const params = useParams<{ workspaceId?: string }>()
   const workspaceId = (params?.workspaceId as string) || ''
-  const userPermissions = useUserPermissionsContext()
-  const canManageWorkspaceKeys = userPermissions.canAdmin
+  const workspacePermissions = useUserPermissionsContext()
+  const isWorkspaceScope = scope === 'workspace'
+  const isPersonalScope = scope === 'personal'
+  const isCombinedScope = scope === 'combined'
+  const showsWorkspaceKeys = isWorkspaceScope || isCombinedScope
+  const showsPersonalKeys = isPersonalScope || isCombinedScope
+  const canManageWorkspaceKeys = canMutateWorkspaceSettingsSection('api-keys', workspacePermissions)
 
   const {
     data: apiKeysData,
     isLoading: isLoadingKeys,
     refetch: refetchApiKeys,
-  } = useApiKeys(workspaceId)
+  } = useApiKeys(workspaceId, scope)
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } =
     useWorkspaceSettings(workspaceId)
   const deleteApiKeyMutation = useDeleteApiKey()
   const updateSettingsMutation = useUpdateWorkspaceApiKeySettings()
 
-  const workspaceKeys = apiKeysData?.workspaceKeys || []
-  const personalKeys = apiKeysData?.personalKeys || []
-  const conflicts = apiKeysData?.conflicts || []
-  const isLoading = isLoadingKeys || isLoadingSettings
+  const workspaceKeys = apiKeysData?.workspaceKeys ?? EMPTY_KEYS
+  const personalKeys = apiKeysData?.personalKeys ?? EMPTY_KEYS
+  const conflicts = apiKeysData?.conflicts ?? EMPTY_KEY_NAMES
+  const isLoading = isLoadingKeys || (showsWorkspaceKeys && isLoadingSettings)
 
   const allowPersonalApiKeys =
     workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true
@@ -87,43 +106,60 @@ export function ApiKeys() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [deleteKey, setDeleteKey] = useState<ApiKey | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
 
-  const defaultKeyType = allowPersonalApiKeys ? 'personal' : 'workspace'
-  const createButtonDisabled = isLoading || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
+  const defaultKeyType = isPersonalScope
+    ? 'personal'
+    : isCombinedScope && allowPersonalApiKeys
+      ? 'personal'
+      : 'workspace'
+  const createButtonDisabled =
+    isLoading ||
+    (isWorkspaceScope && !canManageWorkspaceKeys) ||
+    (isCombinedScope && !allowPersonalApiKeys && !canManageWorkspaceKeys)
 
   const filteredWorkspaceKeys = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return workspaceKeys.map((key, index) => ({ key, originalIndex: index }))
+    const term = searchTerm.trim().toLowerCase()
+    const result: { key: ApiKey; originalIndex: number }[] = []
+    for (let index = 0; index < workspaceKeys.length; index++) {
+      const key = workspaceKeys[index]
+      if (term === '' || key.name.toLowerCase().includes(term)) {
+        result.push({ key, originalIndex: index })
+      }
     }
-    return workspaceKeys
-      .map((key, index) => ({ key, originalIndex: index }))
-      .filter(({ key }) => key.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    return result
   }, [workspaceKeys, searchTerm])
 
   const filteredPersonalKeys = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return personalKeys.map((key, index) => ({ key, originalIndex: index }))
+    const term = searchTerm.trim().toLowerCase()
+    const result: { key: ApiKey; originalIndex: number }[] = []
+    for (let index = 0; index < personalKeys.length; index++) {
+      const key = personalKeys[index]
+      if (term === '' || key.name.toLowerCase().includes(term)) {
+        result.push({ key, originalIndex: index })
+      }
     }
-    return personalKeys
-      .map((key, index) => ({ key, originalIndex: index }))
-      .filter(({ key }) => key.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    return result
   }, [personalKeys, searchTerm])
 
   const handleDeleteKey = async () => {
     if (!userId || !deleteKey) return
 
     try {
-      const isWorkspaceKey = workspaceKeys.some((k) => k.id === deleteKey.id)
-      const keyTypeToDelete = isWorkspaceKey ? 'workspace' : 'personal'
-
       setShowDeleteDialog(false)
       setDeleteKey(null)
+
+      const keyType =
+        scope === 'combined'
+          ? workspaceKeys.some((key) => key.id === deleteKey.id)
+            ? 'workspace'
+            : 'personal'
+          : scope
 
       await deleteApiKeyMutation.mutateAsync({
         workspaceId,
         keyId: deleteKey.id,
-        keyType: keyTypeToDelete,
+        keyType,
       })
     } catch (error) {
       logger.error('Error deleting API key:', { error })
@@ -131,10 +167,18 @@ export function ApiKeys() {
     }
   }
 
-  const formatLastUsed = (dateString?: string | null) => {
-    if (!dateString) return 'Never'
-    return formatDate(new Date(dateString))
-  }
+  const actions: SettingsAction[] = [
+    {
+      text: 'Create API key',
+      icon: Plus,
+      variant: 'primary',
+      onSelect: () => {
+        if (createButtonDisabled) return
+        setIsCreateDialogOpen(true)
+      },
+      disabled: createButtonDisabled,
+    },
+  ]
 
   return (
     <>
@@ -144,45 +188,31 @@ export function ApiKeys() {
           onChange: setSearchTerm,
           placeholder: 'Search API keys...',
         }}
-        actions={
-          <Chip
-            leftIcon={Plus}
-            variant='primary'
-            onClick={() => {
-              if (createButtonDisabled) return
-              setIsCreateDialogOpen(true)
-            }}
-            disabled={createButtonDisabled}
-          >
-            {t('create_api_key')}
-          </Chip>
-        }
+        actions={actions}
       >
         {isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
-          <SettingsEmptyState>{t('click_create_api_key_above_to')}</SettingsEmptyState>
+          <SettingsEmptyState>Click "Create API key" above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-6'>
-            {!searchTerm.trim() ? (
-              <SettingsSection label={t('workspace')}>
+            {showsWorkspaceKeys && !searchTerm.trim() ? (
+              <SettingsSection label='Workspace'>
                 {workspaceKeys.length === 0 ? (
-                  <div className='text-[var(--text-muted)] text-sm'>
-                    {t('no_workspace_api_keys_yet')}
-                  </div>
+                  <div className='text-[var(--text-muted)] text-sm'>No workspace API keys yet</div>
                 ) : (
                   <div className='flex flex-col gap-2'>
                     {workspaceKeys.map((key) => (
                       <div key={key.id} className='flex items-center justify-between gap-3'>
                         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                           <div className='flex items-center gap-1.5'>
-                            <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
+                            <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
                               {key.name}
                             </span>
                             <span className='text-[var(--text-secondary)] text-sm'>
-                              {t('last_used')} {formatLastUsed(key.lastUsed).toLowerCase()})
+                              (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                             </span>
                           </div>
-                          <p className='truncate text-[12px] text-[var(--text-muted)]'>
-                            {key.displayKey || key.key}
+                          <p className='truncate text-[var(--text-muted)] text-caption'>
+                            {key.displayKey}
                           </p>
                         </div>
                         <ApiKeyRowMenu
@@ -198,22 +228,22 @@ export function ApiKeys() {
                   </div>
                 )}
               </SettingsSection>
-            ) : filteredWorkspaceKeys.length > 0 ? (
-              <SettingsSection label={t('workspace')}>
+            ) : showsWorkspaceKeys && filteredWorkspaceKeys.length > 0 ? (
+              <SettingsSection label='Workspace'>
                 <div className='flex flex-col gap-2'>
                   {filteredWorkspaceKeys.map(({ key }) => (
                     <div key={key.id} className='flex items-center justify-between gap-3'>
                       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                         <div className='flex items-center gap-1.5'>
-                          <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
+                          <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
                             {key.name}
                           </span>
                           <span className='text-[var(--text-secondary)] text-sm'>
-                            {t('last_used')} {formatLastUsed(key.lastUsed).toLowerCase()})
+                            (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                           </span>
                         </div>
-                        <p className='truncate text-[12px] text-[var(--text-muted)]'>
-                          {key.displayKey || key.key}
+                        <p className='truncate text-[var(--text-muted)] text-caption'>
+                          {key.displayKey}
                         </p>
                       </div>
                       <ApiKeyRowMenu
@@ -230,8 +260,8 @@ export function ApiKeys() {
               </SettingsSection>
             ) : null}
 
-            {(!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
-              <SettingsSection label={t('personal')}>
+            {showsPersonalKeys && (!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
+              <SettingsSection label='Personal'>
                 <div className='flex flex-col gap-2'>
                   {filteredPersonalKeys.map(({ key }) => {
                     const isConflict = conflicts.includes(key.name)
@@ -240,15 +270,15 @@ export function ApiKeys() {
                         <div className='flex items-center justify-between gap-3'>
                           <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                             <div className='flex items-center gap-1.5'>
-                              <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
+                              <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
                                 {key.name}
                               </span>
                               <span className='text-[var(--text-secondary)] text-sm'>
-                                {t('last_used')} {formatLastUsed(key.lastUsed).toLowerCase()})
+                                (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                               </span>
                             </div>
-                            <p className='truncate text-[12px] text-[var(--text-muted)]'>
-                              {key.displayKey || key.key}
+                            <p className='truncate text-[var(--text-muted)] text-caption'>
+                              {key.displayKey}
                             </p>
                           </div>
                           <ApiKeyRowMenu
@@ -261,7 +291,8 @@ export function ApiKeys() {
                         </div>
                         {isConflict && (
                           <div className='text-[var(--text-error)] text-small leading-tight'>
-                            {t('workspace_api_key_with_the_same')}
+                            Workspace API key with the same name overrides this. Rename your
+                            personal key to use it.
                           </div>
                         )}
                       </div>
@@ -276,21 +307,18 @@ export function ApiKeys() {
               filteredWorkspaceKeys.length === 0 &&
               (personalKeys.length > 0 || workspaceKeys.length > 0) && (
                 <SettingsEmptyState variant='inline'>
-                  {t('no_api_keys_found_matching')}
-                  {searchTerm}"
+                  No API keys found matching "{searchTerm}"
                 </SettingsEmptyState>
               )}
           </div>
         )}
 
-        {!isLoading && canManageWorkspaceKeys && (
+        {showsWorkspaceKeys && !isLoading && canManageWorkspaceKeys && (
           <Tooltip.Provider delayDuration={150}>
-            <SettingsSection label={t('permissions')}>
+            <SettingsSection label='Permissions'>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
-                  <span className='text-[14px] text-[var(--text-body)]'>
-                    {t('allow_personal_api_keys')}
-                  </span>
+                  <span className='text-[var(--text-body)] text-sm'>Allow personal API keys</span>
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <button
@@ -301,7 +329,9 @@ export function ApiKeys() {
                       </button>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top' className='max-w-xs text-small'>
-                      {t('allow_collaborators_to_create_and_use')}
+                      Allow collaborators to authenticate with their own keys. Hosted usage is
+                      billed to this workspace, attributed to the key owner, and counted toward
+                      their member cap.
                     </Tooltip.Content>
                   </Tooltip.Root>
                 </div>
@@ -332,7 +362,7 @@ export function ApiKeys() {
         onOpenChange={setIsCreateDialogOpen}
         workspaceId={workspaceId}
         existingKeyNames={[...workspaceKeys, ...personalKeys].map((k) => k.name)}
-        allowPersonalApiKeys={allowPersonalApiKeys}
+        allowPersonalApiKeys={isPersonalScope || (isCombinedScope && allowPersonalApiKeys)}
         canManageWorkspaceKeys={canManageWorkspaceKeys}
         defaultKeyType={defaultKeyType}
       />
@@ -345,8 +375,8 @@ export function ApiKeys() {
             setDeleteKey(null)
           }
         }}
-        srTitle={tI18n('delete_api_key')}
-        title={t('delete_api_key')}
+        srTitle='Delete API key'
+        title='Delete API key'
         text={[
           'Deleting ',
           { text: deleteKey?.name ?? 'this key', bold: true },

@@ -1,0 +1,104 @@
+import { db } from '@sim/db'
+import { type NextRequest, NextResponse } from 'next/server'
+import {
+  getForkMappingContract,
+  updateForkMappingContract,
+} from '@/lib/api/contracts/workspace-fork'
+import { parseRequest } from '@/lib/api/server'
+import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { assertCanPromote } from '@/ee/workspace-forking/lib/lineage/authz'
+import { acquireForkEdgeLock, setForkLockTimeout } from '@/ee/workspace-forking/lib/lineage/lineage'
+import { reconcileForkDependentValues } from '@/ee/workspace-forking/lib/mapping/dependent-value-store'
+import {
+  applyForkMappingEntries,
+  getForkMappingView,
+  validateForkMappingTargets,
+} from '@/ee/workspace-forking/lib/mapping/mapping-service'
+
+export const GET = withRouteHandler(
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const parsed = await parseRequest(getForkMappingContract, req, context)
+    if (!parsed.success) return parsed.response
+    const { id } = parsed.data.params
+    const { otherWorkspaceId, direction } = parsed.data.query
+
+    const auth = await assertCanPromote(id, otherWorkspaceId, direction, session.user.id)
+
+    const { entries } = await getForkMappingView({
+      edge: auth.edge,
+      sourceWorkspaceId: auth.sourceWorkspaceId,
+      targetWorkspaceId: auth.targetWorkspaceId,
+    })
+
+    return NextResponse.json({
+      childWorkspaceId: auth.edge.childWorkspaceId,
+      parentWorkspaceId: auth.edge.parentWorkspaceId,
+      sourceWorkspaceId: auth.sourceWorkspaceId,
+      targetWorkspaceId: auth.targetWorkspaceId,
+      entries,
+    })
+  }
+)
+
+export const PUT = withRouteHandler(
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const parsed = await parseRequest(updateForkMappingContract, req, context)
+    if (!parsed.success) return parsed.response
+    const { id } = parsed.data.params
+    const { otherWorkspaceId, direction, entries, dependentValues } = parsed.data.body
+
+    const auth = await assertCanPromote(id, otherWorkspaceId, direction, session.user.id)
+
+    await validateForkMappingTargets(auth.sourceWorkspaceId, auth.targetWorkspaceId, entries)
+
+    // Serialize concurrent mapping saves on this edge so a push (keyed child-side, deleted
+    // then re-upserted parent-side) can't leave duplicate rows for the same source. Same
+    // edge lock promote/rollback use, with a bounded wait.
+    const updated = await db.transaction(async (tx) => {
+      await setForkLockTimeout(tx)
+      await acquireForkEdgeLock(tx, auth.edge.childWorkspaceId)
+      const applied = await applyForkMappingEntries(
+        tx,
+        auth.edge,
+        session.user.id,
+        direction,
+        entries
+      )
+      // Store dependent-field values with the mapping (each named workflow's stored set is
+      // replaced by exactly what was sent - promote's reconcile semantics, scoped to the
+      // payload's workflows since a mapping save has no promote plan). Omitted = untouched;
+      // rows for a workflow that never becomes a sync replace target are inert (promote
+      // loads the store scoped to its plan's targets).
+      if (dependentValues !== undefined) {
+        const targetWorkflowIds = Array.from(
+          new Set(dependentValues.map((entry) => entry.workflowId))
+        )
+        await reconcileForkDependentValues(
+          tx,
+          auth.edge.childWorkspaceId,
+          targetWorkflowIds,
+          dependentValues.map((entry) => ({
+            targetWorkflowId: entry.workflowId,
+            targetBlockId: entry.blockId,
+            subBlockKey: entry.subBlockKey,
+            value: entry.value,
+          }))
+        )
+      }
+      return applied
+    })
+
+    return NextResponse.json({ success: true as const, updated })
+  }
+)

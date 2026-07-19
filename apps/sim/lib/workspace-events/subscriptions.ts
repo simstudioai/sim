@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { and, eq, isNull, or } from 'drizzle-orm'
+import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
 import {
   SIM_EVENT_TYPES,
   SIM_RULE_DEFAULTS,
@@ -34,8 +35,7 @@ export async function fetchSimTriggerSubscriptions(
     .where(
       and(
         eq(webhook.provider, SIM_TRIGGER_PROVIDER),
-        eq(webhook.isActive, true),
-        isNull(webhook.archivedAt),
+        deliverableWebhookPredicate(webhook),
         eq(workflow.workspaceId, workspaceId),
         eq(workflow.isDeployed, true),
         isNull(workflow.archivedAt),

@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface GetExperimentParams {
   projectId: string
   experimentId: string
   region: 'us' | 'eu'
+  host?: string
   apiKey: string
 }
 
@@ -15,7 +17,6 @@ interface Experiment {
   feature_flag: Record<string, any>
   parameters: Record<string, any>
   filters: Record<string, any>
-  variants: Record<string, any>
   start_date: string | null
   end_date: string | null
   created_at: string
@@ -34,6 +35,7 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
   name: 'PostHog Get Experiment',
   description: 'Get details of a specific experiment',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     projectId: {
@@ -54,6 +56,13 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
       visibility: 'user-only',
       description: 'PostHog cloud region: us or eu',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -64,8 +73,8 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
-      return `${baseUrl}/api/projects/${params.projectId}/experiments/${params.experimentId}`
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
+      return `${baseUrl}/api/projects/${params.projectId}/experiments/${params.experimentId}/`
     },
     method: 'GET',
     headers: (params) => ({
@@ -94,7 +103,6 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
         feature_flag: { type: 'object', description: 'Feature flag details' },
         parameters: { type: 'object', description: 'Experiment parameters' },
         filters: { type: 'object', description: 'Experiment filters' },
-        variants: { type: 'object', description: 'Experiment variants' },
         start_date: { type: 'string', description: 'Start date' },
         end_date: { type: 'string', description: 'End date' },
         created_at: { type: 'string', description: 'Creation timestamp' },
