@@ -17,6 +17,34 @@ export function isIpLiteral(host: string): boolean {
 }
 
 /**
+ * True when an IP address is loopback (127.0.0.0/8 or ::1). Narrower than
+ * {@link isPrivateIp}: callers that treat loopback differently from other
+ * private ranges (e.g. allowing local dev servers on self-host) use this.
+ */
+export function isLoopbackIp(ip: string): boolean {
+  try {
+    return ipaddr.isValid(ip) && ipaddr.process(ip).range() === 'loopback'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Loopback host identifiers permitted to use plain HTTP: `localhost` and the
+ * canonical loopback IP literals. Compared after stripping IPv6 brackets.
+ */
+const LOOPBACK_HOSTNAMES: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '::1'])
+
+/**
+ * True when a host (name or IP literal, IPv6 brackets optional) is loopback by
+ * exact match — `localhost`, `127.0.0.1`, or `::1`. For full-range loopback-IP
+ * classification (e.g. `127.0.0.5`) use {@link isLoopbackIp}.
+ */
+export function isLoopbackHostname(host: string): boolean {
+  return LOOPBACK_HOSTNAMES.has(unwrapIpv6Brackets(host))
+}
+
+/**
  * Classifies an IP address as private or otherwise not routable on the public
  * internet — the core SSRF primitive shared by every app that resolves a user-
  * or model-supplied host before connecting to it.

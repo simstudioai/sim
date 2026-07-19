@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 964,
-  zodRoutes: 964,
+  totalRoutes: 966,
+  zodRoutes: 966,
   nonZodRoutes: 0,
 } as const
 
@@ -90,6 +90,10 @@ const INDIRECT_ZOD_ROUTES = new Set([
   // Deprecated v1 headless copilot chat API: gated to always return 410 Gone
   // and consumes no client-supplied input.
   'apps/sim/app/api/v1/copilot/chat/route.ts',
+  // Streaming TTS proxy: reads the raw body for a byte cap before JSON.parse,
+  // then validates every field inline (text presence + length, ids). The
+  // JSON-mode contract framework doesn't fit a raw-read streaming route.
+  'apps/sim/app/api/speech/tts/route.ts',
 ])
 
 /**

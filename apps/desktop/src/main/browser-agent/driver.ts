@@ -22,6 +22,8 @@ import type {
   BrowserToolName,
 } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import type { BrowserWindow, WebContents } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import {
@@ -119,7 +121,7 @@ function instrumentTab(contents: WebContents): void {
     })
     .catch((error) => {
       logger.warn('CDP instrumentation failed', {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       })
     })
   for (const event of [
@@ -161,10 +163,6 @@ export function setPanelBounds(bounds: BrowserPanelBounds | null): void {
   session.setPanelBounds(bounds)
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 function str(params: Record<string, unknown>, key: string): string | undefined {
   const value = params[key]
   return typeof value === 'string' && value.length > 0 ? value : undefined
@@ -192,10 +190,6 @@ function requireNum(params: Record<string, unknown>, key: string): number {
   return value
 }
 
-// ---------------------------------------------------------------------------
-// Page-function execution
-// ---------------------------------------------------------------------------
-
 /**
  * Serializes a self-contained page function and executes it in the page's
  * main world with JSON-encoded arguments (Electron's executeJavaScript has no
@@ -210,7 +204,7 @@ async function execInPage<Args extends unknown[], Result>(
   try {
     return (await contents.executeJavaScript(expression, true)) as Result
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = getErrorMessage(error)
     throw new ToolError(
       `Cannot act on this page (${message}). Browser-internal pages cannot be automated — ` +
         'navigate to a regular website first.'
@@ -250,10 +244,6 @@ function unwrapPageResult(result: unknown): unknown {
   return result
 }
 
-// ---------------------------------------------------------------------------
-// Navigation
-// ---------------------------------------------------------------------------
-
 function waitForLoadComplete(contents: WebContents, timeoutMs: number): Promise<void> {
   return new Promise((resolve) => {
     let settled = false
@@ -278,10 +268,6 @@ async function navigationResult(contents: WebContents): Promise<Record<string, u
   if (contents.isDestroyed()) throw new ToolError('The tab was closed during navigation.')
   return { url: contents.getURL(), title: contents.getTitle() }
 }
-
-// ---------------------------------------------------------------------------
-// Key parsing for browser_press_key
-// ---------------------------------------------------------------------------
 
 interface KeyDescriptor {
   key: string
@@ -349,10 +335,6 @@ export function parseKeyCombo(combo: string): ParsedCombo {
   }
   throw new ToolError(`Unrecognized key: "${keyPart}"`)
 }
-
-// ---------------------------------------------------------------------------
-// Trusted key dispatch (CDP Input.dispatchKeyEvent)
-// ---------------------------------------------------------------------------
 
 /** CDP `Input` modifier bitmask: Alt=1, Ctrl=2, Meta=4, Shift=8. */
 function cdpModifiers(combo: ParsedCombo): number {
@@ -445,10 +427,6 @@ async function activeElementState(contents: WebContents): Promise<Record<string,
   return typeof state === 'object' && state !== null ? (state as Record<string, unknown>) : {}
 }
 
-// ---------------------------------------------------------------------------
-// Takeover
-// ---------------------------------------------------------------------------
-
 /**
  * Hands control to the user: the page is already natively interactive in the
  * panel, and the chat's takeover tool row shows the reason with a Done chip.
@@ -481,10 +459,6 @@ async function runTakeover(): Promise<unknown> {
     takeoverDone = false
   }
 }
-
-// ---------------------------------------------------------------------------
-// Tool implementations
-// ---------------------------------------------------------------------------
 
 async function executeToolInner(
   tool: BrowserToolName,
@@ -728,10 +702,6 @@ function withNotices(result: unknown): unknown {
   return { value: result, notices }
 }
 
-// ---------------------------------------------------------------------------
-// Public entry points
-// ---------------------------------------------------------------------------
-
 /** One real browser can only do one thing at a time — serialize tool calls. */
 let toolQueue: Promise<unknown> = Promise.resolve()
 
@@ -761,7 +731,7 @@ export async function executeTool(
   try {
     return { ok: true, result: await settled }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = getErrorMessage(error)
     logger.warn('Browser tool failed', { tool, error: message })
     return { ok: false, error: message }
   }

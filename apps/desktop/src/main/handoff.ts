@@ -14,10 +14,12 @@ const STATE_PATTERN = /^[A-Za-z0-9_-]{16,256}$/
 const STATE_LENGTH = 32
 const REDEEM_PATH = '/api/auth/one-time-token/verify'
 const CALLBACK_PATH = '/auth/callback'
-// Measured from begin() (when the browser opens) so it comfortably covers a
-// full interactive login — email/OTP round-trips or OAuth consent — not just
-// the redirect back. Bounds how long the loopback listener and the CSRF state
-// stay valid.
+/**
+ * Measured from begin() (when the browser opens) so it comfortably covers a
+ * full interactive login — email/OTP round-trips or OAuth consent — not just
+ * the redirect back. Bounds how long the loopback listener and the CSRF state
+ * stay valid.
+ */
 const HANDOFF_TTL_MS = 30 * 60 * 1000
 
 const CALLBACK_RESPONSE_HTML = `<!doctype html>
@@ -96,11 +98,14 @@ export function createHandoffManager(
         .writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
         .end(CALLBACK_RESPONSE_HTML)
       // Only a state match advances the flow. A format-valid but wrong/expired
-      // state gets the generic 200 page and is otherwise ignored: the one-shot
-      // listener survives for the genuine callback (TTL is the backstop) and no
-      // spurious "sign-in failed" UI fires. `consume()` in the callback path
-      // re-validates and tears the server down once the real state lands.
+      // state gets the generic 200 page and is otherwise ignored, so the
+      // one-shot listener survives for the genuine callback (TTL is the
+      // backstop) and no spurious "sign-in failed" UI fires. A genuine match
+      // tears the listener down immediately — before the async redeem — so a
+      // refresh/retry of the callback URL can't fire a second handleCallback
+      // whose consume() would fail and surface a false "sign-in failed".
       if (matchesPendingState(state)) {
+        stopLoopback()
         onCallback({ token, state })
       }
     })

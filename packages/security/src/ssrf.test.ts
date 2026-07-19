@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from './ssrf'
+import {
+  isLoopbackHostname,
+  isLoopbackIp,
+  isPrivateIp,
+  isPrivateIpHost,
+  unwrapIpv6Brackets,
+} from './ssrf'
 
 describe('isPrivateIp', () => {
   describe('IPv4 private/reserved ranges', () => {
@@ -157,6 +163,37 @@ describe('isPrivateIpHost', () => {
     expect(isPrivateIpHost('example.com')).toBe(false)
     expect(isPrivateIpHost('api.zoominfo.com')).toBe(false)
     expect(isPrivateIpHost('localhost')).toBe(false)
+  })
+})
+
+describe('isLoopbackIp', () => {
+  it('matches the full loopback range and ::1', () => {
+    expect(isLoopbackIp('127.0.0.1')).toBe(true)
+    expect(isLoopbackIp('127.0.0.5')).toBe(true)
+    expect(isLoopbackIp('::1')).toBe(true)
+  })
+
+  it('rejects non-loopback and other private ranges', () => {
+    expect(isLoopbackIp('10.0.0.1')).toBe(false)
+    expect(isLoopbackIp('8.8.8.8')).toBe(false)
+    expect(isLoopbackIp('169.254.169.254')).toBe(false)
+    expect(isLoopbackIp('not-an-ip')).toBe(false)
+    expect(isLoopbackIp('localhost')).toBe(false)
+  })
+})
+
+describe('isLoopbackHostname', () => {
+  it('matches localhost and the loopback literals, brackets optional', () => {
+    expect(isLoopbackHostname('localhost')).toBe(true)
+    expect(isLoopbackHostname('127.0.0.1')).toBe(true)
+    expect(isLoopbackHostname('::1')).toBe(true)
+    expect(isLoopbackHostname('[::1]')).toBe(true)
+  })
+
+  it('does not match other loopback-range IPs or public hosts (exact-set only)', () => {
+    expect(isLoopbackHostname('127.0.0.5')).toBe(false)
+    expect(isLoopbackHostname('example.com')).toBe(false)
+    expect(isLoopbackHostname('10.0.0.1')).toBe(false)
   })
 })
 

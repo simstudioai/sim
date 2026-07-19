@@ -1,17 +1,11 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { createLogger } from '@sim/logger'
+import { isLoopbackHostname } from '@sim/security/ssrf'
 
 const logger = createLogger('DesktopConfig')
 
 export const DEFAULT_ORIGIN = 'https://sim.ai'
-
-/**
- * Loopback hostnames that may use plain HTTP (dev + self-host testing). Matched
- * against a parsed `URL.hostname`, which brackets IPv6 authorities — so `[::1]`
- * is the form that appears, never a bare `::1`.
- */
-export const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
 
 export interface WindowBounds {
   x?: number
@@ -56,7 +50,7 @@ export function validateOriginInput(raw: string): OriginValidation {
   if (url.protocol === 'https:') {
     return { ok: true, origin: url.origin }
   }
-  if (url.protocol === 'http:' && LOCAL_HOSTNAMES.has(url.hostname)) {
+  if (url.protocol === 'http:' && isLoopbackHostname(url.hostname)) {
     return { ok: true, origin: url.origin }
   }
   return { ok: false, error: 'Server URL must use HTTPS (HTTP is allowed for localhost only)' }

@@ -25,7 +25,7 @@ export interface AgentSessionEvents {
   /** The active tab changed (new tab, switch, close). */
   onActiveTabChanged: (contents: WebContents) => void
   /** A download was blocked on the agent partition. */
-  onDownloadBlocked: (filename: string, url: string) => void
+  onDownloadBlocked: (filename: string) => void
 }
 
 /**
@@ -98,10 +98,9 @@ function configureAgentPartition(ses: Session): void {
   })
   ses.on('will-download', (_event, item) => {
     const filename = item.getFilename()
-    const url = item.getURL()
     logger.info('Blocked download in agent browser', { filename })
     item.cancel()
-    events?.onDownloadBlocked(filename, url)
+    events?.onDownloadBlocked(filename)
   })
 }
 

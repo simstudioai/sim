@@ -106,16 +106,17 @@ describe('createHandoffManager', () => {
     expect(received).toHaveLength(0)
     expect(manager.consume(wrongState)).toBe(false)
 
-    // The genuine callback still lands while the server is up.
+    // The genuine callback lands and immediately tears the listener down, so a
+    // refresh/retry of the callback URL can't fire a second handleCallback.
     const ok = await fetch(`${base}/auth/callback?token=${VALID_TOKEN}&state=${state}`)
     expect(ok.status).toBe(200)
-    expect(received).toContainEqual({ token: VALID_TOKEN, state })
-
-    // Consuming the real state validates and closes the loopback.
-    expect(manager.consume(state)).toBe(true)
+    expect(received).toEqual([{ token: VALID_TOKEN, state }])
     await expect(
       fetch(`${base}/auth/callback?token=${VALID_TOKEN}&state=${state}`)
     ).rejects.toThrow()
+
+    // consume() still validates the pending state for the redeem path.
+    expect(manager.consume(state)).toBe(true)
   })
 
   it('cleans up the pending handoff when the browser cannot be opened', async () => {

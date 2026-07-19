@@ -46,19 +46,15 @@ describe('isLogoutNavigation', () => {
 })
 
 describe('decideStartRoute', () => {
-  it('routes a signed-out launch to the login surface', () => {
-    expect(decideStartRoute('invalid', '/workspace/ws1')).toBe('/login')
-  })
-
   it('restores the last route when plausible', () => {
-    expect(decideStartRoute('valid', '/workspace/ws1?tab=logs')).toBe('/workspace/ws1?tab=logs')
-    expect(decideStartRoute('unknown', '/workspace/ws1')).toBe('/workspace/ws1')
+    expect(decideStartRoute('/workspace/ws1?tab=logs')).toBe('/workspace/ws1?tab=logs')
+    expect(decideStartRoute('/workspace/ws1')).toBe('/workspace/ws1')
   })
 
   it('falls back to /workspace for missing, unsafe, or auth-surface last routes', () => {
-    expect(decideStartRoute('valid', undefined)).toBe('/workspace')
-    expect(decideStartRoute('valid', '//evil.example')).toBe('/workspace')
-    expect(decideStartRoute('valid', '/login')).toBe('/workspace')
+    expect(decideStartRoute(undefined)).toBe('/workspace')
+    expect(decideStartRoute('//evil.example')).toBe('/workspace')
+    expect(decideStartRoute('/login')).toBe('/workspace')
   })
 })
 

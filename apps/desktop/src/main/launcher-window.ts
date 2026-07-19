@@ -62,7 +62,6 @@ export interface LauncherWindowHandle {
   prewarm(): void
   /** Renderer-driven growth as a response streams in; clamped. */
   resize(height: number): void
-  isVisible(): boolean
   /** Tears the window down (origin change, quit). Next toggle recreates it. */
   destroy(): void
 }
@@ -116,6 +115,16 @@ export function createLauncherWindow(deps: LauncherWindowDeps): LauncherWindowHa
       }
     })
 
+    // A failed launcher load hides the panel and falls back to the main window.
+    const failLaunchLoad = (code: number, reason: string) => {
+      deps.events.record('launcher_load_failed', { code, reason })
+      loadFailed = true
+      if (panel.isVisible()) {
+        panel.hide()
+        deps.openMainWindow()
+      }
+    }
+
     // did-fail-load covers network-level failures (offline); an HTTP error
     // status (older self-hosted server without the route) still "loads", so
     // it is caught from the navigation's response code instead.
@@ -124,26 +133,17 @@ export function createLauncherWindow(deps: LauncherWindowDeps): LauncherWindowHa
         return
       }
       logger.warn('Launcher route failed to load', { code, description, url: scrubUrl(url) })
-      deps.events.record('launcher_load_failed', { code, reason: description })
-      loadFailed = true
-      if (panel.isVisible()) {
-        panel.hide()
-        deps.openMainWindow()
-      }
+      failLaunchLoad(code, description)
     })
     panel.webContents.on('did-navigate', (_event, url, httpResponseCode) => {
-      if (httpResponseCode >= 400) {
-        logger.warn('Launcher route returned an error status', {
-          status: httpResponseCode,
-          url: scrubUrl(url),
-        })
-        deps.events.record('launcher_load_failed', { code: httpResponseCode, reason: 'http' })
-        loadFailed = true
-        if (panel.isVisible()) {
-          panel.hide()
-          deps.openMainWindow()
-        }
+      if (httpResponseCode < 400) {
+        return
       }
+      logger.warn('Launcher route returned an error status', {
+        status: httpResponseCode,
+        url: scrubUrl(url),
+      })
+      failLaunchLoad(httpResponseCode, 'http')
     })
     panel.webContents.on('render-process-gone', (_event, details) => {
       if (details.reason !== 'clean-exit') {
@@ -211,9 +211,6 @@ export function createLauncherWindow(deps: LauncherWindowDeps): LauncherWindowHa
       }
       const bounds = win.getBounds()
       win.setBounds({ ...bounds, height: clampLauncherHeight(height) })
-    },
-    isVisible() {
-      return Boolean(win && !win.isDestroyed() && win.isVisible())
     },
     destroy() {
       if (win && !win.isDestroyed()) {

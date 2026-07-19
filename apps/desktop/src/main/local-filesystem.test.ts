@@ -137,9 +137,9 @@ describe('LocalFilesystemService', () => {
     expect(traversal).toMatchObject({ ok: false, code: 'ACCESS_DENIED' })
   })
 
-  it('clears all grants without touching files on disk', async () => {
+  it('releases active mounts without touching files on disk', async () => {
     const granted = await mount(service)
-    service.clear()
+    service.close()
 
     const response = await service.handle({ operation: 'stat', uri: granted.uri })
     expect(response).toMatchObject({ ok: false, code: 'MOUNT_NOT_FOUND' })

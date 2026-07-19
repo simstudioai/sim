@@ -52,17 +52,12 @@ export function isLogoutNavigation(rawUrl: string, appOrigin: string): boolean {
 }
 
 /**
- * Picks the route to load at launch: a known-signed-out session goes straight
- * to the login surface, otherwise the last visited route (when safe and not
- * itself an auth surface), falling back to /workspace.
+ * Picks the route to load at launch: the last visited route when it is safe
+ * and not itself an auth surface, otherwise /workspace. There is no launch-time
+ * session probe — the server's own redirect to /login covers a signed-out
+ * launch (see README "Auth model").
  */
-export function decideStartRoute(
-  sessionState: SessionProbeResult,
-  lastRoute: string | undefined
-): string {
-  if (sessionState === 'invalid') {
-    return '/login'
-  }
+export function decideStartRoute(lastRoute: string | undefined): string {
   if (lastRoute && isSafeInternalPath(lastRoute) && !isAuthSurfacePath(lastRoute)) {
     return lastRoute
   }

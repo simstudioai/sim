@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { isLoopbackHostname } from '@sim/security/ssrf'
 import { shell } from 'electron'
-import { LOCAL_HOSTNAMES } from '@/main/config'
 
 const logger = createLogger('DesktopNavigation')
 
@@ -207,7 +207,7 @@ export function isSafeExternalUrl(raw: string, allowHttpLocalhost = false): bool
     return true
   }
   if (url.protocol === 'http:') {
-    return allowHttpLocalhost && LOCAL_HOSTNAMES.has(url.hostname)
+    return allowHttpLocalhost && isLoopbackHostname(url.hostname)
   }
   return false
 }

@@ -140,7 +140,7 @@ function main(): void {
     })
     loadHealth = attachLoadHealth(win, {
       offlinePagePath: OFFLINE_PAGE,
-      getStartUrl: () => `${appOrigin()}${decideStartRoute('unknown', config.get('lastRoute'))}`,
+      getStartUrl: () => `${appOrigin()}${decideStartRoute(config.get('lastRoute'))}`,
       isOnline: () => net.isOnline(),
       events,
     })
@@ -155,7 +155,7 @@ function main(): void {
       onReauthRequested: () => void authFlow.beginLoginHandoff(),
     })
     loadHealth.startWatchdog()
-    const route = decideStartRoute('unknown', config.get('lastRoute'))
+    const route = decideStartRoute(config.get('lastRoute'))
     // Fire-and-forget: the window and all its handlers are wired synchronously
     // above, so callers get a usable window immediately and the app menu and
     // updater never wait on the remote page's load (load-health surfaces any
