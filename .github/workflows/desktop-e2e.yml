@@ -3,12 +3,11 @@ name: Desktop E2E
 # Smoke coverage of the real Electron shell, plus an advisory canary leg
 # against electron@latest so Chromium-cadence breakage surfaces before an
 # upgrade is attempted (U18/U22).
+#
+# Manual-only for now: the desktop app is tested locally, so the
+# pull_request trigger is disabled until desktop CI is turned back on.
 
 on:
-  pull_request:
-    paths:
-      - 'apps/desktop/**'
-      - '.github/workflows/desktop-e2e.yml'
   workflow_dispatch:
 
 concurrency:
