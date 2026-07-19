@@ -276,6 +276,11 @@ function main(): void {
   })
 
   void app.whenReady().then(async () => {
+    // Unpackaged runs show Electron's default Dock icon (the packaged icns
+    // only applies to built apps), so dev sets the brand icon at runtime.
+    if (!app.isPackaged && process.platform === 'darwin') {
+      app.dock?.setIcon(join(__dirname, '..', 'static', 'dock-icon.png'))
+    }
     events.record('app_launch', {
       version: app.getVersion(),
       electron: process.versions.electron ?? '',

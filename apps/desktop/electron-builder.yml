@@ -20,7 +20,6 @@ electronFuses:
   enableNodeCliInspectArguments: false
   enableEmbeddedAsarIntegrityValidation: true
   onlyLoadAppFromAsar: true
-  resetAdHocDarwinSignature: true
 
 mac:
   category: public.app-category.developer-tools
