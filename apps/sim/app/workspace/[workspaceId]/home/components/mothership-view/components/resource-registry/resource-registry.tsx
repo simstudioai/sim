@@ -278,8 +278,8 @@ const RESOURCE_INVALIDATORS: Record<
    */
   integration: () => {},
   /**
-   * The browser panel renders live frames pushed by the desktop app
-   * (in-memory store, no server-backed query), so there is nothing to
+   * The browser panel hosts the desktop app's natively embedded browser view
+   * (in-memory page state, no server-backed query), so there is nothing to
    * invalidate.
    */
   browser: () => {},

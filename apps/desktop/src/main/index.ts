@@ -2,10 +2,8 @@ import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import type { BrowserWindow } from 'electron'
 import { app, net, session } from 'electron'
-import {
-  initDriver as initBrowserAgentDriver,
-  setPanelBounds as setBrowserAgentPanelBounds,
-} from '@/main/browser-agent/driver'
+import { initDriver as initBrowserAgentDriver } from '@/main/browser-agent/driver'
+import { setPanelBounds as setBrowserAgentPanelBounds } from '@/main/browser-agent/session'
 import { createConfigStore, partitionForOrigin } from '@/main/config'
 import { attachContextMenu } from '@/main/context-menu'
 import { attachDownloadHandling } from '@/main/downloads'
@@ -28,7 +26,7 @@ import {
 import { closeSettingsWindow, openSettingsWindow } from '@/main/settings-window'
 import { createLauncherShortcutManager, LAUNCHER_SHORTCUT_PRESETS } from '@/main/shortcuts'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
-import { installTray } from '@/main/tray'
+import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater } from '@/main/updater'
 import { createMainWindow, setupPermissionHandlers } from '@/main/window'
 import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
@@ -51,11 +49,25 @@ function main(): void {
 
   let mainWindow: BrowserWindow | null = null
   let loadHealth: LoadHealthHandle | null = null
+  let tray: TrayHandle | null = null
   const configuredPartitions = new Set<string>()
 
   const appOrigin = () => config.getOrigin()
   const allowHttpLocalhost = () => !app.isPackaged || appOrigin().startsWith('http://')
   const getMainWindow = () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null)
+
+  /** Restore/show/focus the main window and activate the app (steal focus). */
+  function showMainWindow(): void {
+    const win = getMainWindow()
+    if (win) {
+      if (win.isMinimized()) {
+        win.restore()
+      }
+      win.show()
+      win.focus()
+    }
+    app.focus({ steal: true })
+  }
 
   const handoff = createHandoffManager(
     {
@@ -89,17 +101,7 @@ function main(): void {
   const connectFlow = createConnectFlow({
     handoff,
     events,
-    focusMainWindow: () => {
-      const win = getMainWindow()
-      if (win) {
-        if (win.isMinimized()) {
-          win.restore()
-        }
-        win.show()
-        win.focus()
-      }
-      app.focus({ steal: true })
-    },
+    focusMainWindow: showMainWindow,
     notifyRenderer: (result) => {
       getMainWindow()?.webContents.send('desktop:oauth-connect-complete', result)
     },
@@ -160,7 +162,7 @@ function main(): void {
     })
     loadHealth = attachLoadHealth(win, {
       offlinePagePath: OFFLINE_PAGE,
-      getStartUrl: () => `${appOrigin()}${decideStartRoute('unknown', config.get('lastRoute'))}`,
+      getStartUrl: () => `${appOrigin()}${decideStartRoute(config.get('lastRoute'))}`,
       isOnline: () => net.isOnline(),
       events,
     })
@@ -175,7 +177,7 @@ function main(): void {
       onReauthRequested: () => void authFlow.beginLoginHandoff(),
     })
     loadHealth.startWatchdog()
-    const route = decideStartRoute('unknown', config.get('lastRoute'))
+    const route = decideStartRoute(config.get('lastRoute'))
     // Fire-and-forget: the window and all its handlers are wired synchronously
     // above, so callers get a usable window immediately and the app menu and
     // updater never wait on the remote page's load (load-health surfaces any
@@ -203,15 +205,9 @@ function main(): void {
     if (route) {
       void win.loadURL(`${appOrigin()}${route}`).catch(() => {})
     }
-    if (win.isMinimized()) {
-      win.restore()
-    }
-    win.show()
-    win.focus()
     // Panel-type windows never activate the app, so opening from the
-    // launcher needs an explicit activation to take over from the app the
-    // user was in.
-    app.focus({ steal: true })
+    // launcher needs the explicit activation showMainWindow performs.
+    showMainWindow()
   }
 
   const launcher = createLauncherWindow({
@@ -272,13 +268,7 @@ function main(): void {
   }
 
   app.on('second-instance', () => {
-    const win = getMainWindow()
-    if (win) {
-      if (win.isMinimized()) {
-        win.restore()
-      }
-      win.focus()
-    }
+    showMainWindow()
   })
 
   app.on('window-all-closed', () => {
@@ -288,6 +278,9 @@ function main(): void {
   })
 
   app.on('before-quit', () => {
+    // Stops the tray's background chat refresh alongside the OS handles.
+    tray?.destroy()
+    tray = null
     localFilesystem.close()
   })
 
@@ -320,7 +313,6 @@ function main(): void {
     )
     await localFilesystem.initialize()
     registerIpcHandlers({
-      config,
       appOrigin,
       allowHttpLocalhost,
       retryLoad: () => loadHealth?.retry(),
@@ -375,7 +367,7 @@ function main(): void {
     })
     launcherShortcut.apply(config.get('launcherShortcut'))
     if (config.get('trayEnabled') ?? true) {
-      installTray({
+      tray = installTray({
         partition: () => partitionForOrigin(appOrigin()),
         appOrigin,
         lastRoute: () => config.get('lastRoute'),

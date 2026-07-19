@@ -7,9 +7,9 @@ import { registerAgentWebContents } from '@/main/browser-agent/registry'
 const logger = createLogger('BrowserAgentSession')
 
 /** Dedicated cookie jar for the agent browser; `persist:` = survives restarts. */
-export const AGENT_PARTITION = 'persist:sim-browser-agent'
+const AGENT_PARTITION = 'persist:sim-browser-agent'
 
-export class SessionError extends Error {}
+class SessionError extends Error {}
 
 export interface AgentTab {
   id: string

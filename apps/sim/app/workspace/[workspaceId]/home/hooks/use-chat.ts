@@ -22,7 +22,8 @@ import {
   reorderMothershipChatResourcesContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
-import { initBrowserAgentTransport, isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
+import { initBrowserAgentTransport } from '@/lib/browser-agent/transport'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
@@ -70,6 +71,7 @@ import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-cont
 import { isLocalFilesystemToolName } from '@/lib/copilot/tools/local-filesystem'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import { readSSELines } from '@/lib/core/utils/sse'
+import { getDesktopChatCapabilities } from '@/lib/desktop'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import {
@@ -90,7 +92,6 @@ import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-so
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
-import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
@@ -1468,7 +1469,7 @@ export function useChat(
 
     // Ephemeral panels (streaming file preview, live browser session) are
     // in-memory only — never persisted to the chat's resource list.
-    if (resource.id === 'streaming-file' || resource.type === 'browser') {
+    if (isEphemeralResource(resource)) {
       return true
     }
 
@@ -3251,25 +3252,10 @@ export function useChat(
         const abortController = new AbortController()
         abortControllerRef.current = abortController
 
-        const currentActiveId = activeResourceIdRef.current
-        // The live browser panel's page state is client-held (the desktop
-        // app's embedded browser): its attachment carries the current URL and
-        // title so the server can inject them as @open_tab/@active_tab
-        // context. With no page loaded there is nothing to say — drop it.
-        const browserPageState = useBrowserSessionStore.getState().pageState
-        const currentResources = resourcesRef.current.filter(
-          (r) => r.type !== 'browser' || Boolean(browserPageState?.url)
+        const resourceAttachments = buildResourceAttachments(
+          resourcesRef.current,
+          activeResourceIdRef.current
         )
-        const resourceAttachments =
-          currentResources.length > 0
-            ? currentResources.map((r) => ({
-                type: r.type,
-                id: r.id,
-                title: r.type === 'browser' ? browserPageState?.title?.trim() || r.title : r.title,
-                active: r.id === currentActiveId,
-                ...(r.type === 'browser' ? { url: browserPageState?.url } : {}),
-              }))
-            : undefined
 
         const response = await fetch(apiPathRef.current, {
           method: 'POST',
@@ -3284,12 +3270,9 @@ export function useChat(
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
             ...(workflowIdRef.current ? { workflowId: workflowIdRef.current } : {}),
-            ...(typeof window !== 'undefined' && window.simDesktop?.localFilesystem
-              ? { desktopCapabilities: { localFilesystem: true } }
-              : {}),
-            // Advertised only when the desktop app's browser-agent bridge is
-            // present — gates the browser subagent server-side.
-            ...(isBrowserAgentAvailable() ? { browserCapable: true } : {}),
+            // Desktop-only capabilities (local filesystem tools, browser
+            // subagent) — the server gates the features on these flags.
+            ...getDesktopChatCapabilities(),
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: abortController.signal,

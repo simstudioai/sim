@@ -105,6 +105,11 @@ export const nativeImage = {
     isEmpty: vi.fn(() => true),
     setTemplateImage: vi.fn(),
   })),
+  createFromBitmap: vi.fn((_buffer: unknown, options: { width: number; height: number }) => ({
+    isEmpty: vi.fn(() => false),
+    setTemplateImage: vi.fn(),
+    getSize: vi.fn(() => ({ width: options.width, height: options.height })),
+  })),
 }
 
 export class Tray {

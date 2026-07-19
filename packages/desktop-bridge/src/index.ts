@@ -6,11 +6,6 @@ import type {
   BrowserToolResponse,
 } from '@sim/browser-protocol'
 
-export interface DesktopUpdateStatus {
-  state: string
-  version?: string
-}
-
 /**
  * The browser-agent surface of the preload bridge. Tools execute in the
  * Electron main process against the desktop app's built-in agent browser — a
@@ -168,9 +163,7 @@ export interface DesktopOAuthConnectResult {
 }
 
 export interface SimDesktopApi {
-  getAppVersion(): Promise<string>
   openExternal(url: string): Promise<boolean>
-  requestMicrophonePermission(): Promise<boolean>
   /**
    * Start the OAuth connect handoff for a provider: the whole flow runs in
    * the system browser and returns via loopback. Resolves false when the
@@ -182,7 +175,6 @@ export interface SimDesktopApi {
    * before this fires). Returns an unsubscribe function.
    */
   onOAuthConnectComplete(callback: (result: DesktopOAuthConnectResult) => void): () => void
-  onUpdateStatus(callback: (status: DesktopUpdateStatus) => void): () => void
   offlineRetry(): void
   openSettings(): void
   settingsClose(): void

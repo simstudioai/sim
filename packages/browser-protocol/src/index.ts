@@ -88,39 +88,3 @@ export interface BrowserPageState {
   canGoBack: boolean
   canGoForward: boolean
 }
-
-/**
- * One interactive element from a `browser_snapshot`, identified by the
- * numeric id the model passes back to browser_click / browser_type / etc.
- */
-export interface SnapshotElement {
-  id: number
-  role: string
-  name: string
-  value?: string
-  href?: string
-  disabled?: boolean
-  checked?: boolean
-}
-
-export interface SnapshotResult {
-  url: string
-  title: string
-  /**
-   * Structural outline of the page: headings and landmarks interleaved with
-   * interactive elements, each interactive line carrying its [ref=N] id.
-   */
-  outline: string
-  /** True when the element list was cut off at the collection cap. */
-  truncated: boolean
-  scrollY: number
-  pageHeight: number
-  viewportHeight: number
-}
-
-export interface BrowserTabInfo {
-  tabId: string
-  title: string
-  url: string
-  active: boolean
-}

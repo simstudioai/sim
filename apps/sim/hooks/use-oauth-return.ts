@@ -12,6 +12,7 @@ import {
   type OAuthReturnContext,
   readOAuthReturnContext,
 } from '@/lib/credentials/client-state'
+import { getDesktopBridge } from '@/lib/desktop'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 
@@ -162,7 +163,7 @@ export function useDesktopOAuthConnectListener() {
   const queryClient = useQueryClient()
 
   useEffect(() => {
-    const bridge = typeof window !== 'undefined' ? window.simDesktop : undefined
+    const bridge = getDesktopBridge()
     if (!bridge?.onOAuthConnectComplete) return
 
     return bridge.onOAuthConnectComplete((result) => {

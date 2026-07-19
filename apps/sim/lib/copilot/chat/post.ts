@@ -45,6 +45,7 @@ import {
 } from '@/lib/copilot/request/session'
 import type { ExecutionContext, OrchestratorResult } from '@/lib/copilot/request/types'
 import { persistChatResources } from '@/lib/copilot/resources/persistence'
+import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -109,9 +110,16 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   browser: 'Browser',
 }
 
-/** Ephemeral client-side panels are context-only: never persisted to the chat. */
+/**
+ * Ephemeral client-side panels are context-only: never persisted to the chat.
+ * Shares the client's rule so the two layers cannot drift.
+ */
 function isPersistableAttachment(resource: z.infer<typeof ResourceAttachmentSchema>): boolean {
-  return resource.type !== 'browser'
+  return !isEphemeralResource({
+    type: resource.type,
+    id: resource.id,
+    title: resource.title ?? '',
+  })
 }
 
 const ChatContextSchema = z.object({

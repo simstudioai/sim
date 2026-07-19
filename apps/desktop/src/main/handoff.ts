@@ -25,17 +25,13 @@ const ERROR_SLUG_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 // stay valid.
 const HANDOFF_TTL_MS = 30 * 60 * 1000
 
-const CALLBACK_RESPONSE_HTML = `<!doctype html>
+function responsePage(message: string): string {
+  return `<!doctype html>
 <html><head><meta charset="utf-8"><title>Sim</title></head>
 <body style="font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
-<p>You’re signed in — return to the Sim app. You can close this tab.</p>
+<p>${message}</p>
 </body></html>`
-
-const CONNECT_RESPONSE_HTML = `<!doctype html>
-<html><head><meta charset="utf-8"><title>Sim</title></head>
-<body style="font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
-<p>Connection finished — return to the Sim app. You can close this tab.</p>
-</body></html>`
+}
 
 export type HandoffKind = 'login' | 'connect'
 
@@ -95,43 +91,58 @@ export function createHandoffManager(
     }
   }
 
+  /**
+   * The loopback route table: each hand-back kind declares its path, the
+   * "return to the app" page, and a parser that validates the query params
+   * and returns the callback dispatch (or null → 400). Adding a handoff kind
+   * is one new row.
+   */
+  interface LoopbackRoute {
+    html: string
+    parse: (url: URL) => (() => void) | null
+  }
+  const routes: Record<string, LoopbackRoute> = {
+    [CALLBACK_PATH]: {
+      html: responsePage('You’re signed in — return to the Sim app. You can close this tab.'),
+      parse: (url) => {
+        const token = url.searchParams.get('token') ?? ''
+        const state = url.searchParams.get('state') ?? ''
+        if (!TOKEN_PATTERN.test(token) || !STATE_PATTERN.test(state)) {
+          return null
+        }
+        return () => callbacks.onLogin({ token, state })
+      },
+    },
+    [CONNECT_CALLBACK_PATH]: {
+      html: responsePage('Connection finished — return to the Sim app. You can close this tab.'),
+      parse: (url) => {
+        const state = url.searchParams.get('state') ?? ''
+        const error = url.searchParams.get('error')
+        if (!STATE_PATTERN.test(state) || (error !== null && !ERROR_SLUG_PATTERN.test(error))) {
+          return null
+        }
+        return () => callbacks.onConnect({ state, ...(error !== null ? { error } : {}) })
+      },
+    },
+  }
+
   const startLoopback = async (): Promise<number | undefined> => {
     stopLoopback()
     const server = createServer((request, response) => {
       const url = new URL(request.url ?? '/', 'http://127.0.0.1')
-      if (request.method !== 'GET') {
+      const route = request.method === 'GET' ? routes[url.pathname] : undefined
+      if (!route) {
         response.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found')
         return
       }
-      if (url.pathname === CALLBACK_PATH) {
-        const token = url.searchParams.get('token') ?? ''
-        const state = url.searchParams.get('state') ?? ''
-        if (!TOKEN_PATTERN.test(token) || !STATE_PATTERN.test(state)) {
-          response.writeHead(400, { 'Content-Type': 'text/plain' }).end('Invalid request')
-          return
-        }
-        response
-          .writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-          .end(CALLBACK_RESPONSE_HTML)
-        stopLoopback()
-        callbacks.onLogin({ token, state })
+      const dispatch = route.parse(url)
+      if (!dispatch) {
+        response.writeHead(400, { 'Content-Type': 'text/plain' }).end('Invalid request')
         return
       }
-      if (url.pathname === CONNECT_CALLBACK_PATH) {
-        const state = url.searchParams.get('state') ?? ''
-        const error = url.searchParams.get('error')
-        if (!STATE_PATTERN.test(state) || (error !== null && !ERROR_SLUG_PATTERN.test(error))) {
-          response.writeHead(400, { 'Content-Type': 'text/plain' }).end('Invalid request')
-          return
-        }
-        response
-          .writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-          .end(CONNECT_RESPONSE_HTML)
-        stopLoopback()
-        callbacks.onConnect({ state, ...(error !== null ? { error } : {}) })
-        return
-      }
-      response.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found')
+      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(route.html)
+      stopLoopback()
+      dispatch()
     })
     loopbackServer = server
     try {

@@ -117,19 +117,9 @@ export function isDowngrade(currentVersion: string, candidateVersion: string): b
   return comparePrerelease(candidate.prerelease, current.prerelease) < 0
 }
 
-/**
- * The blockedVersions kill-switch: a known-bad release is never offered for
- * install even if the feed still serves it.
- */
-export function isVersionBlocked(version: string, blockedVersions: readonly string[]): boolean {
-  const normalized = version.replace(/^v/, '')
-  return blockedVersions.some((blocked) => blocked.replace(/^v/, '') === normalized)
-}
-
 export interface UpdaterDeps {
   getWindow: () => BrowserWindow | null
   events: EventRecorder
-  blockedVersions?: readonly string[]
 }
 
 /**
@@ -165,10 +155,7 @@ export function initUpdater(deps: UpdaterDeps): void {
   })
 
   autoUpdater.on('update-downloaded', (info) => {
-    if (
-      isDowngrade(currentVersion, info.version) ||
-      isVersionBlocked(info.version, deps.blockedVersions ?? [])
-    ) {
+    if (isDowngrade(currentVersion, info.version)) {
       autoUpdater.autoInstallOnAppQuit = false
       deps.events.record('update_blocked_version', { version: info.version })
       return
@@ -176,7 +163,6 @@ export function initUpdater(deps: UpdaterDeps): void {
     autoUpdater.autoInstallOnAppQuit = true
     deps.events.record('update_downloaded', { version: info.version })
     const win = deps.getWindow()
-    win?.webContents.send('desktop:update-status', { state: 'ready', version: info.version })
     const options = {
       type: 'info' as const,
       buttons: ['Restart Now', 'Later'],

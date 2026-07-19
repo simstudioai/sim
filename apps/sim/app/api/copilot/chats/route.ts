@@ -7,6 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createWorkflowCopilotChatContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
+import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -56,6 +57,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
         workspaceId: copilotChats.workspaceId,
         activeStreamId: copilotChats.conversationId,
         updatedAt: copilotChats.updatedAt,
+        lastSeenAt: copilotChats.lastSeenAt,
       })
       .from(copilotChats)
       .leftJoin(workflow, eq(copilotChats.workflowId, workflow.id))
@@ -75,9 +77,21 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
       (a, b) => new Date(b.updatedAt!).getTime() - new Date(a.updatedAt!).getTime()
     )
 
-    logger.info(`Retrieved ${sorted.length} chats for user ${userId}`)
+    // Verify live-stream markers so `activeStreamId` means "actually
+    // streaming", not a stale marker from a crashed run — same reconciliation
+    // the mothership sidebar list applies.
+    const streamMarkers = await reconcileChatStreamMarkers(
+      sorted.map((c) => ({ chatId: c.id, streamId: c.activeStreamId })),
+      { repairVerifiedStaleMarkers: true }
+    )
+    const chats = sorted.map((c) => ({
+      ...c,
+      activeStreamId: streamMarkers.get(c.id)?.streamId ?? null,
+    }))
 
-    return NextResponse.json({ success: true, chats: sorted })
+    logger.info(`Retrieved ${chats.length} chats for user ${userId}`)
+
+    return NextResponse.json({ success: true, chats })
   } catch (error) {
     logger.error('Error fetching user copilot chats:', error)
     return createInternalServerErrorResponse('Failed to fetch user chats')

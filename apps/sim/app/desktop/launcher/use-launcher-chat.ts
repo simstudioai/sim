@@ -6,17 +6,18 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import {
+  extractPendingToolCallIds,
+  isCheckpointPauseCovered,
+} from '@/lib/copilot/request/checkpoint-pause'
 import { processSSEStream } from '@/lib/copilot/request/go/parser'
 // Deep import (not the session barrel): the barrel re-exports the Redis-backed
 // abort module, which cannot be bundled into a client component.
 import { parsePersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
-// Deep import (not the tool-executor barrel) to keep server-only executor code
-// out of the launcher bundle; the router is a pure catalog lookup.
-import { isSimExecuted } from '@/lib/copilot/tool-executor/router'
 import { executeBrowserToolOnClient } from '@/lib/copilot/tools/client/browser-tool-execution'
 import { executeLocalFilesystemTool } from '@/lib/copilot/tools/client/local-filesystem'
 import { isLocalFilesystemToolName } from '@/lib/copilot/tools/local-filesystem'
-import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
+import { getDesktopChatCapabilities } from '@/lib/desktop'
 
 const logger = createLogger('LauncherChat')
 
@@ -141,19 +142,15 @@ export function useLauncherChat() {
     []
   )
 
-  /**
-   * Whether a checkpoint-paused tool call will complete without the full app:
-   * either we dispatched it here, or the Next server executes it inside this
-   * same request (sim-routed tools, minus workflow runs which the server
-   * delegates to the client).
-   */
-  const isPauseCovered = useCallback((toolCallId: string): boolean => {
-    if (dispatchedToolIdsRef.current.has(toolCallId)) return true
-    const seen = seenToolCallsRef.current.get(toolCallId)
-    if (!seen) return false
-    if (isWorkflowToolName(seen.toolName)) return false
-    return seen.executor === 'sim' || isSimExecuted(seen.toolName)
-  }, [])
+  /** Whether a checkpoint-paused tool call will complete without the full app. */
+  const isPauseCovered = useCallback(
+    (toolCallId: string): boolean =>
+      isCheckpointPauseCovered(
+        seenToolCallsRef.current.get(toolCallId),
+        dispatchedToolIdsRef.current.has(toolCallId)
+      ),
+    []
+  )
 
   const send = useCallback(
     async (message: string, workspaceId: string) => {
@@ -204,9 +201,7 @@ export function useLauncherChat() {
             // routes as client tools the panel can execute in the background
             // (the panel is a live desktop client). Browser automation is left
             // to the full app since it needs the visible resource panel.
-            ...(typeof window !== 'undefined' && window.simDesktop?.localFilesystem
-              ? { desktopCapabilities: { localFilesystem: true } }
-              : {}),
+            ...getDesktopChatCapabilities({ includeBrowser: false }),
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
         })
@@ -289,17 +284,7 @@ export function useLauncherChat() {
               // Next server inside this same request, and tools we dispatched
               // above resume the stream via /api/copilot/confirm — in both
               // cases the stream continues, so keep reading.
-              const topLevel = Array.isArray(event.payload.pendingToolCallIds)
-                ? (event.payload.pendingToolCallIds as unknown[])
-                : []
-              const frames = Array.isArray(event.payload.frames)
-                ? (event.payload.frames as Array<{ pendingToolIds?: unknown }>)
-                : []
-              const pendingIds = [
-                ...topLevel,
-                ...frames.flatMap((f) => (Array.isArray(f.pendingToolIds) ? f.pendingToolIds : [])),
-              ].filter((id): id is string => typeof id === 'string')
-
+              const pendingIds = extractPendingToolCallIds(event.payload)
               const uncovered = pendingIds.filter((id) => !isPauseCovered(id))
               if (uncovered.length === 0) {
                 setWorking('Working…')

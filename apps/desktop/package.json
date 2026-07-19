@@ -4,6 +4,8 @@
   "private": true,
   "license": "Apache-2.0",
   "description": "Sim desktop app for macOS — Electron shell around the hosted web app",
+  "author": "Sim <support@sim.ai>",
+  "homepage": "https://sim.ai",
   "type": "module",
   "main": "dist/main.cjs",
   "engines": {

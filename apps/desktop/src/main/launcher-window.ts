@@ -59,7 +59,6 @@ export interface LauncherWindowHandle {
   prewarm(): void
   /** Renderer-driven growth as a response streams in; clamped. */
   resize(height: number): void
-  isVisible(): boolean
   /** Tears the window down (origin change, quit). Next toggle recreates it. */
   destroy(): void
 }
@@ -207,9 +206,6 @@ export function createLauncherWindow(deps: LauncherWindowDeps): LauncherWindowHa
       }
       const bounds = win.getBounds()
       win.setBounds({ ...bounds, height: clampLauncherHeight(height) })
-    },
-    isVisible() {
-      return Boolean(win && !win.isDestroyed() && win.isVisible())
     },
     destroy() {
       if (win && !win.isDestroyed()) {

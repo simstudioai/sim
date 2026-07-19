@@ -10,6 +10,7 @@ import {
   type OAuthConnection,
 } from '@/lib/api/contracts/oauth-connections'
 import { client } from '@/lib/auth/auth-client'
+import { getDesktopBridge } from '@/lib/desktop'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
 
 const logger = createLogger('OAuthConnectionsQuery')
@@ -161,7 +162,7 @@ export function useConnectOAuthService() {
       // system browser and returns via the app's loopback. Completion arrives
       // through onOAuthConnectComplete (see useDesktopOAuthConnectListener),
       // which refreshes caches and shows the connected toast.
-      const desktopBridge = typeof window !== 'undefined' ? window.simDesktop : undefined
+      const desktopBridge = getDesktopBridge()
       if (desktopBridge?.beginOAuthConnect) {
         const opened = await desktopBridge.beginOAuthConnect(providerId)
         if (!opened) {

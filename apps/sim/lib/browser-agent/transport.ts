@@ -19,13 +19,13 @@ import type {
   BrowserToolName,
 } from '@sim/browser-protocol'
 import type { SimDesktopBrowserAgentApi } from '@sim/desktop-bridge'
+import { getDesktopBridge } from '@/lib/desktop'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 let initialized = false
 
 function bridge(): SimDesktopBrowserAgentApi | null {
-  if (typeof window === 'undefined') return null
-  return window.simDesktop?.browserAgent ?? null
+  return getDesktopBridge()?.browserAgent ?? null
 }
 
 /**

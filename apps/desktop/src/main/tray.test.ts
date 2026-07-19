@@ -9,6 +9,7 @@ import {
   installTray,
   newChatRoute,
   parseRecentChats,
+  type RecentChat,
   type TrayDeps,
 } from '@/main/tray'
 // Same module instance the vi.mock factory returns, with mock-typed statics.
@@ -25,8 +26,8 @@ function makeDeps(overrides: Partial<TrayDeps> = {}): TrayDeps {
   }
 }
 
-function chat(id: number): { id: string; title: string; workspaceId: string } {
-  return { id: `c${id}`, title: `Chat ${id}`, workspaceId: 'ws1' }
+function chat(id: number): RecentChat {
+  return { id: `c${id}`, title: `Chat ${id}`, workspaceId: 'ws1', status: 'none' }
 }
 
 describe('parseRecentChats', () => {
@@ -53,11 +54,65 @@ describe('parseRecentChats', () => {
     expect(parseRecentChats({})).toEqual([])
     expect(parseRecentChats({ chats: 'nope' })).toEqual([])
   })
+
+  it('derives the sidebar status semantics: active > unread > none', () => {
+    const payload = {
+      chats: [
+        // Streaming right now → active, regardless of seen state.
+        {
+          id: 'c1',
+          title: 'Streaming',
+          workspaceId: 'ws1',
+          activeStreamId: 's1',
+          updatedAt: '2026-07-19T10:00:00Z',
+          lastSeenAt: '2026-07-19T11:00:00Z',
+        },
+        // Finished after last seen → unread.
+        {
+          id: 'c2',
+          title: 'Fresh reply',
+          workspaceId: 'ws1',
+          activeStreamId: null,
+          updatedAt: '2026-07-19T10:00:00Z',
+          lastSeenAt: '2026-07-19T09:00:00Z',
+        },
+        // Never opened → unread.
+        {
+          id: 'c3',
+          title: 'Never seen',
+          workspaceId: 'ws1',
+          activeStreamId: null,
+          updatedAt: '2026-07-19T10:00:00Z',
+          lastSeenAt: null,
+        },
+        // Seen since the last update → no dot.
+        {
+          id: 'c4',
+          title: 'Caught up',
+          workspaceId: 'ws1',
+          activeStreamId: null,
+          updatedAt: '2026-07-19T10:00:00Z',
+          lastSeenAt: '2026-07-19T11:00:00Z',
+        },
+        // Legacy row without the status fields → no dot.
+        { id: 'c5', title: 'Legacy', workspaceId: 'ws1' },
+      ],
+    }
+    expect(parseRecentChats(payload).map((chat) => chat.status)).toEqual([
+      'active',
+      'unread',
+      'unread',
+      'none',
+      'none',
+    ])
+  })
 })
 
 describe('routes', () => {
   it('deep-links chats into their workspace', () => {
-    expect(chatRoute({ id: 'c1', title: 't', workspaceId: 'ws9' })).toBe('/workspace/ws9/chat/c1')
+    expect(chatRoute({ id: 'c1', title: 't', workspaceId: 'ws9', status: 'none' })).toBe(
+      '/workspace/ws9/chat/c1'
+    )
   })
 
   it('derives the new-chat route from the last workspace route', () => {
@@ -73,7 +128,7 @@ describe('buildTrayMenuTemplate', () => {
   it('shows recents inline, then actions, settings, and quit', () => {
     const deps = makeDeps()
     const template = buildTrayMenuTemplate(deps, [
-      { id: 'c1', title: 'Fix the sync', workspaceId: 'ws1' },
+      { id: 'c1', title: 'Fix the sync', workspaceId: 'ws1', status: 'none' },
     ])
     const labels = template.map((item) => item.label ?? item.role ?? item.type)
     expect(labels).toEqual([
@@ -81,8 +136,8 @@ describe('buildTrayMenuTemplate', () => {
       'Fix the sync',
       'separator',
       'New Chat',
-      'Open Sim',
       'separator',
+      'Open Sim',
       'Settings…',
       'Quit Sim',
     ])
@@ -103,6 +158,22 @@ describe('buildTrayMenuTemplate', () => {
     const quit = template.find((item) => item.label === 'Quit Sim')
     expect(quit?.role).toBeUndefined()
     ;(quit?.click as () => void)()
+  })
+
+  it('marks active and unread chats with a status dot icon', () => {
+    const template = buildTrayMenuTemplate(makeDeps(), [
+      { id: 'c1', title: 'Working', workspaceId: 'ws1', status: 'active' },
+      { id: 'c2', title: 'Fresh', workspaceId: 'ws1', status: 'unread' },
+      { id: 'c3', title: 'Seen', workspaceId: 'ws1', status: 'none' },
+    ])
+    const working = template.find((item) => item.label === 'Working')
+    const fresh = template.find((item) => item.label === 'Fresh')
+    const seen = template.find((item) => item.label === 'Seen')
+    expect(working?.icon).toBeDefined()
+    expect(fresh?.icon).toBeDefined()
+    // Active (yellow) and unread (green) use distinct images; read chats get none.
+    expect(working?.icon).not.toBe(fresh?.icon)
+    expect(seen?.icon).toBeUndefined()
   })
 
   it('overflows chats beyond the inline count into a More submenu', () => {
@@ -131,8 +202,8 @@ describe('buildTrayMenuTemplate', () => {
     expect(empty.some((item) => item.label === 'Recent')).toBe(false)
     expect(empty.map((item) => item.label ?? item.role ?? item.type)).toEqual([
       'New Chat',
-      'Open Sim',
       'separator',
+      'Open Sim',
       'Settings…',
       'Quit Sim',
     ])

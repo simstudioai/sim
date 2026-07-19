@@ -10,6 +10,7 @@ import { stageLocalFileUploadContract } from '@/lib/api/contracts/mothership-cha
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import { reportClientToolCompletion } from '@/lib/copilot/tools/client/completion'
 import { LOCAL_FILESYSTEM_TOOL_NAMES } from '@/lib/copilot/tools/local-filesystem'
+import { getDesktopBridge } from '@/lib/desktop'
 import { uploadViaApiFallback } from '@/lib/uploads/client/api-fallback'
 import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 
@@ -29,10 +30,11 @@ function requiredString(args: Record<string, unknown>, name: string): string {
 }
 
 function bridge(): NonNullable<Window['simDesktop']> {
-  if (typeof window === 'undefined' || !window.simDesktop?.localFilesystem) {
+  const desktop = getDesktopBridge()
+  if (!desktop?.localFilesystem) {
     throw new Error('The desktop local filesystem bridge is unavailable.')
   }
-  return window.simDesktop
+  return desktop
 }
 
 function requestForTool(toolName: string, args: Record<string, unknown>): LocalFilesystemRequest {

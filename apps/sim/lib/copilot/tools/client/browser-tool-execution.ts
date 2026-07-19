@@ -60,9 +60,6 @@ function eventAgeMs(eventTs: string | undefined): number | null {
   return Number.isNaN(emitted) ? null : Date.now() - emitted
 }
 
-/** Screenshots captured this session, keyed by toolCallId, for UI display. */
-export const capturedBrowserScreenshots = new Map<string, string>()
-
 function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknown>): number | null {
   if (toolName === 'browser_request_takeover') return null
   if (
@@ -82,11 +79,10 @@ function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknow
 
 /**
  * Tool results feed the model as text; images are not supported on that path
- * yet, so the screenshot's data URL is retained locally for the UI and the
- * model gets a short factual note instead of half a megabyte of base64.
+ * yet, so a screenshot's data URL is dropped and the model gets a short
+ * factual note instead of half a megabyte of base64.
  */
 function sanitizeResultForModel(
-  toolCallId: string,
   toolName: BrowserToolName,
   result: unknown
 ): Record<string, unknown> | undefined {
@@ -94,11 +90,10 @@ function sanitizeResultForModel(
     return result === undefined ? undefined : { value: result }
   }
   if (toolName === 'browser_screenshot' && typeof result.dataUrl === 'string') {
-    capturedBrowserScreenshots.set(toolCallId, result.dataUrl)
     const { dataUrl: _dataUrl, ...rest } = result
     return {
       ...rest,
-      note: 'Screenshot captured and shown to the user. Visual inspection is not available to you in this build — use browser_snapshot or browser_read_text to inspect content.',
+      note: 'Screenshot captured. Visual inspection is not available to you in this build — use browser_snapshot or browser_read_text to inspect content.',
     }
   }
   return result
@@ -171,7 +166,7 @@ async function doExecuteBrowserTool(
       toolCallId,
       ASYNC_TOOL_CONFIRMATION_STATUS.success,
       'Browser action completed',
-      sanitizeResultForModel(toolCallId, toolName, result)
+      sanitizeResultForModel(toolName, result)
     )
   } catch (err) {
     const message = toError(err).message

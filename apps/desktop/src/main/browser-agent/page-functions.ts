@@ -16,10 +16,6 @@ declare global {
   }
 }
 
-export interface PageActionError {
-  error: string
-}
-
 /**
  * Builds the page snapshot: a structural outline (headings, landmarks) with
  * interactive elements carrying numeric ids, walking open shadow roots and

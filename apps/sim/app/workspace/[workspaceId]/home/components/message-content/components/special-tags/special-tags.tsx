@@ -19,6 +19,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
+import { getDesktopBridge } from '@/lib/desktop'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
@@ -897,7 +898,7 @@ function FolderAccessDisplay({ data }: { data: CredentialTagData }) {
   const [picking, setPicking] = useState(false)
   const [grantedName, setGrantedName] = useState<string | null>(null)
 
-  const bridge = typeof window !== 'undefined' ? window.simDesktop : undefined
+  const bridge = getDesktopBridge()
   if (!bridge?.localFilesystem) return null
 
   const hint = (data.name ?? '').trim()

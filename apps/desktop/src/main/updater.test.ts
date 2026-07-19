@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { isDowngrade, isVersionBlocked, parseSemver, resolveUpdateChannel } from '@/main/updater'
+import { isDowngrade, parseSemver, resolveUpdateChannel } from '@/main/updater'
 
 describe('resolveUpdateChannel', () => {
   it('maps stable versions to latest', () => {
@@ -58,14 +58,5 @@ describe('isDowngrade', () => {
   it('treats unparseable versions as downgrades', () => {
     expect(isDowngrade('1.2.3', 'nightly')).toBe(true)
     expect(isDowngrade('garbage', '1.2.3')).toBe(true)
-  })
-})
-
-describe('isVersionBlocked', () => {
-  it('matches with and without the v prefix', () => {
-    expect(isVersionBlocked('0.5.24', ['v0.5.24'])).toBe(true)
-    expect(isVersionBlocked('v0.5.24', ['0.5.24'])).toBe(true)
-    expect(isVersionBlocked('0.5.25', ['0.5.24'])).toBe(false)
-    expect(isVersionBlocked('0.5.25', [])).toBe(false)
   })
 })

@@ -9,7 +9,6 @@ interface BrowserSessionState {
   sessionAlive: boolean
   setPageState: (state: BrowserPageState) => void
   setSessionAlive: (alive: boolean) => void
-  reset: () => void
 }
 
 const initialState = { pageState: null as BrowserPageState | null, sessionAlive: true }
@@ -20,7 +19,6 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
       ...initialState,
       setPageState: (pageState) => set({ pageState, sessionAlive: true }),
       setSessionAlive: (alive) => set({ sessionAlive: alive }),
-      reset: () => set(initialState),
     }),
     { name: 'browser-session-store' }
   )

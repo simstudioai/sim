@@ -1,12 +1,8 @@
-import { mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { ipcMain, shell } from 'electron'
-import { createConfigStore } from '@/main/config'
 import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 
@@ -38,11 +34,10 @@ describe('registerIpcHandlers', () => {
     vi.mocked(ipcMain.on).mockClear()
     vi.mocked(shell.openExternal).mockClear()
     deps = {
-      config: createConfigStore(join(mkdtempSync(join(tmpdir(), 'sim-ipc-')), 's.json'), {}),
       appOrigin: () => APP,
       allowHttpLocalhost: () => false,
       retryLoad: vi.fn(),
-    beginOAuthConnect: vi.fn(async () => true),
+      beginOAuthConnect: vi.fn(async () => true),
       openSettings: vi.fn(),
       closeSettings: vi.fn(),
       applyOrigin: vi.fn(async () => ({ ok: true as const, origin: 'https://sim.ai' })),
@@ -79,11 +74,15 @@ describe('registerIpcHandlers', () => {
     expect(shell.openExternal).toHaveBeenCalledTimes(1)
   })
 
-  it('restricts microphone consent to the app origin', async () => {
+  it('restricts the OAuth connect handoff to the app origin', async () => {
     const { invoke } = collectHandlers()
-    expect(await invoke.get('desktop:request-mic-permission')?.(evilEvent)).toBe(false)
-    expect(await invoke.get('desktop:request-mic-permission')?.(fileEvent)).toBe(false)
-    expect(await invoke.get('desktop:request-mic-permission')?.(appEvent)).toBe(true)
+    const handler = invoke.get('desktop:oauth-connect')
+    expect(await handler?.(evilEvent, 'slack')).toBe(false)
+    expect(await handler?.(fileEvent, 'slack')).toBe(false)
+    expect(deps.beginOAuthConnect).not.toHaveBeenCalled()
+    expect(await handler?.(appEvent, 42)).toBe(false)
+    expect(await handler?.(appEvent, 'slack')).toBe(true)
+    expect(deps.beginOAuthConnect).toHaveBeenCalledWith('slack')
   })
 
   it('restricts local filesystem access to the app origin', async () => {

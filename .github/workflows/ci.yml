@@ -531,6 +531,39 @@ jobs:
           GH_PAT: ${{ secrets.GITHUB_TOKEN }}
         run: bun run scripts/create-single-release.ts ${{ needs.detect-version.outputs.version }}
 
-  # Desktop release is disabled in CI for now (the app is tested locally).
-  # Signed macOS artifacts can still be built manually via the
-  # desktop-release.yml workflow_dispatch when needed.
+  # Desktop release: builds, signs, notarizes, and attaches the macOS app to
+  # the GitHub release created above. Gated on the Apple signing secrets so a
+  # release pipeline run skips cleanly (instead of failing) until the Apple
+  # Developer account is provisioned — the moment the six secrets exist, the
+  # next vX.Y.Z release ships desktop artifacts with no further changes.
+  # Job-level `if:` cannot read the secrets context, hence the probe job.
+  check-desktop-signing:
+    name: Check Desktop Signing Secrets
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 2
+    needs: [detect-version]
+    if: needs.detect-version.outputs.is_release == 'true'
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - name: Probe Apple signing secrets
+        id: check
+        env:
+          CONFIGURED: ${{ secrets.CSC_LINK != '' && secrets.CSC_KEY_PASSWORD != '' && secrets.APPLE_API_KEY_P8 != '' && secrets.APPLE_API_KEY_ID != '' && secrets.APPLE_API_ISSUER != '' && secrets.APPLE_TEAM_ID != '' }}
+        run: |
+          echo "configured=${CONFIGURED}" >> "$GITHUB_OUTPUT"
+          if [ "$CONFIGURED" != "true" ]; then
+            echo "::warning::Desktop release skipped: Apple signing secrets are not configured (CSC_LINK, CSC_KEY_PASSWORD, APPLE_API_KEY_P8, APPLE_API_KEY_ID, APPLE_API_ISSUER, APPLE_TEAM_ID)."
+          fi
+
+  desktop-release:
+    name: Desktop Release
+    needs: [create-release, check-desktop-signing, detect-version]
+    if: needs.check-desktop-signing.outputs.configured == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/desktop-release.yml
+    with:
+      version: ${{ needs.detect-version.outputs.version }}
+      publish: true
+    secrets: inherit

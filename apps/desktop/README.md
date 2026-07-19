@@ -86,6 +86,7 @@ Local unsigned build: `bun run package:dir` (app in `release/mac-universal/`). S
 
 CI (`.github/workflows/desktop-release.yml`, wired into `ci.yml`):
 - Runs only after `create-release` on a `vX.Y.Z:` commit to main — **never before**: `scripts/create-single-release.ts` skips creation if the tag exists, so a desktop job publishing first would eat the changelog. The job builds `--publish never` and uploads assets with `gh release upload --clobber` (idempotent re-runs).
+- **Secrets gate**: `check-desktop-signing` in `ci.yml` probes the six Apple secrets and skips the desktop job with a warning until they exist — releases never fail on a missing Apple account, and the first release after the secrets land ships desktop artifacts automatically. Manual/one-off builds: Actions → "Desktop Release (macOS)" → Run workflow with a `vX.Y.Z` version (`publish: false` uploads artifacts to the run instead of the release).
 - The product semver is **injected** from the release tag into `apps/desktop/package.json` at build time (repo package versions are placeholders). A mismatch guard fails the build.
 - Fuses are flipped at package time (`electronFuses` in `electron-builder.yml`): runAsNode off, NODE_OPTIONS off, inspect args off, ASAR-only + integrity validation, cookie encryption on, `strictlyRequireAllFuses` so new fuses fail loudly on Electron bumps.
 - **Cookie-encryption go/no-go**: on every Electron bump, verify a packaged build keeps its session across relaunch (there are historical cookie-persistence bugs with the `EnableCookieEncryption` fuse). If it reproduces, set `enableCookieEncryption: false` and record it here.
@@ -153,7 +154,7 @@ localfs://... → local_stage_file → uploads/... → materialize_file → file
 - `electron-updater` reads the GitHub Releases feed (`publish` is pinned to `simstudioai/sim`); deltas via `.zip.blockmap`. Install is prompt-based (Restart Now / Later; Later installs on quit) — never forced mid-session.
 - Channels: stable builds (`X.Y.Z`) follow `latest`; `-beta.N` builds follow `beta` (never attach a beta `latest-mac.yml` to a stable tag).
 - Staged rollout: after publishing, edit `stagingPercentage: 10` into the release's `latest-mac.yml`, then raise as crash metrics stay clean.
-- Rollback: a pulled release must be superseded by a **higher** version — users on the broken build will not reinstall an equal one. `isVersionBlocked` in `updater.ts` is the kill-switch hook (wire `blockedVersions` when a remote config source exists).
+- Rollback: a pulled release must be superseded by a **higher** version — users on the broken build will not reinstall an equal one. (A blocked-versions kill-switch was removed as unwired dead code; reintroduce it in `updater.ts` if a remote config source ever exists to feed it.)
 - Ship the DMG and tell users to install to `/Applications` — App Translocation breaks Squirrel.Mac updates from quarantined paths.
 
 ## Self-hosting

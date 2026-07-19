@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from '@/lib/auth/auth-client'
 import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
+import { getDesktopBridge } from '@/lib/desktop'
 import { type LauncherTurn, useLauncherChat } from '@/app/desktop/launcher/use-launcher-chat'
 import { renderInlineMarkdown } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/inline-markdown'
 import {
@@ -18,7 +19,7 @@ const RECENT_CHATS_SHOWN = 5
 const TRANSCRIPT_MAX_HEIGHT_PX = 500
 
 function launcherBridge() {
-  return typeof window !== 'undefined' ? window.simDesktop?.launcher : undefined
+  return getDesktopBridge()?.launcher
 }
 
 /**

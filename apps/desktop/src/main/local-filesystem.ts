@@ -206,10 +206,6 @@ export class LocalFilesystemService {
     return (this.initializePromise ??= this.restoreRememberedMounts())
   }
 
-  clear(): void {
-    this.close()
-  }
-
   /** Release active OS handles while keeping encrypted grants for next launch. */
   close(): void {
     for (const mount of this.mounts.values()) {

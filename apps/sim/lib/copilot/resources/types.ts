@@ -29,9 +29,10 @@ export function isEphemeralResource(resource: MothershipResource): boolean {
 }
 
 /**
- * Singleton id for the live browser-session panel. The panel's frames live
- * only in memory (pushed by the desktop app with each tool result), so the
- * resource is ephemeral and never persisted to the chat.
+ * Singleton id for the live browser-session panel. The panel hosts the
+ * desktop app's natively embedded browser view — pure client-side UI with no
+ * server row behind it — so the resource is ephemeral and never persisted to
+ * the chat.
  */
 export const BROWSER_SESSION_RESOURCE_ID = 'browser-session'
 

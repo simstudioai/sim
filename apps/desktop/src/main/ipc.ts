@@ -1,13 +1,13 @@
 import { isBrowserToolName } from '@sim/browser-protocol'
 import type { LauncherShortcutSettings } from '@sim/desktop-bridge'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
-import { app, ipcMain } from 'electron'
-import { executeTool, handlePanelAction, setPanelBounds } from '@/main/browser-agent/driver'
-import type { ConfigStore, OriginValidation } from '@/main/config'
+import { ipcMain } from 'electron'
+import { executeTool, handlePanelAction } from '@/main/browser-agent/driver'
+import { setPanelBounds } from '@/main/browser-agent/session'
+import type { OriginValidation } from '@/main/config'
 import { DEFAULT_ORIGIN } from '@/main/config'
 import type { LocalFilesystemService } from '@/main/local-filesystem'
 import { openExternalSafe } from '@/main/navigation'
-import { ensureMicrophoneAccess } from '@/main/window'
 
 /** Workspace/chat ids are opaque tokens; anything else never reaches a URL. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
@@ -36,8 +36,30 @@ export function parseLauncherOpenChatTarget(raw: unknown): LauncherOpenChatTarge
   return { workspaceId, ...(chatId !== undefined ? { chatId } : {}) }
 }
 
+/** Validates a renderer-reported panel rect (finite numbers or explicit null). */
+export function parsePanelBounds(
+  raw: unknown
+): { x: number; y: number; width: number; height: number } | null | undefined {
+  if (raw === null) {
+    return null
+  }
+  if (typeof raw !== 'object') {
+    return undefined
+  }
+  const rect = raw as { x?: unknown; y?: unknown; width?: unknown; height?: unknown }
+  if (
+    typeof rect.x === 'number' &&
+    typeof rect.y === 'number' &&
+    typeof rect.width === 'number' &&
+    typeof rect.height === 'number' &&
+    [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)
+  ) {
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+  }
+  return undefined
+}
+
 export interface IpcDeps {
-  config: ConfigStore
   appOrigin: () => string
   allowHttpLocalhost: () => boolean
   retryLoad: () => void
@@ -58,6 +80,28 @@ export interface IpcDeps {
   }
 }
 
+/**
+ * Who may call a channel:
+ * - `app-origin`: only the remote app origin (main window / launcher pages).
+ * - `local-page`: only bundled `file:` pages (settings, offline) — shell control.
+ * - `any`: sender-independent channels that validate their input instead.
+ */
+type ChannelGate = 'app-origin' | 'local-page' | 'any'
+
+type ChannelSpec =
+  | {
+      kind: 'invoke'
+      gate: ChannelGate
+      /** Returned to the caller when the gate rejects the sender. */
+      denied: unknown
+      handler: (...args: unknown[]) => unknown
+    }
+  | {
+      kind: 'send'
+      gate: ChannelGate
+      handler: (...args: unknown[]) => void
+    }
+
 function isLocalPageSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
   return (event.senderFrame?.url ?? '').startsWith('file:')
 }
@@ -67,175 +111,151 @@ function isAppOriginSender(event: IpcMainEvent | IpcMainInvokeEvent, appOrigin: 
 }
 
 /**
- * Registers the whitelisted IPC surface. Shell-control channels (settings,
- * offline retry) are restricted to bundled file: pages; microphone consent is
- * restricted to the app origin. The remote origin can reach only harmless,
- * validated channels.
+ * Registers the whitelisted IPC surface, table-driven so the whole
+ * renderer→main security posture is auditable in one place: every channel
+ * declares its sender gate up front, and handlers only ever see gated,
+ * unvalidated args they must parse themselves.
  */
 export function registerIpcHandlers(deps: IpcDeps): void {
-  ipcMain.handle('desktop:get-app-version', () => app.getVersion())
-
-  ipcMain.handle('desktop:open-external', (_event, url: unknown) => {
-    if (typeof url !== 'string') {
-      return false
-    }
-    return openExternalSafe(url, deps.allowHttpLocalhost())
-  })
-
-  // OAuth connect handoff: the whole flow runs in the system browser (state
-  // is cookie-bound to the initiating user agent), returning via loopback.
-  ipcMain.handle('desktop:oauth-connect', (event, providerId: unknown) => {
-    if (!isAppOriginSender(event, deps.appOrigin())) {
-      return false
-    }
-    if (typeof providerId !== 'string') {
-      return false
-    }
-    return deps.beginOAuthConnect(providerId)
-  })
-
-  ipcMain.handle('desktop:request-mic-permission', (event) => {
-    if (!isAppOriginSender(event, deps.appOrigin())) {
-      return false
-    }
-    return ensureMicrophoneAccess()
-  })
-
-  ipcMain.handle('desktop:local-filesystem', (event, request: unknown) => {
-    if (!isAppOriginSender(event, deps.appOrigin())) {
-      return {
+  const channels: Record<string, ChannelSpec> = {
+    'desktop:open-external': {
+      kind: 'invoke',
+      gate: 'any',
+      denied: false,
+      handler: (url) =>
+        typeof url === 'string' ? openExternalSafe(url, deps.allowHttpLocalhost()) : false,
+    },
+    // OAuth connect handoff: the whole flow runs in the system browser (state
+    // is cookie-bound to the initiating user agent), returning via loopback.
+    'desktop:oauth-connect': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: false,
+      handler: (providerId) =>
+        typeof providerId === 'string' ? deps.beginOAuthConnect(providerId) : false,
+    },
+    'desktop:local-filesystem': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: {
         ok: false,
         code: 'ACCESS_DENIED',
         error: 'Local filesystem access is not allowed from this page.',
-      }
-    }
-    return deps.localFilesystem.handle(request)
-  })
+      },
+      handler: (request) => deps.localFilesystem.handle(request),
+    },
+    'browser-agent:execute-tool': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: { ok: false, error: 'Browser automation is not allowed from this page.' },
+      handler: (tool, params) => {
+        if (typeof tool !== 'string' || !isBrowserToolName(tool)) {
+          return { ok: false, error: `Unknown browser tool: ${String(tool)}` }
+        }
+        const toolParams =
+          typeof params === 'object' && params !== null ? (params as Record<string, unknown>) : {}
+        return executeTool(tool, toolParams)
+      },
+    },
+    'browser-agent:panel-action': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: (action) => {
+        if (
+          typeof action !== 'object' ||
+          action === null ||
+          typeof (action as { action?: unknown }).action !== 'string'
+        ) {
+          return
+        }
+        void handlePanelAction(action as Parameters<typeof handlePanelAction>[0]).catch(() => {})
+      },
+    },
+    'browser-agent:set-panel-bounds': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: (raw) => {
+        const bounds = parsePanelBounds(raw)
+        if (bounds !== undefined) {
+          setPanelBounds(bounds)
+        }
+      },
+    },
+    'offline:retry': { kind: 'send', gate: 'local-page', handler: () => deps.retryLoad() },
+    'settings:open': { kind: 'send', gate: 'local-page', handler: () => deps.openSettings() },
+    'settings:close': { kind: 'send', gate: 'local-page', handler: () => deps.closeSettings() },
+    'settings:get': {
+      kind: 'invoke',
+      gate: 'local-page',
+      denied: null,
+      handler: () => {
+        const origin = deps.appOrigin()
+        return { origin, isDefault: origin === DEFAULT_ORIGIN }
+      },
+    },
+    'settings:save': {
+      kind: 'invoke',
+      gate: 'local-page',
+      denied: { ok: false, error: 'Not allowed' },
+      handler: (raw) =>
+        typeof raw === 'string' ? deps.applyOrigin(raw) : { ok: false, error: 'Not allowed' },
+    },
+    'settings:launcher-shortcut-get': {
+      kind: 'invoke',
+      gate: 'local-page',
+      denied: null,
+      handler: () => deps.launcherShortcut.get(),
+    },
+    'settings:launcher-shortcut-set': {
+      kind: 'invoke',
+      gate: 'local-page',
+      denied: null,
+      handler: (raw) => (typeof raw === 'string' ? deps.launcherShortcut.set(raw) : null),
+    },
+    'launcher:open-chat': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: (raw) => {
+        const target = parseLauncherOpenChatTarget(raw)
+        if (target) {
+          deps.launcher.openChat(target)
+        }
+      },
+    },
+    'launcher:open-app': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: () => deps.launcher.openApp(),
+    },
+    'launcher:close': { kind: 'send', gate: 'app-origin', handler: () => deps.launcher.hide() },
+    'launcher:resize': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: (height) => {
+        if (typeof height === 'number' && Number.isFinite(height)) {
+          deps.launcher.resize(height)
+        }
+      },
+    },
+  }
 
-  ipcMain.handle('browser-agent:execute-tool', async (event, tool: unknown, params: unknown) => {
-    if (!isAppOriginSender(event, deps.appOrigin())) {
-      return { ok: false, error: 'Browser automation is not allowed from this page.' }
-    }
-    if (typeof tool !== 'string' || !isBrowserToolName(tool)) {
-      return { ok: false, error: `Unknown browser tool: ${String(tool)}` }
-    }
-    const toolParams =
-      typeof params === 'object' && params !== null ? (params as Record<string, unknown>) : {}
-    return executeTool(tool, toolParams)
-  })
+  const senderAllowed = (event: IpcMainEvent | IpcMainInvokeEvent, gate: ChannelGate): boolean => {
+    if (gate === 'any') return true
+    if (gate === 'app-origin') return isAppOriginSender(event, deps.appOrigin())
+    return isLocalPageSender(event)
+  }
 
-  ipcMain.on('browser-agent:panel-action', (event, action: unknown) => {
-    if (!isAppOriginSender(event, deps.appOrigin())) {
-      return
+  for (const [channel, spec] of Object.entries(channels)) {
+    if (spec.kind === 'invoke') {
+      ipcMain.handle(channel, (event, ...args) =>
+        senderAllowed(event, spec.gate) ? spec.handler(...args) : spec.denied
+      )
+    } else {
+      ipcMain.on(channel, (event, ...args) => {
+        if (senderAllowed(event, spec.gate)) {
+          spec.handler(...args)
+        }
+      })
     }
-    if (
-      typeof action !== 'object' ||
-      action === null ||
-      typeof (action as { action?: unknown }).action !== 'string'
-    ) {
-      return
-    }
-    void handlePanelAction(action as Parameters<typeof handlePanelAction>[0]).catch(() => {})
-  })
-
-  ipcMain.on('browser-agent:set-panel-bounds', (event, bounds: unknown) => {
-    if (!isAppOriginSender(event, deps.appOrigin())) {
-      return
-    }
-    if (bounds === null) {
-      setPanelBounds(null)
-      return
-    }
-    if (typeof bounds !== 'object') {
-      return
-    }
-    const rect = bounds as { x?: unknown; y?: unknown; width?: unknown; height?: unknown }
-    if (
-      typeof rect.x === 'number' &&
-      typeof rect.y === 'number' &&
-      typeof rect.width === 'number' &&
-      typeof rect.height === 'number' &&
-      [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)
-    ) {
-      setPanelBounds({ x: rect.x, y: rect.y, width: rect.width, height: rect.height })
-    }
-  })
-
-  ipcMain.on('offline:retry', (event) => {
-    if (isLocalPageSender(event)) {
-      deps.retryLoad()
-    }
-  })
-
-  ipcMain.on('settings:open', (event) => {
-    if (isLocalPageSender(event)) {
-      deps.openSettings()
-    }
-  })
-
-  ipcMain.on('settings:close', (event) => {
-    if (isLocalPageSender(event)) {
-      deps.closeSettings()
-    }
-  })
-
-  ipcMain.handle('settings:get', (event) => {
-    if (!isLocalPageSender(event)) {
-      return null
-    }
-    const origin = deps.config.getOrigin()
-    return { origin, isDefault: origin === DEFAULT_ORIGIN }
-  })
-
-  ipcMain.handle('settings:save', async (event, raw: unknown) => {
-    if (!isLocalPageSender(event) || typeof raw !== 'string') {
-      return { ok: false, error: 'Not allowed' }
-    }
-    return deps.applyOrigin(raw)
-  })
-
-  ipcMain.handle('settings:launcher-shortcut-get', (event) => {
-    if (!isLocalPageSender(event)) {
-      return null
-    }
-    return deps.launcherShortcut.get()
-  })
-
-  ipcMain.handle('settings:launcher-shortcut-set', (event, raw: unknown) => {
-    if (!isLocalPageSender(event) || typeof raw !== 'string') {
-      return null
-    }
-    return deps.launcherShortcut.set(raw)
-  })
-
-  ipcMain.on('launcher:open-chat', (event, raw: unknown) => {
-    if (!isAppOriginSender(event, deps.appOrigin())) {
-      return
-    }
-    const target = parseLauncherOpenChatTarget(raw)
-    if (target) {
-      deps.launcher.openChat(target)
-    }
-  })
-
-  ipcMain.on('launcher:open-app', (event) => {
-    if (isAppOriginSender(event, deps.appOrigin())) {
-      deps.launcher.openApp()
-    }
-  })
-
-  ipcMain.on('launcher:close', (event) => {
-    if (isAppOriginSender(event, deps.appOrigin())) {
-      deps.launcher.hide()
-    }
-  })
-
-  ipcMain.on('launcher:resize', (event, height: unknown) => {
-    if (!isAppOriginSender(event, deps.appOrigin())) {
-      return
-    }
-    if (typeof height === 'number' && Number.isFinite(height)) {
-      deps.launcher.resize(height)
-    }
-  })
+  }
 }
