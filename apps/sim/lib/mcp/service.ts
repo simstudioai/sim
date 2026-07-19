@@ -789,10 +789,10 @@ class McpService {
       if (mcpConnectionManager) {
         const manager = mcpConnectionManager
         for (const config of liveConnections) {
-          // Resolve only for servers the manager isn't already monitoring — a
-          // pooled `listTools` hit above no longer resolves, so this is the sole
-          // remaining resolution cost, and it's skipped in the steady state.
-          if (manager.hasConnection(config.id)) continue
+          // Kick the notification manager for every fetched server; `connect` is
+          // idempotent (skips a live/connecting one) and reconnects a lost one with
+          // this current config — do not pre-gate on `hasConnection`, whose state
+          // survives a transport loss and would block that fresh reconnect.
           void (async () => {
             try {
               const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
