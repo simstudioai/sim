@@ -43,12 +43,23 @@ function htmlClose(
   message: string,
   ok: boolean,
   reason: McpOauthCallbackReason,
-  serverId?: string
+  serverId?: string,
+  workspaceId?: string
 ): NextResponse {
+  if (!ok) {
+    logger.warn(
+      `MCP OAuth callback did not complete: ${reason}${serverId ? ` (server ${serverId})` : ''}`
+    )
+  }
   const safeMessage = escapeHtml(message)
   const title = ok ? 'Connected' : 'Connection failed'
+  // Signal the opener over a same-origin BroadcastChannel rather than
+  // `window.opener.postMessage`: a provider whose authorize page sets COOP
+  // `same-origin` severs `window.opener`, which would silently drop the result and
+  // leave the parent stuck on "Connecting…". A BroadcastChannel is origin-scoped and
+  // unaffected by opener severance.
   const body = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body style="font-family: system-ui; padding: 24px"><p>${safeMessage}</p><script>
-    try { window.opener && window.opener.postMessage({ type: 'mcp-oauth', ok: ${ok ? 'true' : 'false'}, serverId: ${jsonLiteral(serverId)}, reason: ${jsonLiteral(reason)} }, window.location.origin) } catch (e) {}
+    try { var ch = new BroadcastChannel('mcp-oauth'); ch.postMessage({ type: 'mcp-oauth', ok: ${ok ? 'true' : 'false'}, serverId: ${jsonLiteral(serverId)}, workspaceId: ${jsonLiteral(workspaceId)}, reason: ${jsonLiteral(reason)} }); ch.close() } catch (e) {}
     setTimeout(function () { window.close() }, 800)
   </script></body></html>`
   return new NextResponse(body, {
@@ -173,7 +184,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       logger.warn('Post-auth tools refresh failed', toError(e).message)
     }
 
-    return htmlClose('Connected. You can close this window.', true, 'authorized', server.id)
+    return htmlClose(
+      'Connected. You can close this window.',
+      true,
+      'authorized',
+      server.id,
+      server.workspaceId
+    )
   } catch (error) {
     logger.error('MCP OAuth callback failed', error)
     return htmlClose('Authorization failed. Please try again.', false, 'unknown', serverId)

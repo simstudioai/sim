@@ -304,7 +304,7 @@ export function useCreateMcpServer() {
   })
 }
 
-/** On `redirect`, the caller must wait for `popup.closed` or the `mcp-oauth` postMessage. */
+/** On `redirect`, the caller must wait for `popup.closed` or the `mcp-oauth` BroadcastChannel signal. */
 export type StartMcpOauthMutationResult =
   | { status: 'redirect'; popup: Window }
   | { status: 'already_authorized' }

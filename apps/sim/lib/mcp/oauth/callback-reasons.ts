@@ -1,7 +1,10 @@
 /**
- * Reasons surfaced from the OAuth callback popup back to the parent window via
- * `window.opener.postMessage`. Consumed by the popup hook to render user-facing
- * status messages and by the callback route to discriminate failure modes.
+ * Reasons surfaced from the OAuth callback popup back to the parent window over a
+ * same-origin `BroadcastChannel`. A provider whose authorization page sets
+ * `Cross-Origin-Opener-Policy: same-origin` severs `window.opener`, so a targeted
+ * `postMessage` from the popup can be lost; a BroadcastChannel is origin-scoped and
+ * unaffected. Consumed by the popup hook to render user-facing status messages and
+ * by the callback route to discriminate failure modes.
  */
 export type McpOauthCallbackReason =
   | 'authorized'
@@ -19,5 +22,7 @@ export interface McpOauthCallbackMessage {
   type: 'mcp-oauth'
   ok: boolean
   serverId?: string
+  /** Scopes the broadcast so other open workspaces ignore it. Absent on early failures. */
+  workspaceId?: string
   reason?: McpOauthCallbackReason
 }

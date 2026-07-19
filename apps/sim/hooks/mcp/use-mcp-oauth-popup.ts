@@ -53,10 +53,17 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
   }, [])
 
   useEffect(() => {
-    function onMessage(event: MessageEvent) {
-      if (event.origin !== window.location.origin) return
+    // The callback signals over a same-origin BroadcastChannel (see the OAuth callback
+    // route): a provider whose authorize page sets COOP `same-origin` severs
+    // `window.opener`, so a popup `postMessage` can be lost and leave the row stuck on
+    // "Connecting…". A BroadcastChannel is origin-scoped, so it needs no origin check.
+    const channel = new BroadcastChannel('mcp-oauth')
+    channel.onmessage = (event) => {
       const data = event.data as Partial<McpOauthCallbackMessage> | null
       if (data?.type !== 'mcp-oauth') return
+      // Ignore results for a different workspace open in another tab. Early failures
+      // carry no workspaceId and clear this tab's in-flight popups regardless.
+      if (data.workspaceId && data.workspaceId !== workspaceId) return
       if (data.serverId) {
         const serverId = data.serverId
         const interval = popupIntervalsRef.current.get(serverId)
@@ -95,8 +102,7 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
         toast.error(reasonToMessage(data.reason))
       }
     }
-    window.addEventListener('message', onMessage)
-    return () => window.removeEventListener('message', onMessage)
+    return () => channel.close()
   }, [queryClient, workspaceId])
 
   const startOauthForServer = useCallback(
