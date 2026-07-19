@@ -69,7 +69,7 @@ copilot:
       OPENAI_API_KEY_1: ""                     # At least one provider key required
       ANTHROPIC_API_KEY_1: ""                  # Optional secondary provider
       SIM_BASE_URL: "https://sim.example.com"  # Base URL for Sim deployment
-      SIM_AGENT_API_KEY: "REDACTED-SECRET-PURGED"                    # Must match SIM-side COPILOT_API_KEY
+      SIM_AGENT_API_KEY: ""                    # Must match SIM-side COPILOT_API_KEY
       REDIS_URL: "redis://default:password@redis:6379"
       # Optional configuration
       LOG_LEVEL: "info"
