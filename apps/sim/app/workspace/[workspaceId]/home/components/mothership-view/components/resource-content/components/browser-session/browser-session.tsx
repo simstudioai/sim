@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Chip, Tooltip } from '@sim/emcn'
+import { Tooltip } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, Cursor, RefreshCw } from '@sim/emcn/icons'
 import { reportBrowserPanelBounds, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
@@ -215,20 +215,6 @@ export function BrowserSession() {
           }}
         />
       </div>
-      {/* Takeover strip: sits in the panel chrome ABOVE the page rect, so it
-          never covers page content. Done hands control back to Sim. */}
-      {typeof pageState?.takeoverReason === 'string' && (
-        <div className='flex items-center gap-2 border-[var(--border)] border-b px-3 py-1.5'>
-          <p className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-caption'>
-            {pageState.takeoverReason.trim()
-              ? `Sim is waiting for you — ${pageState.takeoverReason.trim()}`
-              : 'Sim is waiting for you'}
-          </p>
-          <Chip variant='primary' onClick={() => sendBrowserPanelAction('takeover-done')}>
-            Done
-          </Chip>
-        </div>
-      )}
       {/* Host area: the real page is overlaid exactly on this rect. */}
       <div ref={hostRef} className='relative flex-1 overflow-hidden bg-[var(--surface-secondary)]'>
         {(!pageState || !sessionAlive) && (

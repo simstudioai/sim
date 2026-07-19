@@ -1,6 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { Chip } from '@sim/emcn'
 import { ShimmerText } from '@/components/ui'
+import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import {
+  BrowserRequestTakeover,
   CallIntegrationTool,
   Read as ReadTool,
   WorkspaceFile,
@@ -46,6 +49,9 @@ interface ToolCallItemProps {
  * inline next to its display name (e.g. the Gmail logo before "Read Gmail").
  * The status-aware rewrite is repeated at this final rendering boundary so
  * live, replayed, and directly-constructed rows cannot bypass completed verbs.
+ * An executing `browser_request_takeover` row carries the Done chip that
+ * hands control back to Sim — the takeover tool only resolves when it is
+ * clicked (desktop only; a replayed row in the web app renders as plain text).
  */
 export function ToolCallItem({
   toolName,
@@ -54,6 +60,7 @@ export function ToolCallItem({
   params,
   streamingArgs,
 }: ToolCallItemProps) {
+  const [handedBack, setHandedBack] = useState(false)
   const readBlock = useMemo(() => {
     if (toolName !== ReadTool.id) return undefined
     const path = params?.path
@@ -102,6 +109,9 @@ export function ToolCallItem({
   const liveTitle = liveWorkspaceFileTitle || displayTitle
   const title = getToolStatusDisplayTitle(liveTitle, status)
 
+  const showTakeoverAction =
+    toolName === BrowserRequestTakeover.id && isExecuting && isBrowserAgentAvailable()
+
   const BlockIcon = (readBlock ?? gatewayBlock ?? getBlockByToolName(toolName))?.icon
 
   return (
@@ -121,6 +131,18 @@ export function ToolCallItem({
         </ShimmerText>
       ) : (
         <span className='text-[13px] text-[var(--text-secondary)]'>{title}</span>
+      )}
+      {showTakeoverAction && (
+        <Chip
+          variant='primary'
+          disabled={handedBack}
+          onClick={() => {
+            setHandedBack(true)
+            sendBrowserPanelAction('takeover-done')
+          }}
+        >
+          Done
+        </Chip>
       )}
     </div>
   )

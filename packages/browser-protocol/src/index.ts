@@ -69,9 +69,10 @@ export interface BrowserPanelBounds {
 
 /**
  * Browser-chrome commands from the panel header (URL bar, back/forward,
- * reload) plus `takeover-done`, sent by the panel's takeover strip when the
- * user finishes a hand-control-back request. Page interactions need no
- * protocol — the user acts on the real embedded page directly.
+ * reload) plus `takeover-done`, sent by the Done chip on the chat's
+ * `browser_request_takeover` tool row when the user finishes a
+ * hand-control-back request. Page interactions need no protocol — the user
+ * acts on the real embedded page directly.
  */
 export interface BrowserPanelAction {
   action: 'navigate' | 'reload' | 'back' | 'forward' | 'takeover-done'
@@ -86,13 +87,6 @@ export interface BrowserPageState {
   loading: boolean
   canGoBack: boolean
   canGoForward: boolean
-  /**
-   * Set while `browser_request_takeover` is waiting on the user: the model's
-   * reason for handing over control (e.g. "Log in to your account"). The
-   * panel renders its takeover strip from this; it is session-level state,
-   * so it survives page navigations and tab switches.
-   */
-  takeoverReason?: string
 }
 
 /**

@@ -76,11 +76,12 @@ function recordNotice(notice: string): void {
 }
 
 /**
- * Takeover state lives here (session-level, not in the page) so the panel's
- * takeover strip survives navigations and tab switches. The reason rides
- * every page-state push; the panel's Done chip sends `takeover-done`.
+ * True while browser_request_takeover waits on the user. The Done chip on the
+ * chat's takeover tool row completes it via the `takeover-done` panel action;
+ * the state lives here (session-level, not in the page) so it survives
+ * navigations and tab switches.
  */
-let takeoverReason: string | null = null
+let takeoverActive = false
 let takeoverDone = false
 
 function pageStateFor(contents: WebContents): BrowserPageState {
@@ -90,7 +91,6 @@ function pageStateFor(contents: WebContents): BrowserPageState {
     loading: contents.isLoading(),
     canGoBack: contents.navigationHistory.canGoBack(),
     canGoForward: contents.navigationHistory.canGoForward(),
-    ...(takeoverReason !== null ? { takeoverReason } : {}),
   }
 }
 
@@ -449,19 +449,17 @@ async function activeElementState(contents: WebContents): Promise<Record<string,
 // ---------------------------------------------------------------------------
 
 /**
- * Hands control to the user IN THE PANEL: the page is already natively
- * interactive there, so the panel chrome shows a takeover strip (driven by
- * `takeoverReason` on page-state pushes) with the Done chip; the tool
- * resolves when that chip sends the `takeover-done` panel action. Nothing is
- * injected into the page, so the strip never covers page content and
- * survives navigations.
+ * Hands control to the user: the page is already natively interactive in the
+ * panel, and the chat's takeover tool row shows the reason with a Done chip.
+ * The tool resolves when that chip sends the `takeover-done` panel action.
+ * Nothing is injected into the page, so nothing covers page content and the
+ * pending state survives navigations.
  */
-async function runTakeover(reason: string): Promise<unknown> {
+async function runTakeover(): Promise<unknown> {
   const tab = session.ensureTab()
   const contents = tab.view.webContents
-  takeoverReason = reason
+  takeoverActive = true
   takeoverDone = false
-  pushPageState(contents)
 
   const startedAt = Date.now()
   try {
@@ -478,9 +476,8 @@ async function runTakeover(reason: string): Promise<unknown> {
     }
     throw new ToolError('Takeover timed out after 12 hours without the user finishing.')
   } finally {
-    takeoverReason = null
+    takeoverActive = false
     takeoverDone = false
-    if (!contents.isDestroyed()) pushPageState(contents)
   }
 }
 
@@ -698,7 +695,10 @@ async function executeToolInner(
     }
 
     case 'browser_request_takeover': {
-      return await runTakeover(requireStr(params, 'reason'))
+      // The reason renders in the chat's tool row, not here — but require it
+      // so the model always tells the user why control was handed over.
+      requireStr(params, 'reason')
+      return await runTakeover()
     }
 
     default: {
@@ -764,10 +764,10 @@ export async function executeTool(
 
 /** Browser-chrome commands from the panel header; fire-and-forget. */
 export async function handlePanelAction(action: BrowserPanelAction): Promise<void> {
-  // The Done chip on the panel's takeover strip: hands control back to the
+  // The Done chip on the chat's takeover tool row: hands control back to the
   // agent. Meaningful only while a takeover is actually waiting.
   if (action.action === 'takeover-done') {
-    if (takeoverReason !== null) takeoverDone = true
+    if (takeoverActive) takeoverDone = true
     return
   }
   // Navigate bootstraps the session: the user can open the panel manually
