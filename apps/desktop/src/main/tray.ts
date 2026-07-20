@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import type { MenuItemConstructorOptions, NativeImage } from 'electron'
 import { app, Menu, nativeImage, session, Tray } from 'electron'
 import { isSafeInternalPath } from '@/main/config'
@@ -285,10 +286,7 @@ export function installTray(deps: TrayDeps): TrayHandle | null {
   const EMPTY_CACHE_POP_GRACE_MS = 600
   const popMenu = async () => {
     if (cachedChats.length === 0) {
-      await Promise.race([
-        refreshChats(),
-        new Promise((resolve) => setTimeout(resolve, EMPTY_CACHE_POP_GRACE_MS)),
-      ])
+      await Promise.race([refreshChats(), sleep(EMPTY_CACHE_POP_GRACE_MS)])
     }
     if (tray.isDestroyed()) return
     tray.popUpContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate(deps, cachedChats)))

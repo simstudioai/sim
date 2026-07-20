@@ -104,7 +104,7 @@ export function validateMcpDomain(url: string | undefined): void {
 function isLocalhostHostname(hostname: string): boolean {
   const clean = hostname.toLowerCase()
   if (clean === 'localhost') return true
-  return isIpLiteral(clean) && isLoopbackIp(clean)
+  return isLoopbackIp(clean)
 }
 
 /**

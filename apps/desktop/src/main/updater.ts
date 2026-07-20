@@ -238,6 +238,6 @@ export function checkForUpdatesInteractive(deps: UpdaterDeps): void {
         })
       })
   } catch (error) {
-    logger.error('Manual update check failed', { error })
+    logger.error('Manual update check threw synchronously', { error })
   }
 }

@@ -198,7 +198,7 @@ function createTabView(): WebContentsView {
         void tab.view.webContents.loadURL(details.url).catch(() => {})
       } catch (error) {
         logger.warn('Could not open browser popup in a new tab', {
-          error: error instanceof Error ? error.message : String(error),
+          error: getErrorMessage(error),
         })
       }
     }
