@@ -2,6 +2,7 @@ import 'server-only'
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { readSSEEvents } from '@/lib/core/utils/sse'
 import { getDecryptedApiKey } from '@/lib/managed-agents/connections'
 import { env } from '@/lib/core/config/env'
@@ -43,7 +44,19 @@ import type { ToolResponse } from '@/tools/types'
 const logger = createLogger('ManagedAgentRunSessionServer')
 
 /** Upper bound on stream-close → catch-up → reopen cycles per invocation. */
-const MAX_RECONNECT_ITERATIONS = 8
+const MAX_RECONNECT_ITERATIONS = 60
+
+/**
+ * Backoff for `listEventsAfter` polling while the session is legitimately
+ * busy (server-side / MCP tools stay in `requires_action` with no
+ * client-visible events until they finish). Starts at 500ms, doubles up
+ * to 5s, capped so a stuck session terminates instead of spinning
+ * forever — see MAX_REQUIRES_ACTION_WAIT_MS.
+ */
+const REQUIRES_ACTION_BACKOFF_START_MS = 500
+const REQUIRES_ACTION_BACKOFF_MAX_MS = 5000
+/** Hard cap on total time spent waiting on a busy session — ~5 minutes. */
+const MAX_REQUIRES_ACTION_WAIT_MS = 5 * 60 * 1000
 
 const impl: ManagedAgentServerImpl = async (
   params: ManagedAgentRunSessionParams
@@ -51,6 +64,14 @@ const impl: ManagedAgentServerImpl = async (
   const startedAt = new Date()
   const context = params._context
   const workspaceId = context?.workspaceId
+  // Workflow abort signal — set by `executeTool` on the directExecution
+  // path. When the workflow is cancelled we forward this to the stream
+  // fetch, the SSE reader, and the catch-up pagination so the HTTP
+  // connection is released instead of leaked.
+  const signal =
+    context && typeof context === 'object' && 'abortSignal' in context
+      ? (context as { abortSignal?: AbortSignal }).abortSignal
+      : undefined
   if (!workspaceId) {
     return {
       success: false,
@@ -58,8 +79,30 @@ const impl: ManagedAgentServerImpl = async (
       error: 'Missing workspaceId in tool context — is this workflow tied to a workspace?',
     }
   }
+  if (signal?.aborted) {
+    return { success: false, output: {}, error: 'aborted' }
+  }
 
-  const apiKey = await getDecryptedApiKey({ id: params.connection, workspaceId })
+  let apiKey: string | null
+  try {
+    apiKey = await getDecryptedApiKey({ id: params.connection, workspaceId })
+  } catch (error) {
+    // The stored ciphertext could not be decrypted — most commonly a rotated
+    // ENCRYPTION_KEY invalidating an existing row. Translate the exception
+    // into the tool's declared error shape rather than rejecting the promise
+    // (which would surface as an unhandled workflow failure).
+    logger.warn('Failed to decrypt Managed Agent api key', {
+      workspaceId,
+      connectionId: params.connection,
+      error: getErrorMessage(error),
+    })
+    return {
+      success: false,
+      output: {},
+      error:
+        'Managed Agent connection could not be decrypted — the workspace encryption key may have rotated. Rotate the API key in Settings → Managed Agents to re-encrypt.',
+    }
+  }
   if (!apiKey) {
     return {
       success: false,
@@ -103,6 +146,7 @@ const impl: ManagedAgentServerImpl = async (
     ...(sessionParameters && Object.keys(sessionParameters).length > 0
       ? { sessionParameters }
       : {}),
+    ...(signal ? { signal } : {}),
   }
 
   // Opt-in payload dump for debugging session-create request shape.
@@ -140,12 +184,14 @@ const impl: ManagedAgentServerImpl = async (
   })
 
   try {
-    await sendUserMessage({ apiKey, sessionId, text: userMessage })
+    await sendUserMessage({ apiKey, sessionId, text: userMessage, signal })
   } catch (error) {
     return {
       success: false,
       output: { sessionId },
-      error: getErrorMessage(error, 'Failed to send user message'),
+      error: signal?.aborted
+        ? 'aborted'
+        : getErrorMessage(error, 'Failed to send user message'),
     }
   }
 
@@ -154,6 +200,8 @@ const impl: ManagedAgentServerImpl = async (
   const eventState: EventState = {
     lastCustomToolResponseAt: 0,
     lastRequiresActionAt: 0,
+    requiresActionEnteredAt: 0,
+    currentBackoffMs: REQUIRES_ACTION_BACKOFF_START_MS,
   }
   let lastEventId: string | null = null
   let terminal: { status: 'complete' | 'error'; reason?: string } | null = null
@@ -164,8 +212,10 @@ const impl: ManagedAgentServerImpl = async (
       iteration < MAX_RECONNECT_ITERATIONS && !terminal;
       iteration++
     ) {
-      const streamResp = await openSessionStream({ apiKey, sessionId })
+      if (signal?.aborted) break
+      const streamResp = await openSessionStream({ apiKey, sessionId, signal })
       await readSSEEvents<AnthropicSessionEvent>(streamResp, {
+        signal,
         onParseError: (raw, err) => {
           logger.warn('Un-parseable SSE line', {
             sessionId,
@@ -196,34 +246,39 @@ const impl: ManagedAgentServerImpl = async (
       })
 
       if (terminal) break
+      if (signal?.aborted) break
 
-      const missed = await listEventsAfter({ apiKey, sessionId, afterId: lastEventId })
+      const missed = await listEventsAfter({ apiKey, sessionId, afterId: lastEventId, signal })
       if (missed.length === 0) {
-        // Session went idle with no new events to catch up on. Three cases:
-        //   1. `requires_action` + we replied to the `custom_tool_use` →
-        //      the agent is chewing on our reply; reconnect once more.
-        //      Reset the marker so we cap this at one retry per cycle.
-        //   2. `requires_action` + we did NOT reply (typically a stuck
-        //      server-side / MCP tool the agent couldn't complete) →
-        //      surface a clear terminal error instead of silently
-        //      succeeding with empty text.
-        //   3. No pending action → clean completion (usually already
+        // Session went idle with no new events to catch up on. Two cases:
+        //   1. `requires_action` is currently outstanding — either we
+        //      already sent our tool-result reply and the agent is
+        //      processing it, or a server-side / MCP tool is executing
+        //      on the platform side. In BOTH cases the session is
+        //      legitimately busy; back off and re-poll rather than
+        //      failing (server-side tools can stay in requires_action
+        //      for tens of seconds with no client-visible events).
+        //   2. No pending action → clean completion (usually already
         //      hit via `end_turn` earlier; this is the fallback path).
         if (eventState.lastRequiresActionAt > 0) {
-          if (eventState.lastCustomToolResponseAt >= eventState.lastRequiresActionAt) {
-            eventState.lastRequiresActionAt = 0
-            continue
+          const waitedMs = Date.now() - eventState.requiresActionEnteredAt
+          if (waitedMs >= MAX_REQUIRES_ACTION_WAIT_MS) {
+            terminal = {
+              status: 'error',
+              reason: `Session paused (requires_action) for over ${Math.floor(MAX_REQUIRES_ACTION_WAIT_MS / 1000)}s without progress — the pending tool call could not complete. Check MCP server / vault configuration on Claude Platform.`,
+            }
+            break
           }
-          terminal = {
-            status: 'error',
-            reason:
-              'Session paused (requires_action) — the agent invoked a tool that could not complete. Check MCP server / vault configuration on Claude Platform.',
-          }
-          break
+          await sleep(nextBackoffMs(eventState))
+          continue
         }
         terminal = { status: 'complete' }
         break
       }
+      // Session made progress — reset the requires_action wait clock
+      // and backoff so the next pause starts fresh.
+      eventState.requiresActionEnteredAt = 0
+      eventState.currentBackoffMs = REQUIRES_ACTION_BACKOFF_START_MS
       for (const event of missed) {
         const eventId = (event as { id?: string }).id
         if (eventId && seenIds.has(eventId)) continue
@@ -245,6 +300,16 @@ const impl: ManagedAgentServerImpl = async (
       }
     }
   } catch (error) {
+    // A workflow abort surfaces as an AbortError / DOMException here — do
+    // not log that as a stream failure, and return a clean 'aborted'
+    // response so the executor can attribute cancellation correctly.
+    if (signal?.aborted) {
+      return {
+        success: false,
+        output: { sessionId, content: assistantText.value },
+        error: 'aborted',
+      }
+    }
     logger.error('Managed agent stream failed', { sessionId, error: getErrorMessage(error) })
     return {
       success: false,
@@ -258,6 +323,15 @@ const impl: ManagedAgentServerImpl = async (
     startTime: startedAt.toISOString(),
     endTime: endedAt.toISOString(),
     duration: endedAt.getTime() - startedAt.getTime(),
+  }
+
+  if (signal?.aborted) {
+    return {
+      success: false,
+      output: { sessionId, content: assistantText.value } satisfies ManagedAgentRunSessionOutput,
+      error: 'aborted',
+      timing,
+    }
   }
 
   if (!terminal || terminal.status === 'error') {
@@ -280,14 +354,30 @@ const impl: ManagedAgentServerImpl = async (
 registerManagedAgentServerImpl(impl)
 
 /**
- * Tracks how far along the session is in resolving a `requires_action`
- * pause. If we replied to the pending `custom_tool_use` before the idle
- * event fires, the session will unpause on its own — we must NOT treat
- * the idle-with-requires-action as terminal in that case.
+ * Tracks progress across `requires_action` idle events. Server-side or
+ * MCP tools can legitimately keep the session in `requires_action` for
+ * tens of seconds with no client-visible events; we back off + re-poll
+ * `listEventsAfter` rather than treating catch-up silence as failure.
+ * `lastCustomToolResponseAt` retains historical use for tests that check
+ * "did we reply to a `custom_tool_use`", but the retry policy now applies
+ * uniformly regardless.
  */
 interface EventState {
   lastCustomToolResponseAt: number
   lastRequiresActionAt: number
+  /** Timestamp of the first `requires_action` in the current busy stretch. */
+  requiresActionEnteredAt: number
+  /** Next backoff to use if we re-poll on catch-up silence. */
+  currentBackoffMs: number
+}
+
+function nextBackoffMs(state: EventState): number {
+  const next = state.currentBackoffMs
+  state.currentBackoffMs = Math.min(
+    Math.max(next * 2, REQUIRES_ACTION_BACKOFF_START_MS),
+    REQUIRES_ACTION_BACKOFF_MAX_MS
+  )
+  return next
 }
 
 async function handleEvent(args: {
@@ -356,19 +446,17 @@ async function handleEvent(args: {
     if (stop === 'end_turn') return { status: 'complete' }
     if (stop === 'retries_exhausted') return { status: 'error', reason: 'retries_exhausted' }
     if (stop === 'requires_action') {
-      // Session paused for a pending action. If we've already replied to a
-      // `custom_tool_use` since the last pause, the session will resume on
-      // its own — return null so the reconnect loop reopens the stream and
-      // picks up the follow-on events.
-      eventState.lastRequiresActionAt = Date.now()
-      if (eventState.lastCustomToolResponseAt >= eventState.lastRequiresActionAt) {
-        return null
+      // Session paused for a pending action. Never terminal: either
+      // (a) we already replied to a `custom_tool_use` and the agent is
+      // processing it, or (b) a server-side / MCP tool is executing on
+      // the platform side. Both cases resolve on their own; the outer
+      // reconnect loop backs off + re-polls `listEventsAfter` until
+      // either new events arrive or the total-wait cap is hit.
+      const now = Date.now()
+      if (eventState.requiresActionEnteredAt === 0) {
+        eventState.requiresActionEnteredAt = now
       }
-      // No reply was sent — likely a server-side tool (MCP) call the agent
-      // itself will drive, or a genuinely stuck session. Return null too
-      // so the reconnect loop reopens the stream; if the session is truly
-      // stuck, `listEventsAfter` returning empty on the next iteration will
-      // finalize the run as complete with whatever text we have.
+      eventState.lastRequiresActionAt = now
       return null
     }
     return { status: 'error', reason: stop ?? 'idle_without_stop_reason' }

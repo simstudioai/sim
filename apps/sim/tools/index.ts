@@ -1245,7 +1245,20 @@ export async function executeTool(
     // Check for direct execution (no HTTP request needed)
     if (tool.directExecution) {
       logger.info(`[${requestId}] Using directExecution for ${toolId}`)
-      const result = await tool.directExecution(contextParams)
+      // Attach the workflow's abort signal to `_context.abortSignal` so
+      // direct-execution tools (Managed Agent session, etc.) can propagate
+      // cancellation into long-lived operations like SSE streams. Non-abort
+      // callers get the same context they had before.
+      const directExecutionParams = effectiveSignal
+        ? {
+            ...contextParams,
+            _context: {
+              ...(contextParams._context as Record<string, unknown> | undefined),
+              abortSignal: effectiveSignal,
+            },
+          }
+        : contextParams
+      const result = await tool.directExecution(directExecutionParams)
 
       // Apply post-processing if available and not skipped
       let finalResult = result

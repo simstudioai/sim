@@ -285,6 +285,13 @@ export interface SubBlockConfig {
         }
       })
   defaultValue?: string | number | boolean | Record<string, unknown> | Array<unknown>
+  /**
+   * Optional async fetcher for a `table` subblock's initial rows — used
+   * when defaults come from a server-side source (e.g. deployer-configured
+   * env vars) and must not be inlined into the client bundle. Called once
+   * on first mount when the store is empty. See `Table.fetchDefaultRows`.
+   */
+  fetchDefaultRows?: () => Promise<Array<{ cells: Record<string, string> }>>
   options?:
     | {
         label: string

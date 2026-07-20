@@ -754,6 +754,7 @@ function SubBlockComponent({
                 ? (config.defaultValue as Array<{ cells: Record<string, string> }>)
                 : undefined
             }
+            fetchDefaultRows={config.fetchDefaultRows}
           />
         )
 

@@ -31,6 +31,15 @@ interface TableProps {
    * missing columns fall back to `""`. Existing values are never overwritten.
    */
   defaultRows?: Array<{ cells: Record<string, string> }>
+  /**
+   * Optional async fetcher for seed rows — used when the block's default
+   * rows come from a server-side source (e.g. deployer-configured env vars
+   * read via an API route). Called once on first mount when the store is
+   * empty. If the fetcher rejects or returns an empty array, falls back to
+   * `defaultRows`, then to a single empty row. Same overwrite rules as
+   * `defaultRows`: existing store values are never touched.
+   */
+  fetchDefaultRows?: () => Promise<Array<{ cells: Record<string, string> }>>
 }
 
 interface WorkflowTableRow {
@@ -221,6 +230,7 @@ export function Table({
   previewValue,
   disabled = false,
   defaultRows,
+  fetchDefaultRows,
 }: TableProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
@@ -256,22 +266,47 @@ export function Table({
 
   /**
    * Initialize the table when the component mounts and the store value is
-   * missing/empty. If the caller supplied `defaultRows`, seed those rows
-   * (any missing columns default to `""`); otherwise start with a single
-   * empty row.
+   * missing/empty. Precedence:
+   *   1. `fetchDefaultRows` (async) — used when defaults live server-side
+   *      (e.g. deployer env-var read via an API route).
+   *   2. `defaultRows` (sync) — static seeds declared on the block config.
+   *   3. Single empty row — the pre-existing behavior.
+   * Existing store values are never touched.
    */
   useEffect(() => {
-    if (!isPreview && !disabled && (!Array.isArray(storeValue) || storeValue.length === 0)) {
+    if (isPreview || disabled) return
+    if (Array.isArray(storeValue) && storeValue.length > 0) return
+    let cancelled = false
+    const seedWith = (rows: Array<{ cells: Record<string, string> }> | undefined) => {
+      if (cancelled) return
       const seedRows: WorkflowTableRow[] =
-        Array.isArray(defaultRows) && defaultRows.length > 0
-          ? defaultRows.map((row) => ({
+        Array.isArray(rows) && rows.length > 0
+          ? rows.map((row) => ({
               id: generateId(),
               cells: { ...emptyCellsTemplate, ...(row.cells ?? {}) },
             }))
           : [{ id: generateId(), cells: { ...emptyCellsTemplate } }]
       setStoreValue(seedRows)
     }
-  }, [isPreview, disabled, storeValue, setStoreValue, emptyCellsTemplate, defaultRows])
+    if (fetchDefaultRows) {
+      fetchDefaultRows()
+        .then((rows) => seedWith(rows.length > 0 ? rows : defaultRows))
+        .catch(() => seedWith(defaultRows))
+    } else {
+      seedWith(defaultRows)
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [
+    isPreview,
+    disabled,
+    storeValue,
+    setStoreValue,
+    emptyCellsTemplate,
+    defaultRows,
+    fetchDefaultRows,
+  ])
 
   // Ensure value is properly typed and initialized
   const rows = useMemo(() => {

@@ -1,10 +1,12 @@
 import { requestJson } from '@/lib/api/client/request'
 import {
+  getManagedAgentDefaultsContract,
   listManagedAgentAgentsContract,
   listManagedAgentConnectionsContract,
   listManagedAgentEnvironmentsContract,
   listManagedAgentMemoryStoresContract,
   listManagedAgentVaultsContract,
+  type ManagedAgentSelfHostedDefaultRow,
 } from '@/lib/api/contracts'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -172,6 +174,24 @@ export async function fetchManagedAgentMemoryStoreOptions(
       id: row.id,
       label: row.name ? `${row.name} (${row.id})` : row.id,
     }))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Fetch the deployer-configured default rows the Claude Managed Agents
+ * (self-hosted) block seeds into its Session parameters table. Values
+ * live in the server-only env var `MANAGED_AGENT_SELF_HOSTED_DEFAULTS`
+ * and are read via the `/api/managed-agent-defaults` route so they
+ * never enter the client bundle at build time.
+ */
+export async function fetchManagedAgentSelfHostedDefaults(): Promise<
+  ManagedAgentSelfHostedDefaultRow[]
+> {
+  try {
+    const { selfHosted } = await requestJson(getManagedAgentDefaultsContract, {})
+    return selfHosted
   } catch {
     return []
   }

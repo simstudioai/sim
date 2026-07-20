@@ -4,6 +4,7 @@ import {
   fetchManagedAgentAgentOptions,
   fetchManagedAgentConnectionOptions,
   fetchManagedAgentMemoryStoreOptions,
+  fetchManagedAgentSelfHostedDefaults,
   fetchManagedAgentSelfHostedEnvironmentOptions,
   fetchManagedAgentVaultOptions,
 } from '@/lib/managed-agents/subblock-options'
@@ -56,36 +57,6 @@ const memorySubBlocks: SubBlockConfig[] = isSelfHostedMemoryEnabled()
       },
     ]
   : []
-
-/**
- * Read the JSON defaults for the self-hosted metadata table from
- * `NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS`. Kept out of source
- * so deployers can seed the block with the keys their self-hosted
- * agent sandbox reads, without the values living in the repo.
- *
- * Expected shape: a JSON object `{"KEY": "VALUE", ...}`. Non-string
- * values are coerced to their string form. Anything invalid (missing,
- * unparseable, non-object) falls back to an empty seed — the block
- * still renders, users see a single blank row.
- */
-export function readSessionMetadataDefaults(): Array<{ cells: Record<string, string> }> {
-  const raw = env.NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS
-  if (typeof raw !== 'string' || raw.trim().length === 0) return []
-  try {
-    const parsed = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
-    const rows: Array<{ cells: Record<string, string> }> = []
-    for (const [key, value] of Object.entries(parsed)) {
-      const k = typeof key === 'string' ? key.trim() : ''
-      if (!k) continue
-      const v = value == null ? '' : typeof value === 'string' ? value : String(value)
-      rows.push({ cells: { Key: k, Value: v } })
-    }
-    return rows
-  } catch {
-    return []
-  }
-}
 
 /**
  * Claude Managed Agents block — self-hosted variant.
@@ -181,15 +152,16 @@ export const ManagedAgentSelfHostedBlock: BlockConfig = {
       // Session metadata forwarded to the self-hosted agent sandbox as
       // env vars. The set of supported keys is deployment-specific and
       // lives with the deployer, not in this repo. Seed rows come from
-      // `NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS` (see
-      // `readSessionMetadataDefaults` above); leave empty to start with
-      // a single blank row.
+      // the server-only `MANAGED_AGENT_SELF_HOSTED_DEFAULTS` env var,
+      // fetched via `/api/managed-agent-defaults` — the values never
+      // enter the client bundle, so deployers can safely include
+      // anything their sandbox reads.
       id: 'sessionParameters',
       title: 'Session parameters',
       type: 'table',
       required: false,
       columns: ['Key', 'Value'],
-      defaultValue: readSessionMetadataDefaults(),
+      fetchDefaultRows: fetchManagedAgentSelfHostedDefaults,
       description:
         'Key/value pairs forwarded to the self-hosted agent sandbox as environment variables. Supported keys depend on your deployment — consult your deployment docs. Value cells support <block.output> / <var.name> references.',
     },

@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { envState } = vi.hoisted(() => ({
   envState: {
-    NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS: undefined as string | undefined,
     NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_MEMORY_ENABLED: undefined as string | undefined,
   },
 }))
@@ -20,75 +19,12 @@ vi.mock('@/lib/managed-agents/subblock-options', () => ({
   fetchManagedAgentAgentOptions: vi.fn(),
   fetchManagedAgentConnectionOptions: vi.fn(),
   fetchManagedAgentMemoryStoreOptions: vi.fn(),
+  fetchManagedAgentSelfHostedDefaults: vi.fn(),
   fetchManagedAgentSelfHostedEnvironmentOptions: vi.fn(),
   fetchManagedAgentVaultOptions: vi.fn(),
 }))
 
-import {
-  isSelfHostedMemoryEnabled,
-  readSessionMetadataDefaults,
-} from '@/blocks/blocks/managed_agent_self_hosted'
-
-describe('readSessionMetadataDefaults', () => {
-  beforeEach(() => {
-    envState.NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS = undefined
-  })
-
-  it('returns [] when the env var is unset', () => {
-    envState.NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS = undefined
-    expect(readSessionMetadataDefaults()).toEqual([])
-  })
-
-  it('returns [] when the env var is empty / whitespace-only', () => {
-    envState.NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS = ''
-    expect(readSessionMetadataDefaults()).toEqual([])
-    envState.NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS = '   '
-    expect(readSessionMetadataDefaults()).toEqual([])
-  })
-
-  it('returns [] on invalid JSON', () => {
-    envState.NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS = '{not json'
-    expect(readSessionMetadataDefaults()).toEqual([])
-  })
-
-  it('returns [] on a JSON array (must be an object of key/value pairs)', () => {
-    envState.NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS = '["a","b"]'
-    expect(readSessionMetadataDefaults()).toEqual([])
-  })
-
-  it('coerces a valid JSON object into `{cells: {Key, Value}}` rows', () => {
-    envState.NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS = JSON.stringify({
-      FOO: 'bar',
-      BAZ: 'qux',
-    })
-    expect(readSessionMetadataDefaults()).toEqual([
-      { cells: { Key: 'FOO', Value: 'bar' } },
-      { cells: { Key: 'BAZ', Value: 'qux' } },
-    ])
-  })
-
-  it('drops entries with a blank key', () => {
-    envState.NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS = JSON.stringify({
-      '': 'dropped',
-      '   ': 'also dropped',
-      keep: 'yes',
-    })
-    expect(readSessionMetadataDefaults()).toEqual([{ cells: { Key: 'keep', Value: 'yes' } }])
-  })
-
-  it('coerces non-string values to their string form', () => {
-    envState.NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS = JSON.stringify({
-      A: 1,
-      B: true,
-      C: null,
-    })
-    expect(readSessionMetadataDefaults()).toEqual([
-      { cells: { Key: 'A', Value: '1' } },
-      { cells: { Key: 'B', Value: 'true' } },
-      { cells: { Key: 'C', Value: '' } },
-    ])
-  })
-})
+import { isSelfHostedMemoryEnabled } from '@/blocks/blocks/managed_agent_self_hosted'
 
 describe('isSelfHostedMemoryEnabled', () => {
   beforeEach(() => {
