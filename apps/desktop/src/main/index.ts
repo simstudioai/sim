@@ -288,6 +288,9 @@ function main(): void {
         onPageState: (state) => {
           getMainWindow()?.webContents.send('browser-agent:page-state', state)
         },
+        onTabsState: (state) => {
+          getMainWindow()?.webContents.send('browser-agent:tabs-state', state)
+        },
         onSessionStatus: (alive) => {
           getMainWindow()?.webContents.send('browser-agent:session-status', alive)
         },

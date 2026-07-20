@@ -1,9 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Tooltip } from '@sim/emcn'
-import { ArrowLeft, ArrowRight, Cursor, RefreshCw } from '@sim/emcn/icons'
-import { reportBrowserPanelBounds, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
+import { isBrowserTheme } from '@sim/browser-protocol'
+import { Button, ChipInput, Tooltip } from '@sim/emcn'
+import { ArrowLeft, ArrowRight, Cursor, RefreshCw, Search } from '@sim/emcn/icons'
+import { useTheme } from 'next-themes'
+import {
+  reportBrowserPanelBounds,
+  reportBrowserTheme,
+  sendBrowserPanelAction,
+} from '@/lib/browser-agent/transport'
+import { useBrowserPanelOcclusion } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
+import { BrowserTabStrip } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-strip'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 /**
@@ -33,67 +41,34 @@ export function resolveUrlBarInput(raw: string): string {
   return `https://www.google.com/search?q=${encodeURIComponent(input)}`
 }
 
-/** Overlay presence is polled on a coarser cadence than geometry. */
-const OVERLAY_CHECK_INTERVAL_MS = 100
-
 /** Re-report unchanged bounds before the main-process visibility lease expires. */
 const PANEL_HEARTBEAT_INTERVAL_MS = 1_000
 
-/** Sample-point inset, clear of borders, scrollbars, and rounded corners. */
-const OVERLAY_SAMPLE_INSET_PX = 12
-
-/**
- * True when some overlay (modal, popover, dropdown) is painted over part of
- * the panel host. The native agent-browser view renders above ALL page DOM —
- * no z-index can beat it — so while anything covers the host rect the view
- * must be hidden instead.
- *
- * Detection is hit-testing, not selector matching: `elementFromPoint` on a
- * 3x3 grid inside the host rect. Normally every point resolves to the host
- * (or a descendant). A DOM element from outside the host means a portal is
- * actually painted there. This is self-correcting by construction: it can
- * only see what genuinely renders on top. Tooltips and other
- * `pointer-events: none` layers are transparent to hit-testing, so hovering
- * chrome never blinks the page; `<html>`/`<body>` results (hit-test
- * fall-through when a modal disables body pointer events) are backdrops, not
- * overlays, and don't count.
- */
-export function isPanelObscuredByOverlay(host: HTMLElement, hostRect: DOMRect): boolean {
-  const inset = OVERLAY_SAMPLE_INSET_PX
-  if (hostRect.width <= inset * 2 || hostRect.height <= inset * 2) {
-    return false
-  }
-  const xs = [hostRect.left + inset, hostRect.left + hostRect.width / 2, hostRect.right - inset]
-  const ys = [hostRect.top + inset, hostRect.top + hostRect.height / 2, hostRect.bottom - inset]
-  for (const x of xs) {
-    for (const y of ys) {
-      const top = document.elementFromPoint(x, y)
-      if (
-        top !== null &&
-        top !== document.documentElement &&
-        top !== document.body &&
-        !host.contains(top)
-      ) {
-        return true
-      }
-    }
-  }
-  return false
-}
-
 export function BrowserSession() {
+  const { theme } = useTheme()
   const pageState = useBrowserSessionStore((state) => state.pageState)
+  const tabs = useBrowserSessionStore((state) => state.tabs)
+  const activeTabId = useBrowserSessionStore((state) => state.activeTabId)
+  const tabsSupported = useBrowserSessionStore((state) => state.tabsSupported)
+  const panelSnapshot = useBrowserSessionStore((state) => state.panelSnapshot)
   const sessionAlive = useBrowserSessionStore((state) => state.sessionAlive)
   const hostRef = useRef<HTMLDivElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
+  const panelOccluded = useBrowserPanelOcclusion(hostRef)
   /** Non-null while the user is editing the URL bar; otherwise it mirrors the page. */
   const [urlDraft, setUrlDraft] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (isBrowserTheme(theme)) {
+      reportBrowserTheme(theme)
+    }
+  }, [theme])
 
   // Keep the embedded view glued to the host rect without forcing layout on
   // every animation frame. ResizeObserver covers panel transitions/resizes;
   // viewport resize and captured scroll cover position changes. A one-second
-  // heartbeat renews the main-process visibility lease. Overlay hit-testing
-  // stays on its own cadence because native views always paint above page DOM.
+  // heartbeat renews the main-process visibility lease. Renderer overlays are
+  // coordinated separately so bounds continue updating while the view hides.
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
@@ -101,21 +76,9 @@ export function BrowserSession() {
     let rafId: number | null = null
     let forceNextReport = false
     let last = ''
-    let obscured = false
-    let lastRect: DOMRect | null = null
 
     const reportGeometry = (force: boolean) => {
       const rect = host.getBoundingClientRect()
-      lastRect = rect
-      obscured = isPanelObscuredByOverlay(host, rect)
-      if (obscured) {
-        if (last !== 'obscured') {
-          last = 'obscured'
-          reportBrowserPanelBounds(null)
-        }
-        return
-      }
-
       const bounds = {
         x: Math.round(rect.x),
         y: Math.round(rect.y),
@@ -146,21 +109,6 @@ export function BrowserSession() {
     window.addEventListener('resize', handleGeometryChange)
     window.addEventListener('scroll', handleGeometryChange, true)
 
-    const overlayTimer = window.setInterval(() => {
-      if (!lastRect) {
-        scheduleGeometryReport()
-        return
-      }
-      const nextObscured = isPanelObscuredByOverlay(host, lastRect)
-      if (nextObscured === obscured) return
-      obscured = nextObscured
-      if (obscured) {
-        last = 'obscured'
-        reportBrowserPanelBounds(null)
-      } else {
-        scheduleGeometryReport(true)
-      }
-    }, OVERLAY_CHECK_INTERVAL_MS)
     const heartbeatTimer = window.setInterval(
       () => scheduleGeometryReport(true),
       PANEL_HEARTBEAT_INTERVAL_MS
@@ -172,7 +120,6 @@ export function BrowserSession() {
       resizeObserver.disconnect()
       window.removeEventListener('resize', handleGeometryChange)
       window.removeEventListener('scroll', handleGeometryChange, true)
-      window.clearInterval(overlayTimer)
       window.clearInterval(heartbeatTimer)
       if (rafId !== null) {
         cancelAnimationFrame(rafId)
@@ -189,63 +136,98 @@ export function BrowserSession() {
     urlInputRef.current?.blur()
   }, [urlDraft])
 
+  const handleNewTab = useCallback(() => {
+    setUrlDraft('')
+    sendBrowserPanelAction('new-tab')
+    urlInputRef.current?.focus()
+    urlInputRef.current?.select()
+  }, [])
+
+  const handleSwitchTab = useCallback((tabId: string) => {
+    setUrlDraft(null)
+    urlInputRef.current?.blur()
+    sendBrowserPanelAction('switch-tab', { tabId })
+  }, [])
+
+  const handleCloseTab = useCallback((tabId: string) => {
+    setUrlDraft(null)
+    urlInputRef.current?.blur()
+    sendBrowserPanelAction('close-tab', { tabId })
+  }, [])
+
   return (
     <div className='flex h-full flex-col overflow-hidden'>
-      <div className='flex items-center gap-2 border-[var(--border)] border-b px-3 py-2'>
-        <Cursor className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      {tabsSupported && (
+        <BrowserTabStrip
+          tabs={tabs}
+          activeTabId={activeTabId}
+          onNewTab={handleNewTab}
+          onSwitchTab={handleSwitchTab}
+          onCloseTab={handleCloseTab}
+        />
+      )}
+      <div className='flex items-center gap-1 border-[var(--border)] border-b px-2.5 py-1.5'>
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <button
+            <Button
               type='button'
+              variant='ghost-secondary'
+              size='sm'
               aria-label='Back'
               disabled={!pageState?.canGoBack}
-              className='flex-shrink-0 text-[var(--text-icon)] transition-colors enabled:hover:text-[var(--text-primary)] disabled:opacity-40'
+              className='size-[30px] flex-shrink-0 p-0'
               onClick={() => sendBrowserPanelAction('back')}
             >
               <ArrowLeft className='size-[14px]' />
-            </button>
+            </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='bottom'>Back</Tooltip.Content>
         </Tooltip.Root>
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <button
+            <Button
               type='button'
+              variant='ghost-secondary'
+              size='sm'
               aria-label='Forward'
               disabled={!pageState?.canGoForward}
-              className='flex-shrink-0 text-[var(--text-icon)] transition-colors enabled:hover:text-[var(--text-primary)] disabled:opacity-40'
+              className='size-[30px] flex-shrink-0 p-0'
               onClick={() => sendBrowserPanelAction('forward')}
             >
               <ArrowRight className='size-[14px]' />
-            </button>
+            </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='bottom'>Forward</Tooltip.Content>
         </Tooltip.Root>
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <button
+            <Button
               type='button'
+              variant='ghost-secondary'
+              size='sm'
               aria-label='Reload page'
-              className='flex-shrink-0 text-[var(--text-icon)] transition-colors hover:text-[var(--text-primary)]'
+              className='size-[30px] flex-shrink-0 p-0'
               onClick={() => sendBrowserPanelAction('reload')}
             >
               <RefreshCw className='size-[14px]' />
-            </button>
+            </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='bottom'>Reload page</Tooltip.Content>
         </Tooltip.Root>
         {/* URL bar: Enter navigates the agent browser. */}
-        <input
+        <ChipInput
           ref={urlInputRef}
           type='text'
+          icon={Search}
           spellCheck={false}
           aria-label='Search Google or enter a URL — press Enter'
-          className='h-[24px] min-w-0 flex-1 rounded-[6px] border border-[var(--border-1)] bg-transparent px-2 text-[var(--text-muted)] text-caption outline-none focus:text-[var(--text-primary)]'
+          className='h-[34px] min-w-0 flex-1'
           value={urlDraft ?? pageState?.url ?? ''}
           placeholder='Search Google or enter a URL'
+          autoComplete='off'
           onChange={(event) => setUrlDraft(event.target.value)}
           onFocus={(event) => {
-            setUrlDraft(pageState?.url ?? '')
+            setUrlDraft((current) => current ?? pageState?.url ?? '')
             event.target.select()
           }}
           onBlur={() => setUrlDraft(null)}
@@ -258,6 +240,16 @@ export function BrowserSession() {
       </div>
       {/* Host area: the real page is overlaid exactly on this rect. */}
       <div ref={hostRef} className='relative flex-1 overflow-hidden bg-[var(--surface-secondary)]'>
+        {panelOccluded &&
+          panelSnapshot &&
+          (!activeTabId || panelSnapshot.tabId === activeTabId) && (
+            <img
+              src={panelSnapshot.dataUrl}
+              alt=''
+              aria-hidden
+              className='pointer-events-none absolute inset-0 size-full object-fill'
+            />
+          )}
         {(!pageState || !sessionAlive) && (
           <div className='absolute inset-0 flex flex-col items-center justify-center gap-2'>
             <Cursor className='size-[18px] text-[var(--text-tertiary)]' />

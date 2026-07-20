@@ -8,6 +8,7 @@
  * movement, character insertion) and is honored by code editors. The user
  * sees and drives the real embedded page, so there is no screencast.
  */
+import type { BrowserTheme } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import type { WebContents } from 'electron'
 
@@ -58,6 +59,16 @@ export async function ensureInstrumented(contents: WebContents, cb: CdpCallbacks
   // Suppress native file choosers: nothing can drive them from the panel,
   // and an open chooser blocks the page. Recorded and surfaced instead.
   await send(contents, 'Page.setInterceptFileChooserDialog', { enabled: true }).catch(() => {})
+}
+
+/**
+ * Mirrors Sim's theme into the page's `prefers-color-scheme` media query.
+ * `system` removes the per-tab override so Chromium continues following the OS.
+ */
+export async function setColorScheme(contents: WebContents, theme: BrowserTheme): Promise<void> {
+  await send(contents, 'Emulation.setEmulatedMedia', {
+    features: theme === 'system' ? [] : [{ name: 'prefers-color-scheme', value: theme }],
+  })
 }
 
 function handleDebuggerEvent(

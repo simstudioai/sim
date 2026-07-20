@@ -152,6 +152,12 @@ function createWebContentsMock() {
     isDestroyed: vi.fn(() => false),
     isLoading: vi.fn(() => false),
     setBackgroundThrottling: vi.fn(),
+    capturePage: vi.fn(() =>
+      Promise.resolve({
+        isEmpty: vi.fn(() => false),
+        toDataURL: vi.fn(() => 'data:image/png;base64,c2lt'),
+      })
+    ),
     executeJavaScript: vi.fn(() => Promise.resolve(undefined)),
     setWindowOpenHandler: vi.fn(),
     navigationHistory: {
@@ -177,6 +183,7 @@ function createWebContentsMock() {
 
 export class WebContentsView {
   webContents = createWebContentsMock()
+  setBackgroundColor = vi.fn()
   setVisible = vi.fn()
   setBounds = vi.fn()
 }

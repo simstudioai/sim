@@ -41,10 +41,23 @@ export const BROWSER_TOOL_NAMES = [
 
 export type BrowserToolName = (typeof BROWSER_TOOL_NAMES)[number]
 
+/** Hard cap shared by the desktop browser session and its renderer chrome. */
+export const MAX_BROWSER_TABS = 5
+
+export const BROWSER_THEMES = ['system', 'light', 'dark'] as const
+
+/** Sim appearance preference mirrored into browser-tab media queries. */
+export type BrowserTheme = (typeof BROWSER_THEMES)[number]
+
 const BROWSER_TOOL_NAME_SET: ReadonlySet<string> = new Set(BROWSER_TOOL_NAMES)
+const BROWSER_THEME_SET: ReadonlySet<string> = new Set(BROWSER_THEMES)
 
 export function isBrowserToolName(name: string): name is BrowserToolName {
   return BROWSER_TOOL_NAME_SET.has(name)
+}
+
+export function isBrowserTheme(value: unknown): value is BrowserTheme {
+  return typeof value === 'string' && BROWSER_THEME_SET.has(value)
 }
 
 /** The result of one browser tool invocation, as returned over the bridge. */
@@ -67,6 +80,12 @@ export interface BrowserPanelBounds {
   height: number
 }
 
+/** Last captured frame used while renderer overlays occlude the native view. */
+export interface BrowserPanelSnapshot {
+  dataUrl: string
+  tabId: string
+}
+
 /**
  * Browser-chrome commands from the panel header (URL bar, back/forward,
  * reload) plus `takeover-done`, sent by the Done chip on the chat's
@@ -75,16 +94,43 @@ export interface BrowserPanelBounds {
  * acts on the real embedded page directly.
  */
 export interface BrowserPanelAction {
-  action: 'navigate' | 'reload' | 'back' | 'forward' | 'takeover-done'
+  action:
+    | 'navigate'
+    | 'reload'
+    | 'back'
+    | 'forward'
+    | 'new-tab'
+    | 'switch-tab'
+    | 'close-tab'
+    | 'takeover-done'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
+  /** Stable tab id for `switch-tab` and `close-tab`. */
+  tabId?: string
 }
 
 /** Live state of the active page, pushed to the panel header. */
 export interface BrowserPageState {
+  /** Present on desktop versions with multi-tab UI support. */
+  tabId?: string
   url: string
   title: string
   loading: boolean
   canGoBack: boolean
   canGoForward: boolean
+}
+
+/** Summary of one live page in the desktop agent browser. */
+export interface BrowserTabState {
+  tabId: string
+  url: string
+  title: string
+  loading: boolean
+  active: boolean
+}
+
+/** Complete live tab list pushed by the desktop shell. */
+export interface BrowserTabsState {
+  tabs: BrowserTabState[]
+  activeTabId: string | null
 }

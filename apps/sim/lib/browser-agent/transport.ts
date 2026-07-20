@@ -16,6 +16,8 @@ import type {
   BrowserPageState,
   BrowserPanelAction,
   BrowserPanelBounds,
+  BrowserTabsState,
+  BrowserTheme,
   BrowserToolName,
 } from '@sim/browser-protocol'
 import type { SimDesktopBrowserAgentApi } from '@sim/desktop-bridge'
@@ -23,6 +25,8 @@ import { getDesktopBridge } from '@/lib/desktop'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 let initialized = false
+let latestPanelBounds: BrowserPanelBounds | null = null
+let panelOccluded = false
 
 function bridge(): SimDesktopBrowserAgentApi | null {
   return getDesktopBridge()?.browserAgent ?? null
@@ -40,6 +44,21 @@ export function initBrowserAgentTransport(): void {
   agent.onPageState((state: BrowserPageState) => {
     useBrowserSessionStore.getState().setPageState(state)
   })
+  agent.onPanelSnapshot?.((snapshot) => {
+    useBrowserSessionStore.getState().setPanelSnapshot(snapshot)
+  })
+  if (agent.onTabsState) {
+    useBrowserSessionStore.getState().setTabsSupported(true)
+    agent.onTabsState((state: BrowserTabsState) => {
+      useBrowserSessionStore.getState().setTabsState(state)
+    })
+    if (agent.getTabsState) {
+      void agent
+        .getTabsState()
+        .then((state) => useBrowserSessionStore.getState().setTabsState(state))
+        .catch(() => {})
+    }
+  }
   agent.onSessionStatus((alive) => {
     useBrowserSessionStore.getState().setSessionAlive(alive)
   })
@@ -91,10 +110,40 @@ export function sendBrowserPanelAction(
   bridge()?.panelAction({ action, ...payload })
 }
 
+/** Mirrors Sim's raw light/dark/system preference into embedded pages. */
+export function reportBrowserTheme(theme: BrowserTheme): void {
+  bridge()?.setTheme?.(theme)
+}
+
 /**
  * Reports the panel's current rect (viewport CSS pixels), or null when the
  * panel is hidden/unmounted. The embedded view tracks this rect.
  */
 export function reportBrowserPanelBounds(bounds: BrowserPanelBounds | null): void {
-  bridge()?.setPanelBounds(bounds)
+  latestPanelBounds = bounds
+  const agent = bridge()
+  if (!agent?.setPanelOccluded && panelOccluded && bounds !== null) return
+  agent?.setPanelBounds(bounds)
+}
+
+/**
+ * Reports whether renderer-owned UI currently overlaps the native browser
+ * surface. New desktop builds hide the still-attached view directly; older
+ * builds fall back to temporarily clearing and restoring panel bounds.
+ */
+export function reportBrowserPanelOcclusion(occluded: boolean): void {
+  if (panelOccluded === occluded) return
+  panelOccluded = occluded
+  const agent = bridge()
+  if (agent?.setPanelOccluded) {
+    agent.setPanelOccluded(occluded)
+    return
+  }
+  agent?.setPanelBounds(occluded ? null : latestPanelBounds)
+}
+
+/** Resets occlusion before the panel unmounts or its host document changes. */
+export function resetBrowserPanelOcclusion(): void {
+  panelOccluded = false
+  bridge()?.setPanelOccluded?.(false)
 }

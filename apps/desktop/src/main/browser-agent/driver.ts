@@ -15,7 +15,12 @@
  * is bounded by a watchdog so the Sim side always gets a response instead of
  * waiting out its own timeout against silence.
  */
-import type { BrowserPageState, BrowserPanelAction, BrowserToolName } from '@sim/browser-protocol'
+import type {
+  BrowserPageState,
+  BrowserPanelAction,
+  BrowserTabsState,
+  BrowserToolName,
+} from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import type { BrowserWindow, WebContents } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
@@ -54,6 +59,7 @@ const TOOL_WATCHDOG_MS = 150_000
 
 export interface DriverCallbacks {
   onPageState: (state: BrowserPageState) => void
+  onTabsState: (state: BrowserTabsState) => void
   onSessionStatus: (alive: boolean) => void
 }
 
@@ -79,8 +85,9 @@ function recordNotice(notice: string): void {
 let takeoverActive = false
 let takeoverDone = false
 
-function pageStateFor(contents: WebContents): BrowserPageState {
+function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
   return {
+    tabId,
     url: contents.getURL(),
     title: contents.getTitle(),
     loading: contents.isLoading(),
@@ -91,8 +98,13 @@ function pageStateFor(contents: WebContents): BrowserPageState {
 
 function pushPageState(contents: WebContents): void {
   if (contents.isDestroyed()) return
-  if (session.activeTab()?.view.webContents !== contents) return
-  driverCallbacks?.onPageState(pageStateFor(contents))
+  const active = session.activeTab()
+  if (active?.view.webContents !== contents) return
+  driverCallbacks?.onPageState(pageStateFor(contents, active.id))
+}
+
+function pushTabsState(): void {
+  driverCallbacks?.onTabsState(session.getTabsState())
 }
 
 /** Instruments a fresh tab: CDP dialog/chooser handling + page-state pushes. */
@@ -111,6 +123,7 @@ function instrumentTab(contents: WebContents): void {
         )
       },
     })
+    .then(() => cdp.setColorScheme(contents, session.getBrowserTheme()))
     .catch((error) => {
       logger.warn('CDP instrumentation failed', {
         error: error instanceof Error ? error.message : String(error),
@@ -123,7 +136,10 @@ function instrumentTab(contents: WebContents): void {
     'did-start-loading',
     'did-stop-loading',
   ] as const) {
-    contents.on(event as 'did-navigate', () => pushPageState(contents))
+    contents.on(event as 'did-navigate', () => {
+      pushPageState(contents)
+      pushTabsState()
+    })
   }
   driverCallbacks?.onSessionStatus(true)
 }
@@ -140,6 +156,14 @@ export function initDriver(
       },
       onTabCreated: instrumentTab,
       onActiveTabChanged: pushPageState,
+      onTabsChanged: pushTabsState,
+      onTabThemeChanged: (contents, theme) => {
+        void cdp.setColorScheme(contents, theme).catch((error) => {
+          logger.warn('Could not update browser tab theme', {
+            error: error instanceof Error ? error.message : String(error),
+          })
+        })
+      },
       onDownloadBlocked: (filename) => {
         recordNotice(
           `The page tried to download "${filename}"; downloads are not supported in the agent browser, so it was blocked.`
@@ -380,7 +404,7 @@ async function executeToolInner(
     }
 
     case 'browser_list_tabs': {
-      return { tabs: session.listTabs() }
+      return session.getTabsState()
     }
 
     case 'browser_wait_for': {
@@ -605,6 +629,10 @@ export async function executeTool(
   }
 }
 
+export function getTabsState(): BrowserTabsState {
+  return session.getTabsState()
+}
+
 /** Browser-chrome commands from the panel header; fire-and-forget. */
 export async function handlePanelAction(action: BrowserPanelAction): Promise<void> {
   // The Done chip on the chat's takeover tool row: hands control back to the
@@ -620,6 +648,22 @@ export async function handlePanelAction(action: BrowserPanelAction): Promise<voi
     if (typeof action.url === 'string' && /^https?:\/\//i.test(action.url)) {
       const contents = session.ensureTab().view.webContents
       void contents.loadURL(action.url).catch(() => {})
+    }
+    return
+  }
+  if (action.action === 'new-tab') {
+    session.addTab()
+    return
+  }
+  if (action.action === 'switch-tab') {
+    if (typeof action.tabId === 'string') {
+      session.switchTab(action.tabId)
+    }
+    return
+  }
+  if (action.action === 'close-tab') {
+    if (typeof action.tabId === 'string') {
+      session.closeTab(action.tabId)
     }
     return
   }

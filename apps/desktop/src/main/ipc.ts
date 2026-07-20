@@ -1,9 +1,9 @@
-import { isBrowserToolName } from '@sim/browser-protocol'
+import { isBrowserTheme, isBrowserToolName } from '@sim/browser-protocol'
 import type { DesktopNotificationPayload } from '@sim/desktop-bridge'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { ipcMain } from 'electron'
-import { executeTool, handlePanelAction } from '@/main/browser-agent/driver'
-import { setPanelBounds } from '@/main/browser-agent/session'
+import { executeTool, getTabsState, handlePanelAction } from '@/main/browser-agent/driver'
+import { setBrowserTheme, setPanelBounds, setPanelOccluded } from '@/main/browser-agent/session'
 import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
@@ -245,6 +245,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return executeTool(tool, toolParams)
       },
     },
+    'browser-agent:get-tabs-state': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: { tabs: [], activeTabId: null },
+      handler: () => getTabsState(),
+    },
     'browser-agent:panel-action': {
       kind: 'send',
       gate: 'app-origin',
@@ -266,6 +272,24 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         const bounds = parsePanelBounds(raw)
         if (bounds !== undefined) {
           setPanelBounds(bounds)
+        }
+      },
+    },
+    'browser-agent:set-panel-occluded': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: (occluded) => {
+        if (typeof occluded === 'boolean') {
+          setPanelOccluded(occluded)
+        }
+      },
+    },
+    'browser-agent:set-theme': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: (theme) => {
+        if (isBrowserTheme(theme)) {
+          setBrowserTheme(theme)
         }
       },
     },

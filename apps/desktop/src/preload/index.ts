@@ -2,6 +2,9 @@ import type {
   BrowserPageState,
   BrowserPanelAction,
   BrowserPanelBounds,
+  BrowserPanelSnapshot,
+  BrowserTabsState,
+  BrowserTheme,
   BrowserToolName,
   BrowserToolResponse,
 } from '@sim/browser-protocol'
@@ -85,11 +88,33 @@ const api: SimDesktopApi = {
     setPanelBounds: (bounds: BrowserPanelBounds | null): void => {
       ipcRenderer.send('browser-agent:set-panel-bounds', bounds)
     },
+    setPanelOccluded: (occluded: boolean): void => {
+      ipcRenderer.send('browser-agent:set-panel-occluded', occluded)
+    },
+    setTheme: (theme: BrowserTheme): void => {
+      ipcRenderer.send('browser-agent:set-theme', theme)
+    },
+    onPanelSnapshot: (callback: (snapshot: BrowserPanelSnapshot) => void): (() => void) => {
+      const listener = (_event: unknown, snapshot: BrowserPanelSnapshot) => callback(snapshot)
+      ipcRenderer.on('browser-agent:panel-snapshot', listener)
+      return () => {
+        ipcRenderer.removeListener('browser-agent:panel-snapshot', listener)
+      }
+    },
     onPageState: (callback: (state: BrowserPageState) => void): (() => void) => {
       const listener = (_event: unknown, state: BrowserPageState) => callback(state)
       ipcRenderer.on('browser-agent:page-state', listener)
       return () => {
         ipcRenderer.removeListener('browser-agent:page-state', listener)
+      }
+    },
+    getTabsState: (): Promise<BrowserTabsState> =>
+      ipcRenderer.invoke('browser-agent:get-tabs-state'),
+    onTabsState: (callback: (state: BrowserTabsState) => void): (() => void) => {
+      const listener = (_event: unknown, state: BrowserTabsState) => callback(state)
+      ipcRenderer.on('browser-agent:tabs-state', listener)
+      return () => {
+        ipcRenderer.removeListener('browser-agent:tabs-state', listener)
       }
     },
     onSessionStatus: (callback: (alive: boolean) => void): (() => void) => {

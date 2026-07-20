@@ -98,7 +98,20 @@ if (originFlags.length > 1) {
 }
 
 console.log('• Packaging the app from the current checkout…')
-run('bun', ['run', 'package:dir'])
+run('bun', ['run', 'build'])
+// Same as package:dir, minus trusted timestamps: codesign's --timestamp does
+// a network round trip to Apple PER FILE (hundreds inside the Electron
+// framework), which turns local signing into a multi-minute stall. Local
+// installs don't need timestamped signatures — only notarized distribution
+// builds do.
+run('bunx', [
+  'electron-builder',
+  '--mac',
+  'dir',
+  '--publish',
+  'never',
+  '-c.mac.timestamp=none',
+])
 
 const builtApp = RELEASE_DIRS.map((dir) => join(dir, APP_NAME)).find(existsSync)
 if (!builtApp) {

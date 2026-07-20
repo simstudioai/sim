@@ -2,6 +2,9 @@ import type {
   BrowserPageState,
   BrowserPanelAction,
   BrowserPanelBounds,
+  BrowserPanelSnapshot,
+  BrowserTabsState,
+  BrowserTheme,
   BrowserToolName,
   BrowserToolResponse,
 } from '@sim/browser-protocol'
@@ -26,8 +29,33 @@ export interface SimDesktopBrowserAgentApi {
    * process keeps the embedded view glued to this rect.
    */
   setPanelBounds(bounds: BrowserPanelBounds | null): void
+  /**
+   * Hide or reveal the native browser surface without detaching it. Optional
+   * so newer web deployments remain compatible with older desktop builds.
+   */
+  setPanelOccluded?(occluded: boolean): void
+  /**
+   * Mirror Sim's light/dark/system preference into the embedded pages.
+   * Optional for compatibility with desktop builds predating theme sync.
+   */
+  setTheme?(theme: BrowserTheme): void
+  /**
+   * Subscribe to captured browser frames used beneath renderer overlays.
+   * Optional for compatibility with desktop builds predating occlusion.
+   */
+  onPanelSnapshot?(callback: (snapshot: BrowserPanelSnapshot) => void): () => void
   /** Subscribe to live page state for the panel header. Returns an unsubscribe function. */
   onPageState(callback: (state: BrowserPageState) => void): () => void
+  /**
+   * Read the current live tab list. Optional so a newer web deployment remains
+   * compatible with installed desktop versions that only support one visible tab.
+   */
+  getTabsState?(): Promise<BrowserTabsState>
+  /**
+   * Subscribe to live tab-list changes. Optional for compatibility with older
+   * installed desktop versions.
+   */
+  onTabsState?(callback: (state: BrowserTabsState) => void): () => void
   /**
    * Subscribe to session liveness changes (false when the browser session
    * ends). Returns an unsubscribe function.

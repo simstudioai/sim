@@ -1,7 +1,14 @@
-import type { BrowserPanelBounds } from '@sim/browser-protocol'
+import {
+  type BrowserPanelBounds,
+  type BrowserPanelSnapshot,
+  type BrowserTabState,
+  type BrowserTabsState,
+  type BrowserTheme,
+  MAX_BROWSER_TABS,
+} from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import type { BrowserWindow, Session, WebContents } from 'electron'
-import { WebContentsView } from 'electron'
+import { nativeTheme, WebContentsView } from 'electron'
 import { registerAgentWebContents } from '@/main/browser-agent/registry'
 
 const logger = createLogger('BrowserAgentSession')
@@ -23,6 +30,10 @@ export interface AgentSessionEvents {
   onTabCreated: (contents: WebContents) => void
   /** The active tab changed (new tab, switch, close). */
   onActiveTabChanged: (contents: WebContents) => void
+  /** The tab list or active tab changed. */
+  onTabsChanged: () => void
+  /** Sim's appearance preference changed for an existing tab. */
+  onTabThemeChanged: (contents: WebContents, theme: BrowserTheme) => void
   /** A download was blocked on the agent partition. */
   onDownloadBlocked: (filename: string, url: string) => void
 }
@@ -45,8 +56,13 @@ let events: AgentSessionEvents | null = null
 let getMainWindow: () => BrowserWindow | null = () => null
 /** Where the panel sits in the main window (CSS px); null = panel hidden. */
 let panelBounds: BrowserPanelBounds | null = null
+/** True while renderer-owned UI overlaps the native browser surface. */
+let panelOccluded = false
 let panelLeaseAt = 0
 let leaseTimer: ReturnType<typeof setInterval> | null = null
+let panelSnapshotGeneration = 0
+/** Raw Sim preference; `system` remains dynamic as the OS theme changes. */
+let browserTheme: BrowserTheme = 'system'
 /** Prevent hidden-page throttling only while an agent action needs the page to make progress. */
 let automationActive = false
 /** The window currently hosting the active view, for re-parenting checks. */
@@ -94,15 +110,23 @@ function createTabView(): WebContentsView {
       spellcheck: false,
     },
   })
+  view.setBackgroundColor(browserBackgroundColor())
   const contents = view.webContents
   registerAgentWebContents(contents)
   configureAgentPartition(contents.session)
 
-  // Popup-neutralize: window.open and target=_blank navigate the SAME view
-  // instead of spawning windows — the agent browses one page per tab.
+  // Keep popups inside the browser resource: http(s) window.open and
+  // target=_blank requests become a new internal tab, never a native window.
   contents.setWindowOpenHandler((details) => {
     if (/^https?:\/\//i.test(details.url)) {
-      void contents.loadURL(details.url).catch(() => {})
+      try {
+        const tab = addTab()
+        void tab.view.webContents.loadURL(details.url).catch(() => {})
+      } catch (error) {
+        logger.warn('Could not open browser popup in a new tab', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
     }
     return { action: 'deny' }
   })
@@ -135,10 +159,78 @@ export function setAutomationActive(active: boolean): void {
   }
 }
 
+function browserBackgroundColor(): string {
+  const dark =
+    browserTheme === 'dark' || (browserTheme === 'system' && nativeTheme.shouldUseDarkColors)
+  return dark ? '#0c0c0c' : '#ffffff'
+}
+
+function updateTabBackgrounds(): void {
+  const color = browserBackgroundColor()
+  for (const tab of tabs) {
+    if (!tab.view.webContents.isDestroyed()) {
+      tab.view.setBackgroundColor(color)
+    }
+  }
+}
+
+/**
+ * Applies Sim's raw appearance preference to every current and future tab.
+ * Page media-query emulation stays in the CDP layer; this module owns the
+ * native view backdrop used before and between page paints.
+ */
+export function setBrowserTheme(theme: BrowserTheme): void {
+  if (browserTheme === theme) return
+  browserTheme = theme
+  updateTabBackgrounds()
+  for (const tab of tabs) {
+    if (!tab.view.webContents.isDestroyed()) {
+      events?.onTabThemeChanged(tab.view.webContents, theme)
+    }
+  }
+}
+
+export function getBrowserTheme(): BrowserTheme {
+  return browserTheme
+}
+
+nativeTheme.on('updated', () => {
+  if (browserTheme === 'system') {
+    updateTabBackgrounds()
+  }
+})
+
 /** The view currently attached to the host window (attach only on change —
  * re-adding an attached view re-stacks it and can flicker the composite). */
 let attachedView: WebContentsView | null = null
 let lastAppliedBounds = ''
+let lastAppliedVisibility: boolean | null = null
+
+/**
+ * Captures the current browser frame for the renderer to display while the
+ * native view is hidden beneath an overlay. Captures stay hidden so Chromium
+ * never promotes an occluded page back into the compositor.
+ */
+function capturePanelSnapshot(): void {
+  const active = activeTab()
+  const win = getMainWindow()
+  if (!active || !win || active.view.webContents.isDestroyed()) return
+
+  const generation = ++panelSnapshotGeneration
+  const tabId = active.id
+  void active.view.webContents
+    .capturePage(undefined, { stayHidden: true })
+    .then((image) => {
+      if (generation !== panelSnapshotGeneration || image.isEmpty()) return
+      const snapshot: BrowserPanelSnapshot = { dataUrl: image.toDataURL(), tabId }
+      getMainWindow()?.webContents.send('browser-agent:panel-snapshot', snapshot)
+    })
+    .catch((error) => {
+      logger.warn('Could not capture browser panel snapshot', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
+}
 
 /**
  * Repositions the active view over the panel rect inside the main window
@@ -150,12 +242,14 @@ function layout(): void {
   const win = getMainWindow()
   const active = activeTab()
   const showing = active !== null && panelBounds !== null && win !== null
+  const activeViewChanged = showing && attachedView !== active?.view
 
   if (!showing || hostedWindow !== win || attachedView !== active?.view) {
     if (attachedView) {
       hostedWindow?.contentView.removeChildView(attachedView)
       attachedView = null
       lastAppliedBounds = ''
+      lastAppliedVisibility = null
     }
   }
   if (!showing || !active || !win || panelBounds === null) {
@@ -166,6 +260,9 @@ function layout(): void {
     win.contentView.addChildView(active.view)
     hostedWindow = win
     attachedView = active.view
+    if (panelOccluded && activeViewChanged) {
+      capturePanelSnapshot()
+    }
   }
   const zoom = win.webContents.getZoomFactor()
   const bounds = {
@@ -178,19 +275,29 @@ function layout(): void {
   if (boundsKey !== lastAppliedBounds) {
     lastAppliedBounds = boundsKey
     active.view.setBounds(bounds)
-    active.view.setVisible(true)
+  }
+  const visible = !panelOccluded
+  if (visible !== lastAppliedVisibility) {
+    lastAppliedVisibility = visible
+    active.view.setVisible(visible)
   }
 }
 
 /** Renderer-reported panel rect (null = panel hidden/unmounted). */
 export function setPanelBounds(bounds: BrowserPanelBounds | null): void {
   panelBounds = bounds
+  if (bounds === null) {
+    panelOccluded = false
+    panelSnapshotGeneration++
+  }
   panelLeaseAt = Date.now()
   if (bounds !== null && leaseTimer === null) {
     leaseTimer = setInterval(() => {
       if (panelBounds !== null && Date.now() - panelLeaseAt > PANEL_LEASE_TTL_MS) {
         logger.info('Panel bounds lease expired; hiding embedded browser view')
         panelBounds = null
+        panelOccluded = false
+        panelSnapshotGeneration++
         layout()
       }
       if (panelBounds === null && leaseTimer !== null) {
@@ -198,6 +305,20 @@ export function setPanelBounds(bounds: BrowserPanelBounds | null): void {
         leaseTimer = null
       }
     }, PANEL_LEASE_CHECK_MS)
+  }
+  layout()
+}
+
+/**
+ * Renderer-reported native-surface occlusion. The view stays attached and
+ * keeps its bounds while hidden, avoiding the flicker and restacking caused
+ * by removing and re-adding it for every tooltip or menu.
+ */
+export function setPanelOccluded(occluded: boolean): void {
+  if (panelOccluded === occluded) return
+  panelOccluded = occluded
+  if (occluded) {
+    capturePanelSnapshot()
   }
   layout()
 }
@@ -221,11 +342,15 @@ export function requireTab(): AgentTab {
 }
 
 export function addTab(): AgentTab {
+  if (tabs.filter((tab) => !tab.view.webContents.isDestroyed()).length >= MAX_BROWSER_TABS) {
+    throw new SessionError(`The browser supports up to ${MAX_BROWSER_TABS} open tabs.`)
+  }
   const tab: AgentTab = { id: String(nextTabId++), view: createTabView() }
   tabs.push(tab)
   activeTabId = tab.id
   layout()
   events?.onActiveTabChanged(tab.view.webContents)
+  events?.onTabsChanged()
   return tab
 }
 
@@ -235,6 +360,7 @@ export function switchTab(tabId: string): AgentTab {
   activeTabId = tab.id
   layout()
   events?.onActiveTabChanged(tab.view.webContents)
+  events?.onTabsChanged()
   return tab
 }
 
@@ -246,6 +372,7 @@ export function closeTab(tabId: string): void {
     hostedWindow?.contentView.removeChildView(tab.view)
     attachedView = null
     lastAppliedBounds = ''
+    lastAppliedVisibility = null
   }
   tab.view.webContents.close()
   if (activeTabId === tab.id) {
@@ -256,20 +383,29 @@ export function closeTab(tabId: string): void {
       events?.onActiveTabChanged(active.view.webContents)
     }
   }
+  events?.onTabsChanged()
   if (!hasSession()) {
     events?.onSessionClosed()
   }
 }
 
-export function listTabs(): Array<{ tabId: string; title: string; url: string; active: boolean }> {
+export function listTabs(): BrowserTabState[] {
   return tabs
     .filter((tab) => !tab.view.webContents.isDestroyed())
     .map((tab) => ({
       tabId: tab.id,
       title: tab.view.webContents.getTitle(),
       url: tab.view.webContents.getURL(),
+      loading: tab.view.webContents.isLoading(),
       active: tab.id === activeTabId,
     }))
+}
+
+export function getTabsState(): BrowserTabsState {
+  return {
+    tabs: listTabs(),
+    activeTabId: activeTab()?.id ?? null,
+  }
 }
 
 export function activeTab(): AgentTab | null {

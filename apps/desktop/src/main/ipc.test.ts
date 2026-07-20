@@ -187,6 +187,24 @@ describe('registerIpcHandlers', () => {
     expect(() => handler?.(appEvent, { action: 'reload' })).not.toThrow()
   })
 
+  it('restricts browser-panel occlusion updates to boolean app-origin messages', () => {
+    const { on } = collectHandlers()
+    const handler = on.get('browser-agent:set-panel-occluded')
+
+    expect(() => handler?.(evilEvent, true)).not.toThrow()
+    expect(() => handler?.(appEvent, 'yes')).not.toThrow()
+    expect(() => handler?.(appEvent, true)).not.toThrow()
+  })
+
+  it('restricts browser theme updates to known app-origin preferences', () => {
+    const { on } = collectHandlers()
+    const handler = on.get('browser-agent:set-theme')
+
+    expect(() => handler?.(evilEvent, 'dark')).not.toThrow()
+    expect(() => handler?.(appEvent, 'sepia')).not.toThrow()
+    expect(() => handler?.(appEvent, 'system')).not.toThrow()
+  })
+
   it('restricts launcher channels to the app origin and validates ids', () => {
     const { on } = collectHandlers()
     const openChat = on.get('launcher:open-chat')

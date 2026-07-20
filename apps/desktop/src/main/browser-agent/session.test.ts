@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
+import { MAX_BROWSER_TABS } from '@sim/browser-protocol'
 import { BrowserWindow } from 'electron'
 
 type SessionModule = typeof import('@/main/browser-agent/session')
@@ -15,7 +16,9 @@ interface MockView {
     setWindowOpenHandler: ReturnType<typeof vi.fn>
     loadURL: ReturnType<typeof vi.fn>
     setBackgroundThrottling: ReturnType<typeof vi.fn>
+    capturePage: ReturnType<typeof vi.fn>
   }
+  setBackgroundColor: ReturnType<typeof vi.fn>
   setBounds: ReturnType<typeof vi.fn>
   setVisible: ReturnType<typeof vi.fn>
 }
@@ -32,7 +35,10 @@ function mainWindowMock() {
   return win as unknown as BrowserWindow
 }
 
-async function freshSession(win: BrowserWindow | null): Promise<SessionModule> {
+async function freshSession(
+  win: BrowserWindow | null,
+  eventOverrides: Partial<import('@/main/browser-agent/session').AgentSessionEvents> = {}
+): Promise<SessionModule> {
   vi.resetModules()
   const session = await import('@/main/browser-agent/session')
   session.initSession(
@@ -40,7 +46,10 @@ async function freshSession(win: BrowserWindow | null): Promise<SessionModule> {
       onSessionClosed: vi.fn(),
       onTabCreated: vi.fn(),
       onActiveTabChanged: vi.fn(),
+      onTabsChanged: vi.fn(),
+      onTabThemeChanged: vi.fn(),
       onDownloadBlocked: vi.fn(),
+      ...eventOverrides,
     },
     () => win
   )
@@ -76,6 +85,32 @@ describe('browser-agent session', () => {
     expect(contents.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
   })
 
+  it('updates the native backdrop when Sim changes browser theme', () => {
+    const tab = session.ensureTab()
+    const view = tab.view as unknown as MockView
+
+    session.setBrowserTheme('dark')
+    expect(session.getBrowserTheme()).toBe('dark')
+    expect(view.setBackgroundColor).toHaveBeenLastCalledWith('#0c0c0c')
+
+    session.setBrowserTheme('light')
+    expect(view.setBackgroundColor).toHaveBeenLastCalledWith('#ffffff')
+  })
+
+  it('propagates theme changes to every existing tab', async () => {
+    const onTabThemeChanged = vi.fn()
+    const themedSession = await freshSession(win, { onTabThemeChanged })
+    const first = themedSession.ensureTab()
+    const second = themedSession.addTab()
+
+    themedSession.setBrowserTheme('dark')
+
+    expect(onTabThemeChanged.mock.calls).toEqual([
+      [first.view.webContents, 'dark'],
+      [second.view.webContents, 'dark'],
+    ])
+  })
+
   it('requireTab refuses when no page is open yet', () => {
     expect(() => session.requireTab()).toThrow(/No page is open yet/)
   })
@@ -96,6 +131,18 @@ describe('browser-agent session', () => {
 
     expect(() => session.switchTab('999')).toThrow(/No tab with id 999/)
     expect(() => session.closeTab('999')).toThrow(/No tab with id 999/)
+  })
+
+  it('limits the browser session to five open tabs', () => {
+    session.ensureTab()
+    for (let index = 1; index < MAX_BROWSER_TABS; index++) {
+      session.addTab()
+    }
+
+    expect(session.listTabs()).toHaveLength(MAX_BROWSER_TABS)
+    expect(() => session.addTab()).toThrow(
+      `The browser supports up to ${MAX_BROWSER_TABS} open tabs.`
+    )
   })
 
   it('embeds the active view in the MAIN window only while panel bounds are reported', () => {
@@ -136,7 +183,37 @@ describe('browser-agent session', () => {
     })
   })
 
-  it('hardens every tab: agent partition default-denies permissions and popups collapse into the same view', () => {
+  it('keeps an occluded view attached, captures its frame, and toggles visibility', async () => {
+    const tab = session.ensureTab()
+    const view = tab.view as unknown as MockView
+    const content = (
+      win as unknown as {
+        contentView: {
+          addChildView: ReturnType<typeof vi.fn>
+          removeChildView: ReturnType<typeof vi.fn>
+        }
+      }
+    ).contentView
+    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    content.removeChildView.mockClear()
+    view.setVisible.mockClear()
+
+    session.setPanelOccluded(true)
+
+    expect(content.removeChildView).not.toHaveBeenCalled()
+    expect(view.setVisible).toHaveBeenLastCalledWith(false)
+    await vi.waitFor(() => {
+      expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:panel-snapshot', {
+        dataUrl: 'data:image/png;base64,c2lt',
+        tabId: tab.id,
+      })
+    })
+
+    session.setPanelOccluded(false)
+    expect(view.setVisible).toHaveBeenLastCalledWith(true)
+  })
+
+  it('hardens every tab and keeps http popups inside a new internal tab', () => {
     const tab = session.ensureTab()
     const contents = (tab.view as unknown as MockView).webContents
     expect(contents.session.setPermissionRequestHandler).toHaveBeenCalled()
@@ -146,7 +223,11 @@ describe('browser-agent session', () => {
       url: string
     }) => { action: string }
     expect(openHandler({ url: 'https://example.com/popup' })).toEqual({ action: 'deny' })
-    expect(contents.loadURL).toHaveBeenCalledWith('https://example.com/popup')
+    expect(session.listTabs()).toHaveLength(2)
+    const popupContents = (session.activeTab()?.view as unknown as MockView | undefined)
+      ?.webContents
+    expect(popupContents?.loadURL).toHaveBeenCalledWith('https://example.com/popup')
+    expect(contents.loadURL).not.toHaveBeenCalledWith('https://example.com/popup')
     // Non-http(s) popups are denied without navigating anywhere.
     contents.loadURL.mockClear()
     expect(openHandler({ url: 'file:///etc/passwd' })).toEqual({ action: 'deny' })

@@ -317,7 +317,9 @@ async function resolveAgentContexts(params: {
           return {
             type: 'active_resource',
             tag: resource.active ? '@active_tab' : '@open_tab',
-            content: `The user's live browser panel (driven by the browser subagent) is open on: ${
+            content: `The user's ${
+              resource.active ? 'currently visible browser tab' : 'other open browser tab'
+            } (driven by the browser subagent) is open on: ${
               title ? `"${title}" — ` : ''
             }${resource.url}`,
           }

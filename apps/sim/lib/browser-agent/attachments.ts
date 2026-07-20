@@ -24,16 +24,45 @@ export function buildResourceAttachments(
   resources: readonly MothershipResource[],
   activeResourceId: string | null
 ): ResourceAttachment[] | undefined {
-  const browserPageState = useBrowserSessionStore.getState().pageState
-  const attachable = resources.filter((r) => r.type !== 'browser' || Boolean(browserPageState?.url))
-  if (attachable.length === 0) {
+  const { pageState, tabs, tabsSupported } = useBrowserSessionStore.getState()
+  const attachments = resources.flatMap<ResourceAttachment>((resource) => {
+    if (resource.type !== 'browser') {
+      return [
+        {
+          type: resource.type,
+          id: resource.id,
+          title: resource.title,
+          active: resource.id === activeResourceId,
+        },
+      ]
+    }
+
+    if (tabsSupported) {
+      return tabs
+        .filter((tab) => Boolean(tab.url))
+        .map((tab) => ({
+          type: resource.type,
+          id: `${resource.id}:${tab.tabId}`,
+          title: tab.title.trim() || resource.title,
+          active: resource.id === activeResourceId && tab.active,
+          url: tab.url,
+        }))
+    }
+
+    if (!pageState?.url) return []
+    return [
+      {
+        type: resource.type,
+        id: resource.id,
+        title: pageState.title.trim() || resource.title,
+        active: resource.id === activeResourceId,
+        url: pageState.url,
+      },
+    ]
+  })
+
+  if (attachments.length === 0) {
     return undefined
   }
-  return attachable.map((r) => ({
-    type: r.type,
-    id: r.id,
-    title: r.type === 'browser' ? browserPageState?.title?.trim() || r.title : r.title,
-    active: r.id === activeResourceId,
-    ...(r.type === 'browser' ? { url: browserPageState?.url } : {}),
-  }))
+  return attachments
 }

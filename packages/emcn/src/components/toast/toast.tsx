@@ -593,6 +593,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
                   key='toast-stack'
                   aria-live='polite'
                   aria-label='Notifications'
+                  data-native-surface-overlay=''
                   className='fixed z-[var(--z-toast)] m-0 list-none p-0'
                   exit={{
                     opacity: 0,
