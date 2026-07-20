@@ -265,17 +265,21 @@ export function Table({
   )
 
   /**
-   * Initialize the table when the component mounts and the store value is
-   * missing/empty. Precedence:
+   * Initialize the table when the component mounts and the store value has
+   * never been set. Precedence:
    *   1. `fetchDefaultRows` (async) — used when defaults live server-side
    *      (e.g. deployer env-var read via an API route).
    *   2. `defaultRows` (sync) — static seeds declared on the block config.
    *   3. Single empty row — the pre-existing behavior.
-   * Existing store values are never touched.
+   *
+   * We only seed when `storeValue` is `null` / `undefined` — a stored
+   * `[]` means the workflow author intentionally cleared every row and
+   * must NOT be treated as "unseeded" (would re-seed defaults on every
+   * remount and clobber the empty state they chose).
    */
   useEffect(() => {
     if (isPreview || disabled) return
-    if (Array.isArray(storeValue) && storeValue.length > 0) return
+    if (storeValue !== undefined && storeValue !== null) return
     let cancelled = false
     const seedWith = (rows: Array<{ cells: Record<string, string> }> | undefined) => {
       if (cancelled) return

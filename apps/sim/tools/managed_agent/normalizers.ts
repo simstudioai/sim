@@ -40,10 +40,15 @@ export function isTruthyAck(value: unknown): boolean {
 }
 
 /**
- * Coerces the block's file table (a JSON array of `{fileId, mountPath?}`
- * or the raw table-subblock shape `Array<{Key: string, Value: string}>`)
- * into the tidy shape the session-client expects. Silently drops rows
- * missing a file id.
+ * Coerces the block's file table into the tidy shape the session-client
+ * expects. Silently drops rows missing a file id.
+ *
+ * The table subblock stores rows as `WorkflowTableRow[]` with `cells`
+ * keyed by the column-header STRINGS the block declared. The cloud
+ * Managed Agents block uses `columns: ['File ID', 'Mount path']`, so
+ * cells arrive as `{ 'File ID': '...', 'Mount path': '...' }`. We also
+ * accept the older `{Key, Value}` and the flat `{fileId, mountPath}`
+ * shapes so hand-authored or legacy stored values still resolve.
  */
 export function normalizeFiles(
   value: unknown
@@ -57,19 +62,20 @@ export function normalizeFiles(
       record.cells && typeof record.cells === 'object'
         ? (record.cells as Record<string, unknown>)
         : record
+    const readString = (key: string): string | undefined =>
+      typeof cells[key] === 'string' ? (cells[key] as string) : undefined
     const fileId =
-      typeof cells.fileId === 'string'
-        ? cells.fileId
-        : typeof cells.Key === 'string'
-          ? cells.Key
-          : ''
+      readString('fileId') ??
+      readString('File ID') ??
+      readString('file_id') ??
+      readString('Key') ??
+      ''
     if (!fileId.trim()) continue
     const mountPath =
-      typeof cells.mountPath === 'string'
-        ? cells.mountPath
-        : typeof cells.Value === 'string'
-          ? cells.Value
-          : undefined
+      readString('mountPath') ??
+      readString('Mount path') ??
+      readString('mount_path') ??
+      readString('Value')
     out.push({
       fileId: fileId.trim(),
       ...(mountPath && mountPath.trim() ? { mountPath: mountPath.trim() } : {}),

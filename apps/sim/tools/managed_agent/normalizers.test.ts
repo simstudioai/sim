@@ -113,6 +113,22 @@ describe('normalizeFiles', () => {
     ])
   })
 
+  it("accepts the block's declared column names (`File ID` / `Mount path`)", () => {
+    // The cloud block declares `columns: ['File ID', 'Mount path']`, so
+    // the table subblock stores each row keyed by exactly those strings.
+    // Regression test — the previous normalizer only knew about
+    // `Key`/`Value` and silently dropped every row.
+    expect(
+      normalizeFiles([
+        { id: 'r1', cells: { 'File ID': 'file_1', 'Mount path': '/data/one' } },
+        { id: 'r2', cells: { 'File ID': 'file_2', 'Mount path': '' } },
+      ])
+    ).toEqual([
+      { fileId: 'file_1', mountPath: '/data/one' },
+      { fileId: 'file_2' },
+    ])
+  })
+
   it('drops rows with no file id and rows that are not objects', () => {
     expect(
       normalizeFiles([

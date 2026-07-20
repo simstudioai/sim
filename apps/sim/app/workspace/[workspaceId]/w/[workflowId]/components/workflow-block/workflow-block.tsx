@@ -106,6 +106,18 @@ const areSubBlockRowPropsEqual = (
   const nextValue = subBlockId ? nextProps.allSubBlockValues?.[subBlockId]?.value : undefined
   const valueEqual = prevValue === nextValue || isEqual(prevValue, nextValue)
 
+  // Some subblocks resolve their friendly-name label using SIBLING values
+  // (e.g. managed-agent rows key off the selected `connection` id). If a
+  // sibling changes but this row's own value doesn't, the memo would keep
+  // showing a label tied to the previous sibling. Compare a small set of
+  // known dependency keys explicitly so hydration stays fresh.
+  const depFields = ['connection', 'oauthCredential', 'credential'] as const
+  const depsEqual = depFields.every((field) => {
+    const prev = prevProps.allSubBlockValues?.[field]?.value
+    const next = nextProps.allSubBlockValues?.[field]?.value
+    return prev === next || isEqual(prev, next)
+  })
+
   return (
     prevProps.title === nextProps.title &&
     prevProps.value === nextProps.value &&
@@ -116,6 +128,7 @@ const areSubBlockRowPropsEqual = (
     prevProps.blockId === nextProps.blockId &&
     prevProps.blockType === nextProps.blockType &&
     valueEqual &&
+    depsEqual &&
     prevProps.displayAdvancedOptions === nextProps.displayAdvancedOptions &&
     prevProps.canonicalIndex === nextProps.canonicalIndex &&
     prevProps.canonicalModeOverrides === nextProps.canonicalModeOverrides
