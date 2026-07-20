@@ -269,8 +269,10 @@ jobs:
       github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
       needs.deploy-trigger-dev.result == 'success'
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    # Dev bake is 5 min; the poll budget (30 min) and session (40 min) are sized for
-    # that with margin, well short of the prod path's 70/90.
+    # Dev bake is 5 min and dev deploys don't queue behind a bake (serialized by the
+    # ci-<ref> group), so a 20-min poll is ample; the 40-min job leaves ~20 min for
+    # setup + promote above it (mirrors the prod 90-vs-70 margin), and the 40-min
+    # session outlasts the poll.
     timeout-minutes: 40
     permissions:
       contents: read
@@ -329,7 +331,7 @@ jobs:
       - name: Wait for ECS traffic cutover
         if: steps.appdeploy.outputs.deployed == 'true'
         env:
-          OVERALL_TIMEOUT: "1800"
+          OVERALL_TIMEOUT: "1200"
         run: |
           set -eo pipefail
           CHANGED=$(cat dev-meta/app_image_changed.txt)
