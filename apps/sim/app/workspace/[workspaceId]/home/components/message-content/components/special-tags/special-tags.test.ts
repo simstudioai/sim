@@ -155,3 +155,58 @@ describe('parseSpecialTags with <question>', () => {
     ])
   })
 })
+
+describe('service_account credential tag', () => {
+  it('parses a service_account tag into a credential segment', () => {
+    const body = JSON.stringify({ type: 'service_account', provider: 'slack' })
+    const { segments } = parseSpecialTags(`Set this up: <credential>${body}</credential>`, false)
+
+    const credential = segments.find((segment) => segment.type === 'credential')
+    expect(credential).toBeDefined()
+    expect(credential).toMatchObject({
+      type: 'credential',
+      data: { type: 'service_account', provider: 'slack' },
+    })
+  })
+
+  it('carries no value — the secret is typed into Sim’s own form, never the transcript', () => {
+    const body = JSON.stringify({ type: 'service_account', provider: 'google-sheets' })
+    const { segments } = parseSpecialTags(`<credential>${body}</credential>`, false)
+
+    const credential = segments.find((segment) => segment.type === 'credential')
+    expect((credential as { data: { value?: string } }).data.value).toBeUndefined()
+  })
+
+  it('suppresses the tag while it is still streaming', () => {
+    // A half-streamed tag must not flash raw JSON into the message body.
+    const { segments, hasPendingTag } = parseSpecialTags(
+      'Set this up: <credential>{"type": "service_a',
+      true
+    )
+    expect(hasPendingTag).toBe(true)
+    expect(segments.some((segment) => segment.type === 'credential')).toBe(false)
+    const text = segments
+      .filter((segment): segment is { type: 'text'; content: string } => segment.type === 'text')
+      .map((segment) => segment.content)
+      .join('')
+    expect(text).not.toContain('service_a')
+  })
+})
+
+describe('service_account tag validation', () => {
+  it('rejects a provider-less tag, which would render an unresolvable control', () => {
+    const { segments } = parseSpecialTags(
+      `<credential>${JSON.stringify({ type: 'service_account' })}</credential>`,
+      false
+    )
+    expect(segments.some((segment) => segment.type === 'credential')).toBe(false)
+  })
+
+  it('rejects a blank provider', () => {
+    const { segments } = parseSpecialTags(
+      `<credential>${JSON.stringify({ type: 'service_account', provider: '   ' })}</credential>`,
+      false
+    )
+    expect(segments.some((segment) => segment.type === 'credential')).toBe(false)
+  })
+})

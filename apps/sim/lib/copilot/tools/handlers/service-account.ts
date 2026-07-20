@@ -47,19 +47,21 @@ export async function executeServiceAccountGetSetupLink(
     return {
       success: true,
       output: {
-        message: `Service account setup link generated for ${match.serviceName}.`,
-        setup_url: url.toString(),
+        message: `Service account setup available for ${match.serviceName}.`,
         instructions:
-          `Open this URL to set up a ${match.serviceName} service account: ${url.toString()}. ` +
-          `The form collects the credential — never ask the user to paste key material into chat.`,
+          `Emit <credential>{"type":"service_account","provider":"${match.providerId}"}</credential> ` +
+          `to open the ${match.serviceName} setup form directly in this chat. Only fall back to ` +
+          `setup_url when you cannot render a tag (headless/MCP). The form collects the ` +
+          `credential — never ask the user to paste key material into chat.`,
         provider: match.serviceName,
-        // The OAuth provider value, NOT the service-account provider id — the
-        // `<credential>` link renderer derives the button's label and icon from
-        // this via `getServiceConfigByProviderId`, and a service-account id
-        // resolves to whichever family member is registered first: tagging
-        // `google-service-account` labels a Google Sheets link "Connect Gmail".
+        // The OAuth provider value, NOT the service-account provider id — both
+        // the tag renderer and the link renderer resolve display metadata from
+        // this, and a service-account id resolves to whichever family member is
+        // registered first: `google-service-account` labels Google Sheets "Gmail".
         providerId: match.providerId,
         serviceAccountProviderId: match.serviceAccountProviderId,
+        /** Headless fallback only; interactive chat should emit the tag. */
+        setup_url: url.toString(),
       },
     }
   } catch (err) {
