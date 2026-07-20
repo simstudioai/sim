@@ -91,6 +91,7 @@ export interface ToolCatalogEntry {
     | 'search_library_docs'
     | 'search_online'
     | 'search_patterns'
+    | 'service_account_get_setup_link'
     | 'set_block_enabled'
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
@@ -189,6 +190,7 @@ export interface ToolCatalogEntry {
     | 'search_library_docs'
     | 'search_online'
     | 'search_patterns'
+    | 'service_account_get_setup_link'
     | 'set_block_enabled'
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
@@ -3828,6 +3830,24 @@ export const SearchPatterns: ToolCatalogEntry = {
   },
 }
 
+export const ServiceAccountGetSetupLink: ToolCatalogEntry = {
+  id: 'service_account_get_setup_link',
+  name: 'service_account_get_setup_link',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      providerName: {
+        type: 'string',
+        description:
+          'The integration to set up a service account for. Pass the most specific service the user needs (e.g. `google-sheets`, `gmail`, `jira`, `slack`, `notion`); a slug, OAuth provider value, service-account provider id, or display name resolves case-insensitively.',
+      },
+    },
+    required: ['providerName'],
+  },
+}
+
 export const SetBlockEnabled: ToolCatalogEntry = {
   id: 'set_block_enabled',
   name: 'set_block_enabled',
@@ -4934,6 +4954,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SearchLibraryDocs.id]: SearchLibraryDocs,
   [SearchOnline.id]: SearchOnline,
   [SearchPatterns.id]: SearchPatterns,
+  [ServiceAccountGetSetupLink.id]: ServiceAccountGetSetupLink,
   [SetBlockEnabled.id]: SetBlockEnabled,
   [SetEnvironmentVariables.id]: SetEnvironmentVariables,
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
