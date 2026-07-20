@@ -138,12 +138,42 @@ describe('runLocalPi secret boundaries', () => {
     expect(JSON.stringify({ result, toolResult })).not.toContain('sk-hosted')
   })
 
-  it('scrubs SDK exceptions before they leave local mode', async () => {
+  it('scrubs SDK exceptions before they leave Local Dev', async () => {
     mockCreateAgentSession.mockRejectedValueOnce(new Error('provider rejected sk-hosted'))
 
     await expect(runLocalPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
       'provider rejected ***'
     )
     expect(mockRemoveRuntimeApiKey).toHaveBeenCalledWith('anthropic')
+  })
+
+  it('does not treat host-only SSH authentication material as agent-visible content', async () => {
+    const params = baseParams()
+    params.ssh.password = 'admin'
+    params.task = 'update the admin page'
+    mockToolExecute.mockResolvedValue({ text: 'opened admin settings', isError: false })
+    mockCaptureRepoChanges.mockResolvedValue({
+      changedFiles: ['src/admin.ts'],
+      diff: '+const admin = true',
+    })
+
+    const result = await runLocalPi(params, { onEvent: vi.fn() })
+    const customTool = mockCreateAgentSession.mock.calls[0][0].customTools[0]
+    const toolResult = await customTool.execute('call-1', {}, undefined, undefined, {})
+
+    expect(mockPrompt).toHaveBeenCalledWith('update the admin page')
+    expect(toolResult.content).toEqual([{ type: 'text', text: 'opened admin settings' }])
+    expect(result.changedFiles).toEqual(['src/admin.ts'])
+    expect(result.diff).toBe('+const admin = true')
+  })
+
+  it('scrubs short SSH authentication material from connection errors', async () => {
+    const params = baseParams()
+    params.ssh.password = '1234'
+    mockOpenSshSession.mockRejectedValueOnce(new Error('SSH rejected password 1234'))
+
+    await expect(runLocalPi(params, { onEvent: vi.fn() })).rejects.toThrow(
+      'SSH rejected password ***'
+    )
   })
 })

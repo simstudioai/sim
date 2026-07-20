@@ -7,13 +7,13 @@ pageType: reference
 import { BlockPreview } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
-The **Pi Coding Agent block** runs the [Pi](https://github.com/earendil-works/pi-mono) coding harness against a real repository. You give it a task and a model; it either opens a pull request, posts a PR review, or changes your files in place. Cloud PR and Local can reuse your [skills](/agents/skills) and multi-turn [memory](#memory). Cloud Code Review deliberately does not load either because pull request contents are untrusted.
+The **Pi Coding Agent block** runs the [Pi](https://github.com/earendil-works/pi-mono) coding harness against a real repository. You give it a task and a model; it either opens a pull request, posts a PR review, or changes your files in place. Create PR and Local Dev can reuse your [skills](/agents/skills) and multi-turn [memory](#memory). Review Code deliberately does not load either because pull request contents are untrusted.
 
 It has three modes that decide *where* it runs and *how* its work lands:
 
-- **Cloud PR** — spins up an isolated sandbox, clones a connected GitHub repo, edits and tests with native shell + git, and opens a **pull request**.
-- **Cloud Code Review** — checks out an existing PR in a sandbox, analyzes it with bounded read-only access across the repository, and posts a **GitHub review** (summary + optional inline comments).
-- **Local** — connects to your own machine over **SSH** and edits files there directly.
+- **Create PR** — spins up an isolated sandbox, clones a connected GitHub repo, edits and tests with native shell + git, and opens a **pull request**.
+- **Review Code** — checks out an existing PR in a sandbox, analyzes it with bounded read-only access across the repository, and posts a **GitHub review** (summary + optional inline comments).
+- **Local Dev** — connects to your own machine over **SSH** and edits files there directly.
 
 <BlockPreview type="pi" />
 
@@ -21,18 +21,18 @@ It has three modes that decide *where* it runs and *how* its work lands:
 
 Pick the mode with the **Mode** dropdown. The fields below it change to match.
 
-### Cloud PR
+### Create PR
 
-Cloud PR runs entirely inside a disposable sandbox, so it never touches your machine. It clones the repo, lets the agent work with full read/shell/edit/git, pushes a branch, and opens a PR you review and merge.
+Create PR runs entirely inside a disposable sandbox, so it never touches your machine. It clones the repo, lets the agent work with full read/shell/edit/git, pushes a branch, and opens a PR you review and merge.
 
-- Requires sandbox execution to be enabled (Cloud options only appear when it is).
+- Requires sandbox execution to be enabled (Create PR and Review Code only appear when it is).
 - Requires **your own provider API key (BYOK)** — the model key is handed to the sandbox.
 - Needs a **GitHub token** with permission to clone, push, and open a PR (see [Setup](#setup-cloud-pr)).
 - The deliverable is a **pull request** — nothing is committed to your default branch directly.
 
-### Cloud Code Review
+### Review Code
 
-Cloud Code Review uses a disposable sandbox for the repository, but the Pi harness and model credential stay in Sim. It pins the PR base and head commits, gives the agent only bounded read/search tools, and validates inline coordinates against that exact local diff. Sim then submits one GitHub review with a summary body and optional inline line comments.
+Review Code uses a disposable sandbox for the repository, but the Pi harness and model credential stay in Sim. It pins the PR base and head commits, gives the agent only bounded read/search tools, and validates inline coordinates against that exact local diff. Sim then submits one GitHub review with a summary body and optional inline line comments.
 
 - Requires sandbox execution. The provider key stays in Sim, so hosted keys and BYOK are both supported.
 - Needs a **GitHub token** that can clone the repo and submit reviews (see [Setup](#setup-cloud-code-review)).
@@ -41,9 +41,9 @@ Cloud Code Review uses a disposable sandbox for the repository, but the Pi harne
 - Rechecks the PR immediately before submission and pins the review to the exact checked-out head commit.
 - The deliverable is a **submitted review** — read `reviewUrl` and `commentsPosted`.
 
-### Local
+### Local Dev
 
-Local runs the agent against a repository on a machine you control, reached over SSH. Changes are written **in place** — there's no PR; you review them as normal git changes on that machine.
+Local Dev runs the agent against a repository on a machine you control, reached over SSH. Changes are written **in place** — there's no PR; you review them as normal git changes on that machine.
 
 - The machine must be reachable on a **public hostname** — `localhost` and LAN/private addresses are blocked. Expose it with a tunnel (see [Setup](#setup-local)).
 - The agent's file and shell tools are confined to the **Repository Path** you configure.
@@ -57,30 +57,30 @@ What the agent should do, in plain language — for example *"Add input validati
 
 ### Model
 
-The model that drives the agent. Defaults to `claude-sonnet-4-6`. The dropdown is limited to providers the Pi harness supports: **OpenAI, Anthropic, Google (Gemini), xAI, DeepSeek, Mistral, Groq, Cerebras, and OpenRouter**. At runtime, the selected ID must resolve to an exact provider-relative entry in the installed Pi catalog; Sim never fabricates fallback model metadata.
+The model that drives the agent. Defaults to `claude-sonnet-4-6`. The dropdown contains the intersection of models available in Sim and exact provider-relative entries in the installed Pi catalog. Sim never fabricates fallback model metadata.
 
 ### API Key
 
-Your key for the chosen provider. On hosted Sim it is optional for Local and Cloud Code Review runs (a hosted key is used and metered to your workspace). **Cloud PR requires your own key** because its model client runs in the sandbox. For OpenAI, Anthropic, Google, Mistral, and xAI you can instead store a workspace key in **Settings → BYOK**; other providers must use this field for Cloud PR.
+Your key for the chosen provider. On hosted Sim it is optional for Local Dev and Review Code runs (a hosted key is used and metered to your workspace). **Create PR requires your own key** because its model client runs in the sandbox. When the provider supports workspace BYOK, you can store the key in **Settings → BYOK** instead of entering it on the block.
 
-### Repository (Cloud PR / Cloud Code Review)
+### Repository (Create PR / Review Code)
 
 - **Repository Owner / Repository Name** — the GitHub repo (for example `your-org` / `your-repo`).
-- **GitHub Token** — a personal access token used for GitHub access. Permissions differ by mode; see [Cloud PR setup](#setup-cloud-pr) or [Cloud Code Review setup](#setup-cloud-code-review).
+- **GitHub Token** — a personal access token used for GitHub access. Permissions differ by mode; see [Create PR setup](#setup-cloud-pr) or [Review Code setup](#setup-cloud-code-review).
 
-### Cloud PR fields
+### Create PR fields
 
 - **Base Branch** — the branch the PR is opened against and cloned from. Defaults to the repository's default branch.
 - **Branch Name** *(advanced)* — the branch to push. Auto-generated when blank.
 - **Open as Draft PR** *(advanced)* — opens the PR as a draft. On by default.
 - **PR Title / PR Body** *(advanced)* — generated from the run when blank.
 
-### Cloud Code Review fields
+### Review Code fields
 
 - **Pull Request Number** — the PR to review (for example `42`).
-- **Review Event** — the GitHub review action to submit: `Comment` (default) or `Request changes`. Cloud Code Review intentionally does not submit approvals.
+- **Review Outcome** — the GitHub review action to submit: `Comment` (default) or `Request changes`. Review Code intentionally does not submit approvals.
 
-### Connection (Local)
+### Connection (Local Dev)
 
 - **Host** — the public hostname or tunnel for the target machine (for example `2.tcp.ngrok.io`). Not `localhost` or a LAN address.
 - **Username** — the SSH user (for example `ubuntu`, `root`, or your macOS account).
@@ -90,11 +90,11 @@ Your key for the chosen provider. On hosted Sim it is optional for Local and Clo
 - **Port** *(advanced)* — the SSH port. Defaults to `22`; set this to your tunnel's port if it differs.
 - **Passphrase** *(advanced)* — for an encrypted private key.
 
-### Tools (Local)
+### Tools (Local Dev)
 
 Sim tools the agent can call while it works — search a knowledge base, send a Slack message, call any of the [integrations](/integrations). They run through Sim with your connected credentials, exactly like the [Agent block](/workflows/blocks/agent). MCP and custom tools aren't supported here yet (they appear greyed out).
 
-### Skills (Cloud PR / Local)
+### Skills (Create PR / Local Dev)
 
 [Agent skills](/agents/skills) the agent can use — reusable instruction packages like a coding standard or a review playbook. They're shared with the Agent block, so a skill you author once works in both.
 
@@ -102,7 +102,7 @@ Sim tools the agent can call while it works — search a knowledge base, send a 
 
 For models with extended reasoning, how much the model thinks before acting. Higher is more thorough but slower and costs more tokens. Defaults to `medium`.
 
-### Memory (Cloud PR / Local)
+### Memory (Create PR / Local Dev)
 
 Multi-turn memory keyed by a conversation ID, shared with the [Agent block](/workflows/blocks/agent):
 
@@ -111,11 +111,11 @@ Multi-turn memory keyed by a conversation ID, shared with the [Agent block](/wor
 - **Sliding window (messages).** The most recent N messages.
 - **Sliding window (tokens).** Recent messages up to a token budget.
 
-Reuse the same **Conversation ID** across runs to continue a thread. Each turn stores your task and the agent's final summary, which are folded into the next run's prompt. Cloud Code Review never loads or saves memory.
+Reuse the same **Conversation ID** across runs to continue a thread. Each turn stores your task and the agent's final summary, which are folded into the next run's prompt. Review Code never loads or saves memory.
 
 ### Context limits
 
-For Cloud PR and Local, memory is folded into the agent's first prompt, and two layers keep it within the model's context window:
+For Create PR and Local Dev, memory is folded into the agent's first prompt, and two layers keep it within the model's context window:
 
 - **Sim trims before the run.** The selected memory type bounds what's injected: **Conversation** is automatically capped to a fraction of the model's context window (for models in Sim's catalog), **Sliding window (messages)** keeps the last N messages, and **Sliding window (tokens)** keeps history up to an explicit token budget.
 - **Pi compacts during the run.** As the agent works (reading files, running commands), Pi automatically summarizes older turns to stay under the window — in all modes, on by default. You don't need to configure anything for context growth mid-run.
@@ -129,10 +129,10 @@ The one case neither layer can rescue is a *first* prompt that already exceeds t
 | `<pi.content>` | The agent's final message / run summary |
 | `<pi.changedFiles>` | The files the agent changed |
 | `<pi.diff>` | A unified diff of the changes |
-| `<pi.prUrl>` | URL of the opened pull request *(Cloud PR)* |
-| `<pi.branch>` | The branch pushed with the changes *(Cloud PR)* |
-| `<pi.reviewUrl>` | URL of the submitted GitHub review *(Cloud Code Review)* |
-| `<pi.commentsPosted>` | Number of inline review comments posted *(Cloud Code Review)* |
+| `<pi.prUrl>` | URL of the opened pull request *(Create PR)* |
+| `<pi.branch>` | The branch pushed with the changes *(Create PR)* |
+| `<pi.reviewUrl>` | URL of the submitted GitHub review *(Review Code)* |
+| `<pi.commentsPosted>` | Number of inline review comments posted *(Review Code)* |
 | `<pi.model>` | The model that ran |
 | `<pi.tokens>` | Token usage, an object `{ input, output, total }` |
 | `<pi.cost>` | Estimated cost of the run |
@@ -140,24 +140,24 @@ The one case neither layer can rescue is a *first* prompt that already exceeds t
 
 ## Setup
 
-### Cloud PR [#setup-cloud-pr]
+### Create PR [#setup-cloud-pr]
 
-Cloud PR runs in a sandbox image with the Pi CLI and git baked in.
+Create PR runs in a sandbox image with the Pi CLI and git baked in.
 
-1. **Enable sandbox execution.** On self-hosted Sim, set `E2B_ENABLED=true`, `E2B_API_KEY`, `E2B_PI_TEMPLATE_ID` (the Pi template id), and `NEXT_PUBLIC_E2B_ENABLED=true` (this reveals the Cloud options in the UI). Build the template with `bun run apps/sim/scripts/build-pi-e2b-template.ts`. Cloud options stay hidden until `NEXT_PUBLIC_E2B_ENABLED` is set.
-2. **Bring your own model key.** Set the provider API key in the block's API Key field (or, for OpenAI/Anthropic/Google/Mistral/xAI, in **Settings → BYOK**).
+1. **Enable sandbox execution.** On self-hosted Sim, set `E2B_ENABLED=true`, `E2B_API_KEY`, `E2B_PI_TEMPLATE_ID` (the Pi template id), and `NEXT_PUBLIC_E2B_ENABLED=true` (this reveals Create PR and Review Code in the UI). Build the template with `bun run apps/sim/scripts/build-pi-e2b-template.ts`. Both modes stay hidden until `NEXT_PUBLIC_E2B_ENABLED` is set.
+2. **Bring your own model key.** Set the provider API key in the block's API Key field, or store it in **Settings → BYOK** when the provider supports workspace BYOK.
 3. **Create a GitHub token** with permission to clone, push, and open a PR:
    - *Fine-grained:* select the repo, then **Contents: Read and write** + **Pull requests: Read and write**.
    - *Classic:* the **`repo`** scope. For org repos, authorize the token for SSO.
 
-### Cloud Code Review [#setup-cloud-code-review]
+### Review Code [#setup-cloud-code-review]
 
-Enable sandbox execution as for Cloud PR. BYOK is optional because the model credential remains in Sim. The GitHub token needs enough access to clone the repo and submit a review — push permission is not required:
+Enable sandbox execution as for Create PR. BYOK is optional because the model credential remains in Sim. The GitHub token needs enough access to clone the repo and submit a review — push permission is not required:
 
 - *Fine-grained:* select the repo, then **Contents: Read** + **Pull requests: Read and write**.
 - *Classic:* the **`repo`** scope (or a narrower token that can read contents and write pull-request reviews). For org repos, authorize the token for SSO.
 
-### Local [#setup-local]
+### Local Dev [#setup-local]
 
 1. **Enable SSH** on the target machine (on macOS: System Settings → General → Sharing → Remote Login).
 2. **Expose it on a public host.** Sim blocks `localhost`/LAN, so use a TCP tunnel — for example `ngrok tcp 22`, which gives a `host:port` to put in **Host** and **Port**.
@@ -166,17 +166,17 @@ Enable sandbox execution as for Cloud PR. BYOK is optional because the model cre
 ## Best Practices
 
 - **Scope the task.** A specific instruction ("fix the failing `auth` test and add a regression case") produces far better results than a vague one.
-- **Match the mode to the deliverable.** Cloud PR for unattended changes, Cloud Code Review for feedback on an existing PR, Local for iterating on a repo you already have checked out.
+- **Match the mode to the deliverable.** Create PR for unattended changes, Review Code for feedback on an existing PR, Local Dev for iterating on a repo you already have checked out.
 - **Prefer key auth and tear down tunnels.** A public SSH tunnel is a real attack surface — use a private key and stop the tunnel when you're done.
-- **Reuse a Conversation ID for Cloud PR or Local follow-ups.** It carries the prior task and outcome into the next run so the agent can build on its own work.
+- **Reuse a Conversation ID for Create PR or Local Dev follow-ups.** It carries the prior task and outcome into the next run so the agent can build on its own work.
 
 <FAQ items={[
-  { question: "What's the difference between the modes?", answer: "Cloud PR runs in a disposable sandbox, clones a GitHub repo, and opens a pull request. Cloud Code Review checks out an existing PR and posts a GitHub review with optional inline comments. Local connects to your own machine over SSH and edits files in place. Cloud PR requires BYOK; Cloud Code Review and Local can use a hosted model key on hosted Sim." },
-  { question: "Which models can I use?", answer: "The model dropdown is filtered to providers the Pi harness can run with an API key: OpenAI, Anthropic, Google (Gemini), xAI, DeepSeek, Mistral, Groq, Cerebras, and OpenRouter. Providers that need richer config (Vertex, Bedrock, Azure) or a base URL (Ollama, vLLM, etc.) aren't offered." },
-  { question: "Why does Local mode need a public hostname?", answer: "Sim connects over raw SSH and blocks localhost, LAN, and private/reserved addresses for safety. Expose the machine with a TCP tunnel such as `ngrok tcp 22` and use the tunnel's host and port. Tailscale's private 100.x addresses won't work for the same reason." },
-  { question: "What GitHub permissions does Cloud PR need?", answer: "A token that can clone, push, and open a PR. With a fine-grained token: select the repo and grant Contents: Read and write plus Pull requests: Read and write. With a classic token: the repo scope. For organization repos, the token must be SSO-authorized." },
-  { question: "What GitHub permissions does Cloud Code Review need?", answer: "A token that can clone the repo and submit a review. With a fine-grained token: Contents: Read plus Pull requests: Read and write. Push permission is not required. With a classic token: the repo scope. For organization repos, the token must be SSO-authorized." },
-  { question: "Can I give it Gmail, Slack, or other integrations?", answer: "Yes, in Local mode via the Tools field. Selected Sim tools run through Sim with your connected credentials, the same as the Agent block, so the agent can act beyond the repo while it codes. MCP and custom tools aren't supported yet." },
-  { question: "Where do the changes or feedback go?", answer: "In Cloud PR, to a new branch and a pull request (read prUrl and branch). In Cloud Code Review, to a submitted GitHub review on the existing PR (read reviewUrl and commentsPosted). In Local mode, the files are edited in place on the target machine — review them with git there. Cloud PR and Local also return changedFiles and a diff." },
-  { question: "What happens when memory or context gets large?", answer: "For Cloud PR and Local, Sim trims memory before the run based on the memory type, and Pi compacts older turns as needed. Cloud Code Review does not load or save memory because a malicious PR could otherwise expose or poison prior context." },
+  { question: "What's the difference between the modes?", answer: "Create PR runs in a disposable sandbox, clones a GitHub repo, and opens a pull request. Review Code checks out an existing PR and posts a GitHub review with optional inline comments. Local Dev connects to your own machine over SSH and edits files in place. Create PR requires BYOK; Review Code and Local Dev can use a hosted model key on hosted Sim." },
+  { question: "Which models can I use?", answer: "The model dropdown contains models that are both available in Sim and present under the exact provider in the installed Pi catalog. Providers that need richer configuration, OAuth-only authentication, or a user-supplied base URL aren't offered." },
+  { question: "Why does Local Dev need a public hostname?", answer: "Sim connects over raw SSH and blocks localhost, LAN, and private/reserved addresses for safety. Expose the machine with a TCP tunnel such as `ngrok tcp 22` and use the tunnel's host and port. Tailscale's private 100.x addresses won't work for the same reason." },
+  { question: "What GitHub permissions does Create PR need?", answer: "A token that can clone, push, and open a PR. With a fine-grained token: select the repo and grant Contents: Read and write plus Pull requests: Read and write. With a classic token: the repo scope. For organization repos, the token must be SSO-authorized." },
+  { question: "What GitHub permissions does Review Code need?", answer: "A token that can clone the repo and submit a review. With a fine-grained token: Contents: Read plus Pull requests: Read and write. Push permission is not required. With a classic token: the repo scope. For organization repos, the token must be SSO-authorized." },
+  { question: "Can I give it Gmail, Slack, or other integrations?", answer: "Yes, in Local Dev via the Tools field. Selected Sim tools run through Sim with your connected credentials, the same as the Agent block, so the agent can act beyond the repo while it codes. MCP and custom tools aren't supported yet." },
+  { question: "Where do the changes or feedback go?", answer: "In Create PR, to a new branch and a pull request (read prUrl and branch). In Review Code, to a submitted GitHub review on the existing PR (read reviewUrl and commentsPosted). In Local Dev, the files are edited in place on the target machine — review them with git there. Create PR and Local Dev also return changedFiles and a diff." },
+  { question: "What happens when memory or context gets large?", answer: "For Create PR and Local Dev, Sim trims memory before the run based on the memory type, and Pi compacts older turns as needed. Review Code does not load or save memory because a malicious PR could otherwise expose or poison prior context." },
 ]} />

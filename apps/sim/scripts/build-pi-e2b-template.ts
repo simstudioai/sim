@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * Builds the E2B sandbox template that powers the Pi Coding Agent cloud mode.
+ * Builds the E2B sandbox template used by Create PR and Review Code.
  *
  * Layers the `pi` CLI, its required Node version, and git onto E2B's
  * `code-interpreter` base. The cloud backend runs `pi` and git inside this

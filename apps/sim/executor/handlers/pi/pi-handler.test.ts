@@ -154,7 +154,7 @@ describe('PiBlockHandler', () => {
     expect(mockResolveKey).not.toHaveBeenCalled()
   })
 
-  it('routes local mode to the local backend with SSH params', async () => {
+  it('routes Local Dev to the local backend with SSH params', async () => {
     const output = await handler.execute(ctx(), block, localInputs())
     expect(mockRunLocal).toHaveBeenCalledTimes(1)
     expect(mockRunCloud).not.toHaveBeenCalled()
@@ -166,7 +166,7 @@ describe('PiBlockHandler', () => {
     expect((output as Record<string, unknown>).content).toBe('hi')
   })
 
-  it('routes cloud mode to the cloud backend and surfaces PR output', async () => {
+  it('routes Create PR to the cloud backend and surfaces PR output', async () => {
     const output = (await handler.execute(ctx(), block, {
       mode: 'cloud',
       task: 'do it',
@@ -209,16 +209,16 @@ describe('PiBlockHandler', () => {
     expect(output.content).toBe('looks good')
   })
 
-  it('requires SSH fields in local mode', async () => {
+  it('requires SSH fields in Local Dev', async () => {
     await expect(
       handler.execute(ctx(), block, { mode: 'local', task: 'x', model: 'claude', host: 'h' })
-    ).rejects.toThrow(/Local mode requires/)
+    ).rejects.toThrow(/Local Dev requires/)
   })
 
-  it('requires repo + token in cloud mode', async () => {
+  it('requires repo + token in Create PR', async () => {
     await expect(
       handler.execute(ctx(), block, { mode: 'cloud', task: 'x', model: 'claude', owner: 'o' })
-    ).rejects.toThrow(/Cloud mode requires/)
+    ).rejects.toThrow(/Create PR requires/)
   })
 
   it('requires pullNumber in cloud_review mode', async () => {
@@ -231,7 +231,7 @@ describe('PiBlockHandler', () => {
         repo: 'r',
         githubToken: 'ghp',
       })
-    ).rejects.toThrow(/Cloud Code Review mode requires/)
+    ).rejects.toThrow(/Review Code requires/)
   })
 
   it.each(['0', '-1', '1.5'])('rejects invalid pull request number %s', async (pullNumber) => {

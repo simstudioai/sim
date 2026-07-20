@@ -49,8 +49,8 @@ const logger = createLogger('PiLocalBackend')
 const MAX_DIFF_BYTES = 200_000
 
 /**
- * Local mode reports the working-tree diff, so committing would hide changes
- * from `git diff HEAD`; pushing and PR creation belong to cloud mode.
+ * Local Dev reports the working-tree diff, so committing would hide changes
+ * from `git diff HEAD`; pushing and PR creation belong to Create PR.
  */
 const LOCAL_GUIDANCE =
   'Use the provided read/write/edit/bash tools to make the file changes needed to complete the task; they ' +
@@ -195,17 +195,24 @@ async function runLocalPiInternal(
   }
 }
 
-/** Runs local Pi with secret redaction enforced at every host/output boundary. */
+/**
+ * Runs local Pi with boundary-specific secret redaction. The model credential can surface through
+ * provider/SDK output, so agent-visible text is scrubbed against it. SSH authentication material is
+ * consumed only while opening the host-side connection; keeping it out of agent-content redaction
+ * avoids corrupting unrelated repository text when a password or passphrase is a short common value.
+ * All credentials still participate in the outer error scrub in case connection setup echoes one.
+ */
 export const runLocalPi: PiBackendRun<PiLocalRunParams> = async (params, context) => {
-  const secrets = [
+  const agentSecrets = [params.apiKey]
+  const boundarySecrets = [
     params.apiKey,
     params.ssh.password ?? '',
     params.ssh.privateKey ?? '',
     params.ssh.passphrase ?? '',
   ]
   try {
-    return await runLocalPiInternal(params, context, secrets)
+    return await runLocalPiInternal(params, context, agentSecrets)
   } catch (error) {
-    throw createScrubbedPiError(error, secrets)
+    throw createScrubbedPiError(error, boundarySecrets)
   }
 }

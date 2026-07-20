@@ -22,7 +22,7 @@ export interface PiSkill {
   content: string
 }
 
-/** SSH connection parameters for local mode (subset of the shared SSH config). */
+/** SSH connection parameters for Local Dev (subset of the shared SSH config). */
 export type PiSshConnection = Pick<
   SSHConnectionConfig,
   'host' | 'port' | 'username' | 'password' | 'privateKey' | 'passphrase'

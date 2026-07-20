@@ -1,5 +1,5 @@
 /**
- * Shared helpers for Pi cloud backends (Cloud PR and Cloud Code Review).
+ * Shared helpers for the Create PR and Review Code backends.
  * Keeps E2B path constants, abort racing, marker parsing, and secret scrubbing
  * in one place so the two backends cannot drift on security-sensitive details.
  */

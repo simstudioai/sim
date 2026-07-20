@@ -117,7 +117,7 @@ export class PiBlockHandler implements BlockHandler {
       })
       if (!owner || !repo || !githubToken || pullNumber === undefined) {
         throw new Error(
-          'Cloud Code Review mode requires repository owner, name, a GitHub token, and a pull request number'
+          'Review Code requires repository owner, name, a GitHub token, and a pull request number'
         )
       }
       const reviewEventRaw = asOptString(inputs.reviewEvent) ?? 'COMMENT'
@@ -154,7 +154,7 @@ export class PiBlockHandler implements BlockHandler {
       const username = asOptString(inputs.username)
       const repoPath = asOptString(inputs.repoPath)
       if (!host || !username || !repoPath) {
-        throw new Error('Local mode requires host, username, and repository path')
+        throw new Error('Local Dev requires host, username, and repository path')
       }
       const usePrivateKey = inputs.authMethod === 'privateKey'
       const port = parseOptionalNumberInput(inputs.port, 'port', { integer: true, min: 1 }) ?? 22
@@ -180,7 +180,7 @@ export class PiBlockHandler implements BlockHandler {
     const repo = asOptString(inputs.repo)
     const githubToken = asRawString(inputs.githubToken)
     if (!owner || !repo || !githubToken) {
-      throw new Error('Cloud mode requires repository owner, name, and a GitHub token')
+      throw new Error('Create PR requires repository owner, name, and a GitHub token')
     }
     const params: PiCloudRunParams = {
       ...contextualBase,

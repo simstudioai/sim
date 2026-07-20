@@ -59,12 +59,12 @@ export const PiBlock: BlockConfig<PiResponse> = {
   description: 'Run an autonomous coding agent on a repo',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'The Pi Coding Agent runs the Pi harness against a real repository. Cloud PR spins up an isolated sandbox, clones a GitHub repo, edits with native shell + git, and opens a pull request. Cloud Code Review checks out a pinned PR snapshot with read-only tools and posts a structured review with optional inline comments. Local mode edits files on your own machine over SSH. Cloud PR and Local can reuse skills and multi-turn memory; Cloud Code Review runs without either because PR contents are untrusted.',
+    'The Pi Coding Agent runs the Pi harness against a real repository. Create PR spins up an isolated sandbox, clones a GitHub repo, edits with native shell + git, and opens a pull request. Review Code checks out a pinned PR snapshot with read-only tools and posts a structured review with optional inline comments. Local Dev edits files on your own machine over SSH. Create PR and Local Dev can reuse skills and multi-turn memory; Review Code runs without either because PR contents are untrusted.',
   bestPractices: `
-  - Use Cloud PR for hands-off changes against a GitHub repo where a reviewable PR is the deliverable.
-  - Use Cloud Code Review to analyze an existing PR and leave summary + inline review comments.
-  - Use Local mode to edit a repo on your own machine; expose the machine on a public hostname/tunnel so Sim can reach it over SSH.
-  - Cloud PR requires your own provider API key because the model runs in the sandbox. Cloud Code Review keeps the model key in Sim and can use either BYOK or a hosted key.
+  - Use Create PR for hands-off changes against a GitHub repo where a reviewable PR is the deliverable.
+  - Use Review Code to analyze an existing PR and leave summary + inline review comments.
+  - Use Local Dev to edit a repo on your own machine; expose the machine on a public hostname/tunnel so Sim can reach it over SSH.
+  - Create PR requires your own provider API key because the model runs in the sandbox. Review Code keeps the model key in Sim and can use either BYOK or a hosted key.
   `,
   category: 'blocks',
   integrationType: IntegrationType.AI,
@@ -75,12 +75,12 @@ export const PiBlock: BlockConfig<PiResponse> = {
       id: 'mode',
       title: 'Mode',
       type: 'dropdown',
-      /** Cloud modes require E2B and stay hidden when it is disabled. */
+      /** Create PR and Review Code require E2B and stay hidden when it is disabled. */
       value: () => (isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED')) ? 'cloud' : 'local'),
       options: () => {
         const options = [
           {
-            label: 'Local',
+            label: 'Local Dev',
             id: 'local',
             description: 'Edits files on your own machine over SSH',
           },
@@ -88,12 +88,12 @@ export const PiBlock: BlockConfig<PiResponse> = {
         if (isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED'))) {
           options.unshift(
             {
-              label: 'Cloud PR',
+              label: 'Create PR',
               id: 'cloud',
               description: 'Runs in an isolated sandbox, clones your repo, and opens a PR',
             },
             {
-              label: 'Cloud Code Review',
+              label: 'Review Code',
               id: 'cloud_review',
               description: 'Reviews an existing PR and posts GitHub review comments',
             }
@@ -146,7 +146,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       paramVisibility: 'user-only',
       placeholder: 'GitHub personal access token',
       tooltip:
-        'Personal access token used for GitHub access. Cloud PR needs clone/push/PR permissions; Cloud Code Review needs clone + review permissions.',
+        'Personal access token used for GitHub access. Create PR needs clone/push/PR permissions; Review Code needs clone + review permissions.',
       required: true,
       condition: CLOUD_ANY,
     },
@@ -200,7 +200,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
     },
     {
       id: 'reviewEvent',
-      title: 'Review Event',
+      title: 'Review Outcome',
       type: 'dropdown',
       defaultValue: 'COMMENT',
       options: [
@@ -208,7 +208,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
         { label: 'Request changes', id: 'REQUEST_CHANGES' },
       ],
       tooltip:
-        'GitHub action applied to the submitted findings. Request changes submits a changes-requested review.',
+        'How GitHub records the submitted review. Comment is neutral; Request changes marks the pull request as changes requested.',
       condition: CLOUD_REVIEW,
     },
 
@@ -333,6 +333,8 @@ export const PiBlock: BlockConfig<PiResponse> = {
         { label: 'high', id: 'high' },
         { label: 'max', id: 'max' },
       ],
+      tooltip:
+        "Requested reasoning effort for Pi. Pi clamps it to the selected model's supported levels; models without reasoning run with thinking off. Higher levels usually increase latency and token cost.",
       mode: 'advanced',
     },
     {
@@ -400,32 +402,32 @@ export const PiBlock: BlockConfig<PiResponse> = {
   inputs: {
     mode: {
       type: 'string',
-      description: 'Execution mode: cloud, cloud_review, or local',
+      description: 'Execution mode: Create PR, Review Code, or Local Dev',
     },
     task: { type: 'string', description: 'Instruction for the coding agent' },
     model: { type: 'string', description: 'AI model to use' },
-    owner: { type: 'string', description: 'GitHub repository owner (cloud modes)' },
-    repo: { type: 'string', description: 'GitHub repository name (cloud modes)' },
-    githubToken: { type: 'string', description: 'GitHub token (cloud modes)' },
-    baseBranch: { type: 'string', description: 'Base branch for the PR (Cloud PR)' },
-    branchName: { type: 'string', description: 'Branch to create (Cloud PR)' },
-    draft: { type: 'boolean', description: 'Open the PR as a draft (Cloud PR)' },
-    prTitle: { type: 'string', description: 'Pull request title (Cloud PR)' },
-    prBody: { type: 'string', description: 'Pull request body (Cloud PR)' },
-    pullNumber: { type: 'number', description: 'Pull request number (Cloud Code Review)' },
+    owner: { type: 'string', description: 'GitHub repository owner (Create PR and Review Code)' },
+    repo: { type: 'string', description: 'GitHub repository name (Create PR and Review Code)' },
+    githubToken: { type: 'string', description: 'GitHub token (Create PR and Review Code)' },
+    baseBranch: { type: 'string', description: 'Base branch for the PR (Create PR)' },
+    branchName: { type: 'string', description: 'Branch to create (Create PR)' },
+    draft: { type: 'boolean', description: 'Open the PR as a draft (Create PR)' },
+    prTitle: { type: 'string', description: 'Pull request title (Create PR)' },
+    prBody: { type: 'string', description: 'Pull request body (Create PR)' },
+    pullNumber: { type: 'number', description: 'Pull request number (Review Code)' },
     reviewEvent: {
       type: 'string',
       description: 'GitHub review event: COMMENT or REQUEST_CHANGES',
     },
-    host: { type: 'string', description: 'SSH host (local mode)' },
-    port: { type: 'number', description: 'SSH port (local mode)' },
-    username: { type: 'string', description: 'SSH username (local mode)' },
-    authMethod: { type: 'string', description: 'SSH authentication method (local mode)' },
-    password: { type: 'string', description: 'SSH password (local mode)' },
-    privateKey: { type: 'string', description: 'SSH private key (local mode)' },
-    passphrase: { type: 'string', description: 'SSH key passphrase (local mode)' },
-    repoPath: { type: 'string', description: 'Repository path on the target (local mode)' },
-    tools: { type: 'json', description: 'Sim tools exposed to the agent (local mode)' },
+    host: { type: 'string', description: 'SSH host (Local Dev)' },
+    port: { type: 'number', description: 'SSH port (Local Dev)' },
+    username: { type: 'string', description: 'SSH username (Local Dev)' },
+    authMethod: { type: 'string', description: 'SSH authentication method (Local Dev)' },
+    password: { type: 'string', description: 'SSH password (Local Dev)' },
+    privateKey: { type: 'string', description: 'SSH private key (Local Dev)' },
+    passphrase: { type: 'string', description: 'SSH key passphrase (Local Dev)' },
+    repoPath: { type: 'string', description: 'Repository path on the target (Local Dev)' },
+    tools: { type: 'json', description: 'Sim tools exposed to the agent (Local Dev)' },
     skills: { type: 'json', description: 'Selected skills configuration' },
     thinkingLevel: { type: 'string', description: 'Thinking level for the model' },
     memoryType: { type: 'string', description: 'Memory type for multi-turn conversations' },

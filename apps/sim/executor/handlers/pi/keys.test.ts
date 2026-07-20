@@ -68,7 +68,7 @@ describe('resolvePiModelKey', () => {
     vi.clearAllMocks()
   })
 
-  it('local mode preserves a direct user key as BYOK', async () => {
+  it('Local Dev preserves a direct user key as BYOK', async () => {
     const result = await resolvePiModelKey({
       providerId: 'anthropic',
       model: 'claude',
@@ -81,7 +81,7 @@ describe('resolvePiModelKey', () => {
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
   })
 
-  it('local mode can use a hosted key because the model runs in Sim', async () => {
+  it('Local Dev can use a hosted key because the model runs in Sim', async () => {
     mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-hosted', isBYOK: false })
 
     await expect(
@@ -95,7 +95,7 @@ describe('resolvePiModelKey', () => {
     expect(mockGetApiKeyWithBYOK).toHaveBeenCalledWith('anthropic', 'claude', 'ws-1', undefined)
   })
 
-  it('cloud mode uses the block API Key field directly as a BYOK key', async () => {
+  it('Create PR uses the block API Key field directly as a BYOK key', async () => {
     const result = await resolvePiModelKey({
       providerId: 'anthropic',
       model: 'claude',
@@ -109,7 +109,7 @@ describe('resolvePiModelKey', () => {
     expect(mockGetBYOKKey).not.toHaveBeenCalled()
   })
 
-  it('cloud mode falls back to a stored workspace key when the field is empty', async () => {
+  it('Create PR falls back to a stored workspace key when the field is empty', async () => {
     mockGetBYOKKey.mockResolvedValue({ apiKey: 'sk-workspace', isBYOK: true })
 
     const result = await resolvePiModelKey({
@@ -124,7 +124,7 @@ describe('resolvePiModelKey', () => {
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
   })
 
-  it('cloud mode supports a stored xAI workspace key', async () => {
+  it('Create PR supports a stored xAI workspace key', async () => {
     mockGetBYOKKey.mockResolvedValue({ apiKey: 'xai-workspace-key', isBYOK: true })
 
     await expect(
@@ -139,7 +139,7 @@ describe('resolvePiModelKey', () => {
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
   })
 
-  it('cloud mode supports stored workspace keys for newly mapped providers', async () => {
+  it('Create PR supports stored workspace keys for newly mapped providers', async () => {
     mockGetBYOKKey.mockResolvedValue({ apiKey: 'fireworks-workspace-key', isBYOK: true })
 
     await expect(
@@ -154,7 +154,7 @@ describe('resolvePiModelKey', () => {
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
   })
 
-  it('cloud mode rejects when no user key is available (never a hosted key)', async () => {
+  it('Create PR rejects when no user key is available (never a hosted key)', async () => {
     mockGetBYOKKey.mockResolvedValue(null)
 
     await expect(

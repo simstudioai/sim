@@ -1,5 +1,5 @@
 /**
- * Cloud Code Review backend. GitHub credentials are scoped to authenticated fetch
+ * Review Code backend. GitHub credentials are scoped to authenticated fetch
  * and host-side review submission. The trusted Pi SDK and provider adapter use the
  * model credential in Sim's process; neither the model context nor E2B receives it.
  */

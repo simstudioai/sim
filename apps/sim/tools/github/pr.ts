@@ -1,3 +1,11 @@
+import {
+  isRecord,
+  nullableString,
+  optionalString,
+  readGitHubErrorMessage,
+  requiredNumber,
+  requiredString,
+} from '@/tools/github/response-parsers'
 import type {
   GitHubPullRequestBranch,
   GitHubPullRequestFile,
@@ -19,46 +27,6 @@ type PullRequestFilesResult =
 
 const PULL_REQUEST_FILES_PER_PAGE = 100
 const MAX_PULL_REQUEST_FILES = 3_000
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function requiredString(record: Record<string, unknown>, key: string, context: string): string {
-  const value = record[key]
-  if (typeof value !== 'string') throw new Error(`${context}.${key} must be a string`)
-  return value
-}
-
-function optionalString(
-  record: Record<string, unknown>,
-  key: string,
-  context: string
-): string | undefined {
-  const value = record[key]
-  if (value === undefined) return undefined
-  if (typeof value !== 'string') throw new Error(`${context}.${key} must be a string`)
-  return value
-}
-
-function nullableString(
-  record: Record<string, unknown>,
-  key: string,
-  context: string
-): string | null {
-  const value = record[key]
-  if (value === null) return null
-  if (typeof value !== 'string') throw new Error(`${context}.${key} must be a string or null`)
-  return value
-}
-
-function requiredNumber(record: Record<string, unknown>, key: string, context: string): number {
-  const value = record[key]
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-    throw new Error(`${context}.${key} must be a non-negative safe integer`)
-  }
-  return value
-}
 
 function requiredBoolean(record: Record<string, unknown>, key: string, context: string): boolean {
   const value = record[key]
@@ -162,17 +130,6 @@ function parsePullRequestFile(value: unknown, index: number): GitHubPullRequestF
 function parsePullRequestFiles(value: unknown): GitHubPullRequestFile[] {
   if (!Array.isArray(value)) throw new Error('GitHub pull request files response must be an array')
   return value.map(parsePullRequestFile)
-}
-
-async function readGitHubErrorMessage(response: Response): Promise<string | undefined> {
-  try {
-    const value: unknown = await response.json()
-    if (!isRecord(value)) return undefined
-    const message = value.message
-    return typeof message === 'string' && message.trim() ? message : undefined
-  } catch {
-    return undefined
-  }
 }
 
 async function parsePullRequestResponse(response: Response): Promise<GitHubPullRequest> {

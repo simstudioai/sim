@@ -1,4 +1,13 @@
 import {
+  isRecord,
+  nullableNonEmptyString,
+  optionalNonEmptyString,
+  readGitHubErrorMessage,
+  requiredNonEmptyString,
+  requiredNumber,
+  requiredString,
+} from '@/tools/github/response-parsers'
+import {
   parseReviewComments,
   REVIEW_BODY_MAX_LENGTH,
   reviewCommentSchema,
@@ -43,87 +52,33 @@ interface CreatePRReviewRequestBody {
   comments?: CreatePRReviewComment[]
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function requiredNonEmptyString(record: Record<string, unknown>, field: string): string {
-  const value = record[field]
-  if (typeof value !== 'string' || !value) {
-    throw new Error(`GitHub review response is missing ${field}`)
-  }
-  return value
-}
-
-function requiredNumber(record: Record<string, unknown>, field: string): number {
-  const value = record[field]
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-    throw new Error(`GitHub review response is missing ${field}`)
-  }
-  return value
-}
-
-function requiredString(record: Record<string, unknown>, field: string): string {
-  const value = record[field]
-  if (typeof value !== 'string') {
-    throw new Error(`GitHub review response is missing ${field}`)
-  }
-  return value
-}
-
-function optionalString(record: Record<string, unknown>, field: string): string | undefined {
-  const value = record[field]
-  if (value === undefined) return undefined
-  if (typeof value !== 'string' || !value) {
-    throw new Error(`GitHub review response has an invalid ${field}`)
-  }
-  return value
-}
-
-function nullableString(record: Record<string, unknown>, field: string): string | null {
-  const value = record[field]
-  if (value === null) return null
-  if (typeof value !== 'string' || !value) {
-    throw new Error(`GitHub review response has an invalid ${field}`)
-  }
-  return value
-}
+const REVIEW_RESPONSE_CONTEXT = 'GitHub review response'
 
 function parseReviewUser(value: unknown): GitHubReviewUser | null {
   if (value === null) return null
   if (!isRecord(value)) throw new Error('GitHub review response has an invalid user')
+  const context = `${REVIEW_RESPONSE_CONTEXT}.user`
   return {
-    login: requiredNonEmptyString(value, 'login'),
-    id: requiredNumber(value, 'id'),
-    avatar_url: requiredNonEmptyString(value, 'avatar_url'),
-    html_url: requiredNonEmptyString(value, 'html_url'),
-    type: requiredNonEmptyString(value, 'type'),
+    login: requiredNonEmptyString(value, 'login', context),
+    id: requiredNumber(value, 'id', context),
+    avatar_url: requiredNonEmptyString(value, 'avatar_url', context),
+    html_url: requiredNonEmptyString(value, 'html_url', context),
+    type: requiredNonEmptyString(value, 'type', context),
   }
 }
 
 function parseGitHubReview(value: unknown): GitHubReview {
   if (!isRecord(value)) throw new Error('GitHub review response must be an object')
-  const submittedAt = optionalString(value, 'submitted_at')
+  const submittedAt = optionalNonEmptyString(value, 'submitted_at', REVIEW_RESPONSE_CONTEXT)
   return {
-    id: requiredNumber(value, 'id'),
+    id: requiredNumber(value, 'id', REVIEW_RESPONSE_CONTEXT),
     user: parseReviewUser(value.user),
-    body: requiredString(value, 'body'),
-    state: requiredNonEmptyString(value, 'state'),
-    html_url: requiredNonEmptyString(value, 'html_url'),
-    pull_request_url: requiredNonEmptyString(value, 'pull_request_url'),
-    commit_id: nullableString(value, 'commit_id'),
+    body: requiredString(value, 'body', REVIEW_RESPONSE_CONTEXT),
+    state: requiredNonEmptyString(value, 'state', REVIEW_RESPONSE_CONTEXT),
+    html_url: requiredNonEmptyString(value, 'html_url', REVIEW_RESPONSE_CONTEXT),
+    pull_request_url: requiredNonEmptyString(value, 'pull_request_url', REVIEW_RESPONSE_CONTEXT),
+    commit_id: nullableNonEmptyString(value, 'commit_id', REVIEW_RESPONSE_CONTEXT),
     ...(submittedAt ? { submitted_at: submittedAt } : {}),
-  }
-}
-
-async function responseErrorMessage(response: Response, fallback: string): Promise<string> {
-  try {
-    const value: unknown = await response.json()
-    return isRecord(value) && typeof value.message === 'string' && value.message
-      ? value.message
-      : fallback
-  } catch {
-    return fallback
   }
 }
 
@@ -240,10 +195,9 @@ export const createPRReviewTool: ToolConfig<CreatePRReviewParams, PRReviewRespon
     if (!response.ok) {
       return {
         success: false,
-        error: await responseErrorMessage(
-          response,
-          `Failed to submit PR review (HTTP ${response.status})`
-        ),
+        error:
+          (await readGitHubErrorMessage(response)) ??
+          `Failed to submit PR review (HTTP ${response.status})`,
         output: {
           content: '',
           metadata: { id: 0, state: '', body: '', html_url: '', commit_id: null },

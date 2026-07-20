@@ -125,9 +125,9 @@ describe('createPRReviewV2Tool response', () => {
   it('rejects malformed successful review payloads', async () => {
     await expect(
       createPRReviewV2Tool.transformResponse!(Response.json(reviewPayload({ body: null })))
-    ).rejects.toThrow(/missing body/)
+    ).rejects.toThrow('GitHub review response.body must be a string')
     await expect(
       createPRReviewV2Tool.transformResponse!(Response.json(reviewPayload({ html_url: '' })))
-    ).rejects.toThrow(/missing html_url/)
+    ).rejects.toThrow('GitHub review response.html_url must be a non-empty string')
   })
 })

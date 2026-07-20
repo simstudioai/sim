@@ -1,5 +1,5 @@
 /**
- * Cloud PR backend: runs the Pi CLI inside an E2B sandbox against a cloned
+ * Create PR backend: runs the Pi CLI inside an E2B sandbox against a cloned
  * GitHub repo, then pushes a branch and opens a PR. Secrets are isolated per
  * command (S2/KTD10): the GitHub token is present only for the clone and push
  * commands (and stripped from the cloned remote), while the Pi loop runs with a
@@ -143,13 +143,13 @@ async function openPullRequest(
 export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context) => {
   if (!params.isBYOK) {
     throw new Error(
-      'Cloud mode requires your own provider API key (BYOK). Set one in Settings > BYOK.'
+      'Create PR requires your own provider API key (BYOK). Set one in Settings > BYOK.'
     )
   }
   const keyEnvVar = providerApiKeyEnvVar(params.providerId)
   if (!keyEnvVar) {
     throw new Error(
-      `Provider "${params.providerId}" is not supported in cloud mode. Use a key-based provider or run in local mode.`
+      `Provider "${params.providerId}" is not supported in Create PR. Use a key-based provider or run in Local Dev.`
     )
   }
 
@@ -303,7 +303,7 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
       return { totals, changedFiles, diff, prUrl, branch }
     } catch (error) {
       // Aborts propagate as errors so a cancelled/timed-out run is not reported as
-      // success and no partial memory turn is persisted (local mode mirrors this).
+      // success and no partial memory turn is persisted (Local Dev mirrors this).
       if (context.signal?.aborted) {
         logger.info('Pi cloud run aborted', { owner: params.owner, repo: params.repo })
       }
