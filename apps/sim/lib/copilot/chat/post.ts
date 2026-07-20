@@ -111,7 +111,8 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
 }
 
 /**
- * Ephemeral client-side panels are context-only: never persisted to the chat.
+ * Synthetic client-side panels are context-only: never persisted to the chat.
+ * Browser tab metadata is persistable even though its live page is client-held.
  * Shares the client's rule so the two layers cannot drift.
  */
 function isPersistableAttachment(resource: z.infer<typeof ResourceAttachmentSchema>): boolean {

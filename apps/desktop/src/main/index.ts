@@ -6,6 +6,7 @@ import { initDriver as initBrowserAgentDriver } from '@/main/browser-agent/drive
 import { setPanelBounds as setBrowserAgentPanelBounds } from '@/main/browser-agent/session'
 import { createConfigStore, partitionForOrigin } from '@/main/config'
 import { attachContextMenu } from '@/main/context-menu'
+import { createDesktopSettingsService } from '@/main/desktop-settings'
 import { attachDownloadHandling } from '@/main/downloads'
 import { createAuthFlow, createConnectFlow, createHandoffManager } from '@/main/handoff'
 import { registerIpcHandlers } from '@/main/ipc'
@@ -25,8 +26,8 @@ import {
 } from '@/main/session-lifecycle'
 import { createLauncherShortcutManager } from '@/main/shortcuts'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
-import { installTray, settingsRoute, type TrayHandle } from '@/main/tray'
-import { checkForUpdatesInteractive, initUpdater } from '@/main/updater'
+import { installTray, newChatRoute, settingsRoute, type TrayHandle } from '@/main/tray'
+import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
 import { createMainWindow, setupPermissionHandlers } from '@/main/window'
 import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
 
@@ -49,6 +50,7 @@ function main(): void {
   let mainWindow: BrowserWindow | null = null
   let loadHealth: LoadHealthHandle | null = null
   let tray: TrayHandle | null = null
+  let updater: UpdaterHandle | null = null
   const configuredPartitions = new Set<string>()
 
   const appOrigin = () => config.getOrigin()
@@ -210,6 +212,13 @@ function main(): void {
     showMainWindow()
   }
 
+  const desktopSettings = createDesktopSettingsService({
+    config,
+    getMainWindow,
+    openMainWindowAt: (route) => void openMainWindowAt(route),
+    setAutoDownloadUpdates: (enabled) => updater?.setAutoDownload(enabled),
+  })
+
   const launcher = createLauncherWindow({
     appOrigin,
     partition: () => partitionForOrigin(appOrigin()),
@@ -291,6 +300,7 @@ function main(): void {
       allowHttpLocalhost,
       retryLoad: () => loadHealth?.retry(),
       localFilesystem,
+      settings: desktopSettings,
       beginOAuthConnect: (providerId, scope) => connectFlow.beginConnectHandoff(providerId, scope),
       launcher: {
         openChat: (target) => {
@@ -315,10 +325,10 @@ function main(): void {
       getMainWindow,
       allowHttpLocalhost,
       openSettings,
-      signIn: () => void authFlow.beginLoginHandoff(),
+      newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
+      toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
       signOut: () => void signOutFromMenu(),
       checkForUpdates: () => checkForUpdatesInteractive({ getWindow: getMainWindow, events }),
-      eventLogPath: events.filePath,
     })
     launcherShortcut.apply(config.get('launcherShortcut'))
     if (config.get('trayEnabled') ?? true) {
@@ -329,7 +339,12 @@ function main(): void {
         openMainWindow: (route) => void openMainWindowAt(route),
       })
     }
-    initUpdater({ getWindow: getMainWindow, events })
+    updater = initUpdater({
+      getWindow: getMainWindow,
+      events,
+      autoDownload: () => config.get('autoDownloadUpdates') ?? true,
+    })
+    desktopSettings.applySystemPreferences()
 
     // Prewarm Quick Ask a moment after startup so its first summon is instant
     // (window + remote route already loaded). Deferred so it never competes

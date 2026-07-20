@@ -569,19 +569,29 @@ export async function executeTool(
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   const run = async () => {
     logger.info('Executing browser tool', { tool })
-    const execution = executeToolInner(tool, params)
-    const raced =
-      tool === 'browser_request_takeover'
-        ? execution
-        : Promise.race([
-            execution,
-            sleep(TOOL_WATCHDOG_MS).then(() => {
-              throw new ToolError(
-                'The browser did not finish this action in time. Take a browser_snapshot to see the current page state.'
-              )
-            }),
-          ])
-    return withNotices(await raced)
+    const keepHiddenPageActive = tool !== 'browser_request_takeover'
+    if (keepHiddenPageActive) {
+      session.setAutomationActive(true)
+    }
+    try {
+      const execution = executeToolInner(tool, params)
+      const raced =
+        tool === 'browser_request_takeover'
+          ? execution
+          : Promise.race([
+              execution,
+              sleep(TOOL_WATCHDOG_MS).then(() => {
+                throw new ToolError(
+                  'The browser did not finish this action in time. Take a browser_snapshot to see the current page state.'
+                )
+              }),
+            ])
+      return withNotices(await raced)
+    } finally {
+      if (keepHiddenPageActive) {
+        session.setAutomationActive(false)
+      }
+    }
   }
 
   const settled = toolQueue.then(run, run)

@@ -47,6 +47,8 @@ let getMainWindow: () => BrowserWindow | null = () => null
 let panelBounds: BrowserPanelBounds | null = null
 let panelLeaseAt = 0
 let leaseTimer: ReturnType<typeof setInterval> | null = null
+/** Prevent hidden-page throttling only while an agent action needs the page to make progress. */
+let automationActive = false
 /** The window currently hosting the active view, for re-parenting checks. */
 let hostedWindow: BrowserWindow | null = null
 
@@ -86,9 +88,9 @@ function createTabView(): WebContentsView {
       sandbox: true,
       webSecurity: true,
       webviewTag: false,
-      // Pages keep running (timers, fetches) while the panel is hidden or
-      // covered — automation must not depend on panel visibility.
-      backgroundThrottling: false,
+      // Visible pages remain full speed. Hidden pages may be throttled unless
+      // a browser tool is actively waiting on them.
+      backgroundThrottling: !automationActive,
       spellcheck: false,
     },
   })
@@ -118,6 +120,19 @@ function createTabView(): WebContentsView {
 /** True while any tab exists. */
 export function hasSession(): boolean {
   return tabs.some((tab) => !tab.view.webContents.isDestroyed())
+}
+
+/**
+ * Keeps hidden pages responsive during an agent action, then returns them to
+ * Chromium's normal background throttling so they cannot contend with Sim.
+ */
+export function setAutomationActive(active: boolean): void {
+  automationActive = active
+  for (const tab of tabs) {
+    if (!tab.view.webContents.isDestroyed()) {
+      tab.view.webContents.setBackgroundThrottling(!active)
+    }
+  }
 }
 
 /** The view currently attached to the host window (attach only on change —

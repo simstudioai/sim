@@ -168,7 +168,7 @@ export function newChatRoute(lastRoute: string | undefined): string {
  */
 export function settingsRoute(lastRoute: string | undefined): string {
   const workspaceId = workspaceIdFromRoute(lastRoute)
-  return workspaceId ? `/workspace/${workspaceId}/settings` : '/workspace'
+  return workspaceId ? `/workspace/${workspaceId}/settings/desktop` : '/workspace'
 }
 
 export interface TrayDeps {

@@ -72,7 +72,7 @@ import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-cont
 import { isLocalFilesystemToolName } from '@/lib/copilot/tools/local-filesystem'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import { readSSELines } from '@/lib/core/utils/sse'
-import { getDesktopChatCapabilities } from '@/lib/desktop'
+import { getDesktopBridge, getDesktopChatCapabilities } from '@/lib/desktop'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import {
@@ -1468,8 +1468,8 @@ export function useChat(
     })
     setActiveResourceId(resource.id)
 
-    // Ephemeral panels (streaming file preview, live browser session) are
-    // in-memory only — never persisted to the chat's resource list.
+    // Synthetic result/preview panels are in-memory only. The browser tab
+    // metadata is persisted even though its live page remains desktop-owned.
     if (isEphemeralResource(resource)) {
       return true
     }
@@ -1627,33 +1627,41 @@ export function useChat(
     [workspaceId]
   )
 
+  const openBrowserResource = useCallback(() => {
+    const wasAdded = addResource({
+      type: 'browser',
+      id: BROWSER_SESSION_RESOURCE_ID,
+      title: 'Browser',
+    })
+    if (!wasAdded && activeResourceIdRef.current !== BROWSER_SESSION_RESOURCE_ID) {
+      setActiveResourceId(BROWSER_SESSION_RESOURCE_ID)
+    }
+    // Browser actions should always surface the panel, including when its
+    // persisted tab already exists but the viewer is collapsed.
+    onResourceEventRef.current?.()
+  }, [addResource, setActiveResourceId])
+
   const startClientBrowserTool = useCallback(
     (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>, eventTs?: string) => {
       if (!isBrowserToolName(toolName)) {
         return
       }
-      // Surface the live browser panel the first time the agent touches the
-      // browser; addResource activates it and dedupes on subsequent calls.
-      if (addResource({ type: 'browser', id: BROWSER_SESSION_RESOURCE_ID, title: 'Browser' })) {
-        onResourceEventRef.current?.()
-      }
+      openBrowserResource()
       // Replay/exactly-once guarding lives in executeBrowserToolOnClient
       // (sessionStorage-backed, so reloads cannot re-run an action).
       executeBrowserToolOnClient(toolCallId, toolName, toolArgs, eventTs)
     },
-    [addResource]
+    [openBrowserResource]
   )
 
   // Chat links clicked in the desktop app open in the embedded browser panel
   // (message components dispatch the request; this hook owns the resource).
   useEffect(() => {
     return onOpenInBrowserPanel((url) => {
-      if (addResource({ type: 'browser', id: BROWSER_SESSION_RESOURCE_ID, title: 'Browser' })) {
-        onResourceEventRef.current?.()
-      }
+      openBrowserResource()
       sendBrowserPanelAction('navigate', { url })
     })
-  }, [addResource])
+  }, [openBrowserResource])
 
   const recoverPendingClientWorkflowTools = useCallback(
     async (nextMessages: ChatMessage[]) => {
@@ -1817,7 +1825,7 @@ export function useChat(
       (r) => r.id !== 'streaming-file' && !serverKeys.has(`${r.type}:${r.id}`)
     )
     // Server order is authoritative for persisted resources, but local-only
-    // items (pending-persist adds, ephemeral panels like the live browser)
+    // items (pending-persist adds and synthetic ephemeral panels)
     // keep their current on-screen position — hydration reruns on every send
     // and stream completion, and appending them at the end made those tabs
     // visibly jump/flash each time.
@@ -3011,6 +3019,14 @@ export function useChat(
       }
       const queue = useMothershipQueueStore.getState().queues[chatKeyRef.current]
       const hasQueuedFollowUp = !isError && (queue?.length ?? 0) > 0
+      const completedChatId = options?.targetChatId ?? chatIdRef.current
+      if (!isError && !hasQueuedFollowUp && completedChatId) {
+        void getDesktopBridge()?.settings?.notify({
+          title: 'Task complete',
+          body: 'Sim finished responding.',
+          route: `/workspace/${workspaceId}/chat/${completedChatId}`,
+        })
+      }
       reconcileTerminalPreviewSessions()
       locallyTerminalStreamIdRef.current =
         streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? undefined
@@ -3030,6 +3046,7 @@ export function useChat(
       reconcileTerminalPreviewSessions,
       setTransportIdle,
       upsertChatHistory,
+      workspaceId,
     ]
   )
   finalizeRef.current = finalize

@@ -165,6 +165,38 @@ export interface DesktopOAuthConnectScope {
   credentialId?: string
 }
 
+export interface DesktopPreferences {
+  notificationsEnabled: boolean
+  notificationSounds: boolean
+  notificationsOnlyWhenUnfocused: boolean
+  launchAtLogin: boolean
+  autoDownloadUpdates: boolean
+}
+
+export type DesktopPreferenceKey = keyof DesktopPreferences
+
+export interface DesktopNotificationPayload {
+  title: string
+  body: string
+  /** Optional in-app route opened when the notification is clicked. */
+  route?: string
+}
+
+/**
+ * Device-level settings owned by the desktop shell. This surface is optional
+ * so a newer web deployment remains compatible with older installed shells.
+ */
+export interface SimDesktopSettingsApi {
+  getPreferences(): Promise<DesktopPreferences>
+  setPreference<K extends DesktopPreferenceKey>(
+    key: K,
+    value: DesktopPreferences[K]
+  ): Promise<DesktopPreferences>
+  notify(payload: DesktopNotificationPayload): Promise<boolean>
+}
+
+export type DesktopCommand = 'toggle-sidebar'
+
 export interface SimDesktopApi {
   openExternal(url: string): Promise<boolean>
   /**
@@ -180,6 +212,9 @@ export interface SimDesktopApi {
   onOAuthConnectComplete(callback: (result: DesktopOAuthConnectResult) => void): () => void
   offlineRetry(): void
   localFilesystem(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
+  /** Subscribe to commands initiated by the native application menu. */
+  onCommand?(callback: (command: DesktopCommand) => void): () => void
+  settings?: SimDesktopSettingsApi
   browserAgent?: SimDesktopBrowserAgentApi
   launcher?: SimDesktopLauncherApi
 }

@@ -36,6 +36,9 @@ export function resolveUrlBarInput(raw: string): string {
 /** Overlay presence is polled on a coarser cadence than geometry. */
 const OVERLAY_CHECK_INTERVAL_MS = 100
 
+/** Re-report unchanged bounds before the main-process visibility lease expires. */
+const PANEL_HEARTBEAT_INTERVAL_MS = 1_000
+
 /** Sample-point inset, clear of borders, scrollbars, and rounded corners. */
 const OVERLAY_SAMPLE_INSET_PX = 12
 
@@ -86,56 +89,94 @@ export function BrowserSession() {
   /** Non-null while the user is editing the URL bar; otherwise it mirrors the page. */
   const [urlDraft, setUrlDraft] = useState<string | null>(null)
 
-  // Keep the embedded view glued to the host rect: rAF loop that reports on
-  // change (layout shifts, sidebar resizes, and scrolling all reflow the
-  // panel without firing any single event reliably) AND re-reports at least
-  // once a second as a liveness heartbeat — the main process treats bounds as
-  // a short lease and hides the view when reports stop, so a reloaded or
-  // crashed renderer can never leave the page stuck over the app. Unmount
-  // additionally reports null for an instant hide. While a modal/popover/menu
-  // overlaps the rect the view is hidden (null bounds) so overlays are never
-  // painted under the native view.
+  // Keep the embedded view glued to the host rect without forcing layout on
+  // every animation frame. ResizeObserver covers panel transitions/resizes;
+  // viewport resize and captured scroll cover position changes. A one-second
+  // heartbeat renews the main-process visibility lease. Overlay hit-testing
+  // stays on its own cadence because native views always paint above page DOM.
   useEffect(() => {
-    let rafId = 0
+    const host = hostRef.current
+    if (!host) return
+
+    let rafId: number | null = null
+    let forceNextReport = false
     let last = ''
-    let lastSentAt = 0
     let obscured = false
-    let lastOverlayCheckAt = 0
-    const tick = () => {
-      const host = hostRef.current
-      if (host) {
-        const rect = host.getBoundingClientRect()
-        const now = Date.now()
-        if (now - lastOverlayCheckAt > OVERLAY_CHECK_INTERVAL_MS) {
-          lastOverlayCheckAt = now
-          obscured = isPanelObscuredByOverlay(host, rect)
+    let lastRect: DOMRect | null = null
+
+    const reportGeometry = (force: boolean) => {
+      const rect = host.getBoundingClientRect()
+      lastRect = rect
+      obscured = isPanelObscuredByOverlay(host, rect)
+      if (obscured) {
+        if (last !== 'obscured') {
+          last = 'obscured'
+          reportBrowserPanelBounds(null)
         }
-        if (obscured) {
-          if (last !== 'obscured') {
-            last = 'obscured'
-            lastSentAt = now
-            reportBrowserPanelBounds(null)
-          }
-        } else {
-          const bounds = {
-            x: Math.round(rect.x),
-            y: Math.round(rect.y),
-            width: Math.round(rect.width),
-            height: Math.round(rect.height),
-          }
-          const key = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
-          if ((key !== last || now - lastSentAt > 1000) && bounds.width > 0 && bounds.height > 0) {
-            last = key
-            lastSentAt = now
-            reportBrowserPanelBounds(bounds)
-          }
-        }
+        return
       }
-      rafId = requestAnimationFrame(tick)
+
+      const bounds = {
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      }
+      const key = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
+      if ((force || key !== last) && bounds.width > 0 && bounds.height > 0) {
+        last = key
+        reportBrowserPanelBounds(bounds)
+      }
     }
-    rafId = requestAnimationFrame(tick)
+
+    const scheduleGeometryReport = (force = false) => {
+      forceNextReport ||= force
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        const shouldForce = forceNextReport
+        forceNextReport = false
+        reportGeometry(shouldForce)
+      })
+    }
+
+    const handleGeometryChange = () => scheduleGeometryReport()
+    const resizeObserver = new ResizeObserver(handleGeometryChange)
+    resizeObserver.observe(host)
+    window.addEventListener('resize', handleGeometryChange)
+    window.addEventListener('scroll', handleGeometryChange, true)
+
+    const overlayTimer = window.setInterval(() => {
+      if (!lastRect) {
+        scheduleGeometryReport()
+        return
+      }
+      const nextObscured = isPanelObscuredByOverlay(host, lastRect)
+      if (nextObscured === obscured) return
+      obscured = nextObscured
+      if (obscured) {
+        last = 'obscured'
+        reportBrowserPanelBounds(null)
+      } else {
+        scheduleGeometryReport(true)
+      }
+    }, OVERLAY_CHECK_INTERVAL_MS)
+    const heartbeatTimer = window.setInterval(
+      () => scheduleGeometryReport(true),
+      PANEL_HEARTBEAT_INTERVAL_MS
+    )
+
+    scheduleGeometryReport(true)
+
     return () => {
-      cancelAnimationFrame(rafId)
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', handleGeometryChange)
+      window.removeEventListener('scroll', handleGeometryChange, true)
+      window.clearInterval(overlayTimer)
+      window.clearInterval(heartbeatTimer)
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+      }
       reportBrowserPanelBounds(null)
     }
   }, [])

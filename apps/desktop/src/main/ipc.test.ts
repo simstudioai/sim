@@ -41,6 +41,18 @@ describe('registerIpcHandlers', () => {
       localFilesystem: new LocalFilesystemService({
         chooseDirectory: vi.fn(async () => null),
       }),
+      settings: {
+        getPreferences: vi.fn(() => ({
+          notificationsEnabled: true,
+          notificationSounds: true,
+          notificationsOnlyWhenUnfocused: true,
+          launchAtLogin: false,
+          autoDownloadUpdates: true,
+        })),
+        setPreference: vi.fn(),
+        notify: vi.fn(() => true),
+        applySystemPreferences: vi.fn(),
+      },
       launcher: {
         openChat: vi.fn(),
         openApp: vi.fn(),
@@ -90,6 +102,44 @@ describe('registerIpcHandlers', () => {
     expect(
       await invoke.get('desktop:local-filesystem')?.(appEvent, { operation: 'list_mounts' })
     ).toEqual({ ok: true, data: { mounts: [] } })
+  })
+
+  it('restricts desktop settings to the app origin and validates mutations', async () => {
+    const { invoke } = collectHandlers()
+    const get = invoke.get('desktop:settings:get')
+    const set = invoke.get('desktop:settings:set')
+    const notify = invoke.get('desktop:settings:notify')
+
+    expect(await get?.(evilEvent)).toBeNull()
+    expect(await get?.(appEvent)).toMatchObject({ notificationsEnabled: true })
+
+    await set?.(evilEvent, 'notificationsEnabled', false)
+    await set?.(appEvent, 'not-a-setting', false)
+    await set?.(appEvent, 'notificationsEnabled', 'no')
+    expect(deps.settings.setPreference).not.toHaveBeenCalled()
+
+    await set?.(appEvent, 'notificationsEnabled', false)
+    expect(deps.settings.setPreference).toHaveBeenCalledWith('notificationsEnabled', false)
+
+    expect(await notify?.(evilEvent, { title: 'Done', body: 'Ready' })).toBe(false)
+    expect(await notify?.(appEvent, { title: '', body: 'Ready' })).toBe(false)
+    expect(
+      await notify?.(appEvent, { title: 'Done', body: 'Ready', route: '//evil.example' })
+    ).toBe(false)
+    expect(deps.settings.notify).not.toHaveBeenCalled()
+
+    expect(
+      await notify?.(appEvent, {
+        title: 'Task complete',
+        body: 'Sim finished responding.',
+        route: '/workspace/ws1/chat/c1',
+      })
+    ).toBe(true)
+    expect(deps.settings.notify).toHaveBeenCalledWith({
+      title: 'Task complete',
+      body: 'Sim finished responding.',
+      route: '/workspace/ws1/chat/c1',
+    })
   })
 
   it('restricts shell-control channels to bundled local pages', () => {

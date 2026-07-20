@@ -12,6 +12,7 @@
 :root {
   --sidebar-width: 0px; /* 0 outside workspace; blocking script always sets actual value on workspace pages */
   --sidebar-collapsed-width: 51px; /* icon rail on web; desktop overrides to 0 before first paint */
+  --desktop-title-bar-height: 0px; /* macOS traffic-light lane; desktop overrides before first paint */
   --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
@@ -42,10 +43,19 @@
 
 html[data-sim-desktop-title-bar="inset"] {
   --sidebar-collapsed-width: 0px;
+  --desktop-title-bar-height: 36px;
 }
 
 .workspace-root {
   letter-spacing: 0.02em;
+}
+
+.workspace-content-shell {
+  --workspace-content-title-bar-inset: 0px;
+}
+
+.workspace-content-shell[data-sidebar-collapsed] {
+  --workspace-content-title-bar-inset: var(--desktop-title-bar-height);
 }
 
 .workspace-root code,

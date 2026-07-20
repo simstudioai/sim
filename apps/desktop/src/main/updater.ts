@@ -120,6 +120,15 @@ export function isDowngrade(currentVersion: string, candidateVersion: string): b
 export interface UpdaterDeps {
   getWindow: () => BrowserWindow | null
   events: EventRecorder
+  autoDownload?: () => boolean
+}
+
+export interface UpdaterHandle {
+  setAutoDownload(enabled: boolean): void
+}
+
+const NOOP_UPDATER_HANDLE: UpdaterHandle = {
+  setAutoDownload: () => {},
 }
 
 /**
@@ -127,22 +136,22 @@ export interface UpdaterDeps {
  * checks on launch and every four hours, delta downloads in the background,
  * and install only on user confirmation — never mid-session without consent.
  */
-export function initUpdater(deps: UpdaterDeps): void {
+export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
   if (!app.isPackaged) {
-    return
+    return NOOP_UPDATER_HANDLE
   }
   let autoUpdater: typeof import('electron-updater')['autoUpdater']
   try {
     ;({ autoUpdater } = require('electron-updater') as typeof import('electron-updater'))
   } catch (error) {
     logger.error('electron-updater unavailable', { error })
-    return
+    return NOOP_UPDATER_HANDLE
   }
 
   const currentVersion = app.getVersion()
   autoUpdater.channel = resolveUpdateChannel(currentVersion)
   autoUpdater.allowDowngrade = false
-  autoUpdater.autoDownload = true
+  autoUpdater.autoDownload = deps.autoDownload?.() ?? true
   // Never install without vetting the downloaded version first. Enabled per
   // download in the update-downloaded handler, but only for accepted updates
   // — so a blocked/downgrade build that was already downloaded is never
@@ -190,6 +199,12 @@ export function initUpdater(deps: UpdaterDeps): void {
   }
   setTimeout(check, INITIAL_CHECK_DELAY_MS)
   setInterval(check, CHECK_INTERVAL_MS)
+
+  return {
+    setAutoDownload(enabled) {
+      autoUpdater.autoDownload = enabled
+    },
+  }
 }
 
 /**

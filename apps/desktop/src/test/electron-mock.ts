@@ -24,6 +24,8 @@ export const app = {
   requestSingleInstanceLock: vi.fn(() => true),
   whenReady: vi.fn(() => Promise.resolve()),
   startAccessingSecurityScopedResource: vi.fn(() => vi.fn()),
+  getLoginItemSettings: vi.fn(() => ({ openAtLogin: false })),
+  setLoginItemSettings: vi.fn(),
   dock: { downloadFinished: vi.fn() },
 }
 
@@ -125,6 +127,17 @@ export class Tray {
   isDestroyed = vi.fn(() => false)
 }
 
+export class Notification {
+  static instances: Notification[] = []
+  static isSupported = vi.fn(() => true)
+  constructor(public options: Record<string, unknown>) {
+    Notification.instances.push(this)
+  }
+  on = vi.fn()
+  show = vi.fn()
+  close = vi.fn()
+}
+
 function createWebContentsMock() {
   return {
     on: vi.fn(),
@@ -137,6 +150,7 @@ function createWebContentsMock() {
     close: vi.fn(),
     isDestroyed: vi.fn(() => false),
     isLoading: vi.fn(() => false),
+    setBackgroundThrottling: vi.fn(),
     executeJavaScript: vi.fn(() => Promise.resolve(undefined)),
     setWindowOpenHandler: vi.fn(),
     navigationHistory: {
@@ -195,6 +209,7 @@ export class BrowserWindow {
   isFullScreen = vi.fn(() => false)
   isMaximized = vi.fn(() => false)
   isVisible = vi.fn(() => false)
+  isFocused = vi.fn(() => false)
   getNormalBounds = vi.fn(() => ({ x: 0, y: 0, width: 1360, height: 860 }))
   getBounds = vi.fn(() => ({ x: 1292, y: 41, width: 420, height: 150 }))
   setBounds = vi.fn()

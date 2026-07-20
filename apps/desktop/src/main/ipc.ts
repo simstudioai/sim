@@ -1,8 +1,12 @@
 import { isBrowserToolName } from '@sim/browser-protocol'
+import type { DesktopNotificationPayload } from '@sim/desktop-bridge'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { ipcMain } from 'electron'
 import { executeTool, handlePanelAction } from '@/main/browser-agent/driver'
 import { setPanelBounds } from '@/main/browser-agent/session'
+import { isSafeInternalPath } from '@/main/config'
+import type { DesktopSettingsService } from '@/main/desktop-settings'
+import { isDesktopPreferenceKey } from '@/main/desktop-settings'
 import type { LocalFilesystemService } from '@/main/local-filesystem'
 import { openExternalSafe } from '@/main/navigation'
 
@@ -92,11 +96,37 @@ export function parsePanelBounds(
   return undefined
 }
 
+export function parseDesktopNotificationPayload(raw: unknown): DesktopNotificationPayload | null {
+  if (typeof raw !== 'object' || raw === null) {
+    return null
+  }
+  const { title, body, route } = raw as {
+    title?: unknown
+    body?: unknown
+    route?: unknown
+  }
+  if (
+    typeof title !== 'string' ||
+    title.length < 1 ||
+    title.length > 120 ||
+    typeof body !== 'string' ||
+    body.length < 1 ||
+    body.length > 500
+  ) {
+    return null
+  }
+  if (route !== undefined && (typeof route !== 'string' || !isSafeInternalPath(route))) {
+    return null
+  }
+  return { title, body, ...(route !== undefined ? { route } : {}) }
+}
+
 export interface IpcDeps {
   appOrigin: () => string
   allowHttpLocalhost: () => boolean
   retryLoad: () => void
   localFilesystem: LocalFilesystemService
+  settings: DesktopSettingsService
   beginOAuthConnect: (providerId: string, scope: OAuthConnectScope) => Promise<boolean>
   launcher: {
     openChat: (target: LauncherOpenChatTarget) => void
@@ -177,6 +207,30 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         error: 'Local filesystem access is not allowed from this page.',
       },
       handler: (request) => deps.localFilesystem.handle(request),
+    },
+    'desktop:settings:get': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: () => deps.settings.getPreferences(),
+    },
+    'desktop:settings:set': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (key, value) =>
+        isDesktopPreferenceKey(key) && typeof value === 'boolean'
+          ? deps.settings.setPreference(key, value)
+          : deps.settings.getPreferences(),
+    },
+    'desktop:settings:notify': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: false,
+      handler: (raw) => {
+        const payload = parseDesktopNotificationPayload(raw)
+        return payload ? deps.settings.notify(payload) : false
+      },
     },
     'browser-agent:execute-tool': {
       kind: 'invoke',

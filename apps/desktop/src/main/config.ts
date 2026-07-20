@@ -26,6 +26,11 @@ export interface DesktopSettings {
   /** Quick Ask launcher accelerator — one of the presets in shortcuts.ts, or 'disabled'. */
   launcherShortcut?: string
   trayEnabled?: boolean
+  notificationsEnabled?: boolean
+  notificationSounds?: boolean
+  notificationsOnlyWhenUnfocused?: boolean
+  launchAtLogin?: boolean
+  autoDownloadUpdates?: boolean
 }
 
 export type OriginValidation = { ok: true; origin: string } | { ok: false; error: string }
@@ -91,6 +96,11 @@ export function isSafeInternalPath(path: unknown): path is string {
 const DEFAULT_SETTINGS: DesktopSettings = {
   origin: DEFAULT_ORIGIN,
   blockThirdPartyAnalytics: true,
+  notificationsEnabled: true,
+  notificationSounds: true,
+  notificationsOnlyWhenUnfocused: true,
+  launchAtLogin: false,
+  autoDownloadUpdates: true,
 }
 
 export interface ConfigStore {

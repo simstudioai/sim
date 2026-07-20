@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import { cn } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
 import { usePathname } from 'next/navigation'
+import { getDesktopBridge } from '@/lib/desktop'
 import { Sidebar, SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -115,6 +116,14 @@ export function WorkspaceChrome({
     if (hasHydrated) syncSidebarWidth()
   }, [pathname, hasHydrated, syncSidebarWidth])
 
+  useEffect(() => {
+    return getDesktopBridge()?.onCommand?.((command) => {
+      if (command === 'toggle-sidebar') {
+        useSidebarStore.getState().toggleCollapsed()
+      }
+    })
+  }, [])
+
   // Re-clamp the width when the window shrinks below what the persisted width
   // allows, so the sidebar can never grow wider than the viewport permits.
   useEffect(() => {
@@ -157,11 +166,12 @@ export function WorkspaceChrome({
       </div>
       <div
         className={cn(
-          'flex min-w-0 flex-1 flex-col p-[8px] transition-[padding]',
+          'workspace-content-shell flex min-w-0 flex-1 flex-col p-[8px] transition-[padding]',
           SLIDE_TRANSITION,
           !isFullscreen && 'pl-0',
           isCollapsed && '[[data-sim-desktop-title-bar=inset]_&]:p-0'
         )}
+        data-sidebar-collapsed={isCollapsed || undefined}
       >
         <div className='flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]'>
           {children}

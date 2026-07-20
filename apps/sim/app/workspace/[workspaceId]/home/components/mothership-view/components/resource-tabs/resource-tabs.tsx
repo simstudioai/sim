@@ -328,8 +328,7 @@ export function ResourceTabs({
   const handleAdd = useCallback(
     (resource: MothershipResource) => {
       if (!chatId) return
-      // Ephemeral panels (live browser session) are in-memory only — never
-      // persisted to the chat's resource list.
+      // Synthetic result/preview panels are in-memory only.
       if (!isEphemeralResource(resource)) {
         addResource.mutate({ chatId, resource })
       }

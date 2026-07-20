@@ -42,6 +42,11 @@ export function hasBrowserAgent(): boolean {
   return Boolean(getDesktopBridge()?.browserAgent)
 }
 
+/** True when the shell exposes device-level desktop preferences. */
+export function hasDesktopSettings(): boolean {
+  return Boolean(getDesktopBridge()?.settings)
+}
+
 export interface DesktopChatCapabilities {
   desktopCapabilities?: { localFilesystem: true }
   browserCapable?: true

@@ -6,8 +6,12 @@ import type {
   BrowserToolResponse,
 } from '@sim/browser-protocol'
 import type {
+  DesktopCommand,
+  DesktopNotificationPayload,
   DesktopOAuthConnectResult,
   DesktopOAuthConnectScope,
+  DesktopPreferenceKey,
+  DesktopPreferences,
   LocalFilesystemRequest,
   LocalFilesystemResponse,
   SimDesktopApi,
@@ -34,6 +38,20 @@ const api: SimDesktopApi = {
   },
   localFilesystem: (request: LocalFilesystemRequest): Promise<LocalFilesystemResponse> =>
     ipcRenderer.invoke('desktop:local-filesystem', request),
+  onCommand: (callback: (command: DesktopCommand) => void): (() => void) => {
+    const listener = (_event: unknown, command: DesktopCommand) => callback(command)
+    ipcRenderer.on('desktop:command', listener)
+    return () => {
+      ipcRenderer.removeListener('desktop:command', listener)
+    }
+  },
+  settings: {
+    getPreferences: (): Promise<DesktopPreferences> => ipcRenderer.invoke('desktop:settings:get'),
+    setPreference: (key: DesktopPreferenceKey, value: boolean): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set', key, value),
+    notify: (payload: DesktopNotificationPayload): Promise<boolean> =>
+      ipcRenderer.invoke('desktop:settings:notify', payload),
+  },
   launcher: {
     openChat: (target: { workspaceId: string; chatId?: string }): void => {
       ipcRenderer.send('launcher:open-chat', target)

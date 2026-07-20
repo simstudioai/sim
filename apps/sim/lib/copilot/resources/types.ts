@@ -23,16 +23,14 @@ export interface MothershipResource {
 }
 
 export function isEphemeralResource(resource: MothershipResource): boolean {
-  return (
-    resource.type === 'generic' || resource.type === 'browser' || resource.id === 'streaming-file'
-  )
+  return resource.type === 'generic' || resource.id === 'streaming-file'
 }
 
 /**
  * Singleton id for the live browser-session panel. The panel hosts the
- * desktop app's natively embedded browser view — pure client-side UI with no
- * server row behind it — so the resource is ephemeral and never persisted to
- * the chat.
+ * desktop app's natively embedded browser view. Only this resource metadata
+ * is persisted with the chat; the live page and browser profile remain owned
+ * by the desktop app.
  */
 export const BROWSER_SESSION_RESOURCE_ID = 'browser-session'
 

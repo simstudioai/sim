@@ -31,6 +31,7 @@ const VALID_RESOURCE_TYPES = new Set<ResourceType>([
   'scheduledtask',
   'log',
   'integration',
+  'browser',
 ])
 
 export const POST = withRouteHandler(async (req: NextRequest) => {

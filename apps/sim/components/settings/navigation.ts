@@ -8,6 +8,7 @@ import {
   Lock,
   LogIn,
   Palette,
+  PanelLeft,
   Send,
   Server,
   Settings,
@@ -76,6 +77,7 @@ export interface SettingsNavigationItem<Section extends string = string> {
 
 export type UnifiedSettingsSection =
   | 'general'
+  | 'desktop'
   | 'secrets'
   | 'access-control'
   | 'custom-blocks'
@@ -121,6 +123,7 @@ export interface UnifiedSettingsNavigationItem {
   selfHostedOverride?: boolean
   requiresSuperUser?: boolean
   requiresAdminRole?: boolean
+  requiresDesktop?: boolean
   allowNonOrgAdmin?: boolean
   showWhenLocked?: boolean
   hideForEnterprise?: boolean
@@ -292,6 +295,16 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
     planes: {
       account: { id: 'general', group: 'account', order: 0 },
+    },
+  },
+  {
+    label: 'Desktop',
+    icon: PanelLeft,
+    unified: {
+      id: 'desktop',
+      description: 'Manage notifications, startup, local folders, and updates.',
+      group: 'system',
+      requiresDesktop: true,
     },
   },
   {

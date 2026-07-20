@@ -14,6 +14,7 @@ interface MockView {
     }
     setWindowOpenHandler: ReturnType<typeof vi.fn>
     loadURL: ReturnType<typeof vi.fn>
+    setBackgroundThrottling: ReturnType<typeof vi.fn>
   }
   setBounds: ReturnType<typeof vi.fn>
   setVisible: ReturnType<typeof vi.fn>
@@ -62,6 +63,17 @@ describe('browser-agent session', () => {
     expect(session.ensureTab()).toBe(first)
     expect(session.listTabs()).toHaveLength(1)
     expect(session.listTabs()[0]).toMatchObject({ tabId: first.id, active: true })
+  })
+
+  it('only disables hidden-page throttling while browser automation is active', () => {
+    const tab = session.ensureTab()
+    const contents = (tab.view as unknown as MockView).webContents
+
+    session.setAutomationActive(true)
+    expect(contents.setBackgroundThrottling).toHaveBeenLastCalledWith(false)
+
+    session.setAutomationActive(false)
+    expect(contents.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
   })
 
   it('requireTab refuses when no page is open yet', () => {

@@ -9,6 +9,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isHosted } from '@/lib/core/config/env-flags'
+import { hasDesktopSettings } from '@/lib/desktop'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -57,6 +58,7 @@ export function SettingsSidebar({
   const showDiscardDialog = pendingLeave !== null
 
   const [hasOverflowTop, setHasOverflowTop] = useState(false)
+  const [desktopSettingsAvailable, setDesktopSettingsAvailable] = useState(false)
 
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
@@ -89,6 +91,10 @@ export function SettingsSidebar({
 
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
+      if (item.requiresDesktop && !desktopSettingsAvailable) {
+        return false
+      }
+
       if (item.hideWhenBillingDisabled && !isBillingEnabled) {
         return false
       }
@@ -186,6 +192,7 @@ export function SettingsSidebar({
     generalSettings?.superUserModeEnabled,
     forkingAvailable,
     canAdminWorkspace,
+    desktopSettingsAvailable,
   ])
 
   const activeSection = useMemo(() => {
@@ -211,6 +218,9 @@ export function SettingsSidebar({
         case 'billing':
           void import('@/app/workspace/[workspaceId]/settings/components/billing/billing')
           break
+        case 'desktop':
+          void import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop')
+          break
       }
     },
     [queryClient, workspaceId]
@@ -231,6 +241,10 @@ export function SettingsSidebar({
   const handleCancelDiscard = useCallback(() => {
     cancelLeave()
   }, [cancelLeave])
+
+  useEffect(() => {
+    setDesktopSettingsAvailable(hasDesktopSettings())
+  }, [])
 
   useEffect(() => {
     const container = scrollContainerRef.current

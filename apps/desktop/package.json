@@ -18,6 +18,7 @@
     "start": "electron .",
     "package:dir": "bun run build && electron-builder --mac dir --publish never",
     "package:mac": "bun run build && electron-builder --mac --publish never",
+    "install:local": "bun run scripts/install-local.ts",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",

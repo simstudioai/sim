@@ -1,5 +1,5 @@
 import type { BrowserWindow, MenuItemConstructorOptions } from 'electron'
-import { app, Menu, shell } from 'electron'
+import { app, Menu } from 'electron'
 import type { ConfigStore } from '@/main/config'
 import { openExternalSafe } from '@/main/navigation'
 
@@ -13,10 +13,10 @@ export interface MenuDeps {
   getMainWindow: () => BrowserWindow | null
   allowHttpLocalhost: () => boolean
   openSettings: () => void
-  signIn: () => void
+  newChat: () => void
+  toggleSidebar: () => void
   signOut: () => void
   checkForUpdates: () => void
-  eventLogPath: string
 }
 
 /**
@@ -40,6 +40,12 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     })
 
   const viewSubmenu: MenuItemConstructorOptions[] = [
+    {
+      label: 'Toggle Sidebar',
+      accelerator: 'CmdOrCtrl+B',
+      click: deps.toggleSidebar,
+    },
+    { type: 'separator' },
     {
       label: 'Reload',
       accelerator: 'CmdOrCtrl+R',
@@ -69,9 +75,9 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
       label: app.name,
       submenu: [
         { role: 'about' },
-        { label: 'Check for Updates…', click: deps.checkForUpdates },
-        { type: 'separator' },
         { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: deps.openSettings },
+        { label: 'Check for Updates…', click: deps.checkForUpdates },
+        { label: 'Sign Out', click: deps.signOut },
         { type: 'separator' },
         { role: 'services' },
         { type: 'separator' },
@@ -82,15 +88,15 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
         { role: 'quit' },
       ],
     },
-    { label: 'File', submenu: [{ role: 'close' }] },
-    { role: 'editMenu' },
     {
-      label: 'Account',
+      label: 'File',
       submenu: [
-        { label: 'Sign In with Browser…', click: deps.signIn },
-        { label: 'Sign Out', click: deps.signOut },
+        { label: 'New Chat', accelerator: 'CmdOrCtrl+N', click: deps.newChat },
+        { type: 'separator' },
+        { role: 'close' },
       ],
     },
+    { role: 'editMenu' },
     { label: 'View', submenu: viewSubmenu },
     { role: 'windowMenu' },
     {
@@ -101,13 +107,8 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           click: () => void openExternalSafe(DOCS_URL, deps.allowHttpLocalhost()),
         },
         {
-          label: 'Service Status',
+          label: 'System Status',
           click: () => void openExternalSafe(STATUS_URL, deps.allowHttpLocalhost()),
-        },
-        { type: 'separator' },
-        {
-          label: 'Show Logs in Finder',
-          click: () => shell.showItemInFolder(deps.eventLogPath),
         },
       ],
     },
