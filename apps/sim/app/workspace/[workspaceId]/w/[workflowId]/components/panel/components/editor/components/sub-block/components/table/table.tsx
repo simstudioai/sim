@@ -122,7 +122,10 @@ function TableCell({
     }
     const nextCellKey = `${rowIndex + 1}-${column}`
     const nextInput = inputRefs.current.get(nextCellKey)
-    if (nextInput) {
+    // `isConnected` guards against a stale ref: position-keyed entries can
+    // outlive a deleted row, and focusing a detached node would steal focus
+    // from the current cell. A real next row's input is always connected.
+    if (nextInput?.isConnected) {
       e.preventDefault()
       nextInput.focus()
       inputController.fieldHelpers.hideFieldDropdowns(nextCellKey)
@@ -170,6 +173,7 @@ function TableCell({
         <input
           ref={(el) => {
             if (el) inputRefs.current.set(cellKey, el)
+            else inputRefs.current.delete(cellKey)
           }}
           type='text'
           value={cellValue}
@@ -190,6 +194,7 @@ function TableCell({
         <div
           ref={(el) => {
             if (el) overlayRefs.current.set(cellKey, el)
+            else overlayRefs.current.delete(cellKey)
           }}
           data-overlay={cellKey}
           className='scrollbar-hide pointer-events-none absolute top-0 right-[10px] bottom-0 left-[10px] overflow-x-auto overflow-y-hidden bg-transparent'
