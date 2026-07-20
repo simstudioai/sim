@@ -90,7 +90,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   if (errorParam) {
     logger.warn(`MCP OAuth callback received error: ${errorParam}`)
-    if (initialRow) await clearState(initialRow.id).catch(() => {})
+    if (initialRow) await clearState(initialRow.id, 'callback:provider_error').catch(() => {})
     return respond(`Authorization failed: ${errorParam}`, false, 'provider_error', stateRowServerId)
   }
   if (!state || !code) {
@@ -157,7 +157,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     // Burn state before token exchange so a replayed callback cannot reuse it.
-    await clearState(row.id)
+    await clearState(row.id, 'callback:burn-before-exchange')
 
     const preregistered = await loadPreregisteredClient(server.id)
     const provider = new SimMcpOauthProvider({ row, preregistered })
