@@ -49,6 +49,9 @@ export const BROWSER_THEMES = ['system', 'light', 'dark'] as const
 /** Sim appearance preference mirrored into browser-tab media queries. */
 export type BrowserTheme = (typeof BROWSER_THEMES)[number]
 
+/** How a native browser shortcut should focus Sim's renderer-owned omnibox. */
+export type BrowserOmniboxFocusMode = 'select' | 'clear'
+
 const BROWSER_TOOL_NAME_SET: ReadonlySet<string> = new Set(BROWSER_TOOL_NAMES)
 const BROWSER_THEME_SET: ReadonlySet<string> = new Set(BROWSER_THEMES)
 

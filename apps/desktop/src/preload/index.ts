@@ -1,4 +1,5 @@
 import type {
+  BrowserOmniboxFocusMode,
   BrowserPageState,
   BrowserPanelAction,
   BrowserPanelBounds,
@@ -93,6 +94,13 @@ const api: SimDesktopApi = {
     },
     setTheme: (theme: BrowserTheme): void => {
       ipcRenderer.send('browser-agent:set-theme', theme)
+    },
+    onFocusOmnibox: (callback: (mode: BrowserOmniboxFocusMode) => void): (() => void) => {
+      const listener = (_event: unknown, mode: BrowserOmniboxFocusMode) => callback(mode)
+      ipcRenderer.on('browser-agent:focus-omnibox', listener)
+      return () => {
+        ipcRenderer.removeListener('browser-agent:focus-omnibox', listener)
+      }
     },
     onPanelSnapshot: (callback: (snapshot: BrowserPanelSnapshot) => void): (() => void) => {
       const listener = (_event: unknown, snapshot: BrowserPanelSnapshot) => callback(snapshot)

@@ -1,4 +1,5 @@
 import {
+  type BrowserOmniboxFocusMode,
   type BrowserPanelBounds,
   type BrowserPanelSnapshot,
   type BrowserTabState,
@@ -8,7 +9,7 @@ import {
 } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { BrowserWindow, Session, WebContents } from 'electron'
+import type { BrowserWindow, Input, Session, WebContents } from 'electron'
 import { nativeTheme, WebContentsView } from 'electron'
 import { registerAgentWebContents } from '@/main/browser-agent/registry'
 
@@ -48,6 +49,45 @@ export interface AgentSessionEvents {
  */
 const PANEL_LEASE_TTL_MS = 2_500
 const PANEL_LEASE_CHECK_MS = 1_000
+
+export type BrowserShortcut = 'focus-omnibox' | 'new-tab' | 'close-tab'
+
+type BrowserShortcutInput = Pick<
+  Input,
+  'type' | 'key' | 'isAutoRepeat' | 'isComposing' | 'shift' | 'control' | 'alt' | 'meta'
+>
+
+/**
+ * Resolves browser-level shortcuts using Command on macOS and Control
+ * elsewhere. Modified/composing/repeated keystrokes stay with the page.
+ */
+export function browserShortcutForInput(
+  input: BrowserShortcutInput,
+  platform: NodeJS.Platform = process.platform
+): BrowserShortcut | null {
+  if (
+    input.type !== 'keyDown' ||
+    input.isAutoRepeat ||
+    input.isComposing ||
+    input.shift ||
+    input.alt
+  ) {
+    return null
+  }
+  const primaryModifier = platform === 'darwin' ? input.meta : input.control
+  if (!primaryModifier) return null
+
+  switch (input.key.toLowerCase()) {
+    case 'l':
+      return 'focus-omnibox'
+    case 't':
+      return 'new-tab'
+    case 'w':
+      return 'close-tab'
+    default:
+      return null
+  }
+}
 
 const tabs: AgentTab[] = []
 let activeTabId: string | null = null
@@ -96,6 +136,13 @@ function configureAgentPartition(ses: Session): void {
   })
 }
 
+function focusRendererOmnibox(mode: BrowserOmniboxFocusMode): void {
+  const win = getMainWindow()
+  if (!win || win.isDestroyed()) return
+  win.webContents.focus()
+  win.webContents.send('browser-agent:focus-omnibox', mode)
+}
+
 function createTabView(): WebContentsView {
   const view = new WebContentsView({
     webPreferences: {
@@ -136,6 +183,34 @@ function createTabView(): WebContentsView {
   // see; always let the unload proceed.
   contents.on('will-prevent-unload', (event) => {
     event.preventDefault()
+  })
+  contents.on('before-input-event', (event, input) => {
+    const shortcut = browserShortcutForInput(input)
+    if (!shortcut) return
+
+    event.preventDefault()
+    if (shortcut === 'focus-omnibox') {
+      focusRendererOmnibox('select')
+      return
+    }
+    if (shortcut === 'new-tab') {
+      if (listTabs().length < MAX_BROWSER_TABS) {
+        addTab()
+        focusRendererOmnibox('clear')
+      }
+      return
+    }
+
+    const tab = tabs.find((entry) => entry.view === view)
+    if (!tab) return
+    const closingLastTab = listTabs().length === 1
+    closeTab(tab.id)
+    const active = activeTab()
+    if (closingLastTab || !active || !active.view.webContents.getURL()) {
+      focusRendererOmnibox('clear')
+    } else {
+      active.view.webContents.focus()
+    }
   })
 
   events?.onTabCreated(contents)
@@ -307,6 +382,12 @@ function layout(): void {
 /** Renderer-reported panel rect (null = panel hidden/unmounted). */
 export function setPanelBounds(bounds: BrowserPanelBounds | null): void {
   panelBounds = bounds
+  // A visible browser resource always represents one open browser window.
+  // Materialize its initial about:blank tab before layout so the tab strip,
+  // omnibox, and native session never disagree about an empty state.
+  if (bounds !== null && !hasSession()) {
+    ensureTab()
+  }
   if (bounds === null) {
     panelOccluded = false
     panelSnapshotGeneration++
@@ -400,6 +481,12 @@ export function closeTab(tabId: string): void {
     if (active) {
       events?.onActiveTabChanged(active.view.webContents)
     }
+  }
+  // Closing the last tab must not leave a visible browser resource with an
+  // empty strip. Replace it with a fresh New tab, matching normal browser UI.
+  if (!hasSession() && panelBounds !== null) {
+    addTab()
+    return
   }
   events?.onTabsChanged()
   if (!hasSession()) {

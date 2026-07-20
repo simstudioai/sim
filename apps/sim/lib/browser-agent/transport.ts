@@ -13,6 +13,7 @@
  * subagent is never offered.
  */
 import type {
+  BrowserOmniboxFocusMode,
   BrowserPageState,
   BrowserPanelAction,
   BrowserPanelBounds,
@@ -113,6 +114,13 @@ export function sendBrowserPanelAction(
 /** Mirrors Sim's raw light/dark/system preference into embedded pages. */
 export function reportBrowserTheme(theme: BrowserTheme): void {
   bridge()?.setTheme?.(theme)
+}
+
+/** Subscribes to native browser shortcuts that target the renderer omnibox. */
+export function onBrowserOmniboxFocus(
+  callback: (mode: BrowserOmniboxFocusMode) => void
+): () => void {
+  return bridge()?.onFocusOmnibox?.(callback) ?? (() => {})
 }
 
 /**

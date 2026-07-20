@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  onFocusOmnibox,
   onPanelSnapshot,
   setPageState,
   setPanelBounds,
@@ -11,6 +12,7 @@ const {
   setTabsState,
   setTabsSupported,
 } = vi.hoisted(() => ({
+  onFocusOmnibox: vi.fn(),
   onPanelSnapshot: vi.fn(),
   setPageState: vi.fn(),
   setPanelBounds: vi.fn(),
@@ -27,6 +29,7 @@ vi.mock('@/lib/desktop', () => ({
     browserAgent: {
       executeTool: vi.fn(),
       getTabsState: vi.fn(async () => ({ tabs: [], activeTabId: null })),
+      onFocusOmnibox,
       onPageState: vi.fn(),
       onPanelSnapshot,
       onSessionStatus: vi.fn(),
@@ -53,6 +56,7 @@ vi.mock('@/stores/browser-session/store', () => ({
 
 import {
   initBrowserAgentTransport,
+  onBrowserOmniboxFocus,
   reportBrowserPanelBounds,
   reportBrowserPanelOcclusion,
   reportBrowserTheme,
@@ -99,5 +103,14 @@ describe('browser panel transport', () => {
     reportBrowserTheme('system')
 
     expect(setTheme.mock.calls).toEqual([['dark'], ['light'], ['system']])
+  })
+
+  it('subscribes to native omnibox focus requests', () => {
+    const unsubscribe = vi.fn()
+    const callback = vi.fn()
+    onFocusOmnibox.mockReturnValue(unsubscribe)
+
+    expect(onBrowserOmniboxFocus(callback)).toBe(unsubscribe)
+    expect(onFocusOmnibox).toHaveBeenCalledWith(callback)
   })
 })

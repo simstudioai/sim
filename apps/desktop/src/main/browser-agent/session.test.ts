@@ -13,8 +13,10 @@ interface MockView {
       setPermissionRequestHandler: ReturnType<typeof vi.fn>
       setPermissionCheckHandler: ReturnType<typeof vi.fn>
     }
+    on: ReturnType<typeof vi.fn>
     setWindowOpenHandler: ReturnType<typeof vi.fn>
     loadURL: ReturnType<typeof vi.fn>
+    focus: ReturnType<typeof vi.fn>
     isDestroyed: ReturnType<typeof vi.fn>
     setBackgroundThrottling: ReturnType<typeof vi.fn>
     capturePage: ReturnType<typeof vi.fn>
@@ -73,6 +75,78 @@ describe('browser-agent session', () => {
     expect(session.ensureTab()).toBe(first)
     expect(session.listTabs()).toHaveLength(1)
     expect(session.listTabs()[0]).toMatchObject({ tabId: first.id, active: true })
+  })
+
+  it('normalizes browser shortcuts to Command on macOS and Control elsewhere', () => {
+    const input = {
+      type: 'keyDown',
+      key: 'l',
+      isAutoRepeat: false,
+      isComposing: false,
+      shift: false,
+      control: false,
+      alt: false,
+      meta: true,
+    }
+
+    expect(session.browserShortcutForInput(input, 'darwin')).toBe('focus-omnibox')
+    expect(session.browserShortcutForInput(input, 'win32')).toBeNull()
+    expect(session.browserShortcutForInput({ ...input, meta: false, control: true }, 'win32')).toBe(
+      'focus-omnibox'
+    )
+    expect(session.browserShortcutForInput({ ...input, key: 't' }, 'darwin')).toBe('new-tab')
+    expect(session.browserShortcutForInput({ ...input, key: 'w' }, 'darwin')).toBe('close-tab')
+    expect(
+      session.browserShortcutForInput({ ...input, key: 't', shift: true }, 'darwin')
+    ).toBeNull()
+  })
+
+  it('handles browser shortcuts from a focused native tab', () => {
+    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const first = session.requireTab()
+    const firstContents = (first.view as unknown as MockView).webContents
+    const beforeInput = firstContents.on.mock.calls.find(
+      ([eventName]) => eventName === 'before-input-event'
+    )?.[1] as
+      | ((event: { preventDefault: () => void }, input: Record<string, unknown>) => void)
+      | undefined
+    const event = { preventDefault: vi.fn() }
+    const input = {
+      type: 'keyDown',
+      key: 'l',
+      isAutoRepeat: false,
+      isComposing: false,
+      shift: false,
+      control: process.platform !== 'darwin',
+      alt: false,
+      meta: process.platform === 'darwin',
+    }
+
+    beforeInput?.(event, input)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(win.webContents.focus).toHaveBeenCalled()
+    expect(win.webContents.send).toHaveBeenLastCalledWith('browser-agent:focus-omnibox', 'select')
+
+    beforeInput?.(event, { ...input, key: 't' })
+    expect(session.listTabs()).toHaveLength(2)
+    expect(win.webContents.send).toHaveBeenLastCalledWith('browser-agent:focus-omnibox', 'clear')
+
+    const second = session.activeTab()
+    expect(second).not.toBeNull()
+    const secondContents = (second?.view as unknown as MockView).webContents
+    const secondBeforeInput = secondContents.on.mock.calls.find(
+      ([eventName]) => eventName === 'before-input-event'
+    )?.[1] as
+      | ((event: { preventDefault: () => void }, input: Record<string, unknown>) => void)
+      | undefined
+    secondBeforeInput?.(event, { ...input, key: 'w' })
+    expect(session.listTabs()).toHaveLength(1)
+    expect(firstContents.focus).toHaveBeenCalled()
+
+    beforeInput?.(event, { ...input, key: 'w' })
+    expect(session.listTabs()).toHaveLength(1)
+    expect(session.listTabs()[0].tabId).not.toBe(first.id)
+    expect(win.webContents.send).toHaveBeenLastCalledWith('browser-agent:focus-omnibox', 'clear')
   })
 
   it('only disables hidden-page throttling while browser automation is active', () => {
@@ -165,6 +239,20 @@ describe('browser-agent session', () => {
     ).contentView.removeChildView
     session.setPanelBounds(null)
     expect(removeChildView).toHaveBeenCalledWith(tab.view)
+  })
+
+  it('creates one real default tab when the browser panel becomes visible', () => {
+    expect(session.listTabs()).toHaveLength(0)
+
+    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+
+    expect(session.listTabs()).toHaveLength(1)
+    expect(session.getTabsState().activeTabId).toBe(session.listTabs()[0].tabId)
+
+    const firstTabId = session.listTabs()[0].tabId
+    session.closeTab(firstTabId)
+    expect(session.listTabs()).toHaveLength(1)
+    expect(session.listTabs()[0].tabId).not.toBe(firstTabId)
   })
 
   it('clears a stale attachment without touching a destroyed host window', () => {

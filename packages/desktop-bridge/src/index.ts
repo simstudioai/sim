@@ -1,4 +1,5 @@
 import type {
+  BrowserOmniboxFocusMode,
   BrowserPageState,
   BrowserPanelAction,
   BrowserPanelBounds,
@@ -39,6 +40,11 @@ export interface SimDesktopBrowserAgentApi {
    * Optional for compatibility with desktop builds predating theme sync.
    */
   setTheme?(theme: BrowserTheme): void
+  /**
+   * Focus requests emitted by native tabs for browser-level keyboard
+   * shortcuts such as Mod+L and Mod+T.
+   */
+  onFocusOmnibox?(callback: (mode: BrowserOmniboxFocusMode) => void): () => void
   /**
    * Subscribe to captured browser frames used beneath renderer overlays.
    * Optional for compatibility with desktop builds predating occlusion.

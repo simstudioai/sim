@@ -6,6 +6,7 @@ import { Button, ChipInput, Tooltip } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, Cursor, RefreshCw, Search } from '@sim/emcn/icons'
 import { useTheme } from 'next-themes'
 import {
+  onBrowserOmniboxFocus,
   reportBrowserPanelBounds,
   reportBrowserTheme,
   sendBrowserPanelAction,
@@ -55,6 +56,8 @@ export function BrowserSession() {
   const hostRef = useRef<HTMLDivElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
   const panelOccluded = useBrowserPanelOcclusion(hostRef)
+  const pageUrlRef = useRef(pageState?.url ?? '')
+  pageUrlRef.current = pageState?.url ?? ''
   /** Non-null while the user is editing the URL bar; otherwise it mirrors the page. */
   const [urlDraft, setUrlDraft] = useState<string | null>(null)
 
@@ -63,6 +66,27 @@ export function BrowserSession() {
       reportBrowserTheme(theme)
     }
   }, [theme])
+
+  useEffect(() => {
+    let focusRaf: number | null = null
+    const unsubscribe = onBrowserOmniboxFocus((mode) => {
+      setUrlDraft(mode === 'clear' ? '' : pageUrlRef.current)
+      if (focusRaf !== null) {
+        cancelAnimationFrame(focusRaf)
+      }
+      focusRaf = requestAnimationFrame(() => {
+        focusRaf = null
+        urlInputRef.current?.focus()
+        urlInputRef.current?.select()
+      })
+    })
+    return () => {
+      unsubscribe()
+      if (focusRaf !== null) {
+        cancelAnimationFrame(focusRaf)
+      }
+    }
+  }, [])
 
   // Keep the embedded view glued to the host rect without forcing layout on
   // every animation frame. ResizeObserver covers panel transitions/resizes;
