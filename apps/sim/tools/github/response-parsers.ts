@@ -24,6 +24,18 @@ export function requiredNonEmptyString(
   return value
 }
 
+export function requiredTrimmedString(
+  record: Record<string, unknown>,
+  key: string,
+  context: string
+): string {
+  const value = record[key]
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`${context}.${key} must be a non-blank string`)
+  }
+  return value.trim()
+}
+
 export function optionalString(
   record: Record<string, unknown>,
   key: string,
@@ -81,6 +93,16 @@ export function requiredNumber(
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
     throw new Error(`${context}.${key} must be a non-negative safe integer`)
   }
+  return value
+}
+
+export function requiredRecord(
+  record: Record<string, unknown>,
+  key: string,
+  context: string
+): Record<string, unknown> {
+  const value = record[key]
+  if (!isRecord(value)) throw new Error(`${context}.${key} must be an object`)
   return value
 }
 

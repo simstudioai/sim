@@ -299,7 +299,7 @@ describe('runCloudReviewPi', () => {
     })
 
     await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
-      /missing base/
+      /pull request response\.base must be an object/
     )
     expect(mockRun).not.toHaveBeenCalled()
   })
@@ -460,7 +460,7 @@ describe('runCloudReviewPi', () => {
       output: snapshot({ head: { sha: 'short' } }),
     })
     await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
-      /invalid sha/
+      /head\.sha must be a full commit SHA/
     )
 
     vi.clearAllMocks()
@@ -469,7 +469,7 @@ describe('runCloudReviewPi', () => {
       output: snapshot({ html_url: undefined }),
     })
     await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
-      /missing html_url/
+      /pull request response\.html_url must be a non-blank string/
     )
   })
 
