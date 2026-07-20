@@ -11,7 +11,7 @@ import type { TSchema } from 'typebox'
 import type { SSHConnectionConfig } from '@/app/api/tools/ssh/utils'
 import type { Message } from '@/executor/handlers/agent/types'
 import type { PiEvent, PiRunTotals } from '@/executor/handlers/pi/events'
-import type { PiSupportedProvider } from '@/providers/pi-providers'
+import type { PiSupportedProvider } from '@/providers/pi-provider-configs'
 
 /** A conversation message seeded into the Pi run (subset of the Agent block's message). */
 export type PiMessage = Pick<Message, 'role' | 'content'>

@@ -3,6 +3,7 @@ import { Type } from 'typebox'
 import type { PiSandboxRunner } from '@/lib/execution/e2b'
 import { raceAbort } from '@/executor/handlers/pi/cloud-shared'
 import type { PiSdk } from '@/executor/handlers/pi/pi-sdk'
+import { scrubPiSecrets } from '@/executor/handlers/pi/redaction'
 import {
   parseReviewFindings,
   type ReviewFindings,
@@ -655,7 +656,8 @@ export function createCloudReviewTools(
   sdk: PiSdk,
   runner: PiSandboxRunner,
   baseSha: string,
-  headSha: string
+  headSha: string,
+  secrets: readonly string[] = []
 ): CloudReviewTools {
   let findings: ReviewFindings | undefined
   let toolCalls = 0
@@ -684,14 +686,19 @@ export function createCloudReviewTools(
     )
     if (signal?.aborted) throw new Error('Review tool operation aborted')
     if (result.exitCode !== 0) {
-      throw new Error(result.stderr.trim() || `${operation} failed inside the review sandbox`)
+      throw new Error(
+        scrubPiSecrets(
+          result.stderr.trim() || `${operation} failed inside the review sandbox`,
+          secrets
+        )
+      )
     }
 
     outputBytes += Buffer.byteLength(result.stdout)
     if (outputBytes > MAX_TOOL_OUTPUT_BYTES) {
       throw new Error(`Review tool output limit exceeded (${MAX_TOOL_OUTPUT_BYTES} bytes)`)
     }
-    return result.stdout
+    return scrubPiSecrets(result.stdout, secrets)
   }
 
   const readParameters = Type.Object(

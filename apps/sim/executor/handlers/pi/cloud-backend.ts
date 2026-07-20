@@ -35,6 +35,7 @@ import {
   parseJsonLine,
 } from '@/executor/handlers/pi/events'
 import { mapThinkingLevel, providerApiKeyEnvVar } from '@/executor/handlers/pi/keys'
+import { getPiProviderId } from '@/providers/pi-providers'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('PiCloudBackend')
@@ -48,10 +49,10 @@ const COMMIT_TITLE_MAX = 72
 const PR_SUMMARY_MAX = 2000
 const PUSH_ERROR_MAX = 1000
 
-// The agent only edits files; Sim commits, pushes, and opens the PR after the run.
-// Without this, the coding agent tries to git push / open a PR / run the test
-// toolchain itself and fails — the sandbox has no GitHub auth (the token is
-// stripped from the remote after clone) and may lack the project's tooling.
+/**
+ * Keeps git authentication out of the agent loop by reserving commit, push, and
+ * PR creation for Sim's credential-scoped finalization step.
+ */
 const CLOUD_GUIDANCE =
   'You are running inside an automated sandbox. Make only the file changes needed to complete the task. ' +
   'Do not run git commands (commit, push, branch, remote), do not configure git credentials or authenticate ' +
@@ -70,15 +71,12 @@ echo "__DEFAULT_BRANCH__=$DEFAULT_BRANCH"
 git checkout -b "$BRANCH"
 git remote set-url origin "https://github.com/$REPO_OWNER/$REPO_NAME.git"`
 
-// Finalize is split so the GitHub token is in scope for ONLY the push. `git add`,
-// `commit`, and `diff` run repo-config-driven programs that `core.hooksPath` does
-// NOT disable — gitattributes clean/smudge filters (on add), `core.fsmonitor`
-// (on add/diff), and `diff.external`/textconv (on diff). The untrusted Pi loop can
-// plant `.gitattributes` + `.git/config` to run code during these. Keeping the
-// token out of PREPARE's env means a planted program has no credential to steal;
-// hooks are disabled too as defense-in-depth. Commit runs unconditionally
-// (`|| true` tolerates an empty commit); the push decision is gated on HEAD
-// advancing past base, so commits the agent made itself are still pushed.
+/**
+ * Stages, commits, and diffs without the GitHub token because repository config
+ * can execute filters, fsmonitor, external diffs, or textconv during these git
+ * operations. Commit tolerates an empty tree; the marker checks whether HEAD
+ * advanced before the separately authenticated push.
+ */
 const PREPARE_SCRIPT = `set -e
 cd ${REPO_DIR}
 git -c core.hooksPath=/dev/null add -A
@@ -87,10 +85,10 @@ git diff --name-only "$BASE_SHA" HEAD | sed "s/^/__CHANGED__=/"
 git diff "$BASE_SHA" HEAD > ${DIFF_PATH} 2>/dev/null || true
 if git diff --quiet "$BASE_SHA" HEAD; then echo "__NO_CHANGES__=1"; else echo "__NEEDS_PUSH__=1"; fi`
 
-// The only token-bearing command. The agent-planted `.git/config` is still active,
-// so neutralize every config key that could run a program during push: hooks
-// (pre-push), `credential.helper` (runs during auth), and `core.fsmonitor`.
-// Filters/textconv don't run on push (no checkout/add/diff here).
+/**
+ * The only token-bearing command. It neutralizes repository-configured hooks,
+ * credential helpers, and fsmonitor before pushing agent-authored changes.
+ */
 const PUSH_SCRIPT = `cd ${REPO_DIR}
 git -c core.hooksPath=/dev/null -c credential.helper= -c core.fsmonitor= push "https://x-access-token:$GITHUB_TOKEN@github.com/$REPO_OWNER/$REPO_NAME.git" "$BRANCH" >/dev/null 2>${PUSH_ERR_PATH} && echo "__PUSHED__=1"`
 
@@ -213,7 +211,7 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
         runner.run(PI_SCRIPT, {
           envs: {
             [keyEnvVar]: params.apiKey,
-            PI_PROVIDER: params.providerId,
+            PI_PROVIDER: getPiProviderId(params.providerId),
             PI_MODEL: params.piModel,
             PI_THINKING: thinking,
           },

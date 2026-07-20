@@ -28,6 +28,11 @@ describe('providerApiKeyEnvVar', () => {
   it('maps key-based providers and rejects unsupported ones', () => {
     expect(providerApiKeyEnvVar('anthropic')).toBe('ANTHROPIC_API_KEY')
     expect(providerApiKeyEnvVar('openai')).toBe('OPENAI_API_KEY')
+    expect(providerApiKeyEnvVar('fireworks')).toBe('FIREWORKS_API_KEY')
+    expect(providerApiKeyEnvVar('together')).toBe('TOGETHER_API_KEY')
+    expect(providerApiKeyEnvVar('nvidia')).toBe('NVIDIA_API_KEY')
+    expect(providerApiKeyEnvVar('zai')).toBe('ZAI_API_KEY')
+    expect(providerApiKeyEnvVar('kimi')).toBe('MOONSHOT_API_KEY')
     expect(providerApiKeyEnvVar('vertex')).toBeNull()
     expect(providerApiKeyEnvVar('bedrock')).toBeNull()
     expect(providerApiKeyEnvVar('something-else')).toBeNull()
@@ -63,19 +68,31 @@ describe('resolvePiModelKey', () => {
     vi.clearAllMocks()
   })
 
-  it('local mode resolves keys through getApiKeyWithBYOK (hosted keys allowed)', async () => {
-    mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-test', isBYOK: false })
-
+  it('local mode preserves a direct user key as BYOK', async () => {
     const result = await resolvePiModelKey({
       providerId: 'anthropic',
       model: 'claude',
       mode: 'local',
       workspaceId: 'ws-1',
-      apiKey: 'sk-test',
+      apiKey: 'sk-user',
     })
 
-    expect(result).toEqual({ apiKey: 'sk-test', isBYOK: false })
-    expect(mockGetApiKeyWithBYOK).toHaveBeenCalledWith('anthropic', 'claude', 'ws-1', 'sk-test')
+    expect(result).toEqual({ apiKey: 'sk-user', isBYOK: true })
+    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
+  })
+
+  it('local mode can use a hosted key because the model runs in Sim', async () => {
+    mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-hosted', isBYOK: false })
+
+    await expect(
+      resolvePiModelKey({
+        providerId: 'anthropic',
+        model: 'claude',
+        mode: 'local',
+        workspaceId: 'ws-1',
+      })
+    ).resolves.toEqual({ apiKey: 'sk-hosted', isBYOK: false })
+    expect(mockGetApiKeyWithBYOK).toHaveBeenCalledWith('anthropic', 'claude', 'ws-1', undefined)
   })
 
   it('cloud mode uses the block API Key field directly as a BYOK key', async () => {
@@ -119,6 +136,21 @@ describe('resolvePiModelKey', () => {
       })
     ).resolves.toEqual({ apiKey: 'xai-workspace-key', isBYOK: true })
     expect(mockGetBYOKKey).toHaveBeenCalledWith('ws-1', 'xai')
+    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
+  })
+
+  it('cloud mode supports stored workspace keys for newly mapped providers', async () => {
+    mockGetBYOKKey.mockResolvedValue({ apiKey: 'fireworks-workspace-key', isBYOK: true })
+
+    await expect(
+      resolvePiModelKey({
+        providerId: 'fireworks',
+        model: 'fireworks/accounts/fireworks/models/gpt-oss-120b',
+        mode: 'cloud',
+        workspaceId: 'ws-1',
+      })
+    ).resolves.toEqual({ apiKey: 'fireworks-workspace-key', isBYOK: true })
+    expect(mockGetBYOKKey).toHaveBeenCalledWith('ws-1', 'fireworks')
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
   })
 

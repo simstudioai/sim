@@ -1,7 +1,7 @@
 /**
- * Cloud Code Review backend. GitHub credentials are scoped to the authenticated
- * fetch and host-side review submission. The model credential remains in Sim's
- * process while Pi receives only bounded, read-only tools backed by E2B.
+ * Cloud Code Review backend. GitHub credentials are scoped to authenticated fetch
+ * and host-side review submission. The trusted Pi SDK and provider adapter use the
+ * model credential in Sim's process; neither the model context nor E2B receives it.
  */
 
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -28,10 +28,18 @@ import { buildPiPrompt } from '@/executor/handlers/pi/context'
 import { applyPiEvent, createPiTotals, normalizePiEvent } from '@/executor/handlers/pi/events'
 import { mapThinkingLevel } from '@/executor/handlers/pi/keys'
 import {
+  createPiModelRuntime,
   createSealedPiResourceLoader,
   loadPiSdk,
   resolvePiSdkModel,
 } from '@/executor/handlers/pi/pi-sdk'
+import {
+  createScrubbedPiError,
+  getScrubbedPiErrorMessage,
+  scrubPiEvent,
+  scrubPiSecrets,
+} from '@/executor/handlers/pi/redaction'
+import { getPiProviderId } from '@/providers/pi-providers'
 import { executeTool } from '@/tools'
 import type { ReviewFindings } from '@/tools/github/review-schema'
 
@@ -49,10 +57,11 @@ const REVIEW_SYSTEM_PROMPT = `You are a security-conscious pull request reviewer
 const REVIEW_GUIDANCE =
   'Review the pinned pull request snapshot described below. Use repository tools only to inspect code. ' +
   'Inline comments require an exact repository-relative path, a positive integer line, and an explicit ' +
-  'LEFT or RIGHT diff side. For multiline comments, provide both start_line and start_side, with ' +
-  'start_line less than line and both endpoints on the same diff side. Start with list_changed_files, then ' +
-  'use read_file_diff and follow next_offset until null to cover every changed file. Omit comments or use ' +
-  '[] when there are no inline findings. Finish with submit_review; do not merely print the review.'
+  'diff side. Use LEFT only for deleted lines; use RIGHT for added or unchanged context lines. For ' +
+  'multiline comments, provide both start_line and start_side, with start_line less than line and both ' +
+  'endpoints on the same diff side. Start with list_changed_files, then use read_file_diff and follow ' +
+  'next_offset until null to cover every changed file. Omit comments or use [] when there are no inline ' +
+  'findings. Finish with submit_review; do not merely print the review.'
 
 const GIT_ASKPASS_SCRIPT = `#!/bin/sh
 case "$1" in
@@ -198,6 +207,16 @@ function buildReviewPrompt(params: PiCloudReviewRunParams, snapshot: PullRequest
   })
 }
 
+function scrubReviewFindings(findings: ReviewFindings, secrets: readonly string[]): ReviewFindings {
+  return {
+    body: scrubPiSecrets(findings.body, secrets),
+    comments: findings.comments.map((comment) => ({
+      ...comment,
+      body: scrubPiSecrets(comment.body, secrets),
+    })),
+  }
+}
+
 function assertSameSnapshot(
   original: PullRequestSnapshot,
   current: PullRequestSnapshot,
@@ -240,7 +259,7 @@ async function submitReview(
 
   const output: unknown = result.output
   if (!isRecord(output)) throw new Error('GitHub review response must be an object')
-  if (output.commit_id !== headSha) {
+  if (output.commit_id !== null && output.commit_id !== headSha) {
     throw new Error('GitHub review response did not match the reviewed commit')
   }
   return {
@@ -249,14 +268,20 @@ async function submitReview(
   }
 }
 
+/**
+ * Runs Pi as a trusted host-side model client while treating every model, event,
+ * review, log, and thrown-error boundary as untrusted output that must be scrubbed.
+ */
 export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (params, context) => {
-  validateRepositoryCoordinates(params)
-  const snapshot = await fetchPrSnapshot(params, context.signal)
-  const isolatedDir = await mkdtemp(join(tmpdir(), 'sim-pi-review-'))
+  const secrets = [params.apiKey, params.githubToken]
 
   try {
-    return await withPiSandbox(async (runner) => {
-      try {
+    validateRepositoryCoordinates(params)
+    const snapshot = await fetchPrSnapshot(params, context.signal)
+    const isolatedDir = await mkdtemp(join(tmpdir(), 'sim-pi-review-'))
+
+    try {
+      return await withPiSandbox(async (runner) => {
         await runner.writeFile(GIT_ASKPASS_PATH, GIT_ASKPASS_SCRIPT)
         const fetched = await raceAbort(
           runner.run(FETCH_PR_SCRIPT, {
@@ -312,15 +337,21 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
         }
 
         const sdk = await loadPiSdk()
-        const reviewTools = createCloudReviewTools(sdk, runner, snapshot.baseSha, snapshot.headSha)
-        const prompt = buildReviewPrompt(params, snapshot)
+        const reviewTools = createCloudReviewTools(
+          sdk,
+          runner,
+          snapshot.baseSha,
+          snapshot.headSha,
+          secrets
+        )
+        const prompt = scrubPiSecrets(buildReviewPrompt(params, snapshot), secrets)
 
-        const authStorage = sdk.AuthStorage.inMemory()
-        authStorage.setRuntimeApiKey(params.providerId, params.apiKey)
+        const piProviderId = getPiProviderId(params.providerId)
+        const modelRuntime = await createPiModelRuntime(sdk)
+        await modelRuntime.setRuntimeApiKey(piProviderId, params.apiKey)
         try {
-          const modelRegistry = sdk.ModelRegistry.inMemory(authStorage)
           const thinkingLevel = mapThinkingLevel(params.thinkingLevel)
-          const model = resolvePiSdkModel(modelRegistry, params.providerId, params.piModel)
+          const model = resolvePiSdkModel(modelRuntime, piProviderId, params.piModel)
           if (!model) {
             throw new Error(
               `Pi model "${params.providerId}/${params.piModel}" is not available in the installed Pi catalog`
@@ -336,8 +367,7 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
             thinkingLevel,
             tools: reviewTools.tools.map((tool) => tool.name),
             customTools: reviewTools.tools,
-            authStorage,
-            modelRegistry,
+            modelRuntime,
             settingsManager,
             resourceLoader,
             sessionManager: sdk.SessionManager.inMemory(isolatedDir),
@@ -345,7 +375,7 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
 
           const totals = createPiTotals()
           const unsubscribe = agentSession.subscribe((raw) => {
-            const event = normalizePiEvent(raw)
+            const event = scrubPiEvent(normalizePiEvent(raw), secrets)
             if (!event) return
             if (event.type === 'text' || event.type === 'final') return
             applyPiEvent(totals, event)
@@ -367,7 +397,9 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
             try {
               agentSession.dispose()
             } catch (error) {
-              logger.warn('Failed to dispose Pi review session', { error })
+              logger.warn('Failed to dispose Pi review session', {
+                error: getScrubbedPiErrorMessage(error, secrets),
+              })
             }
           }
 
@@ -375,10 +407,11 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
           const agentError = runErrorMessage ?? totals.errorMessage
           if (agentError) throw new Error(`Pi review agent failed: ${agentError}`)
 
-          const findings = reviewTools.getFindings()
-          if (!findings) {
+          const rawFindings = reviewTools.getFindings()
+          if (!rawFindings) {
             throw new Error('Pi review agent finished without calling submit_review')
           }
+          const findings = scrubReviewFindings(rawFindings, secrets)
           totals.finalText = findings.body
 
           const latestSnapshot = await fetchPrSnapshot(params, context.signal)
@@ -401,20 +434,20 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
 
           return { totals, reviewUrl, commentsPosted }
         } finally {
-          authStorage.removeRuntimeApiKey(params.providerId)
+          await modelRuntime.removeRuntimeApiKey(piProviderId)
         }
-      } catch (error) {
-        if (context.signal?.aborted) {
-          logger.info('Pi cloud review aborted', {
-            owner: params.owner,
-            repo: params.repo,
-            pullNumber: params.pullNumber,
-          })
-        }
-        throw error
-      }
-    })
-  } finally {
-    await rm(isolatedDir, { recursive: true, force: true }).catch(() => {})
+      })
+    } finally {
+      await rm(isolatedDir, { recursive: true, force: true }).catch(() => {})
+    }
+  } catch (error) {
+    if (context.signal?.aborted) {
+      logger.info('Pi cloud review aborted', {
+        owner: params.owner,
+        repo: params.repo,
+        pullNumber: params.pullNumber,
+      })
+    }
+    throw createScrubbedPiError(error, secrets, 'Pi cloud review failed')
   }
 }

@@ -44,11 +44,9 @@ vi.mock('@/executor/handlers/pi/cloud-backend', () => ({ runCloudPi: mockRunClou
 vi.mock('@/executor/handlers/pi/cloud-review-backend', () => ({
   runCloudReviewPi: mockRunCloudReview,
 }))
-vi.mock('@/executor/handlers/pi/pi-models', () => ({
-  resolvePiModelId: mockResolvePiModelId,
-}))
 vi.mock('@/providers/pi-providers', () => ({
   isPiSupportedProvider: mockIsPiSupportedProvider,
+  resolvePiModelId: mockResolvePiModelId,
 }))
 vi.mock('@/providers/utils', () => ({
   getProviderFromModel: mockGetProviderFromModel,

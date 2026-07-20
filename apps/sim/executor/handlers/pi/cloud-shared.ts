@@ -5,6 +5,7 @@
  */
 
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { scrubPiSecrets } from '@/executor/handlers/pi/redaction'
 
 export const REPO_DIR = '/workspace/repo'
 export const PROMPT_PATH = '/workspace/pi-prompt.txt'
@@ -47,6 +48,6 @@ export function extractMarkerValues(stdout: string, prefix: string): string[] {
  * message can quote git's real stderr without leaking the credential.
  */
 export function scrubGitSecrets(text: string, token: string): string {
-  const withoutToken = token ? text.split(token).join('***') : text
+  const withoutToken = scrubPiSecrets(text, [token])
   return withoutToken.replace(/\/\/[^/@\s]+@/g, '//***@')
 }

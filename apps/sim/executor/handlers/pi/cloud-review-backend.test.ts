@@ -16,6 +16,8 @@ const {
   mockSetRuntimeApiKey,
   mockRemoveRuntimeApiKey,
   mockCreateSealedResourceLoader,
+  mockCreatePiModelRuntime,
+  mockLoggerWarn,
 } = vi.hoisted(() => ({
   mockRun: vi.fn(),
   mockWriteFile: vi.fn(),
@@ -29,6 +31,8 @@ const {
   mockSetRuntimeApiKey: vi.fn(),
   mockRemoveRuntimeApiKey: vi.fn(),
   mockCreateSealedResourceLoader: vi.fn(),
+  mockCreatePiModelRuntime: vi.fn(),
+  mockLoggerWarn: vi.fn(),
 }))
 
 let sessionEventListener: ((raw: unknown) => void) | undefined
@@ -46,18 +50,18 @@ const mockAgentSession = {
 const sealedResourceLoader = { kind: 'sealed' }
 
 const mockSdk = {
-  AuthStorage: {
-    inMemory: vi.fn(() => ({
-      setRuntimeApiKey: mockSetRuntimeApiKey,
-      removeRuntimeApiKey: mockRemoveRuntimeApiKey,
-    })),
-  },
-  ModelRegistry: { inMemory: vi.fn(() => ({})) },
   SettingsManager: { inMemory: vi.fn(() => ({})) },
   SessionManager: { inMemory: vi.fn(() => ({})) },
   createAgentSession: mockCreateAgentSession,
 }
+const mockModelRuntime = {
+  setRuntimeApiKey: mockSetRuntimeApiKey,
+  removeRuntimeApiKey: mockRemoveRuntimeApiKey,
+}
 
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ info: vi.fn(), warn: mockLoggerWarn }),
+}))
 vi.mock('@/lib/execution/e2b', () => ({
   withPiSandbox: (fn: (runner: unknown) => unknown) =>
     fn({ run: mockRun, writeFile: mockWriteFile }),
@@ -83,6 +87,7 @@ vi.mock('@/executor/handlers/pi/cloud-review-tools', () => ({
 }))
 vi.mock('@/executor/handlers/pi/pi-sdk', () => ({
   loadPiSdk: () => Promise.resolve(mockSdk),
+  createPiModelRuntime: mockCreatePiModelRuntime,
   resolvePiSdkModel: () => ({ id: 'claude', provider: 'anthropic' }),
   createSealedPiResourceLoader: mockCreateSealedResourceLoader,
 }))
@@ -138,7 +143,9 @@ describe('runCloudReviewPi', () => {
     sessionEventListener = undefined
     mockPrompt.mockReset()
     mockPrompt.mockResolvedValue(undefined)
+    mockAgentSession.dispose.mockReset()
     mockCreateSealedResourceLoader.mockReturnValue(sealedResourceLoader)
+    mockCreatePiModelRuntime.mockResolvedValue(mockModelRuntime)
     mockAgentSession.agent.state.errorMessage = undefined
     mockCreateAgentSession.mockResolvedValue({ session: mockAgentSession })
     mockGetFindings.mockReturnValue({
@@ -205,6 +212,9 @@ describe('runCloudReviewPi', () => {
     expect(mockCreateAgentSession.mock.calls[0][0]).not.toHaveProperty('noTools')
     expect(mockPrompt).toHaveBeenCalledWith(
       expect.stringContaining('Start with list_changed_files')
+    )
+    expect(mockPrompt).toHaveBeenCalledWith(
+      expect.stringContaining('Use LEFT only for deleted lines')
     )
     expect(mockPrompt).not.toHaveBeenCalledWith(expect.stringContaining('diff --git'))
     expect(result).toMatchObject({
@@ -344,14 +354,97 @@ describe('runCloudReviewPi', () => {
 
   it('supports hosted model credentials without sending them to the sandbox', async () => {
     await expect(
-      runCloudReviewPi(baseParams({ isBYOK: false, apiKey: 'sk-hosted' }), { onEvent: vi.fn() })
+      runCloudReviewPi(
+        baseParams({ isBYOK: false, apiKey: 'sk-hosted', task: 'review sk-hosted' }),
+        { onEvent: vi.fn() }
+      )
     ).resolves.toMatchObject({ commentsPosted: 1 })
     expect(mockSetRuntimeApiKey).toHaveBeenCalledWith('anthropic', 'sk-hosted')
     expect(
-      mockRun.mock.calls.some(([, options]) =>
-        Object.values(options.envs).some((value) => value === 'sk-hosted')
-      )
+      mockRun.mock.calls.some(([, options]) => JSON.stringify(options.envs).includes('sk-hosted'))
     ).toBe(false)
+    expect(JSON.stringify(mockWriteFile.mock.calls)).not.toContain('sk-hosted')
+    expect(mockPrompt.mock.calls[0][0]).not.toContain('sk-hosted')
+  })
+
+  it('scrubs hosted credentials from emitted and thrown provider errors', async () => {
+    const onEvent = vi.fn()
+    mockPrompt.mockImplementation(async () => {
+      sessionEventListener?.({
+        type: 'error',
+        error: 'provider rejected sk-hosted%2Fsecret and sk-hosted/secret',
+      })
+    })
+
+    const error = (await runCloudReviewPi(
+      baseParams({ isBYOK: false, apiKey: 'sk-hosted/secret' }),
+      { onEvent }
+    ).catch((caught) => caught)) as Error
+
+    expect(error.message).toContain('provider rejected *** and ***')
+    expect(error.message).not.toContain('sk-hosted')
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'error',
+      message: 'provider rejected *** and ***',
+    })
+    expect(JSON.stringify(onEvent.mock.calls)).not.toContain('sk-hosted')
+  })
+
+  it('scrubs hosted credentials from exceptions thrown by the Pi SDK', async () => {
+    mockCreateAgentSession.mockRejectedValueOnce(
+      new Error('request failed with Authorization: Bearer sk-hosted')
+    )
+
+    const error = (await runCloudReviewPi(baseParams({ isBYOK: false, apiKey: 'sk-hosted' }), {
+      onEvent: vi.fn(),
+    }).catch((caught) => caught)) as Error
+
+    expect(error.message).toBe('request failed with Authorization: Bearer ***')
+    expect(mockRemoveRuntimeApiKey).toHaveBeenCalledWith('anthropic')
+  })
+
+  it('scrubs hosted credentials from disposal logs', async () => {
+    mockAgentSession.dispose.mockImplementationOnce(() => {
+      throw new Error('dispose failed for sk-hosted')
+    })
+
+    await runCloudReviewPi(baseParams({ isBYOK: false, apiKey: 'sk-hosted' }), {
+      onEvent: vi.fn(),
+    })
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith('Failed to dispose Pi review session', {
+      error: 'dispose failed for ***',
+    })
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain('sk-hosted')
+  })
+
+  it('scrubs hosted credentials from reviews before submission or streaming', async () => {
+    const onEvent = vi.fn()
+    mockGetFindings.mockReturnValue({
+      body: 'Summary accidentally included sk-hosted.',
+      comments: [
+        { path: 'src/x.ts', body: 'Inline sk-hosted disclosure', line: 12, side: 'RIGHT' },
+      ],
+    })
+
+    const result = await runCloudReviewPi(baseParams({ isBYOK: false, apiKey: 'sk-hosted' }), {
+      onEvent,
+    })
+
+    const reviewCall = mockExecuteTool.mock.calls.find(
+      ([toolId]: [string]) => toolId === 'github_create_pr_review_v2'
+    )
+    expect(reviewCall?.[1]).toMatchObject({
+      body: 'Summary accidentally included ***.',
+      comments: [{ path: 'src/x.ts', body: 'Inline *** disclosure', line: 12, side: 'RIGHT' }],
+    })
+    expect(result.totals.finalText).toBe('Summary accidentally included ***.')
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'text',
+      text: 'Summary accidentally included ***.',
+    })
+    expect(JSON.stringify(reviewCall)).not.toContain('sk-hosted')
+    expect(JSON.stringify(onEvent.mock.calls)).not.toContain('sk-hosted')
   })
 
   it('rejects malformed repository coordinates before making an authenticated request', async () => {
@@ -400,6 +493,33 @@ describe('runCloudReviewPi', () => {
     await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
       /did not match the reviewed commit/
     )
+  })
+
+  it('accepts a null reviewed commit after GitHub has submitted the review', async () => {
+    mockExecuteTool.mockImplementation((toolId: string) => {
+      if (toolId === 'github_pr_v2') {
+        return Promise.resolve({ success: true, output: snapshot() })
+      }
+      if (toolId === 'github_create_pr_review_v2') {
+        return Promise.resolve({
+          success: true,
+          output: {
+            html_url: 'https://github.com/octo/demo/pull/7#pullrequestreview-9',
+            commit_id: null,
+          },
+        })
+      }
+      throw new Error(`Unexpected tool: ${toolId}`)
+    })
+
+    await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).resolves.toMatchObject({
+      reviewUrl: 'https://github.com/octo/demo/pull/7#pullrequestreview-9',
+    })
+    expect(
+      mockExecuteTool.mock.calls.filter(
+        ([toolId]: [string]) => toolId === 'github_create_pr_review_v2'
+      )
+    ).toHaveLength(1)
   })
 
   it('scrubs the GitHub token from authenticated fetch failures', async () => {

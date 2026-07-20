@@ -29,7 +29,6 @@ import {
 import { streamTextForEvent } from '@/executor/handlers/pi/events'
 import { computePiCost, resolvePiModelKey } from '@/executor/handlers/pi/keys'
 import { runLocalPi } from '@/executor/handlers/pi/local-backend'
-import { resolvePiModelId } from '@/executor/handlers/pi/pi-models'
 import { buildSimToolSpecs } from '@/executor/handlers/pi/sim-tools'
 import type {
   BlockHandler,
@@ -37,7 +36,7 @@ import type {
   NormalizedBlockOutput,
   StreamingExecution,
 } from '@/executor/types'
-import { isPiSupportedProvider } from '@/providers/pi-providers'
+import { isPiSupportedProvider, resolvePiModelId } from '@/providers/pi-providers'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 

@@ -3,10 +3,9 @@
 /**
  * Builds the E2B sandbox template that powers the Pi Coding Agent cloud mode.
  *
- * Layers the `pi` CLI plus git onto E2B's `code-interpreter` base (which already
- * ships node + python). The cloud backend runs `pi` and `git clone/commit/push`
- * inside this sandbox, so both must resolve on PATH — the global npm bin and
- * `/usr/bin` both are.
+ * Layers the `pi` CLI, its required Node version, and git onto E2B's
+ * `code-interpreter` base. The cloud backend runs `pi` and git inside this
+ * sandbox, so both must resolve on PATH.
  *
  * Usage:
  *   E2B_API_KEY=... bun run apps/sim/scripts/build-pi-e2b-template.ts [--name <name>] [--no-cache]
@@ -16,25 +15,31 @@
  * `Sandbox.create` resolves by template name, so use the name (not the ID).
  */
 
-import { defaultBuildLogger, Template } from '@e2b/code-interpreter'
+import { defaultBuildLogger, Template, waitForTimeout } from '@e2b/code-interpreter'
 
 const DEFAULT_TEMPLATE_NAME = 'sim-pi'
 
 /** Exact first-party Pi versions mirrored from bun.lock because E2B builds run npm independently. */
 const PI_PACKAGES = [
-  '@earendil-works/pi-coding-agent@0.79.4',
-  '@earendil-works/pi-agent-core@0.79.10',
-  '@earendil-works/pi-ai@0.79.10',
-  '@earendil-works/pi-tui@0.79.10',
+  '@earendil-works/pi-coding-agent@0.80.10',
+  '@earendil-works/pi-agent-core@0.80.10',
+  '@earendil-works/pi-ai@0.80.10',
+  '@earendil-works/pi-tui@0.80.10',
 ] as const
+
+/** Pi 0.80 requires Node >=22.19; E2B's code-interpreter base currently ships Node 20. */
+const INSTALL_NODE_COMMAND =
+  'curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs && node -e "const [major, minor] = process.versions.node.split(\'.\').map(Number); if (major < 22 || (major === 22 && minor < 19)) process.exit(1)"'
+
+/** Pi uses E2B's command and filesystem APIs, so the inherited Jupyter service is unnecessary. */
+const START_COMMAND = 'sleep infinity'
 
 const piTemplate = Template()
   .fromTemplate('code-interpreter-v1')
-  // git (+ ssh/certs) for clone/commit/push; ripgrep/fd give the agent fast
-  // file search from its bash tool; gh enables richer GitHub workflows.
+  .runCmd(INSTALL_NODE_COMMAND, { user: 'root' })
   .aptInstall(['git', 'gh', 'openssh-client', 'ca-certificates', 'ripgrep', 'fd-find'])
-  // The `pi` CLI the cloud backend invokes.
   .npmInstall([...PI_PACKAGES], { g: true })
+  .setStartCmd(START_COMMAND, waitForTimeout(1_000))
 
 async function main() {
   if (!process.env.E2B_API_KEY) {

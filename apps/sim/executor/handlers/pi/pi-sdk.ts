@@ -1,4 +1,5 @@
-import type { ModelRegistry, ResourceLoader } from '@earendil-works/pi-coding-agent'
+import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
+import type { ModelRuntime, ResourceLoader } from '@earendil-works/pi-coding-agent'
 
 /** The Pi SDK module, loaded dynamically so it stays externalized from the bundle. */
 export type PiSdk = typeof import('@earendil-works/pi-coding-agent')
@@ -16,9 +17,18 @@ export function loadPiSdk(): Promise<PiSdk> {
   return sdkPromise
 }
 
+/** Creates a host-only Pi model runtime without reading credentials or models from disk. */
+export function createPiModelRuntime(sdk: PiSdk): Promise<ModelRuntime> {
+  return sdk.ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    allowModelNetwork: false,
+  })
+}
+
 /** Resolves only model definitions that the installed Pi SDK declares exactly. */
-export function resolvePiSdkModel(modelRegistry: ModelRegistry, provider: string, modelId: string) {
-  return modelRegistry.find(provider, modelId)
+export function resolvePiSdkModel(modelRuntime: ModelRuntime, provider: string, modelId: string) {
+  return modelRuntime.getModel(provider, modelId)
 }
 
 /**
