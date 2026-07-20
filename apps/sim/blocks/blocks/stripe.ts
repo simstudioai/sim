@@ -1,4 +1,4 @@
-import { GoogleSheetsIcon, StripeIcon } from '@/components/icons'
+import { StripeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { StripeResponse } from '@/tools/stripe/types'
@@ -848,7 +848,7 @@ export const StripeBlockMeta = {
   url: 'https://stripe.com',
   templates: [
     {
-      icon: GoogleSheetsIcon,
+      icon: StripeIcon,
       title: 'Stripe weekly metrics report',
       prompt:
         'Build a scheduled workflow that pulls data from Stripe and my database every Monday, calculates key metrics like MRR, churn, new subscriptions, and failed payments, writes results to Google Sheets, and sends the team a Slack summary with week-over-week trends.',

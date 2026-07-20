@@ -1,5 +1,5 @@
 import { ClipboardList } from '@sim/emcn/icons'
-import { GmailIcon, LemlistIcon } from '@/components/icons'
+import { GmailIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -659,7 +659,7 @@ export const GmailBlockMeta = {
       featured: true,
     },
     {
-      icon: LemlistIcon,
+      icon: GmailIcon,
       title: 'Gmail outbound sequence builder',
       prompt:
         'Build a workflow that reads leads from my table, researches each prospect and their company on the web, writes a personalized cold email tailored to their role and pain points, and sends it via Gmail. Schedule it to run daily to process new leads automatically.',

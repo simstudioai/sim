@@ -1,4 +1,4 @@
-import { GoogleCalendarIcon, TwilioIcon } from '@/components/icons'
+import { GoogleCalendarIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -1008,7 +1008,7 @@ export const GoogleCalendarBlockMeta = {
       featured: true,
     },
     {
-      icon: TwilioIcon,
+      icon: GoogleCalendarIcon,
       title: 'Calendar SMS appointment reminders',
       prompt:
         'Create a scheduled workflow that checks Google Calendar each morning for appointments in the next 24 hours, and sends an SMS reminder to each attendee via Twilio with the meeting time, location, and any prep notes.',

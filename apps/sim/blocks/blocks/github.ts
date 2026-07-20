@@ -1,5 +1,5 @@
 import { Calendar } from '@sim/emcn/icons'
-import { GithubIcon, NotionIcon } from '@/components/icons'
+import { GithubIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
@@ -2166,7 +2166,7 @@ export const GitHubBlockMeta = {
       tags: ['engineering', 'product', 'reporting', 'content'],
     },
     {
-      icon: NotionIcon,
+      icon: GithubIcon,
       title: 'GitHub docs auto-updater',
       prompt:
         'Create a knowledge base connected to my GitHub repository so code and docs stay synced. Then build a scheduled weekly workflow that detects API changes, compares them against the knowledge base to find outdated documentation, and either updates Notion pages directly or creates Linear tickets for the needed changes.',

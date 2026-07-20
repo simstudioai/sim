@@ -1,5 +1,5 @@
 import { BookOpen, ClipboardList, File, Table, Users } from '@sim/emcn/icons'
-import { GoogleTranslateIcon, GreptileIcon, LinearIcon, SlackIcon } from '@/components/icons'
+import { GoogleTranslateIcon, GreptileIcon, SlackIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -2498,7 +2498,7 @@ export const SlackBlockMeta = {
       tags: ['support', 'sales', 'monitoring', 'analysis'],
     },
     {
-      icon: LinearIcon,
+      icon: SlackIcon,
       title: 'Slack incident postmortem writer',
       prompt:
         'Create a workflow that when triggered after an incident, pulls the Slack thread from the incident channel, gathers relevant Sentry errors and deployment logs, and drafts a structured postmortem with timeline, root cause, and action items.',
