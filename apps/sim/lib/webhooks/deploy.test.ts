@@ -1,9 +1,27 @@
 /**
  * @vitest-environment node
  */
+import { credential } from '@sim/db/schema'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+
+const { mockEq, mockFrom, mockLimit, mockSelect, mockWhere } = vi.hoisted(() => ({
+  mockEq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
+  mockFrom: vi.fn(),
+  mockLimit: vi.fn(),
+  mockSelect: vi.fn(),
+  mockWhere: vi.fn(),
+}))
+
+vi.mock('@sim/db', () => ({ db: { select: mockSelect } }))
+vi.mock('drizzle-orm', () => ({
+  and: vi.fn((...conditions: unknown[]) => ({ conditions })),
+  eq: mockEq,
+  inArray: vi.fn((...args: unknown[]) => ({ args })),
+  isNull: vi.fn((value: unknown) => ({ value })),
+  or: vi.fn((...conditions: unknown[]) => ({ conditions })),
+}))
 
 // deploy.ts pulls in the trigger/block/provider registries at module load; none are exercised by
 // buildProviderConfig (a pure function), so stub them to keep this unit test fast and isolated.
@@ -22,7 +40,7 @@ vi.mock('@/lib/webhooks/pending-verification', () => ({
   PendingWebhookVerificationTracker: vi.fn(),
 }))
 
-import { buildProviderConfig } from '@/lib/webhooks/deploy'
+import { buildProviderConfig, resolveTriggerCredentialId } from '@/lib/webhooks/deploy'
 
 const trigger = (subBlocks: Partial<SubBlockConfig>[]): { subBlocks: SubBlockConfig[] } => ({
   subBlocks: subBlocks as SubBlockConfig[],
@@ -59,16 +77,22 @@ function makeBlock(
   } as unknown as BlockState
 }
 
-describe('buildProviderConfig canonical collapse', () => {
-  beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  mockSelect.mockReturnValue({ from: mockFrom })
+  mockFrom.mockReturnValue({ where: mockWhere })
+  mockWhere.mockReturnValue({ limit: mockLimit })
+  mockLimit.mockResolvedValue([{ id: 'credential-1' }])
+})
 
+describe('buildProviderConfig canonical collapse', () => {
   it('writes the basic value under the canonical key in basic mode', () => {
     const block = makeBlock('google_drive_poller', { folderId: 'BASIC' })
     const { providerConfig } = buildProviderConfig(block, 'google_drive_poller', driveTrigger)
     expect(providerConfig.folderId).toBe('BASIC')
   })
 
-  it('returns the credential reference and canonical OAuth service for deploy validation', () => {
+  it('returns the credential reference and OAuth service for deploy validation', () => {
     const block = makeBlock('google_drive_poller', { triggerCredentials: 'credential-1' })
     const result = buildProviderConfig(block, 'google_drive_poller', driveTrigger)
 
@@ -130,5 +154,17 @@ describe('buildProviderConfig canonical collapse', () => {
     )
     const { providerConfig } = buildProviderConfig(block, 'table_new_row', tableTrigger)
     expect(providerConfig.tableId).toBe('ACTIVE')
+  })
+})
+
+describe('resolveTriggerCredentialId', () => {
+  it('canonicalizes an OAuth service alias at the credential lookup boundary', async () => {
+    await resolveTriggerCredentialId('credential-1', 'workspace-1', 'gmail')
+
+    expect(mockEq).toHaveBeenCalledWith(credential.workspaceId, 'workspace-1')
+    expect(mockEq).toHaveBeenCalledWith(credential.type, 'oauth')
+    expect(mockEq).toHaveBeenCalledWith(credential.providerId, 'google-email')
+    expect(mockEq).toHaveBeenCalledWith(credential.id, 'credential-1')
+    expect(mockEq).toHaveBeenCalledWith(credential.accountId, 'credential-1')
   })
 })
