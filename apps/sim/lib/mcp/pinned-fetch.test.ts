@@ -79,6 +79,18 @@ describe('createSsrfGuardedMcpFetch', () => {
     expect(sentinelFetch).not.toHaveBeenCalled()
   })
 
+  it('cancels a stalled validation when the caller aborts (not just the deadline)', async () => {
+    // Validation hangs; the caller's abort — well before the 60s deadline — must settle it.
+    mockValidateMcpServerSsrf.mockReturnValue(new Promise(() => {}))
+    const controller = new AbortController()
+    const fetchLike = createSsrfGuardedMcpFetch(60_000)
+    const pending = fetchLike('https://slow-dns.example/token', { signal: controller.signal })
+    controller.abort(new Error('caller cancelled'))
+
+    await expect(pending).rejects.toThrow('caller cancelled')
+    expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
+  })
+
   it('propagates a caller-initiated abort unchanged (composed with the deadline)', async () => {
     mockValidateMcpServerSsrf.mockResolvedValue('203.0.113.10')
     sentinelFetch.mockImplementation(

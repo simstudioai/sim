@@ -48,11 +48,11 @@ const OAUTH_FETCH_TIMEOUT_MS = 30_000
 
 /**
  * Awaits `promise` but rejects with the signal's reason if `signal` aborts first.
- * Bounds `dns.lookup`-based SSRF validation (which can't accept a signal) by the
- * request deadline. Removes the abort listener once `promise` settles so a later
- * timeout can't surface as an unhandled rejection.
+ * Bounds `dns.lookup`-based SSRF validation (which accepts no signal) by the
+ * composed deadline + caller signal. Removes the abort listener once `promise`
+ * settles so a late abort can't surface as an unhandled rejection.
  */
-function withDeadline<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+function raceWithSignal<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) return Promise.reject(signal.reason)
   return new Promise<T>((resolve, reject) => {
     const onAbort = () => reject(signal.reason)
@@ -86,10 +86,11 @@ function withDeadline<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
  * own deadline is relabeled to an `McpError`; a caller abort or any other failure
  * propagates unchanged.
  *
- * The deadline covers the whole guarded call — both SSRF validation (whose
- * `dns.lookup` can't take a signal, so it's raced against the deadline) and the
- * HTTP request — so a caller awaiting this never waits longer than `timeoutMs`.
- * A stalled DNS resolution still runs to completion in the background, but its
+ * Both the deadline and any caller-provided signal cover the whole guarded call —
+ * SSRF validation (whose `dns.lookup` takes no signal, so it's raced against the
+ * composed signal) and the HTTP request — so a caller awaiting this never waits
+ * past `timeoutMs` and can cancel at any point, including mid-validation. A
+ * stalled DNS resolution still runs to completion in the background, but its
  * result is discarded.
  *
  * @param timeoutMs Per-request deadline in ms (defaults to 30s; override for tests).
@@ -100,13 +101,18 @@ export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOU
   return (async (url, init) => {
     const target = typeof url === 'string' ? url : url.href
     const timeoutSignal = AbortSignal.timeout(timeoutMs)
+    // Compose deadline + caller signal up front so both phases — SSRF validation
+    // and the HTTP request — are bounded by the deadline and caller cancellation.
+    const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
     try {
-      const resolvedIP = await withDeadline(validateMcpServerSsrf(target), timeoutSignal)
+      const resolvedIP = await raceWithSignal(validateMcpServerSsrf(target), signal)
       const pinnedFetch: FetchLike = resolvedIP ? createPinnedFetch(resolvedIP) : globalThis.fetch
-      const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
       return await pinnedFetch(url, { ...init, signal })
     } catch (error) {
-      if (timeoutSignal.aborted && !init?.signal?.aborted) {
+      // Relabel only when our own deadline is what fired — identified by the
+      // rejection reason's identity, not init.signal's state (which may abort
+      // independently just after the deadline).
+      if (timeoutSignal.aborted && error === timeoutSignal.reason) {
         const host = URL.canParse(target) ? new URL(target).host : target
         throw new McpError(`MCP authorization request to ${host} timed out after ${timeoutMs}ms`)
       }
