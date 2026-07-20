@@ -8,7 +8,6 @@ import { buildMenuTemplate, type MenuDeps } from '@/main/menu'
 
 function makeDeps(): MenuDeps {
   return {
-    isPackaged: true,
     config: {
       filePath: '/tmp/settings.json',
       getOrigin: vi.fn(() => 'https://sim.ai'),
@@ -84,9 +83,7 @@ describe('buildMenuTemplate', () => {
   })
 
   it('never exposes developer tools in the application menu', () => {
-    const deps = makeDeps()
-    deps.isPackaged = false
-    const view = submenu(buildMenuTemplate(deps), 'View')
+    const view = submenu(buildMenuTemplate(makeDeps()), 'View')
     expect(view.some((item) => item.role === 'toggleDevTools')).toBe(false)
   })
 })

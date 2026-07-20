@@ -320,7 +320,6 @@ function main(): void {
     })
     await createAndLoadMainWindow()
     installApplicationMenu({
-      isPackaged: app.isPackaged,
       config,
       getMainWindow,
       allowHttpLocalhost,

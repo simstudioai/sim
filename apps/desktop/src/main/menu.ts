@@ -8,7 +8,6 @@ const STATUS_URL = 'https://status.sim.ai'
 const ZOOM_STEP = 0.5
 
 export interface MenuDeps {
-  isPackaged: boolean
   config: ConfigStore
   getMainWindow: () => BrowserWindow | null
   allowHttpLocalhost: () => boolean
