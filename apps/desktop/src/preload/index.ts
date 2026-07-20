@@ -8,7 +8,6 @@ import type {
 import type {
   DesktopOAuthConnectResult,
   DesktopOAuthConnectScope,
-  LauncherShortcutSettings,
   LocalFilesystemRequest,
   LocalFilesystemResponse,
   SimDesktopApi,
@@ -33,20 +32,6 @@ const api: SimDesktopApi = {
   offlineRetry: (): void => {
     ipcRenderer.send('offline:retry')
   },
-  openSettings: (): void => {
-    ipcRenderer.send('settings:open')
-  },
-  settingsClose: (): void => {
-    ipcRenderer.send('settings:close')
-  },
-  settingsGet: (): Promise<{ origin: string; isDefault: boolean } | null> =>
-    ipcRenderer.invoke('settings:get'),
-  settingsSave: (origin: string): Promise<{ ok: boolean; error?: string }> =>
-    ipcRenderer.invoke('settings:save', origin),
-  settingsGetLauncherShortcut: (): Promise<LauncherShortcutSettings | null> =>
-    ipcRenderer.invoke('settings:launcher-shortcut-get'),
-  settingsSaveLauncherShortcut: (shortcut: string): Promise<LauncherShortcutSettings | null> =>
-    ipcRenderer.invoke('settings:launcher-shortcut-set', shortcut),
   localFilesystem: (request: LocalFilesystemRequest): Promise<LocalFilesystemResponse> =>
     ipcRenderer.invoke('desktop:local-filesystem', request),
   launcher: {

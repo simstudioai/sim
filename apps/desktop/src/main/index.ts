@@ -23,10 +23,9 @@ import {
   handleConnectIntercept,
   tearDownSession,
 } from '@/main/session-lifecycle'
-import { closeSettingsWindow, openSettingsWindow } from '@/main/settings-window'
-import { createLauncherShortcutManager, LAUNCHER_SHORTCUT_PRESETS } from '@/main/shortcuts'
+import { createLauncherShortcutManager } from '@/main/shortcuts'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
-import { installTray, type TrayHandle } from '@/main/tray'
+import { installTray, settingsRoute, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater } from '@/main/updater'
 import { createMainWindow, setupPermissionHandlers } from '@/main/window'
 import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
@@ -185,8 +184,9 @@ function main(): void {
     void win.loadURL(`${origin}${route}`).catch(() => {})
   }
 
+  /** Opens the Sim app's settings page in the main window. */
   function openSettings(): void {
-    openSettingsWindow({ preloadPath, isPackaged: app.isPackaged, getMainWindow })
+    void openMainWindowAt(settingsRoute(config.get('lastRoute')))
   }
 
   /**
@@ -228,32 +228,6 @@ function main(): void {
   }
 
   const launcherShortcut = createLauncherShortcutManager(toggleLauncher)
-
-  async function applyOrigin(raw: string) {
-    const previousOrigin = appOrigin()
-    const result = config.setOrigin(raw)
-    if (!result.ok) {
-      return result
-    }
-    closeSettingsWindow()
-    if (result.origin === previousOrigin) {
-      return result
-    }
-    logger.info('Server origin changed; recreating window')
-    events.record('origin_changed')
-    await localFilesystem.forgetAll()
-    handoff.clear()
-    // The launcher window is bound to the old origin's partition; the next
-    // summon recreates it against the new origin.
-    launcher.destroy()
-    const win = getMainWindow()
-    if (win) {
-      mainWindow = null
-      win.destroy()
-    }
-    await createAndLoadMainWindow()
-    return result
-  }
 
   async function signOutFromMenu(): Promise<void> {
     await localFilesystem.forgetAll()
@@ -316,9 +290,6 @@ function main(): void {
       appOrigin,
       allowHttpLocalhost,
       retryLoad: () => loadHealth?.retry(),
-      openSettings,
-      closeSettings: closeSettingsWindow,
-      applyOrigin,
       localFilesystem,
       beginOAuthConnect: (providerId, scope) => connectFlow.beginConnectHandoff(providerId, scope),
       launcher: {
@@ -335,22 +306,6 @@ function main(): void {
         },
         hide: () => launcher.hide(),
         resize: (height) => launcher.resize(height),
-      },
-      launcherShortcut: {
-        get: () => ({
-          shortcut: launcherShortcut.current(),
-          presets: [...LAUNCHER_SHORTCUT_PRESETS],
-          status: launcherShortcut.status(),
-        }),
-        set: (raw) => {
-          const status = launcherShortcut.apply(raw)
-          config.set('launcherShortcut', launcherShortcut.current())
-          return {
-            shortcut: launcherShortcut.current(),
-            presets: [...LAUNCHER_SHORTCUT_PRESETS],
-            status,
-          }
-        },
       },
     })
     await createAndLoadMainWindow()
@@ -372,7 +327,6 @@ function main(): void {
         appOrigin,
         lastRoute: () => config.get('lastRoute'),
         openMainWindow: (route) => void openMainWindowAt(route),
-        openSettings,
       })
     }
     initUpdater({ getWindow: getMainWindow, events })

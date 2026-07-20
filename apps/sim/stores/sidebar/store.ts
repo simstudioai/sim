@@ -24,6 +24,15 @@ function applySidebarWidth(width: number) {
   document.documentElement.style.setProperty('--sidebar-width', `${value}px`)
 }
 
+/** Reads the host-specific collapsed width established by the pre-paint layout script. */
+function getCollapsedSidebarWidth(): number {
+  if (typeof document === 'undefined') return SIDEBAR_WIDTH.COLLAPSED
+  const value = Number.parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue('--sidebar-collapsed-width')
+  )
+  return Number.isFinite(value) ? value : SIDEBAR_WIDTH.COLLAPSED
+}
+
 /**
  * The `sidebar_collapsed` cookie is the single source of truth for collapse: the
  * server layout reads it to render the correct structure on the first paint
@@ -61,12 +70,14 @@ export const useSidebarStore = create<SidebarState>()(
         const nextCollapsed = !isCollapsed
         set({ isCollapsed: nextCollapsed })
         applyCollapsedCookie(nextCollapsed)
-        applySidebarWidth(nextCollapsed ? SIDEBAR_WIDTH.COLLAPSED : clampSidebarWidth(sidebarWidth))
+        applySidebarWidth(
+          nextCollapsed ? getCollapsedSidebarWidth() : clampSidebarWidth(sidebarWidth)
+        )
       },
       syncWidth: () => {
         const { isCollapsed, sidebarWidth } = get()
         if (isCollapsed) {
-          applySidebarWidth(SIDEBAR_WIDTH.COLLAPSED)
+          applySidebarWidth(getCollapsedSidebarWidth())
           return
         }
         const clampedWidth = clampSidebarWidth(sidebarWidth)
@@ -89,7 +100,7 @@ export const useSidebarStore = create<SidebarState>()(
         if (state) {
           state.setHasHydrated(true)
           const width = state.isCollapsed
-            ? SIDEBAR_WIDTH.COLLAPSED
+            ? getCollapsedSidebarWidth()
             : clampSidebarWidth(state.sidebarWidth)
           applySidebarWidth(width)
         }

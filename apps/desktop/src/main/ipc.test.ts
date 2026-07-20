@@ -22,7 +22,7 @@ function collectHandlers() {
   return { invoke, on }
 }
 
-const fileEvent = { senderFrame: { url: 'file:///app/static/settings.html' } }
+const fileEvent = { senderFrame: { url: 'file:///app/static/offline.html' } }
 const appEvent = { senderFrame: { url: `${APP}/workspace/ws1` } }
 const evilEvent = { senderFrame: { url: 'https://evil.example/page' } }
 
@@ -38,9 +38,6 @@ describe('registerIpcHandlers', () => {
       allowHttpLocalhost: () => false,
       retryLoad: vi.fn(),
       beginOAuthConnect: vi.fn(async () => true),
-      openSettings: vi.fn(),
-      closeSettings: vi.fn(),
-      applyOrigin: vi.fn(async () => ({ ok: true as const, origin: 'https://sim.ai' })),
       localFilesystem: new LocalFilesystemService({
         chooseDirectory: vi.fn(async () => null),
       }),
@@ -49,18 +46,6 @@ describe('registerIpcHandlers', () => {
         openApp: vi.fn(),
         hide: vi.fn(),
         resize: vi.fn(),
-      },
-      launcherShortcut: {
-        get: vi.fn(() => ({
-          shortcut: 'Alt+Space',
-          presets: ['Alt+Space'],
-          status: 'registered' as const,
-        })),
-        set: vi.fn(() => ({
-          shortcut: 'Control+Space',
-          presets: ['Alt+Space'],
-          status: 'registered' as const,
-        })),
       },
     }
     registerIpcHandlers(deps)
@@ -86,9 +71,9 @@ describe('registerIpcHandlers', () => {
 
     // Chip-initiated connects carry workspace/credential scope; malformed
     // scopes (wrong types, unsafe ids) are rejected before the handoff.
-    expect(
-      await handler?.(appEvent, 'slack', { workspaceId: 'ws1', credentialId: 'cred_1' })
-    ).toBe(true)
+    expect(await handler?.(appEvent, 'slack', { workspaceId: 'ws1', credentialId: 'cred_1' })).toBe(
+      true
+    )
     expect(deps.beginOAuthConnect).toHaveBeenCalledWith('slack', {
       workspaceId: 'ws1',
       credentialId: 'cred_1',
@@ -107,36 +92,19 @@ describe('registerIpcHandlers', () => {
     ).toEqual({ ok: true, data: { mounts: [] } })
   })
 
-  it('restricts shell-control channels to bundled local pages', async () => {
-    const { invoke, on } = collectHandlers()
+  it('restricts shell-control channels to bundled local pages', () => {
+    const { on } = collectHandlers()
 
     on.get('offline:retry')?.(appEvent)
     expect(deps.retryLoad).not.toHaveBeenCalled()
     on.get('offline:retry')?.(fileEvent)
     expect(deps.retryLoad).toHaveBeenCalledTimes(1)
-
-    on.get('settings:open')?.(evilEvent)
-    expect(deps.openSettings).not.toHaveBeenCalled()
-    on.get('settings:open')?.(fileEvent)
-    expect(deps.openSettings).toHaveBeenCalledTimes(1)
-
-    expect(await invoke.get('settings:get')?.(appEvent)).toBeNull()
-    expect(await invoke.get('settings:get')?.(fileEvent)).toEqual({
-      origin: 'https://sim.ai',
-      isDefault: true,
-    })
-
-    expect(await invoke.get('settings:save')?.(appEvent, 'https://other.example')).toEqual({
-      ok: false,
-      error: 'Not allowed',
-    })
-    await invoke.get('settings:save')?.(fileEvent, 'https://other.example')
-    expect(deps.applyOrigin).toHaveBeenCalledWith('https://other.example')
   })
 
   it('handles a missing senderFrame safely', async () => {
     const { invoke } = collectHandlers()
-    expect(await invoke.get('settings:get')?.({ senderFrame: null })).toBeNull()
+    expect(await invoke.get('desktop:oauth-connect')?.({ senderFrame: null }, 'slack')).toBe(false)
+    expect(deps.beginOAuthConnect).not.toHaveBeenCalled()
   })
 
   it('restricts browser-agent tool execution to the app origin and known tools', async () => {
@@ -207,20 +175,5 @@ describe('registerIpcHandlers', () => {
     expect(deps.launcher.resize).not.toHaveBeenCalled()
     on.get('launcher:resize')?.(appEvent, 400)
     expect(deps.launcher.resize).toHaveBeenCalledWith(400)
-  })
-
-  it('restricts launcher shortcut settings to bundled local pages', async () => {
-    const { invoke } = collectHandlers()
-    expect(await invoke.get('settings:launcher-shortcut-get')?.(appEvent)).toBeNull()
-    expect(await invoke.get('settings:launcher-shortcut-get')?.(fileEvent)).toMatchObject({
-      shortcut: 'Alt+Space',
-      status: 'registered',
-    })
-    expect(await invoke.get('settings:launcher-shortcut-set')?.(appEvent, 'Control+Space')).toBe(
-      null
-    )
-    expect(await invoke.get('settings:launcher-shortcut-set')?.(fileEvent, 42)).toBeNull()
-    await invoke.get('settings:launcher-shortcut-set')?.(fileEvent, 'Control+Space')
-    expect(deps.launcherShortcut.set).toHaveBeenCalledWith('Control+Space')
   })
 })

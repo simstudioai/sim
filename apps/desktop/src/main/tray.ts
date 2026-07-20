@@ -141,19 +141,34 @@ export function chatRoute(chat: RecentChat): string {
   return `/workspace/${chat.workspaceId}/chat/${chat.id}`
 }
 
+/** Workspace id from the last visited route, or null when it carries none. */
+function workspaceIdFromRoute(lastRoute: string | undefined): string | null {
+  if (isSafeInternalPath(lastRoute)) {
+    const match = /^\/workspace\/([^/?#]+)/.exec(lastRoute)
+    if (match) {
+      return match[1]
+    }
+  }
+  return null
+}
+
 /**
  * Route for a tray-initiated "New Chat": the home (chat) surface of the
  * workspace the user was last in, falling back to the workspace picker
  * redirect when the last route carries no workspace.
  */
 export function newChatRoute(lastRoute: string | undefined): string {
-  if (isSafeInternalPath(lastRoute)) {
-    const match = /^\/workspace\/([^/?#]+)/.exec(lastRoute)
-    if (match) {
-      return `/workspace/${match[1]}/home`
-    }
-  }
-  return '/workspace'
+  const workspaceId = workspaceIdFromRoute(lastRoute)
+  return workspaceId ? `/workspace/${workspaceId}/home` : '/workspace'
+}
+
+/**
+ * Route for "Settings…": the Sim app's settings surface for the workspace the
+ * user was last in, falling back to the workspace picker redirect.
+ */
+export function settingsRoute(lastRoute: string | undefined): string {
+  const workspaceId = workspaceIdFromRoute(lastRoute)
+  return workspaceId ? `/workspace/${workspaceId}/settings` : '/workspace'
 }
 
 export interface TrayDeps {
@@ -161,7 +176,6 @@ export interface TrayDeps {
   appOrigin: () => string
   lastRoute: () => string | undefined
   openMainWindow: (route?: string) => void
-  openSettings: () => void
 }
 
 function chatMenuItem(chat: RecentChat, deps: TrayDeps): MenuItemConstructorOptions {
@@ -176,7 +190,7 @@ function chatMenuItem(chat: RecentChat, deps: TrayDeps): MenuItemConstructorOpti
 /**
  * Menu shape (modeled on ChatGPT's status item): a Recent section with the
  * newest chats inline and the rest under a "More" hover submenu, then New
- * Chat in its own section, then Open Sim / Settings / Quit grouped together.
+ * Chat / Open Sim grouped together, then Quit in its own section.
  */
 export function buildTrayMenuTemplate(
   deps: TrayDeps,
@@ -199,9 +213,8 @@ export function buildTrayMenuTemplate(
   }
   template.push(
     { label: 'New Chat', click: () => deps.openMainWindow(newChatRoute(deps.lastRoute())) },
-    { type: 'separator' },
     { label: 'Open Sim', click: () => deps.openMainWindow() },
-    { label: 'Settings…', click: () => deps.openSettings() },
+    { type: 'separator' },
     // Plain item, not role:'quit' — macOS Tahoe auto-decorates standard roles
     // with SF Symbol icons and the ⌘Q badge, which this menu doesn't want.
     { label: 'Quit Sim', click: () => app.quit() }

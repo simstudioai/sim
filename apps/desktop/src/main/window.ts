@@ -212,6 +212,15 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
     y: bounds?.y,
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
+    // No separate title bar: the page renders full-bleed to the window's top
+    // edge with the traffic lights inset over it (Codex-style). Position is
+    // explicit so the web app can reserve a matching top-left area.
+    ...(process.platform === 'darwin'
+      ? {
+          titleBarStyle: 'hiddenInset' as const,
+          trafficLightPosition: { x: 12, y: 12 },
+        }
+      : {}),
     show: false,
     backgroundColor: backgroundColorFor(
       deps.config.get('themeBackground'),

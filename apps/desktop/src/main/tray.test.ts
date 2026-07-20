@@ -10,6 +10,7 @@ import {
   newChatRoute,
   parseRecentChats,
   type RecentChat,
+  settingsRoute,
   type TrayDeps,
 } from '@/main/tray'
 // Same module instance the vi.mock factory returns, with mock-typed statics.
@@ -21,7 +22,6 @@ function makeDeps(overrides: Partial<TrayDeps> = {}): TrayDeps {
     appOrigin: () => 'https://sim.ai',
     lastRoute: () => '/workspace/ws1/home',
     openMainWindow: vi.fn(),
-    openSettings: vi.fn(),
     ...overrides,
   }
 }
@@ -122,10 +122,17 @@ describe('routes', () => {
     expect(newChatRoute(undefined)).toBe('/workspace')
     expect(newChatRoute('//evil.example')).toBe('/workspace')
   })
+
+  it('derives the settings route from the last workspace route', () => {
+    expect(settingsRoute('/workspace/ws1/w/wf2')).toBe('/workspace/ws1/settings')
+    expect(settingsRoute('/account')).toBe('/workspace')
+    expect(settingsRoute(undefined)).toBe('/workspace')
+    expect(settingsRoute('//evil.example')).toBe('/workspace')
+  })
 })
 
 describe('buildTrayMenuTemplate', () => {
-  it('shows recents inline, then actions, settings, and quit', () => {
+  it('shows recents inline, then actions and quit', () => {
     const deps = makeDeps()
     const template = buildTrayMenuTemplate(deps, [
       { id: 'c1', title: 'Fix the sync', workspaceId: 'ws1', status: 'none' },
@@ -136,9 +143,8 @@ describe('buildTrayMenuTemplate', () => {
       'Fix the sync',
       'separator',
       'New Chat',
-      'separator',
       'Open Sim',
-      'Settings…',
+      'separator',
       'Quit Sim',
     ])
 
@@ -149,10 +155,6 @@ describe('buildTrayMenuTemplate', () => {
     const newChat = template.find((item) => item.label === 'New Chat')
     ;(newChat?.click as () => void)()
     expect(deps.openMainWindow).toHaveBeenCalledWith('/workspace/ws1/home')
-
-    const settings = template.find((item) => item.label === 'Settings…')
-    ;(settings?.click as () => void)()
-    expect(deps.openSettings).toHaveBeenCalledTimes(1)
 
     // Quit is a plain item (role:'quit' would get a system icon on macOS 26).
     const quit = template.find((item) => item.label === 'Quit Sim')
@@ -202,9 +204,8 @@ describe('buildTrayMenuTemplate', () => {
     expect(empty.some((item) => item.label === 'Recent')).toBe(false)
     expect(empty.map((item) => item.label ?? item.role ?? item.type)).toEqual([
       'New Chat',
-      'separator',
       'Open Sim',
-      'Settings…',
+      'separator',
       'Quit Sim',
     ])
   })

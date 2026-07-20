@@ -1,11 +1,8 @@
 import { isBrowserToolName } from '@sim/browser-protocol'
-import type { LauncherShortcutSettings } from '@sim/desktop-bridge'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { ipcMain } from 'electron'
 import { executeTool, handlePanelAction } from '@/main/browser-agent/driver'
 import { setPanelBounds } from '@/main/browser-agent/session'
-import type { OriginValidation } from '@/main/config'
-import { DEFAULT_ORIGIN } from '@/main/config'
 import type { LocalFilesystemService } from '@/main/local-filesystem'
 import { openExternalSafe } from '@/main/navigation'
 
@@ -99,9 +96,6 @@ export interface IpcDeps {
   appOrigin: () => string
   allowHttpLocalhost: () => boolean
   retryLoad: () => void
-  openSettings: () => void
-  closeSettings: () => void
-  applyOrigin: (raw: string) => Promise<OriginValidation>
   localFilesystem: LocalFilesystemService
   beginOAuthConnect: (providerId: string, scope: OAuthConnectScope) => Promise<boolean>
   launcher: {
@@ -110,16 +104,12 @@ export interface IpcDeps {
     hide: () => void
     resize: (height: number) => void
   }
-  launcherShortcut: {
-    get: () => LauncherShortcutSettings
-    set: (shortcut: string) => LauncherShortcutSettings
-  }
 }
 
 /**
  * Who may call a channel:
  * - `app-origin`: only the remote app origin (main window / launcher pages).
- * - `local-page`: only bundled `file:` pages (settings, offline) — shell control.
+ * - `local-page`: only bundled `file:` pages (offline) — shell control.
  * - `any`: sender-independent channels that validate their input instead.
  */
 type ChannelGate = 'app-origin' | 'local-page' | 'any'
@@ -226,36 +216,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       },
     },
     'offline:retry': { kind: 'send', gate: 'local-page', handler: () => deps.retryLoad() },
-    'settings:open': { kind: 'send', gate: 'local-page', handler: () => deps.openSettings() },
-    'settings:close': { kind: 'send', gate: 'local-page', handler: () => deps.closeSettings() },
-    'settings:get': {
-      kind: 'invoke',
-      gate: 'local-page',
-      denied: null,
-      handler: () => {
-        const origin = deps.appOrigin()
-        return { origin, isDefault: origin === DEFAULT_ORIGIN }
-      },
-    },
-    'settings:save': {
-      kind: 'invoke',
-      gate: 'local-page',
-      denied: { ok: false, error: 'Not allowed' },
-      handler: (raw) =>
-        typeof raw === 'string' ? deps.applyOrigin(raw) : { ok: false, error: 'Not allowed' },
-    },
-    'settings:launcher-shortcut-get': {
-      kind: 'invoke',
-      gate: 'local-page',
-      denied: null,
-      handler: () => deps.launcherShortcut.get(),
-    },
-    'settings:launcher-shortcut-set': {
-      kind: 'invoke',
-      gate: 'local-page',
-      denied: null,
-      handler: (raw) => (typeof raw === 'string' ? deps.launcherShortcut.set(raw) : null),
-    },
     'launcher:open-chat': {
       kind: 'send',
       gate: 'app-origin',

@@ -2,8 +2,9 @@
 
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { cn } from '@sim/emcn'
+import { PanelLeft } from '@sim/emcn/icons'
 import { usePathname } from 'next/navigation'
-import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { Sidebar, SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
@@ -57,6 +58,7 @@ export function WorkspaceChrome({
   const storeIsCollapsed = useSidebarStore((s) => s.isCollapsed)
   const hasHydrated = useSidebarStore((s) => s._hasHydrated)
   const syncSidebarWidth = useSidebarStore((s) => s.syncWidth)
+  const toggleSidebar = useSidebarStore((s) => s.toggleCollapsed)
 
   /**
    * Single source of collapse for the whole chrome, driving the rail's structure,
@@ -132,7 +134,7 @@ export function WorkspaceChrome({
   }, [syncSidebarWidth])
 
   return (
-    <div className='flex min-h-0 flex-1'>
+    <div className='relative flex min-h-0 flex-1'>
       <div
         className={cn(
           'sidebar-shell-outer shrink-0 overflow-hidden transition-[width]',
@@ -157,13 +159,31 @@ export function WorkspaceChrome({
         className={cn(
           'flex min-w-0 flex-1 flex-col p-[8px] transition-[padding]',
           SLIDE_TRANSITION,
-          !isFullscreen && 'pl-0'
+          !isFullscreen && 'pl-0',
+          isCollapsed && '[[data-sim-desktop-title-bar=inset]_&]:p-0'
         )}
       >
         <div className='flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]'>
           {children}
         </div>
       </div>
+      {!isFullscreen && (
+        <SidebarTooltip
+          label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          enabled
+          side='bottom'
+          shortcut='⌘B'
+        >
+          <button
+            type='button'
+            onClick={toggleSidebar}
+            className='absolute top-1 left-[83px] z-30 hidden h-[30px] w-[30px] items-center justify-center rounded-lg [-webkit-app-region:no-drag] hover-hover:bg-[var(--surface-active)] [[data-sim-desktop-title-bar=inset]_&]:flex'
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <PanelLeft className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+          </button>
+        </SidebarTooltip>
+      )}
     </div>
   )
 }

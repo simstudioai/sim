@@ -23,7 +23,7 @@ src/main/           # main process (bundled to dist/main.cjs)
   updater.ts        # electron-updater wiring, channels, downgrade/block guards
   menu.ts           # role-based macOS menus
 src/preload/        # contextBridge IPC bridge (bundled to dist/preload.cjs)
-static/             # bundled local pages (offline.html, settings.html)
+static/             # bundled local pages (offline.html)
 e2e/                # Playwright _electron smoke suite
 ```
 

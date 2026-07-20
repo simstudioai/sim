@@ -127,14 +127,6 @@ export type LocalFilesystemResponse =
     }
 
 /** Registration outcome of the Quick Ask global shortcut. */
-export type LauncherShortcutStatus = 'registered' | 'failed' | 'disabled'
-
-export interface LauncherShortcutSettings {
-  shortcut: string
-  presets: string[]
-  status: LauncherShortcutStatus
-}
-
 /**
  * The Quick Ask launcher surface of the preload bridge, used by the
  * `/desktop/launcher` page loaded inside the floating panel window.
@@ -187,12 +179,6 @@ export interface SimDesktopApi {
    */
   onOAuthConnectComplete(callback: (result: DesktopOAuthConnectResult) => void): () => void
   offlineRetry(): void
-  openSettings(): void
-  settingsClose(): void
-  settingsGet(): Promise<{ origin: string; isDefault: boolean } | null>
-  settingsSave(origin: string): Promise<{ ok: boolean; error?: string }>
-  settingsGetLauncherShortcut(): Promise<LauncherShortcutSettings | null>
-  settingsSaveLauncherShortcut(shortcut: string): Promise<LauncherShortcutSettings | null>
   localFilesystem(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
   browserAgent?: SimDesktopBrowserAgentApi
   launcher?: SimDesktopLauncherApi

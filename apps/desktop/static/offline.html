@@ -128,7 +128,6 @@
       </p>
       <div class="actions">
         <button class="primary" id="retry">Retry</button>
-        <button id="settings">Change Server…</button>
       </div>
       <div class="links">
         <a id="status">Check status</a>
@@ -168,7 +167,6 @@
 
       const bridge = window.simDesktop
       document.getElementById('retry').addEventListener('click', () => bridge?.offlineRetry())
-      document.getElementById('settings').addEventListener('click', () => bridge?.openSettings())
       document
         .getElementById('status')
         .addEventListener('click', () => bridge?.openExternal('https://status.sim.ai'))

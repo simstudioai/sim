@@ -11,6 +11,7 @@
  */
 :root {
   --sidebar-width: 0px; /* 0 outside workspace; blocking script always sets actual value on workspace pages */
+  --sidebar-collapsed-width: 51px; /* icon rail on web; desktop overrides to 0 before first paint */
   --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
@@ -39,6 +40,10 @@
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
+html[data-sim-desktop-title-bar="inset"] {
+  --sidebar-collapsed-width: 0px;
+}
+
 .workspace-root {
   letter-spacing: 0.02em;
 }
@@ -61,10 +66,11 @@
  * the same cookie source as the collapsed structure — so the rail can never paint
  * at the expanded width and then snap narrow. Overrides `--sidebar-width` for the
  * shell subtree (outer, inner, and the aside cascade from it). Must equal
- * SIDEBAR_WIDTH.COLLAPSED in stores/constants.ts.
+ * `--sidebar-collapsed-width` is set once per host: the web app uses the
+ * SIDEBAR_WIDTH.COLLAPSED icon rail, while macOS desktop uses a full collapse.
  */
 .sidebar-shell-outer[data-collapsed] {
-  --sidebar-width: 51px;
+  --sidebar-width: var(--sidebar-collapsed-width);
 }
 
 .sidebar-container span,

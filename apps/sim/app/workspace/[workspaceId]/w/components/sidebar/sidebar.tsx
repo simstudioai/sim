@@ -1270,7 +1270,11 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
           onClick={handleSidebarClick}
         >
           <div className='flex h-full flex-col'>
-            <div className='flex flex-shrink-0 items-center px-2 pt-3'>
+            <div
+              aria-hidden
+              className='absolute inset-x-0 top-0 hidden h-9 [-webkit-app-region:drag] [[data-sim-desktop-title-bar=inset]_&]:block'
+            />
+            <div className='relative flex flex-shrink-0 items-center px-2 pt-3 [[data-sim-desktop-title-bar=inset]_&]:pt-9'>
               <WorkspaceHeader
                 activeWorkspace={activeWorkspace}
                 workspaceId={workspaceId}
@@ -1302,7 +1306,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                   type='button'
                   onClick={toggleCollapsed}
                   className={cn(
-                    'ml-2 flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 hover-hover:bg-[var(--surface-active)]',
+                    'ml-2 flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 [-webkit-app-region:no-drag] hover-hover:bg-[var(--surface-active)] [[data-sim-desktop-title-bar=inset]_&]:hidden',
                     isCollapsed ? 'w-0 opacity-0' : 'w-[30px] opacity-100'
                   )}
                   aria-label='Collapse sidebar'
