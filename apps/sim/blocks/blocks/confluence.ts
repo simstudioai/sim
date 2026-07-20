@@ -1608,7 +1608,7 @@ export const ConfluenceBlockMeta = {
   templates: [
     {
       icon: PagerDutyIcon,
-      title: 'Confluence incident coordinator',
+      title: 'PagerDuty incident coordinator',
       prompt:
         'Create a knowledge base connected to my Confluence or Notion with runbooks and incident procedures. Then build a workflow triggered by PagerDuty incidents that searches the runbooks, gathers related Datadog alerts, identifies the on-call rotation, and posts a comprehensive incident brief to Slack.',
       modules: ['knowledge-base', 'agent', 'workflows'],
