@@ -1,5 +1,5 @@
 import { BookOpen, ClipboardList, File, Table, Users } from '@sim/emcn/icons'
-import { GoogleTranslateIcon, GreptileIcon, LinearIcon, SlackIcon } from '@/components/icons'
+import { GoogleTranslateIcon, GreptileIcon, SlackIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -2490,7 +2490,7 @@ export const SlackBlockMeta = {
     },
     {
       icon: Table,
-      title: 'Churn risk detector',
+      title: 'Slack churn risk alerts',
       prompt:
         'Create a workflow that monitors customer activity — support ticket frequency, response sentiment, usage patterns — scores each account for churn risk in a table, and triggers a Slack alert to the account team when a customer crosses the risk threshold.',
       modules: ['tables', 'scheduled', 'agent', 'workflows'],
@@ -2498,8 +2498,8 @@ export const SlackBlockMeta = {
       tags: ['support', 'sales', 'monitoring', 'analysis'],
     },
     {
-      icon: LinearIcon,
-      title: 'Incident postmortem writer',
+      icon: SlackIcon,
+      title: 'Slack incident postmortem writer',
       prompt:
         'Create a workflow that when triggered after an incident, pulls the Slack thread from the incident channel, gathers relevant Sentry errors and deployment logs, and drafts a structured postmortem with timeline, root cause, and action items.',
       modules: ['agent', 'files', 'workflows'],
@@ -2528,7 +2528,7 @@ export const SlackBlockMeta = {
     },
     {
       icon: File,
-      title: 'Automated narrative report',
+      title: 'Slack narrative report',
       prompt:
         'Build a scheduled workflow that pulls key data from my tables every week, analyzes trends and anomalies, and writes a narrative report — not just charts and numbers, but written insights explaining what changed, why it matters, and what to do next. Save it as a document and send a summary to Slack.',
       modules: ['tables', 'scheduled', 'agent', 'files', 'workflows'],
@@ -2537,7 +2537,7 @@ export const SlackBlockMeta = {
     },
     {
       icon: BookOpen,
-      title: 'Email digest curator',
+      title: 'Slack reading digest',
       prompt:
         'Create a scheduled daily workflow that searches the web for the latest articles, papers, and news on topics I care about, picks the top 5 most relevant pieces, writes a one-paragraph summary for each, and delivers a curated reading digest to my inbox or Slack.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
@@ -2546,7 +2546,7 @@ export const SlackBlockMeta = {
     },
     {
       icon: ClipboardList,
-      title: 'Daily standup summary',
+      title: 'Slack standup summary',
       prompt:
         'Create a scheduled workflow that reads the #standup Slack channel each morning, summarizes what everyone is working on, identifies blockers, and posts a structured recap to a Google Docs document.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
@@ -2556,7 +2556,7 @@ export const SlackBlockMeta = {
     },
     {
       icon: Users,
-      title: 'New hire onboarding automation',
+      title: 'Slack onboarding automation',
       prompt:
         "Build a workflow that when triggered with a new hire's info, creates their accounts, sends a personalized welcome message in Slack, schedules 1:1s with their team on Google Calendar, shares relevant onboarding docs from the knowledge base, and tracks completion in a table.",
       modules: ['knowledge-base', 'tables', 'agent', 'workflows'],
@@ -2566,7 +2566,7 @@ export const SlackBlockMeta = {
     },
     {
       icon: Table,
-      title: 'Customer 360 view',
+      title: 'Slack customer 360 alerts',
       prompt:
         'Create a comprehensive customer table that aggregates data from my CRM, support tickets, billing history, and product usage into a single unified view per customer. Schedule it to sync daily and send a Slack alert when any customer shows signs of trouble across multiple signals.',
       modules: ['tables', 'scheduled', 'agent', 'workflows'],

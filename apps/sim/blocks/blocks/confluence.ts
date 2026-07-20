@@ -1608,7 +1608,7 @@ export const ConfluenceBlockMeta = {
   templates: [
     {
       icon: PagerDutyIcon,
-      title: 'Incident response coordinator',
+      title: 'PagerDuty incident coordinator',
       prompt:
         'Create a knowledge base connected to my Confluence or Notion with runbooks and incident procedures. Then build a workflow triggered by PagerDuty incidents that searches the runbooks, gathers related Datadog alerts, identifies the on-call rotation, and posts a comprehensive incident brief to Slack.',
       modules: ['knowledge-base', 'agent', 'workflows'],
@@ -1618,7 +1618,7 @@ export const ConfluenceBlockMeta = {
     },
     {
       icon: ConfluenceIcon,
-      title: 'Knowledge base sync',
+      title: 'Confluence knowledge base sync',
       prompt:
         'Create a knowledge base connected to my Confluence workspace so all wiki pages are automatically synced and searchable. Then build a scheduled workflow that identifies stale pages not updated in 90 days and sends a Slack reminder to page owners to review them.',
       modules: ['knowledge-base', 'scheduled', 'agent', 'workflows'],
@@ -1628,7 +1628,7 @@ export const ConfluenceBlockMeta = {
     },
     {
       icon: Search,
-      title: 'Multi-source knowledge hub',
+      title: 'Confluence multi-source knowledge hub',
       prompt:
         'Create a knowledge base and connect it to Confluence, Notion, and Google Drive so all my company documentation is automatically synced, chunked, and embedded. Then deploy a Q&A agent that can answer questions across all sources with citations.',
       modules: ['knowledge-base', 'scheduled', 'agent', 'workflows'],

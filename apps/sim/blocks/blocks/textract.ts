@@ -494,7 +494,7 @@ export const TextractBlockMeta = {
     },
     {
       icon: TextractIcon,
-      title: 'Receipt OCR for expense reports',
+      title: 'Textract receipt OCR',
       prompt:
         'Build a workflow that processes Gmail attachments with AWS Textract, extracts vendor, date, total, and category, logs each receipt to an expense table, and tags reimbursable items.',
       modules: ['tables', 'files', 'agent', 'workflows'],

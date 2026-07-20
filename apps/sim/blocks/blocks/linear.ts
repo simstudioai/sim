@@ -1,4 +1,4 @@
-import { DevinIcon, LinearIcon, SlackIcon } from '@/components/icons'
+import { DevinIcon, LinearIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -2635,8 +2635,8 @@ export const LinearBlockMeta = {
       alsoIntegrations: ['devin'],
     },
     {
-      icon: SlackIcon,
-      title: 'Meeting notes to action items',
+      icon: LinearIcon,
+      title: 'Meeting notes to Linear tasks',
       prompt:
         'Create a workflow that takes meeting notes or a transcript, extracts action items with owners and due dates, creates tasks in Linear or Asana for each one, and posts a summary to the relevant Slack channel.',
       modules: ['agent', 'workflows'],

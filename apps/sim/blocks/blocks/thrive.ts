@@ -958,7 +958,7 @@ export const ThriveBlockMeta = {
     },
     {
       icon: ThriveIcon,
-      title: 'Compliance completion digest',
+      title: 'Thrive compliance digest',
       prompt:
         'Create a scheduled weekly workflow that lists Thrive enrolments for a compliance assignment, filters those still open or overdue, and posts a Slack summary to the people-ops channel.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -968,7 +968,7 @@ export const ThriveBlockMeta = {
     },
     {
       icon: ThriveIcon,
-      title: 'Sync leavers from HRIS',
+      title: 'Suspend leavers in Thrive',
       prompt:
         'Build a workflow that reads terminated employees from an HRIS export and suspends each matching user in Thrive with their end date, then logs the result to a table.',
       modules: ['tables', 'agent', 'workflows'],
@@ -977,7 +977,7 @@ export const ThriveBlockMeta = {
     },
     {
       icon: ThriveIcon,
-      title: 'Import historical completions',
+      title: 'Import completions into Thrive',
       prompt:
         'Create a workflow that reads a CSV of prior learning records and creates a completion in Thrive for each user and content item with the completion date.',
       modules: ['files', 'agent', 'workflows'],
@@ -986,7 +986,7 @@ export const ThriveBlockMeta = {
     },
     {
       icon: ThriveIcon,
-      title: 'Assign mandatory training to an audience',
+      title: 'Assign Thrive training to an audience',
       prompt:
         'Build a workflow that creates a Thrive content assignment for a chosen audience and primary content, sets a 30-day completion period, and reports how many learners were enrolled.',
       modules: ['agent', 'workflows'],
@@ -995,7 +995,7 @@ export const ThriveBlockMeta = {
     },
     {
       icon: ThriveIcon,
-      title: 'CPD shortfall report',
+      title: 'Thrive CPD shortfall report',
       prompt:
         'Create a scheduled monthly workflow that queries Thrive CPD user summaries for a date range, compares logged minutes against each audience CPD requirement, and emails managers a list of learners below target.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -1005,7 +1005,7 @@ export const ThriveBlockMeta = {
     },
     {
       icon: ThriveIcon,
-      title: 'Tag learners by skill',
+      title: 'Tag Thrive learners by skill',
       prompt:
         'Build a workflow that searches Thrive users by status, then adds skill tags and updates skill levels for each learner based on a mapping in a spreadsheet.',
       modules: ['agent', 'workflows'],
@@ -1015,7 +1015,7 @@ export const ThriveBlockMeta = {
     },
     {
       icon: ThriveIcon,
-      title: 'Trending content to Slack',
+      title: 'Thrive trending content to Slack',
       prompt:
         'Create a scheduled workflow that queries recently updated Thrive content and activity records, summarises the most engaged-with learning, and posts a weekly highlight to Slack.',
       modules: ['scheduled', 'agent', 'workflows'],

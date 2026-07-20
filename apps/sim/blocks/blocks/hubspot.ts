@@ -1656,7 +1656,7 @@ export const HubSpotBlockMeta = {
     },
     {
       icon: HubspotIcon,
-      title: 'Win/loss analyzer',
+      title: 'HubSpot win/loss analyzer',
       prompt:
         'Build a workflow that pulls closed deals from HubSpot each week, analyzes patterns in wins vs losses — deal size, industry, sales cycle length, objections — and generates a report file with actionable insights on what to change. Schedule it to run every Monday.',
       modules: ['agent', 'files', 'scheduled', 'workflows'],

@@ -314,7 +314,7 @@ export const CursorBlockMeta = {
     },
     {
       icon: CursorIcon,
-      title: 'Test fix delegator',
+      title: 'Cursor test-fix delegator',
       prompt:
         'Build a workflow triggered by a failing GitHub Actions test run that extracts the failing test name and error, launches a targeted Cursor cloud agent to fix only that test, downloads the artifact diff when ready, and replies on the failed run with the proposed patch.',
       modules: ['agent', 'workflows'],
@@ -324,7 +324,7 @@ export const CursorBlockMeta = {
     },
     {
       icon: CursorIcon,
-      title: 'Refactor follow-up loop',
+      title: 'Cursor refactor follow-up loop',
       prompt:
         'Create a workflow that picks up review comments on a Cursor-authored pull request, formulates each comment as a follow-up instruction, sends them to the originating Cursor cloud agent, and waits for the updated diff before re-requesting review.',
       modules: ['agent', 'workflows'],
@@ -343,7 +343,7 @@ export const CursorBlockMeta = {
     },
     {
       icon: CursorIcon,
-      title: 'Stuck-agent cleaner',
+      title: 'Cursor stuck-agent cleaner',
       prompt:
         'Create a scheduled workflow that runs hourly, lists Cursor cloud agents, detects agents stuck in the same state longer than a configurable threshold, stops or deletes them based on rules, and posts a Slack report of the cleanup actions taken.',
       modules: ['scheduled', 'agent', 'workflows'],

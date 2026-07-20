@@ -1743,7 +1743,7 @@ export const IntercomBlockMeta = {
   templates: [
     {
       icon: IntercomIcon,
-      title: 'Customer feedback analyzer',
+      title: 'Intercom feedback analyzer',
       prompt:
         'Build a scheduled workflow that pulls support tickets and conversations from Intercom daily, categorizes them by theme and sentiment, tracks trends in a table, and sends a weekly Slack report highlighting the top feature requests and pain points.',
       modules: ['tables', 'scheduled', 'agent', 'workflows'],
