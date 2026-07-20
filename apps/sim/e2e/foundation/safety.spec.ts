@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { loadEnvConfig } from '@next/env'
@@ -11,6 +12,7 @@ import {
 } from '../support/database'
 import { buildChildEnvironment, discoverEnvFileKeys } from '../support/env'
 import { isLoopbackAddress } from '../support/hosts'
+import { assertPortAvailable } from '../support/process'
 
 test.describe('foundation safety guards', () => {
   test('discovers env keys without leaking values and shadows unknown keys', () => {
@@ -37,16 +39,20 @@ test.describe('foundation safety guards', () => {
     }
   })
 
-  test('@next/env preserves a pre-set process value over an env file', () => {
+  test('@next/env preserves non-empty and empty shadow values over an env file', () => {
     const directory = mkdtempSync(path.join(os.tmpdir(), 'sim-e2e-next-env-'))
     const key = `SIM_E2E_CANARY_${Date.now()}`
+    const emptyKey = `${key}_EMPTY`
     try {
-      writeFileSync(path.join(directory, '.env'), `${key}=file-value\n`)
+      writeFileSync(path.join(directory, '.env'), `${key}=file-value\n${emptyKey}=must-not-load\n`)
       process.env[key] = 'shadowed-value'
+      process.env[emptyKey] = ''
       loadEnvConfig(directory, false, console, true)
       expect(process.env[key]).toBe('shadowed-value')
+      expect(process.env[emptyKey]).toBe('')
     } finally {
       delete process.env[key]
+      delete process.env[emptyKey]
       rmSync(directory, { recursive: true, force: true })
     }
   })
@@ -79,5 +85,19 @@ test.describe('foundation safety guards', () => {
     expect(() =>
       parseRunOptions(['--project=hosted-billing-chromium-workflows', '--shard=1/2'])
     ).toThrow(/coupled workflows must remain unsharded/)
+  })
+
+  test('port preflight rejects an existing listener', async () => {
+    const server = createServer()
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    try {
+      const address = server.address()
+      if (!address || typeof address === 'string') throw new Error('Expected TCP listener')
+      await expect(assertPortAvailable(address.port)).rejects.toThrow(/to be free/)
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve()))
+      )
+    }
   })
 })

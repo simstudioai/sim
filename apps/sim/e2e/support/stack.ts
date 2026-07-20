@@ -1,6 +1,11 @@
 import path from 'node:path'
 import { DB_PACKAGE_DIR, PLAYWRIGHT_CLI, REALTIME_APP_DIR, REPO_ROOT, SIM_APP_DIR } from './paths'
-import { type ManagedProcess, runCommand, spawnManagedProcess } from './process'
+import {
+  type ManagedProcess,
+  runCommand,
+  spawnManagedProcess,
+  waitForManagedProcessReady,
+} from './process'
 import { waitForHttpReady } from './readiness'
 
 export interface StackCommandOptions {
@@ -55,15 +60,18 @@ export async function startRealtime(options: StackCommandOptions): Promise<Manag
     logsDirectory: options.logsDirectory,
   })
   try {
-    await waitForHttpReady({
-      name: 'Realtime',
-      url: 'http://127.0.0.1:3002/health',
-      validate: async (response) => {
-        if (!response.ok) return false
-        const body = (await response.json()) as { status?: string }
-        return body.status === 'ok'
-      },
-    })
+    await waitForManagedProcessReady(
+      realtime,
+      waitForHttpReady({
+        name: 'Realtime',
+        url: 'http://127.0.0.1:3002/health',
+        validate: async (response) => {
+          if (!response.ok) return false
+          const body = (await response.json()) as { status?: string; runId?: string }
+          return body.status === 'ok' && body.runId === options.env.E2E_RUN_ID
+        },
+      })
+    )
     return realtime
   } catch (error) {
     await realtime.stop()
@@ -81,7 +89,7 @@ export async function startApp(options: StackCommandOptions): Promise<ManagedPro
       '-p',
       '3000',
       '-H',
-      '0.0.0.0',
+      '127.0.0.1',
     ],
     cwd: SIM_APP_DIR,
     env: {
@@ -93,10 +101,18 @@ export async function startApp(options: StackCommandOptions): Promise<ManagedPro
     logsDirectory: options.logsDirectory,
   })
   try {
-    await waitForHttpReady({
-      name: 'Next.js',
-      url: 'http://127.0.0.1:3000/api/health',
-    })
+    await waitForManagedProcessReady(
+      app,
+      waitForHttpReady({
+        name: 'Next.js',
+        url: 'http://127.0.0.1:3000/api/health',
+        validate: async (response) => {
+          if (!response.ok) return false
+          const body = (await response.json()) as { status?: string; runId?: string }
+          return body.status === 'ok' && body.runId === options.env.E2E_RUN_ID
+        },
+      })
+    )
     return app
   } catch (error) {
     await app.stop()

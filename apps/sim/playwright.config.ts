@@ -1,5 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
 
+if (process.env.E2E_ORCHESTRATED !== '1') {
+  throw new Error(
+    'Playwright tests must run through `bun run test:e2e` so database, environment, and teardown guards are active'
+  )
+}
+
 const isCI = process.env.CI === 'true'
 const baseURL = process.env.E2E_BASE_URL ?? 'http://e2e.sim.ai:3000'
 
@@ -9,6 +15,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: isCI,
   retries: 0,
+  workers: 1,
   timeout: 60_000,
   expect: {
     timeout: 10_000,
@@ -36,7 +43,7 @@ export default defineConfig({
         '**/settings/smoke/unauthenticated.spec.ts',
         '**/settings/navigation/**/*.spec.ts',
       ],
-      workers: isCI ? 2 : 1,
+      workers: 1,
     },
     {
       name: 'hosted-billing-chromium-workflows',

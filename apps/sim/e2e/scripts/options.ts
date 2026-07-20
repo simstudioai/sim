@@ -3,13 +3,16 @@ const WORKFLOWS_PROJECT = 'hosted-billing-chromium-workflows'
 
 export interface E2eRunOptions {
   playwrightArgs: string[]
-  skipBuild: boolean
 }
 
 export function parseRunOptions(argv: string[]): E2eRunOptions {
   const normalizedArgs = argv[0] === '--' ? argv.slice(1) : [...argv]
-  const skipBuild = normalizedArgs.includes('--skip-build')
-  const playwrightArgs = normalizedArgs.filter((arg) => arg !== '--skip-build')
+  if (normalizedArgs.includes('--skip-build')) {
+    throw new Error(
+      '--skip-build is not supported because E2E builds contain run-specific hosted configuration'
+    )
+  }
+  const playwrightArgs = [...normalizedArgs]
   const projects = getOptionValues(playwrightArgs, '--project')
   const hasShard = hasOption(playwrightArgs, '--shard')
 
@@ -24,7 +27,7 @@ export function parseRunOptions(argv: string[]): E2eRunOptions {
     )
   }
 
-  return { playwrightArgs, skipBuild }
+  return { playwrightArgs }
 }
 
 function hasOption(args: string[], name: string): boolean {

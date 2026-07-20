@@ -51,8 +51,10 @@ bun run test:e2e -- --project=hosted-billing-chromium-navigation
 bun run test:e2e -- --grep "unauthenticated"
 ```
 
-For a local rerun after a successful build with the same hosted/public profile,
-use `--skip-build`. CI and clean validation runs must always build.
+Do not invoke `playwright test` directly. Raw Playwright bypasses environment,
+database, process, sharding, and teardown guards; the config rejects runs that
+were not launched by the orchestrator. Report and trace viewer commands remain
+safe because they do not execute tests.
 
 Sharding is supported only for the navigation project. The runner rejects
 `--shard` for `hosted-billing-chromium-workflows`.

@@ -1,11 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
-import {
-  createServer,
-  type IncomingHttpHeaders,
-  type IncomingMessage,
-  type Server,
-  type ServerResponse,
-} from 'node:http'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 
 export const STRIPE_FAKE_ENDPOINTS = {
@@ -14,20 +8,13 @@ export const STRIPE_FAKE_ENDPOINTS = {
   reset: '/__control/reset',
 } as const
 
-const REDACTED = '[REDACTED]'
 const DEFAULT_MAX_BODY_BYTES = 64 * 1024
 const FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded'
-const SENSITIVE_FIELD_PATTERN = /authorization|api.?key|secret|token|password|card|source/i
-
-type RecordedParameters = Record<string, string | string[]>
 
 export interface StripeFakeRequestRecord {
   sequence: number
   method: string
   path: string
-  query: RecordedParameters
-  headers: RecordedParameters
-  body: RecordedParameters | null
   unexpected: boolean
 }
 
@@ -88,41 +75,6 @@ function secureEqual(actual: string | undefined, expected: string): boolean {
   return (
     actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer)
   )
-}
-
-function appendParameter(
-  target: RecordedParameters,
-  key: string,
-  value: string
-): RecordedParameters {
-  const recordedValue = SENSITIVE_FIELD_PATTERN.test(key) ? REDACTED : value
-  const existing = target[key]
-  if (existing === undefined) {
-    target[key] = recordedValue
-  } else if (Array.isArray(existing)) {
-    existing.push(recordedValue)
-  } else {
-    target[key] = [existing, recordedValue]
-  }
-  return target
-}
-
-function redactParameters(parameters: URLSearchParams): RecordedParameters {
-  const redacted: RecordedParameters = {}
-  for (const [key, value] of parameters) {
-    appendParameter(redacted, key, value)
-  }
-  return redacted
-}
-
-function redactHeaders(headers: IncomingHttpHeaders): RecordedParameters {
-  const redacted: RecordedParameters = {}
-  for (const key of ['authorization', 'content-type', 'idempotency-key', 'stripe-version']) {
-    const value = headers[key]
-    if (value === undefined) continue
-    redacted[key] = key === 'authorization' ? REDACTED : value
-  }
-  return redacted
 }
 
 function cloneRequestLog(records: StripeFakeRequestRecord[]): StripeFakeRequestRecord[] {
@@ -335,7 +287,6 @@ export function createStripeFakeServer(options: StripeFakeServerOptions): Stripe
     const requestId = `req_e2e_${String(sequence).padStart(6, '0')}`
     const expected = isExpectedStripeRequest(method, url.pathname)
     let formBody: URLSearchParams | null = null
-    let recordedBody: RecordedParameters | null = null
 
     try {
       if (method !== 'GET' && method !== 'HEAD') {
@@ -343,9 +294,6 @@ export function createStripeFakeServer(options: StripeFakeServerOptions): Stripe
         if (rawBody) {
           if (request.headers['content-type']?.startsWith(FORM_CONTENT_TYPE)) {
             formBody = new URLSearchParams(rawBody)
-            recordedBody = redactParameters(formBody)
-          } else {
-            recordedBody = { content: REDACTED }
           }
         }
       }
@@ -354,9 +302,6 @@ export function createStripeFakeServer(options: StripeFakeServerOptions): Stripe
         sequence,
         method,
         path: url.pathname,
-        query: redactParameters(url.searchParams),
-        headers: redactHeaders(request.headers),
-        body: recordedBody,
         unexpected: !expected,
       })
       const bodyError =
@@ -380,9 +325,6 @@ export function createStripeFakeServer(options: StripeFakeServerOptions): Stripe
       sequence,
       method,
       path: url.pathname,
-      query: redactParameters(url.searchParams),
-      headers: redactHeaders(request.headers),
-      body: recordedBody,
       unexpected: !expected,
     })
 
