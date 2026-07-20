@@ -18,8 +18,10 @@ export interface SolutionsPillCta {
   href: string
 }
 
-/** The solutions hero - header copy, the shared CTA, and a full-width visual. */
+/** The solutions hero - optional tag, header copy, the shared CTA, and a full-width visual. */
 export interface SolutionsHeroConfig {
+  /** Optional mono chip shown above the page's single `<h1>`. */
+  eyebrow?: string
   /**
    * The page's single `<h1>`. Per the constitution it should name the module and
    * "Sim"/"AI workspace" (e.g. "Workflows - the visual builder in Sim, the AI workspace").
@@ -56,12 +58,26 @@ export interface SolutionsCardConfig {
    * owns the spacing around both the text and this frame.
    */
   visual: ReactNode
+  /**
+   * Feature-tile surface tone. Defaults to `'light'` so tiles can mix light
+   * and dark backgrounds within the same row.
+   */
+  featureTileTone?: SolutionsFeatureTileTone
+  /**
+   * Optional description color on feature tiles. `'soft'` is for lighter body
+   * copy on dark surfaces without changing the row's default tone map.
+   */
+  featureTileDescriptionTone?: 'soft'
 }
+
+/** Controlled surface tones for {@link SolutionsCardConfig.featureTileTone}. */
+export type SolutionsFeatureTileTone = 'light' | 'dark'
 
 /**
  * A card row - the core repeating unit. A header (title + subtitle + CTA) above a
  * grid of 3 or 4 cards. The grid column count is derived from `cards.length`, so
- * the page never specifies layout.
+ * the page never specifies layout - except the optional {@link columns} density
+ * override for rows whose cards need more width than their count would grant.
  */
 export interface SolutionsCardRowConfig {
   /**
@@ -77,6 +93,13 @@ export interface SolutionsCardRowConfig {
   cta: SolutionsPillCta
   /** The cards in this row - 3 or 4. The grid derives its columns from this length. */
   cards: SolutionsCardConfig[]
+  /**
+   * Optional desktop column-count override. A 4-card row defaults to four-up,
+   * which squeezes tile vignettes; `columns: 2` renders it as a 2×2 grid
+   * instead (wrapping keeps the standard inter-tile gap on both axes).
+   * Breakpoint collapse (2-col under `lg`, 1-col under `sm`) is unchanged.
+   */
+  columns?: 2
 }
 
 /**
@@ -89,6 +112,18 @@ export interface SolutionsPageConfig {
   module: string
   /** Canonical path, e.g. "/workflows" - used to build the JSON-LD `url`/breadcrumb. */
   path: string
+  /**
+   * The page's meta description, shared with `page.tsx` so the JSON-LD
+   * `WebPage.description` and the `<meta name="description">` never drift.
+   * Falls back to `hero.summary` when absent.
+   */
+  seoDescription?: string
+  /**
+   * Whether the JSON-LD `WebApplication` advertises the free tier as an
+   * `Offer`. Defaults to true; sales-led pages (Enterprise) set false so a
+   * rich result never claims a $0 price for a quoted product.
+   */
+  offersFreeTier?: boolean
   /** The hero (the page's only `<h1>`). */
   hero: SolutionsHeroConfig
   /** Card rows rendered in order beneath the logos row. */

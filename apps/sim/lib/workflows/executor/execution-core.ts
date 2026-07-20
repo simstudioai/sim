@@ -21,6 +21,7 @@ import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { getUserEmailById } from '@/lib/users/queries'
 import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import {
   loadDeployedWorkflowState,
@@ -38,8 +39,13 @@ import type {
   IterationContext,
   SerializableExecutionState,
 } from '@/executor/execution/types'
-import type { ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
+import type {
+  ExecutionResult,
+  NormalizedBlockOutput,
+  StartBlockRunMetadata,
+} from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
+import { isRunMetadataEnabled } from '@/executor/utils/start-block'
 import { buildParallelSentinelEndId, buildSentinelEndId } from '@/executor/utils/subflow-utils'
 import { Serializer } from '@/serializer'
 
@@ -453,6 +459,7 @@ async function executeWorkflowCoreImpl(
 
     loggingStarted = await loggingSession.safeStart({
       userId,
+      billingAttribution: metadata.billingAttribution,
       workspaceId: providedWorkspaceId,
       variables,
       triggerData: metadata.correlation ? { correlation: metadata.correlation } : undefined,
@@ -686,6 +693,7 @@ async function executeWorkflowCoreImpl(
       const inputOpts = {
         entityTypes: piiRedaction.input.entityTypes,
         language: piiRedaction.input.language,
+        customPatterns: piiRedaction.input.customPatterns,
         onFailure: 'throw' as const,
       }
       processedInput = await redactLargeValueRefsInValue(processedInput, {
@@ -715,6 +723,7 @@ async function executeWorkflowCoreImpl(
       const blockOutputOpts = {
         entityTypes: piiRedaction.blockOutputs.entityTypes,
         language: piiRedaction.blockOutputs.language,
+        customPatterns: piiRedaction.blockOutputs.customPatterns,
         onFailure: 'throw' as const,
       }
       const largeRefOpts = {
@@ -739,6 +748,24 @@ async function executeWorkflowCoreImpl(
           hydrated,
           blockOutputOpts
         )
+      }
+    }
+
+    let startRunMetadata: StartBlockRunMetadata | undefined
+    if (resolvedTriggerBlockId) {
+      const entryBlock = serializedWorkflow.blocks.find(
+        (block) => block.id === resolvedTriggerBlockId
+      )
+      if (entryBlock && isRunMetadataEnabled(entryBlock)) {
+        startRunMetadata = {
+          userEmail: await getUserEmailById(userId),
+          workspaceId: providedWorkspaceId,
+          workflowId,
+          executionId,
+          executionType: triggerType,
+          executionMode: metadata.executionMode ?? 'sync',
+          startTime: metadata.startTime,
+        }
       }
     }
 
@@ -769,6 +796,7 @@ async function executeWorkflowCoreImpl(
       dagIncomingEdges: snapshot.state?.dagIncomingEdges,
       snapshotState: snapshot.state,
       metadata,
+      startRunMetadata,
       abortSignal,
       includeFileBase64,
       base64MaxBytes,
@@ -861,6 +889,7 @@ async function executeWorkflowCoreImpl(
     if (!loggingStarted) {
       loggingStarted = await loggingSession.safeStart({
         userId,
+        billingAttribution: metadata.billingAttribution,
         workspaceId: providedWorkspaceId,
         variables: {},
         triggerData: metadata.correlation ? { correlation: metadata.correlation } : undefined,

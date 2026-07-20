@@ -9,7 +9,7 @@
 // old per-script `--check`, but accounts for post-generate formatting.
 
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -17,6 +17,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 const GENERATORS = [
   'scripts/sync-mothership-stream-contract.ts',
+  'scripts/sync-billing-protocol-contract.ts',
   'scripts/sync-tool-catalog.ts',
   'scripts/sync-trace-spans-contract.ts',
   'scripts/sync-trace-attributes-contract.ts',
@@ -90,16 +91,27 @@ function runCheck(): void {
   formatGenerated(targetDir)
 
   const stale: string[] = []
+  const generated = readdirNoThrow(targetDir).filter((f) => f.endsWith('.ts'))
+  const generatedSet = new Set(generated)
   for (const [name, oldContent] of Object.entries(committed)) {
     if (FORMAT_EXCLUDE.has(name)) continue
+    if (!generatedSet.has(name)) {
+      stale.push(name)
+      continue
+    }
     const newContent = readFileSync(join(targetDir, name), 'utf8')
     if (newContent !== oldContent) stale.push(name)
+  }
+  for (const name of generated) {
+    if (!(name in committed)) stale.push(name)
   }
 
   // Restore the committed state regardless of outcome (--check is readonly).
   for (const [name, content] of Object.entries(committed)) {
-    const fs = require('node:fs') as typeof import('node:fs')
-    fs.writeFileSync(join(targetDir, name), content, 'utf8')
+    writeFileSync(join(targetDir, name), content, 'utf8')
+  }
+  for (const name of generated) {
+    if (!(name in committed)) unlinkSync(join(targetDir, name))
   }
 
   if (stale.length > 0) {

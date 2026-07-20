@@ -10,10 +10,10 @@ import {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   loggingSessionMock,
+  loggingSessionMockFns,
   workflowsApiUtilsMock,
   workflowsApiUtilsMockFns,
 } from '@sim/testing'
-import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -64,17 +64,13 @@ const createMockStream = () => {
   })
 }
 
-const {
-  mockValidateChatAuth,
-  mockSetChatAuthCookie,
-  mockValidateAuthToken,
-  mockAssertChatEmbedAllowed,
-} = vi.hoisted(() => ({
-  mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
-  mockSetChatAuthCookie: vi.fn(),
-  mockValidateAuthToken: vi.fn().mockReturnValue(false),
-  mockAssertChatEmbedAllowed: vi.fn().mockResolvedValue(null),
-}))
+const { mockValidateChatAuth, mockSetChatAuthCookie, mockValidateAuthToken, mockProcessChatFiles } =
+  vi.hoisted(() => ({
+    mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
+    mockSetChatAuthCookie: vi.fn(),
+    mockValidateAuthToken: vi.fn().mockReturnValue(false),
+    mockProcessChatFiles: vi.fn(),
+  }))
 
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
@@ -94,7 +90,6 @@ vi.mock('@/lib/core/security/deployment', () => ({
 vi.mock('@/app/api/chat/utils', () => ({
   validateChatAuth: mockValidateChatAuth,
   setChatAuthCookie: mockSetChatAuthCookie,
-  assertChatEmbedAllowed: mockAssertChatEmbedAllowed,
 }))
 
 vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
@@ -102,6 +97,12 @@ vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
+
+vi.mock('@/lib/uploads', () => ({
+  ChatFiles: {
+    processChatFiles: mockProcessChatFiles,
+  },
+}))
 
 vi.mock('@/lib/workflows/streaming/streaming', () => ({
   createStreamingResponse: vi.fn().mockImplementation(async () => createMockStream()),
@@ -168,6 +169,12 @@ describe('Chat Identifier API Route', () => {
     executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValue({
       success: true,
       actorUserId: 'test-user-id',
+      billingAttribution: {
+        actorUserId: 'test-user-id',
+        workspaceId: 'test-workspace-id',
+        billingEntity: { type: 'organization', id: 'test-organization-id' },
+        payerSubscription: null,
+      },
       workflowRecord: {
         id: 'test-workflow-id',
         userId: 'test-user-id',
@@ -175,19 +182,11 @@ describe('Chat Identifier API Route', () => {
         workspaceId: 'test-workspace-id',
         variables: {},
       },
-      userSubscription: {
-        plan: 'pro',
-        status: 'active',
-      },
-      rateLimitInfo: {
-        allowed: true,
-        remaining: 100,
-        resetAt: new Date(),
-      },
     })
 
     mockValidateChatAuth.mockResolvedValue({ authorized: true })
     mockValidateAuthToken.mockReturnValue(false)
+    mockProcessChatFiles.mockResolvedValue([])
     mockCreateErrorResponse.mockImplementation((message: string, status: number, code?: string) => {
       return new Response(
         JSON.stringify({
@@ -236,24 +235,6 @@ describe('Chat Identifier API Route', () => {
       expect(data).toHaveProperty('description', 'Test chat description')
       expect(data).toHaveProperty('customizations')
       expect(data.customizations).toHaveProperty('welcomeMessage', 'Welcome to the test chat')
-    })
-
-    it('should return 403 when embedding is blocked for a cross-origin caller', async () => {
-      mockAssertChatEmbedAllowed.mockResolvedValueOnce(
-        NextResponse.json(
-          { error: 'Embedding this chat on external sites requires a paid plan' },
-          {
-            status: 403,
-          }
-        )
-      )
-
-      const req = createMockNextRequest('GET', undefined, { origin: 'https://evil.example.com' })
-      const params = Promise.resolve({ identifier: 'test-chat' })
-
-      const response = await GET(req, { params })
-
-      expect(response.status).toBe(403)
     })
 
     it('should return 404 for non-existent identifier', async () => {
@@ -328,28 +309,6 @@ describe('Chat Identifier API Route', () => {
   })
 
   describe('POST endpoint', () => {
-    it('should return 403 when embedding is blocked for a cross-origin caller', async () => {
-      mockAssertChatEmbedAllowed.mockResolvedValueOnce(
-        NextResponse.json(
-          { error: 'Embedding this chat on external sites requires a paid plan' },
-          {
-            status: 403,
-          }
-        )
-      )
-
-      const req = createMockNextRequest(
-        'POST',
-        { input: 'Hello' },
-        { origin: 'https://evil.example.com' }
-      )
-      const params = Promise.resolve({ identifier: 'test-chat' })
-
-      const response = await POST(req, { params })
-
-      expect(response.status).toBe(403)
-    })
-
     it('should return chat config on successful authentication', async () => {
       const req = createMockNextRequest('POST', { password: 'test-password' })
       const params = Promise.resolve({ identifier: 'password-protected-chat' })
@@ -404,7 +363,6 @@ describe('Chat Identifier API Route', () => {
         error: {
           message: 'Workflow is not deployed',
           statusCode: 403,
-          logCreated: false,
         },
       })
 
@@ -482,6 +440,33 @@ describe('Chat Identifier API Route', () => {
       const data = await response.json()
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'Execution failed')
+    })
+
+    it('does not charge the workspace when chat file preprocessing fails', async () => {
+      mockProcessChatFiles.mockRejectedValueOnce(new Error('Upload failed'))
+
+      const req = createMockNextRequest('POST', {
+        input: 'Analyze this file',
+        files: [
+          {
+            name: 'document.txt',
+            type: 'text/plain',
+            size: 4,
+            data: 'data',
+          },
+        ],
+      })
+      const params = Promise.resolve({ identifier: 'test-chat' })
+
+      const response = await POST(req, { params })
+
+      expect(response.status).toBe(500)
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          traceSpans: [],
+          skipCost: true,
+        })
+      )
     })
 
     it('should handle invalid JSON in request body', async () => {

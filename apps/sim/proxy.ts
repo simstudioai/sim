@@ -3,7 +3,7 @@ import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sendToProfound } from './lib/analytics/profound'
 import { getEnv } from './lib/core/config/env'
-import { isAuthDisabled, isHosted } from './lib/core/config/env-flags'
+import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
 import { getClientIp } from './lib/core/utils/request'
 
@@ -20,7 +20,7 @@ const DEFAULT_API_ALLOWED_HEADERS =
   'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization'
 
 const WORKFLOW_EXECUTE_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key'
+  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, X-Execution-Id'
 
 /** Subpaths under /api/chat/* that serve the workspace UI, not embeds. */
 const EMBED_RESERVED_SEGMENTS = new Set(['manage', 'validate'])
@@ -138,8 +138,8 @@ function handleRootPathRedirects(
     return null
   }
 
-  if (!isHosted) {
-    // Self-hosted: Always redirect based on session
+  if (!isHosted && !isDev) {
+    // Self-hosted production: Always redirect based on session.
     if (hasActiveSession) {
       return NextResponse.redirect(new URL('/workspace', request.url))
     }

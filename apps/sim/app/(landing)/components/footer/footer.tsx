@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ALL_COMPETITORS } from '@/app/(landing)/comparisons/utils'
 import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wordmark'
 import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 
@@ -26,11 +27,20 @@ interface FooterItem {
   external?: boolean
 }
 
+/**
+ * Platform modules link to their local landing pages (internal link equity
+ * stays on the ranking pages); docs-only surfaces (MCP, API, Self Hosting)
+ * and Status remain external.
+ */
 const PRODUCT_LINKS: FooterItem[] = [
-  { label: 'Mothership', href: 'https://docs.sim.ai/mothership', external: true },
-  { label: 'Workflows', href: 'https://docs.sim.ai', external: true },
-  { label: 'Knowledge Base', href: 'https://docs.sim.ai/knowledgebase', external: true },
-  { label: 'Tables', href: 'https://docs.sim.ai/tables', external: true },
+  { label: 'Enterprise', href: '/enterprise' },
+  { label: 'Chat', href: 'https://docs.sim.ai/mothership', external: true },
+  { label: 'Workflows', href: '/workflows' },
+  { label: 'Knowledge Base', href: '/knowledge' },
+  { label: 'Tables', href: '/tables' },
+  { label: 'Files', href: '/files' },
+  { label: 'Logs', href: '/logs' },
+  { label: 'Scheduled Tasks', href: '/scheduled-tasks' },
   { label: 'MCP', href: 'https://docs.sim.ai/agents/mcp', external: true },
   { label: 'API', href: 'https://docs.sim.ai/api-reference/getting-started', external: true },
   { label: 'Self Hosting', href: 'https://docs.sim.ai/platform/self-hosting', external: true },
@@ -40,7 +50,7 @@ const PRODUCT_LINKS: FooterItem[] = [
 const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Blog', href: '/blog' },
   { label: 'Docs', href: 'https://docs.sim.ai', external: true },
-  { label: 'Compare', href: '/comparison' },
+  { label: 'Library', href: '/library' },
   { label: 'Careers', href: '/careers' },
   { label: 'Changelog', href: '/changelog' },
   { label: 'Contact', href: '/contact' },
@@ -55,17 +65,13 @@ const MODEL_LINKS: FooterItem[] = [
   })),
 ]
 
-const BLOCK_LINKS: FooterItem[] = [
-  { label: 'Agent', href: 'https://docs.sim.ai/workflows/blocks/agent', external: true },
-  { label: 'Router', href: 'https://docs.sim.ai/workflows/blocks/router', external: true },
-  { label: 'Function', href: 'https://docs.sim.ai/workflows/blocks/function', external: true },
-  { label: 'Condition', href: 'https://docs.sim.ai/workflows/blocks/condition', external: true },
-  { label: 'API Block', href: 'https://docs.sim.ai/workflows/blocks/api', external: true },
-  { label: 'Workflow', href: 'https://docs.sim.ai/workflows/blocks/workflow', external: true },
-  { label: 'Parallel', href: 'https://docs.sim.ai/workflows/blocks/parallel', external: true },
-  { label: 'Guardrails', href: 'https://docs.sim.ai/workflows/blocks/guardrails', external: true },
-  { label: 'Evaluator', href: 'https://docs.sim.ai/workflows/blocks/evaluator', external: true },
-  { label: 'Loop', href: 'https://docs.sim.ai/workflows/blocks/loop', external: true },
+/** Top comparison pages, sourced from the competitor catalog so labels/hrefs never drift. */
+const COMPARE_LINKS: FooterItem[] = [
+  { label: 'All Comparisons', href: '/comparisons' },
+  ...ALL_COMPETITORS.slice(0, 9).map((competitor) => ({
+    label: competitor.name,
+    href: `/comparisons/${competitor.id}`,
+  })),
 ]
 
 const INTEGRATION_LINKS: FooterItem[] = [
@@ -88,7 +94,11 @@ const SOCIAL_LINKS: FooterItem[] = [
     href: 'https://www.linkedin.com/company/simstudioai/',
     external: true,
   },
-  { label: 'Discord', href: 'https://discord.gg/Hr4UWYEcTT', external: true },
+  {
+    label: 'Slack',
+    href: 'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA',
+    external: true,
+  },
   {
     label: 'GitHub',
     href: 'https://github.com/simstudioai/sim',
@@ -148,7 +158,7 @@ export function Footer() {
 
           <FooterColumn title='Product' items={PRODUCT_LINKS} />
           <FooterColumn title='Resources' items={RESOURCES_LINKS} />
-          <FooterColumn title='Blocks' items={BLOCK_LINKS} />
+          <FooterColumn title='Compare' items={COMPARE_LINKS} />
           <FooterColumn title='Integrations' items={INTEGRATION_LINKS} />
           <FooterColumn title='Models' items={MODEL_LINKS} />
           <FooterColumn title='Socials' items={SOCIAL_LINKS} />

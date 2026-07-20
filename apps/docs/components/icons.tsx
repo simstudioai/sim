@@ -1467,6 +1467,21 @@ export function LinkedInIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/** Instagram camera glyph rendered with the block's brand gradient background. */
+export function InstagramIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 24 24'
+      fill='currentColor'
+      xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
+    >
+      <path d='M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z' />
+    </svg>
+  )
+}
+
 export function CrunchbaseIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -2533,6 +2548,24 @@ l57 -85 -48 -124 c-203 -517 -79 -930 346 -1155 159 -85 441 -71 585 28 l111
   )
 }
 
+export function BufferIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 86.7 97.9'
+      fill='currentColor'
+      role='img'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M0,22.3L43.1,0l43.6,22.3L43.1,44.8L0,22.3z M43.1,83.1l-29.4-16L0,74.5l43.1,23.4l43.6-23.4l-13.9-7.4 L43.1,83.1z M13.7,42l29.4,14.5L72.9,42l13.9,6.8L43.1,69.9L0,48.7L13.7,42z'
+      />
+    </svg>
+  )
+}
+
 export function Mem0Icon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -2763,6 +2796,52 @@ export function LinqIcon(props: SVGProps<SVGSVGElement>) {
       <path
         fill='currentColor'
         d='m18.5 24.1 25.3 60.9 60.9-25-25.4-60-60.8 24.1zm33.6-9.7 25-9.9 2.9 6.7-24.9 10.3-3-7.1zm33.7 7.6-4.2-7.3-25.1 10.4 5.8 13.9 25.3-10.1-1.8-4.5v-1.5-0.9zm-62.2 4.2 18-7.3 2.9 7.2 7.2-3 7.1 17.5-24.7 10.7-10.5-25.1zm40.3 16.6 25.2-10.5 7.5 18.1-3.6 1.4 1.4 3.7-3.6 1.4 1.5 3.5-17.9 7.2-10.5-24.8zm-28.4 11.9 14.4-5.8 1.5 3.6 3.3-1.5-1.4-3.6 6.9-3 10.6 24.7-14.2 5.8-1.5-3.6-3.6 1.5 1.4 3.6-7 3.1-10.4-24.8zm59 0.8 3.7-1.5 1.5 3.6-3.6 1.4-1.6-3.5z'
+      />
+    </svg>
+  )
+}
+
+export function ClickUpIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const bodyGradientId = `clickup_body_${id}`
+  const arrowGradientId = `clickup_arrow_${id}`
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 54.8 65.8' fill='none'>
+      <linearGradient
+        id={bodyGradientId}
+        gradientUnits='userSpaceOnUse'
+        x1='0'
+        y1='15.0492'
+        x2='54.8446'
+        y2='15.0492'
+        gradientTransform='matrix(1 0 0 -1 0 69.3604)'
+      >
+        <stop offset='0' stopColor='#8930FD' />
+        <stop offset='1' stopColor='#49CCF9' />
+      </linearGradient>
+      <linearGradient
+        id={arrowGradientId}
+        gradientUnits='userSpaceOnUse'
+        x1='1.1953'
+        y1='53.166'
+        x2='53.7447'
+        y2='53.166'
+        gradientTransform='matrix(1 0 0 -1 0 69.3604)'
+      >
+        <stop offset='0' stopColor='#FF02F0' />
+        <stop offset='1' stopColor='#FFC800' />
+      </linearGradient>
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        fill={`url(#${bodyGradientId})`}
+        d='M0,50.6l10.1-7.8c5.4,7,11.1,10.3,17.4,10.3c6.3,0,11.9-3.2,17-10.2l10.3,7.6c-7.4,10-16.6,15.3-27.3,15.3C16.9,65.8,7.6,60.5,0,50.6z'
+      />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        fill={`url(#${arrowGradientId})`}
+        d='M27.5,16.9l-18,15.5l-8.3-9.7L27.6,0l26.2,22.7l-8.4,9.6L27.5,16.9z'
       />
     </svg>
   )
@@ -3709,6 +3788,38 @@ export const SakanaIcon = (props: SVGProps<SVGSVGElement>) => (
       d='m187.2 7.8-2.5-0.7c-6.3-1.8-12.7-1.2-18 1.5l-10.2 5.7c-1.2 0.7-0.2 2.5 1 1.8l7.6-4.4c0.8 1.7 1.5 4 1.1 7.7-1.4-0.3-6-1.4-10.9 1.5-0.6 0.3-0.8 1.1-0.3 1.7 0.5 0.5 1.2 0.3 1.3 0.2 2.2-1.3 5.6-2.4 9.6-1.4-0.7 2.5-2.5 5.6-6 7.8-1.5 0.7-0.4 2.3 0.7 1.8 1.8-1 5.3-3.4 6.9-9 2.1 0.9 4.2 2.4 5.9 4.6l-7.2 4.1c-1.2 0.6-0.3 2.4 1.1 1.7l9-5c4.6-2.7 8.3-7.5 10.1-13.1l1.3-5.3c0.4-0.4 0-1.1-0.5-1.2zm-11.5 17.5-0.6 0.4c-2-2.6-4.5-4.7-7.5-5.7 0.5-3.8-0.3-6.8-1.2-9.1l1.1-0.6c4.8-2 9.8-2.7 16.2-0.9l1.6 0.4-0.8 2.7c-1.5 4.9-4.5 9.6-8.8 12.8z'
       fill='#E60000'
     />
+  </svg>
+)
+
+export const NvidiaIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    {...props}
+    height='1em'
+    viewBox='30 28 280 172'
+    width='1em'
+    xmlns='http://www.w3.org/2000/svg'
+  >
+    <title>NVIDIA</title>
+    <path
+      d='M82.211,102.414c0,0,22.504-33.203,67.437-36.638V53.73c-49.769,3.997-92.867,46.149-92.867,46.149s24.41,70.565,92.867,77.026v-12.804C99.411,157.781,82.211,102.414,82.211,102.414z M149.648,138.637v11.726c-37.968-6.769-48.507-46.237-48.507-46.237s18.23-20.195,48.507-23.47v12.867c-0.023,0-0.039-0.007-0.058-0.007c-15.891-1.907-28.305,12.938-28.305,12.938S128.243,131.445,149.648,138.637 M149.648,31.512V53.73c1.461-0.112,2.922-0.207,4.391-0.257c56.582-1.907,93.449,46.406,93.449,46.406s-42.343,51.488-86.457,51.488c-4.043,0-7.828-0.375-11.383-1.005v13.739c3.04,0.386,6.192,0.613,9.481,0.613c41.051,0,70.738-20.965,99.484-45.778c4.766,3.817,24.278,13.103,28.289,17.168c-27.332,22.883-91.031,41.329-127.144,41.329c-3.481,0-6.824-0.211-10.11-0.528v19.306h156.032V31.512H149.648z M149.648,80.656V65.777c1.446-0.101,2.903-0.179,4.391-0.226c40.688-1.278,67.382,34.965,67.382,34.965s-28.832,40.043-59.746,40.043c-4.449,0-8.438-0.715-12.028-1.922V93.523c15.84,1.914,19.028,8.911,28.551,24.786l21.18-17.859c0,0-15.461-20.277-41.524-20.277C155.021,80.172,152.31,80.371,149.648,80.656'
+      fill='#77B900'
+    />
+  </svg>
+)
+
+export const ZaiIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...props} height='1em' viewBox='0 0 30 30' width='1em' xmlns='http://www.w3.org/2000/svg'>
+    <title>Z.ai</title>
+    <path
+      d='M24.51,28.51H5.49c-2.21,0-4-1.79-4-4V5.49c0-2.21,1.79-4,4-4h19.03c2.21,0,4,1.79,4,4v19.03C28.51,26.72,26.72,28.51,24.51,28.51z'
+      fill='#2D2D2D'
+    />
+    <path
+      d='M15.47,7.1l-1.3,1.85c-0.2,0.29-0.54,0.47-0.9,0.47h-7.1V7.09C6.16,7.1,15.47,7.1,15.47,7.1z'
+      fill='#FFFFFF'
+    />
+    <polygon fill='#FFFFFF' points='24.3,7.1 13.14,22.91 5.7,22.91 16.86,7.1' />
+    <path d='M14.53,22.91l1.31-1.86c0.2-0.29,0.54-0.47,0.9-0.47h7.09v2.33H14.53z' fill='#FFFFFF' />
   </svg>
 )
 
@@ -6827,6 +6938,22 @@ export function JiraServiceManagementIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function FlintIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='374 415 519 617' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path d='M374 1004.46L679.798 1031.21V833.875L374 847.451V1004.46Z' fill='currentColor' />
+      <path
+        d='M374 567.086V676.084L803.573 606.042V764.423L892.518 750.061V415L374 567.086Z'
+        fill='currentColor'
+      />
+      <path
+        d='M374 831.711L695.54 817.349V894.67L787.634 891.719V624.536L374 692.217V831.711Z'
+        fill='currentColor'
+      />
+    </svg>
+  )
+}
+
 export function FirefliesIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   const g1 = `fireflies_g1_${id}`
@@ -8580,6 +8707,27 @@ export function JupyterIcon(props: SVGProps<SVGSVGElement>) {
       <use xlinkHref='#jupyter-path-9' transform='translate(3.21 4.88)' fill='#F37726' />
       <use xlinkHref='#jupyter-path-10' transform='translate(3.28 43.09)' fill='#9E9E9E' />
       <use xlinkHref='#jupyter-path-11' transform='translate(1.87 5.43)' fill='#616262' />
+    </svg>
+  )
+}
+
+export function RocketlaneIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 19.001 16.514' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <g transform='translate(0 -6.486)'>
+        <path
+          fillRule='evenodd'
+          clipRule='evenodd'
+          d='M15.446 6.94198L19.0007 14.7744L15.446 22.6068C14.652 22.862 13.8054 22.9998 12.9266 22.9998C11.714 22.9998 10.5627 22.7374 9.52637 22.2664L12.9266 14.7744L9.52637 7.28242C10.5627 6.81133 11.714 6.54895 12.9266 6.54895C13.8054 6.54895 14.652 6.68677 15.446 6.94198Z'
+          fill='#0F62FE'
+        />
+        <path
+          fillRule='evenodd'
+          clipRule='evenodd'
+          d='M6.03112 7.01001L9.52638 14.7114L6.03112 22.4129C5.13054 22.7516 4.15483 22.9369 3.13585 22.9369C2.02543 22.9369 0.96641 22.7168 0 22.318L3.45221 14.7114L2.49902e-08 7.10487C0.96641 6.70602 2.02543 6.48599 3.13585 6.48599C4.15483 6.48599 5.13054 6.67128 6.03112 7.01001Z'
+          fill='currentColor'
+        />
+      </g>
     </svg>
   )
 }

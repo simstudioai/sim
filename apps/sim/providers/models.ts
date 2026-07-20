@@ -18,6 +18,7 @@ import {
   FireworksIcon,
   GeminiIcon,
   GroqIcon,
+  KimiIcon,
   LitellmIcon,
   MetaIcon,
   MistralIcon,
@@ -2548,6 +2549,85 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       },
     ],
   },
+  kimi: {
+    id: 'kimi',
+    name: 'Kimi',
+    description: "Moonshot AI's Kimi models via an OpenAI-compatible API",
+    defaultModel: 'kimi-k2.6',
+    // No fallback pattern — an unscoped `/^kimi/` would overmatch Kimi weights re-hosted by
+    // other providers (e.g. `moonshotai/kimi-*` on aggregators) and misroute them here.
+    modelPatterns: [],
+    icon: KimiIcon,
+    color: '#1783FF',
+    contextInformationAvailable: true,
+    capabilities: {
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'kimi-k3',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-07-16',
+        },
+        capabilities: {
+          toolUsageControl: true,
+          maxOutputTokens: 1048576,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-07-16',
+        recommended: true,
+      },
+      {
+        id: 'kimi-k2.7-code',
+        pricing: {
+          input: 0.95,
+          cachedInput: 0.19,
+          output: 4.0,
+          updatedAt: '2026-07-16',
+        },
+        capabilities: {
+          toolUsageControl: true,
+        },
+        contextWindow: 262144,
+        releaseDate: '2026-06-12',
+      },
+      {
+        id: 'kimi-k2.7-code-highspeed',
+        pricing: {
+          input: 1.9,
+          cachedInput: 0.38,
+          output: 8.0,
+          updatedAt: '2026-07-16',
+        },
+        capabilities: {
+          toolUsageControl: true,
+        },
+        contextWindow: 262144,
+        releaseDate: '2026-06-12',
+        speedOptimized: true,
+      },
+      {
+        id: 'kimi-k2.6',
+        pricing: {
+          input: 0.95,
+          cachedInput: 0.16,
+          output: 4.0,
+          updatedAt: '2026-07-16',
+        },
+        capabilities: {
+          toolUsageControl: true,
+          thinking: {
+            levels: ['disabled', 'enabled'],
+            default: 'enabled',
+          },
+        },
+        contextWindow: 262144,
+      },
+    ],
+  },
   zai: {
     id: 'zai',
     name: 'Z.ai',
@@ -3921,6 +4001,8 @@ export function getHostedModels(): string[] {
     ...getProviderModels('anthropic'),
     ...getProviderModels('google'),
     ...getProviderModels('zai'),
+    ...getProviderModels('xai'),
+    ...getProviderModels('kimi'),
   ]
 }
 

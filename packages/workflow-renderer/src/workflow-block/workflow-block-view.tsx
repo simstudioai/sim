@@ -2,6 +2,7 @@ import type { ComponentType, ReactNode, Ref } from 'react'
 import { Badge, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
 import { Handle, Position } from 'reactflow'
 import { HANDLE_POSITIONS } from '../dimensions'
+import { OverflowSpan } from '../lib/overflow-span'
 import { tileIconColorClass } from '../lib/tile-icon-color'
 import type { BlockRunStatus } from '../types'
 import { SubBlockRowView } from './sub-block-row-view'
@@ -212,15 +213,13 @@ export function WorkflowBlockView({
                 )}
               />
             </div>
-            <span
+            <OverflowSpan
+              value={name}
               className={cn(
                 'truncate font-medium text-md',
                 !isEnabled && runPathStatus !== 'success' && 'text-[var(--text-muted)]'
               )}
-              title={name}
-            >
-              {name}
-            </span>
+            />
           </div>
           <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
             {isWorkflowSelector &&

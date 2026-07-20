@@ -12,20 +12,18 @@ import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { and, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
-import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
+import {
+  assertBillingAttributionSnapshot,
+  type BillingAttributionSnapshot,
+} from '@/lib/billing/core/billing-attribution'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
-import {
-  hardDeleteDocuments,
-  isTriggerAvailable,
-  processDocumentsWithQueue,
-} from '@/lib/knowledge/documents/service'
+import { hardDeleteDocuments, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 import { StorageService } from '@/lib/uploads'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { knowledgeConnectorSync } from '@/background/knowledge-connector-sync'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
   ConnectorAuthConfig,
@@ -86,10 +84,17 @@ type DocClassification =
  *   is already indexed is kept as-is (last-known-good) rather than downgraded.
  * - `drop`: empty, non-deferred content that cannot be indexed.
  * - `add` / `update` / `unchanged`: normal content reconciliation by content hash.
+ *
+ * `forceRehydrate` (set on a full resync of a `rehydrateOnFullSync` connector) promotes
+ * an otherwise-`unchanged` deferred document to `update` so its content is re-fetched —
+ * needed when rendered content can drift without the hash changing (e.g. Confluence
+ * transclusions). Non-deferred docs already carry final content from listing, so they
+ * are left `unchanged` (re-indexing identical content would be pointless).
  */
 export function classifyExternalDoc(
   extDoc: Pick<ExternalDocument, 'content' | 'contentDeferred' | 'contentHash' | 'skippedReason'>,
-  existing: { id: string; contentHash: string | null } | undefined
+  existing: { id: string; contentHash: string | null } | undefined,
+  forceRehydrate = false
 ): DocClassification {
   if (extDoc.skippedReason) {
     return existing ? { type: 'unchanged' } : { type: 'skip' }
@@ -101,6 +106,9 @@ export function classifyExternalDoc(
     return { type: 'add' }
   }
   if (existing.contentHash !== extDoc.contentHash) {
+    return { type: 'update', existingId: existing.id }
+  }
+  if (forceRehydrate && extDoc.contentDeferred) {
     return { type: 'update', existingId: existing.id }
   }
   return { type: 'unchanged' }
@@ -262,84 +270,6 @@ export function resolveTagMapping(
 }
 
 /**
- * Dispatch a connector sync using the configured background execution backend.
- */
-export async function dispatchSync(
-  connectorId: string,
-  options?: { fullSync?: boolean; requestId?: string }
-): Promise<void> {
-  const requestId = options?.requestId ?? generateId()
-
-  if (isTriggerAvailable()) {
-    const connectorRows = await db
-      .select({
-        knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
-        connectorArchivedAt: knowledgeConnector.archivedAt,
-        connectorDeletedAt: knowledgeConnector.deletedAt,
-        workspaceId: knowledgeBase.workspaceId,
-        userId: knowledgeBase.userId,
-        kbDeletedAt: knowledgeBase.deletedAt,
-      })
-      .from(knowledgeConnector)
-      .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
-      .where(eq(knowledgeConnector.id, connectorId))
-      .limit(1)
-
-    const row = connectorRows[0]
-    if (!row) {
-      logger.warn(`Skipping sync dispatch: connector not found`, { connectorId, requestId })
-      return
-    }
-    if (row.kbDeletedAt) {
-      logger.warn(`Skipping sync dispatch: knowledge base is deleted`, {
-        connectorId,
-        knowledgeBaseId: row.knowledgeBaseId,
-        requestId,
-      })
-      await db
-        .update(knowledgeConnector)
-        .set({
-          status: 'error',
-          nextSyncAt: null,
-          lastSyncError: 'Knowledge base deleted',
-          updatedAt: new Date(),
-        })
-        .where(eq(knowledgeConnector.id, connectorId))
-      return
-    }
-    if (row.connectorArchivedAt || row.connectorDeletedAt) {
-      logger.warn(`Skipping sync dispatch: connector is archived or deleted`, {
-        connectorId,
-        requestId,
-      })
-      return
-    }
-
-    const tags = [`connectorId:${connectorId}`]
-    if (row.knowledgeBaseId) tags.push(`knowledgeBaseId:${row.knowledgeBaseId}`)
-    if (row.workspaceId) tags.push(`workspaceId:${row.workspaceId}`)
-    if (row.userId) tags.push(`userId:${row.userId}`)
-
-    await knowledgeConnectorSync.trigger(
-      {
-        connectorId,
-        fullSync: options?.fullSync,
-        requestId,
-      },
-      { tags, region: await resolveTriggerRegion() }
-    )
-    logger.info(`Dispatched connector sync to Trigger.dev`, { connectorId, requestId })
-  } else {
-    executeSync(connectorId, { fullSync: options?.fullSync }).catch((error) => {
-      logger.error(`Sync failed for connector ${connectorId}`, {
-        error: toError(error).message,
-        requestId,
-      })
-    })
-  }
-}
-
-/**
  * Resolves an access token for a connector based on its auth mode.
  * OAuth connectors refresh via the credential system; API key connectors
  * decrypt the key stored in the dedicated `encryptedApiKey` column.
@@ -388,8 +318,13 @@ async function resolveAccessToken(
  */
 export async function executeSync(
   connectorId: string,
-  options?: { fullSync?: boolean }
+  options: {
+    billingAttribution: BillingAttributionSnapshot
+    fullSync?: boolean
+    rehydrate?: boolean
+  }
 ): Promise<SyncResult> {
+  const billingAttribution = assertBillingAttributionSnapshot(options?.billingAttribution)
   const result: SyncResult = {
     docsAdded: 0,
     docsUpdated: 0,
@@ -448,6 +383,16 @@ export async function executeSync(
   // Resolved once per sync and threaded into add/updateDocument so every synced
   // kb/ object records a trusted ownership binding without an N+1 KB lookup.
   const kbOwner: KnowledgeBaseOwner = { workspaceId: kbRows[0].workspaceId, userId }
+  if (!kbOwner.workspaceId) {
+    throw new Error(
+      `Knowledge base ${connector.knowledgeBaseId} is missing workspace billing context`
+    )
+  }
+  if (billingAttribution.workspaceId !== kbOwner.workspaceId) {
+    throw new Error(
+      `Connector sync billing attribution does not match knowledge base workspace ${kbOwner.workspaceId}`
+    )
+  }
   const sourceConfig = connector.sourceConfig as Record<string, unknown>
 
   const lockResult = await db
@@ -487,14 +432,33 @@ export async function executeSync(
     let hasMore = true
     const syncContext: Record<string, unknown> = { syncRunId: generateId() }
 
-    // Determine if this sync should be incremental
+    /**
+     * Determine if this sync should be incremental. A `rehydrate` request forces a
+     * full listing too: re-hydration must see *every* document (a container page can
+     * be unchanged itself yet transclude a page that changed), and an incremental
+     * listing would omit those unchanged containers, so they'd never be re-fetched.
+     */
     const isIncremental =
       connectorConfig.supportsIncrementalSync &&
       connector.syncMode !== 'full' &&
       !options?.fullSync &&
+      !options?.rehydrate &&
       connector.lastSyncAt != null
     const lastSyncAt =
       isIncremental && connector.lastSyncAt ? new Date(connector.lastSyncAt) : undefined
+
+    /**
+     * Re-hydrate and re-index connectors whose rendered content can drift without a
+     * hash change (transclusions) — see `ConnectorMeta.rehydrateOnFullSync`. Driven
+     * by the dedicated `rehydrate` request (the "Full resync" action) or implied by a
+     * true `fullSync`. It forces a full listing (above) and re-indexes unchanged
+     * deferred docs, but — unlike `fullSync` — it does NOT bypass any
+     * deletion-reconciliation safety guard. Incremental syncs of other connectors
+     * stay hash-gated.
+     */
+    const forceRehydrate = Boolean(
+      (options?.rehydrate || options?.fullSync) && connectorConfig.rehydrateOnFullSync
+    )
 
     for (let pageNum = 0; hasMore && pageNum < MAX_PAGES; pageNum++) {
       if (pageNum > 0 && connectorConfig.auth.mode === 'oauth') {
@@ -620,7 +584,7 @@ export async function executeSync(
       }
 
       const existing = existingByExternalId.get(extDoc.externalId)
-      const classification = classifyExternalDoc(extDoc, existing)
+      const classification = classifyExternalDoc(extDoc, existing, forceRehydrate)
 
       switch (classification.type) {
         case 'skip':
@@ -704,8 +668,15 @@ export async function executeSync(
               return null
             }
             const hydratedHash = fullDoc.contentHash ?? op.extDoc.contentHash
+            /**
+             * Normally an update whose hydrated hash matches the stored hash is a
+             * no-op (content unchanged). On a forced re-hydration the hash is
+             * version-based and cannot reflect the rendered-dependency change we are
+             * refreshing for, so re-index unconditionally instead of skipping.
+             */
             if (
               op.type === 'update' &&
+              !forceRehydrate &&
               existingByExternalId.get(op.extDoc.externalId)?.contentHash === hydratedHash
             ) {
               result.docsUnchanged++
@@ -805,7 +776,13 @@ export async function executeSync(
 
       if (batchDocs.length > 0) {
         try {
-          await processDocumentsWithQueue(batchDocs, connector.knowledgeBaseId, {}, generateId())
+          await processDocumentsWithQueue(
+            batchDocs,
+            connector.knowledgeBaseId,
+            {},
+            generateId(),
+            billingAttribution
+          )
         } catch (error) {
           logger.warn('Failed to enqueue batch for processing — will retry on next sync', {
             connectorId,
@@ -916,7 +893,8 @@ export async function executeSync(
           })),
           connector.knowledgeBaseId,
           {},
-          generateId()
+          generateId(),
+          billingAttribution
         )
       } catch (error) {
         logger.warn('Failed to enqueue stuck documents for reprocessing', {

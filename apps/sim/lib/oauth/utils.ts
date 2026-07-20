@@ -126,7 +126,6 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'user.info.basic': "Read a user's profile info (open id, avatar, display name)",
   'user.info.profile': "Read a user's profile info (bio, verification status, username)",
   'user.info.stats': "Read a user's stats (follower, following, likes, and video counts)",
-  'video.publish': "Directly post content to a user's TikTok profile",
   'video.upload': "Share content to a creator's account as a draft for further edit and post",
   'video.list': "Read a user's public TikTok videos",
 
@@ -359,6 +358,13 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // LinkedIn scopes
   w_member_social: 'Access LinkedIn profile',
 
+  // Instagram scopes (Business Login for Instagram)
+  instagram_business_basic: 'Access Instagram professional profile and media',
+  instagram_business_content_publish: 'Publish photos, videos, reels, and stories',
+  instagram_business_manage_comments: 'Read, reply to, hide, and delete comments',
+  instagram_business_manage_messages: 'Read conversations and send Instagram Direct messages',
+  instagram_business_manage_insights: 'Read account and media insights',
+
   // Box scopes
   root_readwrite: 'Read and write all files and folders in Box account',
   root_readonly: 'Read all files and folders in Box account',
@@ -516,7 +522,13 @@ export function getServiceConfigByServiceId(serviceId: string): OAuthServiceConf
 export function getServiceConfigByProviderId(providerId: string): OAuthServiceConfig | null {
   for (const provider of Object.values(OAUTH_PROVIDERS)) {
     for (const [key, service] of Object.entries(provider.services)) {
-      if (service.providerId === providerId || key === providerId) {
+      // Also resolve a service-account provider id (e.g. `slack-custom-bot`) back
+      // to its owning service so its credentials group under that integration.
+      if (
+        service.providerId === providerId ||
+        key === providerId ||
+        service.serviceAccountProviderId === providerId
+      ) {
         return service
       }
     }

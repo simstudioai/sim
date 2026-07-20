@@ -68,10 +68,7 @@ export async function detectMcpAuthType(
 
     if (res.status === 401) {
       const params = extractWWWAuthenticateParams(res)
-      // Per RFC 9728, an OAuth-protected resource signals OAuth via
-      // `resource_metadata=...` in WWW-Authenticate. `scope=...` is also an
-      // OAuth-specific hint. A bare `error="invalid_token"` is generic Bearer
-      // and used by plain API-key servers too, so it must not classify as OAuth.
+      // RFC 9728: resource_metadata / scope signal OAuth; a bare invalid_token is generic Bearer (API-key servers use it too).
       if (params.resourceMetadataUrl || params.scope) {
         return 'oauth'
       }

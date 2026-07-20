@@ -5,11 +5,16 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/billing-attribution'
 import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
-import { getTablePlanLimits, type PlanName, type TablePlanLimits } from '@/lib/table/constants'
-import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import {
+  getBillingDisabledTableLimits,
+  getTablePlanLimits,
+  type PlanName,
+  type TablePlanLimits,
+} from '@/lib/table/constants'
 
 const logger = createLogger('TableBilling')
 
@@ -33,17 +38,20 @@ async function maybeNotifyTableRowLimit(
   limit: number
 ): Promise<void> {
   try {
-    const billedUserId = await getWorkspaceBilledAccountUserId(workspaceId)
-    if (!billedUserId) return
+    const payer = await resolveWorkspaceBillingPayer(workspaceId, { onMissing: 'return-null' })
+    if (!payer) return
 
     await maybeNotifyLimit({
       category: 'tables',
-      billedUserId,
+      billedUserId: payer.billedAccountUserId,
       workspaceId,
       currentUsage: projectedRowCount,
       limit,
       usageLabel: `${projectedRowCount.toLocaleString('en-US')} rows`,
       limitLabel: `${limit.toLocaleString('en-US')} rows`,
+      billingEntity: payer.organizationId
+        ? { type: 'organization', id: payer.organizationId }
+        : { type: 'user', id: payer.billedAccountUserId },
     })
   } catch (error) {
     logger.error('Error evaluating table row-limit notification:', error)
@@ -97,6 +105,11 @@ const LIMITS_CACHE_TTL_MS = 30_000
 const LIMITS_CACHE_MAX_ENTRIES = 5_000
 const limitsCache = new Map<string, { limits: TablePlanLimits; expiresAt: number }>()
 
+/** Immediately evicts cached billing-derived limits after a billing owner change. */
+export function invalidateWorkspaceTableLimitsCache(workspaceId: string): void {
+  limitsCache.delete(workspaceId)
+}
+
 /**
  * Gets the table limits for a workspace based on its billing plan.
  *
@@ -108,6 +121,10 @@ const limitsCache = new Map<string, { limits: TablePlanLimits; expiresAt: number
  * @returns Table limits based on the workspace's billing plan
  */
 export async function getWorkspaceTableLimits(workspaceId: string): Promise<TablePlanLimits> {
+  if (!isBillingEnabled) {
+    return getBillingDisabledTableLimits()
+  }
+
   const cached = limitsCache.get(workspaceId)
   if (cached) {
     if (cached.expiresAt > Date.now()) return cached.limits
@@ -117,22 +134,20 @@ export async function getWorkspaceTableLimits(workspaceId: string): Promise<Tabl
   const planLimits = getTablePlanLimits()
 
   try {
-    const billedAccountUserId = await getWorkspaceBilledAccountUserId(workspaceId)
-
-    if (!billedAccountUserId) {
+    const payer = await resolveWorkspaceBillingPayer(workspaceId, { onMissing: 'return-null' })
+    if (!payer) {
       logger.warn('No billed account found for workspace, using free tier limits', { workspaceId })
       cacheLimits(workspaceId, planLimits.free)
       return planLimits.free
     }
 
-    const subscription = await getHighestPrioritySubscription(billedAccountUserId)
-    const planName = getPlanTypeForLimits(subscription?.plan) as PlanName
+    const planName = getPlanTypeForLimits(payer.payerSubscription?.plan) as PlanName
 
     const limits = planLimits[planName] ?? planLimits.free
 
     logger.info('Retrieved workspace table limits', {
       workspaceId,
-      billedAccountUserId,
+      billedAccountUserId: payer.billedAccountUserId,
       planName,
       limits,
     })

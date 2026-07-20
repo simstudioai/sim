@@ -11,17 +11,20 @@ import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markup'
 import '@sim/emcn/components/code/code.css'
-import { Checkbox, CopyCodeButton, cn, highlight, languages } from '@sim/emcn'
+import { Checkbox, CopyCodeButton, cn, languages, highlight as prismHighlight } from '@sim/emcn'
+import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
+import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
   type ContentSegment,
   PendingTagIndicator,
   parseSpecialTags,
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatContextKind, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { sanitizeChatDisplayContent } from './chat-sanitize'
+import { ExternalLink, externalLinkHostname } from './external-link'
 
 const LANG_ALIASES: Record<string, string> = {
   js: 'javascript',
@@ -99,7 +102,8 @@ function endsInlineWord(value: string): boolean {
 
 function nextInlineSegmentLabel(segment?: ContentSegment): string {
   if (!segment) return ''
-  if (segment.type === 'text' || segment.type === 'thinking') return segment.content
+  // Thinking segments are never rendered, so they contribute no following text.
+  if (segment.type === 'text') return segment.content
   if (segment.type === 'workspace_resource') return segment.data.title || segment.data.id || ''
   return ''
 }
@@ -131,6 +135,63 @@ function appendInlineReferenceMarkdown(
 
 type TdProps = ComponentPropsWithoutRef<'td'>
 type ThProps = ComponentPropsWithoutRef<'th'>
+
+/**
+ * Maps a `#wsres-{type}-{ref}` link's resource type to the chat-context kind
+ * whose icon represents it, so inline resource references render the same
+ * type icon as the user-input context chips.
+ */
+const WSRES_LINK_KINDS: Record<string, ChatContextKind | undefined> = {
+  workflow: 'workflow',
+  table: 'table',
+  file: 'file',
+}
+
+/**
+ * Label used to pick a file link's extension-aware document icon. The visible
+ * link text can be a custom title without an extension, so prefer the file
+ * name carried in the link's VFS path (its last extension-bearing segment).
+ */
+function fileIconLabel(ref: string, fallback: string): string {
+  const segments = ref.split('/').filter(Boolean)
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const decoded = decodeVfsSegmentSafe(segments[i])
+    if (decoded.includes('.')) return decoded
+  }
+  return fallback
+}
+
+/**
+ * Bounded LRU cache for Prism highlight output. Chat rows are virtualized, so a
+ * message re-highlights every time it scrolls back into view; a component
+ * `useMemo` would not survive the unmount, so the cache lives at module scope.
+ * Output for an unregistered language is never cached — it renders through the
+ * JavaScript fallback, so caching it would keep serving that stale render if the
+ * real grammar registers later in the session.
+ */
+const HIGHLIGHT_CACHE_LIMIT = 512
+const highlightCache = new Map<string, string>()
+
+function highlight(code: string, language: string): string {
+  const resolved = LANG_ALIASES[language] || language || 'javascript'
+  const grammar = languages[resolved]
+  if (!grammar) return prismHighlight(code, languages.javascript, resolved)
+
+  const key = `${resolved}\n${code}`
+  const cached = highlightCache.get(key)
+  if (cached !== undefined) {
+    highlightCache.delete(key)
+    highlightCache.set(key, cached)
+    return cached
+  }
+  const html = prismHighlight(code, grammar, resolved)
+  highlightCache.set(key, html)
+  if (highlightCache.size > HIGHLIGHT_CACHE_LIMIT) {
+    const oldest = highlightCache.keys().next().value
+    if (oldest !== undefined) highlightCache.delete(oldest)
+  }
+  return html
+}
 
 const MARKDOWN_COMPONENTS = {
   table({ children }: { children?: React.ReactNode }) {
@@ -178,9 +239,7 @@ const MARKDOWN_COMPONENTS = {
       )
     }
 
-    const resolved = LANG_ALIASES[language] || language || 'javascript'
-    const grammar = languages[resolved] || languages.javascript
-    const html = highlight(codeString.trimEnd(), grammar, resolved)
+    const html = highlight(codeString.trimEnd(), language)
 
     return (
       <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--divider)]'>
@@ -202,28 +261,55 @@ const MARKDOWN_COMPONENTS = {
   },
   a({ children, href }: { children?: React.ReactNode; href?: string }) {
     if (href?.startsWith('#wsres-')) {
+      const match = href.match(/^#wsres-(\w+)-(.+)$/)
+      const type = match?.[1]
+      const ref = match?.[2]
+      const kind = type ? WSRES_LINK_KINDS[type] : undefined
+      const label = extractTextContent(children)
       return (
         <a
           href={href}
-          className='text-[var(--text-primary)] underline decoration-dashed underline-offset-4'
+          className={cn(
+            'text-[var(--text-primary)]',
+            kind
+              ? 'not-prose inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px] no-underline transition-colors hover-hover:bg-[var(--surface-6)]'
+              : 'underline decoration-dashed underline-offset-4'
+          )}
           onClick={(e) => {
             e.preventDefault()
-            const match = href.match(/^#wsres-(\w+)-(.+)$/)
-            if (match) {
-              const type = match[1]
-              const ref = match[2]
-              const linkText = e.currentTarget.textContent || ref
-              window.dispatchEvent(
-                new CustomEvent('wsres-click', {
-                  detail:
-                    type === 'file'
-                      ? { type, path: ref, title: linkText }
-                      : { type, id: ref, title: linkText },
-                })
-              )
-            }
+            if (!type || !ref) return
+            const linkText = label || ref
+            window.dispatchEvent(
+              new CustomEvent('wsres-click', {
+                detail:
+                  type === 'file'
+                    ? { type, path: ref, title: linkText }
+                    : { type, id: ref, title: linkText },
+              })
+            )
           }}
         >
+          {kind && ref && (
+            <ContextMentionIcon
+              context={{ kind, label: kind === 'file' ? fileIconLabel(ref, label) : label }}
+              className='relative top-0.5 size-[12px] flex-shrink-0 text-[var(--text-icon)]'
+            />
+          )}
+          {children}
+        </a>
+      )
+    }
+    const hostname = externalLinkHostname(href)
+    if (hostname && href) {
+      return (
+        <ExternalLink href={href} hostname={hostname}>
+          {children}
+        </ExternalLink>
+      )
+    }
+    if (href?.startsWith('mailto:')) {
+      return (
+        <a href={href} className='not-prose text-[var(--text-primary)] no-underline'>
           {children}
         </a>
       )
@@ -304,17 +390,25 @@ const MARKDOWN_COMPONENTS = {
 interface ChatContentProps {
   content: string
   isStreaming?: boolean
+  /** Transcript-derived answers for this message's question card (renders the recap). */
+  questionAnswers?: string[]
   onOptionSelect?: (id: string) => void
+  onQuestionDismiss?: () => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
   onRevealStateChange?: (isRevealing: boolean) => void
+  /** Reports whether this segment is actively painting text or its own pending-tag indicator. */
+  onStreamActivityChange?: (active: boolean) => void
 }
 
 function ChatContentInner({
   content,
   isStreaming = false,
+  questionAnswers,
   onOptionSelect,
+  onQuestionDismiss,
   onWorkspaceResourceSelect,
   onRevealStateChange,
+  onStreamActivityChange,
 }: ChatContentProps) {
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
@@ -324,7 +418,8 @@ function ChatContentInner({
 
   const displayContent = useMemo(() => sanitizeChatDisplayContent(content), [content])
   const streamedContent = useSmoothText(displayContent, isStreaming)
-  const isRevealing = isStreaming || streamedContent.length < displayContent.length
+  const hasRevealBacklog = streamedContent.length < displayContent.length
+  const isRevealing = isStreaming || hasRevealBacklog
 
   useEffect(() => {
     onRevealStateChangeRef.current?.(isRevealing)
@@ -435,6 +530,12 @@ function ChatContentInner({
     () => parseSpecialTags(streamedContent, isRevealing),
     [streamedContent, isRevealing]
   )
+  const hasPendingIndicator = parsed.hasPendingTag && isRevealing
+
+  useEffect(() => {
+    onStreamActivityChange?.(hasRevealBacklog || hasPendingIndicator)
+    return () => onStreamActivityChange?.(false)
+  }, [hasPendingIndicator, hasRevealBacklog, onStreamActivityChange])
 
   type BlockSegment = Exclude<
     ContentSegment,
@@ -468,7 +569,11 @@ function ChatContentInner({
         `[${label}](<#wsres-${s.data.type}-${ref}>)`,
         nextSegment
       )
-    } else if (s.type === 'text' || s.type === 'thinking') {
+    } else if (s.type === 'thinking') {
+      // Model-emitted <thinking> tag bodies are reasoning, not answer text —
+      // never rendered (matches the block-level thinking omission in
+      // message-content and the tag stripping in the inbox executor).
+    } else if (s.type === 'text') {
       pendingMarkdown += s.content
     } else {
       flushMarkdown()
@@ -513,11 +618,13 @@ function ChatContentInner({
           <SpecialTags
             key={`special-${group.index}`}
             segment={group.segment}
+            questionAnswers={questionAnswers}
             onOptionSelect={onOptionSelect}
+            onQuestionDismiss={onQuestionDismiss}
           />
         )
       })}
-      {parsed.hasPendingTag && isRevealing && <PendingTagIndicator />}
+      {hasPendingIndicator && <PendingTagIndicator />}
     </div>
   )
 }

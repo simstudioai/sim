@@ -1015,12 +1015,21 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
   })
 
   /**
-   * Re-measure rows when wrap mode or content changes so dynamic (wrapped) row
-   * heights stay accurate. Fixed-height (`nowrap`) rows do not need re-measuring.
+   * Drop cached row measurements when leaving wrap mode: the measureElement
+   * refs detach with their wrapped heights still cached, and falling back to
+   * the fixed estimate is exactly correct for nowrap rows. Entering wrap needs
+   * no reset — refs re-attach and re-measure as rows render.
+   *
+   * Deliberately NOT keyed on content (`visibleLines`): `measure()` wipes the
+   * cache without re-measuring mounted rows (ResizeObserver only fires on size
+   * changes; React never re-invokes an unchanged ref), so a content change that
+   * keeps row heights — Prism resolving its lazy load, search `<mark>`
+   * highlighting — would permanently collapse wrapped rows onto the rows below.
+   * Genuine height changes are caught by the per-row ResizeObserver.
    */
   useEffect(() => {
-    virtualizer.measure()
-  }, [wrapText, visibleLines, virtualizer])
+    if (!wrapText) virtualizer.measure()
+  }, [wrapText, virtualizer])
 
   useEffect(() => {
     if (!searchQuery?.trim() || matchCount === 0 || !scrollRef.current) return

@@ -333,6 +333,74 @@ describe('Knowledge Search API Route', () => {
       })
     })
 
+    it('fails before embedding work when an internal workspace request omits attribution', async () => {
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+        success: true,
+        userId: 'user-123',
+        authType: 'internal_jwt',
+      })
+      mockCheckKnowledgeBaseAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: {
+          id: 'kb-123',
+          userId: 'user-123',
+          workspaceId: 'workspace-123',
+          embeddingModel: 'text-embedding-3-small',
+        },
+      })
+
+      const req = createMockRequest('POST', {
+        ...validSearchData,
+        skipUsageBilling: true,
+      })
+      const response = await POST(req)
+
+      expect(response.status).toBe(500)
+      expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled()
+    })
+
+    it('uses the immutable header for an internal unmetered workspace search', async () => {
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+        success: true,
+        userId: 'user-123',
+        authType: 'internal_jwt',
+      })
+      mockCheckKnowledgeBaseAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: {
+          id: 'kb-123',
+          userId: 'user-123',
+          workspaceId: 'workspace-123',
+          embeddingModel: 'text-embedding-3-small',
+        },
+      })
+      mockHandleVectorOnlySearch.mockResolvedValue(mockSearchResults)
+      const attribution = encodeURIComponent(
+        JSON.stringify({
+          actorUserId: 'user-123',
+          workspaceId: 'workspace-123',
+          organizationId: 'organization-123',
+          billedAccountUserId: 'owner-123',
+          billingEntity: { type: 'organization', id: 'organization-123' },
+          billingPeriod: {
+            start: '2026-07-01T00:00:00.000Z',
+            end: '2026-08-01T00:00:00.000Z',
+          },
+          payerSubscription: null,
+        })
+      )
+
+      const req = createMockRequest(
+        'POST',
+        { ...validSearchData, skipUsageBilling: true },
+        { 'x-sim-billing-attribution': attribution }
+      )
+      const response = await POST(req)
+
+      expect(response.status).toBe(200)
+      expect(mockGenerateSearchEmbedding).toHaveBeenCalledOnce()
+    })
+
     it.concurrent('should return unauthorized for unauthenticated request', async () => {
       hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: false,

@@ -125,20 +125,31 @@ async function fetchMcpTools(
   }
 }
 
+function isServerEligibleForDiscovery(server: McpServer, workspaceId: string): boolean {
+  return (
+    server.enabled &&
+    server.workspaceId === workspaceId &&
+    (server.authType !== 'oauth' || server.connectionStatus === 'connected')
+  )
+}
+
 /**
  * Workspace aggregate derived from N parallel per-server queries via
  * `useQueries`. One slow server cannot block the others.
  */
 export function useMcpToolsQuery(workspaceId: string) {
+  const queryClient = useQueryClient()
   const { data: servers, isLoading: serversLoading } = useMcpServers(workspaceId)
 
-  // Skip disabled rows (would 404 → negative-cache) and rows from a previous
-  // workspace (keepPreviousData on useMcpServers).
+  /**
+   * Skip disabled rows, rows retained from a previous workspace, and OAuth rows
+   * that require explicit authorization before discovery can succeed.
+   */
   const serverIds = useMemo(
     () =>
       servers
         ? servers
-            .filter((s) => s.enabled && s.workspaceId === workspaceId)
+            .filter((server) => isServerEligibleForDiscovery(server, workspaceId))
             .map((s) => s.id)
             .sort()
         : [],
@@ -148,8 +159,17 @@ export function useMcpToolsQuery(workspaceId: string) {
   const results = useQueries({
     queries: serverIds.map((serverId) => ({
       queryKey: mcpKeys.serverToolsList(workspaceId, serverId),
-      queryFn: ({ signal }: { signal?: AbortSignal }) =>
-        fetchMcpTools(workspaceId, false, signal, serverId),
+      queryFn: async ({ signal }: { signal?: AbortSignal }) => {
+        try {
+          return await fetchMcpTools(workspaceId, false, signal, serverId)
+        } catch (error) {
+          await queryClient.invalidateQueries(
+            { queryKey: mcpKeys.serversList(workspaceId) },
+            { cancelRefetch: false }
+          )
+          throw error
+        }
+      },
       enabled: !!workspaceId,
       retry: false,
       staleTime: MCP_SERVER_TOOLS_STALE_TIME,
@@ -203,7 +223,9 @@ export function useForceRefreshMcpTools() {
     mutationFn: async (workspaceId: string) => {
       const allServers =
         queryClient.getQueryData<McpServer[]>(mcpKeys.serversList(workspaceId)) ?? []
-      const servers = allServers.filter((s) => s.enabled && s.workspaceId === workspaceId)
+      const servers = allServers.filter((server) =>
+        isServerEligibleForDiscovery(server, workspaceId)
+      )
       const results = await Promise.allSettled(
         servers.map(async (server) => {
           const tools = await fetchMcpTools(workspaceId, true, undefined, server.id)
@@ -282,9 +304,13 @@ export function useCreateMcpServer() {
   })
 }
 
-/** On `redirect`, the caller must wait for `popup.closed` or the `mcp-oauth` postMessage. */
+/**
+ * On `redirect`, the caller waits for the `mcp-oauth` BroadcastChannel signal (matched on
+ * `state`) or `popup.closed`. `state` is the per-flow OAuth nonce the callback echoes, used to
+ * correlate the eventual result back to this exact flow.
+ */
 export type StartMcpOauthMutationResult =
-  | { status: 'redirect'; popup: Window }
+  | { status: 'redirect'; popup: Window; state: string }
   | { status: 'already_authorized' }
 
 export function useStartMcpOauth() {
@@ -302,6 +328,10 @@ export function useStartMcpOauth() {
         if (parsedUrl.protocol !== 'https:' && !isLoopbackHttp) {
           throw new Error('Authorization URL must use HTTPS')
         }
+        const state = parsedUrl.searchParams.get('state')
+        if (!state) {
+          throw new Error('Authorization URL is missing the OAuth state parameter')
+        }
         const popup = window.open(
           result.authorizationUrl,
           `mcp-oauth-${serverId}`,
@@ -310,7 +340,7 @@ export function useStartMcpOauth() {
         if (!popup) {
           throw new Error('Popup blocked. Please allow popups for this site and retry.')
         }
-        return { status: 'redirect', popup }
+        return { status: 'redirect', popup, state }
       },
     }
   )

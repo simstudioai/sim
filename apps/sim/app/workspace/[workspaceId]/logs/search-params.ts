@@ -1,4 +1,6 @@
 import { createParser, parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import { createSortParams } from '@/lib/url-state'
+import type { LogSortBy } from '@/hooks/queries/logs'
 import {
   CORE_TRIGGER_TYPES,
   type LogLevel,
@@ -12,8 +14,9 @@ import {
  * single source of truth.
  *
  * The encoding here intentionally preserves the exact wire format the logs page
- * shipped before nuqs: `timeRange` uses kebab tokens, `level` / `workflowIds` /
- * `folderIds` / `triggers` are comma-joined, and `search` is trimmed.
+ * shipped before nuqs: `timeRange` uses kebab tokens and `level` /
+ * `workflowIds` / `folderIds` / `triggers` are comma-joined. `search` carries
+ * the raw input value (consumers trim on read).
  */
 
 const DEFAULT_TIME_RANGE: TimeRange = 'All time'
@@ -116,15 +119,44 @@ export const logFilterUrlKeys = {
   clearOnDefault: true,
 } as const
 
+/** Columns the logs list can sort by; must stay in sync with {@link LogSortBy}. */
+export const LOG_SORT_COLUMNS = [
+  'date',
+  'duration',
+  'cost',
+  'status',
+] as const satisfies readonly LogSortBy[]
+
 /**
- * Read-only deep link to a specific execution. Resolves to a log row and opens
- * the details sidebar on load. Intentionally NOT stripped — the link stays
- * shareable — so it carries no `clearOnDefault`/`history` options here.
+ * Sort params for the logs resource table (`sort` + `dir`). The defaults match
+ * the server's default ordering exactly (newest first), so with
+ * `clearOnDefault` a clean URL means "no active sort" and clearing the sort
+ * strips both params. Shares {@link logFilterUrlKeys} so sort changes replace
+ * history like filter changes.
+ */
+export const logSortParams = createSortParams(LOG_SORT_COLUMNS, {
+  column: 'date',
+  direction: 'desc',
+})
+
+/**
+ * Deep link to a specific execution. On load it resolves to a log row and
+ * opens the details sidebar; from then on it is kept in sync with the open
+ * run — row click, Enter, the sidebar's next/prev navigation, and closing the
+ * panel all write it — so the address bar always matches the open log and the
+ * link stays shareable.
  */
 export const executionIdParam = {
   key: 'executionId',
   parser: parseAsString,
 } as const
+
+/**
+ * Options for every `executionId` write. Browsing runs is view-state, not a
+ * destination — `replace` keeps rapid row-to-row navigation from flooding the
+ * browser back stack.
+ */
+export const executionIdWriteOptions = { history: 'replace' } as const
 
 const LOG_DETAILS_TABS = ['overview', 'trace'] as const
 

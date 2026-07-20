@@ -12,14 +12,26 @@ import {
   workflowMcpServer,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, gt, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import { omit } from '@sim/utils/object'
+import { and, asc, eq, gt, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import {
+  decrementStorageUsageForBillingContextInTx,
+  incrementStorageUsageForBillingContextInTx,
+  resolveStorageBillingContext,
+  type StorageBillingContext,
+} from '@/lib/billing/storage'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbOrTx } from '@/lib/db/types'
 import type { TableSchema } from '@/lib/table/types'
-import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
-import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
+import {
+  deleteFile,
+  downloadFile,
+  headObject,
+  uploadFile,
+} from '@/lib/uploads/core/storage-service'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { isRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 import type {
@@ -49,6 +61,20 @@ const CONTENT_PAGE = 500
  * processes one page at a time, so peak concurrency stays at this cap regardless of KB size.
  */
 const KB_DOCUMENT_COPY_CONCURRENCY = 5
+
+function deriveCopyIdentity(
+  kind: 'document' | 'embedding',
+  targetId: string,
+  sourceId: string
+): string {
+  const digest = sha256Hex(`${kind}:${targetId}:${sourceId}`).slice(0, 40)
+  return `fork_${kind}_${digest}`
+}
+
+/** Stable object key so a replay overwrites or reuses the same copied KB blob. */
+function deriveKbDocumentStorageKey(childDocumentId: string): string {
+  return `kb/fork-${childDocumentId}`
+}
 
 /**
  * Max copied skill bodies rewritten concurrently within one keyset page. Bounds the per-skill
@@ -138,6 +164,8 @@ export interface ForkContentDocumentEntry {
   childKnowledgeBaseId: string
   /** Source blob fields captured at placeholder time, for the post-commit blob re-key. */
   storageKey: string | null
+  fileUrl: string
+  fileSize: number
   filename: string
   mimeType: string
 }
@@ -367,6 +395,9 @@ export async function copyForkResourceContainers(
         createdBy: userId,
         url: typeof row.url === 'string' ? rewriteEnv(row.url) : row.url,
         headers,
+        // Normalize legacy `http`/`sse` transports to the only supported value so a
+        // forked row never carries a transport the API contract would reject.
+        transport: 'streamable-http',
         connectionStatus: 'disconnected',
         lastConnected: null,
         lastError: null,
@@ -530,6 +561,7 @@ export async function copyForkResourceContainers(
       kbIdMap: idMap.get('knowledge_base') ?? new Map(),
       kbEntryBySourceId,
       referencedDocumentIds,
+      now,
       record,
     })
   }
@@ -540,18 +572,19 @@ export async function copyForkResourceContainers(
 /**
  * Insert placeholder {@link document} rows in the child KBs for the referenced documents
  * whose parent KB is being copied, recording the `knowledge_document` source->child id map.
- * Each placeholder is the source document's metadata row at a fresh child id; its embeddings
- * and (re-keyed) blob are filled by {@link copyForkResourceContent} after commit. Documents
- * whose parent KB is not copied are skipped, leaving their references to be cleared.
+ * Each deterministic placeholder is archived with no storage key and zero bytes, so it is
+ * non-billable until {@link copyForkResourceContent} activates it atomically with accounting.
+ * Documents whose parent KB is not copied are skipped, leaving their references to be cleared.
  */
 async function createForkDocumentPlaceholders(params: {
   tx: DbOrTx
   kbIdMap: Map<string, string>
   kbEntryBySourceId: Map<string, ForkContentKbEntry>
   referencedDocumentIds: string[]
+  now: Date
   record: (type: ForkResourceType, sourceId: string, childId: string) => void
 }): Promise<void> {
-  const { tx, kbIdMap, kbEntryBySourceId, referencedDocumentIds, record } = params
+  const { tx, kbIdMap, kbEntryBySourceId, referencedDocumentIds, now, record } = params
   if (referencedDocumentIds.length === 0 || kbIdMap.size === 0) return
 
   const docs = await tx
@@ -571,14 +604,17 @@ async function createForkDocumentPlaceholders(params: {
     const childKbId = kbIdMap.get(doc.knowledgeBaseId)
     const kbEntry = kbEntryBySourceId.get(doc.knowledgeBaseId)
     if (!childKbId || !kbEntry) continue
-    const childDocId = generateId()
+    const childDocId = deriveCopyIdentity('document', childKbId, doc.id)
     inserts.push({
       ...doc,
       id: childDocId,
       knowledgeBaseId: childKbId,
       connectorId: null,
+      storageKey: null,
+      fileUrl: '',
+      fileSize: 0,
       deletedAt: null,
-      archivedAt: null,
+      archivedAt: now,
     })
     record('knowledge_document', doc.id, childDocId)
     kbEntry.documentIdMap[doc.id] = childDocId
@@ -596,10 +632,11 @@ async function createForkDocumentPlaceholders(params: {
  *  - `mappingEntries`: `knowledge_document` rows to persist (so a re-sync resolves the copy).
  *
  * FK-safe: the target KB is one the resolver returns (existence-checked via `validTargetIdsByKind`),
- * and the placeholder insert is a bounded in-tx write with no object-storage I/O. Documents whose
- * parent KB is being copied THIS sync are handled by {@link createForkDocumentPlaceholders} under
- * that copied KB and are excluded here via `alreadyCopiedSourceDocIds`. A referenced document whose
- * parent KB is not mapped at all is left untouched, so its reference is cleared as before.
+ * and the placeholder insert is a bounded, non-billable in-tx write with no object-storage I/O.
+ * Documents whose parent KB is being copied THIS sync are handled by
+ * {@link createForkDocumentPlaceholders} under that copied KB and are excluded here via
+ * `alreadyCopiedSourceDocIds`. A referenced document whose parent KB is not mapped at all is left
+ * untouched, so its reference is cleared as before.
  */
 export async function planForkMappedKbDocumentCopies(params: {
   tx: DbOrTx
@@ -642,14 +679,17 @@ export async function planForkMappedKbDocumentCopies(params: {
     // isn't mapped resolves null here and is left for its reference to be cleared.
     const targetKbId = resolver('knowledge-base', doc.knowledgeBaseId)
     if (targetKbId == null) continue
-    const childDocId = generateId()
+    const childDocId = deriveCopyIdentity('document', targetKbId, doc.id)
     inserts.push({
       ...doc,
       id: childDocId,
       knowledgeBaseId: targetKbId,
       connectorId: null,
+      storageKey: null,
+      fileUrl: '',
+      fileSize: 0,
       deletedAt: null,
-      archivedAt: null,
+      archivedAt: new Date(),
     })
     docIdMap.set(doc.id, childDocId)
     mappingEntries.push({
@@ -662,6 +702,8 @@ export async function planForkMappedKbDocumentCopies(params: {
       childDocId,
       childKnowledgeBaseId: targetKbId,
       storageKey: doc.storageKey,
+      fileUrl: doc.fileUrl,
+      fileSize: doc.fileSize,
       filename: doc.filename,
       mimeType: doc.mimeType,
     })
@@ -726,6 +768,11 @@ export async function copyForkResourceContent(params: {
   let copiedResources = 0
   let failedResources = 0
   const failures: ForkFailedResource[] = []
+  let billingContext: StorageBillingContext | null = null
+  const getBillingContext = async (): Promise<StorageBillingContext> => {
+    billingContext ??= await resolveStorageBillingContext(childWorkspaceId)
+    return billingContext
+  }
 
   for (const table of contentPlan.tables) {
     try {
@@ -793,54 +840,62 @@ export async function copyForkResourceContent(params: {
           .orderBy(asc(document.id))
           .limit(CONTENT_PAGE)
         if (docs.length === 0) break
+        const documentCopies = docs.map((source) => ({
+          source,
+          childDocumentId:
+            kb.documentIdMap[source.id] ?? deriveCopyIdentity('document', kb.childId, source.id),
+        }))
+        const activeTargetDocumentIds = await getActiveTargetDocumentIds(
+          documentCopies.map(({ childDocumentId }) => childDocumentId)
+        )
+        const documentsToCopy = documentCopies.filter(
+          ({ childDocumentId }) => !activeTargetDocumentIds.has(childDocumentId)
+        )
         // Copy the page's documents with bounded concurrency. The mapper never rejects
         // (it captures its error), so all in-flight work settles before this resolves - no
         // orphaned writes survive a failure - and a captured error is rethrown after to keep
         // the KB ALL-OR-NOTHING (any failed doc fails the whole KB -> cleanup below).
-        const docErrors = await mapWithConcurrency(
-          docs,
-          KB_DOCUMENT_COPY_CONCURRENCY,
-          async (doc): Promise<unknown> => {
-            try {
-              // Referenced documents were pre-created as placeholders in the fork tx at this
-              // exact child id, so a remapped `document-selector` reference can't dangle; the
-              // rest get a fresh id here. Copy the blob to a child-scoped KB key so the copy
-              // never shares the source's object (best-effort - keeps the source key on failure).
-              const placeholderId = kb.documentIdMap[doc.id]
-              const childDocId = placeholderId ?? generateId()
-              const blob = await copyKbDocumentBlob(doc, childWorkspaceId, userId, requestId)
-              if (placeholderId) {
-                if (blob) {
-                  await db
-                    .update(document)
-                    .set({ storageKey: blob.storageKey, fileUrl: blob.fileUrl })
-                    .where(eq(document.id, childDocId))
-                }
-              } else {
-                await db.insert(document).values({
-                  ...doc,
-                  id: childDocId,
-                  knowledgeBaseId: kb.childId,
-                  connectorId: null,
-                  deletedAt: null,
-                  archivedAt: null,
-                  ...(blob ? { storageKey: blob.storageKey, fileUrl: blob.fileUrl } : {}),
+        if (documentsToCopy.length > 0) {
+          const resolvedBillingContext = await getBillingContext()
+          const docErrors = await mapWithConcurrency(
+            documentsToCopy,
+            KB_DOCUMENT_COPY_CONCURRENCY,
+            async ({ source, childDocumentId }): Promise<unknown> => {
+              try {
+                await copyKbDocument({
+                  source,
+                  childDocumentId,
+                  childKnowledgeBaseId: kb.childId,
+                  childWorkspaceId,
+                  userId,
+                  billingContext: resolvedBillingContext,
                 })
+                return null
+              } catch (error) {
+                return error
               }
-              await copyDocumentEmbeddings(doc.id, childDocId, kb.childId)
-              return null
-            } catch (error) {
-              return error
             }
-          }
-        )
-        const docError = docErrors.find((error) => error != null)
-        if (docError) throw docError
+          )
+          const docError = docErrors.find((error) => error != null)
+          if (docError) throw docError
+        }
         afterDocId = docs[docs.length - 1].id
         if (docs.length < CONTENT_PAGE) break
       }
       copiedResources += 1
     } catch (error) {
+      try {
+        await rollbackCopiedKbDocuments(kb.childId, childWorkspaceId)
+      } catch (rollbackError) {
+        logger.error(`[${requestId}] Failed to roll back copied KB storage accounting`, {
+          childKnowledgeBaseId: kb.childId,
+          error: getErrorMessage(rollbackError),
+        })
+        throw new Error(
+          `Copied knowledge base ${kb.childId} failed and its storage rollback also failed: ${getErrorMessage(rollbackError)}`,
+          { cause: rollbackError }
+        )
+      }
       failedResources += 1
       failures.push({
         kind: 'knowledge-base',
@@ -861,6 +916,12 @@ export async function copyForkResourceContent(params: {
   // own documents are never touched.
   for (const docEntry of contentPlan.documents) {
     try {
+      const active = await isActiveTargetDocument(docEntry.childDocId)
+      if (active) {
+        copiedResources += 1
+        continue
+      }
+      const resolvedBillingContext = await getBillingContext()
       const blob = await copyKbDocumentBlob(
         {
           storageKey: docEntry.storageKey,
@@ -869,19 +930,34 @@ export async function copyForkResourceContent(params: {
         },
         childWorkspaceId,
         userId,
-        requestId
+        docEntry.childDocId
       )
-      if (blob) {
-        await db
-          .update(document)
-          .set({ storageKey: blob.storageKey, fileUrl: blob.fileUrl })
-          .where(eq(document.id, docEntry.childDocId))
+      try {
+        await copyDocumentEmbeddings(
+          docEntry.sourceDocId,
+          docEntry.childDocId,
+          docEntry.childKnowledgeBaseId
+        )
+        await finalizeKbDocument({
+          childDocumentId: docEntry.childDocId,
+          childKnowledgeBaseId: docEntry.childKnowledgeBaseId,
+          billingContext: resolvedBillingContext,
+          bytes: blob ? docEntry.fileSize : 0,
+          values: {
+            knowledgeBaseId: docEntry.childKnowledgeBaseId,
+            connectorId: null,
+            storageKey: blob?.storageKey ?? null,
+            fileUrl: blob?.fileUrl ?? docEntry.fileUrl,
+            fileSize: docEntry.fileSize,
+            archivedAt: null,
+            deletedAt: null,
+            uploadedBy: userId,
+          },
+        })
+      } catch (error) {
+        if (blob) await cleanupCopiedKbBlob(blob.storageKey)
+        throw error
       }
-      await copyDocumentEmbeddings(
-        docEntry.sourceDocId,
-        docEntry.childDocId,
-        docEntry.childKnowledgeBaseId
-      )
       copiedResources += 1
     } catch (error) {
       failedResources += 1
@@ -940,6 +1016,210 @@ export async function copyForkResourceContent(params: {
   return { copied: copiedResources, failed: failedResources, failures }
 }
 
+async function getActiveTargetDocumentIds(childDocumentIds: string[]): Promise<Set<string>> {
+  if (childDocumentIds.length === 0) return new Set()
+  const active = await db
+    .select({ id: document.id })
+    .from(document)
+    .where(
+      and(
+        inArray(document.id, childDocumentIds),
+        isNull(document.deletedAt),
+        isNull(document.archivedAt)
+      )
+    )
+    .limit(childDocumentIds.length)
+  return new Set(active.map((row) => row.id))
+}
+
+async function isActiveTargetDocument(childDocumentId: string): Promise<boolean> {
+  return (await getActiveTargetDocumentIds([childDocumentId])).has(childDocumentId)
+}
+
+/**
+ * Ensure embeddings have an FK target before external copy. The placeholder is
+ * deliberately non-billable (`archivedAt`, null storage key, zero bytes) and only
+ * {@link finalizeKbDocument} can activate it in the accounting transaction.
+ */
+async function ensureKbDocumentPlaceholder(
+  source: typeof document.$inferSelect,
+  childDocumentId: string,
+  childKnowledgeBaseId: string,
+  userId: string
+): Promise<void> {
+  await db
+    .insert(document)
+    .values({
+      ...source,
+      id: childDocumentId,
+      knowledgeBaseId: childKnowledgeBaseId,
+      connectorId: null,
+      storageKey: null,
+      fileUrl: '',
+      fileSize: 0,
+      archivedAt: new Date(),
+      deletedAt: null,
+      uploadedBy: userId,
+    })
+    .onConflictDoNothing({ target: document.id })
+}
+
+/**
+ * Activate one copied document and increment the target workspace plus payer as
+ * one transaction. The archived-placeholder predicate is the replay guard: only
+ * the transaction that activates it receives a row from `RETURNING` and charges.
+ */
+async function finalizeKbDocument(params: {
+  childDocumentId: string
+  childKnowledgeBaseId: string
+  billingContext: StorageBillingContext
+  bytes: number
+  values: Partial<typeof document.$inferInsert>
+}): Promise<void> {
+  const { childDocumentId, childKnowledgeBaseId, billingContext, bytes, values } = params
+  await db.transaction(async (tx) => {
+    const [lockedKnowledgeBase] = await tx
+      .select({ workspaceId: knowledgeBase.workspaceId })
+      .from(knowledgeBase)
+      .where(eq(knowledgeBase.id, childKnowledgeBaseId))
+      .for('update')
+    if (!lockedKnowledgeBase) {
+      throw new Error(`Copied document knowledge base ${childKnowledgeBaseId} is missing`)
+    }
+    if (lockedKnowledgeBase.workspaceId !== billingContext.workspaceId) {
+      throw new Error(
+        `Copied document knowledge base ${childKnowledgeBaseId} moved from workspace ${billingContext.workspaceId}; refusing stale storage charge`
+      )
+    }
+
+    const [activated] = await tx
+      .update(document)
+      .set(values)
+      .where(
+        and(
+          eq(document.id, childDocumentId),
+          isNull(document.deletedAt),
+          isNotNull(document.archivedAt)
+        )
+      )
+      .returning({ id: document.id })
+
+    if (!activated) {
+      const [active] = await tx
+        .select({ id: document.id })
+        .from(document)
+        .where(
+          and(
+            eq(document.id, childDocumentId),
+            isNull(document.deletedAt),
+            isNull(document.archivedAt)
+          )
+        )
+        .limit(1)
+      if (active) return
+      throw new Error(`Copied document placeholder ${childDocumentId} is missing`)
+    }
+
+    await incrementStorageUsageForBillingContextInTx(tx, billingContext, bytes)
+  })
+}
+
+/**
+ * Copy one full-KB document without external I/O in a transaction. Embeddings and
+ * the blob are replay-safe via deterministic identities; activation is the final
+ * step, so a failed copy leaves only a non-billable archived placeholder.
+ */
+async function copyKbDocument(params: {
+  source: typeof document.$inferSelect
+  childDocumentId: string
+  childKnowledgeBaseId: string
+  childWorkspaceId: string
+  userId: string
+  billingContext: StorageBillingContext
+}): Promise<void> {
+  const {
+    source,
+    childDocumentId,
+    childKnowledgeBaseId,
+    childWorkspaceId,
+    userId,
+    billingContext,
+  } = params
+  await ensureKbDocumentPlaceholder(source, childDocumentId, childKnowledgeBaseId, userId)
+
+  const blob = await copyKbDocumentBlob(source, childWorkspaceId, userId, childDocumentId)
+  try {
+    await copyDocumentEmbeddings(source.id, childDocumentId, childKnowledgeBaseId)
+    await finalizeKbDocument({
+      childDocumentId,
+      childKnowledgeBaseId,
+      billingContext,
+      bytes: blob ? source.fileSize : 0,
+      values: {
+        ...omit(source, ['id', 'knowledgeBaseId']),
+        knowledgeBaseId: childKnowledgeBaseId,
+        connectorId: null,
+        storageKey: blob?.storageKey ?? null,
+        fileUrl: blob?.fileUrl ?? source.fileUrl,
+        archivedAt: null,
+        deletedAt: null,
+        uploadedBy: userId,
+      },
+    })
+  } catch (error) {
+    if (blob) await cleanupCopiedKbBlob(blob.storageKey)
+    throw error
+  }
+}
+
+/**
+ * Reverse any documents already activated for a KB when a later document fails,
+ * preserving the existing all-or-nothing KB failure semantics without a long
+ * parent transaction. The aggregate keeps memory bounded regardless of KB size.
+ */
+async function rollbackCopiedKbDocuments(
+  childKnowledgeBaseId: string,
+  childWorkspaceId: string
+): Promise<void> {
+  const billingContext = await resolveStorageBillingContext(childWorkspaceId)
+  await db.transaction(async (tx) => {
+    const [lockedKnowledgeBase] = await tx
+      .select({ workspaceId: knowledgeBase.workspaceId })
+      .from(knowledgeBase)
+      .where(eq(knowledgeBase.id, childKnowledgeBaseId))
+      .for('update')
+    if (!lockedKnowledgeBase || lockedKnowledgeBase.workspaceId !== childWorkspaceId) {
+      throw new Error(
+        `Copied knowledge base ${childKnowledgeBaseId} moved from workspace ${childWorkspaceId}; refusing stale storage rollback`
+      )
+    }
+
+    const [usage] = await tx
+      .select({ total: sql<string>`coalesce(sum(${document.fileSize}), 0)` })
+      .from(document)
+      .where(
+        and(
+          eq(document.knowledgeBaseId, childKnowledgeBaseId),
+          isNull(document.deletedAt),
+          isNull(document.archivedAt),
+          isNotNull(document.storageKey)
+        )
+      )
+    const bytes = Number(usage?.total ?? 0)
+    await decrementStorageUsageForBillingContextInTx(tx, billingContext, bytes)
+    await tx
+      .update(document)
+      .set({ archivedAt: new Date() })
+      .where(
+        and(
+          eq(document.knowledgeBaseId, childKnowledgeBaseId),
+          isNull(document.deletedAt),
+          isNull(document.archivedAt)
+        )
+      )
+  })
+}
+
 async function copyDocumentEmbeddings(
   sourceDocumentId: string,
   childDocumentId: string,
@@ -958,14 +1238,17 @@ async function copyDocumentEmbeddings(
       .orderBy(asc(embedding.id))
       .limit(CONTENT_PAGE)
     if (rows.length === 0) break
-    await db.insert(embedding).values(
-      rows.map((row) => ({
-        ...row,
-        id: generateId(),
-        documentId: childDocumentId,
-        knowledgeBaseId: childKnowledgeBaseId,
-      }))
-    )
+    await db
+      .insert(embedding)
+      .values(
+        rows.map((row) => ({
+          ...row,
+          id: deriveCopyIdentity('embedding', childDocumentId, row.id),
+          documentId: childDocumentId,
+          knowledgeBaseId: childKnowledgeBaseId,
+        }))
+      )
+      .onConflictDoNothing({ target: embedding.id })
     afterId = rows[rows.length - 1].id
     if (rows.length < CONTENT_PAGE) break
   }
@@ -978,41 +1261,48 @@ async function copyDocumentEmbeddings(
  * `verifyKBFileAccess` grants a child-workspace member - without it the copied object is
  * download-denied (no binding = deny). Returns the new `storageKey` + serve `fileUrl`, or null
  * when there is no internal blob to copy (external/`data:` docs have a null `storageKey`) or the
- * copy fails - best-effort, so a single blob failure never aborts the KB.
+ * copy fails. A stored source blob is required to copy successfully; callers
+ * keep the target placeholder archived and report the existing resource failure.
  */
 async function copyKbDocumentBlob(
   doc: { storageKey: string | null; filename: string; mimeType: string },
   childWorkspaceId: string,
   userId: string,
-  requestId: string
+  childDocumentId: string
 ): Promise<{ storageKey: string; fileUrl: string } | null> {
   if (!doc.storageKey) return null
+  const targetKey = deriveKbDocumentStorageKey(childDocumentId)
   try {
-    const buffer = await downloadFile({
-      key: doc.storageKey,
-      context: 'knowledge-base',
-      maxBytes: MAX_FILE_SIZE,
-    })
-    const targetKey = generateKnowledgeBaseFileKey(doc.filename)
-    await uploadFile({
-      file: buffer,
-      fileName: doc.filename,
-      contentType: doc.mimeType,
-      context: 'knowledge-base',
-      customKey: targetKey,
-      preserveKey: true,
-      metadata: {
-        userId,
-        workspaceId: childWorkspaceId,
-        originalName: doc.filename,
-      },
-    })
-    return { storageKey: targetKey, fileUrl: `/api/files/serve/${encodeURIComponent(targetKey)}` }
+    const existing = await headObject(targetKey, 'knowledge-base')
+    if (!existing) {
+      const buffer = await downloadFile({
+        key: doc.storageKey,
+        context: 'knowledge-base',
+        maxBytes: MAX_FILE_SIZE,
+      })
+      await uploadFile({
+        file: buffer,
+        fileName: doc.filename,
+        contentType: doc.mimeType,
+        context: 'knowledge-base',
+        customKey: targetKey,
+        preserveKey: true,
+        persistMetadata: false,
+        metadata: {
+          userId,
+          workspaceId: childWorkspaceId,
+          originalName: doc.filename,
+        },
+      })
+    }
   } catch (error) {
-    logger.warn(`[${requestId}] Failed to copy KB document blob during fork; keeping source key`, {
-      sourceStorageKey: doc.storageKey,
-      error: getErrorMessage(error),
-    })
-    return null
+    await cleanupCopiedKbBlob(targetKey)
+    throw error
   }
+  return { storageKey: targetKey, fileUrl: `/api/files/serve/${encodeURIComponent(targetKey)}` }
+}
+
+/** Best-effort orphan cleanup after DB finalization or embedding copy fails. */
+async function cleanupCopiedKbBlob(storageKey: string): Promise<void> {
+  await deleteFile({ key: storageKey, context: 'knowledge-base' }).catch(() => {})
 }

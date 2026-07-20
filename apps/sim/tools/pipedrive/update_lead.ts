@@ -3,6 +3,7 @@ import type {
   PipedriveUpdateLeadParams,
   PipedriveUpdateLeadResponse,
 } from '@/tools/pipedrive/types'
+import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('PipedriveUpdateLead')
@@ -27,6 +28,13 @@ export const pipedriveUpdateLeadTool: ToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'The access token for the Pipedrive API',
+    },
+    authStyle: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description:
+        'Auth scheme for the token; set by the credential resolver for API-token service accounts',
     },
     lead_id: {
       type: 'string',
@@ -87,17 +95,10 @@ export const pipedriveUpdateLeadTool: ToolConfig<
   request: {
     url: (params) => `https://api.pipedrive.com/v1/leads/${params.lead_id}`,
     method: 'PATCH',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      }
-    },
+    headers: (params) => ({
+      ...getPipedriveAuthHeaders(params),
+      'Content-Type': 'application/json',
+    }),
     body: (params) => {
       const body: Record<string, any> = {}
 

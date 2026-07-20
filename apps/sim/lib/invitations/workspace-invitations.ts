@@ -107,7 +107,6 @@ export async function prepareWorkspaceInvitationContext({
       upgradeRequired: invitePolicy.upgradeRequired,
     })
   }
-
   return {
     workspaceId,
     inviterId,

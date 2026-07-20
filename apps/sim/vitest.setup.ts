@@ -87,7 +87,19 @@ vi.mock('@/blocks/registry', () => ({
     subBlocks: [],
     outputs: {},
   })),
-  getAllBlocks: vi.fn(() => ({})),
+  getAllBlocks: vi.fn(() => []),
+  getLatestBlock: vi.fn(() => undefined),
+  getBlockByToolName: vi.fn((toolName: string) =>
+    toolName.startsWith('gmail_')
+      ? {
+          name: 'Gmail',
+          description: 'Gmail integration',
+          icon: () => null,
+          subBlocks: [],
+          outputs: {},
+        }
+      : undefined
+  ),
 }))
 
 vi.mock('@trigger.dev/sdk', () => ({

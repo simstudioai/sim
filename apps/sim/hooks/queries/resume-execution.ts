@@ -46,6 +46,7 @@ export interface PausePointWithQueue {
   response: any
   registeredAt: string
   resumeStatus: ResumeStatus
+  automaticResumeWaitingReason?: string
   snapshotReady: boolean
   resumeLinks?: ResumeLinks
   queuePosition?: number | null

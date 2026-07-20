@@ -50,8 +50,8 @@ export function buildPostMetadata(post: ContentMeta): Metadata {
       images: [
         {
           url: post.ogImage.startsWith('http') ? post.ogImage : `${baseUrl}${post.ogImage}`,
-          width: 1200,
-          height: 630,
+          width: post.ogImageWidth ?? 1200,
+          height: post.ogImageHeight ?? 630,
           alt: post.ogAlt || post.title,
         },
       ],
@@ -73,25 +73,34 @@ export function buildPostMetadata(post: ContentMeta): Metadata {
   }
 }
 
+/**
+ * Google's Article rich-result eligibility only recognizes `Article`,
+ * `NewsArticle`, and `BlogPosting` — a bare `TechArticle` type is not in that
+ * allowlist, so it silently loses rich-result eligibility. `BlogPosting` is
+ * therefore always included; `TechArticle` is layered on via a multi-type
+ * `@type` array (the standard schema.org way to say "this is both") only for
+ * posts that are genuinely technical/developer content (`post.technical`) —
+ * general announcements (funding, company news) get `BlogPosting` alone.
+ */
 export function buildArticleJsonLd(post: ContentMeta) {
   return {
-    '@type': 'TechArticle',
+    '@type': post.technical ? ['BlogPosting', 'TechArticle'] : 'BlogPosting',
     url: post.canonical,
     headline: post.title,
     description: post.description,
     image: [
       {
         '@type': 'ImageObject',
-        url: post.ogImage,
-        width: 1200,
-        height: 630,
+        url: post.ogImage.startsWith('http') ? post.ogImage : `${SITE_URL}${post.ogImage}`,
+        width: post.ogImageWidth ?? 1200,
+        height: post.ogImageHeight ?? 630,
         caption: post.ogAlt || post.title,
       },
     ],
     datePublished: post.date,
     dateModified: post.updated ?? post.date,
     wordCount: post.wordCount,
-    proficiencyLevel: 'Beginner',
+    ...(post.technical ? { proficiencyLevel: 'Beginner' } : {}),
     author: (post.authors && post.authors.length > 0 ? post.authors : [post.author]).map((a) => ({
       '@type': 'Person',
       name: a.name,
@@ -276,7 +285,7 @@ export function buildAuthorMetadata(
   author?: Author
 ): Metadata {
   const name = author?.name ?? 'Author'
-  const canonical = `${SITE_URL}${section.basePath}/authors/${id}`
+  const canonical = `${SITE_URL}${section.basePath}/authors/${encodeURIComponent(id)}`
   const description = `Read articles by ${name} on the Sim ${section.name.toLowerCase()}.`
   return {
     title: `${name} | Sim ${section.name}`,
@@ -309,9 +318,11 @@ export function buildAuthorGraphJsonLd(section: ContentSection, author: Author) 
       {
         '@type': 'Person',
         name: author.name,
-        url: `${SITE_URL}${section.basePath}/authors/${author.id}`,
+        url: `${SITE_URL}${section.basePath}/authors/${encodeURIComponent(author.id)}`,
         sameAs: author.url ? [author.url] : [],
-        image: author.avatarUrl,
+        image: author.avatarUrl?.startsWith('http')
+          ? author.avatarUrl
+          : author.avatarUrl && `${SITE_URL}${author.avatarUrl}`,
         worksFor: {
           '@type': 'Organization',
           name: 'Sim',
@@ -332,7 +343,7 @@ export function buildAuthorGraphJsonLd(section: ContentSection, author: Author) 
             '@type': 'ListItem',
             position: 3,
             name: author.name,
-            item: `${SITE_URL}${section.basePath}/authors/${author.id}`,
+            item: `${SITE_URL}${section.basePath}/authors/${encodeURIComponent(author.id)}`,
           },
         ],
       },
@@ -340,12 +351,37 @@ export function buildAuthorGraphJsonLd(section: ContentSection, author: Author) 
   }
 }
 
-export function buildCollectionPageJsonLd(section: ContentSection) {
+/**
+ * `mainEntity` lists exactly the posts passed in, in the given order - the
+ * caller (currently `selectVisiblePosts`) is responsible for sourcing them
+ * from the same `getAllPostMeta()` list the index page renders from and for
+ * ordering them to match the visible layout (e.g. featured-row-first), so
+ * this function never re-sorts and can't diverge from what's on the page.
+ *
+ * `tag`/`page` describe which filtered/paginated variant `posts` came from,
+ * so `url` reflects the actual page these `posts` are visible on rather than
+ * always the bare section index - the same variant is `noindex`ed (see
+ * `buildIndexMetadata`), but the graph still shouldn't attribute a partial
+ * list to the unfiltered collection URL.
+ */
+export function buildCollectionPageJsonLd(
+  section: ContentSection,
+  posts: ContentMeta[],
+  { tag, page }: { tag?: string; page?: number } = {}
+) {
+  const params = [
+    page && page > 1 ? `page=${page}` : null,
+    tag ? `tag=${encodeURIComponent(tag)}` : null,
+  ]
+    .filter(Boolean)
+    .join('&')
+  const url = `${SITE_URL}${section.basePath}${params ? `?${params}` : ''}`
+
   return {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: `Sim ${section.name}`,
-    url: `${SITE_URL}${section.basePath}`,
+    url,
     description: section.description,
     publisher: {
       '@type': 'Organization',
@@ -361,6 +397,28 @@ export function buildCollectionPageJsonLd(section: ContentSection) {
       '@type': 'WebSite',
       name: 'Sim',
       url: SITE_URL,
+    },
+    mainEntity: {
+      '@type': 'ItemList',
+      itemListElement: posts.map((post, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        url: post.canonical,
+        item: {
+          '@type': 'BlogPosting',
+          headline: post.title,
+          description: post.description,
+          url: post.canonical,
+          datePublished: post.date,
+          dateModified: post.updated ?? post.date,
+          image: post.ogImage.startsWith('http') ? post.ogImage : `${SITE_URL}${post.ogImage}`,
+          author: {
+            '@type': 'Person',
+            name: post.author.name,
+            ...(post.author.url ? { url: post.author.url } : {}),
+          },
+        },
+      })),
     },
   }
 }

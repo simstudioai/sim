@@ -82,6 +82,13 @@ export const PUT = withRouteHandler(
         displayName: body.displayName,
         description: body.description,
         serviceAccountJson: body.serviceAccountJson,
+        signingSecret: body.signingSecret,
+        botToken: body.botToken,
+        apiToken: body.apiToken,
+        domain: body.domain,
+        clientId: body.clientId,
+        clientSecret: body.clientSecret,
+        orgId: body.orgId,
         request,
       })
       if (!result.success) {
@@ -92,10 +99,20 @@ export const PUT = withRouteHandler(
               ? 403
               : result.errorCode === 'conflict'
                 ? 409
-                : result.errorCode === 'validation'
-                  ? 400
-                  : 500
-        return NextResponse.json({ error: result.error }, { status })
+                : // A provider outage during reconnect is infra, not a bad
+                  // request — mirror the create route and runtime token route.
+                  result.providerErrorCode === 'provider_unavailable'
+                  ? 502
+                  : result.errorCode === 'validation'
+                    ? 400
+                    : 500
+        return NextResponse.json(
+          {
+            error: result.error,
+            ...(result.providerErrorCode ? { code: result.providerErrorCode } : {}),
+          },
+          { status }
+        )
       }
 
       const access = await getCredentialActorContext(id, session.user.id)

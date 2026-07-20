@@ -26,6 +26,9 @@ vi.mock('@sim/db', () => ({
     select: mockSelect,
     transaction: mockTransaction,
   },
+  workflow: { id: 'id' },
+  workflowDeploymentOperation: { workflowId: 'workflowId', status: 'status' },
+  workflowDeploymentVersion: { workflowId: 'workflowId', isActive: 'isActive' },
 }))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
@@ -94,6 +97,9 @@ describe('workflow lifecycle', () => {
 
     const tx = {
       update: vi.fn().mockImplementation(() => createUpdateChain()),
+      delete: vi.fn().mockImplementation(() => ({
+        where: vi.fn().mockResolvedValue([]),
+      })),
     }
     mockTransaction.mockImplementation(async (callback: (trx: typeof tx) => Promise<void>) =>
       callback(tx)
@@ -102,7 +108,10 @@ describe('workflow lifecycle', () => {
     const result = await archiveWorkflow('workflow-1', { requestId: 'req-1' })
 
     expect(result.archived).toBe(true)
-    expect(tx.update).toHaveBeenCalledTimes(6)
+    expect(tx.update).toHaveBeenCalledTimes(7)
+    const supersedeSet = tx.update.mock.results[0]?.value.set
+    expect(supersedeSet).toHaveBeenCalledWith(expect.objectContaining({ status: 'superseded' }))
+    expect(tx.delete).toHaveBeenCalledTimes(1)
     expect(mockWorkflowDeleted).toHaveBeenCalledWith({
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',

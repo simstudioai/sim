@@ -32,8 +32,10 @@ export interface GetBlockUpstreamReferencesParams {
 export interface CreateWorkflowParams {
   name?: string
   workspaceId?: string
+  /** Canonical workflow-folder VFS path, for example `workflows/Dream`. */
+  folderPath?: string
+  /** Legacy executor input. New tool calls use folderPath and resolve the ID internally. */
   folderId?: string
-  description?: string
 }
 
 export interface CreateFolderParams {
@@ -173,6 +175,24 @@ export interface DeployMcpParams {
   parameterDescriptions?: Array<{ name: string; description: string }>
 }
 
+export interface DeployCustomBlockParams {
+  workflowId?: string
+  action?: 'deploy' | 'undeploy'
+  /** Block display name (max 60 chars). Required on first publish. */
+  name?: string
+  /** Block-picker description (max 280 chars). */
+  description?: string
+  /** Icon image URL; omit for the organization's default icon. */
+  iconUrl?: string
+  /**
+   * Per-input placeholder overrides keyed by the input trigger field's stable id.
+   * The field set itself is always derived from the workflow's deployment.
+   */
+  inputs?: Array<{ id: string; placeholder?: string }>
+  /** Curated outputs; omit to expose the terminal block's whole result. */
+  exposedOutputs?: Array<{ blockId: string; path: string; name: string }>
+}
+
 export interface CheckDeploymentStatusParams {
   workflowId?: string
 }
@@ -227,12 +247,6 @@ export interface CreateWorkspaceMcpServerParams {
 export interface RenameWorkflowParams {
   workflowId: string
   name: string
-}
-
-export interface UpdateWorkflowParams {
-  workflowId: string
-  name?: string
-  description?: string
 }
 
 export interface DeleteWorkflowParams {

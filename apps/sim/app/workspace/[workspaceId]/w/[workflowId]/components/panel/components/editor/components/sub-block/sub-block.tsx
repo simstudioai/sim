@@ -58,7 +58,9 @@ const SLACK_OVERRIDES: SelectorOverrides = {
   transformContext: (context, deps) => {
     const authMethod = deps.authMethod as string
     const oauthCredential =
-      authMethod === 'bot_token' ? String(deps.botToken ?? '') : String(deps.credential ?? '')
+      authMethod === 'bot_token'
+        ? String(deps.customBotCredential ?? deps.botToken ?? '')
+        : String(deps.credential ?? deps.customBotCredential ?? deps.triggerCredentials ?? '')
     return { ...context, oauthCredential }
   },
 }
@@ -904,6 +906,7 @@ function SubBlockComponent({
             acceptedTypes={config.acceptedTypes || '*'}
             multiple={config.multiple === true}
             maxSize={config.maxSize}
+            requiresCloudStorage={config.requiresCloudStorage === true}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}

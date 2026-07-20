@@ -115,6 +115,36 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       executionUploadContext = { workspaceId, workflowId, executionId }
     }
 
+    // Mothership context requires the same workspace write/admin permission check, plus a
+    // storage quota check. Resolve both once per request (not per file) since workspaceId is
+    // invariant across all files in the upload and quota must account for the full batch size,
+    // not just one file.
+    let mothershipWorkspaceId: string | undefined
+    if (context === 'mothership') {
+      if (!workspaceId) {
+        throw new InvalidRequestError('Mothership context requires workspaceId parameter')
+      }
+
+      const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+      if (permission !== 'write' && permission !== 'admin') {
+        return NextResponse.json(
+          { error: 'Write or Admin access required for mothership uploads' },
+          { status: 403 }
+        )
+      }
+
+      const { checkStorageQuota } = await import('@/lib/billing/storage')
+      const quotaCheck = await checkStorageQuota(session.user.id, totalFileSize)
+      if (!quotaCheck.allowed) {
+        return NextResponse.json(
+          { error: quotaCheck.error || 'Storage limit exceeded' },
+          { status: 413 }
+        )
+      }
+
+      mothershipWorkspaceId = workspaceId
+    }
+
     const uploadResults = []
 
     for (const file of files) {
@@ -261,21 +291,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       // Handle mothership context (chat-scoped uploads to workspace S3)
-      if (context === 'mothership') {
-        if (!workspaceId) {
-          throw new InvalidRequestError('Chat context requires workspaceId parameter')
-        }
-
+      if (context === 'mothership' && mothershipWorkspaceId) {
         logger.info(`Uploading mothership file: ${originalName}`)
 
-        const storageKey = generateWorkspaceFileKey(workspaceId, originalName)
+        const storageKey = generateWorkspaceFileKey(mothershipWorkspaceId, originalName)
 
         const metadata: Record<string, string> = {
           originalName: originalName,
           uploadedAt: new Date().toISOString(),
           purpose: 'mothership',
           userId: session.user.id,
-          workspaceId,
+          workspaceId: mothershipWorkspaceId,
         }
 
         const fileInfo = await storageService.uploadFile({

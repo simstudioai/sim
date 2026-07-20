@@ -167,5 +167,11 @@ describe('POST /api/workspaces/[id]/files/register', () => {
       expect.objectContaining({ workspace_id: WS, file_type: 'video/mp4' }),
       expect.any(Object)
     )
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'user-1',
+        workspaceId: WS,
+      })
+    )
   })
 })

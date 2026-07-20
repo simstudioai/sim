@@ -33,6 +33,7 @@ export interface CustomBlockInput {
   type: string
   placeholder?: string
   description?: string
+  required?: boolean
 }
 
 /**
@@ -60,6 +61,20 @@ export const RESERVED_PARAMS = new Set([
   'triggerMode',
   'advancedMode',
 ])
+
+/**
+ * Output names the block projects itself (`success`/`error` from `buildOutputs`,
+ * `cost` from the executor's billing aggregation). A user-named exposed output
+ * must never shadow these — an output literally named `cost` would clobber the
+ * billed cost. `result` is deliberately NOT reserved: it only exists as a system
+ * field when no outputs are curated, which cannot co-occur with a named output.
+ */
+export const RESERVED_OUTPUT_NAMES = new Set(['success', 'error', 'cost'])
+
+/** Whether an exposed-output name collides with a system output field. */
+export function isReservedOutputName(name: string): boolean {
+  return RESERVED_OUTPUT_NAMES.has(name.trim().toLowerCase())
+}
 
 /** Map a Start input field type to the editor sub-block type used to collect it. */
 function subBlockTypeForField(fieldType: string): SubBlockType {
@@ -108,6 +123,9 @@ export function buildCustomBlockConfig(
       type,
       description: field.description,
       placeholder: field.placeholder,
+      // Serializer Loop-B (required subBlocks not covered by tool params) and the
+      // editor asterisk both read this — same enforcement path as regular blocks.
+      required: field.required === true,
     }
     if (field.type === 'object' || field.type === 'array') sub.language = 'json'
     if (field.type === 'file[]') sub.multiple = true
@@ -118,6 +136,7 @@ export function buildCustomBlockConfig(
     type: row.type,
     name: row.name,
     description: row.description,
+    sourceWorkflowId: row.workflowId,
     category: 'tools',
     longDescription:
       'A published workflow packaged as a reusable, self-contained block. Fill its input ' +

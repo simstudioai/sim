@@ -29,25 +29,31 @@ export const rssHandler: WebhookProviderHandler = {
     return { input: b }
   },
 
-  async configurePolling({ webhook: webhookData, requestId }: PollingConfigContext) {
+  async configurePolling({
+    webhook: webhookData,
+    requestId,
+    persistProviderConfig,
+  }: PollingConfigContext) {
     logger.info(`[${requestId}] Setting up RSS polling for webhook ${webhookData.id}`)
 
     try {
       const providerConfig = (webhookData.providerConfig as Record<string, unknown>) || {}
       const now = new Date()
 
-      await db
-        .update(webhook)
-        .set({
-          providerConfig: {
-            ...providerConfig,
-            lastCheckedTimestamp: now.toISOString(),
-            lastSeenGuids: [],
-            setupCompleted: true,
-          },
-          updatedAt: now,
-        })
-        .where(eq(webhook.id, webhookData.id as string))
+      const configuredProviderConfig = {
+        ...providerConfig,
+        lastCheckedTimestamp: now.toISOString(),
+        lastSeenGuids: [],
+        setupCompleted: true,
+      }
+      if (persistProviderConfig) {
+        await persistProviderConfig(configuredProviderConfig)
+      } else {
+        await db
+          .update(webhook)
+          .set({ providerConfig: configuredProviderConfig, updatedAt: now })
+          .where(eq(webhook.id, webhookData.id as string))
+      }
 
       logger.info(
         `[${requestId}] Successfully configured RSS polling for webhook ${webhookData.id}`

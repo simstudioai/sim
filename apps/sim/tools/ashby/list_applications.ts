@@ -51,12 +51,6 @@ export const listApplicationsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Filter applications by a specific job UUID',
     },
-    candidateId: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter applications by a specific candidate UUID',
-    },
     createdAfter: {
       type: 'string',
       required: false,
@@ -76,7 +70,6 @@ export const listApplicationsTool: ToolConfig<
       if (params.perPage) body.limit = params.perPage
       if (params.status) body.status = params.status
       if (params.jobId) body.jobId = params.jobId.trim()
-      if (params.candidateId) body.candidateId = params.candidateId.trim()
       if (params.createdAfter) {
         const ms = new Date(params.createdAfter).getTime()
         if (!Number.isNaN(ms)) body.createdAfter = ms

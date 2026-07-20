@@ -2,11 +2,11 @@ import { z } from 'zod'
 
 /** Raw user object returned by TikTok's user info API. */
 export const tiktokApiUserSchema = z.object({
-  open_id: z.string().optional(),
+  open_id: z.string(),
   union_id: z.string().optional(),
   avatar_url: z.string().optional(),
   avatar_large_url: z.string().optional(),
-  display_name: z.string().optional(),
+  display_name: z.string(),
   bio_description: z.string().optional(),
   profile_deep_link: z.string().optional(),
   is_verified: z.boolean().optional(),
@@ -19,12 +19,12 @@ export const tiktokApiUserSchema = z.object({
 
 /** Data payload returned by TikTok's user info API. */
 export const tiktokGetUserApiDataSchema = z.object({
-  user: tiktokApiUserSchema.optional(),
+  user: tiktokApiUserSchema,
 })
 
 /** Raw video object returned by TikTok's video APIs. */
 export const tiktokApiVideoSchema = z.object({
-  id: z.string().optional(),
+  id: z.string(),
   title: z.string().optional(),
   cover_image_url: z.string().optional(),
   embed_link: z.string().optional(),
@@ -41,34 +41,27 @@ export const tiktokApiVideoSchema = z.object({
   share_count: z.number().optional(),
 })
 
-/** Data payload returned by TikTok's list/query video APIs. */
-export const tiktokVideosApiDataSchema = z.object({
-  videos: z.array(tiktokApiVideoSchema).optional(),
-  cursor: z.number().optional(),
-  has_more: z.boolean().optional(),
+/** Data payload returned by TikTok's paginated video list API. */
+export const tiktokListVideosApiDataSchema = z.object({
+  videos: z.array(tiktokApiVideoSchema),
+  cursor: z.number(),
+  has_more: z.boolean(),
 })
 
-/** Data payload returned by TikTok's creator info API. */
-export const tiktokCreatorInfoApiDataSchema = z.object({
-  creator_avatar_url: z.string().optional(),
-  creator_username: z.string().optional(),
-  creator_nickname: z.string().optional(),
-  privacy_level_options: z.array(z.string()).optional(),
-  comment_disabled: z.boolean().optional(),
-  duet_disabled: z.boolean().optional(),
-  stitch_disabled: z.boolean().optional(),
-  max_video_post_duration_sec: z.number().optional(),
+/** Data payload returned by TikTok's video query API. */
+export const tiktokQueryVideosApiDataSchema = z.object({
+  videos: z.array(tiktokApiVideoSchema),
 })
 
 /** Data payload returned by TikTok's publish initialization APIs. */
 export const tiktokPublishInitApiDataSchema = z.object({
-  publish_id: z.string().optional(),
-  upload_url: z.string().optional(),
+  publish_id: z.string(),
+  upload_url: z.string(),
 })
 
 /** Data payload returned by TikTok's post status API. */
 export const tiktokPostStatusApiDataSchema = z.object({
-  status: z.string().optional(),
+  status: z.string(),
   fail_reason: z.string().optional(),
   uploaded_bytes: z.number().optional(),
   downloaded_bytes: z.number().optional(),

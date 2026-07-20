@@ -66,3 +66,28 @@ export interface Integration {
   /** Hand-authored landing content baked in at generation time (see `landing-content.ts`). */
   landingContent?: IntegrationLandingContent
 }
+
+/**
+ * The fields the `/integrations` catalog grid actually renders and searches
+ * by, plus a precomputed, lowercased `searchFields` index (name, description,
+ * every operation's name and description, every trigger's name) in place of
+ * the full `operations`/`triggers` arrays. Shipping the full `Integration[]`
+ * to that page's client component embeds every integration's complete field
+ * set - including data the grid never renders (`tags`, `docsUrl`,
+ * `landingContent`, ...) - in the initial HTML/RSC payload.
+ *
+ * `searchFields` stays an array, one entry per source field, rather than a
+ * single joined string: matching must still require the query to fall
+ * entirely within one field (as the original per-field `Integration[]`
+ * search did), not span a field boundary a single concatenated string would
+ * silently allow.
+ */
+export interface IntegrationSummary {
+  type: Integration['type']
+  slug: string
+  name: Integration['name']
+  description: Integration['description']
+  bgColor: Integration['bgColor']
+  integrationType: Integration['integrationType']
+  searchFields: readonly string[]
+}

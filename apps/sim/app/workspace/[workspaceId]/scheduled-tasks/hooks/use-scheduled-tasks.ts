@@ -1,13 +1,18 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { truncate } from '@sim/utils/string'
+import { useQueryState } from 'nuqs'
 import type { CreateScheduleBody, UpdateScheduleBody } from '@/lib/api/contracts/schedules'
 import { zonedWallClock } from '@/lib/core/utils/timezone'
 import type {
   TaskDraft,
   TaskEditSeed,
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/task-modal'
+import {
+  taskIdParam,
+  taskIdUrlKeys,
+} from '@/app/workspace/[workspaceId]/scheduled-tasks/search-params'
 import {
   cronToRecurrence,
   recurrenceToScheduleFields,
@@ -110,8 +115,10 @@ export interface UseScheduledTasksReturn {
 /**
  * Bridges the calendar to the persisted job-schedule backend: reads the
  * workspace's scheduled tasks, expands them into the occurrences visible in the
- * current range, and exposes create/edit/delete mutations. UI-only selection
- * state lives here; all task data flows through React Query.
+ * current range, and exposes create/edit/delete mutations. The open task lives
+ * in the URL (`?taskId=`, deep-linkable — see {@link taskIdParam}) and the task
+ * object is derived from the loaded occurrences; all task data flows through
+ * React Query.
  */
 export function useScheduledTasks({
   workspaceId,
@@ -126,7 +133,10 @@ export function useScheduledTasks({
   const disableSchedule = useDisableSchedule()
   const resumeSchedule = useResumeSchedule()
 
-  const [selectedTask, setSelectedTask] = useState<ScheduledTask | null>(null)
+  const [taskId, setTaskId] = useQueryState(taskIdParam.key, {
+    ...taskIdParam.parser,
+    ...taskIdUrlKeys,
+  })
 
   const events = useMemo(() => {
     const now = new Date()
@@ -139,8 +149,49 @@ export function useScheduledTasks({
 
   const eventsByDay = useMemo(() => bucketEventsByDay(events), [events])
 
-  const openTask = useCallback((task: ScheduledTask) => setSelectedTask(task), [])
-  const closeTask = useCallback(() => setSelectedTask(null), [])
+  /**
+   * Occurrence lookup for the `?taskId=` deep link. First occurrence wins on a
+   * duplicate id — a one-time schedule reuses its bare schedule id for both its
+   * pending run and its last-run marker (mutually exclusive today, but the id's
+   * meaning shifts as the run completes). Until schedules load — or when the
+   * occurrence falls outside the current anchor/scope window — the id doesn't
+   * resolve, `selectedTask` stays `null`, and the param lingers harmlessly; the
+   * modal opens as soon as the id resolves. Stability of an OPEN modal relies on
+   * the schedules query not refetching in the background (no refetchInterval;
+   * the app-wide QueryClient disables refetchOnWindowFocus) — a mid-edit refetch
+   * that regenerates occurrence ids would close the modal and drop the draft.
+   */
+  const taskById = useMemo(() => {
+    const byId = new Map<string, CalendarEvent>()
+    for (const event of events) {
+      if (!byId.has(event.task.id)) byId.set(event.task.id, event)
+    }
+    return byId
+  }, [events])
+
+  const selectedTask = taskId ? (taskById.get(taskId)?.task ?? null) : null
+
+  const openTask = useCallback((task: ScheduledTask) => setTaskId(task.id), [setTaskId])
+  /** Closing replaces the URL — Back should leave the calendar, not reopen the modal. */
+  const closeTask = useCallback(() => setTaskId(null, { history: 'replace' }), [setTaskId])
+
+  /**
+   * Mutation-driven closes replace the URL instead of pushing — Back must not
+   * reopen a task the user just deleted/paused/resumed. Matches by schedule id
+   * prefix because occurrence ids are `scheduleId`, `scheduleId:<runAt ISO>`,
+   * or `scheduleId:last` (the ISO contains colons, so never split on `:`).
+   */
+  const clearTaskIdForSchedule = useCallback(
+    (scheduleId: string) =>
+      setTaskId(
+        (current) =>
+          current !== null && (current === scheduleId || current.startsWith(`${scheduleId}:`))
+            ? null
+            : current,
+        { history: 'replace' }
+      ),
+    [setTaskId]
+  )
 
   const editSeedFor = useCallback(
     (task: ScheduledTask): TaskEditSeed | null => {
@@ -185,7 +236,7 @@ export function useScheduledTasks({
   const deleteTask = useCallback(
     (scheduleId: string) => {
       deleteSchedule.mutate({ scheduleId, workspaceId })
-      setSelectedTask((current) => (current?.scheduleId === scheduleId ? null : current))
+      clearTaskIdForSchedule(scheduleId)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [workspaceId]
@@ -194,7 +245,7 @@ export function useScheduledTasks({
   const deleteOccurrence = useCallback(
     (scheduleId: string, occurrence: Date) => {
       excludeOccurrence.mutate({ scheduleId, workspaceId, occurrence: occurrence.toISOString() })
-      setSelectedTask((current) => (current?.scheduleId === scheduleId ? null : current))
+      clearTaskIdForSchedule(scheduleId)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [workspaceId]
@@ -203,7 +254,7 @@ export function useScheduledTasks({
   const pauseTask = useCallback(
     (scheduleId: string) => {
       disableSchedule.mutate({ scheduleId, workspaceId })
-      setSelectedTask((current) => (current?.scheduleId === scheduleId ? null : current))
+      clearTaskIdForSchedule(scheduleId)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [workspaceId]
@@ -212,7 +263,7 @@ export function useScheduledTasks({
   const resumeTask = useCallback(
     (scheduleId: string) => {
       resumeSchedule.mutate({ scheduleId, workspaceId })
-      setSelectedTask((current) => (current?.scheduleId === scheduleId ? null : current))
+      clearTaskIdForSchedule(scheduleId)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [workspaceId]

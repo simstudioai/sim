@@ -1,24 +1,20 @@
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useWorkspaceUsageGate } from '@/hooks/queries/workspace-usage'
+
+interface UseUsageLimitsOptions {
+  workspaceId: string
+}
 
 /**
- * Simplified hook that uses React Query for usage limits.
- * Provides usage exceeded status from existing subscription data.
+ * Exposes the routed workspace's payer/member execution gate.
  */
-
-export function useUsageLimits(options?: {
-  context?: 'user' | 'organization'
-  organizationId?: string
-  autoRefresh?: boolean
-}) {
-  // For now, we only support user context via React Query
-  // Organization context should use useOrganizationBilling directly
-  const { data: subscriptionData, isLoading } = useSubscriptionData({ enabled: isBillingEnabled })
-
-  const usageExceeded = subscriptionData?.data?.usage?.isExceeded || false
+export function useUsageLimits({ workspaceId }: UseUsageLimitsOptions) {
+  const { data, isLoading } = useWorkspaceUsageGate(isBillingEnabled ? workspaceId : undefined)
 
   return {
-    usageExceeded,
+    usageExceeded: data?.isExceeded ?? false,
+    message: data?.message ?? null,
+    scope: data?.scope ?? null,
     isLoading,
   }
 }

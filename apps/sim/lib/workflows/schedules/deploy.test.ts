@@ -43,6 +43,7 @@ vi.mock('@sim/db', () => ({
     workflowId: 'workflow_id',
     blockId: 'block_id',
     deploymentVersionId: 'deployment_version_id',
+    deploymentOperationId: 'deployment_operation_id',
     id: 'id',
     archivedAt: 'archived_at',
   },
@@ -813,7 +814,7 @@ describe('Schedule Deploy Utilities', () => {
 
       setupMockTransaction()
 
-      await createSchedulesForDeploy('workflow-1', blocks)
+      await createSchedulesForDeploy('workflow-1', blocks, undefined, 'version-1', 'operation-1')
 
       expect(mockOnConflictDoUpdate).toHaveBeenCalledWith({
         target: expect.any(Array),
@@ -821,6 +822,7 @@ describe('Schedule Deploy Utilities', () => {
         set: expect.objectContaining({
           blockId: 'block-1',
           cronExpression: '0 9 * * *',
+          deploymentOperationId: 'operation-1',
           status: 'active',
           failedCount: 0,
         }),

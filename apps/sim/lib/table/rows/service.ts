@@ -1104,13 +1104,23 @@ class GuardRejected extends Error {
  * @param data - Update data
  * @param table - Table definition
  * @param requestId - Request ID for logging
+ * @param options - Internal persistence controls
  * @returns Updated row
  * @throws Error if row not found or validation fails
  */
+export interface UpdateRowOptions {
+  /**
+   * `patch` sends only changed keys to Postgres via JSONB concatenation while
+   * retaining the same merged-row validation and returned shape.
+   */
+  dataWriteMode?: 'replace' | 'patch'
+}
+
 export async function updateRow(
   data: UpdateRowData,
   table: TableDefinition,
-  requestId: string
+  requestId: string,
+  options: UpdateRowOptions = {}
 ): Promise<TableRow | null> {
   // Get existing row
   const existingRow = await getRowById(data.tableId, data.rowId, data.workspaceId)
@@ -1163,6 +1173,14 @@ export async function updateRow(
   }
 
   const now = new Date()
+  const persistedDataPatch: RowData = {}
+  for (const columnId of Object.keys(data.data)) {
+    persistedDataPatch[columnId] = mergedData[columnId]
+  }
+  const persistedData =
+    options.dataWriteMode === 'patch'
+      ? sql`${userTableRows.data} || ${JSON.stringify(persistedDataPatch)}::jsonb`
+      : mergedData
 
   // Cell-task partial writes pass `cancellationGuard` so the upsert into
   // `tableRowExecutions` is a no-op when (a) a stop click already wrote
@@ -1176,7 +1194,7 @@ export async function updateRow(
     .transaction(async (trx) => {
       await trx
         .update(userTableRows)
-        .set({ data: mergedData, updatedAt: now })
+        .set({ data: persistedData, updatedAt: now })
         .where(eq(userTableRows.id, data.rowId))
 
       const result = await writeExecutionsPatch(

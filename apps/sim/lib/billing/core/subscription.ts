@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, organization, subscription, user } from '@sim/db/schema'
+import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -10,9 +10,11 @@ import {
 } from '@/lib/billing/core/plan'
 import {
   getPlanTierCredits,
+  isOrgPlan,
   isEnterprise as isPlanEnterprise,
   isPro as isPlanPro,
   isTeam as isPlanTeam,
+  sqlIsPaid,
 } from '@/lib/billing/plan-helpers'
 import {
   checkEnterprisePlan,
@@ -87,16 +89,53 @@ export async function writeBillingInterval(
 /**
  * Sync the subscription's `plan` column to match Stripe. Closes a gap
  * where plan changes (Pro → Team upgrades, tier swaps) updated price,
- * seats, and referenceId at Stripe but left the DB plan stale. Returns
- * `true` if a write was issued, `false` if no change was needed.
+ * seats, and referenceId at Stripe but left the DB plan stale.
+ *
+ * Enforces the billing invariant that organization-referenced
+ * subscriptions only ever hold Team or Enterprise plans: when Stripe
+ * resolves to a non-org plan (e.g. a Pro price was manually swapped onto
+ * an org subscription in the Stripe dashboard), the write is refused and
+ * an error is logged so operators fix the price in Stripe — the DB row
+ * never becomes an org-scoped Pro subscription.
+ *
+ * Returns the plan the DB row holds after the call. Callers must drive all
+ * downstream processing (org ensure, seat sync, usage limits) from this
+ * value — never from the raw Stripe plan — so a refused write cannot leak
+ * the rejected plan into the rest of the webhook handler.
+ *
+ * The organization lookup is inlined rather than delegated to
+ * `isSubscriptionOrgScoped` because that helper lives in `core/billing.ts`,
+ * which imports this module — delegating would create an import cycle.
  */
 export async function syncSubscriptionPlan(
   subscriptionId: string,
   currentPlan: string | null,
-  planFromStripe: string | null
-): Promise<boolean> {
-  if (!planFromStripe) return false
-  if (currentPlan === planFromStripe) return false
+  planFromStripe: string | null,
+  referenceId: string
+): Promise<string | null> {
+  if (!planFromStripe) return currentPlan
+  if (currentPlan === planFromStripe) return currentPlan
+
+  if (!isOrgPlan(planFromStripe)) {
+    const [referencedOrganization] = await db
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.id, referenceId))
+      .limit(1)
+
+    if (referencedOrganization) {
+      logger.error(
+        'Refusing to sync a non-org plan onto an organization-referenced subscription — fix the price in Stripe',
+        {
+          subscriptionId,
+          organizationId: referenceId,
+          currentPlan,
+          rejectedPlan: planFromStripe,
+        }
+      )
+      return currentPlan
+    }
+  }
 
   await db
     .update(subscription)
@@ -109,7 +148,7 @@ export async function syncSubscriptionPlan(
     newPlan: planFromStripe,
   })
 
-  return true
+  return planFromStripe
 }
 
 /**
@@ -121,7 +160,15 @@ export async function syncSubscriptionPlan(
  * when you need the billing-side entitlement row that includes
  * past-due subscriptions. Returns `null` when there is no usable sub.
  */
-export async function getOrganizationSubscriptionUsable(organizationId: string) {
+interface GetOrganizationSubscriptionUsableOptions {
+  onError?: 'return-null' | 'throw'
+}
+
+export async function getOrganizationSubscriptionUsable(
+  organizationId: string,
+  options: GetOrganizationSubscriptionUsableOptions = {}
+) {
+  const { onError = 'return-null' } = options
   try {
     const [orgSub] = await db
       .select()
@@ -137,6 +184,9 @@ export async function getOrganizationSubscriptionUsable(organizationId: string) 
     return orgSub ?? null
   } catch (error) {
     logger.error('Error getting usable organization subscription', { error, organizationId })
+    if (onError === 'throw') {
+      throw error
+    }
     return null
   }
 }
@@ -174,6 +224,47 @@ export async function hasPaidSubscription(
     }
 
     return true
+  }
+}
+
+export type OrganizationCoverageResult =
+  | { status: 'covered'; organizationId: string }
+  | { status: 'not-covered' }
+  | { status: 'unknown' }
+
+/**
+ * Check whether an organization already covers this user with an entitled
+ * paid subscription (the user is a member of the org, any role).
+ *
+ * Used to block redundant personal checkouts: a member of a paid org has
+ * their usage pooled to the org (personal Pro subscriptions are paused on
+ * join), so buying a personal plan would double-bill the same human.
+ *
+ * Returns `'unknown'` on error so callers can fail closed (block checkout
+ * rather than risk a duplicate subscription) with accurate messaging.
+ */
+export async function getOrganizationCoverageForMember(
+  userId: string
+): Promise<OrganizationCoverageResult> {
+  try {
+    const [row] = await db
+      .select({ organizationId: member.organizationId })
+      .from(member)
+      .innerJoin(subscription, eq(subscription.referenceId, member.organizationId))
+      .where(
+        and(
+          eq(member.userId, userId),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
+          sqlIsPaid(subscription.plan)
+        )
+      )
+      .limit(1)
+
+    if (row) return { status: 'covered', organizationId: row.organizationId }
+    return { status: 'not-covered' }
+  } catch (error) {
+    logger.error('Error checking organization coverage for member', { error, userId })
+    return { status: 'unknown' }
   }
 }
 
@@ -404,7 +495,7 @@ export async function isWorkspaceOnEnterprisePlan(workspaceId: string): Promise<
       return isOrganizationOnEnterprisePlan(ws.organizationId)
     }
 
-    const billedSub = await getHighestPrioritySubscription(ws.billedAccountUserId)
+    const billedSub = await getHighestPriorityPersonalSubscription(ws.billedAccountUserId)
     return !!billedSub && checkEnterprisePlan(billedSub)
   } catch (error) {
     logger.error('Error checking workspace enterprise plan status', { error, workspaceId })
@@ -453,7 +544,7 @@ export async function hasWorkspaceInboxAccess(workspaceId: string): Promise<bool
     }
 
     const [billedSub, billingStatus] = await Promise.all([
-      getHighestPrioritySubscription(ws.billedAccountUserId),
+      getHighestPriorityPersonalSubscription(ws.billedAccountUserId),
       getEffectiveBillingStatus(ws.billedAccountUserId),
     ])
     if (!billedSub) return false
@@ -492,7 +583,7 @@ export async function hasWorkspaceInboxGraceAccess(workspaceId: string): Promise
       return !!orgSub && isInboxEntitledPlan(orgSub.plan)
     }
 
-    const billedSub = await getHighestPrioritySubscription(ws.billedAccountUserId)
+    const billedSub = await getHighestPriorityPersonalSubscription(ws.billedAccountUserId)
     return !!billedSub && isInboxEntitledPlan(billedSub.plan)
   } catch (error) {
     logger.error('Error checking workspace inbox grace access', { error, workspaceId })
@@ -501,25 +592,43 @@ export async function hasWorkspaceInboxGraceAccess(workspaceId: string): Promise
 }
 
 /**
- * Check if user has access to live sync (every 5 minutes) for KB connectors
- * Returns true if:
- * - Self-hosted deployment, OR
- * - User has a Max plan (credits >= 25000) or enterprise plan
+ * Checks whether the exact workspace payer can use five-minute connector sync.
  */
-export async function hasLiveSyncAccess(userId: string): Promise<boolean> {
+export async function hasWorkspaceLiveSyncAccess(workspaceId: string): Promise<boolean> {
   try {
-    if (!isHosted) {
-      return true
+    if (!isHosted || !isBillingEnabled) return true
+
+    const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
+    const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
+    if (!ws) return false
+
+    if (ws.organizationId) {
+      const [billingBlocked, orgSub] = await Promise.all([
+        isOrganizationBillingBlocked(ws.organizationId),
+        getOrganizationSubscriptionUsable(ws.organizationId),
+      ])
+      if (!orgSub) return false
+      if (!hasUsableSubscriptionAccess(orgSub.status, billingBlocked)) return false
+      return isInboxEntitledPlan(orgSub.plan)
     }
-    const [sub, billingStatus] = await Promise.all([
-      getHighestPrioritySubscription(userId),
-      getEffectiveBillingStatus(userId),
+
+    const [billedSub, billedStatusRows] = await Promise.all([
+      getHighestPriorityPersonalSubscription(ws.billedAccountUserId),
+      db
+        .select({ billingBlocked: userStats.billingBlocked })
+        .from(userStats)
+        .where(eq(userStats.userId, ws.billedAccountUserId))
+        .limit(1),
     ])
-    if (!sub) return false
-    if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) return false
-    return getPlanTierCredits(sub.plan) >= 25000 || checkEnterprisePlan(sub)
+    if (!billedSub) return false
+    if (
+      !hasUsableSubscriptionAccess(billedSub.status, Boolean(billedStatusRows[0]?.billingBlocked))
+    ) {
+      return false
+    }
+    return isInboxEntitledPlan(billedSub.plan)
   } catch (error) {
-    logger.error('Error checking live sync access', { error, userId })
+    logger.error('Error checking workspace live sync access', { error, workspaceId })
     return false
   }
 }

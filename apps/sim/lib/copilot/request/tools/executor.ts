@@ -33,12 +33,13 @@ import {
   KnowledgeBase,
   MaterializeFile,
   Media,
-  Research,
   Run,
   RunBlock,
+  RunCode,
   RunFromBlock,
   RunWorkflow,
   RunWorkflowUntilBlock,
+  Search,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -47,7 +48,6 @@ import { recordSimToolMetric } from '@/lib/copilot/request/metrics'
 import { withCopilotToolSpan } from '@/lib/copilot/request/otel'
 import { markToolResultSeen } from '@/lib/copilot/request/sse-utils'
 import {
-  getToolCallStateOutput,
   getToolCallTerminalData,
   requireToolCallError,
   setTerminalToolCallState,
@@ -58,6 +58,7 @@ import {
   maybeWriteOutputToTable,
   maybeWriteReadCsvToTable,
 } from '@/lib/copilot/request/tools/tables'
+import { applyCreateWorkflowOutputToContext } from '@/lib/copilot/request/tools/workflow-context'
 import {
   type ExecutionContext,
   isTerminalToolCallStatus,
@@ -67,6 +68,7 @@ import {
   type ToolCallState,
 } from '@/lib/copilot/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
+import { isMcpTool } from '@/executor/constants'
 
 export { waitForToolCompletion } from '@/lib/copilot/request/tools/client'
 
@@ -163,25 +165,6 @@ function buildCompletionSignal(input: {
   }
 }
 
-function getCreateWorkflowOutput(
-  output: unknown
-): { workflowId?: string; workspaceId?: string } | undefined {
-  if (!isRecordLike(output)) {
-    return undefined
-  }
-
-  const workflowId = typeof output.workflowId === 'string' ? output.workflowId : undefined
-  const workspaceId = typeof output.workspaceId === 'string' ? output.workspaceId : undefined
-  if (!workflowId && !workspaceId) {
-    return undefined
-  }
-
-  return {
-    ...(workflowId ? { workflowId } : {}),
-    ...(workspaceId ? { workspaceId } : {}),
-  }
-}
-
 export interface AsyncToolCompletion extends AsyncCompletionSignal {}
 
 function publishTerminalToolConfirmation(input: {
@@ -225,12 +208,13 @@ const LONG_RUNNING_TOOL_IDS: ReadonlySet<string> = new Set([
   RunWorkflow.id,
   RunWorkflowUntilBlock.id,
   FunctionExecute.id,
+  RunCode.id,
   GenerateImage.id,
   GenerateAudio.id,
   GenerateVideo.id,
   Ffmpeg.id,
   Media.id,
-  Research.id,
+  Search.id,
   CrawlWebsite.id,
   KnowledgeBase.id,
   DownloadToWorkspaceFile.id,
@@ -241,7 +225,7 @@ const LONG_RUNNING_TOOL_IDS: ReadonlySet<string> = new Set([
 ])
 
 export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
-  return toolName && LONG_RUNNING_TOOL_IDS.has(toolName)
+  return toolName && (LONG_RUNNING_TOOL_IDS.has(toolName) || isMcpTool(toolName))
     ? TOOL_WATCHDOG_LONG_RUNNING_MS
     : TOOL_WATCHDOG_DEFAULT_MS
 }
@@ -347,7 +331,10 @@ function terminalCompletionFromToolCall(toolCall: ToolCallState): AsyncToolCompl
   }
 
   if (toolCall.status === MothershipStreamV1ToolOutcome.success) {
-    const data = getToolCallStateOutput(toolCall)
+    // getToolCallTerminalData (not raw output) so the completion signal carries
+    // the model-facing/redacted result — keeps the sim_key out of every path
+    // that consumes a completion, matching the error branch below.
+    const data = getToolCallTerminalData(toolCall)
     return buildCompletionSignal({
       status: MothershipStreamV1ToolOutcome.success,
       message: 'Tool completed',
@@ -356,7 +343,7 @@ function terminalCompletionFromToolCall(toolCall: ToolCallState): AsyncToolCompl
   }
 
   if (toolCall.status === MothershipStreamV1ToolOutcome.skipped) {
-    const data = getToolCallStateOutput(toolCall)
+    const data = getToolCallTerminalData(toolCall)
     return buildCompletionSignal({
       status: MothershipStreamV1ToolOutcome.success,
       message: 'Tool skipped',
@@ -667,7 +654,10 @@ async function executeToolAndReportInner(
     })
 
     if (result.success) {
-      const raw = result.output
+      // Log the model-facing (redacted) view, not result.output — for
+      // generate_api_key the raw output carries the plaintext key, which must
+      // never reach application logs.
+      const raw = getToolCallTerminalData(toolCall)
       const preview =
         typeof raw === 'string'
           ? raw.slice(0, 200)
@@ -688,19 +678,8 @@ async function executeToolAndReportInner(
       })
     }
 
-    // If create_workflow was successful, update the execution context with the new workflowId.
-    // This ensures subsequent tools in the same stream have access to the workflowId.
-    const createWorkflowOutput = getCreateWorkflowOutput(result.output)
-    if (
-      toolCall.name === CreateWorkflow.id &&
-      result.success &&
-      createWorkflowOutput?.workflowId &&
-      !execContext.workflowId
-    ) {
-      execContext.workflowId = createWorkflowOutput.workflowId
-      if (createWorkflowOutput.workspaceId) {
-        execContext.workspaceId = createWorkflowOutput.workspaceId
-      }
+    if (toolCall.name === CreateWorkflow.id && result.success) {
+      applyCreateWorkflowOutputToContext(result.output, execContext)
     }
 
     const terminalStatus = result.success

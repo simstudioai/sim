@@ -8,6 +8,7 @@ import { calcomHandler } from '@/lib/webhooks/providers/calcom'
 import { calendlyHandler } from '@/lib/webhooks/providers/calendly'
 import { circlebackHandler } from '@/lib/webhooks/providers/circleback'
 import { clerkHandler } from '@/lib/webhooks/providers/clerk'
+import { clickupHandler } from '@/lib/webhooks/providers/clickup'
 import { confluenceHandler } from '@/lib/webhooks/providers/confluence'
 import { emailBisonHandler } from '@/lib/webhooks/providers/emailbison'
 import { fathomHandler } from '@/lib/webhooks/providers/fathom'
@@ -70,6 +71,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   calcom: calcomHandler,
   circleback: circlebackHandler,
   clerk: clerkHandler,
+  clickup: clickupHandler,
   confluence: confluenceHandler,
   emailbison: emailBisonHandler,
   fireflies: firefliesHandler,
@@ -106,6 +108,9 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   sendblue: sendblueHandler,
   servicenow: servicenowHandler,
   slack: slackHandler,
+  // Native OAuth Slack trigger — inbound events are verified in the shared
+  // /api/webhooks/slack route; the handler reuses Slack payload normalization.
+  slack_app: slackHandler,
   stripe: stripeHandler,
   table: tableProviderHandler,
   telegram: telegramHandler,

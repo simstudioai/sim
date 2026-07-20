@@ -1,7 +1,10 @@
 import type { ComponentType } from 'react'
+import { isClientCredentialAccountProviderId } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
 import integrationsJson from '@/lib/integrations/integrations.json'
 import type { Integration } from '@/lib/integrations/types'
 import { getServiceConfigByServiceId } from '@/lib/oauth'
+import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 
 const INTEGRATIONS_DATA: readonly Integration[] =
@@ -34,7 +37,15 @@ export interface OAuthServiceMatch {
 function asServiceAccountProviderId(
   value: string | undefined
 ): ServiceAccountProviderId | undefined {
-  if (value === 'google-service-account' || value === 'atlassian-service-account') return value
+  if (
+    value === 'google-service-account' ||
+    value === 'atlassian-service-account' ||
+    value === SLACK_CUSTOM_BOT_PROVIDER_ID ||
+    isTokenServiceAccountProviderId(value) ||
+    isClientCredentialAccountProviderId(value)
+  ) {
+    return value
+  }
   return undefined
 }
 

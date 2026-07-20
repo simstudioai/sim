@@ -47,7 +47,7 @@ export interface ProcessedEmailData {
   replyTo?: string
 }
 
-export type MailProviderName = 'resend' | 'ses' | 'smtp' | 'azure'
+export type MailProviderName = 'resend' | 'ses' | 'smtp' | 'azure' | 'gmail'
 
 export interface MailProvider {
   readonly name: MailProviderName

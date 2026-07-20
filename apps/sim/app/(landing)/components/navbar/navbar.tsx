@@ -9,6 +9,7 @@ import {
   NavMenuChip,
   SimWordmark,
 } from '@/app/(landing)/components/navbar/components'
+import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 
 /**
  * Landing navbar.
@@ -33,6 +34,7 @@ import {
  * chip-height slot, chip-text color) → the {@link NAV_MENUS} mega-menus
  * (pure-CSS hover/focus dropdowns) → Pricing → GitHub stars. Right side: Log in
  * (default chip), Contact sales (outline chip), Sign up (filled chip).
+ * Enterprise lives inside the Resources mega-menu, not as a standalone chip.
  */
 
 interface NavbarProps {
@@ -84,10 +86,10 @@ export function Navbar({ stars, logoOnly = false }: NavbarProps) {
               <ChipLink href='/login' prefetch={false}>
                 Log in
               </ChipLink>
-              <ChipLink href='/demo' className='border border-[var(--border-1)]'>
+              <ChipLink variant='border' href={DEMO_HREF}>
                 Contact sales
               </ChipLink>
-              <ChipLink variant='primary' href='/signup' prefetch={false}>
+              <ChipLink variant='primary' href={SIGNUP_HREF} prefetch={false}>
                 Sign up
               </ChipLink>
             </div>

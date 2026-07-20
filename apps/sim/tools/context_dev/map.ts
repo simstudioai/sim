@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type { ContextDevMapParams, ContextDevMapResponse } from '@/tools/context_dev/types'
 import {
   appendParam,
@@ -14,6 +15,8 @@ export const contextDevMapTool: ToolConfig<ContextDevMapParams, ContextDevMapRes
   name: 'Context.dev Map',
   description: 'Build a sitemap of a domain and return every discovered page URL.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevMapParams>(),
 
   params: {
     domain: {

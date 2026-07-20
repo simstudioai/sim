@@ -1,3 +1,4 @@
+import { DEFAULT_BILLING_CONCURRENCY_LIMITS } from '@/lib/billing/concurrency-defaults'
 import {
   CREDIT_TIERS,
   CREDITS_PER_DOLLAR,
@@ -117,6 +118,20 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
     ],
   },
   {
+    title: 'Execution concurrency',
+    rows: [
+      {
+        label: 'Concurrent executions',
+        values: [
+          DEFAULT_BILLING_CONCURRENCY_LIMITS.free.toLocaleString('en-US'),
+          DEFAULT_BILLING_CONCURRENCY_LIMITS.pro.toLocaleString('en-US'),
+          DEFAULT_BILLING_CONCURRENCY_LIMITS.team.toLocaleString('en-US'),
+          `${DEFAULT_BILLING_CONCURRENCY_LIMITS.enterprise.toLocaleString('en-US')} (customizable)`,
+        ],
+      },
+    ],
+  },
+  {
     title: 'Rate limits (runs/min)',
     rows: [
       {
@@ -129,7 +144,7 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
       },
       {
         label: 'API endpoint',
-        values: ['0', '100', '200', 'Custom'],
+        values: ['30', '100', '200', 'Custom'],
       },
     ],
   },

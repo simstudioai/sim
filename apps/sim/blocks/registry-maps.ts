@@ -24,6 +24,7 @@ import { BrandfetchBlock, BrandfetchBlockMeta } from '@/blocks/blocks/brandfetch
 import { BrexBlock, BrexBlockMeta } from '@/blocks/blocks/brex'
 import { BrightDataBlock, BrightDataBlockMeta } from '@/blocks/blocks/brightdata'
 import { BrowserUseBlock, BrowserUseBlockMeta } from '@/blocks/blocks/browser_use'
+import { BufferBlock, BufferBlockMeta } from '@/blocks/blocks/buffer'
 import { CalComBlock, CalComBlockMeta } from '@/blocks/blocks/calcom'
 import { CalendlyBlock, CalendlyBlockMeta } from '@/blocks/blocks/calendly'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
@@ -31,6 +32,7 @@ import { CirclebackBlock, CirclebackBlockMeta } from '@/blocks/blocks/circleback
 import { ClayBlock, ClayBlockMeta } from '@/blocks/blocks/clay'
 import { ClerkBlock, ClerkBlockMeta } from '@/blocks/blocks/clerk'
 import { ClickHouseBlock, ClickHouseBlockMeta } from '@/blocks/blocks/clickhouse'
+import { ClickUpBlock, ClickUpBlockMeta } from '@/blocks/blocks/clickup'
 import { CloudflareBlock, CloudflareBlockMeta } from '@/blocks/blocks/cloudflare'
 import { CloudFormationBlock, CloudFormationBlockMeta } from '@/blocks/blocks/cloudformation'
 import { CloudWatchBlock, CloudWatchBlockMeta } from '@/blocks/blocks/cloudwatch'
@@ -78,6 +80,7 @@ import {
   FirefliesV2Block,
   FirefliesV2BlockMeta,
 } from '@/blocks/blocks/fireflies'
+import { FlintBlock, FlintBlockMeta } from '@/blocks/blocks/flint'
 import { FunctionBlock } from '@/blocks/blocks/function'
 import { GammaBlock, GammaBlockMeta } from '@/blocks/blocks/gamma'
 import { GenericWebhookBlock } from '@/blocks/blocks/generic_webhook'
@@ -125,7 +128,7 @@ import { GoogleTasksBlock, GoogleTasksBlockMeta } from '@/blocks/blocks/google_t
 import { GoogleTranslateBlock, GoogleTranslateBlockMeta } from '@/blocks/blocks/google_translate'
 import { GoogleVaultBlock, GoogleVaultBlockMeta } from '@/blocks/blocks/google_vault'
 import { GrafanaBlock, GrafanaBlockMeta } from '@/blocks/blocks/grafana'
-import { GrainBlock, GrainBlockMeta } from '@/blocks/blocks/grain'
+import { GrainBlock, GrainBlockMeta, GrainV2Block, GrainV2BlockMeta } from '@/blocks/blocks/grain'
 import { GranolaBlock, GranolaBlockMeta } from '@/blocks/blocks/granola'
 import { GreenhouseBlock, GreenhouseBlockMeta } from '@/blocks/blocks/greenhouse'
 import { GreptileBlock, GreptileBlockMeta } from '@/blocks/blocks/greptile'
@@ -143,6 +146,7 @@ import { ImapBlock, ImapBlockMeta } from '@/blocks/blocks/imap'
 import { IncidentioBlock, IncidentioBlockMeta } from '@/blocks/blocks/incidentio'
 import { InfisicalBlock, InfisicalBlockMeta } from '@/blocks/blocks/infisical'
 import { InputTriggerBlock } from '@/blocks/blocks/input_trigger'
+import { InstagramBlock, InstagramBlockMeta } from '@/blocks/blocks/instagram'
 import { InstantlyBlock, InstantlyBlockMeta } from '@/blocks/blocks/instantly'
 import {
   IntercomBlock,
@@ -250,6 +254,7 @@ import { ResendBlock, ResendBlockMeta } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
 import { RevenueCatBlock, RevenueCatBlockMeta } from '@/blocks/blocks/revenuecat'
 import { RipplingBlock, RipplingBlockMeta } from '@/blocks/blocks/rippling'
+import { RocketlaneBlock, RocketlaneBlockMeta } from '@/blocks/blocks/rocketlane'
 import { RootlyBlock, RootlyBlockMeta } from '@/blocks/blocks/rootly'
 import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 import { RssBlock, RssBlockMeta } from '@/blocks/blocks/rss'
@@ -272,7 +277,7 @@ import { ShopifyBlock, ShopifyBlockMeta } from '@/blocks/blocks/shopify'
 import { SimWorkspaceEventBlock } from '@/blocks/blocks/sim_workspace_event'
 import { SimilarwebBlock, SimilarwebBlockMeta } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock, SixtyfourBlockMeta } from '@/blocks/blocks/sixtyfour'
-import { SlackBlock, SlackBlockMeta } from '@/blocks/blocks/slack'
+import { SlackBlock, SlackBlockMeta, SlackV2Block } from '@/blocks/blocks/slack'
 import { SmtpBlock, SmtpBlockMeta } from '@/blocks/blocks/smtp'
 import { SportmonksBlock, SportmonksBlockMeta } from '@/blocks/blocks/sportmonks'
 import { SpotifyBlock, SpotifyBlockMeta } from '@/blocks/blocks/spotify'
@@ -362,6 +367,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   brex: BrexBlock,
   brightdata: BrightDataBlock,
   browser_use: BrowserUseBlock,
+  buffer: BufferBlock,
   calcom: CalComBlock,
   calendly: CalendlyBlock,
   chat_trigger: ChatTriggerBlock,
@@ -369,6 +375,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   clay: ClayBlock,
   clerk: ClerkBlock,
   clickhouse: ClickHouseBlock,
+  clickup: ClickUpBlock,
   cloudflare: CloudflareBlock,
   cloudformation: CloudFormationBlock,
   cloudwatch: CloudWatchBlock,
@@ -422,6 +429,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   firecrawl: FirecrawlBlock,
   fireflies: FirefliesBlock,
   fireflies_v2: FirefliesV2Block,
+  flint: FlintBlock,
   function: FunctionBlock,
   gamma: GammaBlock,
   generic_webhook: GenericWebhookBlock,
@@ -455,6 +463,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   google_vault: GoogleVaultBlock,
   grafana: GrafanaBlock,
   grain: GrainBlock,
+  grain_v2: GrainV2Block,
   granola: GranolaBlock,
   greenhouse: GreenhouseBlock,
   greptile: GreptileBlock,
@@ -473,6 +482,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   incidentio: IncidentioBlock,
   infisical: InfisicalBlock,
   input_trigger: InputTriggerBlock,
+  instagram: InstagramBlock,
   instantly: InstantlyBlock,
   intercom: IntercomBlock,
   intercom_v2: IntercomV2Block,
@@ -557,6 +567,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   response: ResponseBlock,
   revenuecat: RevenueCatBlock,
   rippling: RipplingBlock,
+  rocketlane: RocketlaneBlock,
   rootly: RootlyBlock,
   router: RouterBlock,
   router_v2: RouterV2Block,
@@ -582,6 +593,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   similarweb: SimilarwebBlock,
   sixtyfour: SixtyfourBlock,
   slack: SlackBlock,
+  slack_v2: SlackV2Block,
   smtp: SmtpBlock,
   sportmonks: SportmonksBlock,
   spotify: SpotifyBlock,
@@ -679,12 +691,14 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   brex: BrexBlockMeta,
   brightdata: BrightDataBlockMeta,
   browser_use: BrowserUseBlockMeta,
+  buffer: BufferBlockMeta,
   calcom: CalComBlockMeta,
   calendly: CalendlyBlockMeta,
   circleback: CirclebackBlockMeta,
   clay: ClayBlockMeta,
   clerk: ClerkBlockMeta,
   clickhouse: ClickHouseBlockMeta,
+  clickup: ClickUpBlockMeta,
   cloudflare: CloudflareBlockMeta,
   cloudformation: CloudFormationBlockMeta,
   cloudwatch: CloudWatchBlockMeta,
@@ -723,6 +737,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   firecrawl: FirecrawlBlockMeta,
   fireflies: FirefliesBlockMeta,
   fireflies_v2: FirefliesV2BlockMeta,
+  flint: FlintBlockMeta,
   gamma: GammaBlockMeta,
   github: GitHubBlockMeta,
   github_v2: GitHubV2BlockMeta,
@@ -754,6 +769,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   google_vault: GoogleVaultBlockMeta,
   grafana: GrafanaBlockMeta,
   grain: GrainBlockMeta,
+  grain_v2: GrainV2BlockMeta,
   granola: GranolaBlockMeta,
   greenhouse: GreenhouseBlockMeta,
   greptile: GreptileBlockMeta,
@@ -767,6 +783,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   imap: ImapBlockMeta,
   incidentio: IncidentioBlockMeta,
   infisical: InfisicalBlockMeta,
+  instagram: InstagramBlockMeta,
   instantly: InstantlyBlockMeta,
   intercom: IntercomBlockMeta,
   intercom_v2: IntercomV2BlockMeta,
@@ -838,6 +855,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   resend: ResendBlockMeta,
   revenuecat: RevenueCatBlockMeta,
   rippling: RipplingBlockMeta,
+  rocketlane: RocketlaneBlockMeta,
   rootly: RootlyBlockMeta,
   rss: RssBlockMeta,
   s3: S3BlockMeta,

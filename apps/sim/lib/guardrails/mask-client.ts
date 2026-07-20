@@ -4,6 +4,7 @@ import { env } from '@/lib/core/config/env'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
+import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 
 /**
  * Max in-flight mask-batch requests per call. Each request is a CPU-heavy NER
@@ -34,7 +35,8 @@ const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 64
 export async function maskPIIBatchViaHttp(
   texts: string[],
   entityTypes: string[],
-  language?: string
+  language?: string,
+  customPatterns?: CustomPiiPattern[]
 ): Promise<string[]> {
   if (texts.length === 0) return []
 
@@ -43,7 +45,7 @@ export async function maskPIIBatchViaHttp(
 
   await mapWithConcurrency(chunkIndicesByBudget(texts), CHUNK_CONCURRENCY, async (indices) => {
     const chunk = indices.map((i) => texts[i])
-    const out = await postChunk(url, chunk, entityTypes, language)
+    const out = await postChunk(url, chunk, entityTypes, language, customPatterns)
     if (out.length !== chunk.length) {
       throw new Error('PII mask-batch returned an unexpected result')
     }
@@ -59,7 +61,8 @@ async function postChunk(
   url: string,
   texts: string[],
   entityTypes: string[],
-  language: string | undefined
+  language: string | undefined,
+  customPatterns: CustomPiiPattern[] | undefined
 ): Promise<string[]> {
   // Mint per request: a single token (5min TTL) can expire mid-batch when a
   // large execution fans out into many sequential chunk requests.
@@ -72,7 +75,7 @@ async function postChunk(
       'content-type': 'application/json',
       authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ texts, entityTypes, language }),
+    body: JSON.stringify({ texts, entityTypes, language, customPatterns }),
   })
 
   if (!response.ok) {

@@ -532,6 +532,8 @@ export function extractStorageKey(filePath: string): string {
       key = key.substring(3)
     } else if (key.startsWith('blob/')) {
       key = key.substring(5)
+    } else if (key.startsWith('gcs/')) {
+      key = key.substring(4)
     }
     return key
   }

@@ -16,15 +16,15 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { ArrowRight, Plus } from 'lucide-react'
+import { CustomPatternsEditor } from '@/components/pii/custom-patterns-editor'
 import type { UpdateOrganizationDataRetentionBody } from '@/lib/api/contracts/organization'
 import type { RetentionOverride } from '@/lib/api/contracts/primitives'
-import { useSession } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import {
+  type CustomPiiPattern,
   emptyPiiStages,
   getEntityGroupsForLanguage,
   isEntitySupportedForLanguage,
@@ -37,8 +37,9 @@ import {
   type PiiStageKey,
   type PiiStagePolicy,
   type PiiStages,
+  sanitizeCustomPatterns,
+  stripNerEntities,
 } from '@/lib/guardrails/pii-entities'
-import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -50,7 +51,6 @@ import {
   useOrganizationRetention,
   useUpdateOrganizationRetention,
 } from '@/ee/data-retention/hooks/data-retention'
-import { useOrganizations } from '@/hooks/queries/organization'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('DataRetentionSettings')
@@ -140,15 +140,18 @@ function buildRetentionOverride(workspaceId: string, draft: PolicyDraft): Retent
 }
 
 /** Stable serialization of a stage set for dirty-detection. */
-function serializeStages(stages: PiiStages): Array<[PiiStageKey, boolean, string[], PIILanguage]> {
+function serializeStages(
+  stages: PiiStages
+): Array<[PiiStageKey, boolean, string[], PIILanguage, CustomPiiPattern[]]> {
   return PII_STAGES.map((key) => {
     const policy = stages[key]
-    return [key, policy.enabled, [...policy.entityTypes].sort(), policy.language] as [
-      PiiStageKey,
-      boolean,
-      string[],
-      PIILanguage,
-    ]
+    return [
+      key,
+      policy.enabled,
+      [...policy.entityTypes].sort(),
+      policy.language,
+      policy.customPatterns ?? [],
+    ] as [PiiStageKey, boolean, string[], PIILanguage, CustomPiiPattern[]]
   })
 }
 
@@ -164,19 +167,29 @@ function normalizePolicyDraft(draft: PolicyDraft): string {
   })
 }
 
-/** A stage is "on" iff it has at least one entity type selected. */
+/** A stage is "on" iff it has at least one entity type or custom pattern. */
 function stageHasContent(policy: PiiStagePolicy): boolean {
-  return policy.entityTypes.length > 0
+  return policy.entityTypes.length > 0 || (policy.customPatterns?.length ?? 0) > 0
 }
 
 function anyStageHasContent(stages: PiiStages): boolean {
   return PII_STAGES.some((key) => stageHasContent(stages[key]))
 }
 
-/** Persist-time guarantee that `enabled` mirrors "has entity types" for every stage. */
+/** Persist-time guarantee that `enabled` mirrors "has content" for every stage. */
 function withSyncedEnabled(stages: PiiStages): PiiStages {
   return PII_STAGES.reduce((acc, key) => {
-    acc[key] = { ...stages[key], enabled: stages[key].entityTypes.length > 0 }
+    // Block outputs are regex-only — strip any NER before persisting.
+    const entityTypes =
+      key === 'blockOutputs' ? stripNerEntities(stages[key].entityTypes) : stages[key].entityTypes
+    // Drop half-typed rows (empty regex) so the boundary contract never rejects the save.
+    const customPatterns = sanitizeCustomPatterns(stages[key].customPatterns)
+    acc[key] = {
+      ...stages[key],
+      entityTypes,
+      customPatterns,
+      enabled: entityTypes.length > 0 || customPatterns.length > 0,
+    }
     return acc
   }, {} as PiiStages)
 }
@@ -195,7 +208,8 @@ function stageSummary(stages: PiiStages): string {
   }
   return PII_STAGES.map((key) => {
     const policy = stages[key]
-    return `${short[key]} ${stageHasContent(policy) ? policy.entityTypes.length : 'off'}`
+    const count = policy.entityTypes.length + (policy.customPatterns?.length ?? 0)
+    return `${short[key]} ${stageHasContent(policy) ? count : 'off'}`
   }).join(' · ')
 }
 
@@ -325,6 +339,7 @@ function PiiLanguageSelect({ value, onChange }: PiiLanguageSelectProps) {
 }
 
 interface PiiStagePanelProps {
+  stageKey: PiiStageKey
   description: string
   value: PiiStagePolicy
   onChange: (next: PiiStagePolicy) => void
@@ -335,11 +350,17 @@ interface PiiStagePanelProps {
  * stage is "on" purely by virtue of having entity types selected — `enabled` is
  * kept in sync with that, so there is no separate toggle.
  */
-function PiiStagePanel({ description, value, onChange }: PiiStagePanelProps) {
-  const groups = getEntityGroupsForLanguage(value.language)
+function PiiStagePanel({ stageKey, description, value, onChange }: PiiStagePanelProps) {
+  // Block outputs run in-flight on large payloads, so they are restricted to the
+  // regex/checksum recognizers (no spaCy NER) — see the server fast path.
+  const groups = getEntityGroupsForLanguage(value.language, {
+    regexOnly: stageKey === 'blockOutputs',
+  })
 
-  function update(entityTypes: string[], language = value.language) {
-    onChange({ ...value, language, entityTypes, enabled: entityTypes.length > 0 })
+  function update(patch: Partial<PiiStagePolicy>) {
+    const merged = { ...value, ...patch }
+    const enabled = merged.entityTypes.length > 0 || (merged.customPatterns?.length ?? 0) > 0
+    onChange({ ...merged, enabled })
   }
 
   return (
@@ -358,18 +379,36 @@ function PiiStagePanel({ description, value, onChange }: PiiStagePanelProps) {
         <EntityCheckboxGrid
           groups={groups}
           selected={value.entityTypes}
-          onChange={(entityTypes) => update(entityTypes)}
+          onChange={(entityTypes) => update({ entityTypes })}
           belowSearch={
             <div className='flex items-center justify-between gap-3'>
               <span className='text-[var(--text-muted)] text-small'>Language</span>
               <PiiLanguageSelect
                 value={value.language}
                 onChange={(language) =>
-                  update(pruneEntitiesForLanguage(value.entityTypes, language), language)
+                  update({
+                    language,
+                    entityTypes: pruneEntitiesForLanguage(value.entityTypes, language),
+                  })
                 }
               />
             </div>
           }
+        />
+      </div>
+
+      <div className='flex flex-col gap-2'>
+        <div className='flex items-center gap-1.5'>
+          <span className='text-[var(--text-muted)] text-small'>Custom patterns</span>
+          <Info side='top' align='start'>
+            Redact anything a regular expression can match (employee ids, internal urls, ticket
+            numbers). Each match is replaced with its replacement text, wrapped in angle brackets
+            (e.g. EMPLOYEE_ID → &lt;EMPLOYEE_ID&gt;).
+          </Info>
+        </div>
+        <CustomPatternsEditor
+          patterns={value.customPatterns ?? []}
+          onChange={(customPatterns) => update({ customPatterns })}
         />
       </div>
     </div>
@@ -524,7 +563,10 @@ function PolicyDetail({
                         [effectiveStage]: {
                           ...draft.piiStages[effectiveStage],
                           entityTypes: [],
-                          enabled: false,
+                          // Clearing entity types leaves any custom patterns intact,
+                          // so the stage stays enabled while patterns remain.
+                          enabled:
+                            (draft.piiStages[effectiveStage].customPatterns?.length ?? 0) > 0,
                         },
                       },
                     })
@@ -574,6 +616,7 @@ function PolicyDetail({
                     />
                   )}
                   <PiiStagePanel
+                    stageKey={effectiveStage}
                     description={activeStageMeta.description}
                     value={draft.piiStages[effectiveStage]}
                     onChange={(next) =>
@@ -616,13 +659,11 @@ function PolicyDetail({
   )
 }
 
-export function DataRetentionSettings() {
-  const { data: session, isPending: sessionPending } = useSession()
-  const { data: orgsData, isLoading: orgsLoading } = useOrganizations()
+interface DataRetentionSettingsProps {
+  organizationId: string
+}
 
-  const activeOrganization = orgsData?.activeOrganization
-  const orgId = activeOrganization?.id
-
+export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSettingsProps) {
   const { data, isLoading: retentionLoading } = useOrganizationRetention(orgId)
   const updateMutation = useUpdateOrganizationRetention()
   const { data: workspaces } = useWorkspacesQuery(Boolean(orgId))
@@ -632,9 +673,6 @@ export function DataRetentionSettings() {
   const workspaceName = (id: string) =>
     workspaceOptions.find((w) => w.value === id)?.label ?? 'Unknown workspace'
 
-  const userEmail = session?.user?.email
-  const userRole = getUserRole(activeOrganization, userEmail)
-  const canManage = isOrgAdminRole(userRole)
   const piiEnabled = Boolean(data?.piiRedactionEnabled)
   const piiGranularEnabled = Boolean(data?.piiGranularRedactionEnabled)
 
@@ -891,17 +929,7 @@ export function DataRetentionSettings() {
     }
   }
 
-  if (sessionPending || orgsLoading || (orgId && retentionLoading)) {
-    return null
-  }
-
-  if (!orgId) {
-    return (
-      <SettingsEmptyState>
-        Data retention is configured per organization. Join or create an organization to continue.
-      </SettingsEmptyState>
-    )
-  }
+  if (retentionLoading) return null
 
   if (!data) {
     return <SettingsEmptyState>Failed to load data retention settings.</SettingsEmptyState>
@@ -910,14 +938,6 @@ export function DataRetentionSettings() {
   if (isBillingEnabled && !data.isEnterprise) {
     return (
       <SettingsEmptyState>Data retention is available on Enterprise plans only.</SettingsEmptyState>
-    )
-  }
-
-  if (!canManage) {
-    return (
-      <SettingsEmptyState>
-        Only organization owners and admins can configure data retention settings.
-      </SettingsEmptyState>
     )
   }
 

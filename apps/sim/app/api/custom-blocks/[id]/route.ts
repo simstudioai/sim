@@ -9,50 +9,18 @@ import {
 } from '@/lib/api/contracts/custom-blocks'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   CustomBlockValidationError,
   deleteCustomBlock,
-  getCustomBlockManageContext,
+  getCustomBlockUsageCounts,
   updateCustomBlock,
 } from '@/lib/workflows/custom-blocks/operations'
-import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import { authorizeManage } from '@/app/api/custom-blocks/[id]/authorize-manage'
 
 const logger = createLogger('CustomBlockAPI')
 
 type RouteContext = { params: Promise<{ id: string }> }
-
-/**
- * Confirm the caller can manage (edit/delete) the block: admin of the block's
- * SOURCE workflow's workspace — matching who could publish it. Org admins/owners
- * hold admin on every org workspace, so they pass too; a workspace admin from a
- * different workspace does not, so they cannot alter another workspace's block or
- * its exposed outputs.
- */
-type ManageContext = NonNullable<Awaited<ReturnType<typeof getCustomBlockManageContext>>>
-
-async function authorizeManage(
-  userId: string,
-  id: string
-): Promise<{ error: NextResponse; ctx: null } | { error: null; ctx: ManageContext }> {
-  const ctx = await getCustomBlockManageContext(id)
-  if (!ctx) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }), ctx: null }
-
-  if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: ctx.organizationId }))) {
-    return {
-      error: NextResponse.json({ error: 'Deploy as block is not enabled' }, { status: 403 }),
-      ctx: null,
-    }
-  }
-  if (!ctx.sourceWorkspaceId || !(await hasWorkspaceAdminAccess(userId, ctx.sourceWorkspaceId))) {
-    return {
-      error: NextResponse.json({ error: 'Admin permissions required' }, { status: 403 }),
-      ctx: null,
-    }
-  }
-  return { error: null, ctx }
-}
 
 export const PATCH = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
   const session = await getSession()
@@ -115,6 +83,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
   if (authz.error) return authz.error
   const { ctx } = authz
 
+  const usageCounts = await getCustomBlockUsageCounts(ctx.organizationId, ctx.type)
   await deleteCustomBlock(id)
   recordAudit({
     workspaceId: ctx.sourceWorkspaceId,
@@ -126,7 +95,12 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
     resourceId: id,
     resourceName: ctx.name,
     description: `Unpublished custom block "${ctx.name}"`,
-    metadata: { organizationId: ctx.organizationId, type: ctx.type },
+    metadata: {
+      organizationId: ctx.organizationId,
+      type: ctx.type,
+      usageCount: usageCounts.usageCount,
+      deployedUsageCount: usageCounts.deployedUsageCount,
+    },
     request,
   })
   return NextResponse.json({ success: true as const })

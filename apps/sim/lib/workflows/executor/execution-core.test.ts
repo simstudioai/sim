@@ -174,7 +174,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     })
 
     mergeSubblockStateWithValuesMock.mockImplementation((blocks) => blocks)
-    serializeWorkflowMock.mockReturnValue({ loops: {}, parallels: {} })
+    serializeWorkflowMock.mockReturnValue({ blocks: [], loops: {}, parallels: {} })
     buildTraceSpansMock.mockReturnValue({ traceSpans: [{ id: 'span-1' }], totalDuration: 123 })
     findStartBlockMock.mockReturnValue({
       blockId: 'start-block',

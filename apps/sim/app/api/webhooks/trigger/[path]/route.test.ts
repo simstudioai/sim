@@ -13,7 +13,13 @@ import {
   workflowsPersistenceUtilsMockFns,
   workflowsUtilsMock,
 } from '@sim/testing'
+import { type NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  ADMISSION_ERROR_CODE,
+  ADMISSION_ERROR_DESCRIPTOR,
+  ADMISSION_RETRY_AFTER_SECONDS,
+} from '@/lib/core/admission/transient-failure'
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
@@ -66,22 +72,34 @@ vi.mock('@/serializer', () => ({
  * Test data store - isolated per test via beforeEach reset
  * This replaces the global mutable state pattern with local test data
  */
+interface TestWebhook {
+  id: string
+  provider: string | null
+  path: string
+  isActive: boolean
+  providerConfig?: Record<string, unknown>
+  workflowId: string
+  blockId?: string
+  rateLimitCount?: number
+  rateLimitPeriod?: number
+}
+
+interface TestWorkflow {
+  id: string
+  userId: string
+  workspaceId?: string
+}
+
+interface TestDispatchOptions {
+  requestId: string
+  path: string
+  receivedAt: number
+  triggerTimestampMs?: number
+}
+
 const testData = {
-  webhooks: [] as Array<{
-    id: string
-    provider: string
-    path: string
-    isActive: boolean
-    providerConfig?: Record<string, unknown>
-    workflowId: string
-    rateLimitCount?: number
-    rateLimitPeriod?: number
-  }>,
-  workflows: [] as Array<{
-    id: string
-    userId: string
-    workspaceId?: string
-  }>,
+  webhooks: [] as TestWebhook[],
+  workflows: [] as TestWorkflow[],
 }
 
 const {
@@ -94,9 +112,13 @@ const {
   processWebhookMock,
   executeMock,
   getWorkspaceBilledAccountUserIdMock,
+  checkWebhookPreprocessingMock,
+  handleWebhookEventFilterMock,
   queueWebhookExecutionMock,
   dispatchResolvedWebhookTargetMock,
-  isWorkspaceApiExecutionEntitledMock,
+  shouldSkipWebhookEventMock,
+  admissionRejectedResponseMock,
+  tryAdmitMock,
 } = vi.hoisted(() => ({
   generateRequestHashMock: vi.fn().mockResolvedValue('test-hash-123'),
   validateSlackSignatureMock: vi.fn().mockResolvedValue(true),
@@ -120,17 +142,47 @@ const {
     .mockImplementation(async (workspaceId: string | null | undefined) =>
       workspaceId ? 'test-user-id' : null
     ),
+  checkWebhookPreprocessingMock: vi.fn().mockResolvedValue({
+    error: null,
+    actorUserId: 'test-user-id',
+    billingAttribution: {
+      actorUserId: 'test-user-id',
+      workspaceId: 'test-workspace-id',
+      organizationId: null,
+      billedAccountUserId: 'test-user-id',
+      billingEntity: { type: 'user', id: 'test-user-id' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    },
+    executionId: 'preprocess-execution-id',
+    correlation: {
+      executionId: 'preprocess-execution-id',
+      requestId: 'mock-request-id',
+      source: 'webhook',
+      workflowId: 'test-workflow-id',
+      webhookId: 'generic-webhook-id',
+      path: 'test-path',
+      provider: 'generic',
+      triggerType: 'webhook',
+    },
+  }),
+  handleWebhookEventFilterMock: vi.fn().mockResolvedValue(null),
   queueWebhookExecutionMock: vi.fn().mockImplementation(async () => {
     const { NextResponse } = await import('next/server')
     return NextResponse.json({ message: 'Webhook processed' })
   }),
   dispatchResolvedWebhookTargetMock: vi.fn(),
-  isWorkspaceApiExecutionEntitledMock: vi.fn().mockResolvedValue(true),
+  shouldSkipWebhookEventMock: vi.fn().mockReturnValue(false),
+  admissionRejectedResponseMock: vi.fn(),
+  tryAdmitMock: vi.fn<() => { release: () => void } | null>(() => ({ release: vi.fn() })),
 }))
 
-vi.mock('@/lib/billing/core/api-access', () => ({
-  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE: 'paid plan required',
-  isWorkspaceApiExecutionEntitled: isWorkspaceApiExecutionEntitledMock,
+vi.mock('@/lib/core/admission/gate', () => ({
+  admissionRejectedResponse: admissionRejectedResponseMock,
+  tryAdmit: tryAdmitMock,
 }))
 
 vi.mock('@trigger.dev/sdk', () => ({
@@ -227,7 +279,7 @@ vi.mock('@/lib/webhooks/processor', () => ({
       }
     })
   }),
-  parseWebhookBody: vi.fn().mockImplementation(async (request: any) => {
+  parseWebhookBody: vi.fn().mockImplementation(async (request: NextRequest) => {
     try {
       const cloned = request.clone()
       const rawBody = await cloned.text()
@@ -265,32 +317,85 @@ vi.mock('@/lib/webhooks/processor', () => ({
       }
     ),
   handleProviderReachabilityTest: vi.fn().mockReturnValue(null),
+  handleWebhookEventFilter: handleWebhookEventFilterMock,
   dispatchResolvedWebhookTarget: dispatchResolvedWebhookTargetMock.mockImplementation(
     async (
-      foundWebhook: unknown,
-      foundWorkflow: unknown,
+      foundWebhook: TestWebhook,
+      foundWorkflow: TestWorkflow,
       body: unknown,
-      request: unknown,
-      options: unknown
-    ) => ({
-      outcome: 'queued',
-      reason: 'queued',
-      response: await queueWebhookExecutionMock(
+      request: NextRequest,
+      options: TestDispatchOptions
+    ) => {
+      if (shouldSkipWebhookEventMock(foundWebhook, body, options.requestId)) {
+        return {
+          outcome: 'ignored',
+          reason: 'filtered',
+          response: NextResponse.json({ message: 'Webhook event ignored' }),
+        }
+      }
+
+      const eventFilterResponse = await handleWebhookEventFilterMock(
         foundWebhook,
         foundWorkflow,
         body,
         request,
-        options
-      ),
-    })
+        options.requestId
+      )
+      if (eventFilterResponse) {
+        return {
+          outcome: eventFilterResponse.ok ? 'ignored' : 'failed',
+          reason: 'event-mismatch',
+          response: eventFilterResponse,
+        }
+      }
+
+      if (
+        foundWebhook.blockId &&
+        !(await workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment(
+          foundWorkflow.id,
+          foundWebhook.blockId
+        ))
+      ) {
+        return {
+          outcome: 'ignored',
+          reason: 'block-missing',
+          response: new NextResponse('Trigger block not found in deployment', { status: 404 }),
+        }
+      }
+
+      const preprocessResult = await checkWebhookPreprocessingMock(
+        foundWorkflow,
+        foundWebhook,
+        options.requestId
+      )
+      if (preprocessResult.error) {
+        return {
+          outcome: 'failed',
+          reason: 'preprocessing',
+          response: preprocessResult.error,
+        }
+      }
+
+      return {
+        outcome: 'queued',
+        reason: 'queued',
+        response: await queueWebhookExecutionMock(foundWebhook, foundWorkflow, body, request, {
+          ...options,
+          actorUserId: preprocessResult.actorUserId,
+          billingAttribution: preprocessResult.billingAttribution,
+          executionId: preprocessResult.executionId,
+          correlation: preprocessResult.correlation,
+        }),
+      }
+    }
   ),
   verifyProviderAuth: vi
     .fn()
     .mockImplementation(
       async (
-        foundWebhook: any,
-        _foundWorkflow: any,
-        request: any,
+        foundWebhook: TestWebhook,
+        _foundWorkflow: TestWorkflow,
+        request: NextRequest,
         _rawBody: string,
         _requestId: string
       ) => {
@@ -339,26 +444,12 @@ vi.mock('@/lib/webhooks/processor', () => ({
         return null
       }
     ),
-  checkWebhookPreprocessing: vi.fn().mockResolvedValue({
-    error: null,
-    actorUserId: 'test-user-id',
-    executionId: 'preprocess-execution-id',
-    correlation: {
-      executionId: 'preprocess-execution-id',
-      requestId: 'mock-request-id',
-      source: 'webhook',
-      workflowId: 'test-workflow-id',
-      webhookId: 'generic-webhook-id',
-      path: 'test-path',
-      provider: 'generic',
-      triggerType: 'webhook',
-    },
-  }),
+  checkWebhookPreprocessing: checkWebhookPreprocessingMock,
   formatProviderErrorResponse: vi.fn().mockImplementation((_webhook, error, status) => {
     const { NextResponse } = require('next/server')
     return NextResponse.json({ error }, { status })
   }),
-  shouldSkipWebhookEvent: vi.fn().mockReturnValue(false),
+  shouldSkipWebhookEvent: shouldSkipWebhookEventMock,
   handlePreDeploymentVerification: vi.fn().mockReturnValue(null),
 }))
 
@@ -375,6 +466,22 @@ import { GET, POST } from '@/app/api/webhooks/trigger/[path]/route'
 describe('Webhook Trigger API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    const gateDescriptor = ADMISSION_ERROR_DESCRIPTOR.GATE_CAPACITY
+    admissionRejectedResponseMock.mockImplementation(() =>
+      NextResponse.json(
+        {
+          error: 'Too many requests',
+          message: 'Server is at capacity. Please retry shortly.',
+          code: gateDescriptor.code,
+          retryable: gateDescriptor.retryable,
+          retryAfterSeconds: gateDescriptor.retryAfterSeconds,
+        },
+        {
+          status: gateDescriptor.statusCode,
+          headers: { 'Retry-After': String(gateDescriptor.retryAfterSeconds) },
+        }
+      )
+    )
 
     // Reset test data arrays
     testData.webhooks.length = 0
@@ -389,15 +496,6 @@ describe('Webhook Trigger API Route', () => {
         isDeployed: true,
         workspaceId: 'test-workspace-id',
       },
-      userSubscription: {
-        plan: 'pro',
-        status: 'active',
-      },
-      rateLimitInfo: {
-        allowed: true,
-        remaining: 100,
-        resetAt: new Date(),
-      },
     })
 
     workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables.mockResolvedValue({
@@ -408,7 +506,8 @@ describe('Webhook Trigger API Route', () => {
       isFromNormalizedTables: true,
     })
     workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
-    isWorkspaceApiExecutionEntitledMock.mockResolvedValue(true)
+    handleWebhookEventFilterMock.mockResolvedValue(null)
+    shouldSkipWebhookEventMock.mockReturnValue(false)
 
     // Set up default workflow for tests
     testData.workflows.push({
@@ -427,12 +526,49 @@ describe('Webhook Trigger API Route', () => {
 
     const params = Promise.resolve({ path: 'non-existent-path' })
 
-    const response = await POST(req as any, { params })
+    const response = await POST(req, { params })
 
     expect(response.status).toBe(404)
 
     const text = await response.text()
     expect(text).toMatch(/not found/i)
+  })
+
+  it('returns 500 without dispatching when a persisted webhook has no provider', async () => {
+    testData.webhooks.push({
+      id: 'missing-provider-webhook',
+      provider: null,
+      path: 'missing-provider-path',
+      isActive: true,
+      workflowId: 'test-workflow-id',
+    })
+
+    const response = await POST(createMockRequest('POST', { event: 'test' }), {
+      params: Promise.resolve({ path: 'missing-provider-path' }),
+    })
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({ error: 'Webhook provider is missing' })
+    expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
+  })
+
+  it('returns a stable retryable response when the webhook admission gate is full', async () => {
+    tryAdmitMock.mockReturnValueOnce(null)
+
+    const response = await POST(createMockRequest('POST', { event: 'test' }), {
+      params: Promise.resolve({ path: 'test-path' }),
+    })
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe(String(ADMISSION_RETRY_AFTER_SECONDS))
+    await expect(response.json()).resolves.toMatchObject({
+      code: ADMISSION_ERROR_CODE.GATE_CAPACITY,
+      retryable: true,
+      retryAfterSeconds: ADMISSION_RETRY_AFTER_SECONDS,
+    })
+    expect(admissionRejectedResponseMock).toHaveBeenCalledOnce()
+    expect(checkWebhookPreprocessingMock).not.toHaveBeenCalled()
+    expect(queueWebhookExecutionMock).not.toHaveBeenCalled()
   })
 
   it('should return 405 for GET requests on unknown webhook paths', async () => {
@@ -445,7 +581,7 @@ describe('Webhook Trigger API Route', () => {
 
     const params = Promise.resolve({ path: 'non-existent-path' })
 
-    const response = await GET(req as any, { params })
+    const response = await GET(req, { params })
 
     expect(response.status).toBe(405)
   })
@@ -460,7 +596,7 @@ describe('Webhook Trigger API Route', () => {
 
     const params = Promise.resolve({ path: 'pending-verification-path' })
 
-    const response = await GET(req as any, { params })
+    const response = await GET(req, { params })
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
@@ -479,7 +615,7 @@ describe('Webhook Trigger API Route', () => {
 
     const params = Promise.resolve({ path: 'pending-verification-path' })
 
-    const response = await POST(req as any, { params })
+    const response = await POST(req, { params })
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
@@ -493,7 +629,7 @@ describe('Webhook Trigger API Route', () => {
 
     const params = Promise.resolve({ path: 'non-existent-path' })
 
-    const response = await POST(req as any, { params })
+    const response = await POST(req, { params })
 
     expect(response.status).toBe(404)
 
@@ -517,7 +653,7 @@ describe('Webhook Trigger API Route', () => {
         const req = createMockRequest('POST', { event: 'execution_error', forged: true })
         const params = Promise.resolve({ path: 'internal-path' })
 
-        const response = await POST(req as any, { params })
+        const response = await POST(req, { params })
 
         expect(response.status).toBe(404)
         expect(queueWebhookExecutionMock).not.toHaveBeenCalled()
@@ -537,10 +673,74 @@ describe('Webhook Trigger API Route', () => {
       const req = createMockRequest('POST', { event: 'test' })
       const params = Promise.resolve({ path: 'normal-path' })
 
-      const response = await POST(req as any, { params })
+      const response = await POST(req, { params })
 
       expect(response.status).toBe(200)
       expect(queueWebhookExecutionMock).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('Reservation-free filtering', () => {
+    it('skips filtered webhook events before preprocessing reserves a slot', async () => {
+      testData.webhooks.push({
+        id: 'generic-webhook-id',
+        provider: 'generic',
+        path: 'filtered-path',
+        isActive: true,
+        providerConfig: { requireAuth: false },
+        workflowId: 'test-workflow-id',
+      })
+      shouldSkipWebhookEventMock.mockReturnValueOnce(true)
+
+      await POST(createMockRequest('POST', { event: 'ignored' }), {
+        params: Promise.resolve({ path: 'filtered-path' }),
+      })
+
+      expect(checkWebhookPreprocessingMock).not.toHaveBeenCalled()
+      expect(queueWebhookExecutionMock).not.toHaveBeenCalled()
+    })
+
+    it('runs asynchronous event matching before preprocessing reserves a slot', async () => {
+      testData.webhooks.push({
+        id: 'generic-webhook-id',
+        provider: 'generic',
+        path: 'event-filter-path',
+        isActive: true,
+        providerConfig: { requireAuth: false },
+        workflowId: 'test-workflow-id',
+      })
+      handleWebhookEventFilterMock.mockResolvedValueOnce(
+        NextResponse.json({ message: 'Event ignored' })
+      )
+
+      const response = await POST(createMockRequest('POST', { event: 'ignored' }), {
+        params: Promise.resolve({ path: 'event-filter-path' }),
+      })
+
+      expect(response.status).toBe(200)
+      expect(checkWebhookPreprocessingMock).not.toHaveBeenCalled()
+      expect(queueWebhookExecutionMock).not.toHaveBeenCalled()
+    })
+
+    it('checks for a missing trigger block before preprocessing reserves a slot', async () => {
+      testData.webhooks.push({
+        id: 'generic-webhook-id',
+        provider: 'generic',
+        path: 'missing-block-path',
+        isActive: true,
+        providerConfig: { requireAuth: false },
+        workflowId: 'test-workflow-id',
+        blockId: 'missing-block',
+      })
+      workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValueOnce(false)
+
+      const response = await POST(createMockRequest('POST', { event: 'test' }), {
+        params: Promise.resolve({ path: 'missing-block-path' }),
+      })
+
+      expect(response.status).toBe(404)
+      expect(checkWebhookPreprocessingMock).not.toHaveBeenCalled()
+      expect(queueWebhookExecutionMock).not.toHaveBeenCalled()
     })
   })
 
@@ -558,7 +758,7 @@ describe('Webhook Trigger API Route', () => {
       const req = createMockRequest('POST', { event: 'test', id: 'test-123' })
       const params = Promise.resolve({ path: 'test-path' })
 
-      const response = await POST(req as any, { params })
+      const response = await POST(req, { params })
 
       expect(response.status).toBe(200)
       expect(queueWebhookExecutionMock).toHaveBeenCalledOnce()
@@ -573,6 +773,55 @@ describe('Webhook Trigger API Route', () => {
         })
       )
     })
+
+    it.each([
+      {
+        statusCode: 429,
+        code: ADMISSION_ERROR_CODE.RESERVATION_CONCURRENCY,
+      },
+      {
+        statusCode: 503,
+        code: ADMISSION_ERROR_CODE.RESERVATION_INFRASTRUCTURE,
+      },
+    ])(
+      'preserves retryable admission $statusCode status, code, and Retry-After',
+      async ({ statusCode, code }) => {
+        testData.webhooks.push({
+          id: 'generic-webhook-id',
+          provider: 'generic',
+          path: 'test-path',
+          isActive: true,
+          providerConfig: { requireAuth: false },
+          workflowId: 'test-workflow-id',
+        })
+        checkWebhookPreprocessingMock.mockResolvedValueOnce({
+          error: NextResponse.json(
+            {
+              error: 'Admission temporarily unavailable',
+              code,
+              retryable: true,
+              retryAfterSeconds: ADMISSION_RETRY_AFTER_SECONDS,
+            },
+            {
+              status: statusCode,
+              headers: { 'Retry-After': String(ADMISSION_RETRY_AFTER_SECONDS) },
+            }
+          ),
+        })
+
+        const response = await POST(createMockRequest('POST', { event: 'test' }), {
+          params: Promise.resolve({ path: 'test-path' }),
+        })
+
+        expect(response.status).toBe(statusCode)
+        expect(response.headers.get('Retry-After')).toBe(String(ADMISSION_RETRY_AFTER_SECONDS))
+        await expect(response.json()).resolves.toMatchObject({
+          code,
+          retryable: true,
+        })
+        expect(queueWebhookExecutionMock).not.toHaveBeenCalled()
+      }
+    )
 
     it('should process generic webhook without authentication', async () => {
       testData.webhooks.push({
@@ -594,76 +843,12 @@ describe('Webhook Trigger API Route', () => {
       const req = createMockRequest('POST', { event: 'test', id: 'test-123' })
       const params = Promise.resolve({ path: 'test-path' })
 
-      const response = await POST(req as any, { params })
+      const response = await POST(req, { params })
 
       expect(response.status).toBe(200)
 
       const data = await response.json()
       expect(data.message).toBe('Webhook processed')
-    })
-
-    it('blocks a generic webhook when the workspace is on the free plan', async () => {
-      testData.webhooks.push({
-        id: 'generic-webhook-id',
-        provider: 'generic',
-        path: 'test-path',
-        isActive: true,
-        providerConfig: { requireAuth: false },
-        workflowId: 'test-workflow-id',
-        rateLimitCount: 100,
-        rateLimitPeriod: 60,
-      })
-      testData.workflows.push({
-        id: 'test-workflow-id',
-        userId: 'test-user-id',
-        workspaceId: 'test-workspace-id',
-      })
-      isWorkspaceApiExecutionEntitledMock.mockResolvedValueOnce(false)
-
-      const req = createMockRequest('POST', { event: 'test', id: 'test-123' })
-      const params = Promise.resolve({ path: 'test-path' })
-
-      const response = await POST(req as any, { params })
-
-      expect(response.status).toBe(402)
-    })
-
-    it('returns 402 (not 500) when every webhook in a shared path is generic and free', async () => {
-      testData.webhooks.push(
-        {
-          id: 'generic-webhook-a',
-          provider: 'generic',
-          path: 'test-path',
-          isActive: true,
-          providerConfig: { requireAuth: false },
-          workflowId: 'test-workflow-id',
-          rateLimitCount: 100,
-          rateLimitPeriod: 60,
-        },
-        {
-          id: 'generic-webhook-b',
-          provider: 'generic',
-          path: 'test-path',
-          isActive: true,
-          providerConfig: { requireAuth: false },
-          workflowId: 'test-workflow-id',
-          rateLimitCount: 100,
-          rateLimitPeriod: 60,
-        }
-      )
-      testData.workflows.push({
-        id: 'test-workflow-id',
-        userId: 'test-user-id',
-        workspaceId: 'test-workspace-id',
-      })
-      isWorkspaceApiExecutionEntitledMock.mockResolvedValue(false)
-
-      const req = createMockRequest('POST', { event: 'test', id: 'test-123' })
-      const params = Promise.resolve({ path: 'test-path' })
-
-      const response = await POST(req as any, { params })
-
-      expect(response.status).toBe(402)
     })
 
     it('should authenticate with Bearer token when no custom header is configured', async () => {
@@ -688,7 +873,7 @@ describe('Webhook Trigger API Route', () => {
       const req = createMockRequest('POST', { event: 'bearer.test' }, headers)
       const params = Promise.resolve({ path: 'test-path' })
 
-      const response = await POST(req as any, { params })
+      const response = await POST(req, { params })
 
       expect(response.status).toBe(200)
     })
@@ -719,7 +904,7 @@ describe('Webhook Trigger API Route', () => {
       const req = createMockRequest('POST', { event: 'custom.header.test' }, headers)
       const params = Promise.resolve({ path: 'test-path' })
 
-      const response = await POST(req as any, { params })
+      const response = await POST(req, { params })
 
       expect(response.status).toBe(200)
     })
@@ -754,7 +939,7 @@ describe('Webhook Trigger API Route', () => {
         const req = createMockRequest('POST', { event: 'case.test' }, headers)
         const params = Promise.resolve({ path: 'test-path' })
 
-        const response = await POST(req as any, { params })
+        const response = await POST(req, { params })
 
         expect(response.status).toBe(200)
       }
@@ -789,7 +974,7 @@ describe('Webhook Trigger API Route', () => {
         const req = createMockRequest('POST', { event: 'custom.case.test' }, headers)
         const params = Promise.resolve({ path: 'test-path' })
 
-        const response = await POST(req as any, { params })
+        const response = await POST(req, { params })
 
         expect(response.status).toBe(200)
       }
@@ -812,7 +997,7 @@ describe('Webhook Trigger API Route', () => {
       const req = createMockRequest('POST', { event: 'wrong.token.test' }, headers)
       const params = Promise.resolve({ path: 'test-path' })
 
-      const response = await POST(req as any, { params })
+      const response = await POST(req, { params })
 
       expect(response.status).toBe(401)
       expect(await response.text()).toContain('Unauthorized - Invalid authentication token')
@@ -840,7 +1025,7 @@ describe('Webhook Trigger API Route', () => {
       const req = createMockRequest('POST', { event: 'wrong.custom.test' }, headers)
       const params = Promise.resolve({ path: 'test-path' })
 
-      const response = await POST(req as any, { params })
+      const response = await POST(req, { params })
 
       expect(response.status).toBe(401)
       expect(await response.text()).toContain('Unauthorized - Invalid authentication token')
@@ -860,7 +1045,7 @@ describe('Webhook Trigger API Route', () => {
       const req = createMockRequest('POST', { event: 'no.auth.test' })
       const params = Promise.resolve({ path: 'test-path' })
 
-      const response = await POST(req as any, { params })
+      const response = await POST(req, { params })
 
       expect(response.status).toBe(401)
       expect(await response.text()).toContain('Unauthorized - Invalid authentication token')
@@ -888,7 +1073,7 @@ describe('Webhook Trigger API Route', () => {
       const req = createMockRequest('POST', { event: 'exclusivity.test' }, headers)
       const params = Promise.resolve({ path: 'test-path' })
 
-      const response = await POST(req as any, { params })
+      const response = await POST(req, { params })
 
       expect(response.status).toBe(401)
       expect(await response.text()).toContain('Unauthorized - Invalid authentication token')
@@ -916,7 +1101,7 @@ describe('Webhook Trigger API Route', () => {
       const req = createMockRequest('POST', { event: 'wrong.header.name.test' }, headers)
       const params = Promise.resolve({ path: 'test-path' })
 
-      const response = await POST(req as any, { params })
+      const response = await POST(req, { params })
 
       expect(response.status).toBe(401)
       expect(await response.text()).toContain('Unauthorized - Invalid authentication token')
@@ -941,7 +1126,7 @@ describe('Webhook Trigger API Route', () => {
       const req = createMockRequest('POST', { event: 'no.token.config.test' }, headers)
       const params = Promise.resolve({ path: 'test-path' })
 
-      const response = await POST(req as any, { params })
+      const response = await POST(req, { params })
 
       expect(response.status).toBe(401)
       expect(await response.text()).toContain(

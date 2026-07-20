@@ -49,8 +49,8 @@ interface UseAutoScrollOptions {
  *
  * Stays pinned to the bottom while content streams in. Detaches immediately
  * on any upward user gesture (wheel, touch, scrollbar drag, keyboard). Once
- * detached, the user must scroll back to within {@link REATTACH_THRESHOLD} of
- * the bottom to re-engage. Each streaming start re-seeds stickiness from the
+ * detached, the user must scroll back down to within {@link REATTACH_THRESHOLD}
+ * of the bottom to re-engage. Each streaming start re-seeds stickiness from the
  * current scroll position, so a user who scrolled up beforehand stays put.
  *
  * Returns `ref` (callback ref for the scroll container) and `scrollToBottom`
@@ -164,6 +164,10 @@ export function useAutoScroll(
      * (pointer held) or a recent keyboard scroll. A programmatic upward scroll, e.g.
      * a virtualizer re-pinning content on a row-size shrink, has neither and must not
      * be mistaken for the user scrolling away.
+     *
+     * Re-attach also requires a downward move once detached — a small upward
+     * flick still lands within {@link REATTACH_THRESHOLD}, and would otherwise
+     * re-stick on its own scroll event.
      */
     const onScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = el
@@ -172,8 +176,9 @@ export function useAutoScroll(
       const userDriven =
         pointerDownRef.current ||
         performance.now() - lastUserGestureAtRef.current < USER_GESTURE_WINDOW
+      const movedDown = scrollTop > prevScrollTopRef.current
 
-      if (distanceFromBottom <= threshold) {
+      if (distanceFromBottom <= threshold && (!userDetachedRef.current || movedDown)) {
         stickyRef.current = true
         userDetachedRef.current = false
       } else if (

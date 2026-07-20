@@ -2,10 +2,6 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { webhookTriggerGetContract, webhookTriggerPostContract } from '@/lib/api/contracts/webhooks'
 import { parseRequest } from '@/lib/api/server'
-import {
-  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE,
-  isWorkspaceApiExecutionEntitled,
-} from '@/lib/billing/core/api-access'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -133,20 +129,22 @@ async function handleWebhookPost(
 
   // Process each webhook matched on this path
   const responses: NextResponse[] = []
-  let billingBlocked = false
+  const failures: NextResponse[] = []
 
   for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooksForPath) {
-    // Generic ("custom") webhooks are an unauthenticated programmatic execution
-    // surface, so they fall under the same paid-plan gate as the API. Provider
-    // webhooks (slack, github, ...) are unaffected.
-    if (
-      foundWebhook.provider === 'generic' &&
-      !(await isWorkspaceApiExecutionEntitled(foundWorkflow.workspaceId))
-    ) {
-      logger.warn(`[${requestId}] Generic webhook blocked: workspace on free plan`)
-      billingBlocked = true
-      if (webhooksForPath.length > 1) continue
-      return NextResponse.json({ error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE }, { status: 402 })
+    const provider = foundWebhook.provider
+    if (!provider) {
+      const missingProviderResponse = NextResponse.json(
+        { error: 'Webhook provider is missing' },
+        { status: 500 }
+      )
+      if (webhooksForPath.length > 1) {
+        logger.error(
+          `[${requestId}] Webhook ${foundWebhook.id} has no provider, continuing to next`
+        )
+        continue
+      }
+      return missingProviderResponse
     }
 
     const authError = await verifyProviderAuth(
@@ -164,7 +162,7 @@ async function handleWebhookPost(
       return authError
     }
 
-    const reachabilityResponse = handleProviderReachabilityTest(foundWebhook, body, requestId)
+    const reachabilityResponse = handleProviderReachabilityTest({ provider }, body, requestId)
     if (reachabilityResponse) {
       return reachabilityResponse
     }
@@ -192,6 +190,7 @@ async function handleWebhookPost(
           `[${requestId}] Webhook dispatch failed for ${foundWebhook.id}, continuing to next`,
           { reason: dispatchResult.reason, status: dispatchResult.response.status }
         )
+        failures.push(dispatchResult.response)
         continue
       }
       return dispatchResult.response
@@ -201,8 +200,8 @@ async function handleWebhookPost(
   }
 
   if (responses.length === 0) {
-    if (billingBlocked) {
-      return NextResponse.json({ error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE }, { status: 402 })
+    if (failures.length > 0) {
+      return failures[0]
     }
     return new NextResponse('No webhooks processed successfully', { status: 500 })
   }

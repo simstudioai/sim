@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Badge, Button, ChipInput, ChipSelect, cn, Label, Search, Switch } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
@@ -11,10 +10,13 @@ import {
   adminParsers,
   adminUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/admin/search-params'
+import { useRecentImpersonations } from '@/app/workspace/[workspaceId]/settings/components/admin/use-recent-impersonations'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
+  type AdminUser,
   useAdminUsers,
+  useAdminUsersByEmails,
   useBanUser,
   useImpersonateUser,
   useSetUserRole,
@@ -22,8 +24,19 @@ import {
 } from '@/hooks/queries/admin-users'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useImportWorkflow } from '@/hooks/queries/workflows'
+import { clearUserData } from '@/stores'
 
 const PAGE_SIZE = 20 as const
+
+const USER_TABLE_HEADER = (
+  <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
+    <span className='w-[170px]'>Name</span>
+    <span className='flex-1'>Email</span>
+    <span className='w-[60px]'>Role</span>
+    <span className='w-[55px]'>Status</span>
+    <span className='w-[200px] text-right'>Actions</span>
+  </div>
+)
 
 const MOTHERSHIP_ENV_OPTIONS: { value: MothershipEnvironment; label: string }[] = [
   { value: 'default', label: 'Default' },
@@ -33,8 +46,6 @@ const MOTHERSHIP_ENV_OPTIONS: { value: MothershipEnvironment; label: string }[] 
 ]
 
 export function Admin() {
-  const params = useParams()
-  const workspaceId = params?.workspaceId as string
   const { data: session } = useSession()
 
   const { data: settings } = useGeneralSettings()
@@ -45,8 +56,11 @@ export function Admin() {
   const banUser = useBanUser()
   const unbanUser = useUnbanUser()
   const impersonateUser = useImpersonateUser()
+  const { recentEmails, recordImpersonation } = useRecentImpersonations()
+  const { data: recentUsers } = useAdminUsersByEmails(recentEmails)
 
   const [workflowId, setWorkflowId] = useState('')
+  const [targetWorkspaceId, setTargetWorkspaceId] = useState('')
 
   const [{ q: searchQuery, offset: usersOffset }, setAdminParams] = useQueryStates(
     adminParsers,
@@ -95,15 +109,7 @@ export function Admin() {
     }
   }
 
-  const handleImport = () => {
-    if (!workflowId.trim()) return
-    importWorkflow.mutate(
-      { workflowId: workflowId.trim(), targetWorkspaceId: workspaceId },
-      { onSuccess: () => setWorkflowId('') }
-    )
-  }
-
-  const handleImpersonate = (userId: string) => {
+  const handleImpersonate = (userId: string, email: string) => {
     setImpersonationGuardError(null)
     if (session?.user?.role !== 'admin') {
       setImpersonatingUserId(null)
@@ -119,8 +125,25 @@ export function Admin() {
         onError: () => {
           setImpersonatingUserId(null)
         },
-        onSuccess: () => {
+        onSuccess: async () => {
+          recordImpersonation(email)
+          await clearUserData()
           window.location.assign('/workspace')
+        },
+      }
+    )
+  }
+
+  const handleImport = () => {
+    const sourceId = workflowId.trim()
+    const targetId = targetWorkspaceId.trim()
+    if (!sourceId || !targetId) return
+    importWorkflow.mutate(
+      { workflowId: sourceId, targetWorkspaceId: targetId },
+      {
+        onSuccess: () => {
+          setWorkflowId('')
+          setTargetWorkspaceId('')
         },
       }
     )
@@ -149,6 +172,119 @@ export function Admin() {
     impersonateUser.variables,
     impersonatingUserId,
   ])
+
+  const renderUserRow = (u: AdminUser) => (
+    <div key={u.id} className='flex flex-col gap-2 px-3 py-2 text-small'>
+      <div className='flex items-center gap-3'>
+        <span className='w-[170px] truncate text-[var(--text-primary)]'>{u.name || '—'}</span>
+        <span className='flex-1 truncate text-[var(--text-secondary)]'>{u.email}</span>
+        <span className='w-[60px]'>
+          <Badge variant={u.role === 'admin' ? 'blue' : 'gray'}>{u.role || 'user'}</Badge>
+        </span>
+        <span className='w-[55px]'>
+          {u.banned ? <Badge variant='red'>Banned</Badge> : <Badge variant='green'>Active</Badge>}
+        </span>
+        <span className='flex w-[200px] justify-end gap-1'>
+          {u.id !== session?.user?.id && (
+            <>
+              <Button
+                variant='active'
+                className='h-[28px] px-2 text-caption'
+                onClick={() => handleImpersonate(u.id, u.email)}
+                disabled={pendingUserIds.has(u.id)}
+              >
+                {impersonatingUserId === u.id ||
+                (impersonateUser.isPending &&
+                  (impersonateUser.variables as { userId?: string } | undefined)?.userId === u.id)
+                  ? 'Switching...'
+                  : 'Impersonate'}
+              </Button>
+              <Button
+                variant='active'
+                className='h-[28px] px-2 text-caption'
+                onClick={() => {
+                  setUserRole.reset()
+                  setUserRole.mutate({
+                    userId: u.id,
+                    role: u.role === 'admin' ? 'user' : 'admin',
+                  })
+                }}
+                disabled={pendingUserIds.has(u.id)}
+              >
+                {u.role === 'admin' ? 'Demote' : 'Promote'}
+              </Button>
+              {u.banned ? (
+                <Button
+                  variant='active'
+                  className='h-[28px] px-2 text-caption'
+                  onClick={() => {
+                    unbanUser.reset()
+                    unbanUser.mutate({ userId: u.id })
+                  }}
+                  disabled={pendingUserIds.has(u.id)}
+                >
+                  Unban
+                </Button>
+              ) : (
+                <Button
+                  variant='active'
+                  className={cn(
+                    'h-[28px] px-2 text-caption',
+                    banUserId === u.id ? 'text-[var(--text-primary)]' : 'text-[var(--text-error)]'
+                  )}
+                  onClick={() => {
+                    if (banUserId === u.id) {
+                      setBanUserId(null)
+                      setBanReason('')
+                    } else {
+                      setBanUserId(u.id)
+                      setBanReason('')
+                    }
+                  }}
+                  disabled={pendingUserIds.has(u.id)}
+                >
+                  {banUserId === u.id ? 'Cancel' : 'Ban'}
+                </Button>
+              )}
+            </>
+          )}
+        </span>
+      </div>
+      {banUserId === u.id && !u.banned && (
+        <div className='flex items-center gap-2 pl-[170px]'>
+          <ChipInput
+            value={banReason}
+            onChange={(e) => setBanReason(e.target.value)}
+            placeholder='Reason (optional)'
+            className='flex-1'
+          />
+          <Button
+            variant='primary'
+            className='h-[28px] px-3 text-caption'
+            onClick={() => {
+              banUser.reset()
+              banUser.mutate(
+                {
+                  userId: u.id,
+                  ...(banReason.trim() ? { banReason: banReason.trim() } : {}),
+                },
+                {
+                  onSuccess: () => {
+                    setBanUserId(null)
+                    setBanReason('')
+                  },
+                }
+              )
+            }}
+            disabled={pendingUserIds.has(u.id)}
+          >
+            Confirm Ban
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <SettingsPanel>
       <div className='flex flex-col gap-4'>
@@ -191,22 +327,31 @@ export function Admin() {
 
       <div className='flex flex-col gap-2'>
         <p className='text-[var(--text-secondary)] text-sm'>
-          Import a workflow by ID along with its associated copilot chats.
+          Import a workflow and its copilot chats into a target workspace.
         </p>
         <div className='flex gap-2'>
           <ChipInput
             value={workflowId}
-            onChange={(e) => {
-              setWorkflowId(e.target.value)
+            onChange={(event) => {
+              setWorkflowId(event.target.value)
               importWorkflow.reset()
             }}
-            placeholder='Enter workflow ID'
+            placeholder='Source workflow ID'
+            disabled={importWorkflow.isPending}
+          />
+          <ChipInput
+            value={targetWorkspaceId}
+            onChange={(event) => {
+              setTargetWorkspaceId(event.target.value)
+              importWorkflow.reset()
+            }}
+            placeholder='Target workspace ID'
             disabled={importWorkflow.isPending}
           />
           <Button
             variant='primary'
             onClick={handleImport}
-            disabled={importWorkflow.isPending || !workflowId.trim()}
+            disabled={importWorkflow.isPending || !workflowId.trim() || !targetWorkspaceId.trim()}
           >
             {importWorkflow.isPending ? 'Importing...' : 'Import'}
           </Button>
@@ -259,149 +404,16 @@ export function Admin() {
           </p>
         )}
 
-        {searchQuery.length > 0 && usersData && (
+        {searchQuery.length > 0 && usersData ? (
           <>
             <div className='flex flex-col gap-0.5'>
-              <div className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-[var(--text-tertiary)] text-caption'>
-                <span className='w-[200px]'>Name</span>
-                <span className='flex-1'>Email</span>
-                <span className='w-[80px]'>Role</span>
-                <span className='w-[80px]'>Status</span>
-                <span className='w-[250px] text-right'>Actions</span>
-              </div>
+              {USER_TABLE_HEADER}
 
               {usersData.users.length === 0 && (
                 <SettingsEmptyState variant='inline'>No users found.</SettingsEmptyState>
               )}
 
-              {usersData.users.map((u) => (
-                <div
-                  key={u.id}
-                  className={cn(
-                    'flex flex-col gap-2 px-3 py-2 text-small',
-                    'border-[var(--border-secondary)] border-b last:border-b-0'
-                  )}
-                >
-                  <div className='flex items-center gap-3'>
-                    <span className='w-[200px] truncate text-[var(--text-primary)]'>
-                      {u.name || '—'}
-                    </span>
-                    <span className='flex-1 truncate text-[var(--text-secondary)]'>{u.email}</span>
-                    <span className='w-[80px]'>
-                      <Badge variant={u.role === 'admin' ? 'blue' : 'gray'}>
-                        {u.role || 'user'}
-                      </Badge>
-                    </span>
-                    <span className='w-[80px]'>
-                      {u.banned ? (
-                        <Badge variant='red'>Banned</Badge>
-                      ) : (
-                        <Badge variant='green'>Active</Badge>
-                      )}
-                    </span>
-                    <span className='flex w-[250px] justify-end gap-1'>
-                      {u.id !== session?.user?.id && (
-                        <>
-                          <Button
-                            variant='active'
-                            className='h-[28px] px-2 text-caption'
-                            onClick={() => handleImpersonate(u.id)}
-                            disabled={pendingUserIds.has(u.id)}
-                          >
-                            {impersonatingUserId === u.id ||
-                            (impersonateUser.isPending &&
-                              (impersonateUser.variables as { userId?: string } | undefined)
-                                ?.userId === u.id)
-                              ? 'Switching...'
-                              : 'Impersonate'}
-                          </Button>
-                          <Button
-                            variant='active'
-                            className='h-[28px] px-2 text-caption'
-                            onClick={() => {
-                              setUserRole.reset()
-                              setUserRole.mutate({
-                                userId: u.id,
-                                role: u.role === 'admin' ? 'user' : 'admin',
-                              })
-                            }}
-                            disabled={pendingUserIds.has(u.id)}
-                          >
-                            {u.role === 'admin' ? 'Demote' : 'Promote'}
-                          </Button>
-                          {u.banned ? (
-                            <Button
-                              variant='active'
-                              className='h-[28px] px-2 text-caption'
-                              onClick={() => {
-                                unbanUser.reset()
-                                unbanUser.mutate({ userId: u.id })
-                              }}
-                              disabled={pendingUserIds.has(u.id)}
-                            >
-                              Unban
-                            </Button>
-                          ) : (
-                            <Button
-                              variant='active'
-                              className={cn(
-                                'h-[28px] px-2 text-caption',
-                                banUserId === u.id
-                                  ? 'text-[var(--text-primary)]'
-                                  : 'text-[var(--text-error)]'
-                              )}
-                              onClick={() => {
-                                if (banUserId === u.id) {
-                                  setBanUserId(null)
-                                  setBanReason('')
-                                } else {
-                                  setBanUserId(u.id)
-                                  setBanReason('')
-                                }
-                              }}
-                              disabled={pendingUserIds.has(u.id)}
-                            >
-                              {banUserId === u.id ? 'Cancel' : 'Ban'}
-                            </Button>
-                          )}
-                        </>
-                      )}
-                    </span>
-                  </div>
-                  {banUserId === u.id && !u.banned && (
-                    <div className='flex items-center gap-2 pl-[200px]'>
-                      <ChipInput
-                        value={banReason}
-                        onChange={(e) => setBanReason(e.target.value)}
-                        placeholder='Reason (optional)'
-                        className='flex-1'
-                      />
-                      <Button
-                        variant='primary'
-                        className='h-[28px] px-3 text-caption'
-                        onClick={() => {
-                          banUser.reset()
-                          banUser.mutate(
-                            {
-                              userId: u.id,
-                              ...(banReason.trim() ? { banReason: banReason.trim() } : {}),
-                            },
-                            {
-                              onSuccess: () => {
-                                setBanUserId(null)
-                                setBanReason('')
-                              },
-                            }
-                          )
-                        }}
-                        disabled={pendingUserIds.has(u.id)}
-                      >
-                        Confirm Ban
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
+              {usersData.users.map((u) => renderUserRow(u))}
             </div>
 
             {totalPages > 1 && (
@@ -434,6 +446,15 @@ export function Admin() {
               </div>
             )}
           </>
+        ) : (
+          searchQuery.length === 0 &&
+          recentUsers &&
+          recentUsers.length > 0 && (
+            <div className='flex flex-col gap-0.5'>
+              {USER_TABLE_HEADER}
+              {recentUsers.map((u) => renderUserRow(u))}
+            </div>
+          )
         )}
       </div>
     </SettingsPanel>

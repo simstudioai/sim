@@ -10,7 +10,10 @@ import {
   STAGE_EDGES,
   verticalSmoothStep,
 } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-data'
-import { BLOCK_WIDTH } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
+import {
+  BLOCK_WIDTH,
+  type BlockDef,
+} from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 
 /** Upper bound on the canvas render scale (the scale at the full 1300px cap). */
 const MAX_STAGE_SCALE = 0.71
@@ -18,11 +21,22 @@ const MAX_STAGE_SCALE = 0.71
 const STAGE_MARGIN = 20
 
 interface HeroWorkflowStageProps {
-  /** How many of {@link STAGE_BLOCKS} (in build order) are on canvas. */
+  /** How many of the stage's blocks (in build order) are on canvas. */
   builtCount: number
+  /** Blocks to stage, in build order. Defaults to the homepage's lead flow. */
+  blocks?: BlockDef[]
+  /** Source → target pairs among {@link blocks}. Defaults with them. */
+  edges?: ReadonlyArray<readonly [string, string]>
+  /** Design-space bounding box of the block layout. Defaults with them. */
+  canvas?: { width: number; height: number }
+  /**
+   * Block to dress with the selection ring - graphite (`--text-secondary`)
+   * rather than the real canvas's blue, per the landing pages' grayscale
+   * language - the workflows hero uses this for its "being edited" beat.
+   * Off by default, so existing stages are unchanged.
+   */
+  selectedId?: string
 }
-
-const STAGE_BLOCKS_BY_ID = new Map(STAGE_BLOCKS.map((b) => [b.id, b]))
 
 /**
  * The hero window's live workflow canvas - the right-pane counterpart of the
@@ -38,10 +52,21 @@ const STAGE_BLOCKS_BY_ID = new Map(STAGE_BLOCKS.map((b) => [b.id, b]))
  * Blocks reuse the hero-visual's {@link WorkflowBlockContent} (the faithful
  * icon-tile + rows card body) in a card shell with vertical-flow handle nubs
  * (top in / bottom out), matching the real editor's vertical layout.
+ *
+ * The staged flow is injectable (`blocks`/`edges`/`canvas`), defaulting to the
+ * homepage's lead-enrichment flow - the enterprise loop stages its own flow
+ * through the same component.
  */
-export function HeroWorkflowStage({ builtCount }: HeroWorkflowStageProps) {
+export function HeroWorkflowStage({
+  builtCount,
+  blocks = STAGE_BLOCKS,
+  edges = STAGE_EDGES,
+  canvas = STAGE_CANVAS,
+  selectedId,
+}: HeroWorkflowStageProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(MAX_STAGE_SCALE)
+  const blocksById = useMemo(() => new Map(blocks.map((b) => [b.id, b])), [blocks])
 
   // Fit the design canvas to the card: scale down when the pane narrows so the
   // branch blocks never clip, capped at the full-width scale. Measures LAYOUT
@@ -58,8 +83,8 @@ export function HeroWorkflowStage({ builtCount }: HeroWorkflowStageProps) {
       setScale(
         Math.min(
           MAX_STAGE_SCALE,
-          (w - STAGE_MARGIN) / STAGE_CANVAS.width,
-          (h - STAGE_MARGIN) / STAGE_CANVAS.height
+          (w - STAGE_MARGIN) / canvas.width,
+          (h - STAGE_MARGIN) / canvas.height
         )
       )
     }
@@ -67,11 +92,11 @@ export function HeroWorkflowStage({ builtCount }: HeroWorkflowStageProps) {
     const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [canvas.width, canvas.height])
 
   const builtIds = useMemo(
-    () => new Set(STAGE_BLOCKS.slice(0, builtCount).map((b) => b.id)),
-    [builtCount]
+    () => new Set(blocks.slice(0, builtCount).map((b) => b.id)),
+    [blocks, builtCount]
   )
 
   return (
@@ -82,30 +107,30 @@ export function HeroWorkflowStage({ builtCount }: HeroWorkflowStageProps) {
       <div
         className='relative shrink-0'
         style={{
-          width: STAGE_CANVAS.width * scale,
-          height: STAGE_CANVAS.height * scale,
+          width: canvas.width * scale,
+          height: canvas.height * scale,
         }}
       >
         <div
           className='absolute top-0 left-0'
           style={{
-            width: STAGE_CANVAS.width,
-            height: STAGE_CANVAS.height,
+            width: canvas.width,
+            height: canvas.height,
             transform: `scale(${scale})`,
             transformOrigin: '0 0',
           }}
         >
           <svg
             className='pointer-events-none absolute inset-0 overflow-visible'
-            width={STAGE_CANVAS.width}
-            height={STAGE_CANVAS.height}
-            viewBox={`0 0 ${STAGE_CANVAS.width} ${STAGE_CANVAS.height}`}
+            width={canvas.width}
+            height={canvas.height}
+            viewBox={`0 0 ${canvas.width} ${canvas.height}`}
             fill='none'
             aria-hidden='true'
           >
-            {STAGE_EDGES.map(([from, to]) => {
-              const source = STAGE_BLOCKS_BY_ID.get(from)
-              const target = STAGE_BLOCKS_BY_ID.get(to)
+            {edges.map(([from, to]) => {
+              const source = blocksById.get(from)
+              const target = blocksById.get(to)
               if (!source || !target) return null
               const visible = builtIds.has(from) && builtIds.has(to)
               const s = handleAnchors(source).out
@@ -125,7 +150,7 @@ export function HeroWorkflowStage({ builtCount }: HeroWorkflowStageProps) {
             })}
           </svg>
 
-          {STAGE_BLOCKS.map((block) => {
+          {blocks.map((block) => {
             const built = builtIds.has(block.id)
             return (
               <div
@@ -137,6 +162,13 @@ export function HeroWorkflowStage({ builtCount }: HeroWorkflowStageProps) {
                 style={{ left: block.x, top: block.y, width: BLOCK_WIDTH }}
               >
                 <StageBlockCard block={block} />
+                <span
+                  aria-hidden
+                  className={cn(
+                    'pointer-events-none absolute inset-0 rounded-[13px] ring-[1.75px] ring-[var(--text-secondary)] transition-opacity duration-300 ease-out',
+                    selectedId === block.id && built ? 'opacity-100' : 'opacity-0'
+                  )}
+                />
               </div>
             )
           })}

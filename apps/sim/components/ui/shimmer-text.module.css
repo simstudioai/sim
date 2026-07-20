@@ -1,0 +1,44 @@
+/**
+ * Claude-style text shimmer: the text paints from a gradient with a light band
+ * that sweeps across the glyphs via background-clip. This is the single source
+ * of truth for the treatment — the ThinkingLoader label composes it. Under
+ * reduced motion the sweep is replaced by a gentle opacity pulse in solid ink:
+ * the shimmer conveys essential in-progress state, so it needs a vestibular-safe
+ * fallback rather than none. Consumers whose resting text is not body ink set
+ * `--shimmer-rest` to their resting color.
+ */
+.shimmer {
+  background-image: linear-gradient(90deg, #4a4a4a 40%, #b0b0b0 50%, #4a4a4a 60%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-sweep 2.2s linear infinite reverse;
+}
+
+:global(.dark) .shimmer {
+  background-image: linear-gradient(90deg, #b9b9b9 40%, #f8f8f8 50%, #b9b9b9 60%);
+}
+
+@keyframes shimmer-sweep {
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer,
+  :global(.dark) .shimmer {
+    background-image: none;
+    -webkit-background-clip: initial;
+    background-clip: initial;
+    color: var(--shimmer-rest, var(--text-body));
+    animation: shimmer-pulse 2.2s ease-in-out infinite;
+  }
+}
+
+@keyframes shimmer-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}

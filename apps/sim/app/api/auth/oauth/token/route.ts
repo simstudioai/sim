@@ -11,15 +11,14 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
-  getAtlassianServiceAccountSecret,
   getCredential,
   getOAuthToken,
-  getServiceAccountToken,
   refreshTokenIfNeeded,
   resolveOAuthAccountId,
+  resolveServiceAccountToken,
 } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
@@ -170,27 +169,58 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       try {
-        if (resolved.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
-          const secret = await getAtlassianServiceAccountSecret(resolved.credentialId)
-          emitServiceAccountAccess()
-          return NextResponse.json(
-            {
-              accessToken: secret.apiToken,
-              cloudId: secret.cloudId,
-              domain: secret.domain,
-            },
-            { status: 200 }
-          )
-        }
-        const accessToken = await getServiceAccountToken(
+        const result = await resolveServiceAccountToken(
           resolved.credentialId,
+          resolved.providerId,
           scopes ?? [],
           impersonateEmail
         )
         emitServiceAccountAccess()
-        return NextResponse.json({ accessToken }, { status: 200 })
+        return NextResponse.json(
+          {
+            accessToken: result.accessToken,
+            cloudId: result.cloudId,
+            domain: result.domain,
+            instanceUrl: result.instanceUrl,
+            authStyle: result.authStyle,
+          },
+          { status: 200 }
+        )
       } catch (error) {
         logger.error(`[${requestId}] Service account token error:`, error)
+        if (error instanceof TokenServiceAccountValidationError) {
+          // Classified provider outages are infra failures, not bad credentials.
+          if (error.code === 'provider_unavailable') {
+            return NextResponse.json(
+              { error: 'Credential provider is temporarily unavailable' },
+              { status: 502 }
+            )
+          }
+          // A stored host that no longer resolves is a configuration failure —
+          // surface the code so runtime consumers can say "check the host"
+          // instead of a generic auth error.
+          if (error.code === 'site_not_found') {
+            return NextResponse.json(
+              {
+                code: error.code,
+                error: 'Credential host not found — reconnect the credential with a valid host',
+              },
+              { status: 400 }
+            )
+          }
+          // A revoked/rotated-away or misconfigured stored secret — surface the
+          // code so runtime consumers can prompt to reconnect the credential
+          // rather than showing a generic auth failure.
+          if (error.code === 'invalid_credentials') {
+            return NextResponse.json(
+              {
+                code: error.code,
+                error: 'Credential rejected by the provider — reconnect the credential',
+              },
+              { status: 401 }
+            )
+          }
+        }
         return NextResponse.json({ error: 'Failed to get service account token' }, { status: 401 })
       }
     }
@@ -380,7 +410,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         },
         { status: 200 }
       )
-    } catch (_error) {
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to refresh access token:`, error)
       return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
     }
   } catch (error) {

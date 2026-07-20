@@ -8,6 +8,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { subscriptionTransferContract } from '@/lib/api/contracts/user'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import {
+  assertNoUnresolvedEnterpriseIssuance,
+  EnterpriseIssuanceInProgressError,
+} from '@/lib/billing/enterprise-outbox'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
@@ -42,6 +47,10 @@ export const POST = withRouteHandler(
       logger.info('Processing subscription transfer', { subscriptionId, organizationId })
 
       const outcome = await db.transaction(async (tx): Promise<TransferOutcome> => {
+        // Organization-first lock ordering serializes this entitlement move
+        // with Enterprise issuance and membership mutations.
+        await acquireOrganizationMutationLock(tx, organizationId)
+
         const [sub] = await tx
           .select()
           .from(subscription)
@@ -94,6 +103,17 @@ export const POST = withRouteHandler(
             kind: 'error',
             status: 403,
             error: 'Unauthorized - subscription does not belong to user',
+          }
+        }
+
+        try {
+          await assertNoUnresolvedEnterpriseIssuance(tx, organizationId)
+        } catch (error) {
+          if (!(error instanceof EnterpriseIssuanceInProgressError)) throw error
+          return {
+            kind: 'error',
+            status: 409,
+            error: 'Organization has an unfinished Enterprise issuance',
           }
         }
 

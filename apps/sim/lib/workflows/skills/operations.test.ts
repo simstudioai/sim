@@ -37,8 +37,8 @@ describe('listSkills includeBuiltins', () => {
     expect(result.every((s) => s.id.startsWith('builtin-'))).toBe(true)
   })
 
-  // The mothership skill registry passes includeBuiltins: false so it never sees
-  // the code-only template skills (it loads workspace skills via load_user_skill).
+  // The mothership skill inventory passes includeBuiltins: false so it never sees
+  // the code-only template skills.
   it('excludes builtin template skills when includeBuiltins is false', async () => {
     orderByMock.mockResolvedValue([
       { id: 'sk-1', name: 'mine', description: 'd', content: 'c', workspaceId: 'ws-1' },

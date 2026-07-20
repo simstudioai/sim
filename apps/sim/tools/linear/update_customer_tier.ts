@@ -2,6 +2,7 @@ import type {
   LinearUpdateCustomerTierParams,
   LinearUpdateCustomerTierResponse,
 } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearUpdateCustomerTierTool: ToolConfig<
@@ -66,7 +67,7 @@ export const linearUpdateCustomerTierTool: ToolConfig<
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => {

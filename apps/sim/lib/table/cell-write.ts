@@ -9,10 +9,18 @@
  * next write.
  */
 
+import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { isExecCancelled } from '@/lib/table/deps'
 import { appendTableEvent } from '@/lib/table/events'
-import type { RowData, RowExecutionMetadata, RowExecutions, WorkflowGroup } from '@/lib/table/types'
+import { pluckByPath } from '@/lib/table/pluck'
+import { writeExecutionsPatch } from '@/lib/table/rows/executions'
+import type {
+  RowData,
+  RowExecutionMetadata,
+  RowExecutions,
+  TableDefinition,
+  WorkflowGroup,
+} from '@/lib/table/types'
 
 const logger = createLogger('WorkflowCellWrite')
 
@@ -22,6 +30,8 @@ export interface WriteWorkflowGroupContext {
   workspaceId: string
   groupId: string
   executionId: string
+  /** Preloaded, column-bounded table definition used to validate data patches. */
+  table: TableDefinition
   /** Used as the `requestId` passed to `updateRow` for log correlation. */
   requestId?: string
 }
@@ -29,6 +39,8 @@ export interface WriteWorkflowGroupContext {
 export interface WriteWorkflowGroupStatePayload {
   /** Plain primitives to merge into `row.data`. Empty patch is fine. */
   dataPatch?: RowData
+  /** Cumulative outputs emitted to SSE consumers without rewriting them to the database. */
+  eventOutputs?: RowData
   /** New execution state for `executions[groupId]`. */
   executionState: RowExecutionMetadata
 }
@@ -42,85 +54,51 @@ export async function writeWorkflowGroupState(
   ctx: WriteWorkflowGroupContext,
   payload: WriteWorkflowGroupStatePayload
 ): Promise<'wrote' | 'skipped'> {
-  const { tableId, rowId, workspaceId, groupId, executionId } = ctx
+  const { tableId, rowId, workspaceId, groupId, executionId, table } = ctx
   const requestId = ctx.requestId ?? `wfgrp-${executionId}`
-  const { getTableById } = await import('@/lib/table/service')
-  const { getRowById, updateRow } = await import('@/lib/table/rows/service')
-
-  const table = await getTableById(tableId)
-  if (!table) {
-    logger.warn(`Table ${tableId} vanished before group state write`)
-    return 'wrote'
-  }
-  const row = await getRowById(tableId, rowId, workspaceId)
-  if (!row) {
-    logger.warn(`Row ${rowId} vanished before group state write`)
-    return 'wrote'
-  }
-  const current = row.executions?.[groupId] as RowExecutionMetadata | undefined
-  // Stale-worker guard: only blocks writes FROM an old worker (status =
-  // running / completed / error / pending). A `queued` stamp from the
-  // scheduler can claim the cell for a brand-new run — that's the new
-  // authority. Same for `cancelled` (always authoritative, written by stop).
   const isCancelStamp = payload.executionState.status === 'cancelled'
   const isQueuedStamp = payload.executionState.status === 'queued'
-  const isNewQueuedStamp = isQueuedStamp && current?.executionId !== executionId
-  const bypassStaleWorker = isNewQueuedStamp || isCancelStamp
-  if (!bypassStaleWorker && current && current.executionId && current.executionId !== executionId) {
-    logger.info(
-      `Skipping group write — stale worker (table=${tableId} row=${rowId} group=${groupId} mine=${executionId} active=${current.executionId})`
+  const cancellationGuard = isCancelStamp
+    ? undefined
+    : {
+        groupId,
+        executionId,
+        ...(isQueuedStamp ? { allowNewExecution: true } : {}),
+      }
+  const executionsPatch = { [groupId]: payload.executionState }
+  const dataPatch = payload.dataPatch
+  const hasDataPatch = Boolean(dataPatch && Object.keys(dataPatch).length > 0)
+
+  let result: unknown
+  if (hasDataPatch) {
+    const { updateRow } = await import('@/lib/table/rows/service')
+    result = await updateRow(
+      {
+        tableId,
+        rowId,
+        data: dataPatch ?? {},
+        workspaceId,
+        executionsPatch,
+        cancellationGuard,
+      },
+      table,
+      requestId,
+      { dataWriteMode: 'patch' }
     )
-    return 'skipped'
-  }
-  // A late `queued` stamp for the SAME run that's already moved past queued
-  // (worker called markWorkflowGroupPickedUp before our parallel stamp landed)
-  // must NOT overwrite the further-along state. Without this, a cell can show
-  // "queued" forever while the worker is actually running.
-  if (isQueuedStamp && current?.executionId === executionId && current.status !== 'pending') {
-    logger.info(
-      `Skipping queued stamp — same run already at status=${current.status} (table=${tableId} row=${rowId} group=${groupId} executionId=${executionId})`
+  } else {
+    result = await db.transaction((trx) =>
+      writeExecutionsPatch(trx, tableId, rowId, executionsPatch, cancellationGuard)
     )
-    return 'skipped'
   }
-  // A `cancelled` cell rejects any worker write regardless of executionId — a
-  // stop click can only stamp the dispatcher pre-stamp's executionId (often
-  // null), so an executionId-matched guard would let the worker that later
-  // claims the cell with its real id resurrect it. `bypassStaleWorker` (a fresh
-  // `queued` claim from a new dispatch, or the authoritative cancel write
-  // itself) still passes; manual re-runs clear the tombstone before stamping.
-  if (!bypassStaleWorker && isExecCancelled(current)) {
+  if (result === null || result === 'guard-rejected') {
     logger.info(
-      `Skipping group write — cancelled (table=${tableId} row=${rowId} group=${groupId} executionId=${executionId})`
-    )
-    return 'skipped'
-  }
-  // Skip writing `cancelled` state with the guard — that's an authoritative
-  // write from `cancelWorkflowGroupRuns` and must always land. New `queued`
-  // stamps from the scheduler also bypass — they ARE the new authority. Cell-
-  // task writes (running/completed/error) get the SQL guard so an in-flight
-  // partial can't clobber a stop click or a newer run that already committed.
-  const cancellationGuard = bypassStaleWorker ? undefined : { groupId, executionId }
-  const result = await updateRow(
-    {
-      tableId,
-      rowId,
-      data: payload.dataPatch ?? {},
-      workspaceId,
-      executionsPatch: { [groupId]: payload.executionState },
-      cancellationGuard,
-    },
-    table,
-    requestId
-  )
-  if (result === null) {
-    logger.info(
-      `Skipping group write — SQL guard saw cancelled (table=${tableId} row=${rowId} group=${groupId} executionId=${executionId})`
+      `Skipping group write — SQL guard rejected stale or cancelled attempt (table=${tableId} row=${rowId} group=${groupId} executionId=${executionId})`
     )
     return 'skipped'
   }
 
-  const dataPatch = payload.dataPatch
-  const hasOutputs = dataPatch && Object.keys(dataPatch).length > 0
+  const eventOutputs = payload.eventOutputs ?? dataPatch
+  const hasOutputs = eventOutputs && Object.keys(eventOutputs).length > 0
   const runningBlockIds = payload.executionState.runningBlockIds
   const blockErrors = payload.executionState.blockErrors
   void appendTableEvent({
@@ -132,12 +110,145 @@ export async function writeWorkflowGroupState(
     executionId: payload.executionState.executionId ?? null,
     jobId: payload.executionState.jobId ?? null,
     error: payload.executionState.error ?? null,
-    ...(hasOutputs ? { outputs: dataPatch } : {}),
+    ...(hasOutputs ? { outputs: eventOutputs } : {}),
     ...(runningBlockIds && runningBlockIds.length > 0 ? { runningBlockIds } : {}),
     ...(blockErrors && Object.keys(blockErrors).length > 0 ? { blockErrors } : {}),
   })
 
   return 'wrote'
+}
+
+export interface WorkflowCellProgressWrite {
+  dataPatch: RowData | undefined
+  eventOutputs: RowData
+  runningBlockIds: string[]
+  blockErrors: Record<string, string>
+}
+
+interface CreateWorkflowCellProgressWriterOptions {
+  group: WorkflowGroup
+  signal?: AbortSignal
+  writeProgress: (write: WorkflowCellProgressWrite) => Promise<'wrote' | 'skipped'>
+  onWriteError: (error: unknown) => void
+}
+
+export interface WorkflowCellProgressWriter {
+  onBlockStart: (blockId: string) => Promise<void>
+  onBlockComplete: (blockId: string, output: unknown) => Promise<void>
+  waitForPendingWrites: () => Promise<void>
+  finish: () => Promise<void>
+  getEventOutputs: () => RowData
+  getPendingDataPatch: () => RowData
+  getBlockErrors: () => Record<string, string>
+}
+
+/**
+ * Serializes per-output-block progress while separating incremental database
+ * patches from cumulative SSE payloads. Failed or terminal-suppressed patches
+ * remain pending so the terminal write can recover them once.
+ */
+export function createWorkflowCellProgressWriter(
+  options: CreateWorkflowCellProgressWriterOptions
+): WorkflowCellProgressWriter {
+  const outputsByBlockId = buildOutputsByBlockId(options.group)
+  const eventOutputs: RowData = {}
+  const pendingDataPatch: RowData = {}
+  const retryDataPatch: RowData = {}
+  const runningBlockIds = new Set<string>()
+  const blockErrors: Record<string, string> = {}
+  let writeChain: Promise<void> = Promise.resolve()
+  let terminalWritten = false
+
+  const scheduleWrite = (dataPatch: RowData | undefined): void => {
+    const eventSnapshot = {
+      eventOutputs: { ...eventOutputs },
+      runningBlockIds: Array.from(runningBlockIds),
+      blockErrors: { ...blockErrors },
+    }
+    writeChain = writeChain.then(async () => {
+      if (options.signal?.aborted || terminalWritten) return
+      const pendingRetry = { ...retryDataPatch, ...dataPatch }
+      const write: WorkflowCellProgressWrite = {
+        ...eventSnapshot,
+        dataPatch: Object.keys(pendingRetry).length > 0 ? pendingRetry : undefined,
+      }
+      try {
+        const result = await options.writeProgress(write)
+        if (result !== 'wrote' || !write.dataPatch) return
+        for (const [columnId, value] of Object.entries(write.dataPatch)) {
+          if (Object.is(pendingDataPatch[columnId], value)) {
+            delete pendingDataPatch[columnId]
+          }
+          if (Object.is(retryDataPatch[columnId], value)) {
+            delete retryDataPatch[columnId]
+          }
+        }
+      } catch (error) {
+        for (const [columnId, value] of Object.entries(write.dataPatch ?? {})) {
+          if (Object.is(pendingDataPatch[columnId], value)) {
+            retryDataPatch[columnId] = value
+          }
+        }
+        options.onWriteError(error)
+      }
+    })
+  }
+
+  const onBlockStart = async (blockId: string): Promise<void> => {
+    if (!outputsByBlockId.has(blockId)) return
+    runningBlockIds.add(blockId)
+    scheduleWrite(undefined)
+  }
+
+  const onBlockComplete = async (blockId: string, output: unknown): Promise<void> => {
+    const outputs = outputsByBlockId.get(blockId)
+    if (!outputs) return
+
+    const blockResult =
+      output && typeof output === 'object' && 'output' in output
+        ? (output as { output: unknown }).output
+        : output
+    const blockErrorMessage =
+      blockResult &&
+      typeof blockResult === 'object' &&
+      typeof (blockResult as { error?: unknown }).error === 'string'
+        ? (blockResult as { error: string }).error
+        : null
+    const changedData: RowData = {}
+
+    if (blockErrorMessage) {
+      blockErrors[blockId] = blockErrorMessage
+    } else {
+      for (const outputMapping of outputs) {
+        const value = pluckByPath(blockResult, outputMapping.path)
+        if (value === undefined) continue
+        changedData[outputMapping.columnName] = value as RowData[string]
+        eventOutputs[outputMapping.columnName] = value as RowData[string]
+        pendingDataPatch[outputMapping.columnName] = value as RowData[string]
+      }
+    }
+    runningBlockIds.delete(blockId)
+    scheduleWrite(Object.keys(changedData).length > 0 ? changedData : undefined)
+  }
+
+  const waitForPendingWrites = async (): Promise<void> => {
+    await writeChain
+  }
+
+  const finish = async (): Promise<void> => {
+    terminalWritten = true
+    await writeChain
+  }
+
+  return {
+    onBlockStart,
+    onBlockComplete,
+    waitForPendingWrites,
+    finish,
+    getEventOutputs: () => ({ ...eventOutputs }),
+    getPendingDataPatch: () => ({ ...pendingDataPatch }),
+    getBlockErrors: () => ({ ...blockErrors }),
+  }
 }
 
 /**

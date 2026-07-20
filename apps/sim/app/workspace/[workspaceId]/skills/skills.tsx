@@ -11,8 +11,14 @@ import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
-import { skillIdParam, skillIdUrlKeys } from '@/app/workspace/[workspaceId]/skills/search-params'
+import {
+  skillIdParam,
+  skillIdUrlKeys,
+  skillSearchParam,
+  skillSearchUrlKeys,
+} from '@/app/workspace/[workspaceId]/skills/search-params'
 import { useDeleteSkill, useSkills } from '@/hooks/queries/skills'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 const logger = createLogger('SkillsSettings')
 
@@ -67,7 +73,10 @@ export function Skills() {
   const { data: skills = [], isLoading, error } = useSkills(workspaceId)
   const deleteSkillMutation = useDeleteSkill()
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTermParam] = useQueryState(skillSearchParam.key, {
+    ...skillSearchParam.parser,
+    ...skillSearchUrlKeys,
+  })
   const [editingSkillId, setEditingSkillId] = useQueryState(skillIdParam.key, {
     ...skillIdParam.parser,
     ...skillIdUrlKeys,
@@ -76,12 +85,19 @@ export function Skills() {
   const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. Filtering below is cheap in-memory over a small list,
+   * so it reads the instant value too.
+   */
+  const setSearchTerm = useDebouncedSearchSetter(setSearchTermParam)
+
   /** Derive the skill being edited from the loaded list — never store the object in the URL. */
   const editingSkill = editingSkillId ? (skills.find((s) => s.id === editingSkillId) ?? null) : null
 
   const filteredSkills = skills.filter((s) => {
     if (!searchTerm.trim()) return true
-    const searchLower = searchTerm.toLowerCase()
+    const searchLower = searchTerm.trim().toLowerCase()
     return (
       s.name.toLowerCase().includes(searchLower) ||
       s.description.toLowerCase().includes(searchLower)

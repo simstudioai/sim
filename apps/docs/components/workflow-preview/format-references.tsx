@@ -15,12 +15,10 @@ export function formatReferences(text: string): ReactNode[] {
     const isReference =
       (part.startsWith('<') && part.endsWith('>')) || (part.startsWith('{{') && part.endsWith('}}'))
     return isReference ? (
-      // biome-ignore lint/suspicious/noArrayIndexKey: static, never reordered
       <span key={index} className='text-[var(--brand-secondary)]'>
         {part}
       </span>
     ) : (
-      // biome-ignore lint/suspicious/noArrayIndexKey: static, never reordered
       <span key={index}>{part}</span>
     )
   })

@@ -14,22 +14,45 @@ import {
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGenerateInternalToken, fetchMock, mockIsWorkspaceApiExecutionEntitled } = vi.hoisted(
-  () => ({
-    mockGenerateInternalToken: vi.fn(),
-    fetchMock: vi.fn(),
-    mockIsWorkspaceApiExecutionEntitled: vi.fn().mockResolvedValue(true),
-  })
-)
+const {
+  mockAssertBillingAttributionSnapshot,
+  mockGenerateInternalToken,
+  mockResolveBillingAttribution,
+  mockSerializeBillingAttributionHeader,
+  fetchMock,
+} = vi.hoisted(() => ({
+  mockAssertBillingAttributionSnapshot: vi.fn(),
+  mockGenerateInternalToken: vi.fn(),
+  mockResolveBillingAttribution: vi.fn(),
+  mockSerializeBillingAttributionHeader: vi.fn(),
+  fetchMock: vi.fn(),
+}))
 
-vi.mock('@/lib/billing/core/api-access', () => ({
-  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE: 'paid plan required',
-  isWorkspaceApiExecutionEntitled: mockIsWorkspaceApiExecutionEntitled,
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  BILLING_ATTRIBUTION_HEADER: 'x-sim-billing-attribution',
+  assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,
+  resolveBillingAttribution: mockResolveBillingAttribution,
+  serializeBillingAttributionHeader: mockSerializeBillingAttributionHeader,
 }))
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 const MCP_BYTE_LIMIT = 10 * 1024 * 1024
 const MCP_TOOLS_LIST_LIMIT = 100
+
+function createBillingAttribution(actorUserId: string, workspaceId: string) {
+  return {
+    actorUserId,
+    workspaceId,
+    organizationId: null,
+    billedAccountUserId: 'payer-1',
+    billingEntity: { type: 'user' as const, id: 'payer-1' },
+    billingPeriod: {
+      start: '2026-07-01T00:00:00.000Z',
+      end: '2026-08-01T00:00:00.000Z',
+    },
+    payerSubscription: null,
+  }
+}
 
 vi.mock('@sim/db', () => dbChainMock)
 vi.mock('drizzle-orm', () => ({
@@ -63,6 +86,12 @@ describe('MCP Serve Route', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     vi.stubGlobal('fetch', fetchMock)
+    mockResolveBillingAttribution.mockImplementation(
+      ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) =>
+        Promise.resolve(createBillingAttribution(actorUserId, workspaceId))
+    )
+    mockAssertBillingAttributionSnapshot.mockImplementation((value: unknown) => value)
+    mockSerializeBillingAttributionHeader.mockReturnValue('serialized-attribution')
   })
 
   afterEach(() => {
@@ -91,26 +120,6 @@ describe('MCP Serve Route', () => {
     const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
 
     expect(response.status).toBe(401)
-  })
-
-  it('returns 402 when the workspace billed account is on the free plan', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      {
-        id: 'server-1',
-        name: 'Private Server',
-        workspaceId: 'ws-1',
-        isPublic: false,
-        createdBy: 'owner-1',
-      },
-    ])
-    mockIsWorkspaceApiExecutionEntitled.mockResolvedValueOnce(false)
-
-    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
-      method: 'POST',
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
-    })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
-    expect(response.status).toBe(402)
   })
 
   it('returns 401 on GET for private server when auth fails', async () => {
@@ -242,7 +251,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
 
     hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
       success: true,
@@ -277,8 +286,13 @@ describe('MCP Serve Route', () => {
     const headers = fetchOptions.headers as Record<string, string>
     expect(headers.Authorization).toBe('Bearer internal-token-user-1')
     expect(headers['X-Sim-MCP-Tool-Actor']).toBe('authenticated-user')
+    expect(headers['x-sim-billing-attribution']).toBe('serialized-attribution')
     expect(headers['X-API-Key']).toBeUndefined()
     expect(mockGenerateInternalToken).toHaveBeenCalledWith('user-1')
+    expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+    })
   })
 
   it('forwards internal token for private server session auth', async () => {
@@ -293,7 +307,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
 
     hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
       success: true,
@@ -326,8 +340,129 @@ describe('MCP Serve Route', () => {
     const headers = fetchOptions.headers as Record<string, string>
     expect(headers.Authorization).toBe('Bearer internal-token-user-1')
     expect(headers['X-Sim-MCP-Tool-Actor']).toBeUndefined()
+    expect(headers['x-sim-billing-attribution']).toBe('serialized-attribution')
     expect(headers['X-API-Key']).toBeUndefined()
     expect(mockGenerateInternalToken).toHaveBeenCalledWith('user-1')
+    expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+    })
+  })
+
+  it('replaces caller-supplied attribution for public workflow tools', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          id: 'server-1',
+          name: 'Public Server',
+          workspaceId: 'ws-1',
+          isPublic: true,
+          createdBy: 'owner-1',
+        },
+      ])
+      .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
+    mockGenerateInternalToken.mockResolvedValueOnce('internal-token-owner-1')
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ output: { ok: true } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+
+    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      method: 'POST',
+      headers: { 'x-sim-billing-attribution': 'caller-controlled-attribution' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'tool_a' },
+      }),
+    })
+    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+
+    expect(response.status).toBe(200)
+    expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
+      actorUserId: 'owner-1',
+      workspaceId: 'ws-1',
+    })
+    const attribution = createBillingAttribution('owner-1', 'ws-1')
+    expect(mockAssertBillingAttributionSnapshot).toHaveBeenCalledWith(attribution)
+    expect(mockSerializeBillingAttributionHeader).toHaveBeenCalledWith(attribution)
+    const fetchOptions = fetchMock.mock.calls[0][1] as RequestInit
+    const headers = fetchOptions.headers as Record<string, string>
+    expect(headers.Authorization).toBe('Bearer internal-token-owner-1')
+    expect(headers['x-sim-billing-attribution']).toBe('serialized-attribution')
+    expect(headers['x-sim-billing-attribution']).not.toBe('caller-controlled-attribution')
+  })
+
+  it.each([null, 'ws-other'])(
+    'fails closed when a workflow tool has invalid workspace scope: %s',
+    async (workflowWorkspaceId) => {
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([
+          {
+            id: 'server-1',
+            name: 'Public Server',
+            workspaceId: 'ws-1',
+            isPublic: true,
+            createdBy: 'owner-1',
+          },
+        ])
+        .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
+        .mockResolvedValueOnce([
+          { workspaceId: workflowWorkspaceId, deploymentVersionId: 'deployment-1' },
+        ])
+
+      const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+        method: 'POST',
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'tool_a' },
+        }),
+      })
+      const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+
+      expect(response.status).toBe(403)
+      expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('fails closed when resolved attribution does not match the bridge scope', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          id: 'server-1',
+          name: 'Public Server',
+          workspaceId: 'ws-1',
+          isPublic: true,
+          createdBy: 'owner-1',
+        },
+      ])
+      .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
+    mockResolveBillingAttribution.mockResolvedValueOnce(
+      createBillingAttribution('different-actor', 'ws-1')
+    )
+
+    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      method: 'POST',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'tool_a' },
+      }),
+    })
+    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+
+    expect(response.status).toBe(500)
+    expect(mockSerializeBillingAttributionHeader).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('rejects oversized MCP request bodies before parsing JSON', async () => {
@@ -432,7 +567,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockResolvedValueOnce(
       new Response(
         new ReadableStream<Uint8Array>({
@@ -476,7 +611,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockResolvedValueOnce(
       new Response(
         new ReadableStream<Uint8Array>({
@@ -523,7 +658,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -556,6 +691,53 @@ describe('MCP Serve Route', () => {
     const fetchOptions = fetchMock.mock.calls[0][1] as RequestInit
     const headers = fetchOptions.headers as Record<string, string>
     expect(headers['X-Sim-MCP-Tool-Call']).toBe('true')
+    expect(JSON.parse(fetchOptions.body as string)).toMatchObject({
+      deploymentVersionId: 'deployment-1',
+    })
+  })
+
+  it('preserves downstream attributed usage admission rejections', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          id: 'server-1',
+          name: 'Public Server',
+          workspaceId: 'ws-1',
+          isPublic: true,
+          createdBy: 'owner-1',
+        },
+      ])
+      .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Workspace usage limit exceeded.',
+        }),
+        {
+          status: 402,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
+    )
+
+    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      method: 'POST',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'tool_a' },
+      }),
+    })
+
+    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const body = await response.json()
+
+    expect(response.status).toBe(402)
+    expect(body.error.message).toBe('Workspace usage limit exceeded.')
+    expect(body.error.data.httpStatus).toBe(402)
   })
 
   it('preserves upstream error status when workflow response is not JSON', async () => {
@@ -570,7 +752,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockResolvedValueOnce(new Response('gateway timeout', { status: 408 }))
 
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
@@ -603,7 +785,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ success: true, output: false }), {
         status: 200,
@@ -640,7 +822,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ success: true }), {
         status: 200,
@@ -677,7 +859,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
       success: true,
       userId: 'user-1',
@@ -757,7 +939,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockImplementationOnce((_url, init: RequestInit) => {
       const signal = init.signal as AbortSignal
       return new Promise<Response>((_resolve, reject) => {

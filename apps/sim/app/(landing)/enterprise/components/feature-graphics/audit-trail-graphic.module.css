@@ -1,0 +1,47 @@
+/**
+ * The AuditTrailGraphic's motion: the newest ledger entry stamps in once on
+ * load (a short settle from above — an append, never a re-append, since the
+ * record is immutable), and its actor avatar then carries the row's shared
+ * quiet 6s ring-pulse beat (same bloom as the access tile's live grant and
+ * the lifecycle tile's live node) to mark the trail as live. Under
+ * prefers-reduced-motion both are removed and the ledger sits static.
+ */
+
+.stampIn {
+  animation: audit-stamp-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.35s backwards;
+}
+
+@keyframes audit-stamp-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sealPulse {
+  animation: audit-seal-pulse 6s ease-out infinite;
+}
+
+@keyframes audit-seal-pulse {
+  0%,
+  20% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 35%, transparent);
+  }
+  36% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stampIn,
+  .sealPulse {
+    animation: none;
+  }
+}

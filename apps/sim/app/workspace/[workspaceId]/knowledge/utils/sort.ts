@@ -48,7 +48,7 @@ export function filterKnowledgeBases(
     return knowledgeBases
   }
 
-  const query = searchQuery.toLowerCase()
+  const query = searchQuery.trim().toLowerCase()
   return knowledgeBases.filter(
     (kb) => kb.name.toLowerCase().includes(query) || kb.description?.toLowerCase().includes(query)
   )

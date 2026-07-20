@@ -7,7 +7,7 @@ import { isTeam } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { resolveDefaultPaymentMethod } from '@/lib/billing/stripe-payment-method'
-import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
+import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import type { OutboxHandler } from '@/lib/core/outbox/service'
 
 const logger = createLogger('BillingOutboxHandlers')
@@ -153,8 +153,8 @@ const stripeSyncSubscriptionSeats: OutboxHandler<StripeSyncSubscriptionSeatsPayl
       return
     }
 
-    if (!hasUsableSubscriptionStatus(row.status)) {
-      logger.warn('Skipping seat sync for unusable DB subscription status', {
+    if (!hasPaidSubscriptionStatus(row.status)) {
+      logger.warn('Skipping seat sync for non-entitled DB subscription status', {
         eventId: ctx.eventId,
         subscriptionId: payload.subscriptionId,
         status: row.status,
@@ -165,8 +165,8 @@ const stripeSyncSubscriptionSeats: OutboxHandler<StripeSyncSubscriptionSeatsPayl
     const desiredSeats = row.seats || 1
     const stripeSubscription = await stripe.subscriptions.retrieve(row.stripeSubscriptionId)
 
-    if (!hasUsableSubscriptionStatus(stripeSubscription.status)) {
-      logger.warn('Skipping seat sync for unusable Stripe subscription', {
+    if (!hasPaidSubscriptionStatus(stripeSubscription.status)) {
+      logger.warn('Skipping seat sync for non-entitled Stripe subscription', {
         eventId: ctx.eventId,
         subscriptionId: payload.subscriptionId,
         stripeSubscriptionId: row.stripeSubscriptionId,

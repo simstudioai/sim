@@ -168,6 +168,7 @@ export const workflow = pgTable(
     deployedAt: timestamp('deployed_at'),
     isPublicApi: boolean('is_public_api').notNull().default(false),
     locked: boolean('locked').notNull().default(false),
+    forkSyncExcluded: boolean('fork_sync_excluded').notNull().default(false),
     runCount: integer('run_count').notNull().default(0),
     lastRunAt: timestamp('last_run_at'),
     variables: json('variables').default('{}'),
@@ -388,6 +389,11 @@ export const workflowExecutionLogs = pgTable(
     runningStartedAtIdx: index('workflow_execution_logs_running_started_at_idx')
       .on(table.startedAt)
       .where(sql`status = 'running'`),
+    completedEndedAtIdx: index('workflow_execution_logs_completed_ended_at_idx')
+      .on(table.endedAt, table.workspaceId, table.executionId)
+      .where(
+        sql`${table.status} = 'completed' AND ${table.level} = 'info' AND ${table.endedAt} IS NOT NULL`
+      ),
   })
 )
 
@@ -477,6 +483,7 @@ export const pausedExecutions = pgTable(
     pausePoints: jsonb('pause_points').notNull(),
     totalPauseCount: integer('total_pause_count').notNull(),
     resumedCount: integer('resumed_count').notNull().default(0),
+    automaticResumeRetryCount: integer('automatic_resume_retry_count').notNull().default(0),
     status: text('status').notNull().default('paused'),
     metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
     pausedAt: timestamp('paused_at').notNull().defaultNow(),
@@ -627,6 +634,10 @@ export const workflowSchedule = pgTable(
       () => workflowDeploymentVersion.id,
       { onDelete: 'cascade' }
     ),
+    deploymentOperationId: text('deployment_operation_id').references(
+      (): AnyPgColumn => workflowDeploymentOperation.id,
+      { onDelete: 'set null' }
+    ),
     blockId: text('block_id'),
     cronExpression: text('cron_expression'),
     nextRunAt: timestamp('next_run_at'),
@@ -742,8 +753,24 @@ export const webhook = pgTable(
       () => workflowDeploymentVersion.id,
       { onDelete: 'cascade' }
     ),
+    registrationStatus: text('registration_status'),
+    registrationGeneration: integer('registration_generation'),
+    configFingerprint: text('config_fingerprint'),
+    preparedAt: timestamp('prepared_at'),
     blockId: text('block_id'),
-    path: text('path').notNull(),
+    /**
+     * URL-addressable webhook path. NULL for shared-app providers (e.g. the
+     * native Slack OAuth trigger) whose events arrive on a single shared
+     * endpoint and route by `routingKey` instead of a per-workflow path.
+     */
+    path: text('path'),
+    /**
+     * Tenant routing key for shared-app providers. For `provider='slack_app'`
+     * this is the Slack `team_id`, derived server-side from the connected
+     * credential at deploy time — never user input. Inbound events match on
+     * this after HMAC verification.
+     */
+    routingKey: text('routing_key'),
     provider: text('provider'), // e.g., "whatsapp", "github", etc.
     providerConfig: json('provider_config'), // Store provider-specific configuration
     isActive: boolean('is_active').notNull().default(true),
@@ -763,6 +790,10 @@ export const webhook = pgTable(
         table.workflowId,
         table.deploymentVersionId
       ),
+      // Shared-app inbound routing (Slack native OAuth trigger). routingKey leads.
+      routingKeyActiveIdx: index('webhook_routing_key_active_idx')
+        .on(table.routingKey, table.provider)
+        .where(sql`${table.archivedAt} IS NULL AND ${table.routingKey} IS NOT NULL`),
       archivedAtPartialIdx: index('webhook_archived_at_partial_idx')
         .on(table.archivedAt)
         .where(sql`${table.archivedAt} IS NOT NULL`),
@@ -779,8 +810,49 @@ export const webhook = pgTable(
         table.blockId,
         table.updatedAt.desc()
       ),
+      activeRegistrationUnique: uniqueIndex('webhook_active_registration_unique')
+        .on(table.workflowId, table.blockId)
+        .where(
+          sql`${table.registrationStatus} = 'active' AND ${table.blockId} IS NOT NULL AND ${table.archivedAt} IS NULL`
+        ),
+      candidateRegistrationUnique: uniqueIndex('webhook_candidate_registration_unique')
+        .on(table.workflowId, table.blockId)
+        .where(sql`${table.registrationStatus} = 'candidate' AND ${table.blockId} IS NOT NULL`),
+      registrationGenerationIdx: index('webhook_registration_status_generation_idx').on(
+        table.workflowId,
+        table.registrationStatus,
+        table.registrationGeneration
+      ),
+      registrationStatusCheck: check(
+        'webhook_registration_status_check',
+        sql`${table.registrationStatus} IS NULL OR ${table.registrationStatus} IN ('active', 'candidate', 'retired', 'orphaned')`
+      ),
+      registrationGenerationCheck: check(
+        'webhook_registration_generation_check',
+        sql`${table.registrationGeneration} IS NULL OR ${table.registrationGeneration} >= 0`
+      ),
     }
   }
+)
+
+/**
+ * Owns a normalized path independently from registration generations.
+ */
+export const webhookPathClaim = pgTable(
+  'webhook_path_claim',
+  {
+    path: text('path').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    generation: integer('generation').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workflowIdx: index('webhook_path_claim_workflow_idx').on(table.workflowId),
+    generationCheck: check('webhook_path_claim_generation_check', sql`${table.generation} >= 0`),
+  })
 )
 
 /**
@@ -1081,6 +1153,13 @@ export const chat = pgTable(
   }
 )
 
+/** A user-supplied custom regex pattern; matches are replaced verbatim with `replacement`. */
+export interface CustomPiiPattern {
+  name: string
+  regex: string
+  replacement: string
+}
+
 /** Per-stage PII redaction policy stored on a {@link PiiRedactionRule}. */
 export interface PiiStagePolicy {
   enabled: boolean
@@ -1088,6 +1167,8 @@ export interface PiiStagePolicy {
   entityTypes: string[]
   /** Language whose Presidio recognizers apply (e.g. 'en', 'es'); defaults to English. */
   language?: string
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns?: CustomPiiPattern[]
 }
 
 /**
@@ -1330,7 +1411,7 @@ export const workspace = pgTable(
      * anchor — `onDelete: 'cascade'` cleans up a user's workspaces on account
      * deletion — and the ownership-transfer target when an owner is removed. For
      * admin checks use explicit `permissions` rows; for the workspace's principal
-     * billing identity use `billedAccountUserId`.
+     * billing identity use `billedAccountUserId`. DO NOT DELETE.
      */
     ownerId: text('owner_id')
       .notNull()
@@ -1342,11 +1423,20 @@ export const workspace = pgTable(
     billedAccountUserId: text('billed_account_user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'no action' }),
+    /**
+     * Durable workspace-first storage ledger.
+     *
+     * Invariant: this non-negative total and the currently routed payer aggregate
+     * change atomically while the workspace row is locked. A payer identity change
+     * moves this entire total old payer -> new payer in the same transaction.
+     */
+    storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
     allowPersonalApiKeys: boolean('allow_personal_api_keys').notNull().default(true),
     inboxEnabled: boolean('inbox_enabled').notNull().default(false),
     inboxAddress: text('inbox_address'),
     inboxProviderId: text('inbox_provider_id'),
     archivedAt: timestamp('archived_at'),
+    organizationAssignedAt: timestamp('organization_assigned_at'),
     forkedFromWorkspaceId: text('forked_from_workspace_id').references(
       (): AnyPgColumn => workspace.id,
       { onDelete: 'set null' }
@@ -1357,6 +1447,10 @@ export const workspace = pgTable(
   (table) => ({
     ownerIdIdx: index('workspace_owner_id_idx').on(table.ownerId),
     organizationIdIdx: index('workspace_organization_id_idx').on(table.organizationId),
+    nonNegativeStorage: check(
+      'workspace_storage_used_bytes_non_negative',
+      sql`${table.storageUsedBytes} >= 0`
+    ),
     workspaceModeIdx: index('workspace_mode_idx').on(table.workspaceMode),
     forkedFromWorkspaceIdx: index('workspace_forked_from_workspace_id_idx').on(
       table.forkedFromWorkspaceId
@@ -1676,6 +1770,16 @@ export const workspaceFiles = pgTable(
     }),
     context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
+    /**
+     * Logical id of the copilot message this file was born in (the user message the
+     * upload was attached to). Plain text with no FK: message ids are only unique per
+     * chat — the same id legitimately exists in the source chat and every fork of it,
+     * which is what lets a fork's "copy files at-or-before this message" cut match rows
+     * in both. NULL means "birth unknown / not tracked": rows predating this column and
+     * contexts that don't stamp it. Nulled together with chatId when a file is
+     * materialized to the workspace.
+     */
+    messageId: text('message_id'),
     originalName: text('original_name').notNull(),
     /**
      * Collision-disambiguated name exposed to the copilot VFS as `uploads/<displayName>`.
@@ -2346,6 +2450,9 @@ export const copilotMessages = pgTable(
     chatStreamIdx: index('copilot_messages_chat_stream_idx')
       .on(table.chatId, table.streamId)
       .where(sql`${table.streamId} IS NOT NULL`),
+    userCreatedAtIdx: index('copilot_messages_user_created_at_idx')
+      .on(table.createdAt, table.chatId, table.messageId)
+      .where(sql`${table.role} = 'user' AND ${table.deletedAt} IS NULL`),
   })
 )
 
@@ -2607,6 +2714,82 @@ export const workflowDeploymentVersion = pgTable(
   })
 )
 
+/**
+ * Tracks mutable deployment attempts separately from immutable version snapshots.
+ */
+export const workflowDeploymentOperation = pgTable(
+  'workflow_deployment_operation',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    deploymentVersionId: text('deployment_version_id')
+      .notNull()
+      .references(() => workflowDeploymentVersion.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    previousActiveVersionId: text('previous_active_version_id').references(
+      () => workflowDeploymentVersion.id,
+      { onDelete: 'set null' }
+    ),
+    action: text('action').notNull(),
+    protocolVersion: integer('protocol_version').notNull(),
+    generation: integer('generation').notNull(),
+    status: text('status').notNull().default('preparing'),
+    componentReadiness: jsonb('component_readiness')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    idempotencyKey: text('idempotency_key'),
+    requestHash: text('request_hash').notNull(),
+    actorId: text('actor_id').notNull(),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workflowGenerationUnique: uniqueIndex(
+      'workflow_deployment_operation_workflow_generation_unique'
+    ).on(table.workflowId, table.generation),
+    workflowIdempotencyUnique: uniqueIndex(
+      'workflow_deployment_operation_workflow_idempotency_unique'
+    )
+      .on(table.workflowId, table.idempotencyKey)
+      .where(sql`${table.idempotencyKey} IS NOT NULL`),
+    workflowInFlightUnique: uniqueIndex('workflow_deployment_operation_workflow_in_flight_unique')
+      .on(table.workflowId)
+      .where(sql`${table.status} IN ('preparing', 'activating')`),
+    workflowStatusIdx: index('workflow_deployment_operation_workflow_status_idx').on(
+      table.workflowId,
+      table.status
+    ),
+    deploymentVersionIdx: index('workflow_deployment_operation_deployment_version_idx').on(
+      table.deploymentVersionId
+    ),
+    workflowVersionGenerationIdx: index(
+      'workflow_deployment_operation_workflow_version_generation_idx'
+    ).on(table.workflowId, table.deploymentVersionId, table.generation.desc()),
+    actionCheck: check(
+      'workflow_deployment_operation_action_check',
+      sql`${table.action} IN ('deploy', 'activate')`
+    ),
+    statusCheck: check(
+      'workflow_deployment_operation_status_check',
+      sql`${table.status} IN ('preparing', 'activating', 'active', 'failed', 'superseded')`
+    ),
+    generationCheck: check(
+      'workflow_deployment_operation_generation_check',
+      sql`${table.generation} > 0`
+    ),
+    protocolVersionCheck: check(
+      'workflow_deployment_operation_protocol_version_check',
+      sql`${table.protocolVersion} > 0`
+    ),
+  })
+)
+
 // Idempotency keys for preventing duplicate processing across all webhooks and triggers
 export const idempotencyKey = pgTable(
   'idempotency_key',
@@ -2642,6 +2825,10 @@ export const outboxEvent = pgTable(
       table.availableAt
     ),
     lockedAtIdx: index('outbox_event_locked_at_idx').on(table.lockedAt),
+    eventTypeCreatedIdx: index('outbox_event_type_created_idx').on(
+      table.eventType,
+      table.createdAt
+    ),
   })
 )
 
@@ -2877,13 +3064,14 @@ export const customBlock = pgTable(
     /** Uploaded icon image URL (workspace storage), or null for the default icon. */
     iconUrl: text('icon_url'),
     /**
-     * Per-input placeholder hints keyed by the source Start field's stable `id`:
-     * `Array<{ id, placeholder? }>`. Only the placeholder is authored — the input
-     * field set and its name/type/description are always derived live from the
-     * deployed Start (so they can never go stale). Absent/empty → no placeholder
-     * overrides; every deployed Start input is still exposed.
+     * Per-input authored overrides keyed by the source Start field's stable `id`:
+     * `Array<{ id, placeholder?, required? }>`. Only the placeholder and required
+     * flag are authored — the input field set and its name/type/description are
+     * always derived live from the deployed Start (so they can never go stale); an
+     * override whose field was removed is ignored. Absent/empty → no overrides;
+     * every deployed Start input is still exposed.
      */
-    inputs: json('inputs').$type<Array<{ id: string; placeholder?: string }>>(),
+    inputs: json('inputs').$type<Array<{ id: string; placeholder?: string; required?: boolean }>>(),
     /**
      * Curated outputs exposed to consumers: `Array<{ blockId, path, name }>`. Each
      * maps a child-workflow block output (blockId + dot-path) to a friendly output

@@ -1,6 +1,7 @@
 ---
 name: validate-integration
-description: Audit an existing Sim integration against the service API docs and repository conventions, then report and fix issues across tools, blocks, outputs, OAuth scopes, triggers, and registry entries. Use when validating or repairing a service integration under `apps/sim/tools`, `apps/sim/blocks`, or `apps/sim/triggers`.
+description: Validate an existing Sim integration (tools, block, registry) against the service's API docs
+argument-hint: <service-name> [api-docs-url]
 ---
 
 # Validate Integration Skill
@@ -24,7 +25,7 @@ Read **every** file for the integration — do not skip any:
 apps/sim/tools/{service}/          # All tool files, types.ts, index.ts
 apps/sim/blocks/blocks/{service}.ts # Block definition
 apps/sim/tools/registry.ts          # Tool registry entries for this service
-apps/sim/blocks/registry.ts         # Block registry entry for this service
+apps/sim/blocks/registry-maps.ts    # Block + meta registry entry (BLOCK_REGISTRY / BLOCK_META_REGISTRY)
 apps/sim/components/icons.tsx        # Icon definition
 apps/sim/lib/auth/auth.ts           # OAuth config — should use getCanonicalScopesForProvider()
 apps/sim/lib/oauth/oauth.ts         # OAuth provider config — single source of truth for scopes
@@ -205,12 +206,15 @@ For **each tool** in `tools.access`:
 - [ ] `bgColor` uses the service's brand color hex
 - [ ] `icon` references the correct icon component from `@/components/icons`
 - [ ] `authMode` is set correctly (`AuthMode.OAuth` or `AuthMode.ApiKey`)
-- [ ] Block is registered in `blocks/registry.ts` alphabetically
+- [ ] Block + meta are registered in `blocks/registry-maps.ts` (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`) alphabetically
 
-### BlockMeta Skills (catalog)
-- [ ] `{Service}BlockMeta.skills` is present (3–5 for mainstream services, 2–3 for niche/low-level)
-- [ ] **Every skill is grounded** — its steps only use operations the block exposes in `tools.access`; flag any skill that implies an unsupported action (e.g. "receive messages" when the block only sends)
-- [ ] **Every skill is real, not hallucinated** — web-search the service and confirm each skill maps to a popular use case attested online (vendor use-case/solutions pages, official docs describing the workflow, reputable "top automations for X" articles). Rewrite or remove any skill you cannot source as something people genuinely do with the service.
+### BlockMeta
+- [ ] `{Service}BlockMeta` is exported in the same file as the block
+- [ ] Has at least 7 templates, each with `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
+- [ ] Prompts describe concrete use cases, not generic descriptions of what the service does
+- [ ] `alsoIntegrations` is set on any template whose prompt references another service
+- [ ] `skills` present (3–5 mainstream, 2–3 niche), each grounded in `tools.access` — flag any skill implying an unsupported action
+- [ ] **Each skill is real, not hallucinated** — web-search and confirm it maps to a popular use case attested online (vendor use-case pages, official docs describing the workflow, reputable "top automations" articles); rewrite/remove any you cannot source
 - [ ] Each skill has a kebab-case `name` (≤64 chars, unique), a one-line `description`, and markdown `content` with `# Title` + `## Steps` + an output/guidance section
 
 ### Block Inputs
@@ -315,6 +319,7 @@ After fixing, confirm:
 - [ ] Validated memory load safety using `.agents/skills/memory-load-check/SKILL.md` when tools list/search/download/import/export/batch data
 - [ ] Validated error handling (error checks, meaningful messages)
 - [ ] Validated registry entries (tools and block, alphabetical, correct imports)
+- [ ] Validated `{Service}BlockMeta` exported with at least 7 templates
 - [ ] Reported all issues grouped by severity
 - [ ] Fixed all critical and warning issues
 - [ ] Ran `bun run lint` after fixes

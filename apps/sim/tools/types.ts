@@ -8,6 +8,7 @@ export type BYOKProviderId =
   | 'google'
   | 'mistral'
   | 'zai'
+  | 'kimi'
   | 'xai'
   | 'fireworks'
   | 'together'
@@ -16,6 +17,7 @@ export type BYOKProviderId =
   | 'falai'
   | 'firecrawl'
   | 'exa'
+  | 'context_dev'
   | 'serper'
   | 'jina'
   | 'perplexity'
@@ -303,6 +305,23 @@ interface CustomPricing<P = Record<string, unknown>> {
 /** Union of all pricing models */
 export type ToolHostingPricing<P = Record<string, unknown>> = PerRequestPricing | CustomPricing<P>
 
+export type ToolHostingCondition =
+  | {
+      field: string
+      operator: 'equals'
+      value: string | number | boolean | null
+    }
+  | {
+      field: string
+      operator: 'one_of'
+      values: Array<string | number | boolean | null>
+    }
+
+export type ToolHostingPredicate<P> = ((params: P) => boolean) & {
+  /** Serializable equivalent of this predicate for VFS consumers. */
+  condition?: ToolHostingCondition
+}
+
 /**
  * Configuration for hosted API key support.
  * When configured, the tool can use Sim's hosted API keys if user doesn't provide their own.
@@ -324,16 +343,20 @@ export type ToolHostingPricing<P = Record<string, unknown>> = PerRequestPricing 
  * EXA_API_KEY_5=sk-...
  * ```
  *
+ * For a single-key deployment, `{envKeyPrefix}` is also supported when no
+ * `{envKeyPrefix}_COUNT` is configured.
+ *
  * Adding more keys only requires updating the count and adding the new env var —
  * no code changes needed.
  */
 export interface ToolHostingConfig<P = Record<string, unknown>> {
   /** Optional predicate for tools where hosted keys only apply to some parameter combinations. */
-  enabled?: (params: P) => boolean
+  enabled?: ToolHostingPredicate<P>
   /**
    * Env var name prefix for hosted keys.
    * At runtime, `{envKeyPrefix}_COUNT` is read to determine how many keys exist,
-   * then `{envKeyPrefix}_1` through `{envKeyPrefix}_N` are resolved.
+   * then `{envKeyPrefix}_1` through `{envKeyPrefix}_N` are resolved. If no count
+   * is configured, a singular `{envKeyPrefix}` is used when present.
    */
   envKeyPrefix: string
   /** The parameter name that receives the API key */

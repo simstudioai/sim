@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { PillsRing } from '@sim/emcn'
+import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import type { GenericResourceData } from '@/app/workspace/[workspaceId]/home/types'
 
 interface GenericResourceContentProps {
@@ -40,7 +41,7 @@ export function GenericResourceContent({ data }: GenericResourceContentProps) {
               />
             )}
             <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-              {entry.displayTitle}
+              {getToolStatusDisplayTitle(entry.displayTitle, entry.status)}
             </span>
             {entry.status === 'error' && (
               <span className='ml-auto text-[12px] text-[var(--text-error)]'>Error</span>

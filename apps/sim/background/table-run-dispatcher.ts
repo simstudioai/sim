@@ -7,6 +7,9 @@ const logger = createLogger('TableRunDispatcherTask')
 
 export interface TableRunDispatcherPayload {
   dispatchId: string
+  /** Invoker's plan-resolved window size. Absent on payloads from before the
+   *  field existed → dispatcher falls back to the legacy cap. */
+  concurrency?: number
 }
 
 /**
@@ -26,9 +29,9 @@ export const tableRunDispatcherTask = task({
     concurrencyLimit: 8,
   },
   run: async (payload: TableRunDispatcherPayload) => {
-    const { dispatchId } = payload
+    const { dispatchId, concurrency } = payload
     try {
-      await runDispatcherToCompletion(dispatchId)
+      await runDispatcherToCompletion(dispatchId, concurrency)
     } catch (err) {
       logger.error(`[${dispatchId}] dispatcher loop failed`, { error: toError(err).message })
       throw err

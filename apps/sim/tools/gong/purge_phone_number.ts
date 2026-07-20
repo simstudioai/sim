@@ -36,8 +36,12 @@ export const purgePhoneNumberTool: ToolConfig<
 
   request: {
     url: (params) => {
+      const phoneNumber = params.phoneNumber.trim()
+      if (!phoneNumber.startsWith('+')) {
+        throw new Error("phoneNumber must start with '+' followed by the country code")
+      }
       const url = new URL('https://api.gong.io/v2/data-privacy/erase-data-for-phone-number')
-      url.searchParams.set('phoneNumber', params.phoneNumber.trim())
+      url.searchParams.set('phoneNumber', phoneNumber)
       return url.toString()
     },
     method: 'POST',

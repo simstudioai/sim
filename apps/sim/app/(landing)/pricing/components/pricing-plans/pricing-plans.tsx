@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { useQueryStates } from 'nuqs'
 import { getUpgradeCardCta, type PlanTier, type UpgradeCardId } from '@/lib/billing/client'
 import { ANNUAL_DISCOUNT_RATE, CREDIT_TIERS } from '@/lib/billing/constants'
+import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 import {
   PricingCard,
   type PricingCardCta,
@@ -18,13 +19,11 @@ import {
 
 /**
  * A public visitor has no subscription, so each card's canonical label and
- * variant resolves against the `free` tier. On this page every CTA funnels to
- * sign-up regardless of plan.
+ * variant resolves against the `free` tier. On this page every self-serve CTA
+ * funnels to sign-up regardless of plan; the enterprise CTA routes to the
+ * demo-request form instead.
  */
 const VISITOR_TIER: PlanTier = 'free'
-
-/** Every CTA on the public pricing page funnels logged-out visitors to sign-up. */
-const SIGNUP_HREF = '/signup'
 
 /** This section's rows render on the public cards without their group header. */
 const HEADERLESS_SECTION_TITLE = 'Credits & pricing'
@@ -52,13 +51,27 @@ function sectionsForColumn(col: number): PricingCardSection[] {
   }))
 }
 
+/** The four card columns (Free, Pro, Max, Enterprise) transposed once at module load - the source data is static, so this never needs to be redone per render. */
+const SECTIONS_BY_COLUMN = [0, 1, 2, 3].map(sectionsForColumn)
+
+/** Round a dollar amount down to the annual-billing discounted price. */
+function annualPrice(dollars: number): number {
+  return Math.round(dollars * (1 - ANNUAL_DISCOUNT_RATE))
+}
+
 /**
- * Resolve a card's canonical label and variant from the free-tier matrix; the
- * CTA always funnels logged-out visitors to sign-up.
+ * Resolve a card's canonical label and variant from the free-tier matrix. A
+ * `sales` intent ("Talk to sales") routes to the demo-request form, matching
+ * every other "Contact sales" CTA on the landing site; every other intent
+ * funnels logged-out visitors to sign-up.
  */
 function resolveCta(card: UpgradeCardId): PricingCardCta {
   const cta = getUpgradeCardCta(VISITOR_TIER, card)
-  return { label: cta.label, variant: cta.variant, href: SIGNUP_HREF }
+  return {
+    label: cta.label,
+    variant: cta.variant,
+    href: cta.intent === 'sales' ? DEMO_HREF : SIGNUP_HREF,
+  }
 }
 
 const FREE_CTA: PricingCardCta = {
@@ -86,12 +99,8 @@ export function PricingPlans({ heading }: PricingPlansProps) {
   const setIsAnnual = (next: boolean) => setParams({ billing: next ? 'annual' : 'monthly' })
 
   const discountPct = Math.round(ANNUAL_DISCOUNT_RATE * 100)
-  const proPrice = isAnnual
-    ? Math.round(CREDIT_TIERS[0].dollars * (1 - ANNUAL_DISCOUNT_RATE))
-    : CREDIT_TIERS[0].dollars
-  const maxPrice = isAnnual
-    ? Math.round(CREDIT_TIERS[1].dollars * (1 - ANNUAL_DISCOUNT_RATE))
-    : CREDIT_TIERS[1].dollars
+  const proPrice = isAnnual ? annualPrice(CREDIT_TIERS[0].dollars) : CREDIT_TIERS[0].dollars
+  const maxPrice = isAnnual ? annualPrice(CREDIT_TIERS[1].dollars) : CREDIT_TIERS[1].dollars
   const priceSubtext = isAnnual
     ? 'per user/month, billed annually'
     : 'per user/month, billed monthly'
@@ -114,7 +123,7 @@ export function PricingPlans({ heading }: PricingPlansProps) {
           price='$0'
           priceSubtext='Free forever'
           cta={FREE_CTA}
-          sections={sectionsForColumn(0)}
+          sections={SECTIONS_BY_COLUMN[0]}
         />
         <PricingCard
           name='Pro'
@@ -122,7 +131,7 @@ export function PricingPlans({ heading }: PricingPlansProps) {
           discountLabel={discountLabel}
           priceSubtext={priceSubtext}
           cta={proCta}
-          sections={sectionsForColumn(1)}
+          sections={SECTIONS_BY_COLUMN[1]}
         />
         <PricingCard
           name='Max'
@@ -130,14 +139,14 @@ export function PricingPlans({ heading }: PricingPlansProps) {
           discountLabel={discountLabel}
           priceSubtext={priceSubtext}
           cta={maxCta}
-          sections={sectionsForColumn(2)}
+          sections={SECTIONS_BY_COLUMN[2]}
         />
         <PricingCard
           name='Enterprise'
           price='Custom'
           priceSubtext='Tailored to your team'
           cta={enterpriseCta}
-          sections={sectionsForColumn(3)}
+          sections={SECTIONS_BY_COLUMN[3]}
         />
       </div>
     </>

@@ -1,16 +1,25 @@
 import { db } from '@sim/db'
-import { credential, webhook, workflowDeploymentVersion } from '@sim/db/schema'
+import { account, credential, webhook, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { getProviderIdFromServiceId } from '@/lib/oauth'
+import { WebhookPathClaimConflictError } from '@/lib/webhooks/path-claims'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
   hasWebhookConfigChanged,
+  projectDesiredWebhookProviderConfig,
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import { fetchSlackTeamId } from '@/lib/webhooks/providers/slack'
+import {
+  prepareStableWebhookRegistrations,
+  type StableDesiredWebhookRegistration,
+} from '@/lib/webhooks/registration-service'
 import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
 import {
   buildCanonicalIndex,
@@ -18,11 +27,17 @@ import {
   isCanonicalPair,
   resolveActiveCanonicalValue,
 } from '@/lib/workflows/subblocks/visibility'
+import {
+  getSlackBotCredential,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/app/api/auth/oauth/utils'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
+import { SIM_SUBSCRIBED_EVENTS } from '@/triggers/slack/shared'
 
 const logger = createLogger('DeployWebhookSync')
 
@@ -42,6 +57,17 @@ interface BuiltProviderConfig {
   credentialServiceId?: string
   triggerPath: string
 }
+
+interface ResolvedWebhookConfig {
+  provider: string
+  providerConfig: Record<string, unknown>
+  triggerPath: string | null
+  routingKey: string | null
+}
+
+type ResolveWebhookConfigResult =
+  | { success: true; config: ResolvedWebhookConfig }
+  | { success: false; error: TriggerSaveError }
 
 export async function validateTriggerWebhookConfigForDeploy(
   blocks: Record<string, BlockState>
@@ -309,13 +335,16 @@ export function buildProviderConfig(
 
 /**
  * Resolves a trigger credential reference to its canonical platform credential ID while enforcing
- * that the credential belongs to the deployed workflow's workspace and OAuth service.
+ * that the credential belongs to the deployed workflow's workspace and OAuth provider.
+ *
+ * Exported for unit testing the service-to-provider boundary; not part of the public deploy API.
  */
-async function resolveTriggerCredentialId(
+export async function resolveTriggerCredentialId(
   credentialReference: string,
   workspaceId: string,
   serviceId: string
 ): Promise<string | null> {
+  const providerId = getProviderIdFromServiceId(serviceId)
   const [resolvedCredential] = await db
     .select({ id: credential.id })
     .from(credential)
@@ -323,13 +352,196 @@ async function resolveTriggerCredentialId(
       and(
         eq(credential.workspaceId, workspaceId),
         eq(credential.type, 'oauth'),
-        eq(credential.providerId, serviceId),
+        eq(credential.providerId, providerId),
         or(eq(credential.id, credentialReference), eq(credential.accountId, credentialReference))
       )
     )
     .limit(1)
 
   return resolvedCredential?.id ?? null
+}
+
+async function resolveWebhookConfigForBlock(input: {
+  block: BlockState
+  workflow: Record<string, unknown>
+  userId: string
+  requestId: string
+}): Promise<ResolveWebhookConfigResult | null> {
+  const triggerId = resolveTriggerId(input.block)
+  if (!triggerId || !isTriggerValid(triggerId)) return null
+
+  const triggerDef = getTrigger(triggerId)
+  const { providerConfig, missingFields, credentialReference, credentialServiceId, triggerPath } =
+    buildProviderConfig(input.block, triggerId, triggerDef)
+
+  if (missingFields.length > 0) {
+    return {
+      success: false,
+      error: {
+        message: `Missing required fields for ${triggerDef.name || triggerId}: ${missingFields.join(', ')}`,
+        status: 400,
+      },
+    }
+  }
+
+  if (providerConfig.requireAuth && !providerConfig.token) {
+    return {
+      success: false,
+      error: {
+        message:
+          'Authentication is enabled but no token is configured. Please set an authentication token or disable authentication.',
+        status: 400,
+      },
+    }
+  }
+
+  let credentialId: string | undefined
+  if (credentialReference && credentialServiceId) {
+    const workflowWorkspaceId =
+      typeof input.workflow.workspaceId === 'string' ? input.workflow.workspaceId : undefined
+    if (!workflowWorkspaceId) {
+      return {
+        success: false,
+        error: {
+          message: `Cannot validate credentials for ${triggerDef.name || triggerId} without a workflow workspace`,
+          status: 400,
+        },
+      }
+    }
+
+    credentialId =
+      (await resolveTriggerCredentialId(
+        credentialReference,
+        workflowWorkspaceId,
+        credentialServiceId
+      )) ?? undefined
+    if (!credentialId) {
+      return {
+        success: false,
+        error: {
+          message: `The selected ${credentialServiceId} credential is not available in this workspace`,
+          status: 400,
+        },
+      }
+    }
+    providerConfig.credentialId = credentialId
+  }
+
+  let effectiveProvider = triggerDef.provider
+  let effectivePath: string | null = triggerPath
+  let routingKey: string | null = null
+  if (triggerId === 'slack_oauth') {
+    const appType = typeof providerConfig.appType === 'string' ? providerConfig.appType : 'custom'
+    if (appType === 'sim') {
+      const eventType =
+        typeof providerConfig.eventType === 'string' ? providerConfig.eventType : null
+      if (eventType && !SIM_SUBSCRIBED_EVENTS.includes(eventType)) {
+        return {
+          success: false,
+          error: {
+            message:
+              'This event is not available on the Sim Slack app. Use a custom app or choose a supported event.',
+            status: 400,
+          },
+        }
+      }
+      if (!credentialId) {
+        return {
+          success: false,
+          error: { message: 'Select a Slack account for the trigger.', status: 400 },
+        }
+      }
+
+      let tokenOwnerUserId = input.userId
+      const resolvedAccount = await resolveOAuthAccountId(credentialId)
+      if (resolvedAccount?.accountId) {
+        const [owner] = await db
+          .select({ userId: account.userId })
+          .from(account)
+          .where(eq(account.id, resolvedAccount.accountId))
+          .limit(1)
+        if (owner?.userId) tokenOwnerUserId = owner.userId
+      }
+      const botToken = await refreshAccessTokenIfNeeded(
+        credentialId,
+        tokenOwnerUserId,
+        input.requestId
+      )
+      if (!botToken) {
+        return {
+          success: false,
+          error: {
+            message: 'Could not access the connected Slack account. Reconnect it and try again.',
+            status: 400,
+          },
+        }
+      }
+      try {
+        const { teamId, userId: botUserId } = await fetchSlackTeamId(botToken)
+        routingKey = teamId
+        if (botUserId) providerConfig.bot_user_id = botUserId
+      } catch (error: unknown) {
+        logger.error(
+          `[${input.requestId}] Slack team_id resolution failed for ${input.block.id}`,
+          error
+        )
+        return {
+          success: false,
+          error: {
+            message: 'Could not verify the connected Slack workspace. Reconnect it and try again.',
+            status: 400,
+          },
+        }
+      }
+      effectiveProvider = 'slack_app'
+      effectivePath = null
+    } else {
+      const botCredentialId =
+        typeof providerConfig.botCredential === 'string' ? providerConfig.botCredential : undefined
+      if (!botCredentialId) {
+        return {
+          success: false,
+          error: { message: 'Select a Slack bot credential for the trigger.', status: 400 },
+        }
+      }
+      const botCredential = await getSlackBotCredential(botCredentialId)
+      if (!botCredential) {
+        return {
+          success: false,
+          error: {
+            message: 'The selected Slack bot credential is missing or invalid. Reconnect it.',
+            status: 400,
+          },
+        }
+      }
+      const workflowWorkspace =
+        typeof input.workflow.workspaceId === 'string' ? input.workflow.workspaceId : undefined
+      if (!workflowWorkspace || botCredential.workspaceId !== workflowWorkspace) {
+        return {
+          success: false,
+          error: {
+            message: 'The selected Slack bot credential is not available in this workspace.',
+            status: 400,
+          },
+        }
+      }
+      effectiveProvider = 'slack'
+      effectivePath = null
+      routingKey = botCredentialId
+      providerConfig.credentialId = botCredentialId
+      if (botCredential.botUserId) providerConfig.bot_user_id = botCredential.botUserId
+    }
+  }
+
+  return {
+    success: true,
+    config: {
+      provider: effectiveProvider,
+      providerConfig,
+      triggerPath: effectivePath,
+      routingKey,
+    },
+  }
 }
 
 async function configurePollingIfNeeded(
@@ -352,6 +564,95 @@ async function configurePollingIfNeeded(
   }
 
   return null
+}
+
+export interface PrepareStableTriggerWebhooksInput {
+  request: NextRequest
+  workflowId: string
+  workflow: Record<string, unknown>
+  userId: string
+  blocks: Record<string, BlockState>
+  requestId: string
+  deploymentVersionId: string
+  operationId: string
+  generation: number
+  signal?: AbortSignal
+}
+
+/**
+ * Prepares stable webhook registrations for the v2 deployment operation protocol.
+ *
+ * The legacy save path remains available below and retains its existing execution behavior.
+ */
+export async function prepareStableTriggerWebhooksForDeploy({
+  request,
+  workflowId,
+  workflow,
+  userId,
+  blocks,
+  requestId,
+  deploymentVersionId,
+  operationId,
+  generation,
+  signal,
+}: PrepareStableTriggerWebhooksInput): Promise<TriggerSaveResult> {
+  const validationResult = await validateTriggerWebhookConfigForDeploy(blocks)
+  if (!validationResult.success) return validationResult
+
+  const desired: StableDesiredWebhookRegistration[] = []
+  const triggerBlocks = Object.values(blocks || {}).filter(
+    (block) => block && block.enabled !== false
+  )
+  for (const block of triggerBlocks) {
+    signal?.throwIfAborted()
+    const resolved = await resolveWebhookConfigForBlock({
+      block,
+      workflow,
+      userId,
+      requestId,
+    })
+    if (!resolved) continue
+    if (!resolved.success) return resolved
+
+    desired.push({
+      blockId: block.id,
+      provider: resolved.config.provider,
+      path: resolved.config.triggerPath,
+      routingKey: resolved.config.routingKey,
+      providerConfig: resolved.config.providerConfig,
+      desiredConfig: projectDesiredWebhookProviderConfig(resolved.config.providerConfig),
+    })
+  }
+
+  try {
+    await prepareStableWebhookRegistrations({
+      request,
+      fence: { workflowId, deploymentVersionId, operationId, generation },
+      workflow,
+      userId,
+      requestId,
+      desired,
+      signal,
+    })
+    return { success: true }
+  } catch (error) {
+    if (error instanceof WebhookPathClaimConflictError) {
+      return {
+        success: false,
+        error: {
+          message: `Webhook path "${error.path}" is already in use. Choose a different path.`,
+          status: 409,
+        },
+      }
+    }
+    return {
+      success: false,
+      error: {
+        message: getErrorMessage(error, 'Failed to prepare webhook registrations'),
+        status: 500,
+      },
+    }
+  }
 }
 
 /**
@@ -404,96 +705,42 @@ export async function saveTriggerWebhooksForDeploy({
     existingWebhookBlockIds: Array.from(webhooksByBlockId.keys()),
   })
 
-  type WebhookConfig = {
-    provider: string
-    providerConfig: Record<string, unknown>
-    triggerPath: string
-  }
-  const webhookConfigs = new Map<string, WebhookConfig>()
+  const webhookConfigs = new Map<string, ResolvedWebhookConfig>()
 
   const webhooksToDelete: typeof existingWebhooks = []
   const blocksNeedingWebhook: BlockState[] = []
 
   for (const block of triggerBlocks) {
-    const triggerId = resolveTriggerId(block)
-    if (!triggerId || !isTriggerValid(triggerId)) continue
-
-    const triggerDef = getTrigger(triggerId)
-    const provider = triggerDef.provider
-    const { providerConfig, missingFields, credentialReference, credentialServiceId, triggerPath } =
-      buildProviderConfig(block, triggerId, triggerDef)
-
-    if (missingFields.length > 0) {
-      return {
-        success: false,
-        error: {
-          message: `Missing required fields for ${triggerDef.name || triggerId}: ${missingFields.join(', ')}`,
-          status: 400,
-        },
-      }
-    }
-
-    if (providerConfig.requireAuth && !providerConfig.token) {
-      return {
-        success: false,
-        error: {
-          message:
-            'Authentication is enabled but no token is configured. Please set an authentication token or disable authentication.',
-          status: 400,
-        },
-      }
-    }
-
-    let credentialId: string | undefined
-    if (credentialReference && credentialServiceId) {
-      const workflowWorkspaceId =
-        typeof workflow.workspaceId === 'string' ? workflow.workspaceId : undefined
-      if (!workflowWorkspaceId) {
-        return {
-          success: false,
-          error: {
-            message: `Cannot validate credentials for ${triggerDef.name || triggerId} without a workflow workspace`,
-            status: 400,
-          },
-        }
-      }
-
-      credentialId =
-        (await resolveTriggerCredentialId(
-          credentialReference,
-          workflowWorkspaceId,
-          credentialServiceId
-        )) ?? undefined
-      if (!credentialId) {
-        return {
-          success: false,
-          error: {
-            message: `The selected ${credentialServiceId} credential is not available in this workspace`,
-            status: 400,
-          },
-        }
-      }
-      providerConfig.credentialId = credentialId
-    }
-
-    const pathConflict = await findConflictingWebhookPathOwner({
-      path: triggerPath,
-      workflowId,
+    const resolved = await resolveWebhookConfigForBlock({
+      block,
+      workflow,
+      userId,
+      requestId,
     })
-    if (pathConflict) {
-      logger.warn(
-        `[${requestId}] Webhook path conflict for "${triggerPath}": already owned by workflow ${pathConflict}`
-      )
-      return {
-        success: false,
-        error: {
-          message: `Webhook path "${triggerPath}" is already in use. Choose a different path.`,
-          status: 409,
-        },
+    if (!resolved) continue
+    if (!resolved.success) return resolved
+    const { provider, providerConfig, triggerPath, routingKey } = resolved.config
+
+    if (triggerPath) {
+      const pathConflict = await findConflictingWebhookPathOwner({
+        path: triggerPath,
+        workflowId,
+      })
+      if (pathConflict) {
+        logger.warn(
+          `[${requestId}] Webhook path conflict for "${triggerPath}": already owned by workflow ${pathConflict}`
+        )
+        return {
+          success: false,
+          error: {
+            message: `Webhook path "${triggerPath}" is already in use. Choose a different path.`,
+            status: 409,
+          },
+        }
       }
     }
 
-    webhookConfigs.set(block.id, { provider, providerConfig, triggerPath })
+    webhookConfigs.set(block.id, resolved.config)
 
     const existingForBlock = webhooksByBlockId.get(block.id) ?? []
     if (existingForBlock.length === 0) {
@@ -513,6 +760,11 @@ export async function saveTriggerWebhooksForDeploy({
       const needsRecreation =
         forceRecreateSubscriptions ||
         existingWh.provider !== provider ||
+        // Routing transitions (path-based <-> routing-key, or a changed key)
+        // must recreate the row even when the provider config compares equal —
+        // otherwise a stale delivery surface stays active on the old route.
+        (existingWh.path ?? null) !== triggerPath ||
+        ((existingWh.routingKey as string | null) ?? null) !== routingKey ||
         hasWebhookConfigChanged(existingConfig, providerConfig)
 
       if (needsRecreation) {
@@ -566,7 +818,8 @@ export async function saveTriggerWebhooksForDeploy({
     webhookId: string
     block: BlockState
     provider: string
-    triggerPath: string
+    triggerPath: string | null
+    routingKey: string | null
     updatedProviderConfig: Record<string, unknown>
     externalSubscriptionCreated: boolean
   }> = []
@@ -576,7 +829,7 @@ export async function saveTriggerWebhooksForDeploy({
     const config = webhookConfigs.get(block.id)
     if (!config) continue
 
-    const { provider, providerConfig, triggerPath } = config
+    const { provider, providerConfig, triggerPath, routingKey } = config
     const webhookId = generateShortId()
     const createPayload = {
       id: webhookId,
@@ -586,13 +839,15 @@ export async function saveTriggerWebhooksForDeploy({
     }
 
     try {
-      await pendingVerificationTracker.register({
-        path: triggerPath,
-        provider,
-        workflowId,
-        blockId: block.id,
-        metadata: providerConfig,
-      })
+      if (triggerPath) {
+        await pendingVerificationTracker.register({
+          path: triggerPath,
+          provider,
+          workflowId,
+          blockId: block.id,
+          metadata: providerConfig,
+        })
+      }
 
       const result = await createExternalWebhookSubscription(
         request,
@@ -607,6 +862,7 @@ export async function saveTriggerWebhooksForDeploy({
         block,
         provider,
         triggerPath,
+        routingKey,
         updatedProviderConfig: result.updatedProviderConfig as Record<string, unknown>,
         externalSubscriptionCreated: result.externalSubscriptionCreated,
       })
@@ -666,6 +922,7 @@ export async function saveTriggerWebhooksForDeploy({
           deploymentVersionId: deploymentVersionId || null,
           blockId: sub.block.id,
           path: sub.triggerPath,
+          routingKey: sub.routingKey,
           provider: sub.provider,
           providerConfig: sub.updatedProviderConfig,
           isActive: true,
@@ -781,7 +1038,8 @@ async function persistCreatedWebhookRecordAfterCleanupFailure({
     webhookId: string
     block: BlockState
     provider: string
-    triggerPath: string
+    triggerPath: string | null
+    routingKey: string | null
     updatedProviderConfig: Record<string, unknown>
   }
   requestId: string
@@ -793,6 +1051,7 @@ async function persistCreatedWebhookRecordAfterCleanupFailure({
       deploymentVersionId: deploymentVersionId || null,
       blockId: sub.block.id,
       path: sub.triggerPath,
+      routingKey: sub.routingKey,
       provider: sub.provider,
       providerConfig: sub.updatedProviderConfig,
       isActive: true,

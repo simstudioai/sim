@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevBrandResponse,
   ContextDevIdentifyTransactionParams,
@@ -22,6 +23,8 @@ export const contextDevIdentifyTransactionTool: ToolConfig<
   description:
     'Identify the brand behind a raw bank/card transaction descriptor and return its brand data.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevIdentifyTransactionParams>(),
 
   params: {
     transactionInfo: {

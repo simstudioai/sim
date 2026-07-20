@@ -15,6 +15,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { buildCancelledExecution } from '@/lib/table/cell-write'
@@ -34,6 +35,7 @@ const logger = createLogger('WorkflowGroupScheduler')
 import { getColumnId } from '@/lib/table/column-keys'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from '@/lib/table/deps'
+import { resolveTableDispatchConcurrency } from '@/lib/table/dispatch-concurrency'
 import type { DispatchLimit, DispatchMode } from '@/lib/table/dispatcher'
 import { buildFilterClause } from '@/lib/table/sql'
 
@@ -236,13 +238,48 @@ export function buildPendingRuns(
  *  id. The cell-job import pulls in the executor + blocks stack, so skip it on
  *  trigger.dev to avoid a multi-second dispatcher cold-start. */
 export async function buildEnqueueItems(
-  pendingRuns: WorkflowGroupCellPayload[]
-): Promise<Array<{ payload: WorkflowGroupCellPayload; options: EnqueueOptions }>> {
+  pendingRuns: WorkflowGroupCellPayload[],
+  concurrencyLimit: number = TABLE_CONCURRENCY_LIMIT
+): Promise<Array<{ payload: QueuedWorkflowGroupCellPayload; options: EnqueueOptions }>> {
+  if (pendingRuns.length === 0) return []
+
+  const {
+    assertBillingAttributionSnapshot,
+    resolveBillingAttribution,
+    resolveSystemBillingAttribution,
+  } = await import('@/lib/billing/core/billing-attribution')
+  const attributions = new Map<string, Promise<BillingAttributionSnapshot>>()
+  const hydratedRuns = await Promise.all(
+    pendingRuns.map(async (runOpts) => {
+      if (runOpts.billingAttribution) {
+        return {
+          ...runOpts,
+          billingAttribution: assertBillingAttributionSnapshot(runOpts.billingAttribution),
+        }
+      }
+
+      const attributionKey = runOpts.triggeredByUserId
+        ? `actor:${runOpts.workspaceId}:${runOpts.triggeredByUserId}`
+        : `system:${runOpts.workspaceId}`
+      let attribution = attributions.get(attributionKey)
+      if (!attribution) {
+        attribution = runOpts.triggeredByUserId
+          ? resolveBillingAttribution({
+              actorUserId: runOpts.triggeredByUserId,
+              workspaceId: runOpts.workspaceId,
+            })
+          : resolveSystemBillingAttribution(runOpts.workspaceId)
+        attributions.set(attributionKey, attribution)
+      }
+
+      return { ...runOpts, billingAttribution: await attribution }
+    })
+  )
   const runner = isTriggerDevEnabled
     ? undefined
     : ((await import('@/background/workflow-column-execution'))
         .executeWorkflowGroupCellJob as EnqueueOptions['runner'])
-  return pendingRuns.map((runOpts) => ({
+  return hydratedRuns.map((runOpts) => ({
     payload: runOpts,
     options: {
       metadata: {
@@ -257,7 +294,7 @@ export async function buildEnqueueItems(
         },
       },
       concurrencyKey: runOpts.tableId,
-      concurrencyLimit: TABLE_CONCURRENCY_LIMIT,
+      concurrencyLimit,
       tags: cellTagsFor(runOpts),
       ...(runner ? { runner } : {}),
       cancelKey: cellCancelKey(runOpts.tableId, runOpts.rowId, runOpts.groupId),
@@ -337,6 +374,8 @@ export interface WorkflowGroupCellPayload {
   enrichmentId?: string
   workspaceId: string
   executionId: string
+  /** Immutable actor/payer decision captured before the cell is queued. */
+  billingAttribution?: BillingAttributionSnapshot
   /** Owning dispatch, set by `dispatcherStep`. Lets the cell halt its dispatch
    *  on a hard stop (e.g. usage limit). Absent for cascade/auto-fire payloads
    *  that aren't driven by a dispatch. */
@@ -347,7 +386,16 @@ export interface WorkflowGroupCellPayload {
   triggeredByUserId?: string
 }
 
-/** Per-table concurrency cap. Mirrors trigger.dev's `concurrencyLimit: 20`. */
+export type QueuedWorkflowGroupCellPayload = Omit<
+  WorkflowGroupCellPayload,
+  'billingAttribution'
+> & {
+  billingAttribution: BillingAttributionSnapshot
+}
+
+/** Legacy per-table concurrency cap. The live cap is per-plan (see
+ *  `getTableDispatchConcurrency`); this remains the fallback for dispatch rows
+ *  that predate the `concurrency` column and for non-dispatch cell enqueues. */
 export const TABLE_CONCURRENCY_LIMIT = 20
 
 /**
@@ -701,6 +749,13 @@ export async function runWorkflowColumn(opts: {
     runDispatcherToCompletion,
   } = await import('./dispatcher')
 
+  // Per-window parallelism follows the invoker's plan, resolved once here and
+  // threaded through the dispatcher invocation (task payload / loop arg).
+  const concurrency = await resolveTableDispatchConcurrency({
+    workspaceId,
+    actorUserId: triggeredByUserId,
+  })
+
   // Always insert a `table_run_dispatches` row, and insert it FIRST — before
   // the prior-run cancel and the bulk clear below, which can take seconds on
   // a large table. The client shows its Stop control optimistically from the
@@ -827,14 +882,14 @@ export async function runWorkflowColumn(opts: {
     ])
     await tasks.trigger<typeof tableRunDispatcherTask>(
       'table-run-dispatcher',
-      { dispatchId },
+      { dispatchId, concurrency },
       { concurrencyKey: dispatchId, region: await resolveTriggerRegion() }
     )
   } else {
     // Local / no-trigger.dev: drive the same loop in-process, fire-and-forget
     // so the HTTP request returns instantly (mirrors the trigger.dev path's
     // async fan-out).
-    void runDispatcherToCompletion(dispatchId).catch((err) =>
+    void runDispatcherToCompletion(dispatchId, concurrency).catch((err) =>
       logger.error(`[${requestId}] dispatcher loop failed`, {
         dispatchId,
         error: toError(err).message,

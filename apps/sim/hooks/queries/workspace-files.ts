@@ -6,6 +6,7 @@ import { backoffWithJitter } from '@sim/utils/retry'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError, isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
+import { fileStorageStatusContract } from '@/lib/api/contracts/storage-transfer'
 import { getUsageLimitsContract } from '@/lib/api/contracts/usage-limits'
 import {
   deleteWorkspaceFileContract,
@@ -52,12 +53,15 @@ export const workspaceFilesKeys = {
       ...(storageKey ? [storageKey] : []),
     ] as const,
   storageInfo: () => [...workspaceFilesKeys.all, 'storageInfo'] as const,
+  cloudConfigured: () => [...workspaceFilesKeys.all, 'cloudConfigured'] as const,
 }
 
 export const WORKSPACE_FILES_LIST_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_CONTENT_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_BINARY_STALE_TIME = 30 * 1000
 export const WORKSPACE_STORAGE_INFO_STALE_TIME = 60 * 1000
+/** Cloud storage (S3/Blob) is env-driven and does not change at runtime. */
+export const CLOUD_STORAGE_CONFIGURED_STALE_TIME = Number.POSITIVE_INFINITY
 
 /**
  * Storage info type
@@ -137,12 +141,20 @@ async function fetchWorkspaceFileContent(url: string, signal?: AbortSignal): Pro
  * Hook to fetch workspace file content as text.
  * `key` (the storage object key) is forwarded into the query key factory so that a new
  * storage key (e.g. after a file is re-uploaded) correctly busts the cache.
+ *
+ * `refetchInterval` lets a caller poll while waiting for the server content to advance — the
+ * editor's post-stream reconcile (see `use-editable-file-content.ts`) exits only when a fetch
+ * returns content that moved past its baseline, and would otherwise wedge read-only forever if
+ * its single refetch raced the agent's write. The function form is re-evaluated by react-query
+ * after every fetch and options pass, so a condition read through a ref stops the polling as soon
+ * as it flips — no re-render required.
  */
 export function useWorkspaceFileContent(
   workspaceId: string,
   fileId: string,
   key: string,
-  raw?: boolean
+  raw?: boolean,
+  options?: { refetchInterval?: number | false | (() => number | false) }
 ) {
   const source = useFileContentSource()
   return useQuery({
@@ -152,6 +164,7 @@ export function useWorkspaceFileContent(
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: WORKSPACE_FILE_CONTENT_STALE_TIME,
     refetchOnWindowFocus: 'always',
+    refetchInterval: options?.refetchInterval ?? false,
   })
 }
 
@@ -282,6 +295,25 @@ export function useStorageInfo(enabled = true) {
     enabled,
     retry: false, // Don't retry on 404
     staleTime: WORKSPACE_STORAGE_INFO_STALE_TIME, // 1 minute - storage info doesn't change often
+  })
+}
+
+async function fetchCloudStorageConfigured(signal?: AbortSignal): Promise<boolean> {
+  const data = await requestJson(fileStorageStatusContract, { signal })
+  return data.cloudConfigured === true
+}
+
+/**
+ * Whether S3 or Azure Blob is configured. Used by file uploads that need a
+ * publicly fetchable HTTPS URL (e.g. Instagram publish).
+ */
+export function useCloudStorageConfigured(enabled = true) {
+  return useQuery({
+    queryKey: workspaceFilesKeys.cloudConfigured(),
+    queryFn: ({ signal }) => fetchCloudStorageConfigured(signal),
+    enabled,
+    retry: false,
+    staleTime: CLOUD_STORAGE_CONFIGURED_STALE_TIME,
   })
 }
 

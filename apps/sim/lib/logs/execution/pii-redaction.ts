@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { maskPIIBatchViaHttp } from '@/lib/guardrails/mask-client'
+import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 
 const logger = createLogger('PiiRedaction')
 
@@ -23,6 +24,8 @@ export interface PiiRedactionOptions {
   /** Presidio entity types to mask. Empty = redact all detected PII. */
   entityTypes: string[]
   language?: string
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns?: CustomPiiPattern[]
   /** Failure handling. Defaults to `'scrub'`. */
   onFailure?: PiiRedactionFailureMode
 }
@@ -154,7 +157,12 @@ async function maskCollected(
   try {
     // Presidio runs only in the app container; the persist + execution paths also
     // run in the trigger.dev runtime, so masking always goes over HTTP to the app.
-    const masked = await maskPIIBatchViaHttp(collected, options.entityTypes, language)
+    const masked = await maskPIIBatchViaHttp(
+      collected,
+      options.entityTypes,
+      language,
+      options.customPatterns
+    )
     return { masked, scrubbed: false }
   } catch (error) {
     logger.error('PII masking failed', {

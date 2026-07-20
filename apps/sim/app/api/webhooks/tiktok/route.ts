@@ -3,7 +3,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { tiktokWebhookEnvelopeSchema } from '@/lib/api/contracts/webhooks'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
-import { getJobQueue } from '@/lib/core/async-jobs'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -15,9 +14,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 import { verifyTikTokSignature } from '@/lib/webhooks/providers/tiktok'
 import {
-  executeTikTokWebhookIngress,
-  TIKTOK_WEBHOOK_INGRESS_CONCURRENCY_LIMIT,
-  TIKTOK_WEBHOOK_INGRESS_MAX_ATTEMPTS,
+  enqueueTikTokWebhookIngress,
   type TikTokWebhookIngressPayload,
 } from '@/background/tiktok-webhook-ingress'
 
@@ -107,15 +104,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       requestId,
       receivedAt,
     }
-    const jobQueue = await getJobQueue()
-    const jobId = await jobQueue.enqueue('tiktok-webhook-ingress', payload, {
-      maxAttempts: TIKTOK_WEBHOOK_INGRESS_MAX_ATTEMPTS,
-      concurrencyKey: 'tiktok-webhook-ingress',
-      concurrencyLimit: TIKTOK_WEBHOOK_INGRESS_CONCURRENCY_LIMIT,
-      runner: async () => {
-        await executeTikTokWebhookIngress(payload)
-      },
-    })
+    const jobId = await enqueueTikTokWebhookIngress(payload)
 
     logger.info(`[${requestId}] Accepted TikTok webhook delivery`, {
       event: envelope.event,
