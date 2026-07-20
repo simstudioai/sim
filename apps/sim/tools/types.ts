@@ -51,6 +51,14 @@ export type WorkflowToolExecutionContext = {
   workflowId?: string
   executionId?: string
   userId?: string
+  /**
+   * Optional block identity injected by the generic handler at execute
+   * time. Tools that create externally-visible records (e.g. a Claude
+   * Platform Managed Agent session) use these to build human-legible
+   * titles that link the record back to the source workflow node.
+   */
+  blockId?: string
+  blockName?: string
 }
 
 export type OutputType =

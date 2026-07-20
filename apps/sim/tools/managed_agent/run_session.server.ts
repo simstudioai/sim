@@ -1,8 +1,11 @@
 import 'server-only'
 
+import { db } from '@sim/db'
+import { workflow as workflowTable, workspace as workspaceTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { eq } from 'drizzle-orm'
 import { readSSEEvents } from '@/lib/core/utils/sse'
 import { getDecryptedApiKey } from '@/lib/managed-agents/connections'
 import { env } from '@/lib/core/config/env'
@@ -133,11 +136,22 @@ const impl: ManagedAgentServerImpl = async (
   const files = normalizeFiles(params.files)
   const sessionParameters = normalizeSessionParameters(params.sessionParameters)
 
+  // Human-legible session title so runs are traceable from the Claude
+  // Platform side back to the Sim workflow node that opened them.
+  // Failure to look up either name is tolerated — we just drop that
+  // segment from the title so the session still opens.
+  const title = await buildSessionTitle({
+    workspaceId,
+    workflowId: context?.workflowId,
+    blockName: context?.blockName,
+  })
+
   const createSessionInput = {
     apiKey,
     agentId: params.agent,
     environmentId: params.environment,
     envType,
+    ...(title ? { title } : {}),
     ...(vaultIds.length > 0 ? { vaultIds } : {}),
     ...(memoryStoreId ? { memoryStoreId } : {}),
     ...(memoryStoreId && memoryAccess ? { memoryAccess } : {}),
@@ -477,4 +491,52 @@ function isPayloadDebugEnabled(): boolean {
   if (raw === undefined || raw === null) return false
   const normalized = String(raw).toLowerCase()
   return normalized === '1' || normalized === 'true' || normalized === 'yes'
+}
+
+/**
+ * Assemble the Anthropic session title from the Sim workspace, workflow,
+ * and node names — so a session listed on Claude Platform links back to
+ * the origin.
+ *
+ * Shape: `sim.ai - <workspace> - <workflow> - <block>`. Segments whose
+ * lookups fail (workspace/workflow deleted, block unnamed) are dropped
+ * so the title still opens something useful. If we can't build any
+ * meaningful title, return `undefined` — the session creates untitled.
+ */
+async function buildSessionTitle(input: {
+  workspaceId: string
+  workflowId?: string
+  blockName?: string
+}): Promise<string | undefined> {
+  const [workspaceName, workflowName] = await Promise.all([
+    fetchNameSafely(workspaceTable, workspaceTable.id, input.workspaceId),
+    input.workflowId
+      ? fetchNameSafely(workflowTable, workflowTable.id, input.workflowId)
+      : Promise.resolve(undefined),
+  ])
+  const segments = ['sim.ai']
+  if (workspaceName) segments.push(workspaceName)
+  if (workflowName) segments.push(workflowName)
+  if (input.blockName?.trim()) segments.push(input.blockName.trim())
+  if (segments.length === 1) return undefined // only the "sim.ai" prefix — not useful
+  return segments.join(' - ')
+}
+
+async function fetchNameSafely<T extends { name: unknown }>(
+  table: { name: unknown } & Record<string, unknown>,
+  idColumn: unknown,
+  id: string
+): Promise<string | undefined> {
+  try {
+    const rows = (await db
+      .select({ name: (table as { name: unknown }).name })
+      .from(table as never)
+      .where(eq(idColumn as never, id))
+      .limit(1)) as Array<{ name: string | null }>
+    const name = rows[0]?.name
+    return typeof name === 'string' && name.trim().length > 0 ? name.trim() : undefined
+  } catch (err) {
+    logger.warn('Failed to look up name for session title', { id, error: getErrorMessage(err) })
+    return undefined
+  }
 }
