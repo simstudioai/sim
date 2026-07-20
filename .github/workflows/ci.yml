@@ -684,9 +684,15 @@ jobs:
   promote-trigger:
     name: Promote Trigger.dev
     needs: [promote-images, deploy-trigger]
+    # Require both upstreams to have SUCCEEDED explicitly (not just promoted==true):
+    # a job if without a status-check function keeps the implicit success() gate, but
+    # spelling it out removes any doubt that a failed promote-images/deploy-trigger
+    # can't reach this job and promote tasks with no app retag/cutover.
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
+      needs.promote-images.result == 'success' &&
+      needs.deploy-trigger.result == 'success' &&
       needs.promote-images.outputs.promoted == 'true'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     # Must exceed the poll script's OVERALL_TIMEOUT (70 min, covering a prod deploy
