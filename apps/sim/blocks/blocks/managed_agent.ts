@@ -104,13 +104,22 @@ export const ManagedAgentBlock: BlockConfig = {
       description: 'read_write pushes changes back on session exit; read_only never writes.',
     },
     {
+      id: 'memoryInstructions',
+      title: 'Memory instructions',
+      type: 'long-input',
+      required: false,
+      placeholder: 'Optional — how the agent should use this memory store',
+      condition: { field: 'memoryStoreId', value: '', not: true },
+      description: 'Per-attachment guidance rendered into the memory section of the system prompt.',
+    },
+    {
       id: 'files',
       title: 'Files',
       type: 'table',
       required: false,
-      columns: ['File ID'],
+      columns: ['File ID', 'Mount path'],
       description:
-        'Files-API file ids (file_...) to attach to the session as file resources (cloud environments).',
+        'Files-API file ids (file_...) to attach as file resources (cloud environments). Mount path is optional.',
     },
     {
       id: 'sessionParameters',
@@ -142,27 +151,22 @@ export const ManagedAgentBlock: BlockConfig = {
       type: 'string',
       description: "Memory store access mode — 'read_write' (default) or 'read_only'.",
     },
-    files: { type: 'json', description: 'Files-API file ids to attach as file resources.' },
+    memoryInstructions: {
+      type: 'string',
+      description: 'Per-attachment guidance for how the agent should use the memory store.',
+    },
+    files: { type: 'json', description: 'File attachments — [{fileId, mountPath?}].' },
     sessionParameters: { type: 'json', description: 'Session metadata (key/value).' },
   },
   outputs: {
     content: { type: 'string', description: "The Managed Agent's final assistant text." },
     sessionId: { type: 'string', description: 'Anthropic session id, for logs and linking.' },
+    inputTokens: { type: 'number', description: 'Cumulative input tokens for the session.' },
+    outputTokens: { type: 'number', description: 'Cumulative output tokens for the session.' },
   },
 }
 
 export const ManagedAgentBlockMeta = {
   tags: ['agentic', 'llm'],
   url: 'https://platform.claude.com/',
-  templates: [
-    {
-      icon: ClaudeIcon,
-      title: 'Delegate a task to a Claude Managed Agent',
-      prompt:
-        "Build a workflow that opens a Claude Platform Managed Agent session, optionally attaches a memory store and files, and captures the agent's response.",
-      modules: ['agent', 'workflows'],
-      category: 'engineering',
-      tags: ['automation', 'analysis'],
-    },
-  ],
 } as const satisfies BlockMeta

@@ -94,7 +94,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     vaultIds: body.vaults,
     memoryStoreId: body.memoryStoreId,
     memoryAccess: body.memoryAccess,
-    fileIds: body.fileIds,
+    memoryInstructions: body.memoryInstructions,
+    files: body.files,
     sessionParameters: body.sessionParameters,
     signal: request.signal,
   })
@@ -114,6 +115,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   return NextResponse.json({
     success: true,
-    output: { content: result.content, sessionId: result.sessionId ?? '' },
+    output: {
+      content: result.content,
+      sessionId: result.sessionId ?? '',
+      ...(result.inputTokens !== undefined ? { inputTokens: result.inputTokens } : {}),
+      ...(result.outputTokens !== undefined ? { outputTokens: result.outputTokens } : {}),
+    },
   })
 })

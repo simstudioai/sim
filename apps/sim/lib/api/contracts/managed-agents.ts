@@ -51,6 +51,25 @@ export type ListManagedAgentOptions = ContractJsonResponse<typeof listManagedAge
  * clean shapes in `request.body` before dispatch, so the route validates
  * strict types.
  */
+/** `metadata` is capped by the API at 16 pairs, keys ≤64, values ≤512 chars. */
+const sessionMetadataSchema = z.record(z.string(), z.string()).superRefine((value, ctx) => {
+  const entries = Object.entries(value)
+  if (entries.length > 16) {
+    ctx.addIssue({ code: 'custom', message: 'At most 16 metadata pairs are allowed.' })
+  }
+  for (const [key, val] of entries) {
+    if (key.length > 64) {
+      ctx.addIssue({ code: 'custom', message: `Metadata key "${key}" exceeds 64 characters.` })
+    }
+    if (val.length > 512) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Metadata value for "${key}" exceeds 512 characters.`,
+      })
+    }
+  }
+})
+
 export const runManagedAgentBodySchema = z.object({
   agent: z.string().min(1, 'agent is required'),
   environment: z.string().min(1, 'environment is required'),
@@ -59,8 +78,12 @@ export const runManagedAgentBodySchema = z.object({
   vaultsAck: z.boolean().optional(),
   memoryStoreId: z.string().optional(),
   memoryAccess: z.enum(['read_write', 'read_only']).optional(),
-  fileIds: z.array(z.string().min(1)).max(100).optional(),
-  sessionParameters: z.record(z.string(), z.string()).optional(),
+  memoryInstructions: z.string().max(4096).optional(),
+  files: z
+    .array(z.object({ fileId: z.string().min(1), mountPath: z.string().min(1).optional() }))
+    .max(100)
+    .optional(),
+  sessionParameters: sessionMetadataSchema.optional(),
 })
 export type RunManagedAgentBody = z.input<typeof runManagedAgentBodySchema>
 
@@ -79,7 +102,12 @@ export const runManagedAgentContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       success: z.literal(true),
-      output: z.object({ content: z.string(), sessionId: z.string() }),
+      output: z.object({
+        content: z.string(),
+        sessionId: z.string(),
+        inputTokens: z.number().optional(),
+        outputTokens: z.number().optional(),
+      }),
     }),
   },
 })

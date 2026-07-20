@@ -23,26 +23,23 @@ export function isTruthyAck(value: unknown): boolean {
 }
 
 /**
- * Coerces the block's file table into a list of Files-API file ids. Accepts
- * the `{ 'File ID' }` column shape, the flat `{ fileId }` shape, and comma /
- * json string lists. Drops blank ids.
- *
- * Only the file id is forwarded: the Managed Agents session `resources` array
- * accepts `{ type: 'file', file_id }` on create, with no documented mount-path
- * field, so nothing else is emitted.
+ * Coerces the block's file table into `{ fileId, mountPath? }[]` for the
+ * session `resources` array (`{ type: 'file', file_id, mount_path? }`). Reads
+ * the `File ID` / `Mount path` column shape, the flat `{ fileId, mountPath }`
+ * shape, and plain string / comma / json id lists. Drops blank ids.
  */
-export function normalizeFiles(value: unknown): string[] {
+export function normalizeFiles(value: unknown): Array<{ fileId: string; mountPath?: string }> {
   if (
     typeof value === 'string' ||
     (Array.isArray(value) && value.every((v) => typeof v === 'string'))
   ) {
-    return normalizeStringList(value)
+    return normalizeStringList(value).map((fileId) => ({ fileId }))
   }
   if (!Array.isArray(value)) return []
-  const out: string[] = []
+  const out: Array<{ fileId: string; mountPath?: string }> = []
   for (const raw of value) {
     if (typeof raw === 'string') {
-      if (raw.trim()) out.push(raw.trim())
+      if (raw.trim()) out.push({ fileId: raw.trim() })
       continue
     }
     if (!raw || typeof raw !== 'object') continue
@@ -54,7 +51,13 @@ export function normalizeFiles(value: unknown): string[] {
     const readString = (key: string): string | undefined =>
       typeof cells[key] === 'string' ? (cells[key] as string) : undefined
     const fileId = readString('fileId') ?? readString('File ID') ?? readString('file_id') ?? ''
-    if (fileId.trim()) out.push(fileId.trim())
+    if (!fileId.trim()) continue
+    const mountPath =
+      readString('mountPath') ?? readString('Mount path') ?? readString('mount_path')
+    out.push({
+      fileId: fileId.trim(),
+      ...(mountPath?.trim() ? { mountPath: mountPath.trim() } : {}),
+    })
   }
   return out
 }

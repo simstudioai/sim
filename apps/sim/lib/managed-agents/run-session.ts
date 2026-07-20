@@ -6,6 +6,7 @@ import {
   type AnthropicSessionEvent,
   type CreateSessionInput,
   createSession,
+  getSessionUsage,
   listSessionEvents,
   openSessionStream,
   sendSessionEvents,
@@ -48,7 +49,8 @@ export interface RunManagedAgentInput {
   vaultIds?: string[]
   memoryStoreId?: string
   memoryAccess?: 'read_write' | 'read_only'
-  fileIds?: string[]
+  memoryInstructions?: string
+  files?: Array<{ fileId: string; mountPath?: string }>
   sessionParameters?: Record<string, string>
   signal?: AbortSignal
 }
@@ -58,6 +60,8 @@ export interface RunManagedAgentResult {
   content: string
   sessionId?: string
   error?: string
+  inputTokens?: number
+  outputTokens?: number
 }
 
 export async function runManagedAgentSession(
@@ -77,7 +81,10 @@ export async function runManagedAgentSession(
     ...(input.vaultIds && input.vaultIds.length > 0 ? { vaultIds: input.vaultIds } : {}),
     ...(input.memoryStoreId ? { memoryStoreId: input.memoryStoreId } : {}),
     ...(input.memoryStoreId && input.memoryAccess ? { memoryAccess: input.memoryAccess } : {}),
-    ...(input.fileIds && input.fileIds.length > 0 ? { fileIds: input.fileIds } : {}),
+    ...(input.memoryStoreId && input.memoryInstructions
+      ? { memoryInstructions: input.memoryInstructions }
+      : {}),
+    ...(input.files && input.files.length > 0 ? { files: input.files } : {}),
     ...(input.sessionParameters && Object.keys(input.sessionParameters).length > 0
       ? { sessionParameters: input.sessionParameters }
       : {}),
@@ -209,7 +216,17 @@ export async function runManagedAgentSession(
       error: terminal?.reason ?? 'Reconnect iteration cap reached without a terminal state.',
     }
   }
-  return { ok: true, content: assistantText.value, sessionId }
+
+  // Best-effort: surface cumulative token usage. A failed lookup never fails
+  // the run — the assistant text is already the result.
+  const usage = await getSessionUsage({ apiKey, sessionId, signal })
+  return {
+    ok: true,
+    content: assistantText.value,
+    sessionId,
+    ...(usage?.inputTokens !== undefined ? { inputTokens: usage.inputTokens } : {}),
+    ...(usage?.outputTokens !== undefined ? { outputTokens: usage.outputTokens } : {}),
+  }
 }
 
 /** Tracks progress across `requires_action` idle events. */

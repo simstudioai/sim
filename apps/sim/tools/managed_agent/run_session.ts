@@ -74,6 +74,12 @@ export const managedAgentRunSessionTool: ToolConfig<
       visibility: 'user-only',
       description: "Memory store access mode: 'read_write' (default) or 'read_only'.",
     },
+    memoryInstructions: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Per-attachment guidance for how the agent should use the memory store.',
+    },
     files: {
       type: 'array',
       required: false,
@@ -94,10 +100,11 @@ export const managedAgentRunSessionTool: ToolConfig<
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => {
       const vaults = normalizeStringList(params.vaults)
-      const fileIds = normalizeFiles(params.files)
+      const files = normalizeFiles(params.files)
       const sessionParameters = normalizeSessionParameters(params.sessionParameters)
       const memoryStoreId = params.memoryStoreId?.trim() || undefined
       const memoryAccess = normalizeMemoryAccess(params.memoryAccess)
+      const memoryInstructions = params.memoryInstructions?.trim() || undefined
       return {
         agent: params.agent?.trim() ?? '',
         environment: params.environment?.trim() ?? '',
@@ -105,7 +112,8 @@ export const managedAgentRunSessionTool: ToolConfig<
         ...(vaults.length > 0 ? { vaults, vaultsAck: isTruthyAck(params.vaultsAck) } : {}),
         ...(memoryStoreId ? { memoryStoreId } : {}),
         ...(memoryStoreId && memoryAccess ? { memoryAccess } : {}),
-        ...(fileIds.length > 0 ? { fileIds } : {}),
+        ...(memoryStoreId && memoryInstructions ? { memoryInstructions } : {}),
+        ...(files.length > 0 ? { files } : {}),
         ...(sessionParameters ? { sessionParameters } : {}),
       }
     },
@@ -121,6 +129,16 @@ export const managedAgentRunSessionTool: ToolConfig<
     sessionId: {
       type: 'string',
       description: 'Anthropic session id (for logs / linking).',
+    },
+    inputTokens: {
+      type: 'number',
+      description: 'Cumulative input tokens for the session.',
+      optional: true,
+    },
+    outputTokens: {
+      type: 'number',
+      description: 'Cumulative output tokens for the session.',
+      optional: true,
     },
   },
 }

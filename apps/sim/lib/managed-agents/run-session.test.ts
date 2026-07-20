@@ -11,6 +11,7 @@ const { mocks } = vi.hoisted(() => ({
     sendSessionEvents: vi.fn(),
     openSessionStream: vi.fn(),
     listSessionEvents: vi.fn(),
+    getSessionUsage: vi.fn(),
     readSSEEvents: vi.fn(),
     sleep: vi.fn(),
   },
@@ -22,6 +23,7 @@ vi.mock('@/lib/managed-agents/session-client', () => ({
   sendSessionEvents: mocks.sendSessionEvents,
   openSessionStream: mocks.openSessionStream,
   listSessionEvents: mocks.listSessionEvents,
+  getSessionUsage: mocks.getSessionUsage,
 }))
 vi.mock('@/lib/core/utils/sse', () => ({ readSSEEvents: mocks.readSSEEvents }))
 vi.mock('@sim/utils/helpers', () => ({ sleep: mocks.sleep }))
@@ -60,6 +62,7 @@ beforeEach(() => {
   mocks.createSession.mockResolvedValue({ id: 'sess_1' })
   mocks.sendUserMessage.mockResolvedValue(undefined)
   mocks.openSessionStream.mockResolvedValue({})
+  mocks.getSessionUsage.mockResolvedValue(null)
 })
 
 describe('runManagedAgentSession', () => {
@@ -76,6 +79,26 @@ describe('runManagedAgentSession', () => {
 
     expect(result).toEqual({ ok: true, content: 'Hello world', sessionId: 'sess_1' })
     expect(mocks.listSessionEvents).not.toHaveBeenCalled()
+  })
+
+  it('surfaces cumulative token usage on success (best-effort)', async () => {
+    scriptStreamBatches([
+      [
+        msg('e1', 'ok'),
+        { id: 'e2', type: 'session.status_idle', stop_reason: { type: 'end_turn' } },
+      ],
+    ])
+    mocks.getSessionUsage.mockResolvedValue({ inputTokens: 120, outputTokens: 45 })
+
+    const result = await runManagedAgentSession({ ...BASE })
+
+    expect(result).toEqual({
+      ok: true,
+      content: 'ok',
+      sessionId: 'sess_1',
+      inputTokens: 120,
+      outputTokens: 45,
+    })
   })
 
   it('does NOT false-timeout after requires_action followed by progress then a quiet reconnect', async () => {

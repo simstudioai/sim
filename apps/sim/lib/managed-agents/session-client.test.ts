@@ -51,10 +51,29 @@ describe('buildSessionCreatePayload — resources', () => {
     ])
   })
 
-  it('attaches file resources by id (no mount path)', () => {
-    const payload = buildSessionCreatePayload({ ...BASE, fileIds: ['file_1', 'file_2'] })
+  it('includes memory instructions when provided', () => {
+    const payload = buildSessionCreatePayload({
+      ...BASE,
+      memoryStoreId: 'memstore_01',
+      memoryInstructions: 'check before starting',
+    })
     expect(payload.resources).toEqual([
-      { type: 'file', file_id: 'file_1' },
+      {
+        type: 'memory_store',
+        memory_store_id: 'memstore_01',
+        access: 'read_write',
+        instructions: 'check before starting',
+      },
+    ])
+  })
+
+  it('attaches file resources with an optional mount path', () => {
+    const payload = buildSessionCreatePayload({
+      ...BASE,
+      files: [{ fileId: 'file_1', mountPath: '/data/one' }, { fileId: 'file_2' }],
+    })
+    expect(payload.resources).toEqual([
+      { type: 'file', file_id: 'file_1', mount_path: '/data/one' },
       { type: 'file', file_id: 'file_2' },
     ])
   })
@@ -63,7 +82,7 @@ describe('buildSessionCreatePayload — resources', () => {
     const payload = buildSessionCreatePayload({
       ...BASE,
       memoryStoreId: 'memstore_01',
-      fileIds: ['file_1'],
+      files: [{ fileId: 'file_1' }],
     })
     expect(payload.resources).toEqual([
       { type: 'memory_store', memory_store_id: 'memstore_01', access: 'read_write' },
@@ -73,7 +92,7 @@ describe('buildSessionCreatePayload — resources', () => {
 
   it('omits `resources` when nothing is attached', () => {
     expect(buildSessionCreatePayload({ ...BASE }).resources).toBeUndefined()
-    expect(buildSessionCreatePayload({ ...BASE, fileIds: [] }).resources).toBeUndefined()
+    expect(buildSessionCreatePayload({ ...BASE, files: [] }).resources).toBeUndefined()
   })
 })
 

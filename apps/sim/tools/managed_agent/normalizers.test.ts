@@ -42,16 +42,27 @@ describe('normalizeStringList', () => {
 })
 
 describe('normalizeFiles', () => {
-  it('reads the File ID column shape into a list of ids', () => {
-    const rows = [{ cells: { 'File ID': 'file_1' } }, { cells: { 'File ID': ' file_2 ' } }]
-    expect(normalizeFiles(rows)).toEqual(['file_1', 'file_2'])
+  it('reads the File ID / Mount path column shape', () => {
+    const rows = [
+      { cells: { 'File ID': 'file_1', 'Mount path': '/a' } },
+      { cells: { 'File ID': ' file_2 ' } },
+    ]
+    expect(normalizeFiles(rows)).toEqual([
+      { fileId: 'file_1', mountPath: '/a' },
+      { fileId: 'file_2' },
+    ])
   })
   it('accepts the flat shape and drops rows without a file id', () => {
-    expect(normalizeFiles([{ fileId: 'file_ok' }, { fileId: '' }, {}])).toEqual(['file_ok'])
+    expect(normalizeFiles([{ fileId: 'file_ok' }, { fileId: '' }, {}])).toEqual([
+      { fileId: 'file_ok' },
+    ])
   })
   it('accepts plain string arrays and comma lists', () => {
-    expect(normalizeFiles(['file_1', ' file_2 '])).toEqual(['file_1', 'file_2'])
-    expect(normalizeFiles('file_1, file_2')).toEqual(['file_1', 'file_2'])
+    expect(normalizeFiles(['file_1', ' file_2 '])).toEqual([
+      { fileId: 'file_1' },
+      { fileId: 'file_2' },
+    ])
+    expect(normalizeFiles('file_1, file_2')).toEqual([{ fileId: 'file_1' }, { fileId: 'file_2' }])
   })
   it('returns [] for empty input', () => {
     expect(normalizeFiles(undefined)).toEqual([])

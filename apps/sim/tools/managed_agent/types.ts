@@ -21,7 +21,9 @@ export interface ManagedAgentRunSessionParams {
   memoryStoreId?: string
   /** Memory store access mode — `read_write` (default) or `read_only`. */
   memoryAccess?: string
-  /** Files-API file ids (cloud environments), as table rows, an array, or a comma list. */
+  /** Per-attachment guidance for how the agent should use the memory store. */
+  memoryInstructions?: string
+  /** Files-API files (cloud environments), as table rows, an array, or a comma list. */
   files?: unknown
   /** Key/value session metadata, as table rows or a flat object. */
   sessionParameters?: unknown
@@ -33,5 +35,9 @@ export interface ManagedAgentRunSessionResponse extends ToolResponse {
     content: string
     /** Anthropic session id (for logs / linking). */
     sessionId: string
+    /** Cumulative input tokens for the session, when available. */
+    inputTokens?: number
+    /** Cumulative output tokens for the session, when available. */
+    outputTokens?: number
   }
 }

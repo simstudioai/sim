@@ -57,14 +57,22 @@ export interface CreateSessionInput extends SessionAuth {
   memoryStoreId?: string
   /** Access mode on the attached memory store. Ignored when `memoryStoreId` is unset. */
   memoryAccess?: 'read_write' | 'read_only'
-  /** Files-API file ids (`file_...`) attached as `file` session resources. */
-  fileIds?: string[]
+  /** Per-attachment guidance rendered into the memory section of the system prompt. */
+  memoryInstructions?: string
+  /** Files-API files (`file_...`) attached as `file` session resources. */
+  files?: Array<{ fileId: string; mountPath?: string }>
   /** Arbitrary session metadata (wire name: `metadata`). */
   sessionParameters?: Record<string, string>
 }
 
 export interface CreateSessionResult {
   id: string
+}
+
+/** Cumulative token usage returned on the session resource. */
+export interface SessionUsage {
+  inputTokens?: number
+  outputTokens?: number
 }
 
 /**
@@ -102,15 +110,20 @@ export function buildSessionCreatePayload(input: CreateSessionInput): Record<str
 
   const resources: Array<Record<string, unknown>> = []
   if (input.memoryStoreId) {
-    resources.push({
+    const memory: Record<string, unknown> = {
       type: 'memory_store',
       memory_store_id: input.memoryStoreId,
       access: input.memoryAccess ?? 'read_write',
-    })
+    }
+    if (input.memoryInstructions) memory.instructions = input.memoryInstructions
+    resources.push(memory)
   }
-  if (input.fileIds && input.fileIds.length > 0) {
-    for (const fileId of input.fileIds) {
-      if (fileId) resources.push({ type: 'file', file_id: fileId })
+  if (input.files && input.files.length > 0) {
+    for (const file of input.files) {
+      if (!file.fileId) continue
+      const entry: Record<string, unknown> = { type: 'file', file_id: file.fileId }
+      if (file.mountPath) entry.mount_path = file.mountPath
+      resources.push(entry)
     }
   }
   if (resources.length > 0) payload.resources = resources
@@ -272,4 +285,31 @@ export async function managedAgentsList<T>(
     path: input.path,
     beta: input.beta,
   })
+}
+
+/**
+ * GET /v1/sessions/{id} — retrieves the session resource. Used after a run
+ * completes to surface cumulative token usage. Returns `null` on any error so
+ * the caller can treat usage as best-effort without failing the run.
+ */
+export async function getSessionUsage(
+  input: SessionAuth & { sessionId: string }
+): Promise<SessionUsage | null> {
+  try {
+    const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}`, {
+      method: 'GET',
+      headers: managedAgentsHeaders(input.apiKey),
+      signal: input.signal,
+    })
+    if (!resp.ok) return null
+    const body = (await resp.json()) as {
+      usage?: { input_tokens?: unknown; output_tokens?: unknown }
+    }
+    const usage: SessionUsage = {}
+    if (typeof body.usage?.input_tokens === 'number') usage.inputTokens = body.usage.input_tokens
+    if (typeof body.usage?.output_tokens === 'number') usage.outputTokens = body.usage.output_tokens
+    return usage
+  } catch {
+    return null
+  }
 }
