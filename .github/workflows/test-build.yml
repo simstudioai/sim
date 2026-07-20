@@ -246,3 +246,100 @@ jobs:
           ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
         run: bunx turbo run build --filter=sim
+
+  settings-e2e:
+    name: Settings E2E (informational)
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 45
+    continue-on-error: true
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+
+      - name: Mount Bun cache (Sticky Disk)
+        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+        with:
+          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+          path: ~/.bun/install/cache
+
+      - name: Mount node_modules (Sticky Disk)
+        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+        with:
+          key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+          path: ./node_modules
+
+      - name: Mount E2E Turbo cache (Sticky Disk)
+        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+        with:
+          key: ${{ github.repository }}-turbo-cache-e2e-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+          path: ./.turbo
+
+      - name: Mount Playwright browsers (Sticky Disk)
+        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+        with:
+          key: ${{ github.repository }}-playwright-browsers-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+          path: ~/.cache/ms-playwright
+
+      - name: Restore E2E Next.js build cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ./apps/sim/.next/cache
+          key: ${{ runner.os }}-nextjs-e2e-hosted-billing-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-e2e-hosted-billing-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Configure E2E hostname
+        run: echo "127.0.0.1 e2e.sim.ai" | sudo tee -a /etc/hosts
+
+      - name: Install Chromium
+        working-directory: apps/sim
+        run: bun run test:e2e:install-browsers -- --with-deps
+
+      - name: Run settings E2E foundation
+        working-directory: apps/sim
+        env:
+          CI: 'true'
+          E2E_PG_ADMIN_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/postgres'
+          TURBO_CACHE_DIR: .turbo
+        run: bun run test:e2e
+
+      - name: Upload E2E diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: settings-e2e-${{ github.run_id }}
+          path: |
+            apps/sim/playwright-report/
+            apps/sim/test-results/
+            apps/sim/e2e/.runs/
+          if-no-files-found: ignore
+          retention-days: 7

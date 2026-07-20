@@ -24,6 +24,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "bun --no-env-file e2e/scripts/run.ts",
+    "test:e2e:playwright": "node ../../node_modules/@playwright/test/cli.js test --config=playwright.config.ts",
+    "test:e2e:install-browsers": "node ../../node_modules/@playwright/test/cli.js install chromium",
     "email:dev": "email dev --dir components/emails",
     "type-check": "NODE_OPTIONS='--max-old-space-size=8192' tsc --noEmit",
     "lint": "biome check --write --unsafe .",
@@ -220,6 +223,7 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "@playwright/test": "1.61.1",
     "@sim/testing": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@tailwindcss/typography": "0.5.19",

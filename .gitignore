@@ -18,6 +18,10 @@ package-lock.json
 # testing
 /coverage
 /apps/**/coverage
+/apps/**/playwright-report/
+/apps/**/test-results/
+/apps/**/e2e/.runs/
+/apps/**/e2e/.auth/
 
 # next.js
 /.next/

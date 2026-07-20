@@ -54,6 +54,7 @@ import {
 import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
 import { isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
+import { buildStripeClientConfig } from '@/lib/billing/stripe-client-config'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -188,9 +189,7 @@ const validStripeKey = env.STRIPE_SECRET_KEY
 
 let stripeClient = null
 if (validStripeKey) {
-  stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2025-08-27.basil',
-  })
+  stripeClient = new Stripe(validStripeKey, buildStripeClientConfig(env))
 }
 
 export const auth = betterAuth({
