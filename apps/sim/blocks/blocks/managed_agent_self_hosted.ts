@@ -133,11 +133,11 @@ export const ManagedAgentSelfHostedBlock: BlockConfig = {
       // Security ack — enforced at execution time when at least one vault
       // is selected. See the sibling comment on `managed_agent_cloud.ts`.
       id: 'vaultsAck',
-      title: 'Vault authorization',
+      title:
+        'I own or am authorized to use these vaults. I understand this means this agent can assume the identity granted by them.',
       type: 'switch',
       required: false,
-      description:
-        'I own or am authorized to use these vaults. I understand this means this agent can assume the identity granted by them. Required when at least one vault is selected above.',
+      description: 'Required when at least one vault is selected above.',
     },
     ...memorySubBlocks,
     {

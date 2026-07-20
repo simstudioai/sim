@@ -86,11 +86,11 @@ export const ManagedAgentCloudBlock: BlockConfig = {
       // rejects execution with an actionable error if `vaults` is
       // non-empty but this is false.
       id: 'vaultsAck',
-      title: 'Vault authorization',
+      title:
+        'I own or am authorized to use these vaults. I understand this means this agent can assume the identity granted by them.',
       type: 'switch',
       required: false,
-      description:
-        'I own or am authorized to use these vaults. I understand this means this agent can assume the identity granted by them. Required when at least one vault is selected above.',
+      description: 'Required when at least one vault is selected above.',
     },
     {
       // Memory store — attached as a `memory_store` resource entry.
