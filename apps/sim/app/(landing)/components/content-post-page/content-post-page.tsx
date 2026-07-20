@@ -83,6 +83,7 @@ export function ContentPostPage({
                   month: 'short',
                   day: 'numeric',
                   year: 'numeric',
+                  timeZone: 'UTC',
                 })}
               </time>
               <meta itemProp='dateModified' content={post.updated ?? post.date} />
@@ -154,6 +155,7 @@ export function ContentPostPage({
                           month: 'short',
                           day: 'numeric',
                           year: 'numeric',
+                          timeZone: 'UTC',
                         })}
                       </span>
                       <h3 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
