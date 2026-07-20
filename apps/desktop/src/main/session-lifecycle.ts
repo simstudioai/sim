@@ -9,6 +9,7 @@ const logger = createLogger('DesktopSessionLifecycle')
 
 const EXPIRY_PROMPT_COOLDOWN_MS = 30_000
 const SESSION_PROBE_TIMEOUT_MS = 5000
+const START_ROUTE_PROBE_TIMEOUT_MS = 1500
 const TEARDOWN_COOLDOWN_MS = 3000
 
 const CLEARED_STORAGES = [
@@ -61,6 +62,57 @@ export function decideStartRoute(lastRoute: string | undefined): string {
     return lastRoute
   }
   return '/workspace'
+}
+
+function workspaceIdFromRoute(route: string): string | null {
+  try {
+    const pathname = new URL(route, 'https://internal.invalid').pathname
+    const match = /^\/workspace\/([^/]+)/.exec(pathname)
+    return match ? decodeURIComponent(match[1]) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Validates a workspace-specific saved route before Desktop restores it.
+ * Only a confirmed 403 discards the route; auth, network, timeout, and server
+ * failures preserve normal web-app recovery instead of masquerading as a
+ * revoked workspace.
+ */
+export async function resolveStartRoute(
+  session: Session,
+  origin: string,
+  lastRoute: string | undefined,
+  timeoutMs: number = START_ROUTE_PROBE_TIMEOUT_MS
+): Promise<string> {
+  const route = decideStartRoute(lastRoute)
+  const workspaceId = workspaceIdFromRoute(route)
+  if (!workspaceId) {
+    return route
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await session.fetch(
+      `${origin}/api/workspaces/${encodeURIComponent(workspaceId)}/host-context`,
+      {
+        signal: controller.signal,
+        headers: { accept: 'application/json' },
+        cache: 'no-store',
+      }
+    )
+    if (response.status === 403) {
+      logger.info('Saved workspace route is no longer accessible; opening workspace picker')
+      return '/workspace'
+    }
+    return route
+  } catch {
+    return route
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**

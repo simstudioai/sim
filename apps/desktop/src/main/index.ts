@@ -22,6 +22,7 @@ import {
   attachSessionLifecycle,
   decideStartRoute,
   handleConnectIntercept,
+  resolveStartRoute,
   tearDownSession,
 } from '@/main/session-lifecycle'
 import { createLauncherShortcutManager } from '@/main/shortcuts'
@@ -48,6 +49,7 @@ function main(): void {
   const preloadPath = join(__dirname, 'preload.cjs')
 
   let mainWindow: BrowserWindow | null = null
+  let mainWindowCreation: Promise<void> | null = null
   let loadHealth: LoadHealthHandle | null = null
   let tray: TrayHandle | null = null
   let updater: UpdaterHandle | null = null
@@ -132,8 +134,29 @@ function main(): void {
   }
 
   async function createAndLoadMainWindow(): Promise<void> {
+    if (mainWindowCreation) {
+      await mainWindowCreation
+      return
+    }
+    const pending = performCreateAndLoadMainWindow()
+    mainWindowCreation = pending
+    try {
+      await pending
+    } finally {
+      if (mainWindowCreation === pending) {
+        mainWindowCreation = null
+      }
+    }
+  }
+
+  async function performCreateAndLoadMainWindow(): Promise<void> {
     const origin = appOrigin()
     const ses = configureSessionForOrigin(origin)
+    const requestedRoute = decideStartRoute(config.get('lastRoute'))
+    const route = await resolveStartRoute(ses, origin, requestedRoute)
+    if (route !== requestedRoute) {
+      config.set('lastRoute', route)
+    }
     const win = createMainWindow({
       config,
       events,
@@ -163,7 +186,7 @@ function main(): void {
     })
     loadHealth = attachLoadHealth(win, {
       offlinePagePath: OFFLINE_PAGE,
-      getStartUrl: () => `${appOrigin()}${decideStartRoute(config.get('lastRoute'))}`,
+      getStartUrl: () => `${appOrigin()}${route}`,
       isOnline: () => net.isOnline(),
       events,
     })
@@ -178,7 +201,6 @@ function main(): void {
       onReauthRequested: () => void authFlow.beginLoginHandoff(),
     })
     loadHealth.startWatchdog()
-    const route = decideStartRoute(config.get('lastRoute'))
     // Fire-and-forget: the window and all its handlers are wired synchronously
     // above, so callers get a usable window immediately and the app menu and
     // updater never wait on the remote page's load (load-health surfaces any

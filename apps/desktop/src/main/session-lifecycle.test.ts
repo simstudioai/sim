@@ -8,6 +8,7 @@ import {
   isLogoutNavigation,
   isSessionCookieName,
   probeSession,
+  resolveStartRoute,
   tearDownSession,
 } from '@/main/session-lifecycle'
 
@@ -55,6 +56,53 @@ describe('decideStartRoute', () => {
     expect(decideStartRoute(undefined)).toBe('/workspace')
     expect(decideStartRoute('//evil.example')).toBe('/workspace')
     expect(decideStartRoute('/login')).toBe('/workspace')
+  })
+})
+
+describe('resolveStartRoute', () => {
+  it('restores an accessible saved workspace route', async () => {
+    const session = sessionWithResponse(200, { workspace: { id: 'ws1' } })
+
+    await expect(resolveStartRoute(session, APP, '/workspace/ws1/home')).resolves.toBe(
+      '/workspace/ws1/home'
+    )
+    expect(vi.mocked(session.fetch)).toHaveBeenCalledWith(
+      `${APP}/api/workspaces/ws1/host-context`,
+      expect.objectContaining({ cache: 'no-store' })
+    )
+  })
+
+  it('falls back to the workspace picker after confirmed access denial', async () => {
+    const session = sessionWithResponse(403, { error: 'Workspace access denied' })
+
+    await expect(resolveStartRoute(session, APP, '/workspace/revoked/chat/c1')).resolves.toBe(
+      '/workspace'
+    )
+  })
+
+  it('does not probe routes without a workspace id', async () => {
+    const session = sessionWithResponse(200, {})
+
+    await expect(resolveStartRoute(session, APP, '/workspace')).resolves.toBe('/workspace')
+    expect(session.fetch).not.toHaveBeenCalled()
+  })
+
+  it('preserves the saved route on auth, server, and network failures', async () => {
+    await expect(
+      resolveStartRoute(sessionWithResponse(401, {}), APP, '/workspace/ws1/home')
+    ).resolves.toBe('/workspace/ws1/home')
+    await expect(
+      resolveStartRoute(sessionWithResponse(500, {}), APP, '/workspace/ws1/home')
+    ).resolves.toBe('/workspace/ws1/home')
+
+    const failing = {
+      fetch: vi.fn(async () => {
+        throw new Error('offline')
+      }),
+    } as unknown as Session
+    await expect(resolveStartRoute(failing, APP, '/workspace/ws1/home')).resolves.toBe(
+      '/workspace/ws1/home'
+    )
   })
 })
 
