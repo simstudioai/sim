@@ -97,6 +97,31 @@ function TableCell({
     }
   }
 
+  /**
+   * Enter commits the current cell (values already persist on change) and
+   * advances to the same column in the next row, spreadsheet-style. Skipped
+   * while a tag/env-var dropdown is open (Enter selects an option there) or
+   * during IME composition. The next row already exists — it auto-appends the
+   * moment the last row is typed into — so focus lands on a real input.
+   */
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    handlers.onKeyDown(e)
+    if (
+      e.key !== 'Enter' ||
+      e.nativeEvent.isComposing ||
+      e.defaultPrevented ||
+      fieldState.showEnvVars ||
+      fieldState.showTags
+    ) {
+      return
+    }
+    const nextInput = inputRefs.current.get(`${rowIndex + 1}-${column}`)
+    if (nextInput) {
+      e.preventDefault()
+      nextInput.focus()
+    }
+  }
+
   const syncScrollAfterUpdate = () => {
     requestAnimationFrame(() => {
       const input = inputRefs.current.get(cellKey)
@@ -143,7 +168,7 @@ function TableCell({
           value={cellValue}
           placeholder={column}
           onChange={handlers.onChange}
-          onKeyDown={handlers.onKeyDown}
+          onKeyDown={handleKeyDown}
           onScroll={handleScroll}
           onDrop={handlers.onDrop}
           onDragOver={handlers.onDragOver}
