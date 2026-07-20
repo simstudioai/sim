@@ -6,7 +6,7 @@ import {
   type AnthropicSessionEvent,
   type CreateSessionInput,
   createSession,
-  getSessionUsage,
+  getSession,
   listSessionEvents,
   openSessionStream,
   sendSessionEvents,
@@ -19,26 +19,20 @@ import {
  * integration: the Managed Agents lifecycle is create → send → stream →
  * catch-up → reconnect, which the single-request tool framework can't model.
  *
- * The reconnect/catch-up loop follows the documented pattern: on each stream
- * (re)open, reconcile against the full event history and skip already-seen
- * event ids. Pure with respect to Sim (no `@sim/db`, no executor types) — the
- * caller supplies the decrypted API key and normalized inputs.
+ * Completion is driven only by real terminal signals — a `session.status_idle`
+ * (`end_turn`) event, or the authoritative session `status` when the event
+ * stream is quiet — never by a heuristic timer. Pure with respect to Sim (no
+ * `@sim/db`, no executor types); the caller supplies the decrypted API key.
  */
 
 const logger = createLogger('ManagedAgentRunSession')
 
 /** Upper bound on stream-close → catch-up → reopen cycles per invocation. */
-const MAX_RECONNECT_ITERATIONS = 60
-
-/**
- * Backoff for polling while the session is legitimately busy (server-side /
- * MCP tools stay in `requires_action` with no client-visible events until
- * they finish).
- */
-const REQUIRES_ACTION_BACKOFF_START_MS = 500
-const REQUIRES_ACTION_BACKOFF_MAX_MS = 5000
-/** Hard cap on total time spent waiting on a busy session — ~5 minutes. */
-const MAX_REQUIRES_ACTION_WAIT_MS = 5 * 60 * 1000
+const MAX_RECONNECT_ITERATIONS = 120
+/** Wall-clock backstop for the reconnect loop (not the live-stream duration). */
+const MAX_SESSION_MS = 15 * 60 * 1000
+const RECONNECT_BACKOFF_START_MS = 500
+const RECONNECT_BACKOFF_MAX_MS = 5000
 
 export interface RunManagedAgentInput {
   apiKey: string
@@ -63,6 +57,8 @@ export interface RunManagedAgentResult {
   inputTokens?: number
   outputTokens?: number
 }
+
+type Terminal = { status: 'complete' | 'error'; reason?: string }
 
 export async function runManagedAgentSession(
   input: RunManagedAgentInput
@@ -122,15 +118,39 @@ export async function runManagedAgentSession(
 
   const assistantText = { value: '' }
   const seenIds = new Set<string>()
-  const eventState: EventState = {
-    requiresActionEnteredAt: 0,
-    currentBackoffMs: REQUIRES_ACTION_BACKOFF_START_MS,
+  const startedAt = Date.now()
+  let backoffMs = RECONNECT_BACKOFF_START_MS
+  let sawActivity = false
+  let terminal: Terminal | null = null
+
+  const process = async (event: AnthropicSessionEvent): Promise<boolean> => {
+    if (event.id) seenIds.add(event.id)
+    if (
+      event.type === 'agent.message' ||
+      event.type === 'agent.custom_tool_use' ||
+      event.type === 'session.status_running'
+    ) {
+      sawActivity = true
+    }
+    const outcome = await handleEvent({ event, assistantText, apiKey, sessionId, signal })
+    if (outcome) {
+      terminal = outcome
+      return true
+    }
+    return false
   }
-  let terminal: { status: 'complete' | 'error'; reason?: string } | null = null
 
   try {
     for (let iteration = 0; iteration < MAX_RECONNECT_ITERATIONS && !terminal; iteration++) {
       if (signal?.aborted) break
+      if (Date.now() - startedAt > MAX_SESSION_MS) {
+        terminal = {
+          status: 'error',
+          reason: `Session did not reach a terminal state within ${Math.floor(MAX_SESSION_MS / 1000)}s.`,
+        }
+        break
+      }
+
       const streamResp = await openSessionStream({ apiKey, sessionId, signal })
       await readSSEEvents<AnthropicSessionEvent>(streamResp, {
         signal,
@@ -143,53 +163,45 @@ export async function runManagedAgentSession(
         },
         onEvent: async (event) => {
           if (event.id && seenIds.has(event.id)) return undefined
-          if (event.id) seenIds.add(event.id)
-          const outcome = await handleEvent({ event, assistantText, apiKey, sessionId, eventState })
-          if (outcome) {
-            terminal = outcome
-            return true
-          }
-          return undefined
+          return (await process(event)) ? true : undefined
         },
       })
-
       if (terminal || signal?.aborted) break
 
-      // Stream closed without a terminal event. Reconcile against the full
-      // event history, processing anything the stream missed, then reopen.
+      // Stream closed without a terminal event. Reconcile the full event
+      // history — the terminal event or final text may have landed during the
+      // gap. Events are deduped by id; entries without an id are skipped here
+      // (they are non-persisted stream previews, never history).
       const history = await listSessionEvents({ apiKey, sessionId, signal })
-      const unseen = history.filter((event) => !(event.id && seenIds.has(event.id)))
-      if (unseen.length === 0) {
-        // Nothing new. If a `requires_action` is outstanding the session is
-        // legitimately busy (a server-side / MCP tool is running); back off
-        // and re-poll. Otherwise it's a clean completion.
-        if (eventState.requiresActionEnteredAt > 0) {
-          const waitedMs = Date.now() - eventState.requiresActionEnteredAt
-          if (waitedMs >= MAX_REQUIRES_ACTION_WAIT_MS) {
-            terminal = {
-              status: 'error',
-              reason: `Session paused (requires_action) for over ${Math.floor(
-                MAX_REQUIRES_ACTION_WAIT_MS / 1000
-              )}s without progress. Check MCP server / vault configuration on Claude Platform.`,
-            }
-            break
-          }
-          await sleep(nextBackoffMs(eventState))
-          continue
-        }
+      let progressed = false
+      for (const event of history) {
+        if (!event.id || seenIds.has(event.id)) continue
+        progressed = true
+        if (await process(event)) break
+      }
+      if (terminal || signal?.aborted) break
+
+      // Still no terminal event. Consult the authoritative session status: a
+      // finished session reports `idle`/`terminated`; a working one reports
+      // `running`. `idle` counts as complete only once the agent has actually
+      // started (a freshly-created session is `idle` before its first turn).
+      const snapshot = await getSession({ apiKey, sessionId, signal })
+      if (snapshot?.status === 'terminated') {
+        terminal = { status: 'error', reason: 'Session terminated.' }
+        break
+      }
+      if (snapshot?.status === 'idle' && sawActivity) {
         terminal = { status: 'complete' }
         break
       }
-      // Progress — reset the requires_action wait clock and backoff.
-      eventState.requiresActionEnteredAt = 0
-      eventState.currentBackoffMs = REQUIRES_ACTION_BACKOFF_START_MS
-      for (const event of unseen) {
-        if (event.id) seenIds.add(event.id)
-        const outcome = await handleEvent({ event, assistantText, apiKey, sessionId, eventState })
-        if (outcome) {
-          terminal = outcome
-          break
-        }
+
+      // Working (or not yet started) — back off and reopen, resetting the
+      // backoff whenever catch-up surfaced new events.
+      if (progressed) {
+        backoffMs = RECONNECT_BACKOFF_START_MS
+      } else {
+        await sleep(backoffMs)
+        backoffMs = Math.min(backoffMs * 2, RECONNECT_BACKOFF_MAX_MS)
       }
     }
   } catch (error) {
@@ -217,37 +229,19 @@ export async function runManagedAgentSession(
     }
   }
 
-  // Best-effort: surface cumulative token usage. A failed lookup never fails
-  // the run — the assistant text is already the result.
-  const usage = await getSessionUsage({ apiKey, sessionId, signal })
+  // Best-effort cumulative token usage for the block output.
+  const snapshot = await getSession({ apiKey, sessionId, signal })
   return {
     ok: true,
     content: assistantText.value,
     sessionId,
-    ...(usage?.inputTokens !== undefined ? { inputTokens: usage.inputTokens } : {}),
-    ...(usage?.outputTokens !== undefined ? { outputTokens: usage.outputTokens } : {}),
+    ...(snapshot?.usage?.inputTokens !== undefined
+      ? { inputTokens: snapshot.usage.inputTokens }
+      : {}),
+    ...(snapshot?.usage?.outputTokens !== undefined
+      ? { outputTokens: snapshot.usage.outputTokens }
+      : {}),
   }
-}
-
-/** Tracks progress across `requires_action` idle events. */
-interface EventState {
-  /**
-   * Timestamp of the first `requires_action` in the current busy stretch, or 0
-   * when the session is not paused. Reset to 0 on any progress so a completed
-   * turn never re-triggers the busy-wait timeout.
-   */
-  requiresActionEnteredAt: number
-  /** Next backoff to use if we re-poll on catch-up silence. */
-  currentBackoffMs: number
-}
-
-function nextBackoffMs(state: EventState): number {
-  const next = state.currentBackoffMs
-  state.currentBackoffMs = Math.min(
-    Math.max(next * 2, REQUIRES_ACTION_BACKOFF_START_MS),
-    REQUIRES_ACTION_BACKOFF_MAX_MS
-  )
-  return next
 }
 
 async function handleEvent(args: {
@@ -255,9 +249,9 @@ async function handleEvent(args: {
   assistantText: { value: string }
   apiKey: string
   sessionId: string
-  eventState: EventState
-}): Promise<{ status: 'complete' | 'error'; reason?: string } | null> {
-  const { event, assistantText, apiKey, sessionId, eventState } = args
+  signal?: AbortSignal
+}): Promise<Terminal | null> {
+  const { event, assistantText, apiKey, sessionId, signal } = args
 
   if (event.type === 'agent.message') {
     if (Array.isArray(event.content)) {
@@ -271,17 +265,26 @@ async function handleEvent(args: {
   }
 
   if (event.type === 'agent.custom_tool_use') {
+    // Without an id we cannot correlate a reply; sending an empty id would
+    // strand the session, so log and let it resolve on its own instead.
+    if (!event.id) {
+      logger.warn('Managed Agent custom_tool_use arrived without an id — skipping reply', {
+        sessionId,
+      })
+      return null
+    }
     logger.warn(
       `Managed Agent invoked a custom tool "${event.name ?? '<unknown>'}" that Sim does not provide — replying with error`
     )
     try {
       await sendSessionEvents({
         apiKey,
+        signal,
         sessionId,
         events: [
           {
             type: 'user.custom_tool_result',
-            custom_tool_use_id: event.id ?? '',
+            custom_tool_use_id: event.id,
             content: [
               {
                 type: 'text',
@@ -307,14 +310,11 @@ async function handleEvent(args: {
 
   if (event.type === 'session.status_idle') {
     const stop = event.stop_reason?.type
-    if (stop === 'requires_action') {
-      if (eventState.requiresActionEnteredAt === 0) eventState.requiresActionEnteredAt = Date.now()
-      return null
-    }
+    // `requires_action` is not terminal — the session is paused for a pending
+    // tool call and will emit a terminal event once it resolves.
+    if (stop === 'requires_action') return null
     if (stop === 'retries_exhausted') return { status: 'error', reason: 'retries_exhausted' }
-    // Any other idle (end_turn, or an unspecified stop reason) means the agent
-    // finished its turn — treat as a clean completion, matching the documented
-    // "break on session.status_idle" streaming pattern.
+    // `end_turn` (or an unspecified idle) means the agent finished its turn.
     return { status: 'complete' }
   }
 

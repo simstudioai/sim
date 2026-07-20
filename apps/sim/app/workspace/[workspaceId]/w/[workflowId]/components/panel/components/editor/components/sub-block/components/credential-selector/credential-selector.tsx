@@ -12,7 +12,7 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
-import { getMissingRequiredScopes, getServiceByProviderAndId } from '@/lib/oauth/utils'
+import { getMissingRequiredScopes, getServiceConfigByServiceId } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import {
   ConnectServiceAccountModal,
@@ -117,10 +117,11 @@ export function CredentialSelector({
   }, [rawCredentials, isTriggerMode, credentialKind, subBlock.allowServiceAccounts])
 
   // Resolved service-account provider metadata for the token-paste connect
-  // modal (only used when `credentialKind === 'service-account'`).
+  // modal. Gated on `credentialKind` and using the non-throwing lookup so it
+  // never runs (or throws) for the OAuth / custom-bot pickers.
   const serviceAccountService = useMemo(
-    () => (serviceId ? getServiceByProviderAndId(provider, serviceId) : undefined),
-    [provider, serviceId]
+    () => (credentialKind === 'service-account' ? getServiceConfigByServiceId(serviceId) : null),
+    [credentialKind, serviceId]
   )
 
   const selectedCredential = useMemo(

@@ -75,6 +75,14 @@ export interface SessionUsage {
   outputTokens?: number
 }
 
+/** Authoritative session status per `GET /v1/sessions/{id}`. */
+export type SessionStatus = 'idle' | 'running' | 'rescheduling' | 'terminated'
+
+export interface SessionSnapshot {
+  status?: SessionStatus
+  usage?: SessionUsage
+}
+
 /**
  * Standard header set for Managed Agents calls. `beta` overrides the default
  * managed-agents beta for memory-store endpoints. Only ONE beta value is ever
@@ -228,13 +236,17 @@ interface AnthropicListPage<T> {
  * session-event catch-up. `beta` overrides the default header for memory
  * stores.
  */
+const MAX_LIST_PAGES = 1000
+
 async function listPaginated<T>(
   input: SessionAuth & { path: string; beta?: string; maxItems?: number }
 ): Promise<T[]> {
   const collected: T[] = []
   const maxItems = input.maxItems ?? 2000
   let page: string | null = null
-  while (collected.length < maxItems) {
+  // `MAX_LIST_PAGES` bounds a misbehaving cursor that never returns `next_page:
+  // null`; real histories terminate well before it.
+  for (let pageCount = 0; pageCount < MAX_LIST_PAGES && collected.length < maxItems; pageCount++) {
     const url = new URL(`${ANTHROPIC_API_BASE}${input.path}`)
     url.searchParams.set('limit', '100')
     if (page) url.searchParams.set('page', page)
@@ -259,7 +271,9 @@ async function listPaginated<T>(
 /**
  * Full event history for a session (`GET /v1/sessions/{id}/events`), used by
  * the reconnect/catch-up loop to recover events missed while the SSE stream
- * was closed. The caller dedups against already-seen event ids.
+ * was closed. The caller dedups against already-seen event ids. Drains every
+ * page so the tail (terminal status / final assistant text) is never cut off
+ * by a page cap.
  */
 export async function listSessionEvents(
   input: SessionAuth & { sessionId: string }
@@ -268,6 +282,7 @@ export async function listSessionEvents(
     apiKey: input.apiKey,
     signal: input.signal,
     path: `/v1/sessions/${input.sessionId}/events`,
+    maxItems: Number.POSITIVE_INFINITY,
   })
 }
 
@@ -288,13 +303,14 @@ export async function managedAgentsList<T>(
 }
 
 /**
- * GET /v1/sessions/{id} — retrieves the session resource. Used after a run
- * completes to surface cumulative token usage. Returns `null` on any error so
- * the caller can treat usage as best-effort without failing the run.
+ * GET /v1/sessions/{id} — retrieves the session resource. Returns the
+ * authoritative `status` (used to decide completion when the event stream is
+ * quiet) and cumulative token `usage` (surfaced as block output). Returns
+ * `null` on any error so callers can treat it as best-effort.
  */
-export async function getSessionUsage(
+export async function getSession(
   input: SessionAuth & { sessionId: string }
-): Promise<SessionUsage | null> {
+): Promise<SessionSnapshot | null> {
   try {
     const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}`, {
       method: 'GET',
@@ -303,12 +319,23 @@ export async function getSessionUsage(
     })
     if (!resp.ok) return null
     const body = (await resp.json()) as {
+      status?: unknown
       usage?: { input_tokens?: unknown; output_tokens?: unknown }
+    }
+    const snapshot: SessionSnapshot = {}
+    if (
+      body.status === 'idle' ||
+      body.status === 'running' ||
+      body.status === 'rescheduling' ||
+      body.status === 'terminated'
+    ) {
+      snapshot.status = body.status
     }
     const usage: SessionUsage = {}
     if (typeof body.usage?.input_tokens === 'number') usage.inputTokens = body.usage.input_tokens
     if (typeof body.usage?.output_tokens === 'number') usage.outputTokens = body.usage.output_tokens
-    return usage
+    if (usage.inputTokens !== undefined || usage.outputTokens !== undefined) snapshot.usage = usage
+    return snapshot
   } catch {
     return null
   }

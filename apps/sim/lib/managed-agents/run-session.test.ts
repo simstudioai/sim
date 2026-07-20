@@ -11,7 +11,7 @@ const { mocks } = vi.hoisted(() => ({
     sendSessionEvents: vi.fn(),
     openSessionStream: vi.fn(),
     listSessionEvents: vi.fn(),
-    getSessionUsage: vi.fn(),
+    getSession: vi.fn(),
     readSSEEvents: vi.fn(),
     sleep: vi.fn(),
   },
@@ -23,7 +23,7 @@ vi.mock('@/lib/managed-agents/session-client', () => ({
   sendSessionEvents: mocks.sendSessionEvents,
   openSessionStream: mocks.openSessionStream,
   listSessionEvents: mocks.listSessionEvents,
-  getSessionUsage: mocks.getSessionUsage,
+  getSession: mocks.getSession,
 }))
 vi.mock('@/lib/core/utils/sse', () => ({ readSSEEvents: mocks.readSSEEvents }))
 vi.mock('@sim/utils/helpers', () => ({ sleep: mocks.sleep }))
@@ -56,74 +56,84 @@ const msg = (id: string, text: string): AnthropicSessionEvent => ({
   type: 'agent.message',
   content: [{ type: 'text', text }],
 })
+const idle = (id: string, stop: string): AnthropicSessionEvent => ({
+  id,
+  type: 'session.status_idle',
+  stop_reason: { type: stop },
+})
 
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.createSession.mockResolvedValue({ id: 'sess_1' })
   mocks.sendUserMessage.mockResolvedValue(undefined)
   mocks.openSessionStream.mockResolvedValue({})
-  mocks.getSessionUsage.mockResolvedValue(null)
+  mocks.listSessionEvents.mockResolvedValue([])
+  mocks.getSession.mockResolvedValue(null)
 })
 
 describe('runManagedAgentSession', () => {
-  it('accumulates agent.message text and completes on end_turn', async () => {
-    scriptStreamBatches([
-      [
-        msg('e1', 'Hello '),
-        msg('e2', 'world'),
-        { id: 'e3', type: 'session.status_idle', stop_reason: { type: 'end_turn' } },
-      ],
-    ])
-
-    const result = await runManagedAgentSession({ ...BASE })
-
-    expect(result).toEqual({ ok: true, content: 'Hello world', sessionId: 'sess_1' })
-    expect(mocks.listSessionEvents).not.toHaveBeenCalled()
-  })
-
-  it('surfaces cumulative token usage on success (best-effort)', async () => {
-    scriptStreamBatches([
-      [
-        msg('e1', 'ok'),
-        { id: 'e2', type: 'session.status_idle', stop_reason: { type: 'end_turn' } },
-      ],
-    ])
-    mocks.getSessionUsage.mockResolvedValue({ inputTokens: 120, outputTokens: 45 })
+  it('accumulates agent.message text and completes on end_turn (terminal event)', async () => {
+    scriptStreamBatches([[msg('e1', 'Hello '), msg('e2', 'world'), idle('e3', 'end_turn')]])
+    mocks.getSession.mockResolvedValue({
+      status: 'idle',
+      usage: { inputTokens: 12, outputTokens: 3 },
+    })
 
     const result = await runManagedAgentSession({ ...BASE })
 
     expect(result).toEqual({
       ok: true,
-      content: 'ok',
+      content: 'Hello world',
       sessionId: 'sess_1',
-      inputTokens: 120,
-      outputTokens: 45,
+      inputTokens: 12,
+      outputTokens: 3,
     })
+    expect(mocks.listSessionEvents).not.toHaveBeenCalled()
   })
 
-  it('does NOT false-timeout after requires_action followed by progress then a quiet reconnect', async () => {
-    // Stream 1: only a requires_action idle (busy), then the stream closes.
-    // Stream 2: closes immediately with nothing new.
-    scriptStreamBatches([
-      [{ id: 'r1', type: 'session.status_idle', stop_reason: { type: 'requires_action' } }],
-      [],
-    ])
-    // Catch-up 1 surfaces real progress (m2); catch-up 2 has nothing unseen.
-    mocks.listSessionEvents
-      .mockResolvedValueOnce([
-        { id: 'r1', type: 'session.status_idle', stop_reason: { type: 'requires_action' } },
-        msg('m2', 'progress'),
-      ])
-      .mockResolvedValueOnce([
-        { id: 'r1', type: 'session.status_idle', stop_reason: { type: 'requires_action' } },
-        msg('m2', 'progress'),
-      ])
+  it('completes via authoritative status when the stream goes quiet after progress', async () => {
+    // Stream: some text, no terminal, then closes. Reconnect: nothing new.
+    scriptStreamBatches([[msg('e1', 'partial')], []])
+    // First getSession (quiet-reconnect check) → idle; final getSession → usage.
+    mocks.getSession
+      .mockResolvedValueOnce({ status: 'idle' })
+      .mockResolvedValue({ status: 'idle', usage: { inputTokens: 5 } })
 
     const result = await runManagedAgentSession({ ...BASE })
 
-    expect(result).toEqual({ ok: true, content: 'progress', sessionId: 'sess_1' })
-    // A false timeout would have slept on backoff and returned an error.
-    expect(mocks.sleep).not.toHaveBeenCalled()
+    expect(result.ok).toBe(true)
+    expect(result.content).toBe('partial')
+    expect(result.inputTokens).toBe(5)
+  })
+
+  it('keeps waiting while status is running, then completes on a later terminal event', async () => {
+    // Stream 1: text, closes (no terminal). Reconnect: nothing new, status running → backoff.
+    // Stream 2: end_turn → complete.
+    scriptStreamBatches([[msg('e1', 'thinking')], [idle('e2', 'end_turn')]])
+    mocks.getSession
+      .mockResolvedValueOnce({ status: 'running' })
+      .mockResolvedValue({ status: 'idle' })
+
+    const result = await runManagedAgentSession({ ...BASE })
+
+    expect(result.ok).toBe(true)
+    expect(result.content).toBe('thinking')
+    expect(mocks.sleep).toHaveBeenCalled() // backed off while running
+  })
+
+  it('does not complete on a fresh idle before the agent has started', async () => {
+    // Stream closes immediately with nothing; catch-up empty; status idle but no
+    // activity yet → must NOT complete. Then it starts and finishes.
+    scriptStreamBatches([[], [idle('e1', 'end_turn')]])
+    mocks.getSession
+      .mockResolvedValueOnce({ status: 'idle' }) // pre-start idle — must be ignored
+      .mockResolvedValue({ status: 'idle' })
+
+    const result = await runManagedAgentSession({ ...BASE })
+
+    expect(result.ok).toBe(true)
+    // Completed via the real end_turn on reopen, not the premature idle.
+    expect(mocks.openSessionStream).toHaveBeenCalledTimes(2)
   })
 
   it('surfaces a session.error as a failure with the error message', async () => {
@@ -138,7 +148,6 @@ describe('runManagedAgentSession', () => {
 
   it('rejects an empty user message before creating a session', async () => {
     const result = await runManagedAgentSession({ ...BASE, userMessage: '   ' })
-
     expect(result.ok).toBe(false)
     expect(mocks.createSession).not.toHaveBeenCalled()
   })

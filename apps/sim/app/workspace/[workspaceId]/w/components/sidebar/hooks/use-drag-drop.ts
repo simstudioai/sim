@@ -649,21 +649,11 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       if (target && container.contains(target)) return
       handleDragEnd()
     }
-    /**
-     * `dragend` always fires on the drag source at the end of any drag operation, including
-     * Esc-cancels and drops on non-droppable targets. Without this reset, a non-sidebar drag
-     * that entered the list (flipping `isDragging` on via `initDragOver`) but ended without a
-     * `drop` inside the container would strand `isDragging` at `true` — leaving the absolutely
-     * positioned edge drop zones mounted over the first/last rows and stealing their grab band.
-     */
-    const onWindowDragEnd = () => handleDragEnd()
     container.addEventListener('dragleave', onLeave)
     window.addEventListener('drop', onWindowDrop, true)
-    window.addEventListener('dragend', onWindowDragEnd, true)
     return () => {
       container.removeEventListener('dragleave', onLeave)
       window.removeEventListener('drop', onWindowDrop, true)
-      window.removeEventListener('dragend', onWindowDragEnd, true)
     }
   }, [isDragging, handleDragEnd])
 
