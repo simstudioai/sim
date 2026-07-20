@@ -241,7 +241,15 @@ jobs:
   promote-trigger-dev:
     name: Promote Trigger.dev (Dev)
     needs: [build-dev, deploy-trigger-dev]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    # Run as long as the task upload succeeded, even if a NON-app build-dev leg
+    # (realtime/pii/migrations) failed: the app leg pushes :dev independently and
+    # may have already triggered the ECS deploy, so an unrelated image failure must
+    # not strand the app on the old task version. The app-metadata artifact (only
+    # the app leg uploads it) is the real signal that an app deploy happened.
+    if: >-
+      !cancelled() &&
+      github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+      needs.deploy-trigger-dev.result == 'success'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     # Dev bake is 5 min; the poll budget (30 min) and session (40 min) are sized for
     # that with margin, well short of the prod path's 70/90.
@@ -272,13 +280,28 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Tolerate a missing artifact: it's only uploaded by the app leg, so its
+      # absence means the app image didn't build → no ECS deploy happened.
       - name: Download dev cutover metadata
+        id: meta
+        continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: dev-cutover-meta
           path: dev-meta
 
+      - name: Determine whether an app deploy happened
+        id: appdeploy
+        run: |
+          if [ -f dev-meta/app_image_changed.txt ]; then
+            echo "deployed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No app-image metadata (app leg did not build); skipping dev task promotion."
+          fi
+
       - name: Configure AWS credentials
+        if: steps.appdeploy.outputs.deployed == 'true'
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: ${{ secrets.DEV_AWS_ROLE_TO_ASSUME }}
@@ -286,6 +309,7 @@ jobs:
           role-duration-seconds: 2400
 
       - name: Wait for ECS traffic cutover
+        if: steps.appdeploy.outputs.deployed == 'true'
         env:
           OVERALL_TIMEOUT: "1800"
         run: |
@@ -300,6 +324,7 @@ jobs:
           bash .github/scripts/wait-for-ecs-cutover.sh sim-dev-us-east-1-app-deployment "$DIGEST" "$EPOCH"
 
       - name: Promote Trigger.dev version
+        if: steps.appdeploy.outputs.deployed == 'true'
         working-directory: ./apps/sim
         env:
           TRIGGER_ACCESS_TOKEN: ${{ secrets.DEV_TRIGGER_ACCESS_TOKEN }}
