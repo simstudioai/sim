@@ -241,7 +241,7 @@ describe('knowledge base Copilot operations', () => {
           documentTags: [
             {
               tagName: 'identity_key',
-              tagValue: 'dana@example.com',
+              value: 'dana@example.com',
             },
           ],
         },

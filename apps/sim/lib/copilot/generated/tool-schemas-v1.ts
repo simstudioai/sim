@@ -2170,12 +2170,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                     type: 'string',
                     description: 'Tag display name as returned by list_tags',
                   },
-                  tagValue: {
+                  value: {
                     type: ['string', 'number', 'boolean'],
                     description: 'Typed tag value',
                   },
                 },
-                required: ['tagName', 'tagValue'],
+                required: ['tagName', 'value'],
               },
             },
             enabled: {

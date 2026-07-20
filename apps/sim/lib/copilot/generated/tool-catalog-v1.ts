@@ -2365,9 +2365,9 @@ export const KnowledgeBase: ToolCatalogEntry = {
                   type: 'string',
                   description: 'Tag display name as returned by list_tags',
                 },
-                tagValue: { type: ['string', 'number', 'boolean'], description: 'Typed tag value' },
+                value: { type: ['string', 'number', 'boolean'], description: 'Typed tag value' },
               },
-              required: ['tagName', 'tagValue'],
+              required: ['tagName', 'value'],
             },
           },
           enabled: {
