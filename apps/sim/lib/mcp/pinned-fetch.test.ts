@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCreatePinnedFetch, mockValidateMcpServerSsrf, sentinelFetch } = vi.hoisted(() => ({
@@ -92,7 +93,7 @@ describe('createSsrfGuardedMcpFetch', () => {
     ).rejects.toThrow('pre-aborted')
     expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
     // Let the swallowed validation rejection settle so a leak would surface here.
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
   })
 
   it('cancels a stalled validation when the caller aborts (not just the deadline)', async () => {
