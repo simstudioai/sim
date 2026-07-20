@@ -1962,13 +1962,16 @@ async function executeToolRequest(
     // Success case: use transformResponse if available
     if (tool.transformResponse) {
       try {
-        // Create a mock response object that provides the methods transformResponse needs
+        // Forward the real body stream. Some transformResponse helpers (e.g. TikTok)
+        // read via readResponseTextWithLimit, which requires `.body` (or Content-Length)
+        // and otherwise mis-reports a false "response exceeded maximum size" error.
         const mockResponse = {
           ok: response.ok,
           status: response.status,
           statusText: response.statusText,
           headers: response.headers,
           url: fullUrl,
+          body: response.body,
           json: () => response.json(),
           text: () => response.text(),
           arrayBuffer: () => response.arrayBuffer(),

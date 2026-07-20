@@ -28,7 +28,7 @@ import {
   getStoredVideoSize,
   streamStoredVideoToTikTok,
   TIKTOK_MAX_VIDEO_BYTES,
-} from '@/app/api/tools/tiktok/publish-video/upload'
+} from '@/app/api/tools/tiktok/upload-video-draft/upload'
 
 const baseStreamOptions = {
   key: 'workspace/workspace-1/video.mp4',

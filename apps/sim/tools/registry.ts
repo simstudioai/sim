@@ -4266,11 +4266,9 @@ import {
   thriveUpdateUserTool,
 } from '@/tools/thrive'
 import {
-  tiktokDirectPostVideoTool,
   tiktokGetPostStatusTool,
   tiktokGetUserTool,
   tiktokListVideosTool,
-  tiktokQueryCreatorInfoTool,
   tiktokQueryVideosTool,
   tiktokUploadVideoDraftTool,
 } from '@/tools/tiktok'
@@ -7524,11 +7522,9 @@ export const tools: Record<string, ToolConfig> = {
   thrive_remove_user_tags: thriveRemoveUserTagsTool,
   thrive_update_user_skills: thriveUpdateUserSkillsTool,
   thrive_get_skill_levels: thriveGetSkillLevelsTool,
-  tiktok_direct_post_video: tiktokDirectPostVideoTool,
   tiktok_get_post_status: tiktokGetPostStatusTool,
   tiktok_get_user: tiktokGetUserTool,
   tiktok_list_videos: tiktokListVideosTool,
-  tiktok_query_creator_info: tiktokQueryCreatorInfoTool,
   tiktok_query_videos: tiktokQueryVideosTool,
   tiktok_upload_video_draft: tiktokUploadVideoDraftTool,
   tinybird_events: tinybirdEventsTool,
