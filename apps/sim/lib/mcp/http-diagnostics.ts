@@ -34,12 +34,20 @@ function rawUrl(input: string | URL | Request): string {
 }
 
 /**
+ * The `initialize` request is a small fixed structure (protocolVersion, capabilities,
+ * clientInfo). This length gate lets us skip parsing large `tools/call` payloads —
+ * which can be multi-MB — entirely, keeping the check off the hot path.
+ */
+const MAX_INIT_BODY_CHARS = 4096
+
+/**
  * True only when the request body is an MCP `initialize` JSON-RPC message. Used to
  * scope response-body logging to the initialize handshake and nothing else — token
  * requests (form-encoded) and tool calls (`method: 'tools/call'`) both fail this.
+ * Large bodies are rejected by length before any parse (see {@link MAX_INIT_BODY_CHARS}).
  */
 function isInitializeRequest(body: unknown): boolean {
-  if (typeof body !== 'string') return false
+  if (typeof body !== 'string' || body.length > MAX_INIT_BODY_CHARS) return false
   try {
     return (JSON.parse(body) as { method?: unknown })?.method === 'initialize'
   } catch {
