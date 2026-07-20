@@ -4,8 +4,9 @@
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { envState } = vi.hoisted(() => ({
+const { envState, mockCheckSessionOrInternalAuth } = vi.hoisted(() => ({
   envState: { MANAGED_AGENT_SELF_HOSTED_DEFAULTS: undefined as string | undefined },
+  mockCheckSessionOrInternalAuth: vi.fn(),
 }))
 
 vi.mock('@/lib/core/config/env', () => ({
@@ -14,11 +15,22 @@ vi.mock('@/lib/core/config/env', () => ({
   }),
 }))
 
+vi.mock('@/lib/auth/hybrid', () => ({
+  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
+}))
+
 import { GET } from '@/app/api/managed-agent-defaults/route'
 
 describe('GET /api/managed-agent-defaults', () => {
   beforeEach(() => {
     envState.MANAGED_AGENT_SELF_HOSTED_DEFAULTS = undefined
+    mockCheckSessionOrInternalAuth.mockResolvedValue({ success: true, userId: 'user_1' })
+  })
+
+  it('returns 401 for an unauthenticated caller', async () => {
+    mockCheckSessionOrInternalAuth.mockResolvedValue({ success: false })
+    const res = await GET(createMockRequest('GET'))
+    expect(res.status).toBe(401)
   })
 
   it('returns an empty list when the env var is unset', async () => {

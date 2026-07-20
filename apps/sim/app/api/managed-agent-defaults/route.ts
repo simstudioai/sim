@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -42,11 +43,15 @@ function readSelfHostedDefaults(): DefaultRow[] {
  * GET /api/managed-agent-defaults
  *
  * Returns the deployer-configured default rows the block picker seeds
- * into a fresh Claude Managed Agents (self-hosted) block. No auth
- * required — the response contains only default keys the deployer
- * chose to expose to their workflow authors; there is no per-user or
- * per-workspace state.
+ * into a fresh Claude Managed Agents (self-hosted) block. Authenticated
+ * because the env var may legitimately contain sandbox-scoped secrets
+ * (the whole point of moving it off `NEXT_PUBLIC_*` is that values
+ * should not be exposed to unauthenticated callers).
  */
-export const GET = withRouteHandler(async (_request: NextRequest) => {
+export const GET = withRouteHandler(async (request: NextRequest) => {
+  const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+  if (!authResult.success || !authResult.userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   return NextResponse.json({ selfHosted: readSelfHostedDefaults() }, { status: 200 })
 })

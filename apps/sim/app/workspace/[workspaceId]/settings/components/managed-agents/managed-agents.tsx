@@ -13,10 +13,12 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { ConnectionFormModal } from '@/app/workspace/[workspaceId]/settings/components/managed-agents/connection-form-modal'
+import { RotateKeyModal } from '@/app/workspace/[workspaceId]/settings/components/managed-agents/rotate-key-modal'
 import {
   useCreateManagedAgentConnection,
   useDeleteManagedAgentConnection,
   useManagedAgentConnections,
+  useRotateManagedAgentConnection,
 } from '@/hooks/queries/managed-agent-connections'
 
 const logger = createLogger('ManagedAgentsSettings')
@@ -34,10 +36,15 @@ export function ManagedAgents() {
   } = useManagedAgentConnections(workspaceId)
   const createConnection = useCreateManagedAgentConnection()
   const deleteConnection = useDeleteManagedAgentConnection()
+  const rotateConnection = useRotateManagedAgentConnection()
 
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [showAddModal, setShowAddModal] = useState(false)
   const [connectionToDeleteId, setConnectionToDeleteId] = useState<string | null>(null)
+  const [connectionToRotate, setConnectionToRotate] = useState<{
+    id: string
+    name: string
+  } | null>(null)
 
   const filtered = connections.filter((c) => {
     if (!searchTerm.trim()) return true
@@ -66,6 +73,16 @@ export function ManagedAgents() {
         description: getErrorMessage(error),
       })
     }
+  }
+
+  const handleRotate = async (apiKey: string) => {
+    if (!connectionToRotate) return
+    await rotateConnection.mutateAsync({
+      workspaceId,
+      id: connectionToRotate.id,
+      apiKey,
+    })
+    toast.success('API key rotated')
   }
 
   const hasConnections = connections.length > 0
@@ -138,6 +155,11 @@ export function ManagedAgents() {
                         ...(canEdit
                           ? [
                               {
+                                label: 'Rotate key',
+                                onSelect: () =>
+                                  setConnectionToRotate({ id: c.id, name: c.name }),
+                              },
+                              {
                                 label: 'Remove',
                                 destructive: true,
                                 onSelect: () => setConnectionToDeleteId(c.id),
@@ -179,6 +201,17 @@ export function ManagedAgents() {
             'Any workflows that reference this connection will fail at run time until you re-link the workspace. This action cannot be undone.',
           ]}
           confirm={{ label: 'Remove', onClick: confirmDelete }}
+        />
+      )}
+
+      {canEdit && (
+        <RotateKeyModal
+          open={connectionToRotate !== null}
+          connectionName={connectionToRotate?.name ?? null}
+          onOpenChange={(open) => {
+            if (!open) setConnectionToRotate(null)
+          }}
+          onSubmit={handleRotate}
         />
       )}
     </>
