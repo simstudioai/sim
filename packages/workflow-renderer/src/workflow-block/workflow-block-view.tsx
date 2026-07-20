@@ -238,10 +238,20 @@ export function WorkflowBlockView({
                     variant='amber'
                     className={canFixDeprecation ? 'cursor-pointer' : 'cursor-not-allowed'}
                     dot
+                    role={canFixDeprecation ? 'button' : undefined}
+                    tabIndex={canFixDeprecation ? 0 : undefined}
                     onClick={(e) => {
                       e.stopPropagation()
                       if (canFixDeprecation) onFixDeprecation?.()
                     }}
+                    onKeyDown={
+                      canFixDeprecation
+                        ? (e) => {
+                            e.stopPropagation()
+                            handleKeyboardActivation(e, () => onFixDeprecation?.())
+                          }
+                        : undefined
+                    }
                   >
                     deprecated
                   </Badge>
