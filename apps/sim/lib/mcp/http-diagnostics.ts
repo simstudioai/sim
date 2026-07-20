@@ -1,6 +1,7 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { createLogger } from '@sim/logger'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 
 const logger = createLogger('McpHttpDiag')
@@ -28,15 +29,8 @@ function diagnosticsEnabled(): boolean {
   return process.env.MCP_HTTP_DIAGNOSTICS !== 'false'
 }
 
-/** Origin + path only — query values can carry `code`/`token`/`api_key`, so they're dropped. */
-function safeUrl(input: string | URL | Request): string {
-  const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-  try {
-    const u = new URL(raw)
-    return u.search ? `${u.origin}${u.pathname}?<redacted>` : `${u.origin}${u.pathname}`
-  } catch {
-    return '<unparseable-url>'
-  }
+function rawUrl(input: string | URL | Request): string {
+  return typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
 }
 
 /**
@@ -65,7 +59,7 @@ export function withMcpHttpDiagnostics(
   if (!diagnosticsEnabled()) return fetchFn
 
   return async (input, init) => {
-    const url = safeUrl(input as string | URL | Request)
+    const url = sanitizeUrlForLog(rawUrl(input as string | URL | Request))
     const method = init?.method ?? 'GET'
     const reqHeaders = new Headers((init?.headers as HeadersInit | undefined) ?? undefined)
     const startedAt = Date.now()
@@ -113,8 +107,18 @@ export function withMcpHttpDiagnostics(
       return res
     }
 
+    // Cancel the detached log reader when the caller aborts (e.g. the SDK's 30s
+    // initialize timeout — exactly the hang we're tracing) so this tee branch can't
+    // keep the response stream / connection alive after the SDK has given up.
+    const signal = init?.signal
     void (async () => {
       const reader = logBranch.getReader()
+      const cancelReader = () => void reader.cancel().catch(() => {})
+      if (signal?.aborted) {
+        cancelReader()
+        return
+      }
+      signal?.addEventListener('abort', cancelReader, { once: true })
       const decoder = new TextDecoder()
       let chunks = 0
       let bytes = 0
@@ -150,6 +154,8 @@ export function withMcpHttpDiagnostics(
           ms: Date.now() - startedAt,
           error: getMcpSafeErrorDiagnostics(error),
         })
+      } finally {
+        signal?.removeEventListener('abort', cancelReader)
       }
     })()
 
