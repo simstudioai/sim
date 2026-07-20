@@ -1,0 +1,275 @@
+/**
+ * Provider-neutral HTTP client for the Claude Platform Managed Agents API.
+ *
+ * A thin wrapper around `fetch` that speaks the Managed Agents beta. It has
+ * NO Sim-domain dependencies (no `@sim/db`, no encryption, no executor
+ * types) so it can be unit-tested in isolation and imported from either the
+ * server run route or the block-editor proxy route.
+ *
+ * Shapes are validated against the Claude Platform docs:
+ * https://platform.claude.com/docs/en/managed-agents/
+ */
+
+export const ANTHROPIC_API_BASE = 'https://api.anthropic.com'
+export const ANTHROPIC_VERSION = '2023-06-01'
+/** Beta header for every session/agent/environment/vault endpoint. */
+export const MANAGED_AGENTS_BETA = 'managed-agents-2026-04-01'
+/**
+ * Memory-store endpoints require a DIFFERENT beta header, and combining it
+ * with {@link MANAGED_AGENTS_BETA} on the same request is a documented 400.
+ * https://platform.claude.com/docs/en/managed-agents/memory
+ */
+export const AGENT_MEMORY_BETA = 'agent-memory-2026-07-22'
+
+/**
+ * Minimal shape of a session event as delivered over SSE or the events list.
+ * The run loop only reads these fields, so we model them structurally rather
+ * than exhaustively.
+ */
+export interface AnthropicSessionEvent {
+  id?: string
+  type?: string
+  content?: Array<{ type: string; text?: string }>
+  name?: string
+  stop_reason?: { type?: string }
+  error?: { message?: string }
+  message?: string
+}
+
+/**
+ * Shared inputs on every managed-agents call. `apiKey` is the caller's
+ * Claude Platform API key (an Anthropic workspace-scoped key); `signal`
+ * propagates cancellation into the outbound fetch.
+ */
+export interface SessionAuth {
+  apiKey: string
+  signal?: AbortSignal
+}
+
+export interface CreateSessionInput extends SessionAuth {
+  agentId: string
+  environmentId: string
+  /** Optional session title stored on the Anthropic session. */
+  title?: string
+  /** OAuth credential vaults the agent's MCP tools can reference. */
+  vaultIds?: string[]
+  /** Memory-store id (`memstore_...`) attached as a session resource. */
+  memoryStoreId?: string
+  /** Access mode on the attached memory store. Ignored when `memoryStoreId` is unset. */
+  memoryAccess?: 'read_write' | 'read_only'
+  /** Files-API file ids (`file_...`) attached as `file` session resources. */
+  fileIds?: string[]
+  /** Arbitrary session metadata (wire name: `metadata`). */
+  sessionParameters?: Record<string, string>
+}
+
+export interface CreateSessionResult {
+  id: string
+}
+
+/**
+ * Standard header set for Managed Agents calls. `beta` overrides the default
+ * managed-agents beta for memory-store endpoints. Only ONE beta value is ever
+ * sent — combining the two is a documented 400.
+ */
+function managedAgentsHeaders(
+  apiKey: string,
+  options: { json?: boolean; accept?: string; beta?: string } = {}
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    'x-api-key': apiKey,
+    'anthropic-version': ANTHROPIC_VERSION,
+    'anthropic-beta': options.beta ?? MANAGED_AGENTS_BETA,
+  }
+  if (options.json) headers['content-type'] = 'application/json'
+  if (options.accept) headers.accept = options.accept
+  return headers
+}
+
+/**
+ * Builds the request body for `POST /v1/sessions`. Memory stores and files
+ * attach via the `resources[]` array; user key/values go on `metadata`. This
+ * shape is env-type agnostic — the same body works for cloud and self-hosted
+ * environments per the docs.
+ */
+export function buildSessionCreatePayload(input: CreateSessionInput): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    agent: input.agentId,
+    environment_id: input.environmentId,
+  }
+  if (input.title) payload.title = input.title
+  if (input.vaultIds && input.vaultIds.length > 0) payload.vault_ids = input.vaultIds
+
+  const resources: Array<Record<string, unknown>> = []
+  if (input.memoryStoreId) {
+    resources.push({
+      type: 'memory_store',
+      memory_store_id: input.memoryStoreId,
+      access: input.memoryAccess ?? 'read_write',
+    })
+  }
+  if (input.fileIds && input.fileIds.length > 0) {
+    for (const fileId of input.fileIds) {
+      if (fileId) resources.push({ type: 'file', file_id: fileId })
+    }
+  }
+  if (resources.length > 0) payload.resources = resources
+
+  if (input.sessionParameters && Object.keys(input.sessionParameters).length > 0) {
+    payload.metadata = { ...input.sessionParameters }
+  }
+  return payload
+}
+
+/**
+ * POST /v1/sessions — provisions a session sandbox. Does NOT start work; a
+ * subsequent `sendUserMessage` is what causes the agent to run.
+ */
+export async function createSession(input: CreateSessionInput): Promise<CreateSessionResult> {
+  const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions`, {
+    method: 'POST',
+    headers: managedAgentsHeaders(input.apiKey, { json: true }),
+    body: JSON.stringify(buildSessionCreatePayload(input)),
+    signal: input.signal,
+  })
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => '')
+    throw new Error(`Anthropic sessions.create failed (${resp.status}): ${detail.slice(0, 400)}`)
+  }
+  const body = (await resp.json()) as { id?: unknown }
+  if (typeof body.id !== 'string' || body.id.length === 0) {
+    throw new Error('Anthropic sessions.create returned no id')
+  }
+  return { id: body.id }
+}
+
+interface UserMessageEvent {
+  type: 'user.message'
+  content: Array<{ type: 'text'; text: string }>
+}
+
+interface UserCustomToolResultEvent {
+  type: 'user.custom_tool_result'
+  custom_tool_use_id: string
+  content: Array<{ type: 'text'; text: string }>
+  is_error: boolean
+}
+
+export type OutboundSessionEvent = UserMessageEvent | UserCustomToolResultEvent
+
+/** POST /v1/sessions/{id}/events with a single `user.message`. */
+export async function sendUserMessage(
+  input: SessionAuth & { sessionId: string; text: string }
+): Promise<void> {
+  await sendSessionEvents({
+    apiKey: input.apiKey,
+    signal: input.signal,
+    sessionId: input.sessionId,
+    events: [{ type: 'user.message', content: [{ type: 'text', text: input.text }] }],
+  })
+}
+
+/** Generic events-send used for both `user.message` and `user.custom_tool_result`. */
+export async function sendSessionEvents(
+  input: SessionAuth & { sessionId: string; events: OutboundSessionEvent[] }
+): Promise<void> {
+  if (input.events.length === 0) return
+  const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}/events`, {
+    method: 'POST',
+    headers: managedAgentsHeaders(input.apiKey, { json: true }),
+    body: JSON.stringify({ events: input.events }),
+    signal: input.signal,
+  })
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => '')
+    throw new Error(`Anthropic events.send failed (${resp.status}): ${detail.slice(0, 400)}`)
+  }
+}
+
+/** GET /v1/sessions/{id}/events/stream — opens the SSE response. */
+export async function openSessionStream(
+  input: SessionAuth & { sessionId: string }
+): Promise<Response> {
+  const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}/events/stream`, {
+    method: 'GET',
+    headers: managedAgentsHeaders(input.apiKey, { accept: 'text/event-stream' }),
+    signal: input.signal,
+  })
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => '')
+    throw new Error(`Anthropic events.stream failed (${resp.status}): ${detail.slice(0, 400)}`)
+  }
+  if (!resp.body) throw new Error('Anthropic events.stream returned no body')
+  return resp
+}
+
+/** A single page of a Managed Agents list endpoint (page-cursor pagination). */
+interface AnthropicListPage<T> {
+  data?: T[]
+  next_page?: string | null
+}
+
+/**
+ * Drains a page-cursor-paginated list endpoint (`?limit=&page=` following
+ * `next_page` until null). Used for both the block-editor dropdowns and the
+ * session-event catch-up. `beta` overrides the default header for memory
+ * stores.
+ */
+async function listPaginated<T>(
+  input: SessionAuth & { path: string; beta?: string; maxItems?: number }
+): Promise<T[]> {
+  const collected: T[] = []
+  const maxItems = input.maxItems ?? 2000
+  let page: string | null = null
+  while (collected.length < maxItems) {
+    const url = new URL(`${ANTHROPIC_API_BASE}${input.path}`)
+    url.searchParams.set('limit', '100')
+    if (page) url.searchParams.set('page', page)
+    const resp = await fetch(url.toString(), {
+      method: 'GET',
+      headers: managedAgentsHeaders(input.apiKey, { beta: input.beta }),
+      signal: input.signal,
+    })
+    if (!resp.ok) {
+      const detail = await resp.text().catch(() => '')
+      throw new Error(`Anthropic ${input.path} failed (${resp.status}): ${detail.slice(0, 400)}`)
+    }
+    const body = (await resp.json()) as AnthropicListPage<T>
+    const items = Array.isArray(body.data) ? body.data : []
+    collected.push(...items)
+    if (!body.next_page || items.length === 0) break
+    page = body.next_page
+  }
+  return collected
+}
+
+/**
+ * Full event history for a session (`GET /v1/sessions/{id}/events`), used by
+ * the reconnect/catch-up loop to recover events missed while the SSE stream
+ * was closed. The caller dedups against already-seen event ids.
+ */
+export async function listSessionEvents(
+  input: SessionAuth & { sessionId: string }
+): Promise<AnthropicSessionEvent[]> {
+  return listPaginated<AnthropicSessionEvent>({
+    apiKey: input.apiKey,
+    signal: input.signal,
+    path: `/v1/sessions/${input.sessionId}/events`,
+  })
+}
+
+/**
+ * Lists a Managed Agents resource collection for the block-editor dropdowns.
+ * Memory stores require the agent-memory beta header; everything else uses the
+ * managed-agents beta.
+ */
+export async function managedAgentsList<T>(
+  input: SessionAuth & { path: string; beta?: string }
+): Promise<T[]> {
+  return listPaginated<T>({
+    apiKey: input.apiKey,
+    signal: input.signal,
+    path: input.path,
+    beta: input.beta,
+  })
+}

@@ -14,6 +14,7 @@ export type BYOKProviderId =
   | 'together'
   | 'baseten'
   | 'ollama-cloud'
+  | 'claude-platform'
   | 'falai'
   | 'firecrawl'
   | 'exa'

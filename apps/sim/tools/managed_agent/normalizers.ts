@@ -1,0 +1,141 @@
+/**
+ * Pure normalization helpers that shape the Managed Agent block's subblock
+ * values (which arrive in several runtime shapes — table rows, JSON strings,
+ * flat objects, comma-lists) into the tidy typed values the session runner
+ * expects. No server deps so each helper is directly unit-testable.
+ */
+
+export function normalizeMemoryAccess(value: unknown): 'read_write' | 'read_only' | undefined {
+  if (value === 'read_write' || value === 'read_only') return value
+  return undefined
+}
+
+/**
+ * A `switch` value may arrive as a real boolean or as a string (`"true"`,
+ * `"1"`, `"yes"`) depending on serialization. Treat every reasonable
+ * "checked" form as truthy; anything else as not-checked.
+ */
+export function isTruthyAck(value: unknown): boolean {
+  if (value === true) return true
+  if (typeof value !== 'string') return false
+  const normalized = value.trim().toLowerCase()
+  return normalized === 'true' || normalized === '1' || normalized === 'yes'
+}
+
+/**
+ * Coerces the block's file table into a list of Files-API file ids. Accepts
+ * the `{ 'File ID' }` column shape, the flat `{ fileId }` shape, and comma /
+ * json string lists. Drops blank ids.
+ *
+ * Only the file id is forwarded: the Managed Agents session `resources` array
+ * accepts `{ type: 'file', file_id }` on create, with no documented mount-path
+ * field, so nothing else is emitted.
+ */
+export function normalizeFiles(value: unknown): string[] {
+  if (
+    typeof value === 'string' ||
+    (Array.isArray(value) && value.every((v) => typeof v === 'string'))
+  ) {
+    return normalizeStringList(value)
+  }
+  if (!Array.isArray(value)) return []
+  const out: string[] = []
+  for (const raw of value) {
+    if (typeof raw === 'string') {
+      if (raw.trim()) out.push(raw.trim())
+      continue
+    }
+    if (!raw || typeof raw !== 'object') continue
+    const record = raw as Record<string, unknown>
+    const cells =
+      record.cells && typeof record.cells === 'object'
+        ? (record.cells as Record<string, unknown>)
+        : record
+    const readString = (key: string): string | undefined =>
+      typeof cells[key] === 'string' ? (cells[key] as string) : undefined
+    const fileId = readString('fileId') ?? readString('File ID') ?? readString('file_id') ?? ''
+    if (fileId.trim()) out.push(fileId.trim())
+  }
+  return out
+}
+
+/**
+ * Coerce a multi-select combobox / json input — array, JSON-encoded array
+ * string, comma-separated string, or single string — into a trimmed
+ * `string[]`.
+ */
+export function normalizeStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+      .map((v) => v.trim())
+  }
+  if (typeof value !== 'string') return []
+  const trimmed = value.trim()
+  if (!trimmed) return []
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+          .map((v) => v.trim())
+      }
+    } catch {
+      // fall through to comma-split
+    }
+  }
+  return trimmed
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0)
+}
+
+/**
+ * Coerce the block's metadata table into `Record<string,string>` for the
+ * session `metadata` field. Accepts `WorkflowTableRow[]`, a JSON-encoded
+ * array string, or a flat object. Drops rows with a blank key.
+ */
+export function normalizeSessionParameters(value: unknown): Record<string, string> | undefined {
+  const rows = coerceToRows(value)
+  if (rows === undefined) return undefined
+  const out: Record<string, string> = {}
+  for (const row of rows) {
+    const key = typeof row.key === 'string' ? row.key.trim() : ''
+    if (!key) continue
+    out[key] = typeof row.value === 'string' ? row.value : ''
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
+function coerceToRows(value: unknown): Array<{ key: unknown; value: unknown }> | undefined {
+  if (Array.isArray(value)) return value.map((row) => tableRowToPair(row))
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed || !trimmed.startsWith('[')) return undefined
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return parsed.map((row) => tableRowToPair(row))
+    } catch {
+      return undefined
+    }
+    return undefined
+  }
+  if (value && typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>).map(([key, val]) => ({
+      key,
+      value: val,
+    }))
+  }
+  return undefined
+}
+
+function tableRowToPair(row: unknown): { key: unknown; value: unknown } {
+  if (!row || typeof row !== 'object') return { key: undefined, value: undefined }
+  const record = row as Record<string, unknown>
+  const cells =
+    record.cells && typeof record.cells === 'object'
+      ? (record.cells as Record<string, unknown>)
+      : record
+  return { key: cells.Key ?? cells.key, value: cells.Value ?? cells.value }
+}
