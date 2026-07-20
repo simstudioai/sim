@@ -7,6 +7,8 @@ import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/componen
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useLastRunPath } from '@/stores/execution'
 import { usePanelEditorStore } from '@/stores/panel'
+import { useTerminalStore } from '@/stores/terminal'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**
  * Editor container for {@link SubflowNodeView}.
@@ -31,6 +33,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
   const isEnabled = currentBlock?.enabled ?? true
   const isLocked = currentBlock?.locked ?? false
   const isPreview = data?.isPreview || false
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
@@ -38,6 +41,12 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
 
   const lastRunPath = useLastRunPath()
   const executionStatus = data.executionStatus
+  const isEvalErrorHighlighted = useTerminalStore(
+    (state) =>
+      !isPreview &&
+      state.evalErrorHighlight?.workflowId === activeWorkflowId &&
+      state.evalErrorHighlight.blockIds.includes(id)
+  )
   const runPathStatus: 'success' | 'error' | undefined =
     executionStatus === 'success' || executionStatus === 'error'
       ? executionStatus
@@ -72,6 +81,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
       isLocked={isLocked}
       isFocused={isFocused}
       runPathStatus={runPathStatus}
+      isEvalErrorHighlighted={isEvalErrorHighlighted}
       diffStatus={diffStatus}
       nestingLevel={nestingLevel}
       canEditWorkflow={canEditWorkflow}

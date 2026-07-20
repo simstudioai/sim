@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
+  ArchiveWorkflowEvalSuite,
   CreateFile,
+  CreateWorkflowEvalSuite,
   DeleteFile,
   DeleteFileFolder,
   DownloadToWorkspaceFile,
@@ -15,6 +17,10 @@ import {
   ManageCustomTool,
   ManageMcpTool,
   ManageSkill,
+  RunWorkflowEvalSuite,
+  RunWorkflowEvalTest,
+  StopWorkflowEvalRun,
+  UpdateWorkflowEvalSuite,
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -27,6 +33,17 @@ import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/g
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
 import { enrichmentRunServerTool } from '@/lib/copilot/tools/server/enrichment/enrichment-run'
+import {
+  archiveWorkflowEvalSuiteServerTool,
+  createWorkflowEvalSuiteServerTool,
+  getWorkflowEvalRunServerTool,
+  getWorkflowEvalSuiteServerTool,
+  listWorkflowEvalSuitesServerTool,
+  runWorkflowEvalSuiteServerTool,
+  runWorkflowEvalTestServerTool,
+  stopWorkflowEvalRunServerTool,
+  updateWorkflowEvalSuiteServerTool,
+} from '@/lib/copilot/tools/server/evals/workflow-evals'
 import { createFileServerTool } from '@/lib/copilot/tools/server/files/create-file'
 import { deleteFileServerTool } from '@/lib/copilot/tools/server/files/delete-file'
 import { downloadToWorkspaceFileServerTool } from '@/lib/copilot/tools/server/files/download-to-workspace-file'
@@ -143,6 +160,12 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [Ffmpeg.id]: ['*'],
   // Paid external-provider lookups (hosted-key cost), like the media tools.
   [enrichmentRunServerTool.name]: ['*'],
+  [CreateWorkflowEvalSuite.id]: ['*'],
+  [UpdateWorkflowEvalSuite.id]: ['*'],
+  [ArchiveWorkflowEvalSuite.id]: ['*'],
+  [RunWorkflowEvalSuite.id]: ['*'],
+  [RunWorkflowEvalTest.id]: ['*'],
+  [StopWorkflowEvalRun.id]: ['*'],
 }
 
 function isWritePermission(userPermission: string): boolean {
@@ -165,6 +188,15 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [queryLogsServerTool.name]: queryLogsServerTool,
   [getJobLogsServerTool.name]: getJobLogsServerTool,
   [searchDocumentationServerTool.name]: searchDocumentationServerTool,
+  [listWorkflowEvalSuitesServerTool.name]: listWorkflowEvalSuitesServerTool,
+  [getWorkflowEvalSuiteServerTool.name]: getWorkflowEvalSuiteServerTool,
+  [createWorkflowEvalSuiteServerTool.name]: createWorkflowEvalSuiteServerTool,
+  [updateWorkflowEvalSuiteServerTool.name]: updateWorkflowEvalSuiteServerTool,
+  [archiveWorkflowEvalSuiteServerTool.name]: archiveWorkflowEvalSuiteServerTool,
+  [runWorkflowEvalTestServerTool.name]: runWorkflowEvalTestServerTool,
+  [runWorkflowEvalSuiteServerTool.name]: runWorkflowEvalSuiteServerTool,
+  [getWorkflowEvalRunServerTool.name]: getWorkflowEvalRunServerTool,
+  [stopWorkflowEvalRunServerTool.name]: stopWorkflowEvalRunServerTool,
   [searchOnlineServerTool.name]: searchOnlineServerTool,
   [setEnvironmentVariablesServerTool.name]: setEnvironmentVariablesServerTool,
   [getCredentialsServerTool.name]: getCredentialsServerTool,

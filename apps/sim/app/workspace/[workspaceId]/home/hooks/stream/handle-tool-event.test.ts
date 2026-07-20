@@ -1,7 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockLoadWorkflowState, mockRequestTerminalView, mockSetActiveWorkflow } = vi.hoisted(
+  () => ({
+    mockLoadWorkflowState: vi.fn(),
+    mockRequestTerminalView: vi.fn(),
+    mockSetActiveWorkflow: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/copilot/resources/extraction', () => ({
   isResourceToolName: vi.fn(() => false),
@@ -14,9 +22,23 @@ vi.mock(
   '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry',
   () => ({ invalidateResourceQueries: vi.fn() })
 )
+vi.mock('@/stores/workflows/registry/store', () => ({
+  useWorkflowRegistry: {
+    getState: () => ({
+      loadWorkflowState: mockLoadWorkflowState,
+      setActiveWorkflow: mockSetActiveWorkflow,
+    }),
+  },
+}))
+vi.mock('@/stores/terminal', () => ({
+  useTerminalStore: {
+    getState: () => ({ requestTerminalView: mockRequestTerminalView }),
+  },
+}))
 
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
+import { workflowEvalKeys } from '@/hooks/queries/evals'
 import { dispatchStreamEvent } from './dispatch-stream-event'
 import { createStreamLoopContext, type StreamLoopContext } from './stream-context'
 import { makeStreamLoopDeps, ref } from './stream-test-helpers'
@@ -38,7 +60,7 @@ function toolEnv(payload: Record<string, unknown>): PersistedStreamEventEnvelope
 const toolCall = (id: string, name = 'my_tool') =>
   toolEnv({ phase: 'call', executor: 'go', mode: 'sync', toolCallId: id, toolName: name })
 
-const toolResult = (id: string, success: boolean, name = 'my_tool') =>
+const toolResult = (id: string, success: boolean, name = 'my_tool', output?: unknown) =>
   toolEnv({
     phase: 'result',
     executor: 'go',
@@ -47,6 +69,7 @@ const toolResult = (id: string, success: boolean, name = 'my_tool') =>
     toolName: name,
     success,
     status: success ? 'success' : 'error',
+    ...(output === undefined ? {} : { output }),
   })
 
 const workspaceFileCall = (id: string) =>
@@ -83,6 +106,12 @@ function toolNode(ctx: StreamLoopContext, id: string): ToolNode {
 }
 
 describe('tool events (dispatch → model + side effects)', () => {
+  beforeEach(() => {
+    mockLoadWorkflowState.mockReset()
+    mockRequestTerminalView.mockReset()
+    mockSetActiveWorkflow.mockReset()
+  })
+
   it('runs a tool then settles success, firing the onToolResult side effect', () => {
     const onToolResult = vi.fn()
     const ctx = createStreamLoopContext(makeStreamLoopDeps({ onToolResultRef: ref(onToolResult) }))
@@ -108,6 +137,68 @@ describe('tool events (dispatch → model + side effects)', () => {
     dispatchStreamEvent(ctx, toolCall('tc-3'))
     dispatchStreamEvent(ctx, toolResult('tc-3', false))
     expect(toolNode(ctx, 'tc-3').status).toBe('error')
+  })
+
+  it.each(['run_workflow_eval_suite', 'run_workflow_eval_test'])(
+    'opens the workflow on Evals after %s succeeds',
+    (toolName) => {
+      const onResourceEvent = vi.fn()
+      const existingResource = {
+        type: 'workflow' as const,
+        id: 'workflow-1',
+        title: 'Customer support',
+      }
+      const deps = makeStreamLoopDeps({
+        addResource: vi.fn(() => false),
+        resourcesRef: ref([existingResource]),
+        onResourceEventRef: ref(onResourceEvent),
+      })
+      const ctx = createStreamLoopContext(deps)
+
+      dispatchStreamEvent(ctx, toolCall('eval-run-1', toolName))
+      dispatchStreamEvent(
+        ctx,
+        toolResult('eval-run-1', true, toolName, { workflowId: 'workflow-1' })
+      )
+
+      expect(deps.setActiveResourceId).toHaveBeenCalledWith('workflow-1')
+      expect(deps.addResource).toHaveBeenCalledWith(existingResource)
+      expect(onResourceEvent).toHaveBeenCalledOnce()
+      expect(mockLoadWorkflowState).toHaveBeenCalledWith('workflow-1')
+      expect(mockRequestTerminalView).toHaveBeenCalledWith('workflow-1', 'evals')
+    }
+  )
+
+  it.each([
+    'create_workflow_eval_suite',
+    'update_workflow_eval_suite',
+    'archive_workflow_eval_suite',
+    'run_workflow_eval_suite',
+    'run_workflow_eval_test',
+    'stop_workflow_eval_run',
+  ])('refreshes the workflow Eval suites after %s succeeds', (toolName) => {
+    const deps = makeStreamLoopDeps()
+    const ctx = createStreamLoopContext(deps)
+
+    dispatchStreamEvent(ctx, toolCall('eval-mutation-1', toolName))
+    dispatchStreamEvent(
+      ctx,
+      toolResult('eval-mutation-1', true, toolName, { workflowId: 'workflow-1' })
+    )
+
+    expect(deps.queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: workflowEvalKeys.suiteList('workflow-1'),
+    })
+  })
+
+  it('does not refresh Eval suites when an Eval mutation fails', () => {
+    const deps = makeStreamLoopDeps()
+    const ctx = createStreamLoopContext(deps)
+
+    dispatchStreamEvent(ctx, toolCall('eval-mutation-1', 'create_workflow_eval_suite'))
+    dispatchStreamEvent(ctx, toolResult('eval-mutation-1', false, 'create_workflow_eval_suite'))
+
+    expect(deps.queryClient.invalidateQueries).not.toHaveBeenCalled()
   })
 
   it('settles a file-write row on its own result, independent of a streaming preview session', () => {

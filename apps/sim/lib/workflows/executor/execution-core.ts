@@ -104,6 +104,8 @@ export interface ExecuteWorkflowCoreOptions {
   abortSignal?: AbortSignal
   includeFileBase64?: boolean
   base64MaxBytes?: number
+  /** Eval-only subject block outputs keyed by canonical draft block ID. */
+  blockMocks?: ReadonlyArray<{ blockId: string; output: unknown }>
   stopAfterBlockId?: string
   /** Run-from-block mode: execute starting from a specific block using cached upstream outputs */
   runFromBlock?: {
@@ -344,6 +346,7 @@ async function executeWorkflowCoreImpl(
     abortSignal,
     includeFileBase64,
     base64MaxBytes,
+    blockMocks,
     stopAfterBlockId,
     runFromBlock,
   } = options
@@ -523,6 +526,16 @@ async function executeWorkflowCoreImpl(
       parallels,
       true
     )
+
+    const serializedBlockIds = new Set(serializedWorkflow.blocks.map((block) => block.id))
+    for (const mock of blockMocks ?? []) {
+      if (!serializedBlockIds.has(mock.blockId)) {
+        throw new Error(`Eval block mock references missing subject block ${mock.blockId}`)
+      }
+    }
+    const blockMockMap = blockMocks
+      ? new Map(blockMocks.map((mock) => [mock.blockId, mock.output]))
+      : undefined
 
     processedInput = input || {}
 
@@ -782,6 +795,7 @@ async function executeWorkflowCoreImpl(
       isDeployedContext: !metadata.isClientSession,
       enforceCredentialAccess: metadata.enforceCredentialAccess ?? false,
       piiBlockOutputRedaction: piiRedaction.blockOutputs,
+      blockMocks: blockMockMap,
       onBlockStart: wrappedOnBlockStart,
       onBlockComplete: wrappedOnBlockComplete,
       onStream,

@@ -96,6 +96,7 @@ export const kimiProvider: ProviderConfig = {
       const kimi = new OpenAI({
         apiKey: request.apiKey,
         baseURL: KIMI_BASE_URL,
+        ...(request.maxRetries !== undefined ? { maxRetries: request.maxRetries } : {}),
       })
 
       const allMessages = []

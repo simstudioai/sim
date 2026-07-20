@@ -173,6 +173,11 @@ export const auditMock = {
     TABLE_EXPORTED: 'table.exported',
     WORKFLOW_PUBLIC_API_TOGGLED: 'workflow.public_api_toggled',
     WORKFLOW_EXPORTED: 'workflow.exported',
+    WORKFLOW_EVAL_SUITE_CREATED: 'workflow.eval_suite_created',
+    WORKFLOW_EVAL_SUITE_UPDATED: 'workflow.eval_suite_updated',
+    WORKFLOW_EVAL_SUITE_ARCHIVED: 'workflow.eval_suite_archived',
+    WORKFLOW_EVAL_RUN_QUEUED: 'workflow.eval_run_queued',
+    WORKFLOW_EVAL_RUN_STOPPED: 'workflow.eval_run_stopped',
   },
   AuditResourceType: {
     API_KEY: 'api_key',

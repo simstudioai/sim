@@ -22,6 +22,7 @@ export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS]
 
 export type JobType =
   | 'workflow-execution'
+  | 'workflow-eval-suite'
   | 'schedule-execution'
   | 'webhook-execution'
   | 'tiktok-webhook-ingress'
@@ -32,7 +33,7 @@ export type JobType =
   | 'cleanup-tasks'
   | 'run-data-drain'
 
-export type AsyncExecutionCorrelationSource = 'workflow' | 'schedule' | 'webhook'
+export type AsyncExecutionCorrelationSource = 'workflow' | 'schedule' | 'webhook' | 'eval'
 
 export interface AsyncExecutionCorrelation {
   executionId: string
@@ -45,6 +46,10 @@ export interface AsyncExecutionCorrelation {
   path?: string
   provider?: string
   scheduledFor?: string
+  evalRunId?: string
+  evalSuiteId?: string
+  evalTestId?: string
+  evalTestRunId?: string
 }
 
 export interface Job<TPayload = unknown, TOutput = unknown> {

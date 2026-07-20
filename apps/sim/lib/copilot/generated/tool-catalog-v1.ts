@@ -8,6 +8,7 @@ export interface ToolCatalogEntry {
   hidden?: boolean
   id:
     | 'agent'
+    | 'archive_workflow_eval_suite'
     | 'auth'
     | 'call_integration_tool'
     | 'check_deployment_status'
@@ -16,6 +17,7 @@ export interface ToolCatalogEntry {
     | 'crawl_website'
     | 'create_file'
     | 'create_workflow'
+    | 'create_workflow_eval_suite'
     | 'create_workspace_mcp_server'
     | 'delete_file'
     | 'delete_file_folder'
@@ -31,6 +33,7 @@ export interface ToolCatalogEntry {
     | 'edit_content'
     | 'edit_workflow'
     | 'enrichment_run'
+    | 'eval'
     | 'ffmpeg'
     | 'file'
     | 'function_execute'
@@ -46,6 +49,8 @@ export interface ToolCatalogEntry {
     | 'get_platform_actions'
     | 'get_scheduled_task_logs'
     | 'get_workflow_data'
+    | 'get_workflow_eval_run'
+    | 'get_workflow_eval_suite'
     | 'get_workflow_run_options'
     | 'glob'
     | 'grep'
@@ -53,6 +58,7 @@ export interface ToolCatalogEntry {
     | 'knowledge_base'
     | 'list_integration_tools'
     | 'list_user_workspaces'
+    | 'list_workflow_eval_suites'
     | 'list_workspace_mcp_servers'
     | 'load_deployment'
     | 'load_integration_tool'
@@ -81,6 +87,8 @@ export interface ToolCatalogEntry {
     | 'run_code'
     | 'run_from_block'
     | 'run_workflow'
+    | 'run_workflow_eval_suite'
+    | 'run_workflow_eval_test'
     | 'run_workflow_until_block'
     | 'scheduled_task'
     | 'scrape_page'
@@ -95,9 +103,11 @@ export interface ToolCatalogEntry {
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
     | 'share_file'
+    | 'stop_workflow_eval_run'
     | 'table'
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
+    | 'update_workflow_eval_suite'
     | 'update_workspace_mcp_server'
     | 'user_table'
     | 'workflow'
@@ -106,6 +116,7 @@ export interface ToolCatalogEntry {
   mode: 'async' | 'sync'
   name:
     | 'agent'
+    | 'archive_workflow_eval_suite'
     | 'auth'
     | 'call_integration_tool'
     | 'check_deployment_status'
@@ -114,6 +125,7 @@ export interface ToolCatalogEntry {
     | 'crawl_website'
     | 'create_file'
     | 'create_workflow'
+    | 'create_workflow_eval_suite'
     | 'create_workspace_mcp_server'
     | 'delete_file'
     | 'delete_file_folder'
@@ -129,6 +141,7 @@ export interface ToolCatalogEntry {
     | 'edit_content'
     | 'edit_workflow'
     | 'enrichment_run'
+    | 'eval'
     | 'ffmpeg'
     | 'file'
     | 'function_execute'
@@ -144,6 +157,8 @@ export interface ToolCatalogEntry {
     | 'get_platform_actions'
     | 'get_scheduled_task_logs'
     | 'get_workflow_data'
+    | 'get_workflow_eval_run'
+    | 'get_workflow_eval_suite'
     | 'get_workflow_run_options'
     | 'glob'
     | 'grep'
@@ -151,6 +166,7 @@ export interface ToolCatalogEntry {
     | 'knowledge_base'
     | 'list_integration_tools'
     | 'list_user_workspaces'
+    | 'list_workflow_eval_suites'
     | 'list_workspace_mcp_servers'
     | 'load_deployment'
     | 'load_integration_tool'
@@ -179,6 +195,8 @@ export interface ToolCatalogEntry {
     | 'run_code'
     | 'run_from_block'
     | 'run_workflow'
+    | 'run_workflow_eval_suite'
+    | 'run_workflow_eval_test'
     | 'run_workflow_until_block'
     | 'scheduled_task'
     | 'scrape_page'
@@ -193,9 +211,11 @@ export interface ToolCatalogEntry {
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
     | 'share_file'
+    | 'stop_workflow_eval_run'
     | 'table'
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
+    | 'update_workflow_eval_suite'
     | 'update_workspace_mcp_server'
     | 'user_table'
     | 'workflow'
@@ -208,6 +228,7 @@ export interface ToolCatalogEntry {
     | 'agent'
     | 'auth'
     | 'deploy'
+    | 'eval'
     | 'file'
     | 'knowledge'
     | 'media'
@@ -232,6 +253,23 @@ export const Agent: ToolCatalogEntry = {
   },
   subagentId: 'agent',
   internal: true,
+  requiredPermission: 'write',
+}
+
+export const ArchiveWorkflowEvalSuite: ToolCatalogEntry = {
+  id: 'archive_workflow_eval_suite',
+  name: 'archive_workflow_eval_suite',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      expectedDefinitionRevision: { type: 'number' },
+      suiteId: { type: 'string' },
+      workflowId: { type: 'string', description: 'Workflow ID; defaults to the active workflow.' },
+    },
+    required: ['suiteId', 'expectedDefinitionRevision'],
+  },
   requiredPermission: 'write',
 }
 
@@ -450,6 +488,174 @@ export const CreateWorkflow: ToolCatalogEntry = {
       workspaceId: { type: 'string', description: 'Optional workspace ID.' },
     },
     required: ['name'],
+  },
+  requiredPermission: 'write',
+}
+
+export const CreateWorkflowEvalSuite: ToolCatalogEntry = {
+  id: 'create_workflow_eval_suite',
+  name: 'create_workflow_eval_suite',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'Suite name unique within the workflow.' },
+      tests: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            clientRef: {
+              type: 'string',
+              description:
+                'Unique request-local test reference. Sim generates the canonical test ID.',
+            },
+            errorBlockIds: {
+              type: 'array',
+              description:
+                'Canonical subject-workflow block IDs to inspect or highlight when this test does not pass. Keep this to the smallest relevant set.',
+              items: { type: 'string' },
+            },
+            evaluator: {
+              type: 'object',
+              description:
+                'Evaluator definition. Code receives input, final output, duration, and explicitly selected blockOutputs. Agent always sees executed-block topology and may additionally receive selected output values. Workflow runs a custom judge with explicit mappings.',
+              properties: {
+                code: {
+                  type: 'string',
+                  description:
+                    'Code evaluator body. It may use input, final workflow output, metadata.durationMs, and blockOutputs selected by outputSelectors. It must return boolean or {passed, reason?}.',
+                },
+                criteria: {
+                  type: 'array',
+                  description:
+                    'Independent criteria. Agent evidence always includes executed-block topology, so a criterion may refer to exact canonical block IDs even when outputSelectors is empty.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      clientRef: {
+                        type: 'string',
+                        description:
+                          'Stable request-local reference for a new criterion. Sim returns its generated canonical ID.',
+                      },
+                      description: {
+                        type: 'string',
+                        description:
+                          'Specific, independently judgeable pass/warning/fail criterion.',
+                      },
+                      name: { type: 'string', description: 'Criterion name.' },
+                    },
+                    required: ['name', 'description'],
+                  },
+                },
+                inputMappings: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      inputName: {
+                        type: 'string',
+                        description: 'Exact manual Start input name in the judge workflow.',
+                      },
+                      source: {
+                        type: 'object',
+                        properties: {
+                          blockId: {
+                            type: 'string',
+                            description: 'Required for subjectOutput; canonical subject block ID.',
+                          },
+                          path: {
+                            type: 'string',
+                            description: 'Dotted path; empty selects the complete value.',
+                          },
+                          type: { type: 'string', enum: ['subjectOutput', 'testInput'] },
+                        },
+                        required: ['type', 'path'],
+                      },
+                    },
+                    required: ['inputName', 'source'],
+                  },
+                },
+                model: {
+                  type: 'string',
+                  description: 'Model ID for independent LLM-as-judge criterion calls.',
+                },
+                outputSelectors: {
+                  type: 'array',
+                  description:
+                    'Block output values to expose. Code receives matching blockOutputs entries with every occurrence; an unexecuted conditional block has an empty occurrences array. Agent receives selected values as judge evidence and treats an unexecuted selected block as missing evidence.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      blockId: {
+                        type: 'string',
+                        description: 'Canonical block ID from the workflow draft.',
+                      },
+                      path: {
+                        type: 'string',
+                        description:
+                          'Dotted output path; an empty string selects the complete block output.',
+                      },
+                    },
+                    required: ['blockId', 'path'],
+                  },
+                },
+                scoreOutput: {
+                  type: 'object',
+                  properties: {
+                    blockId: {
+                      type: 'string',
+                      description: 'Canonical block ID from the workflow draft.',
+                    },
+                    path: {
+                      type: 'string',
+                      description:
+                        'Dotted output path; an empty string selects the complete block output.',
+                    },
+                  },
+                  required: ['blockId', 'path'],
+                },
+                type: { type: 'string', enum: ['code', 'agent', 'workflow'] },
+                workflowId: {
+                  type: 'string',
+                  description: 'Judge workflow ID in the same workspace.',
+                },
+              },
+              required: ['type'],
+            },
+            input: { type: 'object', description: 'Workflow start input for this behavior.' },
+            mocks: {
+              type: 'array',
+              description:
+                'Optional subject block mocks shared by Code, Agent, and Workflow evaluators. Each matching handler is skipped; supplied output still flows downstream and appears in the finalized subject trace.',
+              items: {
+                type: 'object',
+                description:
+                  'One subject-workflow block to skip during this test. Its JSON output is injected into downstream state and judge evidence as though the block completed successfully.',
+                properties: {
+                  blockId: {
+                    type: 'string',
+                    description:
+                      'Exact canonical block ID from the current subject workflow draft.',
+                  },
+                  output: {
+                    type: ['object', 'array', 'string', 'number', 'boolean', 'null'],
+                    description:
+                      'JSON value matching the real block output shape and paths consumed downstream.',
+                  },
+                },
+                required: ['blockId', 'output'],
+              },
+            },
+            name: { type: 'string' },
+          },
+          required: ['clientRef', 'name', 'input', 'errorBlockIds', 'evaluator'],
+        },
+      },
+      workflowId: { type: 'string', description: 'Workflow ID; defaults to the active workflow.' },
+    },
+    required: ['name', 'tests'],
   },
   requiredPermission: 'write',
 }
@@ -1221,6 +1427,25 @@ export const EnrichmentRun: ToolCatalogEntry = {
     required: ['matched', 'result'],
   },
   requiredPermission: 'write',
+}
+
+export const Eval: ToolCatalogEntry = {
+  id: 'eval',
+  name: 'eval',
+  route: 'subagent',
+  mode: 'async',
+  parameters: {
+    properties: {
+      prompt: {
+        description:
+          "Optional brief instruction that adds scope not already present in the inherited conversation. Do not restate the user's request or copy workflow JSON.",
+        type: 'string',
+      },
+    },
+    type: 'object',
+  },
+  subagentId: 'eval',
+  internal: true,
 }
 
 export const Ffmpeg: ToolCatalogEntry = {
@@ -2177,6 +2402,54 @@ export const GetWorkflowData: ToolCatalogEntry = {
   },
 }
 
+export const GetWorkflowEvalRun: ToolCatalogEntry = {
+  id: 'get_workflow_eval_run',
+  name: 'get_workflow_eval_run',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      cursor: { type: 'string', description: 'Opaque cursor returned by a prior call.' },
+      limit: { type: 'number', description: 'Maximum result rows from 1 through 100.' },
+      runId: { type: 'string' },
+      suiteId: { type: 'string' },
+      view: {
+        type: 'string',
+        description: 'Defaults to all.',
+        enum: ['summary', 'failures', 'all'],
+      },
+      workflowId: { type: 'string', description: 'Workflow ID; defaults to the active workflow.' },
+    },
+    required: ['suiteId', 'runId'],
+  },
+}
+
+export const GetWorkflowEvalSuite: ToolCatalogEntry = {
+  id: 'get_workflow_eval_suite',
+  name: 'get_workflow_eval_suite',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      cursor: { type: 'string', description: 'Opaque test cursor returned by a prior call.' },
+      limit: { type: 'number', description: 'Maximum tests to return, from 1 through 100.' },
+      suiteId: {
+        type: 'string',
+        description: 'Canonical suite ID from list_workflow_eval_suites.',
+      },
+      testIds: {
+        type: 'array',
+        description: 'Optional canonical test IDs to select.',
+        items: { type: 'string' },
+      },
+      workflowId: { type: 'string', description: 'Workflow ID; defaults to the active workflow.' },
+    },
+    required: ['suiteId'],
+  },
+}
+
 export const GetWorkflowRunOptions: ToolCatalogEntry = {
   id: 'get_workflow_run_options',
   name: 'get_workflow_run_options',
@@ -2482,6 +2755,25 @@ export const ListUserWorkspaces: ToolCatalogEntry = {
   route: 'sim',
   mode: 'async',
   parameters: { type: 'object', properties: {} },
+}
+
+export const ListWorkflowEvalSuites: ToolCatalogEntry = {
+  id: 'list_workflow_eval_suites',
+  name: 'list_workflow_eval_suites',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      cursor: { type: 'string', description: 'Opaque cursor returned by a prior call.' },
+      includeArchived: {
+        type: 'boolean',
+        description: 'Include archived suites. Defaults to false.',
+      },
+      limit: { type: 'number', description: 'Page size from 1 through 100.' },
+      workflowId: { type: 'string', description: 'Workflow ID; defaults to the active workflow.' },
+    },
+  },
 }
 
 export const ListWorkspaceMcpServers: ToolCatalogEntry = {
@@ -3553,6 +3845,41 @@ export const RunWorkflow: ToolCatalogEntry = {
   clientExecutable: true,
 }
 
+export const RunWorkflowEvalSuite: ToolCatalogEntry = {
+  id: 'run_workflow_eval_suite',
+  name: 'run_workflow_eval_suite',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      expectedDefinitionRevision: { type: 'number' },
+      suiteId: { type: 'string' },
+      workflowId: { type: 'string', description: 'Workflow ID; defaults to the active workflow.' },
+    },
+    required: ['suiteId', 'expectedDefinitionRevision'],
+  },
+  requiredPermission: 'write',
+}
+
+export const RunWorkflowEvalTest: ToolCatalogEntry = {
+  id: 'run_workflow_eval_test',
+  name: 'run_workflow_eval_test',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      expectedDefinitionRevision: { type: 'number' },
+      suiteId: { type: 'string' },
+      testId: { type: 'string', description: 'Canonical test ID from get_workflow_eval_suite.' },
+      workflowId: { type: 'string', description: 'Workflow ID; defaults to the active workflow.' },
+    },
+    required: ['suiteId', 'testId', 'expectedDefinitionRevision'],
+  },
+  requiredPermission: 'write',
+}
+
 export const RunWorkflowUntilBlock: ToolCatalogEntry = {
   id: 'run_workflow_until_block',
   name: 'run_workflow_until_block',
@@ -3981,6 +4308,26 @@ export const ShareFile: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
+export const StopWorkflowEvalRun: ToolCatalogEntry = {
+  id: 'stop_workflow_eval_run',
+  name: 'stop_workflow_eval_run',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      runId: { type: 'string', description: 'Canonical queued or running Eval run ID.' },
+      suiteId: {
+        type: 'string',
+        description: 'Canonical suite ID from get_workflow_eval_run or get_workflow_eval_suite.',
+      },
+      workflowId: { type: 'string', description: 'Workflow ID; defaults to the active workflow.' },
+    },
+    required: ['suiteId', 'runId'],
+  },
+  requiredPermission: 'write',
+}
+
 export const Table: ToolCatalogEntry = {
   id: 'table',
   name: 'table',
@@ -4043,6 +4390,340 @@ export const UpdateScheduledTaskHistory: ToolCatalogEntry = {
     },
     required: ['jobId', 'summary'],
   },
+}
+
+export const UpdateWorkflowEvalSuite: ToolCatalogEntry = {
+  id: 'update_workflow_eval_suite',
+  name: 'update_workflow_eval_suite',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      addTests: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            afterTestId: {
+              type: ['string', 'null'],
+              description:
+                'Insert after this canonical test ID; null inserts first; omission appends.',
+            },
+            clientRef: {
+              type: 'string',
+              description:
+                'Unique request-local test reference. Sim generates the canonical test ID.',
+            },
+            errorBlockIds: {
+              type: 'array',
+              description:
+                'Canonical subject-workflow block IDs to inspect or highlight when this test does not pass. Keep this to the smallest relevant set.',
+              items: { type: 'string' },
+            },
+            evaluator: {
+              type: 'object',
+              description:
+                'Evaluator definition. Code receives input, final output, duration, and explicitly selected blockOutputs. Agent always sees executed-block topology and may additionally receive selected output values. Workflow runs a custom judge with explicit mappings.',
+              properties: {
+                code: {
+                  type: 'string',
+                  description:
+                    'Code evaluator body. It may use input, final workflow output, metadata.durationMs, and blockOutputs selected by outputSelectors. It must return boolean or {passed, reason?}.',
+                },
+                criteria: {
+                  type: 'array',
+                  description:
+                    'Independent criteria. Agent evidence always includes executed-block topology, so a criterion may refer to exact canonical block IDs even when outputSelectors is empty.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      clientRef: {
+                        type: 'string',
+                        description:
+                          'Stable request-local reference for a new criterion. Sim returns its generated canonical ID.',
+                      },
+                      description: {
+                        type: 'string',
+                        description:
+                          'Specific, independently judgeable pass/warning/fail criterion.',
+                      },
+                      name: { type: 'string', description: 'Criterion name.' },
+                    },
+                    required: ['name', 'description'],
+                  },
+                },
+                inputMappings: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      inputName: {
+                        type: 'string',
+                        description: 'Exact manual Start input name in the judge workflow.',
+                      },
+                      source: {
+                        type: 'object',
+                        properties: {
+                          blockId: {
+                            type: 'string',
+                            description: 'Required for subjectOutput; canonical subject block ID.',
+                          },
+                          path: {
+                            type: 'string',
+                            description: 'Dotted path; empty selects the complete value.',
+                          },
+                          type: { type: 'string', enum: ['subjectOutput', 'testInput'] },
+                        },
+                        required: ['type', 'path'],
+                      },
+                    },
+                    required: ['inputName', 'source'],
+                  },
+                },
+                model: {
+                  type: 'string',
+                  description: 'Model ID for independent LLM-as-judge criterion calls.',
+                },
+                outputSelectors: {
+                  type: 'array',
+                  description:
+                    'Block output values to expose. Code receives matching blockOutputs entries with every occurrence; an unexecuted conditional block has an empty occurrences array. Agent receives selected values as judge evidence and treats an unexecuted selected block as missing evidence.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      blockId: {
+                        type: 'string',
+                        description: 'Canonical block ID from the workflow draft.',
+                      },
+                      path: {
+                        type: 'string',
+                        description:
+                          'Dotted output path; an empty string selects the complete block output.',
+                      },
+                    },
+                    required: ['blockId', 'path'],
+                  },
+                },
+                scoreOutput: {
+                  type: 'object',
+                  properties: {
+                    blockId: {
+                      type: 'string',
+                      description: 'Canonical block ID from the workflow draft.',
+                    },
+                    path: {
+                      type: 'string',
+                      description:
+                        'Dotted output path; an empty string selects the complete block output.',
+                    },
+                  },
+                  required: ['blockId', 'path'],
+                },
+                type: { type: 'string', enum: ['code', 'agent', 'workflow'] },
+                workflowId: {
+                  type: 'string',
+                  description: 'Judge workflow ID in the same workspace.',
+                },
+              },
+              required: ['type'],
+            },
+            input: { type: 'object', description: 'Workflow start input for this behavior.' },
+            mocks: {
+              type: 'array',
+              description:
+                'Optional subject block mocks shared by Code, Agent, and Workflow evaluators. Each matching handler is skipped; supplied output still flows downstream and appears in the finalized subject trace.',
+              items: {
+                type: 'object',
+                description:
+                  'One subject-workflow block to skip during this test. Its JSON output is injected into downstream state and judge evidence as though the block completed successfully.',
+                properties: {
+                  blockId: {
+                    type: 'string',
+                    description:
+                      'Exact canonical block ID from the current subject workflow draft.',
+                  },
+                  output: {
+                    type: ['object', 'array', 'string', 'number', 'boolean', 'null'],
+                    description:
+                      'JSON value matching the real block output shape and paths consumed downstream.',
+                  },
+                },
+                required: ['blockId', 'output'],
+              },
+            },
+            name: { type: 'string' },
+          },
+          required: ['clientRef', 'name', 'input', 'errorBlockIds', 'evaluator'],
+        },
+      },
+      expectedDefinitionRevision: { type: 'number' },
+      orderedTestIds: {
+        type: 'array',
+        description: 'When provided, every surviving canonical test ID exactly once.',
+        items: { type: 'string' },
+      },
+      removeTestIds: { type: 'array', items: { type: 'string' } },
+      renameTo: { type: 'string' },
+      replaceTests: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            errorBlockIds: {
+              type: 'array',
+              description:
+                'Canonical subject-workflow block IDs to inspect or highlight when this test does not pass. Keep this to the smallest relevant set.',
+              items: { type: 'string' },
+            },
+            evaluator: {
+              type: 'object',
+              description:
+                'Evaluator definition. Code receives input, final output, duration, and explicitly selected blockOutputs. Agent always sees executed-block topology and may additionally receive selected output values. Workflow runs a custom judge with explicit mappings.',
+              properties: {
+                code: {
+                  type: 'string',
+                  description:
+                    'Code evaluator body. It may use input, final workflow output, metadata.durationMs, and blockOutputs selected by outputSelectors. It must return boolean or {passed, reason?}.',
+                },
+                criteria: {
+                  type: 'array',
+                  description:
+                    'Independent criteria. Agent evidence always includes executed-block topology, so a criterion may refer to exact canonical block IDs even when outputSelectors is empty.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      clientRef: {
+                        type: 'string',
+                        description:
+                          'Stable request-local reference for a new criterion. Sim returns its generated canonical ID.',
+                      },
+                      description: {
+                        type: 'string',
+                        description:
+                          'Specific, independently judgeable pass/warning/fail criterion.',
+                      },
+                      id: {
+                        type: 'string',
+                        description:
+                          'Existing canonical criterion ID to preserve. Use either id or clientRef, never both.',
+                      },
+                      name: { type: 'string', description: 'Criterion name.' },
+                    },
+                    required: ['name', 'description'],
+                  },
+                },
+                inputMappings: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      inputName: {
+                        type: 'string',
+                        description: 'Exact manual Start input name in the judge workflow.',
+                      },
+                      source: {
+                        type: 'object',
+                        properties: {
+                          blockId: {
+                            type: 'string',
+                            description: 'Required for subjectOutput; canonical subject block ID.',
+                          },
+                          path: {
+                            type: 'string',
+                            description: 'Dotted path; empty selects the complete value.',
+                          },
+                          type: { type: 'string', enum: ['subjectOutput', 'testInput'] },
+                        },
+                        required: ['type', 'path'],
+                      },
+                    },
+                    required: ['inputName', 'source'],
+                  },
+                },
+                model: {
+                  type: 'string',
+                  description: 'Model ID for independent LLM-as-judge criterion calls.',
+                },
+                outputSelectors: {
+                  type: 'array',
+                  description:
+                    'Block output values to expose. Code receives matching blockOutputs entries with every occurrence; an unexecuted conditional block has an empty occurrences array. Agent receives selected values as judge evidence and treats an unexecuted selected block as missing evidence.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      blockId: {
+                        type: 'string',
+                        description: 'Canonical block ID from the workflow draft.',
+                      },
+                      path: {
+                        type: 'string',
+                        description:
+                          'Dotted output path; an empty string selects the complete block output.',
+                      },
+                    },
+                    required: ['blockId', 'path'],
+                  },
+                },
+                scoreOutput: {
+                  type: 'object',
+                  properties: {
+                    blockId: {
+                      type: 'string',
+                      description: 'Canonical block ID from the workflow draft.',
+                    },
+                    path: {
+                      type: 'string',
+                      description:
+                        'Dotted output path; an empty string selects the complete block output.',
+                    },
+                  },
+                  required: ['blockId', 'path'],
+                },
+                type: { type: 'string', enum: ['code', 'agent', 'workflow'] },
+                workflowId: {
+                  type: 'string',
+                  description: 'Judge workflow ID in the same workspace.',
+                },
+              },
+              required: ['type'],
+            },
+            input: { type: 'object', description: 'Complete replacement workflow start input.' },
+            mocks: {
+              type: 'array',
+              description:
+                'Complete replacement mock set. Include existing mocks to preserve them; omit or pass an empty array to clear them.',
+              items: {
+                type: 'object',
+                description:
+                  'One subject-workflow block to skip during this test. Its JSON output is injected into downstream state and judge evidence as though the block completed successfully.',
+                properties: {
+                  blockId: {
+                    type: 'string',
+                    description:
+                      'Exact canonical block ID from the current subject workflow draft.',
+                  },
+                  output: {
+                    type: ['object', 'array', 'string', 'number', 'boolean', 'null'],
+                    description:
+                      'JSON value matching the real block output shape and paths consumed downstream.',
+                  },
+                },
+                required: ['blockId', 'output'],
+              },
+            },
+            name: { type: 'string' },
+            testId: { type: 'string', description: 'Canonical existing test ID.' },
+          },
+          required: ['testId', 'name', 'input', 'errorBlockIds', 'evaluator'],
+        },
+      },
+      suiteId: { type: 'string' },
+      workflowId: { type: 'string', description: 'Workflow ID; defaults to the active workflow.' },
+    },
+    required: ['suiteId', 'expectedDefinitionRevision'],
+  },
+  requiredPermission: 'write',
 }
 
 export const UpdateWorkspaceMcpServer: ToolCatalogEntry = {
@@ -4849,6 +5530,7 @@ export const WorkspaceFileOperationValues = [
 
 export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Agent.id]: Agent,
+  [ArchiveWorkflowEvalSuite.id]: ArchiveWorkflowEvalSuite,
   [Auth.id]: Auth,
   [CallIntegrationTool.id]: CallIntegrationTool,
   [CheckDeploymentStatus.id]: CheckDeploymentStatus,
@@ -4857,6 +5539,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [CrawlWebsite.id]: CrawlWebsite,
   [CreateFile.id]: CreateFile,
   [CreateWorkflow.id]: CreateWorkflow,
+  [CreateWorkflowEvalSuite.id]: CreateWorkflowEvalSuite,
   [CreateWorkspaceMcpServer.id]: CreateWorkspaceMcpServer,
   [DeleteFile.id]: DeleteFile,
   [DeleteFileFolder.id]: DeleteFileFolder,
@@ -4872,6 +5555,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [EditContent.id]: EditContent,
   [EditWorkflow.id]: EditWorkflow,
   [EnrichmentRun.id]: EnrichmentRun,
+  [Eval.id]: Eval,
   [Ffmpeg.id]: Ffmpeg,
   [File.id]: File,
   [FunctionExecute.id]: FunctionExecute,
@@ -4887,6 +5571,8 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [GetPlatformActions.id]: GetPlatformActions,
   [GetScheduledTaskLogs.id]: GetScheduledTaskLogs,
   [GetWorkflowData.id]: GetWorkflowData,
+  [GetWorkflowEvalRun.id]: GetWorkflowEvalRun,
+  [GetWorkflowEvalSuite.id]: GetWorkflowEvalSuite,
   [GetWorkflowRunOptions.id]: GetWorkflowRunOptions,
   [Glob.id]: Glob,
   [Grep.id]: Grep,
@@ -4894,6 +5580,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [KnowledgeBase.id]: KnowledgeBase,
   [ListIntegrationTools.id]: ListIntegrationTools,
   [ListUserWorkspaces.id]: ListUserWorkspaces,
+  [ListWorkflowEvalSuites.id]: ListWorkflowEvalSuites,
   [ListWorkspaceMcpServers.id]: ListWorkspaceMcpServers,
   [LoadDeployment.id]: LoadDeployment,
   [LoadIntegrationTool.id]: LoadIntegrationTool,
@@ -4922,6 +5609,8 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [RunCode.id]: RunCode,
   [RunFromBlock.id]: RunFromBlock,
   [RunWorkflow.id]: RunWorkflow,
+  [RunWorkflowEvalSuite.id]: RunWorkflowEvalSuite,
+  [RunWorkflowEvalTest.id]: RunWorkflowEvalTest,
   [RunWorkflowUntilBlock.id]: RunWorkflowUntilBlock,
   [ScheduledTask.id]: ScheduledTask,
   [ScrapePage.id]: ScrapePage,
@@ -4936,9 +5625,11 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SetEnvironmentVariables.id]: SetEnvironmentVariables,
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
   [ShareFile.id]: ShareFile,
+  [StopWorkflowEvalRun.id]: StopWorkflowEvalRun,
   [Table.id]: Table,
   [UpdateDeploymentVersion.id]: UpdateDeploymentVersion,
   [UpdateScheduledTaskHistory.id]: UpdateScheduledTaskHistory,
+  [UpdateWorkflowEvalSuite.id]: UpdateWorkflowEvalSuite,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,
   [UserTable.id]: UserTable,
   [Workflow.id]: Workflow,

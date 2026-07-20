@@ -215,6 +215,8 @@ export interface ContextExtensions {
    * `blockOutputs` stage. Serializable, so it crosses into the trigger.dev worker.
    */
   piiBlockOutputRedaction?: PiiBlockOutputRedaction
+  /** Eval-only subject block outputs keyed by canonical draft block ID. */
+  blockMocks?: ReadonlyMap<string, unknown>
   onStream?: (streamingExecution: StreamingExecution) => Promise<void>
   onBlockStart?: (
     blockId: string,

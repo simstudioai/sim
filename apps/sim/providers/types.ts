@@ -155,6 +155,8 @@ export interface ProviderRequest {
   tools?: ProviderToolConfig[]
   temperature?: number
   maxTokens?: number
+  /** Provider SDK retry count. Internal deterministic callers set this to zero. */
+  maxRetries?: number
   apiKey?: string
   messages?: Message[]
   responseFormat?: {

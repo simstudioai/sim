@@ -32,6 +32,52 @@ describe('async execution correlation fallbacks', () => {
     })
   })
 
+  it('preserves Eval correlation while enforcing canonical workflow execution fields', () => {
+    const correlation = buildWorkflowCorrelation({
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      billingAttribution: {
+        actorUserId: 'user-1',
+        workspaceId: 'workspace-1',
+        organizationId: null,
+        billedAccountUserId: 'user-1',
+        billingEntity: { type: 'user', id: 'user-1' },
+        billingPeriod: {
+          start: '2026-07-01T00:00:00.000Z',
+          end: '2026-08-01T00:00:00.000Z',
+        },
+        payerSubscription: null,
+      },
+      triggerType: 'workflow',
+      executionId: 'canonical-execution',
+      requestId: 'canonical-request',
+      correlation: {
+        executionId: 'stale-execution',
+        requestId: 'stale-request',
+        source: 'eval',
+        workflowId: 'stale-workflow',
+        triggerType: 'api',
+        evalRunId: 'run-1',
+        evalSuiteId: 'suite-1',
+        evalTestId: 'test-1',
+        evalTestRunId: 'test-run-1',
+      },
+    })
+
+    expect(correlation).toEqual({
+      executionId: 'canonical-execution',
+      requestId: 'canonical-request',
+      source: 'eval',
+      workflowId: 'workflow-1',
+      triggerType: 'workflow',
+      evalRunId: 'run-1',
+      evalSuiteId: 'suite-1',
+      evalTestId: 'test-1',
+      evalTestRunId: 'test-run-1',
+    })
+  })
+
   it('falls back for legacy schedule payloads missing preassigned request id', () => {
     const correlation = buildScheduleCorrelation({
       scheduleId: 'schedule-1',

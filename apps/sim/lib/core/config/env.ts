@@ -239,6 +239,7 @@ export const env = createEnv({
     JOB_RETENTION_DAYS:                    z.string().optional().default('1'),     // Days to retain job logs/data
     SCHEDULE_EXECUTION_CONCURRENCY_LIMIT:  z.string().optional().default('30'),
     WORKFLOW_EXECUTION_CONCURRENCY_LIMIT:  z.string().optional().default('75'),
+    WORKFLOW_EVAL_SUITE_CONCURRENCY_LIMIT:  z.string().optional().default('10'),
     WEBHOOK_EXECUTION_CONCURRENCY_LIMIT:   z.string().optional().default('75'),
     RESUME_EXECUTION_CONCURRENCY_LIMIT:    z.string().optional().default('50'),
     SCHEDULE_ENQUEUE_BUDGET_MULTIPLIER:    z.string().optional().default('2'),
@@ -462,6 +463,7 @@ export const env = createEnv({
     DATA_DRAINS_ENABLED:                  z.boolean().optional(),                 // Enable data drains on self-hosted (bypasses hosted requirements)
     FORKING_ENABLED:                      z.boolean().optional(),                 // Enable workspace forking on self-hosted (bypasses hosted requirements)
     DEPLOY_AS_BLOCK:                      z.boolean().optional(),                 // Enable deploy-as-block (publish a workflow as a reusable org-wide custom block)
+    WORKFLOW_EVALS:                       z.boolean().optional(),                 // Enable workflow eval suite read surfaces
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)

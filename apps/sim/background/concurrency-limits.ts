@@ -8,6 +8,12 @@ export const WORKFLOW_EXECUTION_CONCURRENCY_LIMIT = envNumber(
   { min: 1, integer: true }
 )
 
+export const WORKFLOW_EVAL_SUITE_CONCURRENCY_LIMIT = envNumber(
+  env.WORKFLOW_EVAL_SUITE_CONCURRENCY_LIMIT,
+  10,
+  { min: 1, integer: true }
+)
+
 export const WEBHOOK_EXECUTION_CONCURRENCY_LIMIT = envNumber(
   env.WEBHOOK_EXECUTION_CONCURRENCY_LIMIT,
   75,

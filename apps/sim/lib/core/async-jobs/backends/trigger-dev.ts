@@ -37,6 +37,7 @@ function classifyTriggerEnqueueError(error: unknown): AsyncJobEnqueueError {
  */
 const JOB_TYPE_TO_TASK_ID: Record<JobType, string> = {
   'workflow-execution': 'workflow-execution',
+  'workflow-eval-suite': 'workflow-eval-suite',
   'schedule-execution': 'schedule-execution',
   'webhook-execution': 'webhook-execution',
   'tiktok-webhook-ingress': 'tiktok-webhook-ingress',

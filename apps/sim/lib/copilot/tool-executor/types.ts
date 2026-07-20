@@ -21,6 +21,8 @@ export interface ToolExecutionContext {
    */
   parentToolCallId?: string
   abortSignal?: AbortSignal
+  /** Fires only when the user explicitly stops the Mothership run. */
+  userStopSignal?: AbortSignal
   userTimezone?: string
   userPermission?: string
   decryptedEnvVars?: Record<string, string>

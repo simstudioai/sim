@@ -31,7 +31,7 @@ export function createSpanFromLog(log: BlockLog): TraceSpan | null {
 
   const span = createBaseSpan(validLog)
 
-  if (!isConditionBlockType(validLog.blockType)) {
+  if (!validLog.mocked && !isConditionBlockType(validLog.blockType)) {
     enrichWithProviderMetadata(span, validLog)
 
     if (!isWorkflowBlockType(validLog.blockType)) {
@@ -42,7 +42,7 @@ export function createSpanFromLog(log: BlockLog): TraceSpan | null {
     }
   }
 
-  if (isWorkflowBlockType(validLog.blockType)) {
+  if (!validLog.mocked && isWorkflowBlockType(validLog.blockType)) {
     attachChildWorkflowSpans(span, validLog)
   }
 
@@ -53,7 +53,7 @@ export function createSpanFromLog(log: BlockLog): TraceSpan | null {
 function createBaseSpan(log: ValidBlockLog): TraceSpan {
   const spanId = `${log.blockId}-${new Date(log.startedAt).getTime()}`
   const output = extractDisplayOutput(log)
-  const childIds = extractChildWorkflowIds(log.output)
+  const childIds = log.mocked ? undefined : extractChildWorkflowIds(log.output)
 
   return {
     id: spanId,

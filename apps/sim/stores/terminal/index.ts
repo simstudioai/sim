@@ -10,3 +10,4 @@ export {
   useWorkflowConsoleEntries,
 } from './console'
 export { useTerminalStore } from './store'
+export type { TerminalView } from './types'

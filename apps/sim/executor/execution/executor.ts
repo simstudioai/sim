@@ -423,6 +423,7 @@ export class DAGExecutor {
       isDeployedContext: this.contextExtensions.isDeployedContext,
       enforceCredentialAccess: this.contextExtensions.enforceCredentialAccess,
       piiBlockOutputRedaction: this.contextExtensions.piiBlockOutputRedaction,
+      blockMocks: this.contextExtensions.blockMocks,
       blockStates: state.getBlockStates(),
       blockLogs: overrides?.runFromBlockContext ? [] : (snapshotState?.blockLogs ?? []),
       metadata: {

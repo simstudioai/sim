@@ -3,6 +3,7 @@
  */
 import { databaseMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DbOrTx } from '@/lib/db/types'
 
 vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn(() => 'generated-uuid-1'),
@@ -12,7 +13,10 @@ vi.mock('@sim/utils/id', () => ({
   ),
 }))
 
-import { SnapshotService } from '@/lib/logs/execution/snapshot/service'
+import {
+  MAX_WORKFLOW_EXECUTION_SNAPSHOT_BYTES,
+  SnapshotService,
+} from '@/lib/logs/execution/snapshot/service'
 import type { WorkflowState } from '@/lib/logs/types'
 
 const mockState: WorkflowState = {
@@ -187,7 +191,7 @@ describe('SnapshotService', () => {
       const hash1 = service.computeStateHash(state1)
       const hash2 = service.computeStateHash(state2)
 
-      expect(hash1).toBe(hash2) // Should be same despite different order
+      expect(hash1).toBe(hash2)
     })
 
     it.concurrent('should handle empty states', () => {
@@ -380,6 +384,7 @@ describe('SnapshotService', () => {
       stateData: WorkflowState
       createdAt: Date
     }
+    type SnapshotInsert = Omit<SnapshotRow, 'createdAt'>
 
     /** Mock the insert → values → onConflictDoUpdate → returning chain. */
     function mockUpsertReturning(rows: SnapshotRow[]) {
@@ -419,6 +424,46 @@ describe('SnapshotService', () => {
       expect(databaseMock.db.select).not.toHaveBeenCalled()
     })
 
+    it('uses the supplied transaction executor', async () => {
+      const service = new SnapshotService()
+      const workflowId = 'wf-123'
+      const returning = vi.fn().mockResolvedValue([
+        {
+          id: 'generated-uuid-1',
+          workflowId,
+          stateHash: 'abc123',
+          stateData: mockState,
+          createdAt: new Date('2026-02-19T00:00:00Z'),
+        },
+      ])
+      const transaction = {
+        insert: vi.fn().mockReturnValue({
+          values: vi.fn().mockReturnValue({
+            onConflictDoUpdate: vi.fn().mockReturnValue({ returning }),
+          }),
+        }),
+      } as unknown as DbOrTx
+
+      const result = await service.createSnapshotWithDeduplication(
+        workflowId,
+        mockState,
+        transaction
+      )
+
+      expect(transaction.insert).toHaveBeenCalled()
+      expect(databaseMock.db.insert).not.toHaveBeenCalled()
+      expect(result.snapshot.id).toBe('generated-uuid-1')
+    })
+
+    it('fails when the atomic upsert returns no snapshot', async () => {
+      const service = new SnapshotService()
+      mockUpsertReturning([])
+
+      await expect(service.createSnapshotWithDeduplication('wf-123', mockState)).rejects.toThrow(
+        'Failed to create workflow snapshot for workflow wf-123'
+      )
+    })
+
     it('reuses the existing snapshot atomically when the returned id differs', async () => {
       const service = new SnapshotService()
       const workflowId = 'wf-123'
@@ -438,6 +483,61 @@ describe('SnapshotService', () => {
       expect(result.snapshot.id).toBe('existing-snapshot-id')
       expect(result.isNew).toBe(false)
       expect(databaseMock.db.select).not.toHaveBeenCalled()
+    })
+
+    it('does not deduplicate output-only changes in exact mode', async () => {
+      const service = new SnapshotService()
+      const workflowId = 'wf-123'
+      const changedState = structuredClone(mockState)
+      changedState.blocks.block1.outputs = {
+        response: { type: 'number', description: 'Changed output' },
+      }
+      const inserted: SnapshotInsert[] = []
+      const values = vi.fn().mockImplementation((snapshotData: SnapshotInsert) => {
+        inserted.push(snapshotData)
+        return {
+          onConflictDoUpdate: vi.fn().mockReturnValue({
+            returning: vi
+              .fn()
+              .mockResolvedValue([{ ...snapshotData, createdAt: new Date('2026-02-19') }]),
+          }),
+        }
+      })
+      databaseMock.db.insert = vi.fn().mockReturnValue({ values })
+
+      await service.createExactSnapshotWithDeduplication(workflowId, mockState)
+      await service.createExactSnapshotWithDeduplication(workflowId, changedState)
+
+      expect(inserted).toHaveLength(2)
+      expect(inserted[0]?.stateHash).not.toBe(inserted[1]?.stateHash)
+    })
+
+    it('fails fast if a hash conflict returns different stored state', async () => {
+      const service = new SnapshotService()
+      const workflowId = 'wf-123'
+      const mismatchedState: WorkflowState = {
+        ...mockState,
+        blocks: {
+          block1: {
+            ...mockState.blocks.block1,
+            outputs: { changed: { type: 'number' } },
+          },
+        },
+      }
+
+      mockUpsertReturning([
+        {
+          id: 'existing-snapshot-id',
+          workflowId,
+          stateHash: service.computeExactStateHash(mockState),
+          stateData: mismatchedState,
+          createdAt: new Date('2026-02-19T00:00:00Z'),
+        },
+      ])
+
+      await expect(
+        service.createExactSnapshotWithDeduplication(workflowId, mockState)
+      ).rejects.toThrow('hash collision returned mismatched state')
     })
 
     it('SET targets only state_hash on conflict, never the large state_data', async () => {
@@ -496,6 +596,113 @@ describe('SnapshotService', () => {
       expect(result1.isNew).toBe(true)
       expect(result2.snapshot.id).toBe('existing-snapshot-id')
       expect(result2.isNew).toBe(false)
+    })
+  })
+
+  describe('getBoundedSnapshotForWorkflow', () => {
+    function selectChain(rows: unknown[]) {
+      return {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue(rows),
+          }),
+        }),
+      }
+    }
+
+    function mockBoundedSnapshotQueries(params: {
+      workflowId?: string | null
+      stateBytes?: number
+      stateHash?: string
+      stateData?: unknown
+    }) {
+      const service = new SnapshotService()
+      const workflowId = params.workflowId === undefined ? 'wf-123' : params.workflowId
+      const stateData = params.stateData ?? mockState
+      const stateHash = params.stateHash ?? service.computeExactStateHash(mockState)
+      databaseMock.db.select = vi
+        .fn()
+        .mockReturnValueOnce(
+          selectChain([
+            {
+              workflowId,
+              stateHash,
+              stateBytes: params.stateBytes ?? 1_024,
+            },
+          ])
+        )
+        .mockReturnValueOnce(
+          selectChain([
+            {
+              id: 'snapshot-1',
+              workflowId,
+              stateHash,
+              stateData,
+              createdAt: new Date('2026-02-19T00:00:00Z'),
+            },
+          ])
+        )
+      return service
+    }
+
+    it('preflights bytes and returns a workflow-owned hash-validated snapshot', async () => {
+      const service = mockBoundedSnapshotQueries({})
+
+      const snapshot = await service.getBoundedSnapshotForWorkflow('snapshot-1', 'wf-123')
+
+      expect(snapshot).toMatchObject({
+        id: 'snapshot-1',
+        workflowId: 'wf-123',
+        stateData: mockState,
+        createdAt: '2026-02-19T00:00:00.000Z',
+      })
+      expect(databaseMock.db.select).toHaveBeenCalledTimes(2)
+    })
+
+    it('rejects snapshots written with the semantic logging hash', async () => {
+      const legacyHash = new SnapshotService().computeStateHash(mockState)
+      const service = mockBoundedSnapshotQueries({ stateHash: legacyHash })
+
+      await expect(service.getBoundedSnapshotForWorkflow('snapshot-1', 'wf-123')).rejects.toThrow(
+        'failed state hash validation'
+      )
+    })
+
+    it('rejects oversized state before the materialization query', async () => {
+      const service = mockBoundedSnapshotQueries({
+        stateBytes: MAX_WORKFLOW_EXECUTION_SNAPSHOT_BYTES + 1,
+      })
+
+      await expect(service.getBoundedSnapshotForWorkflow('snapshot-1', 'wf-123')).rejects.toThrow(
+        `exceeds ${MAX_WORKFLOW_EXECUTION_SNAPSHOT_BYTES} serialized bytes`
+      )
+      expect(databaseMock.db.select).toHaveBeenCalledTimes(1)
+    })
+
+    it('rejects a snapshot owned by another workflow before materialization', async () => {
+      const service = mockBoundedSnapshotQueries({ workflowId: 'wf-other' })
+
+      await expect(service.getBoundedSnapshotForWorkflow('snapshot-1', 'wf-123')).rejects.toThrow(
+        'does not belong to workflow wf-123'
+      )
+      expect(databaseMock.db.select).toHaveBeenCalledTimes(1)
+    })
+
+    it('rejects invalid workflow state and state hash mismatches', async () => {
+      const invalidStateService = mockBoundedSnapshotQueries({
+        stateHash: '0'.repeat(64),
+        stateData: {},
+      })
+      await expect(
+        invalidStateService.getBoundedSnapshotForWorkflow('snapshot-1', 'wf-123')
+      ).rejects.toThrow('contains invalid workflow state')
+
+      const mismatchedHashService = mockBoundedSnapshotQueries({
+        stateHash: '0'.repeat(64),
+      })
+      await expect(
+        mismatchedHashService.getBoundedSnapshotForWorkflow('snapshot-1', 'wf-123')
+      ).rejects.toThrow('failed state hash validation')
     })
   })
 

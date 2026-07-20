@@ -74,6 +74,28 @@ export const useTerminalStore = create<TerminalState>()(
       setStructuredView: (structured) => {
         set({ structuredView: structured })
       },
+      requestedTerminalView: null,
+      requestTerminalView: (workflowId, view) => {
+        set({ requestedTerminalView: { workflowId, view } })
+      },
+      clearRequestedTerminalView: (workflowId) => {
+        set((state) =>
+          state.requestedTerminalView?.workflowId === workflowId
+            ? { requestedTerminalView: null }
+            : {}
+        )
+      },
+      evalErrorHighlight: null,
+      setEvalErrorHighlight: (workflowId, blockIds) => {
+        const uniqueBlockIds = [...new Set(blockIds)]
+        if (uniqueBlockIds.length === 0) {
+          throw new Error('Eval error highlights require at least one block id')
+        }
+        set({ evalErrorHighlight: { workflowId, blockIds: uniqueBlockIds } })
+      },
+      clearEvalErrorHighlight: () => {
+        set({ evalErrorHighlight: null })
+      },
       /**
        * Indicates whether the terminal store has finished client-side hydration.
        */
@@ -90,8 +112,8 @@ export const useTerminalStore = create<TerminalState>()(
     {
       name: 'terminal-state',
       /**
-       * Persist only the durable terminal UI preferences. The `_hasHydrated`
-       * hydration marker is excluded so it always starts fresh on load.
+       * Persist only durable terminal UI preferences. Hydration state and the
+       * one-shot requested view always start fresh on load.
        */
       partialize: (state) => ({
         terminalHeight: state.terminalHeight,

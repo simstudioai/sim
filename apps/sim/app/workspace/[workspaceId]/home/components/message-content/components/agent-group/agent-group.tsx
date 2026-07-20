@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
-import { ShimmerText } from '@/components/ui'
+import { EvalStatusIndicator, ShimmerText } from '@/components/ui'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import type { ToolCallData } from '../../../../types'
 import { getAgentIcon, isToolDone } from '../../utils'
@@ -54,6 +54,19 @@ export function isAgentGroupResolved(items: AgentGroupItem[]): boolean {
   return hasWork
 }
 
+interface AgentGroupIconProps {
+  agentName: string
+}
+
+function AgentGroupIcon({ agentName }: AgentGroupIconProps) {
+  if (agentName === 'eval') {
+    return <EvalStatusIndicator status='progress' progressMode='squeezed' decorative size={16} />
+  }
+
+  const Icon = getAgentIcon(agentName)
+  return <Icon className='size-[16px] text-[var(--text-icon)]' />
+}
+
 export function AgentGroup({
   agentName,
   agentLabel,
@@ -63,7 +76,6 @@ export function AgentGroup({
   isCurrentSection = false,
   isLaneOpen = false,
 }: AgentGroupProps) {
-  const AgentIcon = getAgentIcon(agentName)
   const hasItems = items.length > 0
   const resolved = isAgentGroupResolved(items)
   const isWorking = (isDelegating && !resolved) || (isStreaming && isLaneOpen)
@@ -91,7 +103,7 @@ export function AgentGroup({
           className='group/agent flex cursor-pointer items-center gap-2'
         >
           <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
-            <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
+            <AgentGroupIcon agentName={agentName} />
           </div>
           {isWorking ? (
             <ShimmerText className='text-sm'>{agentLabel}</ShimmerText>
@@ -108,7 +120,7 @@ export function AgentGroup({
       ) : (
         <div className='flex items-center gap-2'>
           <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
-            <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
+            <AgentGroupIcon agentName={agentName} />
           </div>
           {isWorking ? (
             <ShimmerText className='text-sm'>{agentLabel}</ShimmerText>

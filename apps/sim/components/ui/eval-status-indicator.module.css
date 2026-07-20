@@ -1,0 +1,95 @@
+.frame {
+  --esi-grad-inner: #4f4f4f;
+  --esi-grad-outer: #6f6f6f;
+  --esi-track: rgba(0, 0, 0, 0.1);
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+
+.inkGradientInner {
+  stop-color: var(--esi-grad-inner);
+}
+
+.inkGradientOuter {
+  stop-color: var(--esi-grad-outer);
+}
+
+:global(.dark) .frame {
+  --esi-grad-inner: var(--text-primary);
+  --esi-grad-outer: var(--text-secondary);
+  --esi-track: rgba(255, 255, 255, 0.14);
+}
+
+:global(.light) .frame {
+  --esi-grad-inner: #4f4f4f;
+  --esi-grad-outer: #6f6f6f;
+  --esi-track: rgba(0, 0, 0, 0.1);
+}
+
+.failureGradientInner {
+  stop-color: var(--error-emphasis);
+}
+
+.failureGradientOuter {
+  stop-color: var(--text-error);
+}
+
+.glow {
+  flood-color: var(--surface-2);
+}
+
+.pendingRing {
+  fill: none;
+  stroke: var(--border-1);
+  stroke-width: 6;
+}
+
+.progressInk {
+  stroke-width: 0;
+}
+
+.selectionRing {
+  stroke-width: 4;
+}
+
+.squeezeBarLeft {
+  animation: squeeze-left 600ms infinite alternate;
+}
+
+.squeezeBarRight {
+  animation: squeeze-right 600ms infinite alternate;
+}
+
+@keyframes squeeze-left {
+  0%,
+  30% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(10px);
+  }
+}
+
+@keyframes squeeze-right {
+  0%,
+  30% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-10px);
+  }
+}
+
+.partialResultTrack {
+  stroke: var(--esi-track);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .squeezeBarLeft,
+  .squeezeBarRight {
+    animation: none;
+  }
+}

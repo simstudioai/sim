@@ -10,7 +10,10 @@ import {
   knowledgeConnector,
   mcpServers as mcpServersTable,
   skill as skillTable,
+  workflow,
   workflowDeploymentVersion,
+  workflowEvalRun,
+  workflowEvalSuite,
   workflowExecutionLogs,
   workflowFolder,
   workflowMcpServer,
@@ -19,7 +22,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import {
   buildWorkspaceContextMd,
@@ -51,8 +54,13 @@ import {
   canonicalWorkspaceFilePath,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
-import type { DeploymentData, KbTagDefinitionSummary } from '@/lib/copilot/vfs/serializers'
+import type {
+  DeploymentData,
+  KbTagDefinitionSummary,
+  WorkflowEvalVfsSuiteSummary,
+} from '@/lib/copilot/vfs/serializers'
 import {
+  MAX_WORKFLOW_EVAL_VFS_SUITES,
   serializeApiKeyIntegrations,
   serializeApiKeys,
   serializeBlockSchema,
@@ -78,6 +86,7 @@ import {
   serializeTriggerOverview,
   serializeTriggerSchema,
   serializeVersions,
+  serializeWorkflowEvals,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
 import {
@@ -144,6 +153,8 @@ const logger = createLogger('WorkspaceVFS')
 // double-cast-allowed: a no-op stands in for the unused SVG-typed BlockIcon slot
 const PLACEHOLDER_BLOCK_ICON = (() => null) as unknown as BlockIcon
 const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
+const MAX_WORKFLOW_EVAL_VFS_SUITE_NAME_BYTES = 800
+const MAX_WORKFLOW_EVAL_VFS_TESTS_PER_SUITE = 1_000
 
 /**
  * Static component files, computed once and shared across all VFS instances.
@@ -438,6 +449,7 @@ function getStaticComponentFiles(): Map<string, string> {
  *   workflows/{name}/meta.json            (root-level workflows)
  *   workflows/{name}/state.json          (sanitized blocks with embedded connections)
  *   workflows/{name}/lint.json           (sources/sinks, required-field, credential/resource issues)
+ *   workflows/{name}/evals.json          (bounded Eval suite summaries and latest runs)
  *   workflows/{name}/executions.json
  *   workflows/{name}/deployment.json
  *   workflows/{folder}/{name}/...        (workflows inside folders, nested folders supported)
@@ -671,6 +683,22 @@ export class WorkspaceVFS {
         { attributes: { [TraceAttr.WorkspaceId]: workspaceId } },
         async (span) => {
           try {
+            const workspaceRowPromise = timed('workspace_row', getWorkspaceWithOwner(workspaceId))
+            const workflowSummaryPromise = workspaceRowPromise.then(async (workspaceRow) => {
+              const workflowEvalsEnabled = workspaceRow
+                ? await timed(
+                    'workflow_evals_flag',
+                    isFeatureEnabled('workflow-evals', {
+                      userId,
+                      orgId: workspaceRow.organizationId ?? undefined,
+                    })
+                  )
+                : false
+              return timed(
+                'workflows',
+                this.materializeWorkflows(workspaceId, workflowEvalsEnabled)
+              )
+            })
             const [
               wfSummary,
               kbSummary,
@@ -686,7 +714,7 @@ export class WorkspaceVFS {
               wsRow,
               members,
             ] = await Promise.all([
-              timed('workflows', this.materializeWorkflows(workspaceId)),
+              workflowSummaryPromise,
               timed('knowledge_bases', this.materializeKnowledgeBases(workspaceId, userId)),
               timed('tables', this.materializeTables(workspaceId)),
               timed('files', this.materializeFiles(workspaceId)),
@@ -697,7 +725,7 @@ export class WorkspaceVFS {
               timed('skills', this.materializeSkills(workspaceId)),
               timed('tasks', this.materializeTasks(workspaceId, userId)),
               timed('jobs', this.materializeJobs(workspaceId)),
-              timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
+              workspaceRowPromise,
               timed('members', getUsersWithPermissions(workspaceId)),
             ])
 
@@ -1320,6 +1348,210 @@ export class WorkspaceVFS {
     return lockedFolderIds
   }
 
+  /** Load one compact Eval count row per active workflow without materializing test JSON. */
+  private async loadWorkflowEvalCounts(
+    workspaceId: string,
+    workflowCount: number
+  ): Promise<Map<string, { suiteCount: number; testCount: number }>> {
+    if (workflowCount === 0) return new Map()
+
+    const rows = await db
+      .select({
+        workflowId: workflowEvalSuite.workflowId,
+        suiteCount: sql<number>`count(*)::integer`,
+        testCount: sql<number>`coalesce(sum(jsonb_array_length(${workflowEvalSuite.tests})), 0)::integer`,
+      })
+      .from(workflowEvalSuite)
+      .innerJoin(workflow, eq(workflow.id, workflowEvalSuite.workflowId))
+      .where(
+        and(
+          eq(workflow.workspaceId, workspaceId),
+          isNull(workflow.archivedAt),
+          isNull(workflowEvalSuite.archivedAt)
+        )
+      )
+      .groupBy(workflowEvalSuite.workflowId)
+      .limit(workflowCount + 1)
+
+    if (rows.length > workflowCount) {
+      throw new Error(
+        `Workspace ${workspaceId} returned more Eval aggregate rows than its ${workflowCount} active workflows`
+      )
+    }
+
+    const counts = new Map<string, { suiteCount: number; testCount: number }>()
+    for (const row of rows) {
+      if (
+        !Number.isSafeInteger(row.suiteCount) ||
+        row.suiteCount <= 0 ||
+        row.suiteCount > MAX_WORKFLOW_EVAL_VFS_SUITES
+      ) {
+        throw new Error(
+          `Workflow ${row.workflowId} returned invalid Eval suite count ${row.suiteCount}`
+        )
+      }
+      if (
+        !Number.isSafeInteger(row.testCount) ||
+        row.testCount < 0 ||
+        row.testCount > row.suiteCount * MAX_WORKFLOW_EVAL_VFS_TESTS_PER_SUITE
+      ) {
+        throw new Error(
+          `Workflow ${row.workflowId} returned invalid Eval test count ${row.testCount}`
+        )
+      }
+      counts.set(row.workflowId, {
+        suiteCount: row.suiteCount,
+        testCount: row.testCount,
+      })
+    }
+    return counts
+  }
+
+  /** Load a bounded, definition-free Eval suite index for one workflow. */
+  private async loadWorkflowEvalVfsSuites(
+    workflowId: string,
+    workspaceId: string
+  ): Promise<WorkflowEvalVfsSuiteSummary[]> {
+    const suiteRows = await db
+      .select({
+        id: workflowEvalSuite.id,
+        name: sql<string | null>`CASE
+          WHEN octet_length(${workflowEvalSuite.name}) <= ${MAX_WORKFLOW_EVAL_VFS_SUITE_NAME_BYTES}
+          THEN ${workflowEvalSuite.name}
+          ELSE NULL
+        END`,
+        nameBytes: sql<number>`octet_length(${workflowEvalSuite.name})::integer`,
+        definitionRevision: workflowEvalSuite.definitionRevision,
+        testCount: sql<number>`jsonb_array_length(${workflowEvalSuite.tests})::integer`,
+        codeCount: sql<number>`coalesce((
+          SELECT count(*)::integer
+          FROM jsonb_array_elements(${workflowEvalSuite.tests}) AS test(value)
+          WHERE test.value->'evaluator'->>'type' = 'code'
+        ), 0)`,
+        agentCount: sql<number>`coalesce((
+          SELECT count(*)::integer
+          FROM jsonb_array_elements(${workflowEvalSuite.tests}) AS test(value)
+          WHERE test.value->'evaluator'->>'type' = 'agent'
+        ), 0)`,
+        workflowCount: sql<number>`coalesce((
+          SELECT count(*)::integer
+          FROM jsonb_array_elements(${workflowEvalSuite.tests}) AS test(value)
+          WHERE test.value->'evaluator'->>'type' = 'workflow'
+        ), 0)`,
+        createdAt: workflowEvalSuite.createdAt,
+        updatedAt: workflowEvalSuite.updatedAt,
+      })
+      .from(workflowEvalSuite)
+      .where(
+        and(eq(workflowEvalSuite.workflowId, workflowId), isNull(workflowEvalSuite.archivedAt))
+      )
+      .orderBy(asc(workflowEvalSuite.createdAt), asc(workflowEvalSuite.id))
+      .limit(MAX_WORKFLOW_EVAL_VFS_SUITES + 1)
+
+    if (suiteRows.length > MAX_WORKFLOW_EVAL_VFS_SUITES) {
+      throw new Error(
+        `Workflow ${workflowId} has more than ${MAX_WORKFLOW_EVAL_VFS_SUITES} active Eval suites`
+      )
+    }
+    if (suiteRows.length === 0) return []
+
+    for (const suite of suiteRows) {
+      if (
+        suite.name === null ||
+        !Number.isSafeInteger(suite.nameBytes) ||
+        suite.nameBytes < 1 ||
+        suite.nameBytes > MAX_WORKFLOW_EVAL_VFS_SUITE_NAME_BYTES
+      ) {
+        throw new Error(
+          `Eval suite ${suite.id} name exceeds the ${MAX_WORKFLOW_EVAL_VFS_SUITE_NAME_BYTES}-byte VFS limit`
+        )
+      }
+      if (!Number.isSafeInteger(suite.definitionRevision) || suite.definitionRevision < 1) {
+        throw new Error(
+          `Eval suite ${suite.id} has invalid definition revision ${suite.definitionRevision}`
+        )
+      }
+      const evaluatorCount = suite.codeCount + suite.agentCount + suite.workflowCount
+      if (
+        !Number.isSafeInteger(suite.testCount) ||
+        suite.testCount < 0 ||
+        !Number.isSafeInteger(evaluatorCount) ||
+        evaluatorCount !== suite.testCount
+      ) {
+        throw new Error(
+          `Eval suite ${suite.id} has ${suite.testCount} tests but ${evaluatorCount} recognized evaluators`
+        )
+      }
+    }
+
+    const latestRunRows = await db
+      .selectDistinctOn([workflowEvalRun.suiteId], {
+        id: workflowEvalRun.id,
+        suiteId: workflowEvalRun.suiteId,
+        status: workflowEvalRun.status,
+        scope: workflowEvalRun.scope,
+        selectedTestId: workflowEvalRun.selectedTestId,
+        totalCount: workflowEvalRun.totalCount,
+        completedCount: workflowEvalRun.completedCount,
+        passedCount: workflowEvalRun.passedCount,
+        warningCount: workflowEvalRun.warningCount,
+        failedCount: workflowEvalRun.failedCount,
+        errorCount: workflowEvalRun.errorCount,
+        createdAt: workflowEvalRun.createdAt,
+        completedAt: workflowEvalRun.completedAt,
+      })
+      .from(workflowEvalRun)
+      .where(
+        and(
+          eq(workflowEvalRun.workspaceId, workspaceId),
+          inArray(
+            workflowEvalRun.suiteId,
+            suiteRows.map((suite) => suite.id)
+          )
+        )
+      )
+      .orderBy(workflowEvalRun.suiteId, desc(workflowEvalRun.createdAt), desc(workflowEvalRun.id))
+      .limit(suiteRows.length)
+    const latestRunBySuiteId = new Map(latestRunRows.map((run) => [run.suiteId, run]))
+
+    return suiteRows.map((suite) => {
+      const name = suite.name
+      if (name === null) {
+        throw new Error(`Eval suite ${suite.id} has no VFS-safe name`)
+      }
+      const latestRun = latestRunBySuiteId.get(suite.id)
+      return {
+        id: suite.id,
+        name,
+        definitionRevision: suite.definitionRevision,
+        testCount: suite.testCount,
+        evaluatorCounts: {
+          code: suite.codeCount,
+          agent: suite.agentCount,
+          workflow: suite.workflowCount,
+        },
+        createdAt: suite.createdAt,
+        updatedAt: suite.updatedAt,
+        latestRun: latestRun
+          ? {
+              id: latestRun.id,
+              status: latestRun.status,
+              scope: latestRun.scope,
+              selectedTestId: latestRun.selectedTestId,
+              totalCount: latestRun.totalCount,
+              completedCount: latestRun.completedCount,
+              passedCount: latestRun.passedCount,
+              warningCount: latestRun.warningCount,
+              failedCount: latestRun.failedCount,
+              errorCount: latestRun.errorCount,
+              createdAt: latestRun.createdAt,
+              completedAt: latestRun.completedAt,
+            }
+          : null,
+      }
+    })
+  }
+
   /**
    * Materialize all workflows using the shared listWorkflows function.
    * Workflows are nested under their folder paths in the VFS:
@@ -1327,12 +1559,18 @@ export class WorkspaceVFS {
    *   workflows/{name}/           (if at workspace root)
    * Returns a summary for WORKSPACE.md generation.
    */
-  private async materializeWorkflows(workspaceId: string): Promise<WorkspaceMdData['workflows']> {
+  private async materializeWorkflows(
+    workspaceId: string,
+    workflowEvalsEnabled: boolean
+  ): Promise<WorkspaceMdData['workflows']> {
     const workflowArtifactsEnabled = this._betaEnabled
     const [workflowRows, folderRows] = await Promise.all([
       listWorkflows(workspaceId),
       listFolders(workspaceId),
     ])
+    const evalCountsByWorkflowId = workflowEvalsEnabled
+      ? await this.loadWorkflowEvalCounts(workspaceId, workflowRows.length)
+      : new Map<string, { suiteCount: number; testCount: number }>()
 
     const folderPaths = this.buildFolderPaths(folderRows)
     const lockedFolderIds = this.computeLockedFolderIds(folderRows)
@@ -1362,7 +1600,20 @@ export class WorkspaceVFS {
         const workflowPath = prefix.replace(/\/$/, '')
 
         const inheritedFolderLock = wf.folderId ? lockedFolderIds.has(wf.folderId) : false
-        this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf, { inheritedFolderLock }))
+        const evalCounts = evalCountsByWorkflowId.get(wf.id)
+        this.files.set(
+          `${prefix}meta.json`,
+          serializeWorkflowMeta(wf, {
+            inheritedFolderLock,
+            evals: evalCounts
+              ? {
+                  suiteCount: evalCounts.suiteCount,
+                  testCount: evalCounts.testCount,
+                  path: `${workflowPath}/evals.json`,
+                }
+              : undefined,
+          })
+        )
 
         if (workflowArtifactsEnabled) {
           const changelog = findWorkspaceFileRecord(
@@ -1439,6 +1690,13 @@ export class WorkspaceVFS {
         // deployment.json + versions.json share one memoized deployment query.
         // This is the change that stops every read/glob from paying O(workflows)
         // graph-loads + lint + stringify (what made large-workspace reads ~40s).
+        if (evalCounts) {
+          this.registerLazy(`${prefix}evals.json`, async () => {
+            const suites = await this.loadWorkflowEvalVfsSuites(wf.id, workspaceId)
+            return serializeWorkflowEvals(wf.id, suites)
+          })
+        }
+
         this.registerLazy(`${prefix}state.json`, async () => {
           const normalized = await this.loadNormalized(wf.id)
           // loadWorkflowFromNormalizedTables returns null for a zero-block
@@ -1524,6 +1782,8 @@ export class WorkspaceVFS {
       isDeployed: wf.isDeployed,
       lastRunAt: wf.lastRunAt,
       folderPath: wf.folderId ? (folderPaths.get(wf.folderId) ?? null) : null,
+      evalSuiteCount: evalCountsByWorkflowId.get(wf.id)?.suiteCount,
+      evalTestCount: evalCountsByWorkflowId.get(wf.id)?.testCount,
     }))
   }
 

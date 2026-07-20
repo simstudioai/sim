@@ -4332,7 +4332,7 @@ const WorkflowContent = React.memo(
             {!embedded && <DiffControls />}
           </div>
 
-          <Terminal />
+          <Terminal embedded={embedded} />
         </div>
 
         {!embedded && <Panel />}

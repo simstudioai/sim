@@ -80,6 +80,7 @@ export const zaiProvider: ProviderConfig = {
       const zai = new OpenAI({
         apiKey: request.apiKey,
         baseURL: ZAI_BASE_URL,
+        ...(request.maxRetries !== undefined ? { maxRetries: request.maxRetries } : {}),
       })
 
       const allMessages = []

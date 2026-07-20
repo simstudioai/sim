@@ -23,12 +23,14 @@ export const anthropicProvider: ProviderConfig = {
       providerId: 'anthropic',
       providerLabel: 'Anthropic',
       createClient: (apiKey, useNativeStructuredOutputs) => {
-        const cacheKey = `anthropic::${apiKey}::${useNativeStructuredOutputs ? 'beta' : 'default'}`
+        const retryKey = request.maxRetries ?? 'default'
+        const cacheKey = `anthropic::${apiKey}::${useNativeStructuredOutputs ? 'beta' : 'default'}::retries-${retryKey}`
         return getCachedProviderClient(
           cacheKey,
           () =>
             new Anthropic({
               apiKey,
+              ...(request.maxRetries !== undefined ? { maxRetries: request.maxRetries } : {}),
               defaultHeaders: useNativeStructuredOutputs
                 ? { 'anthropic-beta': 'structured-outputs-2025-11-13' }
                 : undefined,

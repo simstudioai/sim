@@ -5,6 +5,7 @@ import { useBlockCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workfl
 import { getBlockRingStyles } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-ring-utils'
 import { useLastRunPath } from '@/stores/execution'
 import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
+import { useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**
@@ -67,6 +68,12 @@ export function useBlockVisual({
 
   const lastRunPath = useLastRunPath()
   const runPathStatus = isPreview ? undefined : lastRunPath.get(blockId)
+  const isEvalErrorHighlighted = useTerminalStore(
+    (state) =>
+      !isPreview &&
+      state.evalErrorHighlight?.workflowId === activeWorkflowId &&
+      state.evalErrorHighlight.blockIds.includes(blockId)
+  )
 
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
 
@@ -85,6 +92,7 @@ export function useBlockVisual({
         isDeletedBlock: isPreview ? false : isDeletedBlock,
         diffStatus: isPreview ? undefined : diffStatus,
         runPathStatus,
+        isEvalErrorHighlighted,
         isPreviewSelection: isPreview && isPreviewSelected,
         isSelected: isPreview || isEmbedded ? false : isSelected,
       }),
@@ -95,6 +103,7 @@ export function useBlockVisual({
       isDeletedBlock,
       diffStatus,
       runPathStatus,
+      isEvalErrorHighlighted,
       isPreview,
       isEmbedded,
       isPreviewSelected,
@@ -110,6 +119,6 @@ export function useBlockVisual({
     handleClick,
     hasRing,
     ringStyles,
-    runPathStatus,
+    runPathStatus: isEvalErrorHighlighted ? 'error' : runPathStatus,
   }
 }

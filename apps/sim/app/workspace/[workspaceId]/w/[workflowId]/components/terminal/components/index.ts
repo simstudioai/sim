@@ -1,3 +1,12 @@
+export {
+  EvalTestDetailsModal,
+  type EvalTestSelection,
+  type EvalTestSelectionKey,
+  getEvalTestSelectionKey,
+  resolveEvalTestSelection,
+  TerminalEvalsPane,
+  type TerminalEvalsPaneProps,
+} from './evals-pane'
 export { FilterPopover, type FilterPopoverProps } from './filter-popover'
 export { LogRowContextMenu, type LogRowContextMenuProps } from './log-row-context-menu'
 export { OutputPanel, type OutputPanelProps } from './output-panel'

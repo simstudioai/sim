@@ -5,27 +5,39 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   ChevronDown,
+  Chip,
   handleKeyboardActivation,
   Popover,
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
   Tooltip,
+  toast,
 } from '@sim/emcn'
 import { Download } from '@sim/emcn/icons'
+import { getErrorMessage } from '@sim/utils/errors'
 import { formatDuration } from '@sim/utils/formatting'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import clsx from 'clsx'
+import { AnimatePresence, domAnimation, LazyMotion, MotionConfig, m } from 'framer-motion'
 import { ArrowDown, ArrowUp, Database, MoreHorizontal, Palette, Pause, Trash2 } from 'lucide-react'
 import Link from 'next/link'
+import { useReactFlow } from 'reactflow'
+import type { WorkflowEvalSuite } from '@/lib/api/contracts/workflow-evals'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
+  EvalTestDetailsModal,
+  type EvalTestSelection,
+  type EvalTestSelectionKey,
+  getEvalTestSelectionKey,
   LogRowContextMenu,
   OutputPanel,
+  resolveEvalTestSelection,
   StatusDisplay,
+  TerminalEvalsPane,
   ToggleButton,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components'
 import {
@@ -48,11 +60,19 @@ import {
   TERMINAL_CONFIG,
   type VisibleTerminalRow,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
+import { useNodeUtilities } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getTileIconColorClass } from '@/blocks/icon-color'
+import {
+  useStartWorkflowEvalSuiteRun,
+  useStartWorkflowEvalTestRun,
+  useStopWorkflowEvalRun,
+  useWorkflowEvalSuites,
+} from '@/hooks/queries/evals'
 import { useShowTrainingControls } from '@/hooks/queries/general-settings'
+import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
-import type { ConsoleEntry } from '@/stores/terminal'
+import type { ConsoleEntry, TerminalView } from '@/stores/terminal'
 import {
   safeConsoleStringify,
   useConsoleEntry,
@@ -69,6 +89,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 const MIN_HEIGHT = TERMINAL_HEIGHT.MIN
 const DEFAULT_EXPANDED_HEIGHT = TERMINAL_HEIGHT.DEFAULT
 const MIN_OUTPUT_PANEL_WIDTH_PX = OUTPUT_PANEL_WIDTH.MIN
+const EMPTY_EVAL_SUITES: readonly WorkflowEvalSuite[] = []
 
 const MAX_TREE_DEPTH = 50
 
@@ -669,7 +690,11 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
 /**
  * Terminal component with resizable height that persists across page refreshes.
  */
-export const Terminal = memo(function Terminal() {
+interface TerminalProps {
+  embedded?: boolean
+}
+
+export const Terminal = memo(function Terminal({ embedded = false }: TerminalProps) {
   const terminalRef = useRef<HTMLElement>(null)
   const prevWorkflowEntriesLengthRef = useRef(0)
   const hasInitializedEntriesRef = useRef(false)
@@ -682,20 +707,37 @@ export const Terminal = memo(function Terminal() {
   const showInputRef = useRef(false)
   const hasInputDataRef = useRef(false)
   const isExpandedRef = useRef(false)
+  const terminalViewRef = useRef<TerminalView>('logs')
+
+  const reactFlowInstance = useReactFlow()
+  const workflowBlocks = useWorkflowStore((state) => state.blocks)
+  const { getNodeAbsolutePosition } = useNodeUtilities(workflowBlocks)
+  const { fitViewToBounds } = useCanvasViewport(reactFlowInstance, { embedded })
 
   const setTerminalHeight = useTerminalStore((state) => state.setTerminalHeight)
   const outputPanelWidth = useTerminalStore((state) => state.outputPanelWidth)
   const setOutputPanelWidth = useTerminalStore((state) => state.setOutputPanelWidth)
   const openOnRun = useTerminalStore((state) => state.openOnRun)
   const setOpenOnRun = useTerminalStore((state) => state.setOpenOnRun)
+  const setEvalErrorHighlight = useTerminalStore((state) => state.setEvalErrorHighlight)
+  const clearEvalErrorHighlight = useTerminalStore((state) => state.clearEvalErrorHighlight)
   const setHasHydrated = useTerminalStore((state) => state.setHasHydrated)
   const isExpanded = useTerminalStore(
     (state) => state.terminalHeight > TERMINAL_CONFIG.NEAR_MIN_THRESHOLD
   )
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const workspaceId = useWorkflowRegistry((state) => state.hydration.workspaceId)
   const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
   const consoleWorkflowId: string | undefined =
     hasConsoleHydrated && typeof activeWorkflowId === 'string' ? activeWorkflowId : undefined
+  const evalContext =
+    consoleWorkflowId && workspaceId ? { workflowId: consoleWorkflowId, workspaceId } : null
+  const requestedTerminalView = useTerminalStore((state) => {
+    const request = state.requestedTerminalView
+    if (!request || request.workflowId !== consoleWorkflowId) return null
+    return request.view
+  })
+  const clearRequestedTerminalView = useTerminalStore((state) => state.clearRequestedTerminalView)
   const entries = useWorkflowConsoleEntries(consoleWorkflowId)
 
   const clearWorkflowConsole = useTerminalConsoleStore((state) => state.clearWorkflowConsole)
@@ -703,12 +745,40 @@ export const Terminal = memo(function Terminal() {
 
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
   const selectedEntry = useConsoleEntry(selectedEntryId)
+  const [terminalView, setTerminalView] = useState<TerminalView>('logs')
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set())
   const [isToggling, setIsToggling] = useState(false)
   const [showCopySuccess, setShowCopySuccess] = useState(false)
   const [showInput, setShowInput] = useState(false)
   const [autoSelectEnabled, setAutoSelectEnabled] = useState(true)
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
+  const [selectedEvalTestKey, setSelectedEvalTestKey] = useState<EvalTestSelectionKey | null>(null)
+  const [evalDetailsSelectionKey, setEvalDetailsSelectionKey] =
+    useState<EvalTestSelectionKey | null>(null)
+
+  const evalSuitesQuery = useWorkflowEvalSuites(consoleWorkflowId, { active: true })
+  const {
+    mutate: startEvalSuiteRun,
+    isPending: isStartingEvalSuite,
+    variables: startingEvalSuiteId,
+  } = useStartWorkflowEvalSuiteRun(consoleWorkflowId)
+  const { mutate: startEvalTestRun, isPending: isStartingEvalTest } =
+    useStartWorkflowEvalTestRun(consoleWorkflowId)
+  const {
+    mutate: stopEvalRun,
+    isPending: isStoppingEvalRun,
+    variables: stoppingEvalRun,
+  } = useStopWorkflowEvalRun(consoleWorkflowId)
+  const evalsEnabled = evalSuitesQuery.data?.enabled === true
+  const evalSuites = evalSuitesQuery.data?.suites ?? EMPTY_EVAL_SUITES
+  const selectedEvalTest = evalsEnabled
+    ? resolveEvalTestSelection(evalSuites, selectedEvalTestKey)
+    : null
+  const evalDetailsSelection = evalsEnabled
+    ? resolveEvalTestSelection(evalSuites, evalDetailsSelectionKey)
+    : null
+  const visibleTerminalView: TerminalView = evalsEnabled ? terminalView : 'logs'
+  const hasActiveOutput = visibleTerminalView === 'logs' && Boolean(selectedEntry)
 
   const [isTrainingEnvEnabled] = useState(() =>
     isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
@@ -827,6 +897,7 @@ export const Terminal = memo(function Terminal() {
   showInputRef.current = showInput
   hasInputDataRef.current = hasInputData
   isExpandedRef.current = isExpanded
+  terminalViewRef.current = visibleTerminalView
 
   /**
    * Reset entry tracking when switching workflows to ensure auto-open
@@ -837,6 +908,32 @@ export const Terminal = memo(function Terminal() {
     prevActiveWorkflowIdRef.current = activeWorkflowId
     hasInitializedEntriesRef.current = false
   }
+
+  useEffect(() => {
+    setTerminalView('logs')
+    setSelectedEvalTestKey(null)
+    setEvalDetailsSelectionKey(null)
+    clearEvalErrorHighlight()
+    return () => clearEvalErrorHighlight()
+  }, [activeWorkflowId, clearEvalErrorHighlight])
+
+  useEffect(() => {
+    if (!consoleWorkflowId || !requestedTerminalView) return
+    setTerminalView(requestedTerminalView)
+    clearRequestedTerminalView(consoleWorkflowId)
+    if (requestedTerminalView === 'evals') {
+      expandToLastHeight()
+    }
+  }, [clearRequestedTerminalView, consoleWorkflowId, expandToLastHeight, requestedTerminalView])
+
+  useEffect(() => {
+    if (evalSuitesQuery.data && !evalSuitesQuery.data.enabled) {
+      setTerminalView('logs')
+      setSelectedEvalTestKey(null)
+      setEvalDetailsSelectionKey(null)
+      clearEvalErrorHighlight()
+    }
+  }, [clearEvalErrorHighlight, evalSuitesQuery.data])
 
   /**
    * Auto-open the terminal on new entries when "Open on run" is enabled.
@@ -922,6 +1019,113 @@ export const Terminal = memo(function Terminal() {
       })
     },
     [focusTerminal]
+  )
+
+  const handleTerminalViewChange = (view: TerminalView) => {
+    setTerminalView(view)
+    if (view === 'logs') {
+      setSelectedEvalTestKey(null)
+      clearEvalErrorHighlight()
+    }
+  }
+
+  const handleEvalSelectionChange = useCallback(
+    (selection: EvalTestSelection | null) => {
+      clearEvalErrorHighlight()
+      setSelectedEvalTestKey(selection ? getEvalTestSelectionKey(selection) : null)
+    },
+    [clearEvalErrorHighlight]
+  )
+
+  const handleShowEvalDetails = useCallback((selection: EvalTestSelection) => {
+    setEvalDetailsSelectionKey(getEvalTestSelectionKey(selection))
+  }, [])
+
+  const handleRunEvalSuite = useCallback(
+    (suiteId: string) => {
+      setSelectedEvalTestKey(null)
+      setEvalDetailsSelectionKey(null)
+      clearEvalErrorHighlight()
+      startEvalSuiteRun(suiteId, {
+        onError: (error) => {
+          toast.error(getErrorMessage(error, 'Failed to start eval suite'))
+        },
+      })
+    },
+    [clearEvalErrorHighlight, startEvalSuiteRun]
+  )
+
+  const handleRetryEvalTest = useCallback(
+    (suiteId: string, testId: string, expectedDefinitionRevision: number) => {
+      setSelectedEvalTestKey(null)
+      setEvalDetailsSelectionKey(null)
+      clearEvalErrorHighlight()
+      startEvalTestRun(
+        { suiteId, testId, expectedDefinitionRevision },
+        {
+          onError: (error) => {
+            toast.error(getErrorMessage(error, 'Failed to retry eval test'))
+          },
+        }
+      )
+    },
+    [clearEvalErrorHighlight, startEvalTestRun]
+  )
+
+  const handleStopEvalRun = useCallback(
+    (suiteId: string, runId: string) => {
+      stopEvalRun(
+        { suiteId, runId },
+        {
+          onError: (error) => {
+            toast.error(getErrorMessage(error, 'Failed to stop eval run'))
+          },
+        }
+      )
+    },
+    [stopEvalRun]
+  )
+
+  const handleFocusEvalErrorBlocks = useCallback(
+    (blockIds: readonly string[]) => {
+      const uniqueBlockIds = [...new Set(blockIds)]
+      if (uniqueBlockIds.length === 0) return
+
+      const nodesById = new Map(reactFlowInstance.getNodes().map((node) => [node.id, node]))
+      const targetNodes = uniqueBlockIds.flatMap((blockId) => {
+        const node = nodesById.get(blockId)
+        if (!node) return []
+        return [{ ...node, position: getNodeAbsolutePosition(blockId) }]
+      })
+
+      if (targetNodes.length === 0) {
+        toast.error('The configured error blocks are no longer in this workflow draft')
+        return
+      }
+      if (targetNodes.length !== uniqueBlockIds.length) {
+        toast.error('Some configured error blocks are no longer in this workflow draft')
+      }
+
+      if (!consoleWorkflowId) throw new Error('Eval error highlights require an active workflow')
+      setEvalErrorHighlight(
+        consoleWorkflowId,
+        targetNodes.map((node) => node.id)
+      )
+      fitViewToBounds({
+        nodes: targetNodes,
+        duration: 450,
+        padding: 0.18,
+        minZoom: 0.55,
+        maxZoom: 1.1,
+      })
+    },
+    [
+      consoleWorkflowId,
+      fitViewToBounds,
+      getNodeAbsolutePosition,
+      reactFlowInstance,
+      setEvalErrorHighlight,
+    ]
   )
 
   /**
@@ -1055,6 +1259,7 @@ export const Terminal = memo(function Terminal() {
       {
         id: 'clear-terminal-console',
         handler: () => {
+          if (terminalViewRef.current !== 'logs') return
           clearCurrentWorkflowConsole()
         },
         overrides: {
@@ -1186,6 +1391,10 @@ export const Terminal = memo(function Terminal() {
         return
       }
 
+      if (terminalViewRef.current === 'evals') {
+        return
+      }
+
       const currentEntry = selectedEntryRef.current
       const entries = navigableEntriesRef.current
 
@@ -1270,7 +1479,7 @@ export const Terminal = memo(function Terminal() {
     if (!el) return
 
     const handleResize = () => {
-      if (!selectedEntry) return
+      if (!hasActiveOutput) return
 
       if (el.style.getPropertyValue('--output-panel-width')) return
 
@@ -1297,259 +1506,362 @@ export const Terminal = memo(function Terminal() {
     observer.observe(el)
 
     return () => observer.disconnect()
-  }, [selectedEntry, outputPanelWidth, setOutputPanelWidth])
+  }, [hasActiveOutput, outputPanelWidth, setOutputPanelWidth])
+
+  if ((visibleTerminalView === 'evals' || evalDetailsSelection) && !evalContext) {
+    throw new Error('Eval terminal requires a hydrated workflow and workspace')
+  }
 
   return (
     <>
-      <aside
-        ref={terminalRef}
-        className={clsx(
-          'terminal-container relative shrink-0 overflow-hidden border-[var(--border)] border-t bg-[var(--bg)]',
-          isToggling && 'transition-[height] duration-100 ease-out'
-        )}
-        onTransitionEnd={handleTransitionEnd}
-        onFocus={handleTerminalFocus}
-        onBlur={handleTerminalBlur}
-        tabIndex={-1}
-        aria-label='Terminal'
-      >
-        {/* Resize Handle */}
-        <div
-          className='absolute top-[-4px] right-0 left-0 z-20 h-[8px] cursor-ns-resize'
-          onPointerDown={handlePointerDown}
-          role='separator'
-          aria-orientation='horizontal'
-          aria-label='Resize terminal'
-        />
-
-        <div className='relative flex h-full'>
-          {/* Left Section - Logs */}
-          <div
-            className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
-            style={selectedEntry ? { width: 'calc(100% - var(--output-panel-width))' } : undefined}
-          >
-            {/* Header */}
-            <div
-              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-4'
-              onClick={handleHeaderClick}
-            >
-              {/* Left side - Logs label */}
-              <span className={TERMINAL_CONFIG.HEADER_TEXT_CLASS}>Logs</span>
-
-              {/* Right side - Icons and options */}
-              {!selectedEntry && (
-                <div className='flex items-center gap-2'>
-                  {/* Sort toggle */}
-                  {allWorkflowEntries.length > 0 && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            toggleSort()
-                          }}
-                          aria-label='Sort by timestamp'
-                          className='!p-1.5 -m-1.5'
-                        >
-                          {sortConfig.direction === 'desc' ? (
-                            <ArrowDown className='h-3.5 w-3.5' />
-                          ) : (
-                            <ArrowUp className='h-3.5 w-3.5' />
-                          )}
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>Sort by time</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-
-                  {isPlaygroundEnabled && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Link href='/playground'>
-                          <Button
-                            variant='ghost'
-                            aria-label='Component Playground'
-                            className='!p-1.5 -m-1.5'
-                          >
-                            <Palette className='h-3.5 w-3.5' />
-                          </Button>
-                        </Link>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>Component Playground</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-
-                  {shouldShowTrainingButton && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={handleTrainingClick}
-                          aria-label={isTraining ? 'Stop training' : 'Train Sim'}
-                          className={clsx(
-                            '!p-1.5 -m-1.5',
-                            isTraining && 'text-orange-600 dark:text-orange-400'
-                          )}
-                        >
-                          {isTraining ? (
-                            <Pause className='h-3.5 w-3.5' />
-                          ) : (
-                            <Database className='h-3.5 w-3.5' />
-                          )}
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>{isTraining ? 'Stop Training' : 'Train Sim'}</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-
-                  {filteredEntries.length > 0 && (
-                    <>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            variant='ghost'
-                            onClick={handleExportConsole}
-                            aria-label='Export console CSV'
-                            className='!p-1.5 -m-1.5'
-                          >
-                            <Download className='h-3.5 w-3.5' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>
-                          <span>Export CSV</span>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            variant='ghost'
-                            onClick={handleClearConsole}
-                            aria-label='Clear console'
-                            className='!p-1.5 -m-1.5'
-                          >
-                            <Trash2 className='h-3.5 w-3.5' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>
-                          <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
-                    </>
-                  )}
-
-                  <Popover open={mainOptionsOpen} onOpenChange={setMainOptionsOpen} size='sm'>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        onClick={(e) => {
-                          e.stopPropagation()
-                        }}
-                        aria-label='Terminal options'
-                        className='!p-1.5 -m-1.5'
-                      >
-                        <MoreHorizontal className='h-3.5 w-3.5' />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      side='bottom'
-                      align='end'
-                      sideOffset={4}
-                      collisionPadding={0}
-                      onClick={(e) => e.stopPropagation()}
-                      style={{ minWidth: '140px', maxWidth: '160px' }}
-                      className='gap-0.5'
+      <div className='relative shrink-0'>
+        <LazyMotion features={domAnimation}>
+          <MotionConfig reducedMotion='user'>
+            <AnimatePresence initial={false} mode='wait'>
+              {selectedEvalTest && (
+                <m.div
+                  key={`${selectedEvalTest.runId}:${selectedEvalTest.testRun.id}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8, transition: { duration: 0.14, ease: 'easeIn' } }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className='pointer-events-none absolute right-0 bottom-full left-0 z-[var(--z-popover)]'
+                  data-eval-selection-banner
+                >
+                  <div className='h-6 bg-gradient-to-b from-transparent via-[color-mix(in_srgb,var(--bg)_35%,transparent)] to-[var(--bg)]' />
+                  <div className='pointer-events-auto flex min-h-11 min-w-0 items-center gap-4 bg-[var(--bg)] px-4 py-2'>
+                    <p
+                      className='line-clamp-2 min-w-0 flex-1 text-pretty text-[var(--text-secondary)] text-sm leading-5'
+                      aria-live='polite'
                     >
-                      <PopoverItem
-                        active={openOnRun}
-                        showCheck={openOnRun}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setOpenOnRun(!openOnRun)
-                        }}
-                      >
-                        <span>Open on run</span>
-                      </PopoverItem>
-                    </PopoverContent>
-                  </Popover>
-
-                  <ToggleButton
-                    isExpanded={isExpanded}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleHeaderClick()
-                    }}
-                  />
-                </div>
+                      {selectedEvalTest.description}
+                    </p>
+                    <Button type='button' onClick={() => handleShowEvalDetails(selectedEvalTest)}>
+                      Details
+                    </Button>
+                  </div>
+                </m.div>
               )}
-            </div>
+            </AnimatePresence>
+          </MotionConfig>
+        </LazyMotion>
 
-            {/* Execution list */}
-            <div className='flex-1 overflow-hidden'>
-              {executionGroups.length === 0 ? (
-                <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
-                  No logs yet
-                </div>
-              ) : (
-                <TerminalLogsPane
-                  executionGroups={executionGroups}
-                  selectedEntryId={selectedEntryId}
-                  onSelectEntry={handleSelectEntry}
-                  expandedNodes={expandedNodes}
-                  onToggleNode={handleToggleNode}
-                />
-              )}
-            </div>
-          </div>
-
-          {/* Right Section - Block Output (Overlay) */}
-          {selectedEntry && (
-            <OutputPanel
-              selectedEntry={selectedEntry}
-              handleOutputPanelResizePointerDown={handleOutputPanelResizePointerDown}
-              handleHeaderClick={handleHeaderClick}
-              isExpanded={isExpanded}
-              expandToLastHeight={expandToLastHeight}
-              showInput={showInput}
-              setShowInput={setShowInput}
-              hasInputData={hasInputData}
-              isPlaygroundEnabled={isPlaygroundEnabled}
-              shouldShowTrainingButton={shouldShowTrainingButton}
-              isTraining={isTraining}
-              handleTrainingClick={handleTrainingClick}
-              showCopySuccess={showCopySuccess}
-              handleCopy={handleCopy}
-              hasEntries={filteredEntries.length > 0}
-              handleExportConsole={handleExportConsole}
-              handleClearConsole={handleClearConsole}
-              shouldShowCodeDisplay={shouldShowCodeDisplay}
-              outputData={outputData}
-              handleClearConsoleFromMenu={handleClearConsoleFromMenu}
-            />
+        <aside
+          ref={terminalRef}
+          className={clsx(
+            'terminal-container relative shrink-0 overflow-hidden border-[var(--border)] border-t bg-[var(--bg)]',
+            isToggling && 'transition-[height] duration-100 ease-out'
           )}
-        </div>
-      </aside>
+          onTransitionEnd={handleTransitionEnd}
+          onFocus={handleTerminalFocus}
+          onBlur={handleTerminalBlur}
+          tabIndex={-1}
+          aria-label='Terminal'
+        >
+          {/* Resize Handle */}
+          <div
+            className='absolute top-[-4px] right-0 left-0 z-20 h-[8px] cursor-ns-resize'
+            onPointerDown={handlePointerDown}
+            role='separator'
+            aria-orientation='horizontal'
+            aria-label='Resize terminal'
+          />
+
+          <div className='relative flex h-full'>
+            {/* Left Section */}
+            <div
+              className={clsx('flex flex-col', !hasActiveOutput && 'flex-1')}
+              style={
+                hasActiveOutput ? { width: 'calc(100% - var(--output-panel-width))' } : undefined
+              }
+            >
+              {/* Header */}
+              <div
+                className={clsx(
+                  'group flex flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4',
+                  evalsEnabled ? 'h-[38px] py-1 pl-2' : 'h-[30px] pl-4'
+                )}
+                onClick={handleHeaderClick}
+              >
+                {evalsEnabled ? (
+                  <div
+                    role='group'
+                    aria-label='Terminal view'
+                    className='flex items-center gap-0.5'
+                  >
+                    <Chip
+                      active={visibleTerminalView === 'logs'}
+                      flush
+                      aria-pressed={visibleTerminalView === 'logs'}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        handleTerminalViewChange('logs')
+                      }}
+                    >
+                      Logs
+                    </Chip>
+                    <Chip
+                      active={visibleTerminalView === 'evals'}
+                      flush
+                      aria-pressed={visibleTerminalView === 'evals'}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        handleTerminalViewChange('evals')
+                      }}
+                    >
+                      Evals
+                    </Chip>
+                  </div>
+                ) : (
+                  <span className={TERMINAL_CONFIG.HEADER_TEXT_CLASS}>Logs</span>
+                )}
+
+                {/* Right side - Icons and options */}
+                {!hasActiveOutput && (
+                  <div className='flex items-center gap-2'>
+                    {visibleTerminalView === 'logs' && (
+                      <>
+                        {/* Sort toggle */}
+                        {allWorkflowEntries.length > 0 && (
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
+                              <Button
+                                variant='ghost'
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleSort()
+                                }}
+                                aria-label='Sort by timestamp'
+                                className='!p-1.5 -m-1.5'
+                              >
+                                {sortConfig.direction === 'desc' ? (
+                                  <ArrowDown className='h-3.5 w-3.5' />
+                                ) : (
+                                  <ArrowUp className='h-3.5 w-3.5' />
+                                )}
+                              </Button>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content>
+                              <span>Sort by time</span>
+                            </Tooltip.Content>
+                          </Tooltip.Root>
+                        )}
+
+                        {isPlaygroundEnabled && (
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
+                              <Link href='/playground'>
+                                <Button
+                                  variant='ghost'
+                                  aria-label='Component Playground'
+                                  className='!p-1.5 -m-1.5'
+                                >
+                                  <Palette className='h-3.5 w-3.5' />
+                                </Button>
+                              </Link>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content>
+                              <span>Component Playground</span>
+                            </Tooltip.Content>
+                          </Tooltip.Root>
+                        )}
+
+                        {shouldShowTrainingButton && (
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
+                              <Button
+                                variant='ghost'
+                                onClick={handleTrainingClick}
+                                aria-label={isTraining ? 'Stop training' : 'Train Sim'}
+                                className={clsx(
+                                  '!p-1.5 -m-1.5',
+                                  isTraining && 'text-orange-600 dark:text-orange-400'
+                                )}
+                              >
+                                {isTraining ? (
+                                  <Pause className='h-3.5 w-3.5' />
+                                ) : (
+                                  <Database className='h-3.5 w-3.5' />
+                                )}
+                              </Button>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content>
+                              <span>{isTraining ? 'Stop Training' : 'Train Sim'}</span>
+                            </Tooltip.Content>
+                          </Tooltip.Root>
+                        )}
+
+                        {filteredEntries.length > 0 && (
+                          <>
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  onClick={handleExportConsole}
+                                  aria-label='Export console CSV'
+                                  className='!p-1.5 -m-1.5'
+                                >
+                                  <Download className='h-3.5 w-3.5' />
+                                </Button>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content>
+                                <span>Export CSV</span>
+                              </Tooltip.Content>
+                            </Tooltip.Root>
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  onClick={handleClearConsole}
+                                  aria-label='Clear console'
+                                  className='!p-1.5 -m-1.5'
+                                >
+                                  <Trash2 className='h-3.5 w-3.5' />
+                                </Button>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content>
+                                <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
+                              </Tooltip.Content>
+                            </Tooltip.Root>
+                          </>
+                        )}
+
+                        <Popover open={mainOptionsOpen} onOpenChange={setMainOptionsOpen} size='sm'>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant='ghost'
+                              onClick={(e) => {
+                                e.stopPropagation()
+                              }}
+                              aria-label='Terminal options'
+                              className='!p-1.5 -m-1.5'
+                            >
+                              <MoreHorizontal className='h-3.5 w-3.5' />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            side='bottom'
+                            align='end'
+                            sideOffset={4}
+                            collisionPadding={0}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ minWidth: '140px', maxWidth: '160px' }}
+                            className='gap-0.5'
+                          >
+                            <PopoverItem
+                              active={openOnRun}
+                              showCheck={openOnRun}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOpenOnRun(!openOnRun)
+                              }}
+                            >
+                              <span>Open on run</span>
+                            </PopoverItem>
+                          </PopoverContent>
+                        </Popover>
+                      </>
+                    )}
+
+                    <ToggleButton
+                      isExpanded={isExpanded}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleHeaderClick()
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Terminal list */}
+              <div className='flex-1 overflow-hidden'>
+                {visibleTerminalView === 'evals' && evalContext ? (
+                  <TerminalEvalsPane
+                    suites={evalSuites}
+                    isLoading={evalSuitesQuery.isPending}
+                    error={evalSuitesQuery.error}
+                    startingSuiteId={isStartingEvalSuite ? startingEvalSuiteId : null}
+                    stoppingRunId={isStoppingEvalRun ? (stoppingEvalRun?.runId ?? null) : null}
+                    selectedTest={selectedEvalTest}
+                    isRetryingTest={isStartingEvalTest}
+                    onRunSuite={handleRunEvalSuite}
+                    onStopRun={handleStopEvalRun}
+                    onRetryTest={handleRetryEvalTest}
+                    onShowDetails={handleShowEvalDetails}
+                    onSelectionChange={handleEvalSelectionChange}
+                    onFocusErrorBlocks={handleFocusEvalErrorBlocks}
+                  />
+                ) : executionGroups.length === 0 ? (
+                  <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
+                    No logs yet
+                  </div>
+                ) : (
+                  <TerminalLogsPane
+                    executionGroups={executionGroups}
+                    selectedEntryId={selectedEntryId}
+                    onSelectEntry={handleSelectEntry}
+                    expandedNodes={expandedNodes}
+                    onToggleNode={handleToggleNode}
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Right Section - Block Output (Overlay) */}
+            {visibleTerminalView === 'logs' && selectedEntry && (
+              <OutputPanel
+                selectedEntry={selectedEntry}
+                hasViewTabs={evalsEnabled}
+                handleOutputPanelResizePointerDown={handleOutputPanelResizePointerDown}
+                handleHeaderClick={handleHeaderClick}
+                isExpanded={isExpanded}
+                expandToLastHeight={expandToLastHeight}
+                showInput={showInput}
+                setShowInput={setShowInput}
+                hasInputData={hasInputData}
+                isPlaygroundEnabled={isPlaygroundEnabled}
+                shouldShowTrainingButton={shouldShowTrainingButton}
+                isTraining={isTraining}
+                handleTrainingClick={handleTrainingClick}
+                showCopySuccess={showCopySuccess}
+                handleCopy={handleCopy}
+                hasEntries={filteredEntries.length > 0}
+                handleExportConsole={handleExportConsole}
+                handleClearConsole={handleClearConsole}
+                shouldShowCodeDisplay={shouldShowCodeDisplay}
+                outputData={outputData}
+                handleClearConsoleFromMenu={handleClearConsoleFromMenu}
+              />
+            )}
+          </div>
+        </aside>
+      </div>
 
       {/* Log Row Context Menu */}
-      <LogRowContextMenu
-        isOpen={isLogRowMenuOpen}
-        position={logRowMenuPosition}
-        menuRef={logRowMenuRef}
-        onClose={closeLogRowMenu}
-        entry={selectedEntry}
-        filters={filters}
-        onFilterByBlock={handleFilterByBlock}
-        onFilterByStatus={handleFilterByStatus}
-        onCopyRunId={handleCopyRunId}
-        onClearConsole={handleClearConsoleFromMenu}
-        onFixInCopilot={handleFixInCopilot}
-      />
+      {visibleTerminalView === 'logs' && (
+        <LogRowContextMenu
+          isOpen={isLogRowMenuOpen}
+          position={logRowMenuPosition}
+          menuRef={logRowMenuRef}
+          onClose={closeLogRowMenu}
+          entry={selectedEntry}
+          filters={filters}
+          onFilterByBlock={handleFilterByBlock}
+          onFilterByStatus={handleFilterByStatus}
+          onCopyRunId={handleCopyRunId}
+          onClearConsole={handleClearConsoleFromMenu}
+          onFixInCopilot={handleFixInCopilot}
+        />
+      )}
+      {evalDetailsSelection && evalContext && (
+        <EvalTestDetailsModal
+          workflowId={evalContext.workflowId}
+          workspaceId={evalContext.workspaceId}
+          selection={evalDetailsSelection}
+          onClose={() => setEvalDetailsSelectionKey(null)}
+        />
+      )}
     </>
   )
 })

@@ -275,6 +275,7 @@ export const usageLogSourceSchema = z.enum([
   'knowledge-base',
   'voice-input',
   'enrichment',
+  'eval',
 ])
 
 export const usageLogPeriodSchema = z.enum(['1d', '7d', '30d', 'all', 'custom'])

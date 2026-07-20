@@ -195,6 +195,7 @@ export interface OrchestratorOptions {
   onComplete?: (result: OrchestratorResult) => void | Promise<void>
   onError?: (error: Error, result?: OrchestratorResult) => void | Promise<void>
   abortSignal?: AbortSignal
+  userStopSignal?: AbortSignal
   onAbortObserved?: (reason: string) => void
   interactive?: boolean
 }

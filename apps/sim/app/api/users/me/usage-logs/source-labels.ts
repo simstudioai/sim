@@ -17,4 +17,5 @@ export const USAGE_LOG_SOURCE_LABELS: Record<UsageLogSource, string> = {
   'knowledge-base': 'Knowledge Base',
   'voice-input': 'Voice input',
   enrichment: 'Enrichment',
+  eval: 'Evals',
 }

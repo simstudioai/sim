@@ -87,8 +87,11 @@ export class BlockExecutor {
     node: DAGNode,
     block: SerializedBlock
   ): Promise<NormalizedBlockOutput> {
-    const handler = this.findHandler(block)
-    if (!handler) {
+    const canonicalBlockId = node.metadata.originalBlockId ?? block.id
+    const isMocked = ctx.blockMocks?.has(canonicalBlockId) === true
+    const mockOutput = isMocked ? ctx.blockMocks?.get(canonicalBlockId) : undefined
+    const handler = isMocked ? undefined : this.findHandler(block)
+    if (!isMocked && !handler) {
       throw buildBlockExecutionError({
         block,
         context: ctx,
@@ -109,6 +112,7 @@ export class BlockExecutor {
     let blockStartPromise: Promise<void> | undefined
     if (!isSentinel) {
       blockLog = this.createBlockLog(ctx, node.id, block, node, startedAt)
+      if (isMocked) blockLog.mocked = true
       ctx.blockLogs.push(blockLog)
       blockStartPromise = this.fireBlockStartCallback(ctx, node, block, blockLog.executionOrder)
       await blockStartPromise
@@ -123,37 +127,44 @@ export class BlockExecutor {
     }
     let cleanupSelfReference: (() => void) | undefined
 
-    if (block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP) {
+    if (!isMocked && block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP) {
       cleanupSelfReference = this.preparePauseResumeSelfReference(ctx, node, block, nodeMetadata)
     }
 
     try {
-      if (!isSentinel && blockType) {
-        await validateBlockType(ctx.userId, ctx.workspaceId, blockType, ctx)
-      }
-
-      if (block.metadata?.id === BlockType.FUNCTION) {
-        const {
-          resolvedInputs: fnInputs,
-          displayInputs,
-          contextVariables,
-        } = await this.resolver.resolveInputsForFunctionBlock(
-          ctx,
-          node.id,
-          block.config.params,
-          block
-        )
-        resolvedInputs = {
-          ...fnInputs,
-          [FUNCTION_BLOCK_CONTEXT_VARS_KEY]: contextVariables,
-          ...(displayInputs.code !== undefined
-            ? { [FUNCTION_BLOCK_DISPLAY_CODE_KEY]: displayInputs.code }
-            : {}),
+      if (!isMocked) {
+        if (!isSentinel && blockType) {
+          await validateBlockType(ctx.userId, ctx.workspaceId, blockType, ctx)
         }
-        inputsForLog = displayInputs
-      } else {
-        resolvedInputs = await this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
-        inputsForLog = resolvedInputs
+
+        if (block.metadata?.id === BlockType.FUNCTION) {
+          const {
+            resolvedInputs: fnInputs,
+            displayInputs,
+            contextVariables,
+          } = await this.resolver.resolveInputsForFunctionBlock(
+            ctx,
+            node.id,
+            block.config.params,
+            block
+          )
+          resolvedInputs = {
+            ...fnInputs,
+            [FUNCTION_BLOCK_CONTEXT_VARS_KEY]: contextVariables,
+            ...(displayInputs.code !== undefined
+              ? { [FUNCTION_BLOCK_DISPLAY_CODE_KEY]: displayInputs.code }
+              : {}),
+          }
+          inputsForLog = displayInputs
+        } else {
+          resolvedInputs = await this.resolver.resolveInputs(
+            ctx,
+            node.id,
+            block.config.params,
+            block
+          )
+          inputsForLog = resolvedInputs
+        }
       }
 
       if (blockLog) {
@@ -177,12 +188,18 @@ export class BlockExecutor {
     cleanupSelfReference?.()
 
     try {
-      const output = handler.executeWithNode
-        ? await handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
-        : await handler.execute(ctx, block, resolvedInputs)
+      const output = isMocked
+        ? structuredClone(mockOutput)
+        : handler!.executeWithNode
+          ? await handler!.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
+          : await handler!.execute(ctx, block, resolvedInputs)
 
       const isStreamingExecution =
-        output && typeof output === 'object' && 'stream' in output && 'execution' in output
+        !isMocked &&
+        output &&
+        typeof output === 'object' &&
+        'stream' in output &&
+        'execution' in output
 
       let normalizedOutput: NormalizedBlockOutput
       if (isStreamingExecution) {
@@ -272,7 +289,11 @@ export class BlockExecutor {
         blockLog.durationMs = duration
         blockLog.success = true
         blockLog.output = filterOutputForLog(block.metadata?.id || '', normalizedOutput, { block })
-        if (normalizedOutput.childTraceSpans && Array.isArray(normalizedOutput.childTraceSpans)) {
+        if (
+          !isMocked &&
+          normalizedOutput.childTraceSpans &&
+          Array.isArray(normalizedOutput.childTraceSpans)
+        ) {
           blockLog.childTraceSpans = normalizedOutput.childTraceSpans
         }
       }
@@ -282,7 +303,7 @@ export class BlockExecutor {
 
       if (!isSentinel && blockLog) {
         const childWorkflowInstanceId =
-          typeof normalizedOutput._childWorkflowInstanceId === 'string'
+          !isMocked && typeof normalizedOutput._childWorkflowInstanceId === 'string'
             ? normalizedOutput._childWorkflowInstanceId
             : undefined
         const displayOutput = filterOutputForLog(block.metadata?.id || '', normalizedOutput, {

@@ -202,6 +202,7 @@ export async function handleToolEvent(
   options: OrchestratorOptions,
   scope: ToolScope
 ): Promise<void> {
+  execContext.userStopSignal = options.userStopSignal
   const isSubagent = scope === 'subagent'
   const parentToolCallId = isSubagent ? getScopedParentToolCallId(event, context) : undefined
 

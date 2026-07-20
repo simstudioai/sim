@@ -24,6 +24,7 @@ export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): Str
   return {
     workspaceId: 'ws-1',
     queryClient: {
+      getQueryData: vi.fn(),
       invalidateQueries: vi.fn(),
       setQueryData: vi.fn(),
       // double-cast-allowed: minimal QueryClient stub for stream-loop unit fixtures
