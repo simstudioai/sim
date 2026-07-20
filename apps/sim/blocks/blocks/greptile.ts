@@ -1,5 +1,5 @@
 import { ClipboardList } from '@sim/emcn/icons'
-import { GreptileIcon, SlackIcon } from '@/components/icons'
+import { GreptileIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GreptileResponse } from '@/tools/greptile/types'
@@ -202,7 +202,7 @@ export const GreptileBlockMeta = {
   url: 'https://www.greptile.com',
   templates: [
     {
-      icon: SlackIcon,
+      icon: GreptileIcon,
       title: 'Greptile Slack Q&A bot',
       prompt:
         'Build a workflow that monitors a Slack channel for code questions, routes them to Greptile against the relevant repository, and replies in-thread with the answer and the cited files.',
