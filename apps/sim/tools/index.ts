@@ -1,3 +1,8 @@
+// Server-only side-effect: registers the Managed Agent tool's actual
+// execution on `globalThis`. Kept out of the client-safe `tools/registry.ts`
+// so `@sim/db` / postgres / node builtins don't get pulled into the browser
+// bundle. See `apps/sim/tools/managed_agent/run_session.ts` for the design.
+import '@/tools/managed_agent/run_session.server'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'

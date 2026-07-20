@@ -148,6 +148,7 @@ export const env = createEnv({
     OPENAI_API_KEY_2:                      z.string().min(1).optional(),           // Additional OpenAI API key for load balancing
     OPENAI_API_KEY_3:                      z.string().min(1).optional(),           // Additional OpenAI API key for load balancing
     MISTRAL_API_KEY:                       z.string().min(1).optional(),           // Mistral AI API key
+    MANAGED_AGENT_DEBUG_PAYLOAD:           z.string().optional(),                  // When "1" | "true" | "yes", the Managed Agent workflow-block tool logs the full session-create payload (never includes the api key) so you can inspect memory / vault / metadata routing
     ANTHROPIC_API_KEY_1:                   z.string().min(1).optional(),           // Primary Anthropic Claude API key
     ANTHROPIC_API_KEY_2:                   z.string().min(1).optional(),           // Additional Anthropic API key for load balancing
     ANTHROPIC_API_KEY_3:                   z.string().min(1).optional(),           // Additional Anthropic API key for load balancing
@@ -537,6 +538,8 @@ export const env = createEnv({
     NEXT_PUBLIC_SUPPORT_EMAIL:             z.string().email().optional(),          // Custom support email
 
     NEXT_PUBLIC_E2B_ENABLED:               z.string().optional(),
+    NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS: z.string().optional(), // JSON object of default session-metadata key/value pairs seeded into fresh Claude Managed Agents (self-hosted) blocks. Example: '{"SOURCE_TYPE":"git","SOURCE_REF":"main"}'. Absent = empty table.
+    NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_MEMORY_ENABLED: z.string().optional(), // When "1"|"true"|"yes", reveal the Memory Store + Memory Access fields on the Claude Managed Agents (self-hosted) block. Off by default because Claude self-hosted environments do not currently support memory-store attach.
     NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS: z.string().optional(),              // Hide Bedrock credential fields when deployment uses AWS default credential chain (IAM roles, instance profiles, ECS task roles, IRSA)
     NEXT_PUBLIC_AZURE_CONFIGURED:          z.string().optional(),              // Hide Azure credential fields when endpoint/key/version are pre-configured server-side
     NEXT_PUBLIC_COHERE_CONFIGURED:         z.string().optional(),              // Hide Cohere API key field on Knowledge block when COHERE_API_KEY is pre-configured server-side
@@ -610,6 +613,8 @@ export const env = createEnv({
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: process.env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_E2B_ENABLED: process.env.NEXT_PUBLIC_E2B_ENABLED,
+    NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS: process.env.NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS,
+    NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_MEMORY_ENABLED: process.env.NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_MEMORY_ENABLED,
     NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS: process.env.NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS,
     NEXT_PUBLIC_AZURE_CONFIGURED: process.env.NEXT_PUBLIC_AZURE_CONFIGURED,
     NEXT_PUBLIC_COHERE_CONFIGURED: process.env.NEXT_PUBLIC_COHERE_CONFIGURED,

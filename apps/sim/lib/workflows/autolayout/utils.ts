@@ -236,6 +236,7 @@ function estimateWorkflowBlockDimensions(block: BlockState): { width: number; he
       block.type === 'router_v2'
         ? getRouterRows(block.id, block.subBlocks?.routes?.value).length
         : 0,
+    nodeWidth: blockConfig.nodeWidth,
   })
 }
 

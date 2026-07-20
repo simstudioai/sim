@@ -8,6 +8,8 @@ interface WorkflowBlockDimensionsInput {
   visibleSubBlockCount: number
   conditionRowCount?: number
   routerRowCount?: number
+  /** Optional per-block width override from `BlockConfig.nodeWidth`. */
+  nodeWidth?: number
 }
 
 export function calculateWorkflowBlockDimensions({
@@ -17,6 +19,7 @@ export function calculateWorkflowBlockDimensions({
   visibleSubBlockCount,
   conditionRowCount = 0,
   routerRowCount = 0,
+  nodeWidth,
 }: WorkflowBlockDimensionsInput): { width: number; height: number } {
   const shouldShowDefaultHandles =
     category !== 'triggers' && blockType !== 'starter' && !displayTriggerMode
@@ -41,7 +44,7 @@ export function calculateWorkflowBlockDimensions({
   )
 
   return {
-    width: BLOCK_DIMENSIONS.FIXED_WIDTH,
+    width: nodeWidth ?? BLOCK_DIMENSIONS.FIXED_WIDTH,
     height,
   }
 }

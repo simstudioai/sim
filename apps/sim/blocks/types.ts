@@ -500,6 +500,13 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
     enabled: boolean
     available: string[] // List of trigger IDs this block supports
   }
+  /**
+   * Override the canvas-node width (px) for this block. Defaults to
+   * `BLOCK_DIMENSIONS.FIXED_WIDTH` (250). Use only when the block's rows
+   * carry unavoidably long identifiers (e.g. Anthropic session ids) and a
+   * standard-width tile would truncate them into meaningless ellipses.
+   */
+  nodeWidth?: number
 }
 
 interface OutputConfig {

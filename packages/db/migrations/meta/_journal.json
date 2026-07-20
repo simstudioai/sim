@@ -1842,6 +1842,13 @@
       "when": 1784252317428,
       "tag": "0263_workflow_fork_sync_excluded",
       "breakpoints": true
+    },
+    {
+      "idx": 264,
+      "version": "7",
+      "when": 1784439900082,
+      "tag": "0264_managed_agent_connection",
+      "breakpoints": true
     }
   ]
 }

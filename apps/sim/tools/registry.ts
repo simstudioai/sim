@@ -2309,6 +2309,7 @@ import {
 } from '@/tools/linear'
 import { linkedInGetProfileTool, linkedInSharePostTool } from '@/tools/linkedin'
 import { linkupSearchTool } from '@/tools/linkup'
+import { managedAgentRunSessionTool } from '@/tools/managed_agent'
 import {
   linqAddParticipantTool,
   linqCheckImessageTool,
@@ -5151,6 +5152,7 @@ export const tools: Record<string, ToolConfig> = {
   logs_get: logsGetTool,
   logs_get_execution: logsGetExecutionTool,
   logs_get_run_details: logsGetRunDetailsTool,
+  managed_agent_run_session: managedAgentRunSessionTool,
   loops_check_contact_suppression: loopsCheckContactSuppressionTool,
   loops_create_contact: loopsCreateContactTool,
   loops_create_contact_property: loopsCreateContactPropertyTool,

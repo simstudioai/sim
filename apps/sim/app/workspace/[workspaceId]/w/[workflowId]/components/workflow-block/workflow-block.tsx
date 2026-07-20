@@ -50,6 +50,13 @@ import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useDeployWorkflow } from '@/hooks/queries/deployments'
+import {
+  useManagedAgentAgents,
+  useManagedAgentConnections,
+  useManagedAgentEnvironments,
+  useManagedAgentMemoryStores,
+  useManagedAgentVaults,
+} from '@/hooks/queries/managed-agent-connections'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth/oauth-credentials'
 import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedules'
@@ -80,6 +87,7 @@ interface SubBlockRowProps {
   workspaceId?: string
   workflowId?: string
   blockId?: string
+  blockType?: string
   allSubBlockValues?: Record<string, { value: unknown }>
   displayAdvancedOptions?: boolean
   canonicalIndex?: ReturnType<typeof buildCanonicalIndex>
@@ -106,6 +114,7 @@ const areSubBlockRowPropsEqual = (
     prevProps.workspaceId === nextProps.workspaceId &&
     prevProps.workflowId === nextProps.workflowId &&
     prevProps.blockId === nextProps.blockId &&
+    prevProps.blockType === nextProps.blockType &&
     valueEqual &&
     prevProps.displayAdvancedOptions === nextProps.displayAdvancedOptions &&
     prevProps.canonicalIndex === nextProps.canonicalIndex &&
@@ -126,6 +135,7 @@ const SubBlockRow = memo(function SubBlockRow({
   workspaceId,
   workflowId,
   blockId,
+  blockType,
   allSubBlockValues,
   displayAdvancedOptions,
   canonicalIndex,
@@ -356,6 +366,83 @@ const SubBlockRow = memo(function SubBlockRow({
     [subBlock, rawValue]
   )
 
+  /**
+   * Hydrates managed-agent selectors (connection, agent, environment,
+   * vaults, memory store) on the Claude Managed Agents blocks. Anthropic
+   * IDs (`agent_01...`, `env_01...`, `vlt_...`) are meaningless in a
+   * collapsed row; look up the label from the React Query cache the
+   * combobox already populates when the editor picker opens.
+   */
+  const isManagedAgentBlock =
+    typeof blockType === 'string' && blockType.startsWith('managed_agent_')
+  const managedAgentConnectionId =
+    isManagedAgentBlock && subBlock?.id !== 'connection'
+      ? (allSubBlockValues?.connection?.value as string | undefined)
+      : undefined
+  const { data: managedAgentConnections = [] } = useManagedAgentConnections(
+    isManagedAgentBlock && subBlock?.id === 'connection' && workspaceId ? workspaceId : ''
+  )
+  const { data: managedAgentAgents = [] } = useManagedAgentAgents(
+    isManagedAgentBlock && subBlock?.id === 'agent' ? managedAgentConnectionId ?? null : null,
+    workspaceId ?? ''
+  )
+  const { data: managedAgentEnvironments = [] } = useManagedAgentEnvironments(
+    isManagedAgentBlock && subBlock?.id === 'environment'
+      ? managedAgentConnectionId ?? null
+      : null,
+    workspaceId ?? ''
+  )
+  const { data: managedAgentVaultOptions = [] } = useManagedAgentVaults(
+    isManagedAgentBlock && subBlock?.id === 'vaults' ? managedAgentConnectionId ?? null : null,
+    workspaceId ?? ''
+  )
+  const { data: managedAgentMemoryStoreOptions = [] } = useManagedAgentMemoryStores(
+    isManagedAgentBlock && subBlock?.id === 'memoryStoreId'
+      ? managedAgentConnectionId ?? null
+      : null,
+    workspaceId ?? ''
+  )
+  const managedAgentDisplayName = useMemo(() => {
+    if (!isManagedAgentBlock || !subBlock) return null
+    if (subBlock.id === 'connection' && typeof rawValue === 'string' && rawValue.length > 0) {
+      return managedAgentConnections.find((c) => c.id === rawValue)?.name ?? null
+    }
+    if (subBlock.id === 'agent' && typeof rawValue === 'string' && rawValue.length > 0) {
+      return managedAgentAgents.find((a) => a.id === rawValue)?.name ?? null
+    }
+    if (subBlock.id === 'environment' && typeof rawValue === 'string' && rawValue.length > 0) {
+      return managedAgentEnvironments.find((e) => e.id === rawValue)?.name ?? null
+    }
+    if (subBlock.id === 'memoryStoreId' && typeof rawValue === 'string' && rawValue.length > 0) {
+      return managedAgentMemoryStoreOptions.find((m) => m.id === rawValue)?.name ?? null
+    }
+    if (subBlock.id === 'vaults') {
+      const ids = Array.isArray(rawValue)
+        ? (rawValue as unknown[]).filter(
+            (v): v is string => typeof v === 'string' && v.length > 0
+          )
+        : typeof rawValue === 'string' && rawValue.length > 0
+          ? [rawValue]
+          : []
+      if (ids.length === 0) return null
+      const names = ids.map(
+        (id) => managedAgentVaultOptions.find((v) => v.id === id)?.name ?? id
+      )
+      if (names.length === 1) return names[0]
+      return `${names[0]} +${names.length - 1}`
+    }
+    return null
+  }, [
+    isManagedAgentBlock,
+    subBlock,
+    rawValue,
+    managedAgentConnections,
+    managedAgentAgents,
+    managedAgentEnvironments,
+    managedAgentVaultOptions,
+    managedAgentMemoryStoreOptions,
+  ])
+
   /** Hydrates skill references to display names. */
   const { data: workspaceSkills = [] } = useSkills(workspaceId || '')
   const skillsDisplayValue = useMemo(
@@ -381,6 +468,7 @@ const SubBlockRow = memo(function SubBlockRow({
     mcpToolDisplayName ||
     tableDisplayName ||
     webhookUrlDisplayValue ||
+    managedAgentDisplayName ||
     selectorDisplayName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
@@ -687,6 +775,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         visibleSubBlockCount: totalRenderedRowCount,
         conditionRowCount: conditionRows.length,
         routerRowCount: routerRows.length,
+        nodeWidth: config.nodeWidth,
       })
     },
     dependencies: [
@@ -697,6 +786,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       conditionRows.length,
       routerRows.length,
       horizontalHandles,
+      config.nodeWidth,
     ],
   })
 
@@ -756,6 +846,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                 workspaceId={workspaceId}
                 workflowId={currentWorkflowId}
                 blockId={id}
+                blockType={type}
                 allSubBlockValues={subBlockState}
                 displayAdvancedOptions={effectiveAdvanced}
                 canonicalIndex={canonicalIndex}

@@ -51,6 +51,7 @@ export type WorkspaceSettingsSection =
   | 'byok'
   | 'custom-tools'
   | 'mcp'
+  | 'managed-agents'
   | 'workflow-mcp-servers'
   | 'api-keys'
   | 'inbox'
@@ -91,6 +92,7 @@ export type UnifiedSettingsSection =
   | 'forks'
   | 'mcp'
   | 'custom-tools'
+  | 'managed-agents'
   | 'workflow-mcp-servers'
   | 'inbox'
   | 'admin'
@@ -433,6 +435,18 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
+    label: 'Managed Agents',
+    icon: HexSimple,
+    unified: {
+      id: 'managed-agents',
+      description: 'Link Claude Platform workspaces and pick agents from workflows.',
+      group: 'tools',
+    },
+    planes: {
+      workspace: { id: 'managed-agents', group: 'tools', order: 5 },
+    },
+  },
+  {
     label: 'Sim API keys',
     icon: TerminalWindow,
     unified: {
@@ -464,7 +478,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       group: 'system',
     },
     planes: {
-      workspace: { id: 'workflow-mcp-servers', group: 'tools', order: 5 },
+      workspace: { id: 'workflow-mcp-servers', group: 'tools', order: 6 },
     },
   },
   {
@@ -773,6 +787,7 @@ const WORKSPACE_MUTATION_PERMISSION: Record<WorkspaceSettingsSection, Permission
   byok: 'admin',
   'custom-tools': 'write',
   mcp: 'write',
+  'managed-agents': 'write',
   'workflow-mcp-servers': 'write',
   'api-keys': 'admin',
   inbox: 'admin',

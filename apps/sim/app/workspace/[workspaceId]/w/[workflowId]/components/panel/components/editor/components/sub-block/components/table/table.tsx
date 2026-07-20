@@ -25,6 +25,12 @@ interface TableProps {
   isPreview?: boolean
   previewValue?: WorkflowTableRow[] | null
   disabled?: boolean
+  /**
+   * Optional seed rows applied when a fresh block first mounts (store value
+   * is missing/empty). Each entry's `cells` keys must match `columns` — any
+   * missing columns fall back to `""`. Existing values are never overwritten.
+   */
+  defaultRows?: Array<{ cells: Record<string, string> }>
 }
 
 interface WorkflowTableRow {
@@ -214,6 +220,7 @@ export function Table({
   isPreview = false,
   previewValue,
   disabled = false,
+  defaultRows,
 }: TableProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
@@ -248,18 +255,23 @@ export function Table({
   )
 
   /**
-   * Initialize the table with a default empty row when the component mounts
-   * and when the current store value is missing or empty.
+   * Initialize the table when the component mounts and the store value is
+   * missing/empty. If the caller supplied `defaultRows`, seed those rows
+   * (any missing columns default to `""`); otherwise start with a single
+   * empty row.
    */
   useEffect(() => {
     if (!isPreview && !disabled && (!Array.isArray(storeValue) || storeValue.length === 0)) {
-      const initialRow: WorkflowTableRow = {
-        id: generateId(),
-        cells: { ...emptyCellsTemplate },
-      }
-      setStoreValue([initialRow])
+      const seedRows: WorkflowTableRow[] =
+        Array.isArray(defaultRows) && defaultRows.length > 0
+          ? defaultRows.map((row) => ({
+              id: generateId(),
+              cells: { ...emptyCellsTemplate, ...(row.cells ?? {}) },
+            }))
+          : [{ id: generateId(), cells: { ...emptyCellsTemplate } }]
+      setStoreValue(seedRows)
     }
-  }, [isPreview, disabled, storeValue, setStoreValue, emptyCellsTemplate])
+  }, [isPreview, disabled, storeValue, setStoreValue, emptyCellsTemplate, defaultRows])
 
   // Ensure value is properly typed and initialized
   const rows = useMemo(() => {

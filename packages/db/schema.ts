@@ -2832,6 +2832,38 @@ export const outboxEvent = pgTable(
   })
 )
 
+export const managedAgentConnection = pgTable(
+  'managed_agent_connection',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    /**
+     * Anthropic workspace API key (a `sk-ant-*` value) encrypted with the
+     * shared `encryptSecret` helper. Never returned to the client — list
+     * endpoints return a masked preview only, and the tool decrypts
+     * server-side per invocation.
+     */
+    encryptedApiKey: text('encrypted_api_key').notNull(),
+    /** Timestamp of the last successful `GET /v1/agents` probe. */
+    lastVerifiedAt: timestamp('last_verified_at'),
+    /** Truncated error text from the most recent failed verify, if any. */
+    lastVerificationError: text('last_verification_error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('managed_agent_connection_workspace_id_idx').on(table.workspaceId),
+    workspaceNameUnique: uniqueIndex('managed_agent_connection_workspace_name_unique').on(
+      table.workspaceId,
+      table.name
+    ),
+  })
+)
+
 export const mcpServers = pgTable(
   'mcp_servers',
   {

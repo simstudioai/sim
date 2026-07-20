@@ -43,6 +43,11 @@ const Inbox = dynamic(() =>
 const MCP = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/mcp/mcp').then((m) => m.MCP)
 )
+const ManagedAgents = dynamic(() =>
+  import(
+    '@/app/workspace/[workspaceId]/settings/components/managed-agents'
+  ).then((m) => m.ManagedAgents)
+)
 const Mothership = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/mothership/mothership').then(
     (m) => m.Mothership
@@ -170,6 +175,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'byok' && <BYOK />}
       {effectiveSection === 'copilot' && <Copilot />}
       {effectiveSection === 'mcp' && <MCP />}
+      {effectiveSection === 'managed-agents' && <ManagedAgents />}
       {effectiveSection === 'forks' && <Forks />}
       {effectiveSection === 'custom-tools' && <CustomTools />}
       {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
