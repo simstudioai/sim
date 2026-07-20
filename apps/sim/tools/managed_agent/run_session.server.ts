@@ -16,6 +16,7 @@ import {
   sendUserMessage,
 } from '@/lib/managed-agents/session-client'
 import {
+  isTruthyAck,
   normalizeEnvType,
   normalizeFiles,
   normalizeMemoryAccess,
@@ -114,6 +115,19 @@ const impl: ManagedAgentServerImpl = async (
   }
 
   const vaultIds = normalizeStringList(params.vaults)
+  if (vaultIds.length > 0 && !isTruthyAck(params.vaultsAck)) {
+    // Security ack — enforced here rather than at the subblock level
+    // because Sim's `condition` engine cannot natively test array-
+    // non-empty. Fails closed: attaching any vault requires an explicit
+    // confirmation that the workflow author is authorized to use it,
+    // since the session runs with the vault's credentials.
+    return {
+      success: false,
+      output: {},
+      error:
+        'Vault authorization is required — check the "I own or am authorized to use these vaults" acknowledgement on the block, or remove the selected vault(s).',
+    }
+  }
   const memoryStoreId = params.memoryStoreId?.trim() || undefined
   const memoryAccess = normalizeMemoryAccess(params.memoryAccess)
   const files = normalizeFiles(params.files)

@@ -26,6 +26,20 @@ export function normalizeMemoryAccess(
 }
 
 /**
+ * A subblock's `switch` value may arrive as a real boolean or as a
+ * string (`"true"`, `"1"`, `"yes"`) depending on how the workflow was
+ * serialized. Treat every reasonable "checked" form as truthy; anything
+ * else — including `false`, empty string, `undefined`, non-string
+ * non-boolean values — as not-checked.
+ */
+export function isTruthyAck(value: unknown): boolean {
+  if (value === true) return true
+  if (typeof value !== 'string') return false
+  const normalized = value.trim().toLowerCase()
+  return normalized === 'true' || normalized === '1' || normalized === 'yes'
+}
+
+/**
  * Coerces the block's file table (a JSON array of `{fileId, mountPath?}`
  * or the raw table-subblock shape `Array<{Key: string, Value: string}>`)
  * into the tidy shape the session-client expects. Silently drops rows

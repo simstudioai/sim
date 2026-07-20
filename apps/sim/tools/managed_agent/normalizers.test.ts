@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  isTruthyAck,
   normalizeEnvType,
   normalizeFiles,
   normalizeMemoryAccess,
@@ -202,5 +203,31 @@ describe('normalizeSessionParameters', () => {
     // metadata (unlike vault lists) — they cannot form a valid k/v map.
     expect(normalizeSessionParameters('not json')).toBeUndefined()
     expect(normalizeSessionParameters('[broken')).toBeUndefined()
+  })
+})
+
+describe('isTruthyAck', () => {
+  it('accepts the real boolean true', () => {
+    expect(isTruthyAck(true)).toBe(true)
+  })
+
+  it('accepts common string checked-forms (case-insensitive, trimmed)', () => {
+    for (const on of ['true', 'True', 'TRUE', '1', 'yes', 'YES', '  true  ']) {
+      expect(isTruthyAck(on)).toBe(true)
+    }
+  })
+
+  it('rejects false, empty, and every other string form', () => {
+    for (const off of [false, '', '   ', 'false', '0', 'no', 'off', 'random']) {
+      expect(isTruthyAck(off)).toBe(false)
+    }
+  })
+
+  it('rejects undefined / null / non-string non-boolean values', () => {
+    expect(isTruthyAck(undefined)).toBe(false)
+    expect(isTruthyAck(null)).toBe(false)
+    expect(isTruthyAck(1)).toBe(false)
+    expect(isTruthyAck({})).toBe(false)
+    expect(isTruthyAck([])).toBe(false)
   })
 })

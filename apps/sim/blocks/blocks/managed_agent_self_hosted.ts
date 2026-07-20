@@ -129,6 +129,16 @@ export const ManagedAgentSelfHostedBlock: BlockConfig = {
       dependsOn: ['connection'],
       fetchOptions: fetchManagedAgentVaultOptions,
     },
+    {
+      // Security ack — enforced at execution time when at least one vault
+      // is selected. See the sibling comment on `managed_agent_cloud.ts`.
+      id: 'vaultsAck',
+      title: 'Vault authorization',
+      type: 'switch',
+      required: false,
+      description:
+        'I own or am authorized to use these vaults. I understand this means this agent can assume the identity granted by them. Required when at least one vault is selected above.',
+    },
     ...memorySubBlocks,
     {
       id: 'agent',
@@ -175,6 +185,11 @@ export const ManagedAgentSelfHostedBlock: BlockConfig = {
     environment: { type: 'string', description: 'Self-hosted environment id.' },
     environmentType: { type: 'string', description: 'Always "self_hosted" for this block.' },
     vaults: { type: 'json', description: 'Vault ids for MCP auth (array of strings).' },
+    vaultsAck: {
+      type: 'boolean',
+      description:
+        'Workflow-author acknowledgement that they are authorized to use the attached vaults. Required when `vaults` is non-empty.',
+    },
     memoryStoreId: {
       type: 'string',
       description:

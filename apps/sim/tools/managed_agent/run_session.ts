@@ -87,6 +87,13 @@ export const managedAgentRunSessionTool: ToolConfig<
       visibility: 'user-only',
       description: 'Zero or more vault ids for MCP tool auth.',
     },
+    vaultsAck: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description:
+        "Workflow-author acknowledgement that they are authorized to use the attached vaults. Must be true when `vaults` is non-empty; the tool rejects execution otherwise.",
+    },
     memoryStoreId: {
       type: 'string',
       required: false,

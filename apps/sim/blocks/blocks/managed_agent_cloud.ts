@@ -79,6 +79,20 @@ export const ManagedAgentCloudBlock: BlockConfig = {
       fetchOptions: fetchManagedAgentVaultOptions,
     },
     {
+      // Security ack — enforced at execution time when at least one vault
+      // is selected. Rendered as a plain switch (with the same wording as
+      // the design spec) rather than a bespoke amber banner, to stay
+      // consistent with the rest of Sim's sub-block styling. The tool
+      // rejects execution with an actionable error if `vaults` is
+      // non-empty but this is false.
+      id: 'vaultsAck',
+      title: 'Vault authorization',
+      type: 'switch',
+      required: false,
+      description:
+        'I own or am authorized to use these vaults. I understand this means this agent can assume the identity granted by them. Required when at least one vault is selected above.',
+    },
+    {
       // Memory store — attached as a `memory_store` resource entry.
       id: 'memoryStoreId',
       title: 'Memory Store',
@@ -156,6 +170,11 @@ export const ManagedAgentCloudBlock: BlockConfig = {
     environment: { type: 'string', description: 'Cloud environment id.' },
     environmentType: { type: 'string', description: 'Always "cloud" for this block.' },
     vaults: { type: 'json', description: 'Vault ids for MCP auth (array of strings).' },
+    vaultsAck: {
+      type: 'boolean',
+      description:
+        'Workflow-author acknowledgement that they are authorized to use the attached vaults. Required when `vaults` is non-empty.',
+    },
     memoryStoreId: { type: 'string', description: 'Optional Agent Memory Store id.' },
     memoryAccess: {
       type: 'string',

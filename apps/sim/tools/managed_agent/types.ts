@@ -20,6 +20,15 @@ export interface ManagedAgentRunSessionParams {
   environmentType?: 'cloud' | 'self_hosted' | string
   /** Zero or more vault ids for MCP auth. Empty array allowed. */
   vaults?: string[]
+  /**
+   * Workflow-author acknowledgement that they are authorized to use the
+   * attached vaults ("I own or am authorized to use these vaults; I
+   * understand this means this agent can assume the identity granted by
+   * them"). Required to be `true` when `vaults` is non-empty. Enforced by
+   * the tool at execution time, not at the block subblock level, because
+   * the subblock condition engine cannot natively test array-non-empty.
+   */
+  vaultsAck?: boolean | string
   /** Optional Agent Memory Store id. */
   memoryStoreId?: string
   /**
