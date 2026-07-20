@@ -1,24 +1,21 @@
 /**
  * Model, provider-key, and cost resolution shared by Pi backends. Local mode
  * mirrors the Agent block — keys resolve through `getApiKeyWithBYOK`, so a
- * Sim-hosted key may be used and billed. Cloud modes (Cloud PR and Cloud Code
- * Review) require the user's own key (the block's API Key field, or a stored
- * workspace BYOK key) and never a hosted key, since the key is handed to an
- * untrusted sandbox. Vertex resolves through `resolveVertexCredential`; cost
- * uses the billing multiplier and is zeroed for BYOK / non-billable models.
+ * Sim-hosted key may be used and billed. Cloud Code Review has the same
+ * host-side key boundary. Cloud PR alone requires the user's own key (the
+ * block's API Key field, or a stored workspace BYOK key) because that mode runs
+ * the model client in an untrusted sandbox. Cost uses the billing multiplier and
+ * is zeroed for BYOK / non-billable models.
  */
 
 import type { CreateAgentSessionOptions } from '@earendil-works/pi-coding-agent'
 import { getApiKeyWithBYOK, getBYOKKey } from '@/lib/api-key/byok'
 import { getCostMultiplier } from '@/lib/core/config/env-flags'
-import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { isPiSupportedProvider, type PiSupportedProvider } from '@/providers/pi-providers'
-import { calculateCost, getProviderFromModel, shouldBillModelUsage } from '@/providers/utils'
-import type { BYOKProviderId } from '@/tools/types'
+import { calculateCost, shouldBillModelUsage } from '@/providers/utils'
 
-/** Resolved provider, key, and BYOK flag for a Pi run. */
-export interface PiKeyResolution {
-  providerId: string
+/** Resolved provider key and BYOK flag for a Pi run. */
+interface PiKeyResolution {
   apiKey: string
   isBYOK: boolean
 }
@@ -26,52 +23,45 @@ export interface PiKeyResolution {
 type PiKeyMode = 'cloud' | 'cloud_review' | 'local'
 
 interface ResolvePiModelKeyParams {
+  providerId: PiSupportedProvider
   model: string
   mode: PiKeyMode
   workspaceId?: string
-  userId?: string
   apiKey?: string
-  vertexCredential?: string
 }
 
 /** Providers whose key Sim can store as a workspace BYOK key (read back for cloud). */
-const WORKSPACE_BYOK_PROVIDERS = new Set<string>(['anthropic', 'openai', 'google', 'mistral'])
+const WORKSPACE_BYOK_PROVIDER_IDS = ['anthropic', 'openai', 'google', 'mistral', 'xai'] as const
 
-function isCloudSandboxMode(mode: PiKeyMode): boolean {
-  return mode === 'cloud' || mode === 'cloud_review'
+type WorkspaceByokProvider = (typeof WORKSPACE_BYOK_PROVIDER_IDS)[number]
+
+function isWorkspaceByokProvider(providerId: string): providerId is WorkspaceByokProvider {
+  return WORKSPACE_BYOK_PROVIDER_IDS.some((candidate) => candidate === providerId)
 }
 
-/** Resolves the provider and a usable API key for the selected model. */
+/** Resolves a usable API key for an already validated provider/model pair. */
 export async function resolvePiModelKey(params: ResolvePiModelKeyParams): Promise<PiKeyResolution> {
-  const providerId = getProviderFromModel(params.model)
+  const { providerId } = params
 
-  if (providerId === 'vertex' && params.vertexCredential) {
-    const apiKey = await resolveVertexCredential(
-      params.vertexCredential,
-      params.userId,
-      'vertex-pi'
-    )
-    return { providerId, apiKey, isBYOK: true }
-  }
-
-  // Cloud hands the model key to an untrusted sandbox, so it must be the user's
-  // own key — never a Sim-hosted/rotating key. Prefer the block's API Key field,
-  // then a stored workspace BYOK key; refuse to fall back to a hosted key.
-  if (isCloudSandboxMode(params.mode)) {
+  if (params.mode === 'cloud') {
     if (params.apiKey) {
-      return { providerId, apiKey: params.apiKey, isBYOK: true }
+      return { apiKey: params.apiKey, isBYOK: true }
     }
-    if (params.workspaceId && WORKSPACE_BYOK_PROVIDERS.has(providerId)) {
-      const byok = await getBYOKKey(params.workspaceId, providerId as BYOKProviderId)
+    if (params.workspaceId && isWorkspaceByokProvider(providerId)) {
+      const byok = await getBYOKKey(params.workspaceId, providerId)
       if (byok) {
-        return { providerId, apiKey: byok.apiKey, isBYOK: true }
+        return { apiKey: byok.apiKey, isBYOK: true }
       }
     }
     throw new Error(
-      WORKSPACE_BYOK_PROVIDERS.has(providerId)
+      isWorkspaceByokProvider(providerId)
         ? 'Cloud mode requires your own provider API key (BYOK). Enter it in the API Key field, or store one in Settings > BYOK.'
         : 'Cloud mode requires your own provider API key (BYOK). Enter it in the API Key field.'
     )
+  }
+
+  if (params.mode === 'cloud_review' && params.apiKey) {
+    return { apiKey: params.apiKey, isBYOK: true }
   }
 
   const { apiKey, isBYOK } = await getApiKeyWithBYOK(
@@ -80,7 +70,7 @@ export async function resolvePiModelKey(params: ResolvePiModelKeyParams): Promis
     params.workspaceId,
     params.apiKey
   )
-  return { providerId, apiKey, isBYOK }
+  return { apiKey, isBYOK }
 }
 
 /** Run cost, zeroed for BYOK keys and models Sim does not bill. */

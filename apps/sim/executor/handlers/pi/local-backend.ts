@@ -12,12 +12,13 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ModelRegistry, ToolDefinition } from '@earendil-works/pi-coding-agent'
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { createLogger } from '@sim/logger'
 import type { PiBackendRun, PiLocalRunParams, PiToolSpec } from '@/executor/handlers/pi/backend'
 import { buildPiPrompt } from '@/executor/handlers/pi/context'
 import { applyPiEvent, createPiTotals, normalizePiEvent } from '@/executor/handlers/pi/events'
 import { mapThinkingLevel } from '@/executor/handlers/pi/keys'
+import { loadPiSdk, type PiSdk, resolvePiSdkModel } from '@/executor/handlers/pi/pi-sdk'
 import {
   buildSshToolSpecs,
   captureRepoChanges,
@@ -35,23 +36,8 @@ const LOCAL_GUIDANCE =
   'operate on the target repository. Do not commit, push, or open a pull request — leave your changes in the ' +
   'working tree; Sim reports them after you finish.'
 
-/** The Pi SDK module, loaded dynamically so it stays externalized from the bundle. */
-type PiSdk = typeof import('@earendil-works/pi-coding-agent')
-
-let sdkPromise: Promise<PiSdk> | undefined
-
-function loadPiSdk(): Promise<PiSdk> {
-  if (!sdkPromise) {
-    // A static specifier (not a variable) is required so Next's dependency tracer
-    // copies the package + its transitive deps into the standalone Docker output,
-    // the same way `@e2b/code-interpreter` is handled. Clear the cache on failure
-    // so a transient import error doesn't permanently break later local runs.
-    sdkPromise = import('@earendil-works/pi-coding-agent').catch((error) => {
-      sdkPromise = undefined
-      throw error
-    })
-  }
-  return sdkPromise
+function isToolArguments(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function toPiTool(sdk: PiSdk, spec: PiToolSpec): ToolDefinition {
@@ -59,36 +45,16 @@ function toPiTool(sdk: PiSdk, spec: PiToolSpec): ToolDefinition {
     name: spec.name,
     label: spec.name,
     description: spec.description,
-    // double-cast-allowed: Pi accepts a plain JSON Schema at runtime (pi-ai validation.js coerceWithJsonSchema); the static type requires a TypeBox TSchema
-    parameters: spec.parameters as unknown as ToolDefinition['parameters'],
+    parameters: spec.parameters,
     execute: async (_toolCallId, params) => {
-      const result = await spec.execute(params as Record<string, unknown>)
+      if (!isToolArguments(params)) throw new Error('Pi tool arguments must be an object')
+      const result = await spec.execute(params)
       return {
         content: [{ type: 'text', text: result.text }],
         details: { isError: result.isError },
       }
     },
   })
-}
-
-/**
- * Builds a model definition for a provider Pi supports but whose bundled catalog
- * doesn't list this exact id (e.g. a newer model Pi wires to a different
- * provider). Mirrors the cloud CLI's passthrough: clone one of the provider's
- * models as a template, swap in the requested id, and force reasoning when a
- * thinking level is requested. Returns undefined only when the provider has no
- * models at all, so even passthrough can't route it.
- */
-function buildPiFallbackModel(
-  modelRegistry: ModelRegistry,
-  provider: string,
-  modelId: string,
-  thinkingLevel: ReturnType<typeof mapThinkingLevel>
-) {
-  const providerModels = modelRegistry.getAll().filter((m) => m.provider === provider)
-  if (providerModels.length === 0) return undefined
-  const fallback = { ...providerModels[0], id: modelId, name: modelId }
-  return thinkingLevel && thinkingLevel !== 'off' ? { ...fallback, reasoning: true } : fallback
 }
 
 export const runLocalPi: PiBackendRun<PiLocalRunParams> = async (params, context) => {
@@ -106,19 +72,15 @@ export const runLocalPi: PiBackendRun<PiLocalRunParams> = async (params, context
   try {
     const sdk = await loadPiSdk()
 
-    const authStorage = sdk.AuthStorage.create()
+    const authStorage = sdk.AuthStorage.inMemory()
     authStorage.setRuntimeApiKey(params.providerId, params.apiKey)
 
-    const modelRegistry = sdk.ModelRegistry.create(authStorage)
+    const modelRegistry = sdk.ModelRegistry.inMemory(authStorage)
     const thinkingLevel = mapThinkingLevel(params.thinkingLevel)
-    // Parity with cloud: when the model isn't in Pi's bundled catalog under the
-    // resolved provider, pass it through on that provider instead of failing.
-    const model =
-      modelRegistry.find(params.providerId, params.model) ??
-      buildPiFallbackModel(modelRegistry, params.providerId, params.model, thinkingLevel)
+    const model = resolvePiSdkModel(modelRegistry, params.providerId, params.piModel)
     if (!model) {
       throw new Error(
-        `Pi has no models for provider "${params.providerId}" (cannot run ${params.model})`
+        `Pi model "${params.providerId}/${params.piModel}" is not available in the installed Pi catalog`
       )
     }
 

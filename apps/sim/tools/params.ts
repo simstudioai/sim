@@ -18,7 +18,12 @@ import type {
 } from '@/blocks/types'
 import { safeAssign } from '@/tools/safe-assign'
 import { isEmptyTagValue } from '@/tools/shared/tags'
-import type { OAuthConfig, ParameterVisibility, ToolConfig } from '@/tools/types'
+import type {
+  OAuthConfig,
+  ParameterVisibility,
+  ToolConfig,
+  ToolParameterItemSchema,
+} from '@/tools/types'
 import { getTool } from '@/tools/utils'
 
 const logger = createLogger('ToolsParams')
@@ -115,8 +120,8 @@ type ToolInputBlockConfig = Pick<AppBlockConfig, 'type' | 'subBlocks' | 'tools'>
 
 interface SchemaProperty {
   type: string
-  description: string
-  items?: Record<string, any>
+  description?: string
+  items?: ToolParameterItemSchema
   properties?: Record<string, SchemaProperty>
   required?: string[]
 }
@@ -628,7 +633,7 @@ export async function createLLMToolSchema(
  * Apply dynamic schema enrichment for workflow_executor's inputMapping parameter
  */
 async function applyDynamicSchemaForWorkflow(
-  propertySchema: any,
+  propertySchema: SchemaProperty,
   workflowId: string
 ): Promise<void> {
   try {
@@ -692,7 +697,7 @@ export function createExecutionToolSchema(toolConfig: ToolConfig): ToolSchema {
   }
 
   Object.entries(toolConfig.params).forEach(([paramId, param]) => {
-    const propertySchema: any = {
+    const propertySchema: SchemaProperty = {
       type: param.type === 'json' ? 'object' : param.type,
       description: param.description || '',
     }

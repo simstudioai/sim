@@ -47,6 +47,10 @@ const CLOUD_ANY: { field: 'mode'; value: Array<'cloud' | 'cloud_review'> } = {
   value: ['cloud', 'cloud_review'],
 }
 const LOCAL: { field: 'mode'; value: 'local' } = { field: 'mode', value: 'local' }
+const AUTHORING_MODES: { field: 'mode'; value: Array<'cloud' | 'local'> } = {
+  field: 'mode',
+  value: ['cloud', 'local'],
+}
 const MEMORY_TYPES = ['conversation', 'sliding_window', 'sliding_window_tokens']
 
 export const PiBlock: BlockConfig<PiResponse> = {
@@ -55,12 +59,12 @@ export const PiBlock: BlockConfig<PiResponse> = {
   description: 'Run an autonomous coding agent on a repo',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'The Pi Coding Agent runs the Pi harness against a real repository. Cloud PR spins up an isolated sandbox, clones a GitHub repo, edits with native shell + git, and opens a pull request. Cloud Code Review checks out an existing PR and posts a structured review with optional inline comments. Local mode edits files on your own machine over SSH. All modes stream progress and reuse your models, skills, and multi-turn memory.',
+    'The Pi Coding Agent runs the Pi harness against a real repository. Cloud PR spins up an isolated sandbox, clones a GitHub repo, edits with native shell + git, and opens a pull request. Cloud Code Review checks out a pinned PR snapshot with read-only tools and posts a structured review with optional inline comments. Local mode edits files on your own machine over SSH. Cloud PR and Local can reuse skills and multi-turn memory; Cloud Code Review runs without either because PR contents are untrusted.',
   bestPractices: `
   - Use Cloud PR for hands-off changes against a GitHub repo where a reviewable PR is the deliverable.
   - Use Cloud Code Review to analyze an existing PR and leave summary + inline review comments.
   - Use Local mode to edit a repo on your own machine; expose the machine on a public hostname/tunnel so Sim can reach it over SSH.
-  - Cloud modes require your own provider API key (BYOK); the model key is never injected as a hosted key into the sandbox.
+  - Cloud PR requires your own provider API key because the model runs in the sandbox. Cloud Code Review keeps the model key in Sim and can use either BYOK or a hosted key.
   `,
   category: 'blocks',
   integrationType: IntegrationType.AI,
@@ -71,7 +75,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       id: 'mode',
       title: 'Mode',
       type: 'dropdown',
-      // Cloud modes run in an E2B sandbox; only offer them where E2B is enabled.
+      /** Cloud modes require E2B and stay hidden when it is disabled. */
       value: () => (isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED')) ? 'cloud' : 'local'),
       options: () => {
         const options = [
@@ -111,7 +115,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-5',
+      defaultValue: 'claude-sonnet-4-6',
       options: getPiModelOptions,
       commandSearchable: true,
     },
@@ -202,9 +206,9 @@ export const PiBlock: BlockConfig<PiResponse> = {
       options: [
         { label: 'Comment', id: 'COMMENT' },
         { label: 'Request changes', id: 'REQUEST_CHANGES' },
-        { label: 'Approve', id: 'APPROVE' },
       ],
-      tooltip: 'GitHub review action submitted with the agent findings.',
+      tooltip:
+        'GitHub action applied to the submitted findings. Request changes submits a changes-requested review.',
       condition: CLOUD_REVIEW,
     },
 
@@ -315,6 +319,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       type: 'skill-input',
       defaultValue: [],
       mode: 'advanced',
+      condition: AUTHORING_MODES,
     },
     {
       id: 'thinkingLevel',
@@ -342,6 +347,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
         { label: 'Sliding window (tokens)', id: 'sliding_window_tokens' },
       ],
       mode: 'advanced',
+      condition: AUTHORING_MODES,
     },
     {
       id: 'conversationId',
@@ -349,8 +355,16 @@ export const PiBlock: BlockConfig<PiResponse> = {
       type: 'short-input',
       placeholder: 'e.g., user-123, session-abc',
       mode: 'advanced',
-      required: { field: 'memoryType', value: MEMORY_TYPES },
-      condition: { field: 'memoryType', value: MEMORY_TYPES },
+      required: {
+        field: 'mode',
+        value: ['cloud', 'local'],
+        and: { field: 'memoryType', value: MEMORY_TYPES },
+      },
+      condition: {
+        field: 'mode',
+        value: ['cloud', 'local'],
+        and: { field: 'memoryType', value: MEMORY_TYPES },
+      },
       dependsOn: ['memoryType'],
     },
     {
@@ -359,7 +373,11 @@ export const PiBlock: BlockConfig<PiResponse> = {
       type: 'short-input',
       placeholder: 'Enter number of messages (e.g., 10)...',
       mode: 'advanced',
-      condition: { field: 'memoryType', value: ['sliding_window'] },
+      condition: {
+        field: 'mode',
+        value: ['cloud', 'local'],
+        and: { field: 'memoryType', value: ['sliding_window'] },
+      },
       dependsOn: ['memoryType'],
     },
     {
@@ -368,7 +386,11 @@ export const PiBlock: BlockConfig<PiResponse> = {
       type: 'short-input',
       placeholder: 'Enter max tokens (e.g., 4000)...',
       mode: 'advanced',
-      condition: { field: 'memoryType', value: ['sliding_window_tokens'] },
+      condition: {
+        field: 'mode',
+        value: ['cloud', 'local'],
+        and: { field: 'memoryType', value: ['sliding_window_tokens'] },
+      },
       dependsOn: ['memoryType'],
     },
   ],
@@ -393,7 +415,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
     pullNumber: { type: 'number', description: 'Pull request number (Cloud Code Review)' },
     reviewEvent: {
       type: 'string',
-      description: 'GitHub review event: COMMENT, REQUEST_CHANGES, or APPROVE',
+      description: 'GitHub review event: COMMENT or REQUEST_CHANGES',
     },
     host: { type: 'string', description: 'SSH host (local mode)' },
     port: { type: 'number', description: 'SSH port (local mode)' },

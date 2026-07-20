@@ -1,3 +1,4 @@
+import type { ReviewComment } from '@/tools/github/review-schema'
 import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 
 /**
@@ -893,6 +894,12 @@ export interface PROperationParams extends BaseGitHubParams {
   pullNumber: number
 }
 
+/** Parameters accepted only by the V2 PR reader. */
+export interface PRV2OperationParams extends PROperationParams {
+  /** Whether to fetch the separate PR files endpoint. Defaults to true. */
+  includeFiles?: boolean
+}
+
 // Comment operation parameters
 export interface CreateCommentParams extends PROperationParams {
   body: string
@@ -966,14 +973,7 @@ export interface RequestReviewersParams extends BaseGitHubParams {
 }
 
 /** Inline review comment attached to a submitted PR review. */
-export interface CreatePRReviewComment {
-  path: string
-  body: string
-  line?: number
-  side?: 'LEFT' | 'RIGHT'
-  start_line?: number
-  start_side?: 'LEFT' | 'RIGHT'
-}
+export type CreatePRReviewComment = ReviewComment
 
 // Create PR review parameters
 export interface CreatePRReviewParams extends BaseGitHubParams {
@@ -1020,6 +1020,65 @@ interface PRCommentsMetadata {
     updated_at: string
     html_url: string
   }>
+}
+
+/** GitHub user fields returned by the V2 PR reader. */
+export interface GitHubPullRequestUser {
+  login: string
+  id: number
+  avatar_url: string
+  html_url: string
+  type: string
+}
+
+/** GitHub branch reference fields returned by the V2 PR reader. */
+export interface GitHubPullRequestBranch {
+  label: string
+  ref: string
+  sha: string
+}
+
+/** Changed-file fields returned by the GitHub pull request files endpoint. */
+export interface GitHubPullRequestFile {
+  sha: string
+  filename: string
+  status: string
+  additions: number
+  deletions: number
+  changes: number
+  blob_url: string
+  raw_url: string
+  contents_url: string
+  patch?: string
+  previous_filename?: string
+}
+
+/** Parsed V2 pull request payload exposed as the tool output. */
+export interface GitHubPullRequestV2Output {
+  id: number
+  number: number
+  title: string
+  state: string
+  html_url: string
+  diff_url: string
+  body: string | null
+  user: GitHubPullRequestUser
+  head: GitHubPullRequestBranch
+  base: GitHubPullRequestBranch
+  merged: boolean
+  mergeable: boolean | null
+  merged_by: GitHubPullRequestUser | null
+  comments: number
+  review_comments: number
+  commits: number
+  additions: number
+  deletions: number
+  changed_files: number
+  created_at: string
+  updated_at: string
+  closed_at: string | null
+  merged_at: string | null
+  files?: GitHubPullRequestFile[]
 }
 
 interface CommentMetadata {
@@ -1140,6 +1199,11 @@ export interface PullRequestResponse extends ToolResponse {
     content: string
     metadata: BasePRMetadata & PRFilesMetadata & PRCommentsMetadata
   }
+}
+
+/** Structured response returned by the V2 PR reader. */
+export interface PullRequestV2Response extends ToolResponse {
+  output: GitHubPullRequestV2Output
 }
 
 export interface CreateCommentResponse extends ToolResponse {
@@ -1630,7 +1694,7 @@ export interface PRReviewResponse extends ToolResponse {
       state: string
       body: string
       html_url: string
-      commit_id: string
+      commit_id: string | null
     }
   }
 }
@@ -1668,6 +1732,7 @@ export interface ReadmeResponse extends ToolResponse {
 
 export type GitHubResponse =
   | PullRequestResponse
+  | PullRequestV2Response
   | PRReviewResponse
   | TagsListResponse
   | ReadmeResponse

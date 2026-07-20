@@ -1,11 +1,13 @@
 /**
  * The seam between the Pi handler and its execution environments. The handler
- * resolves keys, skills, memory, and tools, then hands a {@link PiRunParams} to
- * one backend ({@link PiBackendRun}) selected by `mode`. Backends own only the
- * environment-specific execution (SSH vs E2B) and report progress through
+ * resolves shared credentials and mode-specific context, then hands a
+ * {@link PiRunParams} to one backend ({@link PiBackendRun}) selected by `mode`.
+ * Authoring modes receive skills and memory; review mode deliberately does not.
+ * Backends own environment-specific execution and report progress through
  * {@link PiRunContext.onEvent}.
  */
 
+import type { TSchema } from 'typebox'
 import type { SSHConnectionConfig } from '@/app/api/tools/ssh/utils'
 import type { Message } from '@/executor/handlers/agent/types'
 import type { PiEvent, PiRunTotals } from '@/executor/handlers/pi/events'
@@ -39,23 +41,29 @@ export interface PiToolResult {
 export interface PiToolSpec {
   name: string
   description: string
-  parameters: Record<string, unknown>
+  parameters: TSchema
   execute: (args: Record<string, unknown>) => Promise<PiToolResult>
 }
 
 interface PiRunBaseParams {
+  /** Sim's catalog ID, retained for billing and output. */
   model: string
+  /** Exact provider-relative model ID declared by the installed Pi catalog. */
+  piModel: string
   providerId: string
   apiKey: string
   isBYOK: boolean
   task: string
   thinkingLevel?: string
+}
+
+interface PiContextualRunParams extends PiRunBaseParams {
   skills: PiSkill[]
   initialMessages: PiMessage[]
 }
 
 /** Parameters for a local (SSH) Pi run. */
-export interface PiLocalRunParams extends PiRunBaseParams {
+export interface PiLocalRunParams extends PiContextualRunParams {
   mode: 'local'
   ssh: PiSshConnection
   repoPath: string
@@ -63,7 +71,7 @@ export interface PiLocalRunParams extends PiRunBaseParams {
 }
 
 /** Parameters for a cloud (E2B) Pi run that opens a PR. */
-export interface PiCloudRunParams extends PiRunBaseParams {
+export interface PiCloudRunParams extends PiContextualRunParams {
   mode: 'cloud'
   owner: string
   repo: string
@@ -82,7 +90,7 @@ export interface PiCloudReviewRunParams extends PiRunBaseParams {
   repo: string
   githubToken: string
   pullNumber: number
-  reviewEvent: 'COMMENT' | 'REQUEST_CHANGES' | 'APPROVE'
+  reviewEvent: 'COMMENT' | 'REQUEST_CHANGES'
 }
 
 export type PiRunParams = PiLocalRunParams | PiCloudRunParams | PiCloudReviewRunParams

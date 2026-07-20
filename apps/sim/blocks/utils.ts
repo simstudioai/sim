@@ -82,10 +82,9 @@ export function getModelOptions() {
 
 /**
  * Model options filtered to providers the Pi Coding Agent can run (see
- * {@link isPiSupportedProvider}), so the Pi block never offers a model that would
- * error at execution. Uses the same `getProviderFromModel` resolution as the Pi
- * handler, so the dropdown matches runtime behavior; unresolved/blacklisted
- * models (which `getProviderFromModel` can throw on) are excluded.
+ * {@link isPiSupportedProvider}). Runtime also verifies that the installed Pi
+ * catalog contains the matching provider-relative model ID; unresolved/blacklisted models
+ * (which `getProviderFromModel` can throw on) are excluded here.
  */
 export function getPiModelOptions() {
   return getModelOptions().filter((option) => {

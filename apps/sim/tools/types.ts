@@ -8,6 +8,7 @@ export type BYOKProviderId =
   | 'google'
   | 'mistral'
   | 'zai'
+  | 'xai'
   | 'fireworks'
   | 'together'
   | 'baseten'
@@ -73,6 +74,13 @@ export interface OutputProperty {
   }
 }
 
+export interface ToolOutputProperty extends OutputProperty {
+  fileConfig?: {
+    mimeType?: string
+    extension?: string
+  }
+}
+
 export type ParameterVisibility =
   | 'user-or-llm' // User can provide OR LLM must generate
   | 'user-only' // Only user can provide (required/optional determined by required field)
@@ -107,6 +115,22 @@ export interface ToolRetryConfig {
   retryIdempotentOnly?: boolean
 }
 
+/** JSON Schema subset supported for array item definitions in tool parameters. */
+export interface ToolParameterItemSchema {
+  readonly type?: string
+  readonly description?: string
+  readonly const?: string | number | boolean
+  readonly minimum?: number
+  readonly maximum?: number
+  readonly minLength?: number
+  readonly maxLength?: number
+  readonly pattern?: string
+  readonly additionalProperties?: boolean
+  readonly required?: readonly string[]
+  readonly properties?: Readonly<Record<string, ToolParameterItemSchema>>
+  readonly anyOf?: readonly ToolParameterItemSchema[]
+}
+
 export interface ToolConfig<P = any, R = any> {
   // Basic tool identification
   id: string
@@ -123,32 +147,11 @@ export interface ToolConfig<P = any, R = any> {
       visibility?: ParameterVisibility
       default?: any
       description?: string
-      items?: {
-        type: string
-        description?: string
-        properties?: Record<string, { type: string; description?: string }>
-      }
+      items?: ToolParameterItemSchema
     }
   >
   // Output schema - what this tool produces
-  outputs?: Record<
-    string,
-    {
-      type: OutputType
-      description?: string
-      optional?: boolean
-      fileConfig?: {
-        mimeType?: string // Expected MIME type for file outputs
-        extension?: string // Expected file extension
-      }
-      items?: {
-        type: OutputType
-        description?: string
-        properties?: Record<string, OutputProperty>
-      }
-      properties?: Record<string, OutputProperty>
-    }
-  >
+  outputs?: Record<string, ToolOutputProperty>
 
   // OAuth configuration for this tool (if it requires authentication)
   oauth?: OAuthConfig

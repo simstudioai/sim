@@ -1,49 +1,145 @@
+import {
+  parseReviewComments,
+  REVIEW_BODY_MAX_LENGTH,
+  reviewCommentSchema,
+} from '@/tools/github/review-schema'
 import type {
   CreatePRReviewComment,
   CreatePRReviewParams,
   PRReviewResponse,
 } from '@/tools/github/types'
 import { USER_OUTPUT } from '@/tools/github/types'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
-function normalizeReviewComments(
-  comments: CreatePRReviewParams['comments'] | string | undefined
-): CreatePRReviewComment[] {
-  if (!comments) return []
-  let parsed: unknown = comments
-  if (typeof comments === 'string') {
-    try {
-      parsed = JSON.parse(comments)
-    } catch {
-      throw new Error('comments must be a JSON array of inline review comments')
-    }
+const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i
+
+interface GitHubReviewUser {
+  login: string
+  id: number
+  avatar_url: string
+  html_url: string
+  type: string
+}
+
+interface GitHubReview {
+  id: number
+  user: GitHubReviewUser | null
+  body: string
+  state: string
+  html_url: string
+  pull_request_url: string
+  commit_id: string | null
+  submitted_at?: string
+}
+
+interface CreatePRReviewV2Response extends ToolResponse {
+  output: GitHubReview
+}
+
+interface CreatePRReviewRequestBody {
+  event: CreatePRReviewParams['event']
+  body?: string
+  commit_id?: string
+  comments?: CreatePRReviewComment[]
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function requiredNonEmptyString(record: Record<string, unknown>, field: string): string {
+  const value = record[field]
+  if (typeof value !== 'string' || !value) {
+    throw new Error(`GitHub review response is missing ${field}`)
   }
-  if (!Array.isArray(parsed)) {
-    throw new Error('comments must be an array of inline review comments')
+  return value
+}
+
+function requiredNumber(record: Record<string, unknown>, field: string): number {
+  const value = record[field]
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`GitHub review response is missing ${field}`)
   }
-  return parsed.map((item, index) => {
-    if (!item || typeof item !== 'object') {
-      throw new Error(`comments[${index}] must be an object`)
-    }
-    const comment = item as Record<string, unknown>
-    if (typeof comment.path !== 'string' || !comment.path.trim()) {
-      throw new Error(`comments[${index}].path is required`)
-    }
-    if (typeof comment.body !== 'string' || !comment.body.trim()) {
-      throw new Error(`comments[${index}].body is required`)
-    }
-    const normalized: CreatePRReviewComment = {
-      path: comment.path.trim(),
-      body: comment.body,
-    }
-    if (typeof comment.line === 'number') normalized.line = comment.line
-    if (comment.side === 'LEFT' || comment.side === 'RIGHT') normalized.side = comment.side
-    if (typeof comment.start_line === 'number') normalized.start_line = comment.start_line
-    if (comment.start_side === 'LEFT' || comment.start_side === 'RIGHT') {
-      normalized.start_side = comment.start_side
-    }
-    return normalized
-  })
+  return value
+}
+
+function requiredString(record: Record<string, unknown>, field: string): string {
+  const value = record[field]
+  if (typeof value !== 'string') {
+    throw new Error(`GitHub review response is missing ${field}`)
+  }
+  return value
+}
+
+function optionalString(record: Record<string, unknown>, field: string): string | undefined {
+  const value = record[field]
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || !value) {
+    throw new Error(`GitHub review response has an invalid ${field}`)
+  }
+  return value
+}
+
+function nullableString(record: Record<string, unknown>, field: string): string | null {
+  const value = record[field]
+  if (value === null) return null
+  if (typeof value !== 'string' || !value) {
+    throw new Error(`GitHub review response has an invalid ${field}`)
+  }
+  return value
+}
+
+function parseReviewUser(value: unknown): GitHubReviewUser | null {
+  if (value === null) return null
+  if (!isRecord(value)) throw new Error('GitHub review response has an invalid user')
+  return {
+    login: requiredNonEmptyString(value, 'login'),
+    id: requiredNumber(value, 'id'),
+    avatar_url: requiredNonEmptyString(value, 'avatar_url'),
+    html_url: requiredNonEmptyString(value, 'html_url'),
+    type: requiredNonEmptyString(value, 'type'),
+  }
+}
+
+function parseGitHubReview(value: unknown): GitHubReview {
+  if (!isRecord(value)) throw new Error('GitHub review response must be an object')
+  const submittedAt = optionalString(value, 'submitted_at')
+  return {
+    id: requiredNumber(value, 'id'),
+    user: parseReviewUser(value.user),
+    body: requiredString(value, 'body'),
+    state: requiredNonEmptyString(value, 'state'),
+    html_url: requiredNonEmptyString(value, 'html_url'),
+    pull_request_url: requiredNonEmptyString(value, 'pull_request_url'),
+    commit_id: nullableString(value, 'commit_id'),
+    ...(submittedAt ? { submitted_at: submittedAt } : {}),
+  }
+}
+
+async function responseErrorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const value: unknown = await response.json()
+    return isRecord(value) && typeof value.message === 'string' && value.message
+      ? value.message
+      : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function parseReviewEvent(value: unknown): CreatePRReviewParams['event'] {
+  if (value === 'APPROVE' || value === 'REQUEST_CHANGES' || value === 'COMMENT') {
+    return value
+  }
+  throw new Error('event must be APPROVE, REQUEST_CHANGES, or COMMENT')
+}
+
+function parseCommitId(value: unknown): string | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || !COMMIT_SHA_PATTERN.test(value.trim())) {
+    throw new Error('commit_id must be a full 40- or 64-character commit SHA')
+  }
+  return value.trim()
 }
 
 export const createPRReviewTool: ToolConfig<CreatePRReviewParams, PRReviewResponse> = {
@@ -92,11 +188,11 @@ export const createPRReviewTool: ToolConfig<CreatePRReviewParams, PRReviewRespon
         'The SHA of the commit that needs a review (required when posting inline comments; defaults to the most recent commit otherwise)',
     },
     comments: {
-      type: 'json',
+      type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Optional array of inline review comments: [{ path, body, line?, side?, start_line?, start_side? }]',
+      description: 'Optional inline comments with required path, body, line, and side fields',
+      items: reviewCommentSchema,
     },
     apiKey: {
       type: 'string',
@@ -116,16 +212,25 @@ export const createPRReviewTool: ToolConfig<CreatePRReviewParams, PRReviewRespon
       'X-GitHub-Api-Version': '2022-11-28',
     }),
     body: (params) => {
-      const comments = normalizeReviewComments(params.comments)
-      if (comments.length > 0 && !params.commit_id) {
+      const comments = parseReviewComments(params.comments)
+      const commitId = parseCommitId(params.commit_id)
+      if (comments.length > 0 && !commitId) {
         throw new Error('commit_id is required when posting inline review comments')
       }
-
-      const body: Record<string, any> = {
-        event: params.event,
+      const event = parseReviewEvent(params.event)
+      const reviewBody = params.body?.trim()
+      if ((event === 'COMMENT' || event === 'REQUEST_CHANGES') && !reviewBody) {
+        throw new Error(`body is required for ${event} reviews`)
       }
-      if (params.body) body.body = params.body
-      if (params.commit_id) body.commit_id = params.commit_id
+      if (reviewBody && reviewBody.length > REVIEW_BODY_MAX_LENGTH) {
+        throw new Error(`body must not exceed ${REVIEW_BODY_MAX_LENGTH} characters`)
+      }
+
+      const body: CreatePRReviewRequestBody = {
+        event,
+      }
+      if (reviewBody) body.body = reviewBody
+      if (commitId) body.commit_id = commitId
       if (comments.length > 0) body.comments = comments
       return body
     },
@@ -133,20 +238,23 @@ export const createPRReviewTool: ToolConfig<CreatePRReviewParams, PRReviewRespon
 
   transformResponse: async (response) => {
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
       return {
         success: false,
-        error: error.message || `Failed to submit PR review (HTTP ${response.status})`,
+        error: await responseErrorMessage(
+          response,
+          `Failed to submit PR review (HTTP ${response.status})`
+        ),
         output: {
           content: '',
-          metadata: { id: 0, state: '', body: '', html_url: '', commit_id: '' },
+          metadata: { id: 0, state: '', body: '', html_url: '', commit_id: null },
         },
       }
     }
 
-    const review = await response.json()
+    const value: unknown = await response.json()
+    const review = parseGitHubReview(value)
 
-    const content = `Review submitted for PR #${review.pull_request_url?.split('/').pop() ?? ''}
+    const content = `Review submitted for PR #${review.pull_request_url.split('/').pop()}
 State: ${review.state}
 URL: ${review.html_url}`
 
@@ -157,7 +265,7 @@ URL: ${review.html_url}`
         metadata: {
           id: review.id,
           state: review.state,
-          body: review.body ?? '',
+          body: review.body,
           html_url: review.html_url,
           commit_id: review.commit_id,
         },
@@ -178,13 +286,13 @@ URL: ${review.html_url}`
         },
         body: { type: 'string', description: 'Review body text' },
         html_url: { type: 'string', description: 'GitHub web URL for the review' },
-        commit_id: { type: 'string', description: 'SHA of the reviewed commit' },
+        commit_id: { type: 'string', description: 'SHA of the reviewed commit', nullable: true },
       },
     },
   },
 }
 
-export const createPRReviewV2Tool: ToolConfig<CreatePRReviewParams, any> = {
+export const createPRReviewV2Tool: ToolConfig<CreatePRReviewParams, CreatePRReviewV2Response> = {
   id: 'github_create_pr_review_v2',
   name: createPRReviewTool.name,
   description: createPRReviewTool.description,
@@ -194,47 +302,53 @@ export const createPRReviewV2Tool: ToolConfig<CreatePRReviewParams, any> = {
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
       return {
         success: false,
-        error: error.message || `Failed to submit PR review (HTTP ${response.status})`,
+        error: await responseErrorMessage(
+          response,
+          `Failed to submit PR review (HTTP ${response.status})`
+        ),
         output: {
           id: 0,
           user: null,
-          body: null,
+          body: '',
           state: '',
           html_url: '',
           pull_request_url: '',
-          commit_id: '',
-          submitted_at: null,
+          commit_id: null,
         },
       }
     }
 
-    const review = await response.json()
+    const value: unknown = await response.json()
+    const review = parseGitHubReview(value)
     return {
       success: true,
       output: {
         id: review.id,
-        user: review.user ?? null,
-        body: review.body ?? null,
+        user: review.user,
+        body: review.body,
         state: review.state,
         html_url: review.html_url,
         pull_request_url: review.pull_request_url,
         commit_id: review.commit_id,
-        submitted_at: review.submitted_at ?? null,
+        ...(review.submitted_at ? { submitted_at: review.submitted_at } : {}),
       },
     }
   },
 
   outputs: {
     id: { type: 'number', description: 'Review ID' },
-    user: { ...USER_OUTPUT, optional: true },
+    user: { ...USER_OUTPUT, nullable: true },
     body: { type: 'string', description: 'Review body text' },
     state: { type: 'string', description: 'Review state (APPROVED/CHANGES_REQUESTED/COMMENTED)' },
     html_url: { type: 'string', description: 'GitHub web URL for the review' },
     pull_request_url: { type: 'string', description: 'API URL of the reviewed pull request' },
-    commit_id: { type: 'string', description: 'SHA of the reviewed commit' },
-    submitted_at: { type: 'string', description: 'Review submission timestamp' },
+    commit_id: { type: 'string', description: 'SHA of the reviewed commit', nullable: true },
+    submitted_at: {
+      type: 'string',
+      description: 'Review submission timestamp',
+      optional: true,
+    },
   },
 }

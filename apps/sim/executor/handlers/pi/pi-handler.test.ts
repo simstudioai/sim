@@ -3,11 +3,28 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRunLocal, mockRunCloud, mockRunCloudReview, mockResolveKey } = vi.hoisted(() => ({
+const {
+  mockRunLocal,
+  mockRunCloud,
+  mockRunCloudReview,
+  mockResolveKey,
+  mockResolveSkills,
+  mockLoadMemory,
+  mockAppendMemory,
+  mockResolvePiModelId,
+  mockIsPiSupportedProvider,
+  mockGetProviderFromModel,
+} = vi.hoisted(() => ({
   mockRunLocal: vi.fn(),
   mockRunCloud: vi.fn(),
   mockRunCloudReview: vi.fn(),
   mockResolveKey: vi.fn(),
+  mockResolveSkills: vi.fn(),
+  mockLoadMemory: vi.fn(),
+  mockAppendMemory: vi.fn(),
+  mockResolvePiModelId: vi.fn(),
+  mockIsPiSupportedProvider: vi.fn(),
+  mockGetProviderFromModel: vi.fn(),
 }))
 
 vi.mock('@/executor/handlers/pi/keys', () => ({
@@ -15,9 +32,9 @@ vi.mock('@/executor/handlers/pi/keys', () => ({
   computePiCost: () => ({ input: 0, output: 0, total: 0 }),
 }))
 vi.mock('@/executor/handlers/pi/context', () => ({
-  resolvePiSkills: vi.fn().mockResolvedValue([]),
-  loadPiMemory: vi.fn().mockResolvedValue([]),
-  appendPiMemory: vi.fn().mockResolvedValue(undefined),
+  resolvePiSkills: mockResolveSkills,
+  loadPiMemory: mockLoadMemory,
+  appendPiMemory: mockAppendMemory,
 }))
 vi.mock('@/executor/handlers/pi/sim-tools', () => ({
   buildSimToolSpecs: vi.fn().mockResolvedValue([]),
@@ -27,10 +44,31 @@ vi.mock('@/executor/handlers/pi/cloud-backend', () => ({ runCloudPi: mockRunClou
 vi.mock('@/executor/handlers/pi/cloud-review-backend', () => ({
   runCloudReviewPi: mockRunCloudReview,
 }))
+vi.mock('@/executor/handlers/pi/pi-models', () => ({
+  resolvePiModelId: mockResolvePiModelId,
+}))
+vi.mock('@/providers/pi-providers', () => ({
+  isPiSupportedProvider: mockIsPiSupportedProvider,
+}))
+vi.mock('@/providers/utils', () => ({
+  getProviderFromModel: mockGetProviderFromModel,
+}))
 vi.mock('@/blocks/utils', () => ({
-  parseOptionalNumberInput: (value: unknown) => {
+  parseOptionalNumberInput: (
+    value: unknown,
+    label: string,
+    options: { integer?: boolean; min?: number } = {}
+  ) => {
+    if (value === undefined || value === null || value === '') return undefined
     const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : undefined
+    if (!Number.isFinite(parsed)) throw new Error(`Invalid number for ${label}`)
+    if (options.integer && !Number.isInteger(parsed)) {
+      throw new Error(`Invalid number for ${label}: expected an integer`)
+    }
+    if (options.min !== undefined && parsed < options.min) {
+      throw new Error(`${label} must be at least ${options.min}`)
+    }
+    return parsed
   },
 }))
 
@@ -68,7 +106,13 @@ describe('PiBlockHandler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockResolveKey.mockResolvedValue({ providerId: 'anthropic', apiKey: 'k', isBYOK: true })
+    mockGetProviderFromModel.mockReturnValue('anthropic')
+    mockIsPiSupportedProvider.mockReturnValue(true)
+    mockResolvePiModelId.mockImplementation((_providerId: string, modelId: string) => modelId)
+    mockResolveKey.mockResolvedValue({ apiKey: 'k', isBYOK: true })
+    mockResolveSkills.mockResolvedValue([])
+    mockLoadMemory.mockResolvedValue([])
+    mockAppendMemory.mockResolvedValue(undefined)
     mockRunLocal.mockResolvedValue({
       totals: { finalText: 'hi', inputTokens: 1, outputTokens: 2, toolCalls: [] },
     })
@@ -101,6 +145,15 @@ describe('PiBlockHandler', () => {
     await expect(
       handler.execute(ctx(), block, { mode: 'spaceship', task: 'x', model: 'claude' })
     ).rejects.toThrow(/Invalid Pi mode/)
+  })
+
+  it('rejects an unavailable model before resolving credentials', async () => {
+    mockResolvePiModelId.mockReturnValue(undefined)
+
+    await expect(handler.execute(ctx(), block, localInputs())).rejects.toThrow(
+      /not available.*installed Pi catalog/
+    )
+    expect(mockResolveKey).not.toHaveBeenCalled()
   })
 
   it('routes local mode to the local backend with SSH params', async () => {
@@ -148,6 +201,11 @@ describe('PiBlockHandler', () => {
     expect(params.mode).toBe('cloud_review')
     expect(params.pullNumber).toBe(7)
     expect(params.reviewEvent).toBe('REQUEST_CHANGES')
+    expect(params).not.toHaveProperty('skills')
+    expect(params).not.toHaveProperty('initialMessages')
+    expect(mockResolveSkills).not.toHaveBeenCalled()
+    expect(mockLoadMemory).not.toHaveBeenCalled()
+    expect(mockAppendMemory).not.toHaveBeenCalled()
     expect(output.reviewUrl).toBe('https://github.com/o/r/pull/7#pullrequestreview-1')
     expect(output.commentsPosted).toBe(2)
     expect(output.content).toBe('looks good')
@@ -176,6 +234,36 @@ describe('PiBlockHandler', () => {
         githubToken: 'ghp',
       })
     ).rejects.toThrow(/Cloud Code Review mode requires/)
+  })
+
+  it.each(['0', '-1', '1.5'])('rejects invalid pull request number %s', async (pullNumber) => {
+    await expect(
+      handler.execute(ctx(), block, {
+        mode: 'cloud_review',
+        task: 'x',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+        pullNumber,
+      })
+    ).rejects.toThrow(/pullNumber/)
+  })
+
+  it('rejects autonomous approval reviews', async () => {
+    await expect(
+      handler.execute(ctx(), block, {
+        mode: 'cloud_review',
+        task: 'x',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+        pullNumber: '7',
+        reviewEvent: 'APPROVE',
+      })
+    ).rejects.toThrow(/COMMENT or REQUEST_CHANGES/)
+    expect(mockRunCloudReview).not.toHaveBeenCalled()
   })
 
   it('streams text when the block is selected for streaming output', async () => {

@@ -214,7 +214,7 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
           envs: {
             [keyEnvVar]: params.apiKey,
             PI_PROVIDER: params.providerId,
-            PI_MODEL: params.model,
+            PI_MODEL: params.piModel,
             PI_THINKING: thinking,
           },
           timeoutMs: PI_TIMEOUT_MS,
