@@ -381,6 +381,9 @@ describe('McpClient notification handler', () => {
       {
         authProvider,
         requestInit: { headers: { 'X-Sim-Via': 'workflow' } },
+        // The transport fetch is always wrapped for diagnostics (a no-op passthrough
+        // under test); it defaults to globalThis.fetch when the server isn't pinned.
+        fetch: expect.any(Function),
       }
     )
   })

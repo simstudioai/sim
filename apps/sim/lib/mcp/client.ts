@@ -102,7 +102,9 @@ export class McpClient {
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
       requestInit: { headers: this.config.headers },
-      ...(pinned ? { fetch: withMcpHttpDiagnostics(pinned.fetch, 'transport') } : {}),
+      // Wrap whether pinned or not (SDK's default is globalThis.fetch, so passing it is
+      // behavior-neutral) so the diagnostic also covers unpinned/allowlisted servers.
+      fetch: withMcpHttpDiagnostics(pinned?.fetch ?? globalThis.fetch, 'transport'),
     })
 
     this.client = new Client(
