@@ -35,7 +35,7 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
   bgColor: '#000000',
   icon: TikTokIcon,
   triggerAllowed: true,
-  hideFromToolbar: false,
+  hideFromToolbar: true,
 
   subBlocks: [
     {
