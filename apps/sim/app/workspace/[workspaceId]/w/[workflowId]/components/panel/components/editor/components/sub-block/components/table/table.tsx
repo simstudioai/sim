@@ -15,6 +15,7 @@ import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('Table')
 
@@ -283,6 +284,13 @@ export function Table({
     let cancelled = false
     const seedWith = (rows: Array<{ cells: Record<string, string> }> | undefined) => {
       if (cancelled) return
+      // Re-read the LATEST value from the subblock store, not the
+      // closure-captured `storeValue` from render time. Otherwise an
+      // async `fetchDefaultRows` that resolves after the user has
+      // already started editing the table would overwrite their
+      // in-progress rows with the deployer defaults.
+      const currentValue = useSubBlockStore.getState().getValue(blockId, subBlockId)
+      if (currentValue !== undefined && currentValue !== null) return
       const seedRows: WorkflowTableRow[] =
         Array.isArray(rows) && rows.length > 0
           ? rows.map((row) => ({
@@ -310,6 +318,8 @@ export function Table({
     emptyCellsTemplate,
     defaultRows,
     fetchDefaultRows,
+    blockId,
+    subBlockId,
   ])
 
   // Ensure value is properly typed and initialized
