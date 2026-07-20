@@ -32,9 +32,62 @@ describe('createSsrfGuardedMcpFetch', () => {
 
     expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith('https://attacker.example/revoke')
     expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
-    expect(sentinelFetch).toHaveBeenCalledWith('https://attacker.example/revoke', {
-      method: 'POST',
-    })
+    expect(sentinelFetch).toHaveBeenCalledWith(
+      'https://attacker.example/revoke',
+      expect.objectContaining({ method: 'POST', signal: expect.any(AbortSignal) })
+    )
+  })
+
+  it('attaches an abort signal to every guarded request even without a caller signal', async () => {
+    mockValidateMcpServerSsrf.mockResolvedValue('203.0.113.10')
+    const fetchLike = createSsrfGuardedMcpFetch()
+    await fetchLike('https://attacker.example/discover')
+
+    const [, init] = sentinelFetch.mock.calls[0]
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('surfaces an McpError when a request exceeds the deadline', async () => {
+    mockValidateMcpServerSsrf.mockResolvedValue('203.0.113.10')
+    // Hang until the guard's own deadline aborts the request.
+    sentinelFetch.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          const signal = init.signal
+          if (signal?.aborted) {
+            reject(signal.reason)
+            return
+          }
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const fetchLike = createSsrfGuardedMcpFetch(5)
+
+    await expect(fetchLike('https://slow.example/token', { method: 'POST' })).rejects.toThrow(
+      /timed out after 5ms/
+    )
+  })
+
+  it('propagates a caller-initiated abort unchanged (composed with the deadline)', async () => {
+    mockValidateMcpServerSsrf.mockResolvedValue('203.0.113.10')
+    sentinelFetch.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          const signal = init.signal
+          if (signal?.aborted) {
+            reject(signal.reason)
+            return
+          }
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const controller = new AbortController()
+    // Long deadline so the caller's abort — not the timeout — is what settles the request.
+    const fetchLike = createSsrfGuardedMcpFetch(60_000)
+    const pending = fetchLike('https://slow.example/token', { signal: controller.signal })
+    controller.abort(new Error('caller cancelled'))
+
+    await expect(pending).rejects.toThrow('caller cancelled')
   })
 
   it('rejects URLs that resolve to blocked IPs without issuing the request', async () => {

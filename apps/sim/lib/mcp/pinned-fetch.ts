@@ -4,6 +4,7 @@ import {
   createPinnedFetchWithDispatcher,
 } from '@/lib/core/security/input-validation.server'
 import { validateMcpServerSsrf } from '@/lib/mcp/domain-check'
+import { McpError } from '@/lib/mcp/types'
 
 /** Pinned fetch for the live MCP transport, plus a handle to release its sockets. */
 export interface PinnedMcpFetch {
@@ -32,6 +33,20 @@ export function createPinnedMcpFetch(resolvedIP: string): PinnedMcpFetch {
 }
 
 /**
+ * Per-request deadline for guarded MCP OAuth / RFC 7009 revocation HTTP calls.
+ *
+ * The MCP SDK issues OAuth discovery, dynamic client registration, and token
+ * exchange with a bare `fetch` and no `AbortSignal` — only the JSON-RPC message
+ * layer gets the SDK's request timeout. Combined with undici's 5-minute default
+ * headers/body timeouts, a slow or unresponsive authorization server leaves the
+ * request (and the browser the user is waiting on during `/oauth/start`) pending
+ * for minutes. Bounding each leg turns that into a fast, actionable failure. 30s
+ * mirrors `MCP_CLIENT_CONSTANTS.DEFAULT_CONNECTION_TIMEOUT` and leaves wide
+ * headroom over a healthy server, which completes each leg in well under a second.
+ */
+const OAUTH_FETCH_TIMEOUT_MS = 30_000
+
+/**
  * Builds a `FetchLike` that validates every outbound request URL against the
  * MCP SSRF policy before issuing it, then pins the connection to the resolved
  * IP. Unlike the live transport — where the server URL is validated once up
@@ -42,19 +57,35 @@ export function createPinnedMcpFetch(resolvedIP: string): PinnedMcpFetch {
  * per request and rejects private/reserved/loopback targets (honoring
  * `ALLOWED_MCP_DOMAINS` and self-hosted localhost rules).
  *
- * Note: a caller-provided `AbortSignal` in `init` only bounds the HTTP request,
- * not the validation DNS lookup — Node's `dns.lookup` does not accept a signal,
- * so a hanging resolution can extend the overall call past the caller's timeout
- * by up to the OS DNS timeout. Acceptable here because all consumers are
- * best-effort, non-blocking flows (OAuth discovery and RFC 7009 revocation).
+ * Each request is bounded by a `timeoutMs` deadline via `AbortSignal.timeout`,
+ * composed with any caller-provided signal so cancellation still works. Only our
+ * own deadline is relabeled to an `McpError`; a caller abort or any other failure
+ * propagates unchanged.
  *
+ * Note: the deadline only bounds the HTTP request, not the validation DNS lookup
+ * — Node's `dns.lookup` does not accept a signal, so a hanging resolution can
+ * extend the overall call by up to the OS DNS timeout. Acceptable here because
+ * all consumers are best-effort authorization/revocation flows.
+ *
+ * @param timeoutMs Per-request deadline in ms (defaults to 30s; override for tests).
  * @throws McpSsrfError if a request URL resolves to a blocked IP address
+ * @throws McpError if a request exceeds `timeoutMs`
  */
-export function createSsrfGuardedMcpFetch(): FetchLike {
+export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOUT_MS): FetchLike {
   return (async (url, init) => {
     const target = typeof url === 'string' ? url : url.href
     const resolvedIP = await validateMcpServerSsrf(target)
     const pinnedFetch: FetchLike = resolvedIP ? createPinnedFetch(resolvedIP) : globalThis.fetch
-    return pinnedFetch(url, init)
+    const timeoutSignal = AbortSignal.timeout(timeoutMs)
+    const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
+    try {
+      return await pinnedFetch(url, { ...init, signal })
+    } catch (error) {
+      if (timeoutSignal.aborted && !init?.signal?.aborted) {
+        const host = URL.canParse(target) ? new URL(target).host : target
+        throw new McpError(`MCP authorization request to ${host} timed out after ${timeoutMs}ms`)
+      }
+      throw error
+    }
   }) satisfies FetchLike
 }
