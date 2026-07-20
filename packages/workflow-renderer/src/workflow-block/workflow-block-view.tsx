@@ -70,6 +70,12 @@ export interface WorkflowBlockViewProps {
   /** Connection-cycle guard; reads fresh edge state on every call. */
   wouldCreateConnectionCycle: (source: string, target: string) => boolean
 
+  /** Deprecation badge — editor-only. When set, an amber "deprecated" badge shows;
+   * clicking (gated on `canFixDeprecation`) invokes `onFixDeprecation`. */
+  deprecationTooltip?: string
+  canFixDeprecation?: boolean
+  onFixDeprecation?: () => void
+
   /** Child-workflow deploy badge state — editor-only; omit in read-only contexts. */
   isWorkflowSelector?: boolean
   childWorkflowId?: string
@@ -132,6 +138,9 @@ export function WorkflowBlockView({
   routerRows,
   routerContextValue,
   wouldCreateConnectionCycle,
+  deprecationTooltip,
+  canFixDeprecation,
+  onFixDeprecation,
   isWorkflowSelector,
   childWorkflowId,
   childIsDeployed,
@@ -222,6 +231,28 @@ export function WorkflowBlockView({
             />
           </div>
           <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
+            {deprecationTooltip && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Badge
+                    variant='amber'
+                    className={canFixDeprecation ? 'cursor-pointer' : 'cursor-not-allowed'}
+                    dot
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (canFixDeprecation) onFixDeprecation?.()
+                    }}
+                  >
+                    deprecated
+                  </Badge>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span className='text-sm'>
+                    {canFixDeprecation ? deprecationTooltip : 'Edit access required to fix'}
+                  </span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
             {isWorkflowSelector &&
               childWorkflowId &&
               typeof childIsDeployed === 'boolean' &&

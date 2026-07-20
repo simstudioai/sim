@@ -15,6 +15,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
   description: 'Work with pages and lists',
   authMode: AuthMode.OAuth,
   hideFromToolbar: true,
+  deprecated: { replacedBy: 'sharepoint_v2' },
   longDescription:
     'Integrate SharePoint into the workflow. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.',
   docsLink: 'https://docs.sim.ai/integrations/sharepoint',
@@ -821,6 +822,7 @@ const SHAREPOINT_V2_PAGE_MUTATION_OPERATIONS = [
 
 export const SharepointV2Block: BlockConfig<SharepointResponse> = {
   ...SharepointBlock,
+  deprecated: undefined,
   type: 'sharepoint_v2',
   name: 'SharePoint',
   hideFromToolbar: false,

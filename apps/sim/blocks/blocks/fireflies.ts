@@ -11,6 +11,7 @@ export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
   name: 'Fireflies (Legacy)',
   description: 'Interact with Fireflies.ai meeting transcripts and recordings',
   hideFromToolbar: true,
+  deprecated: { replacedBy: 'fireflies_v2' },
   authMode: AuthMode.ApiKey,
   triggerAllowed: true,
   longDescription:
@@ -646,6 +647,7 @@ const firefliesV2Inputs = FirefliesBlock.inputs
 
 export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
   ...FirefliesBlock,
+  deprecated: undefined,
   type: 'fireflies_v2',
   name: 'Fireflies',
   description: 'Interact with Fireflies.ai meeting transcripts and recordings',

@@ -3,11 +3,14 @@ import { createLogger } from '@sim/logger'
 import { SubBlockRowView, WorkflowBlockView } from '@sim/workflow-renderer'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import { type NodeProps, useUpdateNodeInternals } from 'reactflow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/shared'
+import { sendMothershipMessage } from '@/lib/mothership/events'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import { captureEvent } from '@/lib/posthog/client'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import {
@@ -45,6 +48,7 @@ import {
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
+import { getBlock } from '@/blocks/registry'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
@@ -58,6 +62,7 @@ import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
+import { getModelReplacement, isModelDeprecated } from '@/providers/models'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -479,6 +484,55 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     ),
     isEqual
   )
+
+  const posthog = usePostHog()
+
+  const deprecation = useMemo(() => {
+    if (currentWorkflow.isDiffMode) return null
+
+    const replacedBy = config.deprecated?.replacedBy
+    if (replacedBy) {
+      const target = getBlock(replacedBy)
+      if (!target) return null
+      const hasModel = config.subBlocks?.some((sub) => sub.id === 'model')
+      return {
+        kind: 'block' as const,
+        tooltip: 'This block is deprecated. Click to upgrade',
+        prompt: `The "${name}" block is deprecated. Migrate it to the current ${target.name} block: change the block type, then set the new block's required inputs as a separate edit (inputs are validated against the old type when sent in the same edit), or delete it and re-add ${target.name} and rewire the connections.${hasModel ? ' Also pick a current, non-deprecated model.' : ''}`,
+      }
+    }
+
+    const model = blockSubBlockValues.model
+    if (typeof model === 'string' && isModelDeprecated(model)) {
+      if (!getModelReplacement(model)) return null
+      return {
+        kind: 'model' as const,
+        tooltip: `${model} is deprecated. Click to upgrade`,
+        prompt: `The "${name}" block uses the deprecated model "${model}". Switch it to the latest equivalent model.`,
+      }
+    }
+
+    return null
+  }, [
+    config.deprecated,
+    config.subBlocks,
+    name,
+    blockSubBlockValues.model,
+    currentWorkflow.isDiffMode,
+  ])
+
+  const onFixDeprecation = useCallback(() => {
+    if (!deprecation) return
+    captureEvent(posthog, 'deprecated_block_fix_clicked', {
+      block_type: type,
+      workflow_id: currentWorkflowId,
+      kind: deprecation.kind,
+    })
+    sendMothershipMessage(deprecation.prompt, [
+      { kind: 'workflow_block', workflowId: currentWorkflowId, blockId: id, label: name },
+    ])
+  }, [deprecation, posthog, type, currentWorkflowId, id, name])
+
   const canonicalIndex = useMemo(() => buildCanonicalIndex(config.subBlocks), [config.subBlocks])
   const canonicalModeOverrides = currentStoreBlock?.data?.canonicalModes
 
@@ -798,6 +852,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           deployChildWorkflow({ workflowId: childWorkflowId })
         }
       }}
+      deprecationTooltip={deprecation?.tooltip}
+      canFixDeprecation={canEditWorkflow}
+      onFixDeprecation={onFixDeprecation}
       shouldShowScheduleBadge={shouldShowScheduleBadge}
       scheduleIsDisabled={Boolean(scheduleInfo?.isDisabled)}
       onReactivateSchedule={() => {

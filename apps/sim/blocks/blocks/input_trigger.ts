@@ -19,6 +19,7 @@ export const InputTriggerBlock: BlockConfig = {
   `,
   category: 'triggers',
   hideFromToolbar: true,
+  deprecated: { replacedBy: 'start_trigger' },
   bgColor: '#3B82F6',
   icon: InputTriggerIcon,
   subBlocks: [

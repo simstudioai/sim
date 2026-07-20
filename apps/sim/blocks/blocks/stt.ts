@@ -8,6 +8,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
   name: 'Speech-to-Text',
   description: 'Convert speech to text using AI',
   hideFromToolbar: true,
+  deprecated: { replacedBy: 'stt_v2' },
   authMode: AuthMode.ApiKey,
   longDescription:
     'Transcribe audio and video files to text using leading AI providers. Supports multiple languages, timestamps, and speaker diarization.',
@@ -361,6 +362,7 @@ const sttV2SubBlocks = (SttBlock.subBlocks || []).filter((subBlock) => subBlock.
 
 export const SttV2Block: BlockConfig<SttBlockResponse> = {
   ...SttBlock,
+  deprecated: undefined,
   type: 'stt_v2',
   name: 'Speech-to-Text',
   hideFromToolbar: false,

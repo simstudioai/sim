@@ -27,6 +27,7 @@ export const GrainBlock: BlockConfig = {
   // Superseded by grain_v2 (Grain API v1 sunsets 2026-09-07); existing blocks
   // keep rendering, new blocks come from the v2 entry.
   hideFromToolbar: true,
+  deprecated: { replacedBy: 'grain_v2' },
   longDescription:
     'Integrate Grain into your workflow. Access meeting recordings, transcripts, highlights, and AI-generated summaries. Can also trigger workflows based on Grain webhook events.',
   category: 'tools',
@@ -501,6 +502,7 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
  */
 export const GrainV2Block: BlockConfig = {
   ...GrainBlock,
+  deprecated: undefined,
   type: 'grain_v2',
   hideFromToolbar: false,
   subBlocks: [
