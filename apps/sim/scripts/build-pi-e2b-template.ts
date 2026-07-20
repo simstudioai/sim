@@ -19,7 +19,14 @@
 import { defaultBuildLogger, Template } from '@e2b/code-interpreter'
 
 const DEFAULT_TEMPLATE_NAME = 'sim-pi'
-const PI_CODING_AGENT_PACKAGE = '@earendil-works/pi-coding-agent@0.79.4'
+
+/** Exact first-party Pi versions mirrored from bun.lock because E2B builds run npm independently. */
+const PI_PACKAGES = [
+  '@earendil-works/pi-coding-agent@0.79.4',
+  '@earendil-works/pi-agent-core@0.79.10',
+  '@earendil-works/pi-ai@0.79.10',
+  '@earendil-works/pi-tui@0.79.10',
+] as const
 
 const piTemplate = Template()
   .fromTemplate('code-interpreter-v1')
@@ -27,7 +34,7 @@ const piTemplate = Template()
   // file search from its bash tool; gh enables richer GitHub workflows.
   .aptInstall(['git', 'gh', 'openssh-client', 'ca-certificates', 'ripgrep', 'fd-find'])
   // The `pi` CLI the cloud backend invokes.
-  .npmInstall([PI_CODING_AGENT_PACKAGE], { g: true })
+  .npmInstall([...PI_PACKAGES], { g: true })
 
 async function main() {
   if (!process.env.E2B_API_KEY) {

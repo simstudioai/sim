@@ -37,12 +37,13 @@ import sys
 
 ROOT = pathlib.Path('/workspace/repo').resolve()
 GIT_DIR = ROOT / '.git'
-MAX_OUTPUT_BYTES = 100_000
-MAX_JSON_OUTPUT_BYTES = 90_000
-MAX_DIFF_BYTES = 300_000
+MAX_OUTPUT_BYTES = 50_000
+MAX_JSON_OUTPUT_BYTES = 45_000
+MAX_DIFF_BYTES = 50_000
 MAX_DIFF_LINE_BYTES = 2_000
 MAX_READ_SOURCE_BYTES = 5_000_000
 MAX_DIRECTORY_SCAN = 5_000
+COMMENTABLE_DIFF_CONTEXT = 3
 MAX_CHECKOUT_FILES = 100_000
 MAX_CHECKOUT_BYTES = 1_000_000_000
 MAX_CHECKOUT_BLOB_BYTES = 100_000_000
@@ -244,16 +245,6 @@ def validate_sha(value, label):
         fail(label + ' must be a full commit SHA')
     return value
 
-def diff_context(args):
-    base_sha = validate_sha(args.get('base_sha'), 'base_sha')
-    head_sha = validate_sha(args.get('head_sha'), 'head_sha')
-    command = [
-        'git', '--literal-pathspecs', '-c', 'core.hooksPath=/dev/null', 'diff', '--no-ext-diff', '--no-textconv',
-        '--find-renames=50%', '--unified=20', base_sha + '...' + head_sha, '--'
-    ]
-    output, truncated = run_bounded(command, ROOT, MAX_DIFF_BYTES)
-    emit(output or '(no textual diff)', max_bytes=MAX_DIFF_BYTES, truncated=truncated)
-
 def bounded_lines(stream, max_line_bytes=512):
     prefix = bytearray()
     truncated = False
@@ -379,7 +370,7 @@ def read_file_diff(args):
     limit = args.get('limit', 100)
     command = [
         'git', '--literal-pathspecs', '-c', 'core.hooksPath=/dev/null', 'diff',
-        '--no-ext-diff', '--no-textconv', '--find-renames=50%', '--unified=20',
+        '--no-ext-diff', '--no-textconv', '--find-renames=50%', f'--unified={COMMENTABLE_DIFF_CONTEXT}',
         base_sha + '...' + head_sha, '--', *changed[path],
     ]
     process = subprocess.Popen(
@@ -425,7 +416,7 @@ def read_file_diff(args):
 def reviewable_coordinates(base_sha, head_sha, pathspecs, comments):
     command = [
         'git', '--literal-pathspecs', '-c', 'core.hooksPath=/dev/null', 'diff', '--no-ext-diff', '--no-textconv',
-        '--find-renames=50%', '--unified=3', base_sha + '...' + head_sha, '--', *pathspecs
+        '--find-renames=50%', f'--unified={COMMENTABLE_DIFF_CONTEXT}', base_sha + '...' + head_sha, '--', *pathspecs
     ]
     process = subprocess.Popen(
         command,
@@ -574,8 +565,6 @@ elif operation == 'find':
     find_files(arguments)
 elif operation == 'list':
     list_directory(arguments)
-elif operation == 'diff_context':
-    diff_context(arguments)
 elif operation == 'list_changed_files':
     list_changed_files(arguments)
 elif operation == 'read_file_diff':
@@ -591,7 +580,6 @@ else:
 interface CloudReviewTools {
   tools: ToolDefinition[]
   getFindings: () => ReviewFindings | undefined
-  readDiffContext: (signal?: AbortSignal) => Promise<string>
 }
 
 interface ReviewCommentCoordinate {
@@ -614,7 +602,6 @@ interface ReviewOperationArgs {
   }
   find: { pattern?: string; path?: string; limit?: number }
   list: { path?: string; limit?: number }
-  diff_context: { base_sha: string; head_sha: string }
   list_changed_files: { base_sha: string; head_sha: string; offset?: number; limit?: number }
   read_file_diff: {
     base_sha: string
@@ -873,7 +860,5 @@ export function createCloudReviewTools(
   return {
     tools,
     getFindings: () => findings,
-    readDiffContext: (signal) =>
-      runOperation('diff_context', { base_sha: baseSha, head_sha: headSha }, signal),
   }
 }

@@ -1,7 +1,8 @@
 /**
  * Providers the Pi Coding Agent can run with a single API key. This list is the
  * single source of truth for both the cloud env-var mapping (Pi handler) and the
- * Pi block's model dropdown (UI), so the block only offers Pi-runnable models.
+ * provider filter used by the Pi block's model dropdown. Exact model IDs are
+ * validated separately against Pi's installed server-side catalog.
  *
  * Excludes providers Pi's key-based flow can't drive: ones needing richer config
  * (Vertex OAuth, Bedrock IAM, Azure endpoint+key) and base-URL providers

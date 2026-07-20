@@ -10,7 +10,6 @@ const {
   mockInstallTools,
   mockPreflightCheckout,
   mockCreateTools,
-  mockReadDiffContext,
   mockGetFindings,
   mockPrompt,
   mockCreateAgentSession,
@@ -24,7 +23,6 @@ const {
   mockInstallTools: vi.fn(),
   mockPreflightCheckout: vi.fn(),
   mockCreateTools: vi.fn(),
-  mockReadDiffContext: vi.fn(),
   mockGetFindings: vi.fn(),
   mockPrompt: vi.fn(),
   mockCreateAgentSession: vi.fn(),
@@ -33,8 +31,13 @@ const {
   mockCreateSealedResourceLoader: vi.fn(),
 }))
 
+let sessionEventListener: ((raw: unknown) => void) | undefined
+const mockSubscribe = vi.fn((listener: (raw: unknown) => void) => {
+  sessionEventListener = listener
+  return vi.fn()
+})
 const mockAgentSession = {
-  subscribe: vi.fn(() => vi.fn()),
+  subscribe: mockSubscribe,
   prompt: mockPrompt,
   abort: vi.fn(),
   dispose: vi.fn(),
@@ -132,19 +135,18 @@ function snapshot(overrides: Record<string, unknown> = {}) {
 describe('runCloudReviewPi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    sessionEventListener = undefined
     mockPrompt.mockReset()
     mockPrompt.mockResolvedValue(undefined)
     mockCreateSealedResourceLoader.mockReturnValue(sealedResourceLoader)
     mockAgentSession.agent.state.errorMessage = undefined
     mockCreateAgentSession.mockResolvedValue({ session: mockAgentSession })
-    mockReadDiffContext.mockResolvedValue('diff --git a/src/x.ts b/src/x.ts\n+safe')
     mockGetFindings.mockReturnValue({
       body: 'Overall review.',
       comments: [{ path: 'src/x.ts', body: 'Fix this', line: 12, side: 'RIGHT' }],
     })
     mockCreateTools.mockReturnValue({
       tools: REVIEW_TOOL_NAMES.map((name) => ({ name })),
-      readDiffContext: mockReadDiffContext,
       getFindings: mockGetFindings,
     })
     mockRun.mockImplementation((command: string) => {
@@ -201,7 +203,10 @@ describe('runCloudReviewPi', () => {
       })
     )
     expect(mockCreateAgentSession.mock.calls[0][0]).not.toHaveProperty('noTools')
-    expect(mockPrompt).toHaveBeenCalledWith(expect.stringContaining('Pinned local diff'))
+    expect(mockPrompt).toHaveBeenCalledWith(
+      expect.stringContaining('Start with list_changed_files')
+    )
+    expect(mockPrompt).not.toHaveBeenCalledWith(expect.stringContaining('diff --git'))
     expect(result).toMatchObject({
       reviewUrl: 'https://github.com/octo/demo/pull/7#pullrequestreview-9',
       commentsPosted: 1,
@@ -209,7 +214,7 @@ describe('runCloudReviewPi', () => {
     })
   })
 
-  it('uses metadata-only fetches, the pinned local diff, and one exact commit_id', async () => {
+  it('uses metadata-only fetches and one exact commit_id', async () => {
     const signal = new AbortController().signal
     await runCloudReviewPi(baseParams(), { onEvent: vi.fn(), signal })
 
@@ -221,7 +226,6 @@ describe('runCloudReviewPi', () => {
       expect(input).toMatchObject({ includeFiles: false, pullNumber: 7 })
       expect(options).toEqual({ signal })
     }
-    expect(mockReadDiffContext).toHaveBeenCalledWith(signal)
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'github_create_pr_review_v2',
       expect.objectContaining({
@@ -295,6 +299,21 @@ describe('runCloudReviewPi', () => {
 
     await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
       /without calling submit_review/
+    )
+    expect(
+      mockExecuteTool.mock.calls.some(
+        ([toolId]: [string]) => toolId === 'github_create_pr_review_v2'
+      )
+    ).toBe(false)
+  })
+
+  it('does not post when the agent emits an error event', async () => {
+    mockPrompt.mockImplementation(async () => {
+      sessionEventListener?.({ type: 'error', error: 'provider failed' })
+    })
+
+    await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
+      /Pi review agent failed: provider failed/
     )
     expect(
       mockExecuteTool.mock.calls.some(

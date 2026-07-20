@@ -11,6 +11,7 @@ import type { TSchema } from 'typebox'
 import type { SSHConnectionConfig } from '@/app/api/tools/ssh/utils'
 import type { Message } from '@/executor/handlers/agent/types'
 import type { PiEvent, PiRunTotals } from '@/executor/handlers/pi/events'
+import type { PiSupportedProvider } from '@/providers/pi-providers'
 
 /** A conversation message seeded into the Pi run (subset of the Agent block's message). */
 export type PiMessage = Pick<Message, 'role' | 'content'>
@@ -50,7 +51,7 @@ interface PiRunBaseParams {
   model: string
   /** Exact provider-relative model ID declared by the installed Pi catalog. */
   piModel: string
-  providerId: string
+  providerId: PiSupportedProvider
   apiKey: string
   isBYOK: boolean
   task: string

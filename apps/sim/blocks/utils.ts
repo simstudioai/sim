@@ -83,8 +83,8 @@ export function getModelOptions() {
 /**
  * Model options filtered to providers the Pi Coding Agent can run (see
  * {@link isPiSupportedProvider}). Runtime also verifies that the installed Pi
- * catalog contains the matching provider-relative model ID; unresolved/blacklisted models
- * (which `getProviderFromModel` can throw on) are excluded here.
+ * catalog contains the matching provider-relative model ID. Unresolved or
+ * blacklisted models (which `getProviderFromModel` can throw on) are excluded.
  */
 export function getPiModelOptions() {
   return getModelOptions().filter((option) => {

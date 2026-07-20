@@ -33,9 +33,6 @@ describe('cloud review tools', () => {
     run.mockImplementation(
       (_command: string, options: { envs?: Record<string, string>; timeoutMs: number }) => {
         const operation = options.envs?.REVIEW_TOOL_OPERATION
-        if (operation === 'diff_context') {
-          return Promise.resolve({ stdout: 'diff --git a/a.ts b/a.ts', stderr: '', exitCode: 0 })
-        }
         if (operation === 'validate_comments') {
           return Promise.resolve({
             stdout: 'Review coordinates are valid',
@@ -59,7 +56,9 @@ describe('cloud review tools', () => {
     expect(source).not.toContain('REVIEW_REPO_ROOT')
     expect(source).toContain("value.is_absolute() or '..' in value.parts")
     expect(source).toContain("value.parts[0] == '.git'")
-    expect(source).toContain('MAX_OUTPUT_BYTES = 100_000')
+    expect(source).toContain('MAX_OUTPUT_BYTES = 50_000')
+    expect(source).toContain('COMMENTABLE_DIFF_CONTEXT = 3')
+    expect(source).not.toContain('--unified=20')
   })
 
   it('enforces read-size and canonical path bounds in the actual helper', async () => {
