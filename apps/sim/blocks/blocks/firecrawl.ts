@@ -775,7 +775,7 @@ export const FirecrawlBlockMeta = {
   templates: [
     {
       icon: FirecrawlIcon,
-      title: 'SEO content brief generator',
+      title: 'Firecrawl SEO brief generator',
       prompt:
         'Build a workflow that takes a target keyword, uses Firecrawl to scrape the top 10 ranking pages, analyzes their content structure and subtopics, then generates a detailed content brief with outline, word count target, questions to answer, and internal linking suggestions.',
       modules: ['agent', 'files', 'workflows'],
@@ -784,7 +784,7 @@ export const FirecrawlBlockMeta = {
     },
     {
       icon: FirecrawlIcon,
-      title: 'Competitive intel monitor',
+      title: 'Firecrawl competitive intel monitor',
       prompt:
         'Build a scheduled workflow that scrapes competitor websites, pricing pages, and changelog pages weekly using Firecrawl, compares against previous snapshots, summarizes any changes, logs them to a tracking table, and sends a Slack alert for major updates.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],

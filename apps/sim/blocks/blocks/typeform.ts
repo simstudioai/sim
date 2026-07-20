@@ -462,7 +462,7 @@ export const TypeformBlockMeta = {
   templates: [
     {
       icon: TypeformIcon,
-      title: 'Survey response analyzer',
+      title: 'Typeform response analyzer',
       prompt:
         'Create a workflow that pulls new Typeform responses daily, categorizes feedback by theme and sentiment, logs structured results to a table, and sends a Slack digest when a new batch of responses comes in with the key takeaways.',
       modules: ['tables', 'scheduled', 'agent', 'workflows'],

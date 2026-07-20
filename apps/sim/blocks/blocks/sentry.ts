@@ -735,7 +735,7 @@ export const SentryBlockMeta = {
   templates: [
     {
       icon: Bug,
-      title: 'Bug triage agent',
+      title: 'Sentry bug triage agent',
       prompt:
         'Build an agent that monitors Sentry for new errors, automatically triages them by severity and affected users, creates Linear tickets for critical issues with full stack traces, and sends a Slack notification to the on-call channel.',
       modules: ['agent', 'workflows'],

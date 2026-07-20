@@ -1176,7 +1176,7 @@ export const AmplitudeBlockMeta = {
   templates: [
     {
       icon: AmplitudeIcon,
-      title: 'Product analytics digest',
+      title: 'Amplitude product analytics digest',
       prompt:
         'Create a scheduled weekly workflow that pulls key product metrics from Amplitude — active users, event segmentation for top events, and revenue — generates an executive summary with week-over-week trends, and posts it to Slack.',
       modules: ['scheduled', 'agent', 'workflows'],

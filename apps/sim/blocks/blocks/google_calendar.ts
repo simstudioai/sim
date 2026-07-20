@@ -998,7 +998,7 @@ export const GoogleCalendarBlockMeta = {
   templates: [
     {
       icon: GoogleCalendarIcon,
-      title: 'Meeting prep agent',
+      title: 'Calendar meeting prep agent',
       prompt:
         'Create an agent that checks my Google Calendar each morning, researches every attendee and topic on the web, and prepares a brief for each meeting so I walk in fully prepared. Schedule it to run every weekday morning.',
       image: '/templates/meeting-prep-dark.png',
@@ -1009,7 +1009,7 @@ export const GoogleCalendarBlockMeta = {
     },
     {
       icon: TwilioIcon,
-      title: 'SMS appointment reminders',
+      title: 'Calendar SMS appointment reminders',
       prompt:
         'Create a scheduled workflow that checks Google Calendar each morning for appointments in the next 24 hours, and sends an SMS reminder to each attendee via Twilio with the meeting time, location, and any prep notes.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -1029,7 +1029,7 @@ export const GoogleCalendarBlockMeta = {
     },
     {
       icon: GoogleCalendarIcon,
-      title: 'Daily agenda digest',
+      title: 'Calendar daily agenda digest',
       prompt:
         'Create a scheduled weekday workflow that lists my Google Calendar events for the day, summarizes them with attendee context and prep notes, and posts a clean morning agenda to Slack.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -1039,7 +1039,7 @@ export const GoogleCalendarBlockMeta = {
     },
     {
       icon: GoogleCalendarIcon,
-      title: 'Interview scheduling coordinator',
+      title: 'Calendar interview scheduler',
       prompt:
         "Build a workflow that when a candidate reaches the interview stage finds open slots across the panel's Google Calendars, creates the interview event with the video link, invites everyone, and emails the candidate the confirmation.",
       modules: ['agent', 'workflows'],
@@ -1049,7 +1049,7 @@ export const GoogleCalendarBlockMeta = {
     },
     {
       icon: GoogleCalendarIcon,
-      title: 'Meeting-load weekly report',
+      title: 'Calendar meeting-load weekly report',
       prompt:
         'Create a scheduled weekly workflow that lists Google Calendar events for the team, computes total meeting hours and recurring-meeting load per person, writes the breakdown to a table, and flags anyone over the focus-time threshold.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],

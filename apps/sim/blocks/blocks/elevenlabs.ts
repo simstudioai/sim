@@ -492,7 +492,7 @@ export const ElevenLabsBlockMeta = {
     },
     {
       icon: ElevenLabsIcon,
-      title: 'Customer voice greeting generator',
+      title: 'ElevenLabs voice greeting generator',
       prompt:
         'Create a workflow that reads a table of new enterprise customers, generates a personalized ElevenLabs voice greeting with their account manager voice, and emails the audio file to the customer on day one.',
       modules: ['tables', 'agent', 'files', 'workflows'],

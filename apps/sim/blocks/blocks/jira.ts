@@ -1472,7 +1472,7 @@ export const JiraBlockMeta = {
     },
     {
       icon: JiraIcon,
-      title: 'Sprint report generator',
+      title: 'Jira sprint report generator',
       prompt:
         'Create a scheduled workflow that runs at the end of each sprint, pulls all completed, in-progress, and blocked Jira tickets, calculates velocity and carry-over, and generates a sprint summary document with charts and trends to share with the team.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],

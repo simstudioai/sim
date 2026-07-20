@@ -2636,7 +2636,7 @@ export const LinearBlockMeta = {
     },
     {
       icon: SlackIcon,
-      title: 'Meeting notes to action items',
+      title: 'Meeting notes to Linear tasks',
       prompt:
         'Create a workflow that takes meeting notes or a transcript, extracts action items with owners and due dates, creates tasks in Linear or Asana for each one, and posts a summary to the relevant Slack channel.',
       modules: ['agent', 'workflows'],

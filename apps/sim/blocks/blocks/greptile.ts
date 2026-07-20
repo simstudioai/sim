@@ -203,7 +203,7 @@ export const GreptileBlockMeta = {
   templates: [
     {
       icon: SlackIcon,
-      title: 'Slack code Q&A bot',
+      title: 'Greptile Slack Q&A bot',
       prompt:
         'Build a workflow that monitors a Slack channel for code questions, routes them to Greptile against the relevant repository, and replies in-thread with the answer and the cited files.',
       modules: ['agent', 'workflows'],
@@ -213,7 +213,7 @@ export const GreptileBlockMeta = {
     },
     {
       icon: GreptileIcon,
-      title: 'Onboarding codebase explainer',
+      title: 'Greptile onboarding explainer',
       prompt:
         'Create a workflow where a new engineer asks how a part of the codebase works, Greptile answers against the indexed repository with cited files, and the explanation is saved to a Google Doc.',
       modules: ['agent', 'files', 'workflows'],
@@ -223,7 +223,7 @@ export const GreptileBlockMeta = {
     },
     {
       icon: ClipboardList,
-      title: 'PR review with codebase context',
+      title: 'Greptile PR review context',
       prompt:
         'Build a workflow that takes a pull request, asks Greptile how the changed code interacts with the rest of the repository, and writes a review comment summarizing impact and risks with cited files.',
       modules: ['agent', 'workflows'],
