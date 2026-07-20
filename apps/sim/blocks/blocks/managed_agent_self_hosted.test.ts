@@ -19,7 +19,6 @@ vi.mock('@/lib/managed-agents/subblock-options', () => ({
   fetchManagedAgentAgentOptions: vi.fn(),
   fetchManagedAgentConnectionOptions: vi.fn(),
   fetchManagedAgentMemoryStoreOptions: vi.fn(),
-  fetchManagedAgentSelfHostedDefaults: vi.fn(),
   fetchManagedAgentSelfHostedEnvironmentOptions: vi.fn(),
   fetchManagedAgentVaultOptions: vi.fn(),
 }))

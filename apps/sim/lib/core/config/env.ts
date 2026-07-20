@@ -149,7 +149,6 @@ export const env = createEnv({
     OPENAI_API_KEY_3:                      z.string().min(1).optional(),           // Additional OpenAI API key for load balancing
     MISTRAL_API_KEY:                       z.string().min(1).optional(),           // Mistral AI API key
     MANAGED_AGENT_DEBUG_PAYLOAD:           z.string().optional(),                  // When "1" | "true" | "yes", the Managed Agent workflow-block tool logs the full session-create payload (never includes the api key) so you can inspect memory / vault / metadata routing
-    MANAGED_AGENT_SELF_HOSTED_DEFAULTS:    z.string().optional(),                  // Server-only JSON object of default session-metadata key/value pairs the Claude Managed Agents (self-hosted) block seeds into fresh workflows. Example: '{"SOURCE_TYPE":"git","SOURCE_REF":"main"}'. Never exposed to the client bundle — read via GET /api/managed-agent-defaults.
     ANTHROPIC_API_KEY_1:                   z.string().min(1).optional(),           // Primary Anthropic Claude API key
     ANTHROPIC_API_KEY_2:                   z.string().min(1).optional(),           // Additional Anthropic API key for load balancing
     ANTHROPIC_API_KEY_3:                   z.string().min(1).optional(),           // Additional Anthropic API key for load balancing

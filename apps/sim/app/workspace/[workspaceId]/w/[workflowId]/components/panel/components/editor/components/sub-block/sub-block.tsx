@@ -749,12 +749,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
-            defaultRows={
-              Array.isArray(config.defaultValue)
-                ? (config.defaultValue as Array<{ cells: Record<string, string> }>)
-                : undefined
-            }
-            fetchDefaultRows={config.fetchDefaultRows}
           />
         )
 

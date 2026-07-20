@@ -4,7 +4,6 @@ import {
   fetchManagedAgentAgentOptions,
   fetchManagedAgentConnectionOptions,
   fetchManagedAgentMemoryStoreOptions,
-  fetchManagedAgentSelfHostedDefaults,
   fetchManagedAgentSelfHostedEnvironmentOptions,
   fetchManagedAgentVaultOptions,
 } from '@/lib/managed-agents/subblock-options'
@@ -65,8 +64,7 @@ const memorySubBlocks: SubBlockConfig[] = isSelfHostedMemoryEnabled()
  * `resources` array. Session metadata (top-level `metadata` field) is
  * exposed to the self-hosted agent sandbox as env vars, so this
  * block's Session parameters table is where you set the keys your
- * deployment reads. The set of supported keys is deployment-specific
- * — seed defaults with `NEXT_PUBLIC_MANAGED_AGENT_SELF_HOSTED_DEFAULTS`.
+ * deployment reads. The set of supported keys is deployment-specific.
  *
  * The environment picker is filtered to `config.type === 'self_hosted'`.
  * Icon renders black-on-white to visually differentiate from the cloud
@@ -161,17 +159,12 @@ export const ManagedAgentSelfHostedBlock: BlockConfig = {
     {
       // Session metadata forwarded to the self-hosted agent sandbox as
       // env vars. The set of supported keys is deployment-specific and
-      // lives with the deployer, not in this repo. Seed rows come from
-      // the server-only `MANAGED_AGENT_SELF_HOSTED_DEFAULTS` env var,
-      // fetched via `/api/managed-agent-defaults` — the values never
-      // enter the client bundle, so deployers can safely include
-      // anything their sandbox reads.
+      // lives with the deployer, not in this repo.
       id: 'sessionParameters',
       title: 'Session parameters',
       type: 'table',
       required: false,
       columns: ['Key', 'Value'],
-      fetchDefaultRows: fetchManagedAgentSelfHostedDefaults,
       description:
         'Key/value pairs forwarded to the self-hosted agent sandbox as environment variables. Supported keys depend on your deployment — consult your deployment docs. Value cells support <block.output> / <var.name> references.',
     },

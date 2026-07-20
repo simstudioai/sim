@@ -204,28 +204,3 @@ export const listManagedAgentMemoryStoresContract = defineRouteContract({
     }),
   },
 })
-
-/**
- * Server-side default rows the Claude Managed Agents (self-hosted) block
- * seeds into its Session parameters table. Deployers configure this via
- * the server-only `MANAGED_AGENT_SELF_HOSTED_DEFAULTS` env var (a JSON
- * object) so seeded values — which may reference internal keys — never
- * touch the client bundle.
- */
-export const managedAgentSelfHostedDefaultRowSchema = z.object({
-  cells: z.record(z.string(), z.string()),
-})
-export type ManagedAgentSelfHostedDefaultRow = z.output<
-  typeof managedAgentSelfHostedDefaultRowSchema
->
-
-export const getManagedAgentDefaultsContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/managed-agent-defaults',
-  response: {
-    mode: 'json',
-    schema: z.object({
-      selfHosted: z.array(managedAgentSelfHostedDefaultRowSchema),
-    }),
-  },
-})

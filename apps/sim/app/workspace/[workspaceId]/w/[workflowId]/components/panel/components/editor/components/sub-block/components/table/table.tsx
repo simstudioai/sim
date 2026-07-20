@@ -15,7 +15,6 @@ import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('Table')
 
@@ -26,21 +25,6 @@ interface TableProps {
   isPreview?: boolean
   previewValue?: WorkflowTableRow[] | null
   disabled?: boolean
-  /**
-   * Optional seed rows applied when a fresh block first mounts (store value
-   * is missing/empty). Each entry's `cells` keys must match `columns` — any
-   * missing columns fall back to `""`. Existing values are never overwritten.
-   */
-  defaultRows?: Array<{ cells: Record<string, string> }>
-  /**
-   * Optional async fetcher for seed rows — used when the block's default
-   * rows come from a server-side source (e.g. deployer-configured env vars
-   * read via an API route). Called once on first mount when the store is
-   * empty. If the fetcher rejects or returns an empty array, falls back to
-   * `defaultRows`, then to a single empty row. Same overwrite rules as
-   * `defaultRows`: existing store values are never touched.
-   */
-  fetchDefaultRows?: () => Promise<Array<{ cells: Record<string, string> }>>
 }
 
 interface WorkflowTableRow {
@@ -230,8 +214,6 @@ export function Table({
   isPreview = false,
   previewValue,
   disabled = false,
-  defaultRows,
-  fetchDefaultRows,
 }: TableProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
@@ -266,61 +248,18 @@ export function Table({
   )
 
   /**
-   * Initialize the table when the component mounts and the store value has
-   * never been set. Precedence:
-   *   1. `fetchDefaultRows` (async) — used when defaults live server-side
-   *      (e.g. deployer env-var read via an API route).
-   *   2. `defaultRows` (sync) — static seeds declared on the block config.
-   *   3. Single empty row — the pre-existing behavior.
-   *
-   * We only seed when `storeValue` is `null` / `undefined` — a stored
-   * `[]` means the workflow author intentionally cleared every row and
-   * must NOT be treated as "unseeded" (would re-seed defaults on every
-   * remount and clobber the empty state they chose).
+   * Initialize the table with a default empty row when the component mounts
+   * and when the current store value is missing or empty.
    */
   useEffect(() => {
-    if (isPreview || disabled) return
-    if (storeValue !== undefined && storeValue !== null) return
-    let cancelled = false
-    const seedWith = (rows: Array<{ cells: Record<string, string> }> | undefined) => {
-      if (cancelled) return
-      // Re-read the LATEST value from the subblock store, not the
-      // closure-captured `storeValue` from render time. Otherwise an
-      // async `fetchDefaultRows` that resolves after the user has
-      // already started editing the table would overwrite their
-      // in-progress rows with the deployer defaults.
-      const currentValue = useSubBlockStore.getState().getValue(blockId, subBlockId)
-      if (currentValue !== undefined && currentValue !== null) return
-      const seedRows: WorkflowTableRow[] =
-        Array.isArray(rows) && rows.length > 0
-          ? rows.map((row) => ({
-              id: generateId(),
-              cells: { ...emptyCellsTemplate, ...(row.cells ?? {}) },
-            }))
-          : [{ id: generateId(), cells: { ...emptyCellsTemplate } }]
-      setStoreValue(seedRows)
+    if (!isPreview && !disabled && (!Array.isArray(storeValue) || storeValue.length === 0)) {
+      const initialRow: WorkflowTableRow = {
+        id: generateId(),
+        cells: { ...emptyCellsTemplate },
+      }
+      setStoreValue([initialRow])
     }
-    if (fetchDefaultRows) {
-      fetchDefaultRows()
-        .then((rows) => seedWith(rows.length > 0 ? rows : defaultRows))
-        .catch(() => seedWith(defaultRows))
-    } else {
-      seedWith(defaultRows)
-    }
-    return () => {
-      cancelled = true
-    }
-  }, [
-    isPreview,
-    disabled,
-    storeValue,
-    setStoreValue,
-    emptyCellsTemplate,
-    defaultRows,
-    fetchDefaultRows,
-    blockId,
-    subBlockId,
-  ])
+  }, [isPreview, disabled, storeValue, setStoreValue, emptyCellsTemplate])
 
   // Ensure value is properly typed and initialized
   const rows = useMemo(() => {
