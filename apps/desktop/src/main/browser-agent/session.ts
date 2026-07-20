@@ -12,6 +12,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow, Input, Session, WebContents } from 'electron'
 import { nativeTheme, WebContentsView } from 'electron'
 import { registerAgentWebContents } from '@/main/browser-agent/registry'
+import { checkAgentUrl, isBlockedRequestUrl } from '@/main/browser-agent/url-guard'
 
 const logger = createLogger('BrowserAgentSession')
 
@@ -127,6 +128,31 @@ function configureAgentPartition(ses: Session): void {
   partitionConfigured = true
   ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
   ses.setPermissionCheckHandler(() => false)
+  // SSRF choke point for the agent partition. Document navigations (top-level +
+  // iframes) get the full DNS-resolving check — the one seam every navigation
+  // passes through, including page-initiated ones the driver never sees (server
+  // redirects, link clicks, location.href, meta-refresh) — so an internal host
+  // can't slip in that way. Subresources take the cheap synchronous literal-IP
+  // backstop instead of a DNS lookup per asset.
+  ses.webRequest.onBeforeRequest((details, callback) => {
+    if (details.resourceType === 'mainFrame' || details.resourceType === 'subFrame') {
+      void checkAgentUrl(details.url)
+        .then((guard) => {
+          if (!guard.ok) {
+            logger.warn('Blocked agent document navigation to a private host')
+          }
+          callback({ cancel: !guard.ok })
+        })
+        .catch((error) => {
+          // Fail closed: an unexpected rejection must cancel, never leave the
+          // request suspended with no callback.
+          logger.error('Agent SSRF check failed; cancelling request', { error })
+          callback({ cancel: true })
+        })
+      return
+    }
+    callback({ cancel: isBlockedRequestUrl(details.url) })
+  })
   ses.on('will-download', (_event, item) => {
     const filename = item.getFilename()
     const url = item.getURL()

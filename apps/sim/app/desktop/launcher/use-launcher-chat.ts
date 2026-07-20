@@ -226,6 +226,7 @@ export function useLauncherChat() {
               logger.info('Skipping unrecognized stream event', { reason: parsed.reason })
               return undefined
             }
+            // double-cast-allowed: parsePersistedStreamEventEnvelope validates the envelope structurally; EnvelopeLike is the local narrowed view for this read-only consumer
             const event = parsed.event as unknown as EnvelopeLike
 
             if (event.type === 'session' && event.payload.kind === 'chat') {
