@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "engines": {
     "bun": ">=1.2.13",
-    "node": ">=20.0.0"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "dev": "next dev --port 3000",
@@ -30,6 +30,7 @@
     "lint:check": "biome check .",
     "format": "biome format --write .",
     "format:check": "biome format .",
+    "generate:pi-model-catalog": "bun run scripts/generate-pi-model-catalog.ts",
     "generate-docs": "bun run ../../scripts/generate-docs.ts"
   },
   "dependencies": {
@@ -65,7 +66,8 @@
     "@calcom/embed-react": "1.5.3",
     "@cerebras/cerebras_cloud_sdk": "^1.23.0",
     "@e2b/code-interpreter": "^2.0.0",
-    "@earendil-works/pi-coding-agent": "0.79.4",
+    "@earendil-works/pi-ai": "0.80.10",
+    "@earendil-works/pi-coding-agent": "0.80.10",
     "@floating-ui/dom": "1.7.6",
     "@google-cloud/storage": "7.21.0",
     "@google/genai": "1.34.0",
@@ -213,6 +215,7 @@
     "three": "0.177.0",
     "tldts": "7.0.30",
     "twilio": "5.9.0",
+    "typebox": "1.1.38",
     "undici": "7.28.0",
     "unpdf": "1.4.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
