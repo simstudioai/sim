@@ -2,6 +2,7 @@
 
 import { type ComponentType, useMemo } from 'react'
 import { getClientCredentialAccountDescriptor } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { getServiceAccountGatingBlockType } from '@/lib/credentials/service-account-provider-ids'
 import { getTokenServiceAccountDescriptor } from '@/lib/credentials/token-service-accounts/descriptors'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/connect-service-account-modal'
@@ -53,10 +54,14 @@ export function useServiceAccountConnectTarget({
   const isSlackBot = serviceAccountProviderId === SLACK_CUSTOM_BOT_PROVIDER_ID
 
   const hidden = useMemo(() => {
-    if (!isSlackBot) return false
-    const v2 = getBlock('slack_v2')
-    return !v2 || isHiddenUnder(overlayVisibility(), v2)
-  }, [isSlackBot, blockOverlayVersion])
+    const gatingBlockType = serviceAccountProviderId
+      ? getServiceAccountGatingBlockType(serviceAccountProviderId)
+      : null
+    if (!gatingBlockType) return false
+    const gatingBlock = getBlock(gatingBlockType)
+    return !gatingBlock || isHiddenUnder(overlayVisibility(), gatingBlock)
+    // blockOverlayVersion is read to re-evaluate when the overlay changes.
+  }, [serviceAccountProviderId, blockOverlayVersion])
 
   return useMemo(() => {
     if (!serviceAccountProviderId || !serviceName || !serviceIcon) return null

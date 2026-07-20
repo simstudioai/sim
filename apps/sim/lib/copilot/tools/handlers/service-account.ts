@@ -1,7 +1,9 @@
 import { toError } from '@sim/utils/errors'
+import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getServiceAccountGatingBlockType } from '@/lib/credentials/service-account-provider-ids'
 import {
   listServiceAccountIntegrationNames,
   resolveServiceAccountIntegration,
@@ -10,6 +12,8 @@ import {
   CONNECT_MODE,
   CONNECT_QUERY_PARAM,
 } from '@/app/workspace/[workspaceId]/integrations/connect-route'
+import { getBlock } from '@/blocks'
+import { isHiddenUnder } from '@/blocks/visibility/context'
 
 /**
  * Returns a link that opens the integration detail page with the
@@ -39,6 +43,23 @@ export async function executeServiceAccountGetSetupLink(
         `"${providerName}" has no service account flow. Integrations that do: ` +
           `${listServiceAccountIntegrationNames().join(', ')}. Use oauth_get_auth_link instead.`
       )
+    }
+
+    // The in-chat button hides itself when the provider's gating block is
+    // preview-hidden for the viewer (a custom Slack bot needs slack_v2). Reject
+    // here on the same predicate so the tool never reports success for a form
+    // the UI will silently drop — the agent would promise a form that never
+    // appears. Fall the agent back to OAuth instead.
+    const gatingBlockType = getServiceAccountGatingBlockType(match.serviceAccountProviderId)
+    if (gatingBlockType) {
+      const visibility = await getBlockVisibilityForCopilot(context.userId, context.workspaceId)
+      const gatingBlock = getBlock(gatingBlockType)
+      if (!gatingBlock || isHiddenUnder(visibility, gatingBlock)) {
+        throw new Error(
+          `${match.serviceName} service account setup isn't available in this workspace yet. ` +
+            `Use oauth_get_auth_link to connect ${match.serviceName} via OAuth instead.`
+        )
+      }
     }
 
     const url = new URL(`${baseUrl}/workspace/${context.workspaceId}/integrations/${match.slug}`)
