@@ -65,9 +65,6 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     },
     { type: 'separator' },
   ]
-  if (!deps.isPackaged) {
-    viewSubmenu.push({ role: 'toggleDevTools' }, { type: 'separator' })
-  }
   viewSubmenu.push({ role: 'togglefullscreen' })
 
   return [

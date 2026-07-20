@@ -9,6 +9,7 @@ import { vi } from 'vitest'
  */
 
 export const app = {
+  name: 'Sim',
   isPackaged: false,
   getVersion: vi.fn(() => '1.0.0'),
   getName: vi.fn(() => 'Sim'),
