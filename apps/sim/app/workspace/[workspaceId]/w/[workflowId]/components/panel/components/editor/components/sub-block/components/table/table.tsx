@@ -103,6 +103,11 @@ function TableCell({
    * while a tag/env-var dropdown is open (Enter selects an option there) or
    * during IME composition. The next row already exists — it auto-appends the
    * moment the last row is typed into — so focus lands on a real input.
+   *
+   * Focusing an empty cell auto-opens the tag dropdown, so the destination's
+   * dropdown is closed right after focusing: otherwise a follow-up Enter would
+   * land on that dropdown and insert a tag instead of continuing down the
+   * column. Clicking or typing `<` in the cell still opens it deliberately.
    */
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     handlers.onKeyDown(e)
@@ -115,10 +120,12 @@ function TableCell({
     ) {
       return
     }
-    const nextInput = inputRefs.current.get(`${rowIndex + 1}-${column}`)
+    const nextCellKey = `${rowIndex + 1}-${column}`
+    const nextInput = inputRefs.current.get(nextCellKey)
     if (nextInput) {
       e.preventDefault()
       nextInput.focus()
+      inputController.fieldHelpers.hideFieldDropdowns(nextCellKey)
     }
   }
 
