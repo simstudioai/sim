@@ -370,8 +370,11 @@ export interface SubBlockConfig {
    * Narrows an `oauth-input` selector to a specific credential kind. `'custom-bot'`
    * lists only reusable custom Slack bot credentials (service-account type) and its
    * connect row opens the custom-bot setup modal instead of the OAuth flow.
+   * `'service-account'` is the generic equivalent for a no-OAuth provider: it lists
+   * only service-account credentials and its connect row opens the descriptor-driven
+   * token-paste modal (`ConnectServiceAccountModal`).
    */
-  credentialKind?: 'custom-bot'
+  credentialKind?: 'custom-bot' | 'service-account'
   /**
    * Opts a trigger-mode `oauth-input` selector into listing service-account
    * credentials, which are otherwise excluded in trigger mode. Set only when the

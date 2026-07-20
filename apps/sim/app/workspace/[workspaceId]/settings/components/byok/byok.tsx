@@ -6,7 +6,6 @@ import {
   AnthropicIcon,
   BasetenIcon,
   BrandfetchIcon,
-  ClaudeIcon,
   ContextDevIcon,
   DatagmaIcon,
   DropcontactIcon,
@@ -65,13 +64,6 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     name: 'Anthropic',
     icon: AnthropicIcon,
     description: 'LLM calls',
-    placeholder: 'sk-ant-...',
-  },
-  {
-    id: 'claude-platform',
-    name: 'Claude Platform',
-    icon: ClaudeIcon,
-    description: 'Managed Agents block',
     placeholder: 'sk-ant-...',
   },
   {
@@ -311,7 +303,6 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
     ids: [
       'openai',
       'anthropic',
-      'claude-platform',
       'google',
       'mistral',
       'xai',

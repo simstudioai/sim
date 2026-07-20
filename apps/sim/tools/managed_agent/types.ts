@@ -7,6 +7,10 @@ import type { ToolResponse } from '@/tools/types'
  * by the executor.
  */
 export interface ManagedAgentRunSessionParams {
+  /** Claude Platform service-account credential id (block picker value). */
+  credential: string
+  /** Workspace API key injected by the executor from `credential` at run time. */
+  accessToken?: string
   /** Managed-agent id from the linked Claude workspace. */
   agent: string
   /** Environment id from the linked Claude workspace. */

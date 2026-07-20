@@ -1,3 +1,4 @@
+import { runManagedAgentSession } from '@/lib/managed-agents/run-session'
 import {
   isTruthyAck,
   normalizeFiles,
@@ -15,11 +16,11 @@ import type { ToolConfig } from '@/tools/types'
  * Opens a Claude Platform Managed Agent session and returns the assistant
  * response as text.
  *
- * This is a thin, client-safe `ToolConfig`: it normalizes the block's raw
- * subblock values and proxies to the internal `/api/tools/managed-agent/run`
- * route, which resolves the workspace's Claude Platform BYOK key and runs the
- * session lifecycle server-side. No server-only code is imported here, so the
- * tool registry stays safe to walk from the client.
+ * The block's `credential` picker supplies a Claude Platform service-account
+ * credential; the executor resolves it to the workspace API key and injects
+ * `accessToken` before `directExecution` runs. The session lifecycle
+ * (`runManagedAgentSession`) is pure `fetch` with no server-only deps, so the
+ * tool module stays safe to import from the client registry.
  */
 export const managedAgentRunSessionTool: ToolConfig<
   ManagedAgentRunSessionParams,
@@ -32,6 +33,13 @@ export const managedAgentRunSessionTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    credential: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description:
+        'Claude Platform credential (Anthropic workspace API key) to run the agent with.',
+    },
     agent: {
       type: 'string',
       required: true,
@@ -84,7 +92,7 @@ export const managedAgentRunSessionTool: ToolConfig<
       type: 'array',
       required: false,
       visibility: 'user-only',
-      description: 'Files-API file ids to attach as file resources (cloud environments).',
+      description: 'File attachments (cloud envs only), as [{fileId, mountPath?}].',
     },
     sessionParameters: {
       type: 'object',
@@ -94,32 +102,81 @@ export const managedAgentRunSessionTool: ToolConfig<
     },
   },
 
+  // Unused: `directExecution` runs the session and short-circuits the HTTP
+  // path, but `ToolConfig` requires a `request` shape.
   request: {
-    url: '/api/tools/managed-agent/run',
+    url: () => '',
     method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
-      const vaults = normalizeStringList(params.vaults)
-      const files = normalizeFiles(params.files)
-      const sessionParameters = normalizeSessionParameters(params.sessionParameters)
-      const memoryStoreId = params.memoryStoreId?.trim() || undefined
-      const memoryAccess = normalizeMemoryAccess(params.memoryAccess)
-      const memoryInstructions = params.memoryInstructions?.trim() || undefined
-      return {
-        agent: params.agent?.trim() ?? '',
-        environment: params.environment?.trim() ?? '',
-        userMessage: params.userMessage,
-        ...(vaults.length > 0 ? { vaults, vaultsAck: isTruthyAck(params.vaultsAck) } : {}),
-        ...(memoryStoreId ? { memoryStoreId } : {}),
-        ...(memoryStoreId && memoryAccess ? { memoryAccess } : {}),
-        ...(memoryStoreId && memoryInstructions ? { memoryInstructions } : {}),
-        ...(files.length > 0 ? { files } : {}),
-        ...(sessionParameters ? { sessionParameters } : {}),
-      }
-    },
+    headers: () => ({}),
   },
 
-  transformResponse: async (response: Response) => response.json(),
+  directExecution: async (params): Promise<ManagedAgentRunSessionResponse> => {
+    const apiKey = params.accessToken
+    if (!apiKey) {
+      return {
+        success: false,
+        output: { content: '', sessionId: '' },
+        error: 'No Claude Platform credential is selected, or it could not be resolved.',
+      }
+    }
+
+    const agentId = params.agent?.trim()
+    const environmentId = params.environment?.trim()
+    if (!agentId || !environmentId) {
+      return {
+        success: false,
+        output: { content: '', sessionId: '' },
+        error: 'An agent and an environment are required.',
+      }
+    }
+
+    const vaultIds = normalizeStringList(params.vaults)
+    if (vaultIds.length > 0 && !isTruthyAck(params.vaultsAck)) {
+      return {
+        success: false,
+        output: { content: '', sessionId: '' },
+        error:
+          'Vault authorization is required — check the "I am authorized to use these vaults" acknowledgement on the block, or remove the selected vault(s).',
+      }
+    }
+
+    const files = normalizeFiles(params.files)
+    const sessionParameters = normalizeSessionParameters(params.sessionParameters)
+    const memoryStoreId = params.memoryStoreId?.trim() || undefined
+    const memoryAccess = normalizeMemoryAccess(params.memoryAccess)
+    const memoryInstructions = params.memoryInstructions?.trim() || undefined
+
+    const result = await runManagedAgentSession({
+      apiKey,
+      agentId,
+      environmentId,
+      userMessage: (params.userMessage ?? '').toString(),
+      ...(vaultIds.length > 0 ? { vaultIds } : {}),
+      ...(memoryStoreId ? { memoryStoreId } : {}),
+      ...(memoryStoreId && memoryAccess ? { memoryAccess } : {}),
+      ...(memoryStoreId && memoryInstructions ? { memoryInstructions } : {}),
+      ...(files.length > 0 ? { files } : {}),
+      ...(sessionParameters ? { sessionParameters } : {}),
+    })
+
+    if (!result.ok) {
+      return {
+        success: false,
+        output: { content: result.content, sessionId: result.sessionId ?? '' },
+        error: result.error ?? 'Managed Agent session failed',
+      }
+    }
+
+    return {
+      success: true,
+      output: {
+        content: result.content,
+        sessionId: result.sessionId ?? '',
+        ...(result.inputTokens !== undefined ? { inputTokens: result.inputTokens } : {}),
+        ...(result.outputTokens !== undefined ? { outputTokens: result.outputTokens } : {}),
+      },
+    }
+  },
 
   outputs: {
     content: {

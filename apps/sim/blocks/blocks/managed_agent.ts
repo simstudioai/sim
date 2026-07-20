@@ -12,13 +12,13 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
  * Claude Managed Agents block.
  *
  * Invokes a Claude Platform Managed Agent (cloud or self-hosted) as a
- * workflow node and returns the assistant's final text. The environment type
- * is resolved server-side from the selected environment, so one block covers
- * both cloud and self-hosted — memory and metadata route automatically.
+ * workflow node and returns the assistant's final text. Memory and metadata
+ * route automatically, so one block covers both cloud and self-hosted
+ * environments.
  *
- * The Claude Platform API key is stored once per workspace under Settings →
- * API Keys (BYOK provider `claude-platform`) and resolved server-side; it
- * never enters the block config or the browser.
+ * Authentication is a selectable Claude Platform credential (an Anthropic
+ * workspace API key). The credential's key is resolved server-side at run
+ * time and never enters the block config or the browser.
  */
 export const ManagedAgentBlock: BlockConfig = {
   type: 'managed_agent',
@@ -26,7 +26,7 @@ export const ManagedAgentBlock: BlockConfig = {
   description: 'Run a Claude Platform Managed Agent',
   authMode: AuthMode.ApiKey,
   longDescription:
-    "Invoke a Claude Platform Managed Agent from a workflow. Pick an agent and environment from your linked Claude workspace, optionally attach vaults, a memory store, and files, and add metadata tags. Returns the assistant's final text. Store your Claude Platform API key once per workspace under Settings → API Keys.",
+    "Invoke a Claude Platform Managed Agent from a workflow. Select a Claude Platform account, pick an agent and environment from that workspace, optionally attach vaults, a memory store, and files, and add metadata tags. Returns the assistant's final text.",
   category: 'tools',
   integrationType: IntegrationType.AI,
   docsLink: 'https://docs.sim.ai/integrations/managed-agent',
@@ -35,6 +35,15 @@ export const ManagedAgentBlock: BlockConfig = {
   icon: ClaudeIcon,
   subBlocks: [
     {
+      id: 'credential',
+      title: 'Claude Platform account',
+      type: 'oauth-input',
+      serviceId: 'claude-platform',
+      credentialKind: 'service-account',
+      required: true,
+      placeholder: 'Select a Claude Platform credential',
+    },
+    {
       id: 'agent',
       title: 'Agent',
       type: 'combobox',
@@ -42,6 +51,7 @@ export const ManagedAgentBlock: BlockConfig = {
       placeholder: 'Select an agent from your Claude workspace…',
       commandSearchable: true,
       options: [],
+      dependsOn: ['credential'],
       fetchOptions: fetchManagedAgentAgentOptions,
     },
     {
@@ -52,6 +62,7 @@ export const ManagedAgentBlock: BlockConfig = {
       placeholder: 'Select an environment…',
       commandSearchable: true,
       options: [],
+      dependsOn: ['credential'],
       fetchOptions: fetchManagedAgentEnvironmentOptions,
     },
     {
@@ -70,6 +81,7 @@ export const ManagedAgentBlock: BlockConfig = {
       commandSearchable: true,
       multiSelect: true,
       options: [],
+      dependsOn: ['credential'],
       fetchOptions: fetchManagedAgentVaultOptions,
     },
     {
@@ -88,6 +100,7 @@ export const ManagedAgentBlock: BlockConfig = {
       placeholder: 'Optional — pick a memory store',
       commandSearchable: true,
       options: [],
+      dependsOn: ['credential'],
       fetchOptions: fetchManagedAgentMemoryStoreOptions,
     },
     {
@@ -135,6 +148,7 @@ export const ManagedAgentBlock: BlockConfig = {
     access: ['managed_agent_run_session'],
   },
   inputs: {
+    credential: { type: 'string', description: 'Claude Platform credential id.' },
     agent: { type: 'string', description: 'Managed-agent id inside the linked Claude workspace.' },
     environment: {
       type: 'string',

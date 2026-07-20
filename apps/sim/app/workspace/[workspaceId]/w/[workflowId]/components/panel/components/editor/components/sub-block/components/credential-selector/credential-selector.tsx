@@ -12,8 +12,12 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
-import { getMissingRequiredScopes } from '@/lib/oauth/utils'
+import { getMissingRequiredScopes, getServiceByProviderAndId } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import {
+  ConnectServiceAccountModal,
+  type ServiceAccountProviderId,
+} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -50,6 +54,7 @@ export function CredentialSelector({
   const [showConnectModal, setShowConnectModal] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [showSlackBotModal, setShowSlackBotModal] = useState(false)
+  const [showServiceAccountModal, setShowServiceAccountModal] = useState(false)
   const [editingValue, setEditingValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -101,15 +106,22 @@ export function CredentialSelector({
   const credentialKind = subBlock.credentialKind
 
   const credentials = useMemo(() => {
-    // A custom-bot picker lists only the reusable Slack bot credentials
-    // (service-account type), including in trigger mode.
-    if (credentialKind === 'custom-bot') {
+    // A custom-bot or service-account picker lists only the reusable
+    // service-account credentials, including in trigger mode.
+    if (credentialKind === 'custom-bot' || credentialKind === 'service-account') {
       return rawCredentials.filter((cred) => cred.type === 'service_account')
     }
     return isTriggerMode && !subBlock.allowServiceAccounts
       ? rawCredentials.filter((cred) => cred.type !== 'service_account')
       : rawCredentials
   }, [rawCredentials, isTriggerMode, credentialKind, subBlock.allowServiceAccounts])
+
+  // Resolved service-account provider metadata for the token-paste connect
+  // modal (only used when `credentialKind === 'service-account'`).
+  const serviceAccountService = useMemo(
+    () => (serviceId ? getServiceByProviderAndId(provider, serviceId) : undefined),
+    [provider, serviceId]
+  )
 
   const selectedCredential = useMemo(
     () => credentials.find((cred) => cred.id === selectedId),
@@ -189,6 +201,10 @@ export function CredentialSelector({
       setShowSlackBotModal(true)
       return
     }
+    if (credentialKind === 'service-account') {
+      setShowServiceAccountModal(true)
+      return
+    }
     setShowConnectModal(true)
   }, [credentialKind])
 
@@ -235,9 +251,13 @@ export function CredentialSelector({
           ? credentials.length > 0
             ? 'Connect another custom bot'
             : 'Set up a custom bot'
-          : credentials.length > 0
-            ? `Connect another ${getProviderName(provider)} account`
-            : `Connect ${getProviderName(provider)} account`,
+          : credentialKind === 'service-account'
+            ? credentials.length > 0
+              ? `Add another ${getProviderName(provider)} key`
+              : `Add ${getProviderName(provider)} key`
+            : credentials.length > 0
+              ? `Connect another ${getProviderName(provider)} account`
+              : `Connect ${getProviderName(provider)} account`,
       value: '__connect_account__',
       iconElement: <ExternalLink className='size-3' />,
     })
@@ -405,6 +425,22 @@ export function CredentialSelector({
             setStoreValue(newCredentialId)
             refetchCredentials()
           }}
+        />
+      )}
+
+      {showServiceAccountModal && serviceAccountService?.serviceAccountProviderId && (
+        <ConnectServiceAccountModal
+          open={showServiceAccountModal}
+          onOpenChange={(open) => {
+            setShowServiceAccountModal(open)
+            if (!open) refetchCredentials()
+          }}
+          workspaceId={workspaceId}
+          serviceAccountProviderId={
+            serviceAccountService.serviceAccountProviderId as ServiceAccountProviderId
+          }
+          serviceName={serviceAccountService.name}
+          serviceIcon={serviceAccountService.icon}
         />
       )}
     </div>
