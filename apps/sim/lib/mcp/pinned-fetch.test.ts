@@ -79,6 +79,22 @@ describe('createSsrfGuardedMcpFetch', () => {
     expect(sentinelFetch).not.toHaveBeenCalled()
   })
 
+  it('does not orphan the validation promise when the signal is already aborted', async () => {
+    // Caller aborts before the guard runs, then validation rejects. Without adopting
+    // the in-flight validation, its rejection would surface as an unhandled rejection.
+    mockValidateMcpServerSsrf.mockRejectedValue(new Error('blocked late'))
+    const controller = new AbortController()
+    controller.abort(new Error('pre-aborted'))
+    const fetchLike = createSsrfGuardedMcpFetch(60_000)
+
+    await expect(
+      fetchLike('https://slow.example/token', { signal: controller.signal })
+    ).rejects.toThrow('pre-aborted')
+    expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
+    // Let the swallowed validation rejection settle so a leak would surface here.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+
   it('cancels a stalled validation when the caller aborts (not just the deadline)', async () => {
     // Validation hangs; the caller's abort — well before the 60s deadline — must settle it.
     mockValidateMcpServerSsrf.mockReturnValue(new Promise(() => {}))

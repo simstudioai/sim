@@ -53,7 +53,12 @@ const OAUTH_FETCH_TIMEOUT_MS = 30_000
  * settles so a late abort can't surface as an unhandled rejection.
  */
 function raceWithSignal<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(signal.reason)
+  if (signal.aborted) {
+    // The promise is already in flight; adopt its settlement so a later rejection
+    // (SSRF/DNS failure) can't surface as an unhandled rejection once we've aborted.
+    promise.catch(() => {})
+    return Promise.reject(signal.reason)
+  }
   return new Promise<T>((resolve, reject) => {
     const onAbort = () => reject(signal.reason)
     signal.addEventListener('abort', onAbort, { once: true })
