@@ -263,6 +263,66 @@ describe('knowledge base Copilot operations', () => {
     )
   })
 
+  it.each([
+    ['an empty array', []],
+    ['null', null],
+    ['only blank entries', [{ tagName: ' ', tagValue: ' ' }]],
+  ])('applies other document updates when documentTags contains %s', async (_label, tags) => {
+    mockCheckDocumentWriteAccess.mockResolvedValue({ hasAccess: true } as never)
+    mockUpdateDocument.mockResolvedValue({} as never)
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'update_document',
+        args: {
+          knowledgeBaseId: 'knowledge-base-1',
+          documentId: 'document-1',
+          filename: 'renamed.txt',
+          enabled: false,
+          documentTags: tags,
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-paid' }
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        documentId: 'document-1',
+        filename: 'renamed.txt',
+        enabled: false,
+      },
+    })
+    expect(mockGetDocumentTagDefinitions).not.toHaveBeenCalled()
+    expect(mockUpdateDocument).toHaveBeenCalledWith(
+      'document-1',
+      { filename: 'renamed.txt', enabled: false },
+      expect.any(String)
+    )
+  })
+
+  it('rejects update_document when empty documentTags is the only supplied update', async () => {
+    mockCheckDocumentWriteAccess.mockResolvedValue({ hasAccess: true } as never)
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'update_document',
+        args: {
+          knowledgeBaseId: 'knowledge-base-1',
+          documentId: 'document-1',
+          documentTags: [],
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-paid' }
+    )
+
+    expect(result).toEqual({
+      success: false,
+      message: 'At least one of filename, enabled, or documentTags is required for update_document',
+    })
+    expect(mockUpdateDocument).not.toHaveBeenCalled()
+  })
+
   it('applies tag filters to semantic queries', async () => {
     mockCheckKnowledgeBaseAccess.mockResolvedValue({ hasAccess: true } as never)
     mockGetKnowledgeBaseById.mockResolvedValue({
@@ -331,6 +391,54 @@ describe('knowledge base Copilot operations', () => {
       distanceThreshold: 1,
     })
     expect(mockHandleVectorOnlySearch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['an empty array', []],
+    ['null', null],
+    ['only blank entries', [{ tagName: ' ', tagValue: ' ' }]],
+  ])('uses vector-only search when tagFilters contains %s', async (_label, filters) => {
+    mockCheckKnowledgeBaseAccess.mockResolvedValue({ hasAccess: true } as never)
+    mockGetKnowledgeBaseById.mockResolvedValue({
+      id: 'knowledge-base-1',
+      name: 'User Memory',
+      workspaceId: 'workspace-paid',
+      embeddingModel: 'text-embedding-3-small',
+    } as never)
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false } as never)
+    mockGenerateSearchEmbedding.mockResolvedValue({
+      embedding: [0.1, 0.2],
+      isBYOK: false,
+    } as never)
+    mockGetQueryStrategy.mockReturnValue({ distanceThreshold: 1 } as never)
+    mockHandleVectorOnlySearch.mockResolvedValue([])
+    mockRecordSearchEmbeddingUsage.mockResolvedValue(undefined)
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'query',
+        args: {
+          knowledgeBaseId: 'knowledge-base-1',
+          query: 'memory',
+          tagFilters: filters,
+        },
+      },
+      {
+        userId: 'external-admin',
+        workspaceId: 'workspace-paid',
+        billingAttribution: BILLING_ATTRIBUTION,
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockGetDocumentTagDefinitions).not.toHaveBeenCalled()
+    expect(mockHandleTagAndVectorSearch).not.toHaveBeenCalled()
+    expect(mockHandleVectorOnlySearch).toHaveBeenCalledWith({
+      knowledgeBaseIds: ['knowledge-base-1'],
+      topK: 5,
+      queryVector: JSON.stringify([0.1, 0.2]),
+      distanceThreshold: 1,
+    })
   })
 
   it('wraps tag definitions in an object-shaped result payload', async () => {

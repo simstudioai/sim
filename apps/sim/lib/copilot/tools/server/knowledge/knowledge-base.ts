@@ -253,13 +253,6 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           const parsedTagFilters = parseTagFilters(args.tagFilters)
-          if (args.tagFilters !== undefined && parsedTagFilters.length === 0) {
-            return {
-              success: false,
-              message: 'tagFilters must contain at least one tagName and tagValue',
-            }
-          }
-
           const tagDefinitions =
             parsedTagFilters.length > 0 ? await getDocumentTagDefinitions(args.knowledgeBaseId) : []
           const structuredFilters = resolveStructuredTagFilters(parsedTagFilters, tagDefinitions)
@@ -629,13 +622,6 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             updateData.enabled = args.enabled
           }
           const parsedDocumentTags = parseDocumentTags(args.documentTags)
-          if (args.documentTags !== undefined && parsedDocumentTags.length === 0) {
-            return {
-              success: false,
-              message: 'documentTags must contain at least one tagName and tagValue',
-            }
-          }
-
           const updatedTags: Record<string, string> = {}
           if (parsedDocumentTags.length > 0) {
             const tagDefinitions = await getDocumentTagDefinitions(args.knowledgeBaseId)
