@@ -3,6 +3,7 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/typ
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getCredentialActorContext } from '@/lib/credentials/access'
+import { isServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
 import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -105,6 +106,19 @@ async function generateOAuthLink(
 
   const allServices = getAllOAuthServices()
   const normalizedInput = providerName.toLowerCase().trim()
+
+  // Reject a service-account id before the fuzzy pass below can swallow it.
+  // That pass matches on substring containment, so `slack-custom-bot` contains
+  // `slack` and silently resolves to the Slack OAuth service — the tool then
+  // returns a personal-OAuth authorize URL, reports success, and the user
+  // connects their own account when they asked for a shared bot.
+  if (isServiceAccountProviderId(normalizedInput)) {
+    throw new Error(
+      `"${providerName}" is a service account, not an OAuth provider. ` +
+        `Call service_account_get_setup_link with this provider instead — ` +
+        `it returns a link that opens the service account setup form.`
+    )
+  }
 
   const matched =
     allServices.find((s) => s.providerId === normalizedInput) ||
