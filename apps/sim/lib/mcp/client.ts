@@ -12,6 +12,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
+import { withMcpHttpDiagnostics } from '@/lib/mcp/http-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import { createPinnedMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
@@ -101,7 +102,7 @@ export class McpClient {
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
       requestInit: { headers: this.config.headers },
-      ...(pinned ? { fetch: pinned.fetch } : {}),
+      ...(pinned ? { fetch: withMcpHttpDiagnostics(pinned.fetch, 'transport') } : {}),
     })
 
     this.client = new Client(
