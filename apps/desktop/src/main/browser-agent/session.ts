@@ -7,6 +7,7 @@ import {
   MAX_BROWSER_TABS,
 } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow, Session, WebContents } from 'electron'
 import { nativeTheme, WebContentsView } from 'electron'
 import { registerAgentWebContents } from '@/main/browser-agent/registry'
@@ -207,6 +208,29 @@ let lastAppliedBounds = ''
 let lastAppliedVisibility: boolean | null = null
 
 /**
+ * Clears the tracked attachment before touching Electron objects so a stale
+ * host or child view cannot leave layout permanently wedged after teardown.
+ */
+function detachAttachedView(): void {
+  const view = attachedView
+  const win = hostedWindow
+  attachedView = null
+  hostedWindow = null
+  lastAppliedBounds = ''
+  lastAppliedVisibility = null
+
+  if (!view || !win) return
+  try {
+    if (win.isDestroyed() || view.webContents.isDestroyed()) return
+    win.contentView.removeChildView(view)
+  } catch (error) {
+    logger.warn('Could not detach embedded browser view', {
+      error: getErrorMessage(error, 'unknown'),
+    })
+  }
+}
+
+/**
  * Captures the current browser frame for the renderer to display while the
  * native view is hidden beneath an overlay. Captures stay hidden so Chromium
  * never promotes an occluded page back into the compositor.
@@ -246,10 +270,7 @@ function layout(): void {
 
   if (!showing || hostedWindow !== win || attachedView !== active?.view) {
     if (attachedView) {
-      hostedWindow?.contentView.removeChildView(attachedView)
-      attachedView = null
-      lastAppliedBounds = ''
-      lastAppliedVisibility = null
+      detachAttachedView()
     }
   }
   if (!showing || !active || !win || panelBounds === null) {
@@ -369,10 +390,7 @@ export function closeTab(tabId: string): void {
   if (index < 0) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
   const [tab] = tabs.splice(index, 1)
   if (attachedView === tab.view) {
-    hostedWindow?.contentView.removeChildView(tab.view)
-    attachedView = null
-    lastAppliedBounds = ''
-    lastAppliedVisibility = null
+    detachAttachedView()
   }
   tab.view.webContents.close()
   if (activeTabId === tab.id) {

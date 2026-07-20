@@ -15,6 +15,7 @@ interface MockView {
     }
     setWindowOpenHandler: ReturnType<typeof vi.fn>
     loadURL: ReturnType<typeof vi.fn>
+    isDestroyed: ReturnType<typeof vi.fn>
     setBackgroundThrottling: ReturnType<typeof vi.fn>
     capturePage: ReturnType<typeof vi.fn>
   }
@@ -164,6 +165,67 @@ describe('browser-agent session', () => {
     ).contentView.removeChildView
     session.setPanelBounds(null)
     expect(removeChildView).toHaveBeenCalledWith(tab.view)
+  })
+
+  it('clears a stale attachment without touching a destroyed host window', () => {
+    const tab = session.ensureTab()
+    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const staleContent = (
+      win as unknown as {
+        contentView: {
+          removeChildView: ReturnType<typeof vi.fn>
+        }
+      }
+    ).contentView
+    staleContent.removeChildView.mockClear()
+    staleContent.removeChildView.mockImplementation(() => {
+      throw new Error('Object has been destroyed')
+    })
+    vi.mocked(win.isDestroyed).mockReturnValue(true)
+
+    const replacement = mainWindowMock()
+    session.initSession(
+      {
+        onSessionClosed: vi.fn(),
+        onTabCreated: vi.fn(),
+        onActiveTabChanged: vi.fn(),
+        onTabsChanged: vi.fn(),
+        onTabThemeChanged: vi.fn(),
+        onDownloadBlocked: vi.fn(),
+      },
+      () => replacement
+    )
+
+    expect(() => session.setPanelBounds(null)).not.toThrow()
+    expect(staleContent.removeChildView).not.toHaveBeenCalled()
+
+    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const replacementContent = (
+      replacement as unknown as {
+        contentView: {
+          addChildView: ReturnType<typeof vi.fn>
+        }
+      }
+    ).contentView
+    expect(replacementContent.addChildView).toHaveBeenCalledWith(tab.view)
+  })
+
+  it('clears a stale attachment without touching a destroyed child view', () => {
+    const tab = session.ensureTab()
+    const view = tab.view as unknown as MockView
+    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const content = (
+      win as unknown as {
+        contentView: {
+          removeChildView: ReturnType<typeof vi.fn>
+        }
+      }
+    ).contentView
+    content.removeChildView.mockClear()
+    view.webContents.isDestroyed.mockReturnValue(true)
+
+    expect(() => session.setPanelBounds(null)).not.toThrow()
+    expect(content.removeChildView).not.toHaveBeenCalled()
   })
 
   it('scales panel bounds by the main window zoom factor', () => {
