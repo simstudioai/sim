@@ -389,6 +389,9 @@ jobs:
       # promote-trigger passes it to the poll script so a stale pipeline execution
       # reusing the same image digest can't satisfy the cutover gate.
       retag_epoch: ${{ steps.promote.outputs.retag_epoch }}
+      # 'false' when the app deploy tag didn't move to a new digest (no ECS deploy).
+      # promote-trigger promotes immediately in that case instead of waiting.
+      app_image_changed: ${{ steps.promote.outputs.app_image_changed }}
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
@@ -438,6 +441,23 @@ jobs:
             ECR_TAG="latest"
           else
             ECR_TAG="staging"
+          fi
+
+          # Detect whether the APP deploy tag actually moves to a new digest. If
+          # this commit's app image is byte-identical to the currently-deployed one
+          # (e.g. a commit that doesn't touch the app image — docs/CI-only), the
+          # retag is a no-op, ECR fires no push event, and no ECS app deploy runs.
+          # promote-trigger reads this to promote immediately instead of waiting for
+          # a cutover that will never happen.
+          get_digest() { docker buildx imagetools inspect "$1" 2>/dev/null | awk '/^Digest:/{print $2; exit}'; }
+          APP_REF="${REGISTRY}/${{ secrets.ECR_APP }}"
+          NEW_APP_DIGEST="$(get_digest "${APP_REF}:${{ github.sha }}")"
+          PREV_APP_DIGEST="$(get_digest "${APP_REF}:${ECR_TAG}" || true)"
+          if [ -n "$NEW_APP_DIGEST" ] && [ "$NEW_APP_DIGEST" = "$PREV_APP_DIGEST" ]; then
+            echo "app_image_changed=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ App deploy tag ${ECR_TAG} already points at ${NEW_APP_DIGEST}; no ECS app deploy will be triggered."
+          else
+            echo "app_image_changed=true" >> "$GITHUB_OUTPUT"
           fi
 
           # Verify every sha image exists before moving any deploy tag, so a
@@ -511,8 +531,17 @@ jobs:
         with:
           role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+          # The poll can run up to ~70 min (prod deploy queued behind a bake), which
+          # outlasts the default 1h session. Hold the session for the full job so AWS
+          # calls don't start failing mid-poll. Requires the deploy role's
+          # MaxSessionDuration to be >= this value (roles are managed outside the repo).
+          role-duration-seconds: 5400
 
+      # Skip the cutover wait when the app image didn't change (no ECS deploy was
+      # triggered) — otherwise the poll would hang until timeout. Promotion still
+      # runs below, immediately, since there is no app cutover to align with.
       - name: Wait for ECS traffic cutover
+        if: needs.promote-images.outputs.app_image_changed == 'true'
         env:
           PIPELINE: sim-${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}-us-east-1-app-deployment
           RETAG_EPOCH: ${{ needs.promote-images.outputs.retag_epoch }}
@@ -538,7 +567,7 @@ jobs:
             echo "ERROR: no deployed version passed from deploy-trigger" >&2
             exit 1
           fi
-          echo "Promoting Trigger.dev version $VERSION ($TRIGGER_ENV) at ECS cutover"
+          echo "Promoting Trigger.dev version $VERSION ($TRIGGER_ENV)"
           bunx trigger.dev@4.4.3 promote "$VERSION" --env "$TRIGGER_ENV"
 
   # Build ARM64 images for GHCR (main branch only, runs in parallel with
