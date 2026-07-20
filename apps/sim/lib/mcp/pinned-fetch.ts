@@ -47,6 +47,30 @@ export function createPinnedMcpFetch(resolvedIP: string): PinnedMcpFetch {
 const OAUTH_FETCH_TIMEOUT_MS = 30_000
 
 /**
+ * Awaits `promise` but rejects with the signal's reason if `signal` aborts first.
+ * Bounds `dns.lookup`-based SSRF validation (which can't accept a signal) by the
+ * request deadline. Removes the abort listener once `promise` settles so a later
+ * timeout can't surface as an unhandled rejection.
+ */
+function withDeadline<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(signal.reason)
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      }
+    )
+  })
+}
+
+/**
  * Builds a `FetchLike` that validates every outbound request URL against the
  * MCP SSRF policy before issuing it, then pins the connection to the resolved
  * IP. Unlike the live transport — where the server URL is validated once up
@@ -62,10 +86,11 @@ const OAUTH_FETCH_TIMEOUT_MS = 30_000
  * own deadline is relabeled to an `McpError`; a caller abort or any other failure
  * propagates unchanged.
  *
- * Note: the deadline only bounds the HTTP request, not the validation DNS lookup
- * — Node's `dns.lookup` does not accept a signal, so a hanging resolution can
- * extend the overall call by up to the OS DNS timeout. Acceptable here because
- * all consumers are best-effort authorization/revocation flows.
+ * The deadline covers the whole guarded call — both SSRF validation (whose
+ * `dns.lookup` can't take a signal, so it's raced against the deadline) and the
+ * HTTP request — so a caller awaiting this never waits longer than `timeoutMs`.
+ * A stalled DNS resolution still runs to completion in the background, but its
+ * result is discarded.
  *
  * @param timeoutMs Per-request deadline in ms (defaults to 30s; override for tests).
  * @throws McpSsrfError if a request URL resolves to a blocked IP address
@@ -74,11 +99,11 @@ const OAUTH_FETCH_TIMEOUT_MS = 30_000
 export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOUT_MS): FetchLike {
   return (async (url, init) => {
     const target = typeof url === 'string' ? url : url.href
-    const resolvedIP = await validateMcpServerSsrf(target)
-    const pinnedFetch: FetchLike = resolvedIP ? createPinnedFetch(resolvedIP) : globalThis.fetch
     const timeoutSignal = AbortSignal.timeout(timeoutMs)
-    const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
     try {
+      const resolvedIP = await withDeadline(validateMcpServerSsrf(target), timeoutSignal)
+      const pinnedFetch: FetchLike = resolvedIP ? createPinnedFetch(resolvedIP) : globalThis.fetch
+      const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
       return await pinnedFetch(url, { ...init, signal })
     } catch (error) {
       if (timeoutSignal.aborted && !init?.signal?.aborted) {

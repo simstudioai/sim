@@ -68,6 +68,17 @@ describe('createSsrfGuardedMcpFetch', () => {
     )
   })
 
+  it('bounds a stalled SSRF/DNS validation by the deadline', async () => {
+    // Validation never resolves (mimics a hanging dns.lookup, which takes no signal).
+    mockValidateMcpServerSsrf.mockReturnValue(new Promise(() => {}))
+    const fetchLike = createSsrfGuardedMcpFetch(5)
+
+    await expect(fetchLike('https://slow-dns.example/token')).rejects.toThrow(/timed out after 5ms/)
+    // Never got past validation, so no request was issued.
+    expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
+    expect(sentinelFetch).not.toHaveBeenCalled()
+  })
+
   it('propagates a caller-initiated abort unchanged (composed with the deadline)', async () => {
     mockValidateMcpServerSsrf.mockResolvedValue('203.0.113.10')
     sentinelFetch.mockImplementation(
