@@ -2159,6 +2159,25 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 type: 'string',
               },
             },
+            documentTags: {
+              type: 'array',
+              description:
+                'Tag values to persist on a document (optional for update_document). Use tag display names from list_tags.',
+              items: {
+                type: 'object',
+                properties: {
+                  tagName: {
+                    type: 'string',
+                    description: 'Tag display name as returned by list_tags',
+                  },
+                  tagValue: {
+                    type: ['string', 'number', 'boolean'],
+                    description: 'Typed tag value',
+                  },
+                },
+                required: ['tagName', 'tagValue'],
+              },
+            },
             enabled: {
               type: 'boolean',
               description: 'Enable/disable a document (optional for update_document)',
@@ -2220,6 +2239,46 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               description:
                 'Field type: text, number, date, boolean (optional for create_tag, defaults to text)',
               enum: ['text', 'number', 'date', 'boolean'],
+            },
+            tagFilters: {
+              type: 'array',
+              description:
+                'Tag filters applied to the query. Use tag display names from list_tags.',
+              items: {
+                type: 'object',
+                properties: {
+                  operator: {
+                    type: 'string',
+                    description: 'Comparison operator (defaults to eq)',
+                    enum: [
+                      'eq',
+                      'neq',
+                      'contains',
+                      'not_contains',
+                      'starts_with',
+                      'ends_with',
+                      'gt',
+                      'gte',
+                      'lt',
+                      'lte',
+                      'between',
+                    ],
+                  },
+                  tagName: {
+                    type: 'string',
+                    description: 'Tag display name as returned by list_tags',
+                  },
+                  tagValue: {
+                    type: ['string', 'number', 'boolean'],
+                    description: 'Typed tag value',
+                  },
+                  valueTo: {
+                    type: ['string', 'number'],
+                    description: 'Upper bound required by the between operator',
+                  },
+                },
+                required: ['tagName', 'tagValue'],
+              },
             },
             topK: {
               type: 'number',
@@ -3500,6 +3559,46 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             query: {
               type: 'string',
               description: "Search query text (required for 'query')",
+            },
+            tagFilters: {
+              type: 'array',
+              description:
+                'Tag filters applied to the query. Use tag display names from list_tags.',
+              items: {
+                type: 'object',
+                properties: {
+                  operator: {
+                    type: 'string',
+                    description: 'Comparison operator (defaults to eq)',
+                    enum: [
+                      'eq',
+                      'neq',
+                      'contains',
+                      'not_contains',
+                      'starts_with',
+                      'ends_with',
+                      'gt',
+                      'gte',
+                      'lt',
+                      'lte',
+                      'between',
+                    ],
+                  },
+                  tagName: {
+                    type: 'string',
+                    description: 'Tag display name as returned by list_tags',
+                  },
+                  tagValue: {
+                    type: ['string', 'number', 'boolean'],
+                    description: 'Typed tag value',
+                  },
+                  valueTo: {
+                    type: ['string', 'number'],
+                    description: 'Upper bound required by the between operator',
+                  },
+                },
+                required: ['tagName', 'tagValue'],
+              },
             },
             topK: {
               type: 'number',

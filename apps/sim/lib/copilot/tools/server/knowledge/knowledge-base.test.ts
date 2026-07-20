@@ -95,6 +95,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 }))
 vi.mock('@/app/api/knowledge/search/utils', () => ({
   getQueryStrategy: vi.fn(),
+  handleTagAndVectorSearch: vi.fn(),
   handleVectorOnlySearch: vi.fn(),
 }))
 vi.mock('@/app/api/knowledge/utils', () => ({
@@ -103,7 +104,31 @@ vi.mock('@/app/api/knowledge/utils', () => ({
   checkKnowledgeBaseWriteAccess: mockCheckKnowledgeBaseWriteAccess,
 }))
 
+import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
+import { updateDocument } from '@/lib/knowledge/documents/service'
+import { generateSearchEmbedding, recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
+import { getKnowledgeBaseById } from '@/lib/knowledge/service'
+import { getDocumentTagDefinitions, getTagUsageStats } from '@/lib/knowledge/tags/service'
+import {
+  getQueryStrategy,
+  handleTagAndVectorSearch,
+  handleVectorOnlySearch,
+} from '@/app/api/knowledge/search/utils'
+import { checkDocumentWriteAccess, checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
+
+const mockCheckAttributedUsageLimits = vi.mocked(checkAttributedUsageLimits)
+const mockCheckDocumentWriteAccess = vi.mocked(checkDocumentWriteAccess)
+const mockCheckKnowledgeBaseAccess = vi.mocked(checkKnowledgeBaseAccess)
+const mockGenerateSearchEmbedding = vi.mocked(generateSearchEmbedding)
+const mockGetDocumentTagDefinitions = vi.mocked(getDocumentTagDefinitions)
+const mockGetKnowledgeBaseById = vi.mocked(getKnowledgeBaseById)
+const mockGetQueryStrategy = vi.mocked(getQueryStrategy)
+const mockGetTagUsageStats = vi.mocked(getTagUsageStats)
+const mockHandleTagAndVectorSearch = vi.mocked(handleTagAndVectorSearch)
+const mockHandleVectorOnlySearch = vi.mocked(handleVectorOnlySearch)
+const mockRecordSearchEmbeddingUsage = vi.mocked(recordSearchEmbeddingUsage)
+const mockUpdateDocument = vi.mocked(updateDocument)
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'external-admin',
@@ -118,7 +143,7 @@ const BILLING_ATTRIBUTION = {
   payerSubscription: null,
 }
 
-describe('knowledge base connector Copilot operations', () => {
+describe('knowledge base Copilot operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
@@ -191,4 +216,164 @@ describe('knowledge base connector Copilot operations', () => {
       expect(mockSerializeBillingAttributionHeader).toHaveBeenCalledWith(BILLING_ATTRIBUTION)
     }
   )
+
+  it('persists document tags by resolving display names to storage slots', async () => {
+    mockCheckDocumentWriteAccess.mockResolvedValue({ hasAccess: true } as never)
+    mockGetDocumentTagDefinitions.mockResolvedValue([
+      {
+        id: 'tag-definition-1',
+        knowledgeBaseId: 'knowledge-base-1',
+        tagSlot: 'tag1',
+        displayName: 'identity_key',
+        fieldType: 'text',
+        createdAt: new Date('2026-07-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-07-01T00:00:00.000Z'),
+      },
+    ])
+    mockUpdateDocument.mockResolvedValue({} as never)
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'update_document',
+        args: {
+          knowledgeBaseId: 'knowledge-base-1',
+          documentId: 'document-1',
+          documentTags: [
+            {
+              tagName: 'identity_key',
+              tagValue: 'dana@example.com',
+            },
+          ],
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-paid' }
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        documentId: 'document-1',
+        tags: { identity_key: 'dana@example.com' },
+      },
+    })
+    expect(mockUpdateDocument).toHaveBeenCalledWith(
+      'document-1',
+      { tag1: 'dana@example.com' },
+      expect.any(String)
+    )
+  })
+
+  it('applies tag filters to semantic queries', async () => {
+    mockCheckKnowledgeBaseAccess.mockResolvedValue({ hasAccess: true } as never)
+    mockGetKnowledgeBaseById.mockResolvedValue({
+      id: 'knowledge-base-1',
+      name: 'User Memory',
+      workspaceId: 'workspace-paid',
+      embeddingModel: 'text-embedding-3-small',
+    } as never)
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false } as never)
+    mockGenerateSearchEmbedding.mockResolvedValue({
+      embedding: [0.1, 0.2],
+      isBYOK: false,
+    } as never)
+    mockGetQueryStrategy.mockReturnValue({ distanceThreshold: 1 } as never)
+    mockGetDocumentTagDefinitions.mockResolvedValue([
+      {
+        id: 'tag-definition-1',
+        knowledgeBaseId: 'knowledge-base-1',
+        tagSlot: 'tag1',
+        displayName: 'identity_key',
+        fieldType: 'text',
+        createdAt: new Date('2026-07-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-07-01T00:00:00.000Z'),
+      },
+    ])
+    mockHandleTagAndVectorSearch.mockResolvedValue([
+      {
+        documentId: 'document-1',
+        content: 'Dana memory',
+        chunkIndex: 0,
+        distance: 0.1,
+      } as never,
+    ])
+    mockRecordSearchEmbeddingUsage.mockResolvedValue(undefined)
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'query',
+        args: {
+          knowledgeBaseId: 'knowledge-base-1',
+          query: 'memory',
+          tagFilters: [{ tagName: 'identity_key', tagValue: 'dana@example.com' }],
+        },
+      },
+      {
+        userId: 'external-admin',
+        workspaceId: 'workspace-paid',
+        billingAttribution: BILLING_ATTRIBUTION,
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockHandleTagAndVectorSearch).toHaveBeenCalledWith({
+      knowledgeBaseIds: ['knowledge-base-1'],
+      topK: 5,
+      structuredFilters: [
+        {
+          tagSlot: 'tag1',
+          fieldType: 'text',
+          operator: 'eq',
+          value: 'dana@example.com',
+          valueTo: undefined,
+        },
+      ],
+      queryVector: JSON.stringify([0.1, 0.2]),
+      distanceThreshold: 1,
+    })
+    expect(mockHandleVectorOnlySearch).not.toHaveBeenCalled()
+  })
+
+  it('wraps tag definitions in an object-shaped result payload', async () => {
+    mockCheckKnowledgeBaseAccess.mockResolvedValue({ hasAccess: true } as never)
+    mockGetDocumentTagDefinitions.mockResolvedValue([
+      {
+        id: 'tag-definition-1',
+        knowledgeBaseId: 'knowledge-base-1',
+        tagSlot: 'tag1',
+        displayName: 'identity_key',
+        fieldType: 'text',
+        createdAt: new Date('2026-07-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-07-01T00:00:00.000Z'),
+      },
+    ])
+
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'list_tags', args: { knowledgeBaseId: 'knowledge-base-1' } },
+      { userId: 'user-1' }
+    )
+
+    expect(result.data).toEqual({
+      tags: [
+        {
+          id: 'tag-definition-1',
+          tagSlot: 'tag1',
+          displayName: 'identity_key',
+          fieldType: 'text',
+          createdAt: new Date('2026-07-01T00:00:00.000Z'),
+        },
+      ],
+    })
+  })
+
+  it('wraps tag usage in an object-shaped result payload', async () => {
+    mockCheckKnowledgeBaseAccess.mockResolvedValue({ hasAccess: true } as never)
+    mockGetTagUsageStats.mockResolvedValue([{ tagSlot: 'tag1', documentCount: 1 }] as never)
+
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'get_tag_usage', args: { knowledgeBaseId: 'knowledge-base-1' } },
+      { userId: 'user-1' }
+    )
+
+    expect(result.data).toEqual({ usage: [{ tagSlot: 'tag1', documentCount: 1 }] })
+  })
 })

@@ -8,8 +8,10 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { knowledgeCreateDocumentTool } from '@/tools/knowledge/create_document'
 import { knowledgeSearchTool } from '@/tools/knowledge/search'
 import { knowledgeUploadChunkTool } from '@/tools/knowledge/upload_chunk'
+import { parseDocumentTags } from '@/tools/shared/tags'
 
 /**
  * Creates a mock Response object for testing transformResponse
@@ -23,6 +25,45 @@ function createMockResponse(data: unknown): Response {
 }
 
 describe('Knowledge Tools', () => {
+  describe('parseDocumentTags', () => {
+    it('normalizes agent-authored tagValue entries for document creation', () => {
+      expect(
+        parseDocumentTags([
+          {
+            id: 'tag-definition-1',
+            tagName: 'identity_key',
+            tagValue: 'dana@example.com',
+          },
+        ])
+      ).toEqual([{ tagName: 'identity_key', value: 'dana@example.com' }])
+    })
+
+    it('serializes agent-authored tags into the create-document API payload', () => {
+      const body = knowledgeCreateDocumentTool.request.body?.({
+        knowledgeBaseId: 'knowledge-base-1',
+        name: 'memory.txt',
+        content: 'Dana memory',
+        documentTags: [
+          {
+            id: 'tag-definition-1',
+            tagName: 'identity_key',
+            tagValue: 'dana@example.com',
+          },
+        ],
+      })
+
+      expect(body).toMatchObject({
+        documents: [
+          {
+            documentTagsData: JSON.stringify([
+              { tagName: 'identity_key', value: 'dana@example.com' },
+            ]),
+          },
+        ],
+      })
+    })
+  })
+
   describe('knowledgeSearchTool', () => {
     describe('transformResponse', () => {
       it('should restructure cost information for logging', async () => {

@@ -70,12 +70,13 @@ function filterValidDocumentTags(tags: unknown[]): DocumentTagEntry[] {
       if (typeof entry !== 'object' || entry === null) return false
       const e = entry as Record<string, unknown>
       if (!e.tagName || (typeof e.tagName === 'string' && e.tagName.trim() === '')) return false
-      if (e.value === undefined || e.value === null || e.value === '') return false
+      const tagValue = e.value ?? e.tagValue
+      if (tagValue === undefined || tagValue === null || tagValue === '') return false
       return true
     })
     .map((entry) => ({
       tagName: String(entry.tagName),
-      value: String(entry.value),
+      value: String(entry.value ?? entry.tagValue),
     }))
 }
 

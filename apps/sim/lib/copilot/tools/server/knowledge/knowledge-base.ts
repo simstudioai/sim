@@ -33,6 +33,7 @@ import {
   getConfiguredEmbeddingModel,
   recordSearchEmbeddingUsage,
 } from '@/lib/knowledge/embeddings'
+import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import {
   createKnowledgeBase,
   deleteKnowledgeBase,
@@ -48,14 +49,21 @@ import {
   getTagUsageStats,
   updateTagDefinition,
 } from '@/lib/knowledge/tags/service'
+import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
+import type { StructuredFilter, TagDefinition } from '@/lib/knowledge/types'
 import { StorageService } from '@/lib/uploads'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
+import {
+  getQueryStrategy,
+  handleTagAndVectorSearch,
+  handleVectorOnlySearch,
+} from '@/app/api/knowledge/search/utils'
 import {
   checkDocumentWriteAccess,
   checkKnowledgeBaseAccess,
   checkKnowledgeBaseWriteAccess,
 } from '@/app/api/knowledge/utils'
+import { parseDocumentTags, parseTagFilters } from '@/tools/shared/tags'
 
 const logger = createLogger('KnowledgeBaseServerTool')
 
@@ -244,6 +252,21 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
+          const parsedTagFilters = parseTagFilters(args.tagFilters)
+          if (args.tagFilters !== undefined && parsedTagFilters.length === 0) {
+            return {
+              success: false,
+              message: 'tagFilters must contain at least one tagName and tagValue',
+            }
+          }
+
+          const tagDefinitions =
+            parsedTagFilters.length > 0 ? await getDocumentTagDefinitions(args.knowledgeBaseId) : []
+          const structuredFilters = resolveStructuredTagFilters(parsedTagFilters, tagDefinitions)
+          if (!structuredFilters.success) {
+            return structuredFilters.result
+          }
+
           const topK = args.topK || 5
 
           const billingAttribution = kb.workspaceId
@@ -266,12 +289,19 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const strategy = getQueryStrategy(1, topK)
 
-          const results = await handleVectorOnlySearch({
+          const searchParams = {
             knowledgeBaseIds: [args.knowledgeBaseId],
             topK,
             queryVector,
             distanceThreshold: strategy.distanceThreshold,
-          })
+          }
+          const results =
+            structuredFilters.filters.length > 0
+              ? await handleTagAndVectorSearch({
+                  ...searchParams,
+                  structuredFilters: structuredFilters.filters,
+                })
+              : await handleVectorOnlySearch(searchParams)
 
           await recordSearchEmbeddingUsage({
             userId: context.userId,
@@ -580,19 +610,6 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           if (!args.documentId) {
             return { success: false, message: 'documentId is required for update_document' }
           }
-          const updateData: { filename?: string; enabled?: boolean } = {}
-          if (args.filename !== undefined) {
-            updateData.filename = args.filename
-          }
-          if (args.enabled !== undefined) {
-            updateData.enabled = args.enabled
-          }
-          if (Object.keys(updateData).length === 0) {
-            return {
-              success: false,
-              message: 'At least one of filename or enabled is required for update_document',
-            }
-          }
           const docAccess = await checkDocumentWriteAccess(
             args.knowledgeBaseId,
             args.documentId,
@@ -604,6 +621,64 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               message: `Document with ID "${args.documentId}" not found`,
             }
           }
+          const updateData: Parameters<typeof updateDocument>[1] = {}
+          if (args.filename !== undefined) {
+            updateData.filename = args.filename
+          }
+          if (args.enabled !== undefined) {
+            updateData.enabled = args.enabled
+          }
+          const parsedDocumentTags = parseDocumentTags(args.documentTags)
+          if (args.documentTags !== undefined && parsedDocumentTags.length === 0) {
+            return {
+              success: false,
+              message: 'documentTags must contain at least one tagName and tagValue',
+            }
+          }
+
+          const updatedTags: Record<string, string> = {}
+          if (parsedDocumentTags.length > 0) {
+            const tagDefinitions = await getDocumentTagDefinitions(args.knowledgeBaseId)
+            const tagDefinitionsByName = new Map(
+              tagDefinitions.map((definition) => [definition.displayName, definition])
+            )
+            const undefinedTags: string[] = []
+            const typeErrors: string[] = []
+
+            for (const tag of parsedDocumentTags) {
+              const definition = tagDefinitionsByName.get(tag.tagName)
+              if (!definition) {
+                undefinedTags.push(tag.tagName)
+                continue
+              }
+              const validationError = validateTagValue(tag.tagName, tag.value, definition.fieldType)
+              if (validationError) {
+                typeErrors.push(validationError)
+                continue
+              }
+
+              ;(updateData as Record<string, string | boolean | undefined>)[definition.tagSlot] =
+                tag.value
+              updatedTags[tag.tagName] = tag.value
+            }
+
+            if (undefinedTags.length > 0 || typeErrors.length > 0) {
+              return {
+                success: false,
+                message: [
+                  ...(undefinedTags.length > 0 ? [buildUndefinedTagsError(undefinedTags)] : []),
+                  ...typeErrors,
+                ].join('\n'),
+              }
+            }
+          }
+          if (Object.keys(updateData).length === 0) {
+            return {
+              success: false,
+              message:
+                'At least one of filename, enabled, or documentTags is required for update_document',
+            }
+          }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           await updateDocument(args.documentId, updateData, requestId)
@@ -613,7 +688,9 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             data: {
               documentId: args.documentId,
               knowledgeBaseId: args.knowledgeBaseId,
-              ...updateData,
+              ...(args.filename !== undefined && { filename: args.filename }),
+              ...(args.enabled !== undefined && { enabled: args.enabled }),
+              ...(Object.keys(updatedTags).length > 0 && { tags: updatedTags }),
             },
           }
         }
@@ -645,13 +722,15 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           return {
             success: true,
             message: `Found ${tagDefinitions.length} tag definition(s)`,
-            data: tagDefinitions.map((td) => ({
-              id: td.id,
-              tagSlot: td.tagSlot,
-              displayName: td.displayName,
-              fieldType: td.fieldType,
-              createdAt: td.createdAt,
-            })),
+            data: {
+              tags: tagDefinitions.map((td) => ({
+                id: td.id,
+                tagSlot: td.tagSlot,
+                displayName: td.displayName,
+                fieldType: td.fieldType,
+                createdAt: td.createdAt,
+              })),
+            },
           }
         }
 
@@ -856,7 +935,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           return {
             success: true,
             message: `Retrieved usage stats for ${stats.length} tag(s)`,
-            data: stats,
+            data: { usage: stats },
           }
         }
 
@@ -1162,4 +1241,101 @@ async function resolveKnowledgeBaseId(connectorId: string): Promise<string | nul
     .limit(1)
 
   return rows[0]?.knowledgeBaseId ?? null
+}
+
+function resolveStructuredTagFilters(
+  filters: StructuredFilter[],
+  tagDefinitions: TagDefinition[]
+):
+  | { success: true; filters: StructuredFilter[] }
+  | { success: false; result: KnowledgeBaseResult } {
+  if (filters.length === 0) {
+    return { success: true, filters: [] }
+  }
+
+  const definitionsByName = new Map(
+    tagDefinitions.map((definition) => [definition.displayName, definition])
+  )
+  const undefinedTags: string[] = []
+  const validationErrors: string[] = []
+  const resolvedFilters: StructuredFilter[] = []
+
+  for (const filter of filters) {
+    const definition = definitionsByName.get(filter.tagName ?? '')
+    if (!definition) {
+      undefinedTags.push(filter.tagName ?? '')
+      continue
+    }
+    if (!isFilterFieldType(definition.fieldType)) {
+      validationErrors.push(
+        `Tag "${definition.displayName}" has unsupported field type "${definition.fieldType}"`
+      )
+      continue
+    }
+
+    const validOperators = getOperatorsForFieldType(definition.fieldType).map(
+      (operator) => operator.value
+    )
+    if (!validOperators.includes(filter.operator)) {
+      validationErrors.push(
+        `Tag "${definition.displayName}" does not support operator "${filter.operator}"`
+      )
+      continue
+    }
+
+    const valueError = validateTagValue(
+      definition.displayName,
+      String(filter.value),
+      definition.fieldType
+    )
+    if (valueError) {
+      validationErrors.push(valueError)
+      continue
+    }
+
+    if (filter.operator === 'between') {
+      if (filter.valueTo === undefined) {
+        validationErrors.push(
+          `Tag "${definition.displayName}" requires valueTo for the "between" operator`
+        )
+        continue
+      }
+      const valueToError = validateTagValue(
+        definition.displayName,
+        String(filter.valueTo),
+        definition.fieldType
+      )
+      if (valueToError) {
+        validationErrors.push(valueToError)
+        continue
+      }
+    }
+
+    resolvedFilters.push({
+      tagSlot: definition.tagSlot,
+      fieldType: definition.fieldType,
+      operator: filter.operator,
+      value: filter.value,
+      valueTo: filter.valueTo,
+    })
+  }
+
+  if (undefinedTags.length > 0 || validationErrors.length > 0) {
+    return {
+      success: false,
+      result: {
+        success: false,
+        message: [
+          ...(undefinedTags.length > 0 ? [buildUndefinedTagsError(undefinedTags)] : []),
+          ...validationErrors,
+        ].join('\n'),
+      },
+    }
+  }
+
+  return { success: true, filters: resolvedFilters }
+}
+
+function isFilterFieldType(fieldType: string): fieldType is FilterFieldType {
+  return ['text', 'number', 'date', 'boolean'].includes(fieldType)
 }
