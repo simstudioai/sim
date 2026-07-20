@@ -83,33 +83,18 @@ const impl: ManagedAgentServerImpl = async (
     return { success: false, output: {}, error: 'aborted' }
   }
 
-  let apiKey: string | null
-  try {
-    apiKey = await getDecryptedApiKey({ id: params.connection, workspaceId })
-  } catch (error) {
-    // The stored ciphertext could not be decrypted — most commonly a rotated
-    // ENCRYPTION_KEY invalidating an existing row. Translate the exception
-    // into the tool's declared error shape rather than rejecting the promise
-    // (which would surface as an unhandled workflow failure).
-    logger.warn('Failed to decrypt Managed Agent api key', {
-      workspaceId,
-      connectionId: params.connection,
-      error: getErrorMessage(error),
-    })
+  const keyResult = await getDecryptedApiKey({ id: params.connection, workspaceId })
+  if (!keyResult.ok) {
     return {
       success: false,
       output: {},
       error:
-        'Managed Agent connection could not be decrypted — the workspace encryption key may have rotated. Rotate the API key in Settings → Managed Agents to re-encrypt.',
+        keyResult.reason === 'decrypt_failed'
+          ? 'Managed Agent connection could not be decrypted — the workspace encryption key may have rotated. Rotate the API key in Settings → Managed Agents to re-encrypt.'
+          : 'Managed Agent connection not found. Reconnect the Claude workspace and retry.',
     }
   }
-  if (!apiKey) {
-    return {
-      success: false,
-      output: {},
-      error: 'Managed Agent connection not found. Reconnect the Claude workspace and retry.',
-    }
-  }
+  const apiKey = keyResult.apiKey
 
   if (isPayloadDebugEnabled()) {
     logger.info('Managed agent tool raw params (pre-normalization)', {

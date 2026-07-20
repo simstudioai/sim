@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { NextResponse } from 'next/server'
+import type { DecryptedApiKeyResult } from '@/lib/managed-agents/connections'
 import {
   ANTHROPIC_API_BASE,
   ANTHROPIC_VERSION,
@@ -57,4 +59,25 @@ export interface AnthropicListPage<T> {
   data?: T[]
   has_more?: boolean
   last_id?: string
+}
+
+/**
+ * Map a {@link DecryptedApiKeyResult} failure to the correct HTTP
+ * response for a proxy route. Keeps the "not_found → 404" and
+ * "decrypt_failed → 502 + actionable message" mapping in one place so
+ * every proxy route surfaces the same UX for the same failure mode.
+ */
+export function apiKeyFailureResponse(
+  failure: Extract<DecryptedApiKeyResult, { ok: false }>
+): NextResponse {
+  if (failure.reason === 'decrypt_failed') {
+    return NextResponse.json(
+      {
+        error:
+          'Managed Agent connection could not be decrypted — the workspace encryption key may have rotated. Rotate the API key in Settings → Managed Agents to re-encrypt.',
+      },
+      { status: 502 }
+    )
+  }
+  return NextResponse.json({ error: 'Connection not found' }, { status: 404 })
 }

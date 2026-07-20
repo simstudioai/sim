@@ -87,18 +87,37 @@ export async function getConnection(params: {
 }
 
 /**
+ * Result of {@link getDecryptedApiKey}. Callers must distinguish the two
+ * failure modes so they can surface the right message:
+ *   - `not_found`: the row does not exist for this workspace — 404.
+ *   - `decrypt_failed`: the row exists but its ciphertext cannot be
+ *     decoded (typically after an `ENCRYPTION_KEY` rotation) — a
+ *     controlled 502 with a "rotate the API key to re-encrypt" hint.
+ */
+export type DecryptedApiKeyResult =
+  | { ok: true; apiKey: string }
+  | { ok: false; reason: 'not_found' | 'decrypt_failed' }
+
+/**
  * Decrypts the stored API key for a given connection. Server-side only —
  * never expose the return value to the browser. Callers are proxy routes
- * and the workflow-block tool.
+ * and the workflow-block tool. Returns a discriminated result rather
+ * than throwing so callers can respond with an actionable status code
+ * (404 vs 502) instead of leaking an unhandled 500.
  */
 export async function getDecryptedApiKey(params: {
   id: string
   workspaceId: string
-}): Promise<string | null> {
+}): Promise<DecryptedApiKeyResult> {
   const row = await getConnection(params)
-  if (!row) return null
-  const { decrypted } = await decryptSecret(row.encryptedApiKey)
-  return decrypted
+  if (!row) return { ok: false, reason: 'not_found' }
+  try {
+    const { decrypted } = await decryptSecret(row.encryptedApiKey)
+    return { ok: true, apiKey: decrypted }
+  } catch (err) {
+    logger.warn(`Failed to decrypt api key for connection ${params.id}`, { error: err })
+    return { ok: false, reason: 'decrypt_failed' }
+  }
 }
 
 export interface CreateConnectionInput {

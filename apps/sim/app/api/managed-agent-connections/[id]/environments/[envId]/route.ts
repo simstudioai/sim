@@ -11,6 +11,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getDecryptedApiKey } from '@/lib/managed-agents/connections'
 import {
+  apiKeyFailureResponse,
   ManagedAgentProxyError,
   proxyManagedAgentsGet,
 } from '@/lib/managed-agents/proxy'
@@ -60,10 +61,9 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RouteC
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    const apiKey = await getDecryptedApiKey({ id, workspaceId })
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Connection not found' }, { status: 404 })
-    }
+    const keyResult = await getDecryptedApiKey({ id, workspaceId })
+    if (!keyResult.ok) return apiKeyFailureResponse(keyResult)
+    const apiKey = keyResult.apiKey
 
     try {
       const body = await proxyManagedAgentsGet<AnthropicEnvironment>(

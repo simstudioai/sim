@@ -169,19 +169,29 @@ describe('getDecryptedApiKey', () => {
     dbState.whereCalls = []
   })
 
-  it('returns the decrypted plaintext when the connection exists', async () => {
+  it('returns {ok:true, apiKey} when the connection exists', async () => {
     dbState.selectResults = [[baseRow]]
-    const key = await getDecryptedApiKey({ id: 'conn_1', workspaceId: 'ws_A' })
-    expect(key).toBe(PLAINTEXT_KEY)
+    const result = await getDecryptedApiKey({ id: 'conn_1', workspaceId: 'ws_A' })
+    expect(result).toEqual({ ok: true, apiKey: PLAINTEXT_KEY })
     // The DB lookup must include BOTH id and workspaceId (no cross-workspace read).
     expect(JSON.stringify(dbState.whereCalls[0])).toContain('conn_1')
     expect(JSON.stringify(dbState.whereCalls[0])).toContain('ws_A')
   })
 
-  it('returns null when the connection does not exist for that workspace', async () => {
+  it('returns {ok:false, reason:"not_found"} when the connection does not exist', async () => {
     dbState.selectResults = [[]]
-    const key = await getDecryptedApiKey({ id: 'conn_1', workspaceId: 'ws_A' })
-    expect(key).toBeNull()
+    const result = await getDecryptedApiKey({ id: 'conn_1', workspaceId: 'ws_A' })
+    expect(result).toEqual({ ok: false, reason: 'not_found' })
+  })
+
+  it('returns {ok:false, reason:"decrypt_failed"} when the ciphertext cannot be decrypted', async () => {
+    // Simulates the post-ENCRYPTION_KEY-rotation case: row exists but the
+    // stored blob no longer decrypts. Callers must render this as an
+    // actionable 502 rather than a 500.
+    dbState.selectResults = [[baseRow]]
+    mockDecryptSecret.mockRejectedValueOnce(new Error('bad auth tag'))
+    const result = await getDecryptedApiKey({ id: 'conn_1', workspaceId: 'ws_A' })
+    expect(result).toEqual({ ok: false, reason: 'decrypt_failed' })
   })
 })
 
