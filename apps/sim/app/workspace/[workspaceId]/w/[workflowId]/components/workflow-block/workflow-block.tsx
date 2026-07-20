@@ -49,7 +49,11 @@ import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hoo
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getBlock } from '@/blocks/registry'
-import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
+import {
+  type BlockConfig,
+  SELECTOR_TYPES_HYDRATION_REQUIRED,
+  type SubBlockConfig,
+} from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
@@ -62,7 +66,7 @@ import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
-import { getModelReplacement, isModelDeprecated } from '@/providers/models'
+import { isModelDeprecated } from '@/providers/models'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -76,6 +80,48 @@ const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
 
 /** Stable empty map for rows that never resolve MCP tool names */
 const EMPTY_MCP_TOOL_NAMES: ReadonlyMap<string, string> = new Map()
+
+interface BlockDeprecation {
+  kind: 'block' | 'model'
+  tooltip: string
+  prompt: string
+}
+
+/**
+ * Deprecation state for a placed block: the block type itself (via
+ * `config.deprecated.replacedBy`) or its selected model. `null` when neither
+ * applies or in diff mode. Drives the canvas badge + click-to-fix prompt.
+ */
+function getBlockDeprecation(
+  config: BlockConfig,
+  name: string,
+  model: unknown,
+  isDiffMode: boolean
+): BlockDeprecation | null {
+  if (isDiffMode) return null
+
+  const replacedBy = config.deprecated?.replacedBy
+  if (replacedBy) {
+    const target = getBlock(replacedBy)
+    if (!target) return null
+    const hasModel = config.subBlocks?.some((sub) => sub.id === 'model')
+    return {
+      kind: 'block',
+      tooltip: 'This block is deprecated. Click to upgrade',
+      prompt: `The "${name}" block is deprecated. Migrate it to the current ${target.name} block: change the block type, then set the new block's required inputs as a separate edit (inputs are validated against the old type when sent in the same edit), or delete it and re-add ${target.name} and rewire the connections.${hasModel ? ' Also pick a current, non-deprecated model.' : ''}`,
+    }
+  }
+
+  if (typeof model === 'string' && isModelDeprecated(model)) {
+    return {
+      kind: 'model',
+      tooltip: `${model} is deprecated. Click to upgrade`,
+      prompt: `The "${name}" block uses the deprecated model "${model}". Switch it to the latest equivalent model.`,
+    }
+  }
+
+  return null
+}
 
 interface SubBlockRowProps {
   title: string
@@ -487,41 +533,14 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const posthog = usePostHog()
 
-  const deprecation = useMemo(() => {
-    if (currentWorkflow.isDiffMode) return null
-
-    const replacedBy = config.deprecated?.replacedBy
-    if (replacedBy) {
-      const target = getBlock(replacedBy)
-      if (!target) return null
-      const hasModel = config.subBlocks?.some((sub) => sub.id === 'model')
-      return {
-        kind: 'block' as const,
-        tooltip: 'This block is deprecated. Click to upgrade',
-        prompt: `The "${name}" block is deprecated. Migrate it to the current ${target.name} block: change the block type, then set the new block's required inputs as a separate edit (inputs are validated against the old type when sent in the same edit), or delete it and re-add ${target.name} and rewire the connections.${hasModel ? ' Also pick a current, non-deprecated model.' : ''}`,
-      }
-    }
-
-    const model = blockSubBlockValues.model
-    if (typeof model === 'string' && isModelDeprecated(model)) {
-      if (!getModelReplacement(model)) return null
-      return {
-        kind: 'model' as const,
-        tooltip: `${model} is deprecated. Click to upgrade`,
-        prompt: `The "${name}" block uses the deprecated model "${model}". Switch it to the latest equivalent model.`,
-      }
-    }
-
-    return null
-  }, [
-    config.deprecated,
-    config.subBlocks,
+  const deprecation = getBlockDeprecation(
+    config,
     name,
     blockSubBlockValues.model,
-    currentWorkflow.isDiffMode,
-  ])
+    currentWorkflow.isDiffMode
+  )
 
-  const onFixDeprecation = useCallback(() => {
+  const onFixDeprecation = () => {
     if (!deprecation) return
     captureEvent(posthog, 'deprecated_block_fix_clicked', {
       block_type: type,
@@ -531,7 +550,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     sendMothershipMessage(deprecation.prompt, [
       { kind: 'workflow_block', workflowId: currentWorkflowId, blockId: id, label: name },
     ])
-  }, [deprecation, posthog, type, currentWorkflowId, id, name])
+  }
 
   const canonicalIndex = useMemo(() => buildCanonicalIndex(config.subBlocks), [config.subBlocks])
   const canonicalModeOverrides = currentStoreBlock?.data?.canonicalModes

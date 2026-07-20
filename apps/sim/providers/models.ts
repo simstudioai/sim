@@ -3850,11 +3850,11 @@ export function isKnownModelId(modelId: string): boolean {
   return false
 }
 
-const DEPRECATED_STATIC_MODELS = new Map<string, { providerId: string }>()
+const DEPRECATED_STATIC_MODEL_IDS = new Set<string>()
 for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
   if ((DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)) continue
   for (const model of provider.models) {
-    if (model.deprecated) DEPRECATED_STATIC_MODELS.set(model.id.toLowerCase(), { providerId })
+    if (model.deprecated) DEPRECATED_STATIC_MODEL_IDS.add(model.id.toLowerCase())
   }
 }
 
@@ -3863,19 +3863,7 @@ for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
  * and unknown ids are never deprecated (they carry no static catalog entry).
  */
 export function isModelDeprecated(modelId: string | undefined | null): boolean {
-  return !!modelId && DEPRECATED_STATIC_MODELS.has(modelId.toLowerCase())
-}
-
-/**
- * The current model a deprecated model should migrate to — its provider's
- * default, when that default is itself non-deprecated. `null` when no clean
- * target exists, in which case the model is not surfaced as fixable.
- */
-export function getModelReplacement(modelId: string): string | null {
-  const entry = DEPRECATED_STATIC_MODELS.get(modelId.toLowerCase())
-  if (!entry) return null
-  const def = PROVIDER_DEFINITIONS[entry.providerId]?.defaultModel
-  return def && !isModelDeprecated(def) ? def : null
+  return !!modelId && DEPRECATED_STATIC_MODEL_IDS.has(modelId.toLowerCase())
 }
 
 function getRecommendedModels(): string[] {

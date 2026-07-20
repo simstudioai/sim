@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 import {
   getBaseModelProviders,
   getHostedModels,
-  getModelReplacement,
   isModelDeprecated,
   orderModelIdsByReleaseDate,
   PROVIDER_DEFINITIONS,
@@ -337,19 +336,5 @@ describe('isModelDeprecated', () => {
     expect(isModelDeprecated(null)).toBe(false)
     expect(isModelDeprecated('not-a-real-model')).toBe(false)
     expect(isModelDeprecated('openrouter/some/model')).toBe(false)
-  })
-})
-
-describe('getModelReplacement', () => {
-  it('returns a non-deprecated replacement for a deprecated model', () => {
-    const id = firstDeprecatedModelId()!
-    const replacement = getModelReplacement(id)
-    if (replacement !== null) {
-      expect(isModelDeprecated(replacement)).toBe(false)
-    }
-  })
-
-  it('returns null for a non-deprecated model', () => {
-    expect(getModelReplacement('claude-sonnet-5')).toBeNull()
   })
 })
