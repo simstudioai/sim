@@ -232,7 +232,7 @@ export const GoogleTranslateBlockMeta = {
     },
     {
       icon: GoogleTranslateIcon,
-      title: 'Google Translate support replier',
+      title: 'Google Translate Intercom replier',
       prompt:
         'Build a workflow that detects the language of a new Intercom message, translates it to the agent language with Google Translate, drafts a reply, then translates the reply back before sending.',
       modules: ['agent', 'workflows'],
@@ -272,7 +272,7 @@ export const GoogleTranslateBlockMeta = {
     },
     {
       icon: GoogleTranslateIcon,
-      title: 'Google Translate support replies',
+      title: 'Google Translate ticket auto-reply',
       prompt:
         "Build a workflow that on a new support ticket detects the customer's language with Google Translate, translates the message to English for the agent, drafts a reply, then translates the response back into the customer's language before sending.",
       modules: ['agent', 'workflows'],

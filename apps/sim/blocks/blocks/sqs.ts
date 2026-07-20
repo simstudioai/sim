@@ -190,7 +190,7 @@ export const SQSBlockMeta = {
     },
     {
       icon: SQSIcon,
-      title: 'SQS alert fan-out',
+      title: 'SQS alert enricher',
       prompt:
         'Create a workflow triggered by PagerDuty or Datadog alerts that classifies severity, decorates the payload with runbook context, and pushes the enriched alert to an Amazon SQS queue so multiple downstream notifiers and ticketing systems can consume it independently.',
       modules: ['agent', 'workflows'],
