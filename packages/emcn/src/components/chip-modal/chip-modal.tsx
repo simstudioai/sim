@@ -646,6 +646,7 @@ function renderChipModalControl(
             if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
             if (onSubmit) {
               event.preventDefault()
+              event.stopPropagation()
               onSubmit()
               return
             }
@@ -653,6 +654,9 @@ function renderChipModalControl(
             const submit = submitRef?.current
             if (submit && !submit.disabled) {
               event.preventDefault()
+              // Stop bubbling so a parent Enter handler (e.g. a modal body that
+              // also submits) can't fire the same primary action a second time.
+              event.stopPropagation()
               submit.trigger()
             }
           }}
@@ -1095,13 +1099,18 @@ function ChipModalFooter({
    * the modal on Enter without per-field wiring. Kept in a ref (updated each
    * render) rather than state so fields read the latest handler at Enter-time.
    *
+   * A layout effect (not a passive effect) so the ref is populated before the
+   * browser paints the modal — otherwise there is a window between first paint
+   * and effect commit where an enabled primary is visible but Enter does
+   * nothing because `submitRef.current` is still `null`.
+   *
    * A `destructive` primary is deliberately NOT published: Enter must never
    * trigger a destructive action from a text field. Destructive flows that DO
    * want Enter (e.g. a guarded "change address") wire an explicit field-level
    * `onSubmit`, which takes precedence over this fallback.
    */
   const submitRef = React.useContext(ChipModalSubmitContext)
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!submitRef) return
     if (primaryAction.variant === 'destructive') {
       submitRef.current = null
