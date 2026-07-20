@@ -1,5 +1,6 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { createLogger } from '@sim/logger'
+import { sanitizeForLogging } from '@/lib/core/security/redaction'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 
 const logger = createLogger('McpHttpDiag')
@@ -69,7 +70,7 @@ export function withMcpHttpDiagnostics(
     const reqHeaders = new Headers((init?.headers as HeadersInit | undefined) ?? undefined)
     const startedAt = Date.now()
 
-    logger.info('request', {
+    logger.warn('request', {
       phase,
       method,
       url,
@@ -91,7 +92,7 @@ export function withMcpHttpDiagnostics(
       throw error
     }
 
-    logger.info('response', {
+    logger.warn('response', {
       phase,
       method,
       url,
@@ -121,7 +122,7 @@ export function withMcpHttpDiagnostics(
         for (;;) {
           const { done, value } = await reader.read()
           if (done) {
-            logger.info('initialize body complete', {
+            logger.warn('initialize body complete', {
               url,
               chunks,
               bytes,
@@ -132,12 +133,12 @@ export function withMcpHttpDiagnostics(
           chunks += 1
           bytes += value.byteLength
           if (chunks <= MAX_LOGGED_CHUNKS) {
-            logger.info('initialize body chunk', {
+            logger.warn('initialize body chunk', {
               url,
               chunk: chunks,
               size: value.byteLength,
               ms: Date.now() - startedAt,
-              preview: decoder.decode(value, { stream: true }).slice(0, PREVIEW_CHARS),
+              preview: sanitizeForLogging(decoder.decode(value, { stream: true }), PREVIEW_CHARS),
             })
           }
         }
