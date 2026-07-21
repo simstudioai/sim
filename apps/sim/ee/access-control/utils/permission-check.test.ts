@@ -37,7 +37,7 @@ const {
     hideDeployApi: false,
     hideDeployMcp: false,
     hideDeployChatbot: false,
-    hideDeployTemplate: false,
+    allowedChatDeployAuthTypes: null,
   },
   mockGetAllowedIntegrationsFromEnv: vi.fn<() => string[] | null>(),
   mockIsOrganizationOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
@@ -134,6 +134,7 @@ vi.mock('@/blocks/registry', () => ({
 
 import {
   assertPermissionsAllowed,
+  ChatDeployAuthNotAllowedError,
   CustomToolsNotAllowedError,
   getUserPermissionConfig,
   IntegrationNotAllowedError,
@@ -144,6 +145,7 @@ import {
   SkillsNotAllowedError,
   ToolNotAllowedError,
   validateBlockType,
+  validateChatDeployAuth,
   validateMcpToolsAllowed,
   validateModelProvider,
   validatePublicFileSharing,
@@ -548,6 +550,38 @@ describe('validatePublicFileSharing', () => {
   it('no-ops when no auth type is provided (master switch only)', async () => {
     mockWorkspaceGroups.value = [{ config: { allowedFileShareAuthTypes: ['password'] } }]
     await validatePublicFileSharing('user-123', 'workspace-1')
+  })
+})
+
+describe('validateChatDeployAuth', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockWorkspaceGroups.value = []
+    mockDefaultGroup.value = []
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
+    setEnterpriseOrgWorkspace()
+  })
+
+  it('throws when the auth type is not in the allow-list', async () => {
+    mockWorkspaceGroups.value = [{ config: { allowedChatDeployAuthTypes: ['password', 'sso'] } }]
+    await expect(
+      validateChatDeployAuth('user-123', 'workspace-1', 'public')
+    ).rejects.toBeInstanceOf(ChatDeployAuthNotAllowedError)
+  })
+
+  it('allows an auth type that is in the allow-list', async () => {
+    mockWorkspaceGroups.value = [{ config: { allowedChatDeployAuthTypes: ['password', 'sso'] } }]
+    await validateChatDeployAuth('user-123', 'workspace-1', 'password')
+  })
+
+  it('allows any auth type when the allow-list is null', async () => {
+    mockWorkspaceGroups.value = [{ config: { allowedChatDeployAuthTypes: null } }]
+    await validateChatDeployAuth('user-123', 'workspace-1', 'email')
+  })
+
+  it('no-ops when access control does not apply (non-enterprise)', async () => {
+    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(false)
+    await validateChatDeployAuth('user-123', 'workspace-1', 'public')
   })
 })
 

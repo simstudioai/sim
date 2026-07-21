@@ -20,8 +20,9 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckChatAccess } = vi.hoisted(() => ({
+const { mockCheckChatAccess, mockValidateChatDeployAuth } = vi.hoisted(() => ({
   mockCheckChatAccess: vi.fn(),
+  mockValidateChatDeployAuth: vi.fn(),
 }))
 
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
@@ -50,10 +51,20 @@ vi.mock('@/lib/core/utils/urls', () => ({
 vi.mock('@/app/api/chat/utils', () => ({
   checkChatAccess: mockCheckChatAccess,
 }))
+vi.mock('@/ee/access-control/utils/permission-check', () => {
+  class ChatDeployAuthNotAllowedError extends Error {
+    constructor() {
+      super('This chat authentication mode is not allowed based on your permission group settings')
+      this.name = 'ChatDeployAuthNotAllowedError'
+    }
+  }
+  return { validateChatDeployAuth: mockValidateChatDeployAuth, ChatDeployAuthNotAllowedError }
+})
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
 import { DELETE, GET, PATCH } from '@/app/api/chat/manage/[id]/route'
+import { ChatDeployAuthNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 describe('Chat Edit API Route', () => {
   beforeEach(() => {
@@ -211,6 +222,34 @@ describe('Chat Edit API Route', () => {
       expect(data.id).toBe('chat-123')
       expect(data.chatUrl).toBe('http://localhost:3000/chat/test-chat')
       expect(data.message).toBe('Chat deployment updated successfully')
+    })
+
+    it('returns 403 when the updated auth type is blocked by the permission group', async () => {
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-id' },
+      })
+
+      mockCheckChatAccess.mockResolvedValue({
+        hasAccess: true,
+        chat: {
+          id: 'chat-123',
+          identifier: 'test-chat',
+          authType: 'public',
+          workflowId: 'workflow-123',
+        },
+        workspaceId: 'workspace-123',
+      })
+      mockValidateChatDeployAuth.mockRejectedValueOnce(new ChatDeployAuthNotAllowedError())
+
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
+        method: 'PATCH',
+        body: JSON.stringify({ authType: 'public' }),
+      })
+      const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
+
+      expect(response.status).toBe(403)
+      expect(mockValidateChatDeployAuth).toHaveBeenCalledWith('user-id', 'workspace-123', 'public')
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
     })
 
     it('rejects the update without admitting a new deploy while an attempt is in flight', async () => {

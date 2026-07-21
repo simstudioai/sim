@@ -23,6 +23,10 @@ import {
   createErrorResponse,
   createSuccessResponse,
 } from '@/app/api/workflows/utils'
+import {
+  ChatDeployAuthNotAllowedError,
+  validateChatDeployAuth,
+} from '@/ee/access-control/utils/permission-check'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -117,6 +121,17 @@ export const PATCH = withRouteHandler(
 
       if (workflowId && workflowId !== existingChat[0].workflowId) {
         return createErrorResponse('Changing the workflow of a chat deployment is not allowed', 400)
+      }
+
+      if (authType && chatWorkspaceId) {
+        try {
+          await validateChatDeployAuth(session.user.id, chatWorkspaceId, authType)
+        } catch (error) {
+          if (error instanceof ChatDeployAuthNotAllowedError) {
+            return createErrorResponse(error.message, 403)
+          }
+          throw error
+        }
       }
 
       if (identifier && identifier !== existingChat[0].identifier) {

@@ -33,6 +33,7 @@ import {
   useUpdateChat,
 } from '@/hooks/queries/chats'
 import type { ChatDetail } from '@/hooks/queries/deployments'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useIdentifierValidation } from './hooks'
 import {
   getPasswordHelperText,
@@ -671,10 +672,20 @@ function AuthSelector({
     }
   }
 
+  const { config: permissionConfig } = usePermissionConfig()
+
   const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
-  const authOptions = ssoEnabled
-    ? (['public', 'password', 'email', 'sso'] as const)
-    : (['public', 'password', 'email'] as const)
+  const baseAuthOptions: AuthType[] = ssoEnabled
+    ? ['public', 'password', 'email', 'sso']
+    : ['public', 'password', 'email']
+
+  // Org access-control may restrict which auth modes are allowed (`null` = all).
+  // The route is the source of truth; this just hides disallowed options, keeping
+  // the current selection visible so the saved state always shows.
+  const allowedAuthTypes = permissionConfig.allowedChatDeployAuthTypes
+  const authOptions = baseAuthOptions.filter(
+    (type) => allowedAuthTypes === null || allowedAuthTypes.includes(type) || type === authType
+  )
 
   return (
     <div className='space-y-4'>
