@@ -2,7 +2,11 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
+import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
+import {
+  aggregateChildCost,
+  WorkflowBlockHandler,
+} from '@/executor/handlers/workflow/workflow-handler'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import type { ToolResponse } from '@/tools/types'
@@ -109,11 +113,20 @@ export async function runCustomBlockTool(params: CustomBlockToolParams): Promise
       output && typeof output === 'object' && !Array.isArray(output) ? output : { result: output }
     return { success: true, output: normalized }
   } catch (error) {
-    // The handler throws a consumer-safe `ChildWorkflowError` on failure. Partial
-    // child cost rides its trace spans, but the provider tool loop only bills cost
-    // from successful results, so the error message alone is surfaced here.
+    // The handler throws a consumer-safe `ChildWorkflowError` on failure. Its trace
+    // spans are the only carrier of spend the child already incurred before failing,
+    // so roll that up onto the failed result too — otherwise a partially-run child is
+    // recorded as zero-cost.
     const message = getErrorMessage(error, 'Custom block execution failed')
+    const failedChildSpans = ChildWorkflowError.isChildWorkflowError(error)
+      ? error.childTraceSpans
+      : []
+    const childCost = aggregateChildCost(failedChildSpans)
     logger.info('Custom block tool execution failed', { blockType: params.blockType, message })
-    return { success: false, output: {}, error: message }
+    return {
+      success: false,
+      output: childCost > 0 ? { cost: { total: childCost } } : {},
+      error: message,
+    }
   }
 }

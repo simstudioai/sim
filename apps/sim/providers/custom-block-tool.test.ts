@@ -59,6 +59,34 @@ describe('transformBlockTool — custom blocks', () => {
     expect(mockResolve).toHaveBeenCalledWith('custom_block_test')
   })
 
+  it('does not offer the tool when a required file input has no preset value', async () => {
+    mockResolve.mockResolvedValue({
+      workflowId: 'wf-src',
+      inputFields: [{ id: 'f', name: 'Files', type: 'file[]' }],
+      requiredInputIds: ['f'],
+    })
+
+    const tool = await transformBlockTool({ type: 'custom_block_test', params: {} }, options)
+    expect(tool).toBeNull()
+  })
+
+  it('still offers the tool when a required file input is pre-filled on the block', async () => {
+    mockResolve.mockResolvedValue({
+      workflowId: 'wf-src',
+      inputFields: [{ id: 'f', name: 'Files', type: 'file[]' }],
+      requiredInputIds: ['f'],
+    })
+
+    const tool = await transformBlockTool(
+      { type: 'custom_block_test', params: { f: [{ id: 'file-1' }] } },
+      options
+    )
+    expect(tool).not.toBeNull()
+    // The preset value rides the baked mapping; the schema still omits the file field.
+    expect(tool!.params.inputMapping).toContain('file-1')
+    expect(Object.keys(tool!.parameters.properties.inputMapping.properties)).toEqual([])
+  })
+
   it('returns null (tool not offered) when the binding cannot be resolved', async () => {
     mockResolve.mockResolvedValue(null)
     const tool = await transformBlockTool({ type: 'custom_block_test', params: {} }, options)

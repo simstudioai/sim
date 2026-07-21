@@ -1251,6 +1251,9 @@ export async function executeTool(
       const endTime = new Date()
       return {
         ...result,
+        // Strip internal `__`-prefixed fields the same way every other tool path does,
+        // so child-workflow internals never reach the agent's tool result.
+        output: postProcessToolOutput(normalizedToolId, result.output ?? {}),
         timing: {
           startTime: startTimeISO,
           endTime: endTime.toISOString(),

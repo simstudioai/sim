@@ -16,6 +16,7 @@ import type { PiToolResult, PiToolSpec } from '@/executor/handlers/pi/backend'
 import type { ExecutionContext } from '@/executor/types'
 import { transformBlockTool } from '@/providers/utils'
 import { executeTool } from '@/tools'
+import { mergeToolParameters } from '@/tools/params'
 import type { ToolResponse } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
@@ -74,8 +75,11 @@ export async function buildSimToolSpecs(
             const result = await executeTool(
               toolId,
               {
-                ...preseededParams,
-                ...args,
+                // Same merge the Agent block's tool calls use: user-preseeded values
+                // win over LLM args, and `inputMapping` is deep-merged rather than
+                // replaced — a partial mapping from the model must not drop the
+                // user-filled fields baked onto the block.
+                ...mergeToolParameters(preseededParams, args as Record<string, unknown>),
                 // Trusted execution context, spread last so an LLM-supplied
                 // `_context` arg can't override it. executeTool reads this directly
                 // for OAuth-credential resolution and internal-route identity, the

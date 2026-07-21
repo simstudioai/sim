@@ -634,6 +634,23 @@ export async function transformBlockTool(
       logger.warn('custom_block_executor tool not registered')
       return null
     }
+    const inputMapping = assembleCustomBlockInputMapping(block.params || {})
+    // A `file[]` field is omitted from the model schema (the model can't synthesize
+    // upload descriptors). If such a field is REQUIRED and the user hasn't
+    // pre-filled it on the block, no invocation could ever satisfy the child's
+    // required-input check — so don't offer an unusable tool at all.
+    const prefilled = JSON.parse(inputMapping) as Record<string, unknown>
+    const requiredIds = new Set(binding.requiredInputIds)
+    const unfillableFileField = binding.inputFields.find((field) => {
+      const key = field.id ?? field.name
+      return isFileFieldType(field.type) && requiredIds.has(key) && !(key in prefilled)
+    })
+    if (unfillableFileField) {
+      logger.warn(
+        `Custom block ${block.type} not offered as a tool: required file input "${unfillableFileField.name}" has no preset value and cannot be supplied by the model`
+      )
+      return null
+    }
     return {
       // Unique per block so two custom-block tools never collide on the wire.
       id: `custom_block_executor_${block.type}`,
@@ -643,7 +660,7 @@ export async function transformBlockTool(
       description: blockDef.description || customToolConfig.description,
       params: {
         blockType: block.type,
-        inputMapping: assembleCustomBlockInputMapping(block.params || {}),
+        inputMapping,
       },
       parameters: buildCustomBlockInputMappingSchema(
         blockDef.name,

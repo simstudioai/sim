@@ -9,8 +9,11 @@ vi.mock('@/executor/handlers/workflow/workflow-handler', () => ({
   WorkflowBlockHandler: class {
     execute = mockExecute
   },
+  aggregateChildCost: (spans: Array<{ cost?: { total?: number } }>) =>
+    spans.reduce((sum, span) => sum + (span?.cost?.total ?? 0), 0),
 }))
 
+import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
 import {
   buildCustomBlockExecutionContext,
   runCustomBlockTool,
@@ -83,6 +86,20 @@ describe('runCustomBlockTool', () => {
 
     expect(res.success).toBe(false)
     expect(res.error).toContain('not deployed')
+  })
+
+  it('rolls up already-incurred child cost when the run fails', async () => {
+    const err: any = new Error('child blew up')
+    err.name = 'ChildWorkflowError'
+    err.childTraceSpans = [{ id: 's1', name: 'child', type: 'agent', cost: { total: 0.25 } }]
+    Object.setPrototypeOf(err, ChildWorkflowError.prototype)
+    mockExecute.mockRejectedValue(err)
+
+    const res = await runCustomBlockTool({ blockType: 'custom_block_abc', _context: {} })
+
+    expect(res.success).toBe(false)
+    // Partial spend must not be recorded as zero-cost.
+    expect((res.output as any).cost.total).toBeGreaterThan(0)
   })
 
   it('rejects a missing block type without invoking the handler', async () => {
