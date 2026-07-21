@@ -1,48 +1,51 @@
-# Sim Workflow Execution: Async, Inline, and Database
+# Sim workflow execution throughput and bottlenecks
 
 ## Executive summary
 
-The local failure was not that the execute route could not return `202`
-quickly. It was:
+The incident was not that the execute route could not return `202` quickly. The
+database-backed async path released its admission permit when the HTTP response
+returned, while the workflow continued in the web process. Requests accumulated
+until the process became slow and unreachable.
 
-> Sim returned `202 Accepted` faster than workflows finished. The admission
-> permit was released when the HTTP response returned, while the local async
-> execution continued in the same process. Active work accumulated until the
-> process became slow and unreachable.
+The fix in PR 5791 keeps the permit until local inline execution finishes. This
+improves overload behavior and makes backpressure visible as `429`; it does not
+claim that workflow execution itself became faster.
 
-The execute route has three existing execution modes:
+Throughput means terminal workflow executions per second. `202` responses per
+second measure request admission, not completed work.
 
-- `sync`: the request waits for `executeWorkflowCore` and returns JSON.
-- `stream`: the request returns an SSE response while `executeWorkflow` runs.
-- `async`: the request queues a `workflow-execution` job and returns `202`.
+## Scope and measurement contract
 
-`async` does not by itself mean that execution leaves the web process. The
-existing async backend decides that:
+- **Local evidence:** one web process, database async backend, synthetic workflow.
+- **Production evidence:** Trigger.dev async backend, worker process, Trigger.dev
+  queue limits, trigger DB pool, and shared PostgreSQL/Redis.
+- **Success throughput:** completed execution-log rows per second:
+  `status = 'completed'`, `level = 'info'`, grouped by `ended_at`.
+- **Terminal throughput:** completed, failed, and cancelled rows per second,
+  grouped by `ended_at`. Exclude `pending`; it represents a paused run.
+- **Admission signals:** `202`, `429`, `503`, response latency, and enqueue
+  acceptance. These explain backpressure but are not throughput.
+- **Saturation signals:** running execution count, worker/queue depth, DB pool
+  pressure, Redis errors, CPU, RSS, and heap.
 
-- The **database backend** calls `shouldExecuteInline() === true` and runs
-  `executeWorkflowJob` in the same process after inserting the job.
-- **Trigger.dev** calls `shouldExecuteInline() === false` and runs the task in
-  the Trigger.dev worker.
+The branch adds `workflow.execution.count` and
+`workflow.execution.duration` in
+[execution-metrics.ts](../apps/sim/lib/workflows/executor/execution-metrics.ts).
+Until production export and every terminal path are validated, use the database
+terminal rows as the immediate ground truth. The current OTel recorder is
+secondary because some completion paths only emit telemetry when trace spans are
+present. Trigger.dev queue depth is also external to Sim; `async_jobs` is only a
+database-backend proxy.
 
-Throughput is completed workflow executions per second, not `202` responses
-per second. This work improves overload behavior and protects the process; it
-does not claim a production throughput increase.
-
-Scope: local database backend, synthetic workflow, one web process. The
-control-flow finding is proven by the route and backend code below. The local
-load numbers are stability evidence, not a production capacity number.
-
-## Before and after
-
-### Before: `202` released capacity too early
+### Before: the permit represented the HTTP response
 
 ```mermaid
 sequenceDiagram
     participant C as Caller
     participant R as ExecuteRoute
     participant G as AdmissionGate
-    participant Q as DatabaseJobQueue
-    participant E as executeWorkflowJob
+    participant Q as DatabaseBackend
+    participant E as InlineExecution
 
     C->>R: POST /execute
     R->>G: tryAdmit()
@@ -51,20 +54,20 @@ sequenceDiagram
     Q-->>R: job accepted
     R-->>C: 202 Accepted
     R->>G: release permit
-    Q->>E: continue execution
-    Note over E: More requests can enter<br/>while old runs are still active
+    Q->>E: continue execution in web process
+    Note over E: More requests enter while old runs remain active
     E-->>Q: complete
 ```
 
-### After: permit represents real in-process work
+### After: the permit represents in-process work
 
 ```mermaid
 sequenceDiagram
     participant C as Caller
     participant R as ExecuteRoute
     participant G as AdmissionGate
-    participant Q as DatabaseJobQueue
-    participant E as executeWorkflowJob
+    participant Q as DatabaseBackend
+    participant E as InlineExecution
 
     C->>R: POST /execute
     R->>G: tryAdmit()
@@ -73,7 +76,7 @@ sequenceDiagram
         R->>Q: enqueue workflow
         Q-->>R: job accepted
         R-->>C: 202 Accepted
-        Q->>E: execute inline
+        Q->>E: execute inline in web process
         E-->>Q: complete
         Q->>G: release permit
     else capacity full
@@ -82,157 +85,73 @@ sequenceDiagram
     end
 ```
 
-The same admission behavior now applies to cookie-backed `async` requests,
-which represent the normal authenticated UI path. Session-backed `sync` and
-SSE requests retain their existing response/stream lifecycle.
+### Local and production execution paths
 
-## Database in the current setup
+```mermaid
+flowchart LR
+    Client --> Route[Execute route]
+    Route --> Gate[Admission gate]
+    Route --> Preprocess[Auth billing rate limits]
+    Preprocess --> Enqueue[Async enqueue]
+    Enqueue --> Local[Database backend]
+    Enqueue --> Trigger[Trigger.dev backend]
+    Local --> WebExecutor[Web process executor]
+    Trigger --> Worker[Trigger worker executor]
+    WebExecutor --> WebPool[sim-app pool max 10]
+    Worker --> TriggerPool[sim-trigger pool max 5]
+    WebExecutor --> Shared[PostgreSQL Redis storage tools]
+    Worker --> Shared
+```
 
-The repository proves that the database can be a shared capacity limit, but it
-does not prove that database latency caused the local connection-refused
-cascade. The evidence is:
+## Bottleneck register
 
-- `packages/db/db.ts` sets `primaryMax=10` for the web role and `primaryMax=5`
-  for the Trigger.dev role. The same file documents that one run can need
-  three or more simultaneous connections because of parallel queries and
-  overlapping logging writes.
-- `DatabaseJobQueue.enqueue` inserts into `async_jobs`. The inline runner then
-  updates the job to `processing`, runs `executeWorkflowJob`, and updates the
-  job to `completed` or `failed`
-  ([database backend](../apps/sim/lib/core/async-jobs/backends/database.ts)).
-- `executeWorkflowJob` runs preprocessing, `executeWorkflowCore`, logging
-  finalization, and post-execution work
-  ([workflow execution](../apps/sim/background/workflow-execution.ts)).
-- `executeWorkflowCore` persists block-start and block-complete lifecycle
-  markers through `LoggingSession`. The durable fallback is a
-  `workflow_execution_logs` JSONB update
-  ([execution core](../apps/sim/lib/workflows/executor/execution-core.ts),
-  [logging session](../apps/sim/lib/logs/execution/logging-session.ts)).
-- Completion reads and updates `workflow_execution_logs`, may externalize
-  execution data, and reconciles usage in a transaction
-  ([execution logger](../apps/sim/lib/logs/execution/logger.ts)).
-- `workflow_execution_logs.execution_id` and the relevant `async_jobs` status
-  indexes exist in `packages/db/schema.ts`. Indexes establish the intended
-  access paths; they do not establish query latency under load.
+Each Evidence entry is a falsifier, not merely a plausible explanation. A
+chokepoint is proven only when the stated resource signal saturates while
+terminal throughput plateaus or degrades, and the alternative signals do not
+explain the result.
 
-Therefore, the DB distinction is:
+| Bottleneck | Scope / status | Evidence (replayable falsifier) | Fix |
+|---|---|---|---|
+| Admission permit released before database-backed async work finished | Local database backend / **fixed in PR 5791** | Run `workflow-concurrency.yml` at `8` RPS with the pre-fix behavior: high `202`, rising `ECONNREFUSED`, and low terminal completions. Repeat after the fix: `429` appears at the configured cap and the health endpoint remains reachable. Count terminal rows with the SQL below. | Retain the ticket until `executeWorkflowJob` finishes; release it in the inline runner’s `finally`. |
+| Admission setting does not match deployed process capacity | Web pods / **code default 10, Helm and docker-compose override 500** | Set `ADMISSION_GATE_MAX_INFLIGHT=5`, run the baseline above the cap, and verify `429` responses plus `Admission gate rejecting request` logs. Compare the same run with the deployed value and record whether running work exceeds the intended per-pod budget. | Align deployment overrides with measured per-pod capacity, or document why a higher value is safe. |
+| Workflow work duration limits completion rate | Local and production | Use identical workflows with deterministic work of approximately `300 ms`, `1 s`, and `2 s`. Hold arrival rate constant; terminal throughput should fall as duration rises while the process remains healthy. If it does not, CPU duration is not the binding limit. | No workflow fix by itself; tune admission/worker concurrency or reduce work cost after measuring. |
+| Web DB pool is shared with inline execution | Local database backend / `sim-app` primary pool max 10 | During a load hold, poll `pg_stat_activity` by `application_name`. A DB choke requires `sim-app` active connections near 10, rising query age or lock wait, and flat terminal throughput. Pool size alone is not proof. | Keep inline admission bounded; reduce queries per execution; optimize or move eligible reads only after runtime evidence. |
+| Trigger worker concurrency exceeds the trigger DB pool | Production/staging Trigger.dev only / not locally reproduced | Run the same profile with Trigger.dev enabled. Prove the choke only when Trigger pending/running work grows, `sim-trigger` reaches its pool ceiling of 5, DB/query latency rises, and terminal throughput stays flat. | Size worker concurrency to the scarce downstream resource or add a shared DB-borrow semaphore. |
+| Independent Trigger.dev queues contend for one worker resource | Production/staging only / not locally reproduced | Saturate workflow, webhook, and resume traffic separately and together. Compare queue depth, worker running counts, `sim-trigger` connections, and terminal completions. A shared-resource choke requires combined traffic to reduce throughput more than isolated traffic. | Coordinate queue limits against the shared pool; expose queue depth from Trigger.dev rather than treating `async_jobs` as production depth. |
+| One tenant can delay another tenant | Production/staging only / fairness gap not reproduced | Send long-running traffic from workspace A and short runs from workspace B at constant B arrival rate. Prove starvation only if B’s completion latency or queue wait worsens as A increases while aggregate throughput looks healthy. | Add per-tenant queue/concurrency keys or weighted fairness after reproducing the effect. |
+| Sync and SSE executions pressure the web process outside async admission | Local and production | Compare equal-work async, sync, and SSE runs. Record health failures, request latency, RSS/heap, and terminal throughput. A mode-specific choke requires sync/SSE to degrade the web process while async remains healthy at similar completed work. | Apply separate web-process admission or route long work through the worker path. |
+| Executor fan-out and retained loop/payload state consume heap | Local and production workers | Sweep parallel branch count, loop iterations, and output size independently. Record peak RSS/heap and terminal status. Use a diagnostic heap cap to amplify the failure, but require the uncapped trend to support the claim. | Bound fan-out and retained iteration/output state; use durable references or per-execution memory budgets. |
+| Terminal logging, storage, or Redis fallback dominates completion | Local and production | Compare small outputs with outputs above the large-value threshold, and Redis healthy with Redis degraded. Prove the path only when upload/JSONB/error latency rises with flat terminal throughput and matching logs. | Batch or reduce terminal writes, preserve Redis health, and bound storage/materialization work. |
+| External tools, provider rate limits, or retries dominate workflow time | Local synthetic dependency and production | Use a deterministic external stub with fixed latency, 429s, and 5xx responses. Correlate block duration/retry logs and provider errors with terminal throughput. A dependency choke requires the dependency signal to move with the throughput plateau. | Tune bounded retries/timeouts, provider concurrency, and backpressure; do not “fix” ingress based on `202` latency alone. |
 
-- With the **database backend**, web-process execution and its `async_jobs`,
-  execution-log, and usage queries share the web pool.
-- With **Trigger.dev**, the web request mostly pays for enqueueing; the
-  Trigger.dev task still performs execution-log and usage queries, but those
-  queries use the Trigger.dev pool and the task queue limit.
-- With `sync` and SSE, the web request itself waits on the same execution and
-  database work. With `async` plus the database backend, the request returns
-  before that work finishes, but the work still occupies the web process and
-  web pool.
+## Shared measurement queries
 
-No repository-only claim should call the DB the measured root cause without
-`pg_stat_activity`, pool-wait, query-duration, or equivalent production
-measurements.
-
-## Async and inline in Sim
-
-These are not opposite endpoint modes:
-
-1. `sync` calls `executeWorkflowCore` from the execute route; SSE calls
-   `executeWorkflow` through `createStreamingResponse`. Both keep the
-   response/stream lifecycle attached to the run.
-2. `async` calls `getJobQueue().enqueue('workflow-execution', ...)` and returns
-   `202`.
-3. The database backend starts the job and calls `executeWorkflowJob` in the
-   web process. The admission ticket must remain held until that call finishes.
-4. Trigger.dev starts the task outside the web process. The route releases its
-   ticket after the enqueue response; Trigger.dev applies
-   `WORKFLOW_EXECUTION_CONCURRENCY_LIMIT`, whose default is `75`.
-
-The current branch fixes only the database-backend case: it retains the
-admission ticket for in-process `async` execution and releases it in the
-inline runner's `finally` block. It does not change the database pool size,
-Trigger.dev concurrency, or execution cost.
-
-## Evidence
-
-Synthetic workflow: `Start → Function`, with 300ms of deterministic CPU work.
-Load profile: async `POST /api/workflows/{id}/execute`, ramp to 8 requests/sec,
-then hold for 60 seconds
-([Artillery profile](../apps/sim/scripts/load/workflow-concurrency.yml)).
-The profile asserts the enqueue response is `202`; completion counts require
-the execution-log query below.
-
-- Before the fix: approximately 218 successful `202` responses, 225
-  `ECONNREFUSED` failures, and roughly 2 completed workflows/sec. The process
-  became unreachable.
-- At a more aggressive 30 requests/sec probe: 351 requests returned `202`,
-  approximately one completion was observed in the window, and more than 280
-  executions remained running.
-- With `ADMISSION_GATE_MAX_INFLIGHT=5`: 207 `429` responses and repeated
-  admission-rejection logs confirmed that the admission gate rejects at
-  capacity.
-- After the fix: the 8 requests/sec rerun produced explicit `202`/`429`
-  backpressure and did not reproduce the previous connection-refused cascade.
-  One transient health check missed, so this is stability evidence, not a
-  claim that the process was perfectly healthy every second.
-
-## Changes in this branch
-
-- Hold the admission ticket through local inline async execution:
-  [execute route](../apps/sim/app/api/workflows/[id]/execute/route.ts)
-- Apply the gate to session-backed async requests while preserving sync/SSE:
-  [execute route](../apps/sim/app/api/workflows/[id]/execute/route.ts)
-- Lower the default in-process admission limit from 500 to 10:
-  [admission gate](../apps/sim/lib/core/admission/gate.ts)
-- Add a 4 GB Node heap ceiling to the production start script:
-  [Sim package scripts](../apps/sim/package.json)
-- Add workflow execution count/duration telemetry:
-  [execution metrics](../apps/sim/lib/workflows/executor/execution-metrics.ts)
-
-The limit of 10 is a safety starting point, not an optimized production
-setting. It bounds damage; it does not make execution faster.
-
-## Other limits found or tested
-
-### Proven by code, not measured as the local root cause
-
-- **Execution cost:** CPU/isolated-runtime work determines how long an
-  admission ticket remains occupied. More expensive workflow executions reduce
-  completion rate and cause honest `429` backpressure.
-- **Web database pool:** database-backend execution shares the web process and
-  its `primaryMax=10` pool. The sustainable rate depends on the DB work per
-  execution.
-- **Trigger.dev task and DB limits:** the task definition sets a default
-  concurrency limit of `75`, while the Trigger.dev DB role has a
-  `primaryMax=5` pool. Queue concurrency and DB connection availability are
-  separate limits.
-- **Sync/SSE process pressure:** session-backed `sync` and SSE requests
-  intentionally remain outside this async admission change. Their execution
-  and streaming behavior needs a separate test because they run through the
-  web process.
-
-### Tested but inconclusive or not run
-
-- A 20-request synchronous blast completed successfully; it did not reproduce
-  an OOM.
-- Trigger.dev’s 75/75/50 workflow, webhook, and resume queue contention was
-  not tested in this session.
-- No production workflow bodies were available. The synthetic graph proves the
-  backlog mechanism, not production workload capacity.
-
-## Next falsifiable measurement
-
-Run the same profile through both API-key and authenticated-cookie async
-requests. Record:
-
-1. completed workflow executions/sec from
-   `workflow_execution_logs.ended_at`;
-2. `202` versus `429` responses;
-3. running execution count;
-4. process health and RSS;
-5. `pg_stat_activity` for `sim-app` and `sim-trigger`.
-
-The following query makes the DB part falsifiable during the run:
+Use event time (`ended_at`), not query time, when calculating completion rates.
 
 ```sql
+-- Success throughput
+SELECT date_trunc('minute', ended_at) AS minute, count(*) AS completed
+FROM workflow_execution_logs
+WHERE ended_at >= now() - interval '15 minutes'
+  AND status = 'completed'
+  AND level = 'info'
+GROUP BY 1
+ORDER BY 1;
+
+-- All terminal outcomes
+SELECT date_trunc('minute', ended_at) AS minute, status, count(*) AS executions
+FROM workflow_execution_logs
+WHERE ended_at >= now() - interval '15 minutes'
+  AND status IN ('completed', 'failed', 'cancelled')
+GROUP BY 1, 2
+ORDER BY 1, 2;
+
+-- Cross-pod running executions
+SELECT count(*) AS running
+FROM workflow_execution_logs
+WHERE status = 'running';
+
+-- Database pressure
 SELECT application_name, state, count(*) AS connections,
        max(now() - query_start) AS oldest_query
 FROM pg_stat_activity
@@ -241,8 +160,33 @@ GROUP BY application_name, state
 ORDER BY application_name, state;
 ```
 
-Then vary deterministic workflow work from 300ms to 2 seconds. A valid next
-finding is: completed workflow executions/sec falls and `429` rate rises
-while the process stays healthy. A DB finding requires the same run to show
-pool saturation or query wait/duration growth, rather than inferring it from
-`202` latency alone.
+## Experiments to run next
+
+Run these in local or staging with a fixed workflow fixture, tenant mix, replica
+count, and drain period. Record per-pod/per-worker results so autoscaling is not
+mistaken for a code-level improvement.
+
+1. **Arrival and duration sweep:** `300 ms` to `2 s` deterministic work, with
+   arrival rates below and above the admission cap.
+2. **Backend comparison:** identical load through the database backend and
+   Trigger.dev; compare web versus trigger pools and external queue depth.
+3. **Fairness isolation:** long-running workspace A versus short-running
+   workspace B at constant B traffic.
+4. **Mode pressure:** async versus sync versus SSE, including health and RSS.
+5. **Memory/fan-out:** loop retention, parallel branch count, and large output
+   thresholds as independent variables.
+6. **Dependency failure:** Redis degradation, storage uploads, and deterministic
+   external-tool latency/rate-limit responses.
+
+## Existing load profile and interpretation
+
+The baseline profile is
+[workflow-concurrency.yml](../apps/sim/scripts/load/workflow-concurrency.yml).
+`bun run load:workflow:baseline` defaults to a 10-second warmup, ramps from
+`2` to `8` requests/sec, and holds for 20 seconds. The profile asserts `202`;
+completion counts still require the terminal-log queries above.
+
+The local PR evidence used a synthetic `Start → Function` workflow and is
+stability evidence, not a production capacity number. Production claims require
+the Trigger.dev path, worker metrics, DB/Redis telemetry, and a fixed comparison
+against an identical baseline.

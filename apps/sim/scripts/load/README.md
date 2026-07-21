@@ -102,6 +102,6 @@ Optional variables:
 
 - `load:workflow` is an alias for `load:workflow:baseline`
 - All scenarios send `x-execution-mode: async`
-- Artillery output will show request counts and response codes, which is usually enough for quick local verification
+- The baseline asserts `202` responses, but completion throughput still requires querying `workflow_execution_logs.ended_at`; request counts alone do not measure workflow throughput
 - At these defaults, you should see `429` responses when approaching `ADMISSION_GATE_MAX_INFLIGHT=10`
 - If you still see lots of `429` or `ETIMEDOUT` responses locally, lower the rates again before increasing durations
