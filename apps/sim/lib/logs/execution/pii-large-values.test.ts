@@ -214,6 +214,54 @@ describe('redactLargeValueRefs', () => {
     expect(order).toEqual(['lv_smallsmall12', 'lv_bigbigbigbig'])
   })
 
+  it('completes an oversized ref whose content nests another oversized ref (no gate deadlock)', async () => {
+    const outer = { ...REF, id: 'lv_outerbig1234', size: 30 * 1024 * 1024 }
+    const inner = { ...REF, id: 'lv_innerbig1234', size: 20 * 1024 * 1024 }
+    chunkData.set(outer.id, { note: 'outer bob', deep: inner })
+    chunkData.set(inner.id, { note: 'inner amy' })
+
+    const result = await redactLargeValueRefs(
+      { finalOutput: outer },
+      { entityTypes: [], language: 'en', store: STORE, onFailure: 'throw' }
+    )
+
+    expect(result.finalOutput).toEqual({
+      note: 'MASKED(outer bob)',
+      deep: { note: 'MASKED(inner amy)' },
+    })
+  })
+
+  it('serializes nested oversized refs discovered under different pooled parents', async () => {
+    const parentA = { ...REF, id: 'lv_parentaaaaaa' }
+    const parentB = { ...REF, id: 'lv_parentbbbbbb' }
+    const nestedA = { ...REF, id: 'lv_nestedaaaaaa', size: 30 * 1024 * 1024 }
+    const nestedB = { ...REF, id: 'lv_nestedbbbbbb', size: 30 * 1024 * 1024 }
+    chunkData.set(parentA.id, { deep: nestedA })
+    chunkData.set(parentB.id, { deep: nestedB })
+    let inFlight = 0
+    let maxInFlight = 0
+    mockMaterializeRef.mockImplementation(async (ref: { id: string; size: number }) => {
+      if (ref.size > 16 * 1024 * 1024) {
+        inFlight++
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        await new Promise((resolve) => setTimeout(resolve, 1))
+        inFlight--
+      }
+      return chunkData.get(ref.id)
+    })
+    chunkData.set(nestedA.id, { note: 'a' })
+    chunkData.set(nestedB.id, { note: 'b' })
+
+    const result = await redactLargeValueRefs(
+      { finalOutput: { a: parentA, b: parentB } },
+      { entityTypes: [], language: 'en', store: STORE }
+    )
+
+    expect((result.finalOutput as any).a).toEqual({ deep: { note: 'MASKED(a)' } })
+    expect((result.finalOutput as any).b).toEqual({ deep: { note: 'MASKED(b)' } })
+    expect(maxInFlight).toBe(1)
+  })
+
   it('processes a manifest containing an oversized chunk serially, after the pooled refs', async () => {
     const smallRef = { ...REF, id: 'lv_smallsmall12' }
     chunkData.set(smallRef.id, { note: 'small' })

@@ -43,6 +43,41 @@ export interface RedactLargeValueRefsOptions {
    * than feeding a marker (or leaking raw bytes) downstream.
    */
   onFailure?: PiiRedactionFailureMode
+  /**
+   * @internal Shared across every nested invocation spawned from one entry-point
+   * call, so oversized hydrations serialize globally — not just within their own
+   * {@link resolveReplacements} pass. Created by the entry points; callers never
+   * set it.
+   */
+  oversizedGate?: OversizedHydrationGate
+  /**
+   * @internal True while running under the gate. Nested oversized work inside a
+   * gated ref runs directly instead of re-acquiring — the holder would otherwise
+   * wait on itself (deadlock). Safe because the holder is globally serialized.
+   */
+  withinOversizedGate?: boolean
+}
+
+/** Promise-chain mutex for oversized hydrations (see {@link requiresSerialHydration}). */
+interface OversizedHydrationGate {
+  chain: Promise<void>
+}
+
+/** Queue `fn` behind every previously gated task; failures don't poison the chain. */
+async function runSerially<T>(gate: OversizedHydrationGate, fn: () => Promise<T>): Promise<T> {
+  const run = gate.chain.then(fn)
+  gate.chain = run.then(
+    () => undefined,
+    () => undefined
+  )
+  return run
+}
+
+/** Ensure one shared gate exists for the whole entry-point call tree. */
+function withOversizedGate(options: RedactLargeValueRefsOptions): RedactLargeValueRefsOptions {
+  return options.oversizedGate
+    ? options
+    : { ...options, oversizedGate: { chain: Promise.resolve() } }
 }
 
 /**
@@ -65,6 +100,7 @@ export async function redactLargeValueRefs(
   payload: RedactablePayload,
   options: RedactLargeValueRefsOptions
 ): Promise<RedactablePayload> {
+  const gatedOptions = withOversizedGate(options)
   // Collect refs across the WHOLE payload first (shared `seen`), so every ref is
   // hydrated+masked+re-stored in one bounded-concurrency pass instead of one
   // sequential pass per key. A ref shared across keys is walked/masked once.
@@ -75,7 +111,7 @@ export async function redactLargeValueRefs(
   }
   if (refs.length === 0) return payload
 
-  const replacements = await resolveReplacements(refs, options)
+  const replacements = await resolveReplacements(refs, gatedOptions)
   const result: RedactablePayload = { ...payload }
   for (const key of Object.keys(payload) as (keyof RedactablePayload)[]) {
     if (payload[key] !== undefined) result[key] = substituteRefs(payload[key], replacements)
@@ -93,7 +129,7 @@ export async function redactLargeValueRefsInValue<T>(
   value: T,
   options: RedactLargeValueRefsOptions
 ): Promise<T> {
-  return (await redactValueRefs(value, options)) as T
+  return (await redactValueRefs(value, withOversizedGate(options))) as T
 }
 
 /** Sync-collect every ref/manifest in `value`, then async-replace each, then sync-substitute. */
@@ -156,16 +192,23 @@ async function resolveReplacements(
   const oversized = unique.filter(requiresSerialHydration)
   const replacements = new Map<object, unknown>()
   let firstError: unknown
-  const resolveOne = async (ref: object): Promise<void> => {
+  const resolveOne = async (ref: object, opts: RedactLargeValueRefsOptions): Promise<void> => {
     try {
-      replacements.set(ref, await replaceRef(ref, options))
+      replacements.set(ref, await replaceRef(ref, opts))
     } catch (error) {
       if (firstError === undefined) firstError = error
     }
   }
-  await mapWithConcurrency(pooled, REF_CONCURRENCY, resolveOne)
+  await mapWithConcurrency(pooled, REF_CONCURRENCY, (ref) => resolveOne(ref, options))
+  const gate = options.oversizedGate
   for (const ref of oversized) {
-    await resolveOne(ref)
+    if (!gate || options.withinOversizedGate) {
+      // Already serialized by a gated ancestor (or no gate: direct internal
+      // call) — re-acquiring would deadlock on the ancestor's own hold.
+      await resolveOne(ref, options)
+    } else {
+      await runSerially(gate, () => resolveOne(ref, { ...options, withinOversizedGate: true }))
+    }
   }
   if (firstError !== undefined) throw firstError
   return replacements
