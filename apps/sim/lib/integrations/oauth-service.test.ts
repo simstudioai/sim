@@ -160,6 +160,18 @@ describe('resolveServiceAccountIntegration', () => {
     expect(resolveServiceAccountIntegration('  NOTION  ')?.slug).toBe('notion')
   })
 
+  it.concurrent(
+    'accepts the space/underscore-normalized id forms the oauth guard steers toward',
+    () => {
+      // oauth_get_auth_link rejects `slack custom bot` / `notion_service_account`
+      // and tells the agent to emit a service_account tag; the renderer must then
+      // resolve those same readable forms or the connect control renders nothing.
+      expect(resolveServiceAccountIntegration('slack custom bot')?.slug).toBe('slack')
+      expect(resolveServiceAccountIntegration('notion_service_account')?.slug).toBe('notion')
+      expect(resolveServiceAccountIntegration('google service account')?.slug).toBe('google-drive')
+    }
+  )
+
   it.concurrent('returns null rather than inventing a link for unsupported input', () => {
     // The handler turns null into "use oauth_get_auth_link instead"; a wrong
     // match here would send the user to a modal that cannot take their key.

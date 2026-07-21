@@ -253,9 +253,15 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
   // A service_account tag is a control, not a value: it names the provider
   // whose setup form to open, and the user types the secret into that form —
   // so it never carries a `value`, but it is useless without a provider. An
-  // optional `credentialId` reconnects an existing service account in place.
+  // optional `credentialId` reconnects an existing service account in place;
+  // reject a blank one, since the renderer treats a truthy id as "reconnect"
+  // and would try to rotate a non-existent credential.
   if (value.type === 'service_account') {
-    if (value.credentialId !== undefined && typeof value.credentialId !== 'string') return false
+    if (value.credentialId !== undefined) {
+      if (typeof value.credentialId !== 'string' || value.credentialId.trim().length === 0) {
+        return false
+      }
+    }
     return typeof value.provider === 'string' && value.provider.trim().length > 0
   }
   // A sim_key chip is platform-filled: the model only marks where the workspace

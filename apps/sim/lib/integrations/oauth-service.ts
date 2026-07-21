@@ -122,6 +122,11 @@ const SERVICE_ACCOUNT_INTEGRATIONS: readonly ServiceAccountIntegrationMatch[] =
  * provider id names no single integration, so it resolves through
  * {@link CANONICAL_SERVICE_ACCOUNT_SLUGS}.
  *
+ * The id-based lookups also accept the space/underscore-normalized form
+ * (`slack custom bot`, `notion_service_account`) that `oauth_get_auth_link`'s
+ * guard rejects and steers toward a `service_account` tag — otherwise the chat
+ * renderer would fail to resolve exactly the forms the guard produced.
+ *
  * Returns `null` when nothing matches or the named integration has no
  * service-account flow — callers should fall back to OAuth rather than
  * inventing a link.
@@ -131,18 +136,21 @@ export function resolveServiceAccountIntegration(
 ): ServiceAccountIntegrationMatch | null {
   const query = providerName.toLowerCase().trim()
   if (!query) return null
+  // Hyphenated form for id lookups (slug / providerId / SA-id are hyphenated);
+  // the raw query is kept for display-name matches, which aren't hyphenated.
+  const idQuery = query.replace(/[\s_]+/g, '-')
 
-  const canonicalSlug = CANONICAL_SERVICE_ACCOUNT_SLUGS[query]
+  const canonicalSlug = CANONICAL_SERVICE_ACCOUNT_SLUGS[idQuery]
   if (canonicalSlug) {
     const canonical = SERVICE_ACCOUNT_INTEGRATIONS.find((entry) => entry.slug === canonicalSlug)
     if (canonical) return canonical
   }
 
   return (
-    SERVICE_ACCOUNT_INTEGRATIONS.find((entry) => entry.slug === query) ??
-    SERVICE_ACCOUNT_INTEGRATIONS.find((entry) => entry.providerId.toLowerCase() === query) ??
+    SERVICE_ACCOUNT_INTEGRATIONS.find((entry) => entry.slug === idQuery) ??
+    SERVICE_ACCOUNT_INTEGRATIONS.find((entry) => entry.providerId.toLowerCase() === idQuery) ??
     SERVICE_ACCOUNT_INTEGRATIONS.find(
-      (entry) => entry.serviceAccountProviderId.toLowerCase() === query
+      (entry) => entry.serviceAccountProviderId.toLowerCase() === idQuery
     ) ??
     SERVICE_ACCOUNT_INTEGRATIONS.find((entry) => entry.serviceName.toLowerCase() === query) ??
     SERVICE_ACCOUNT_INTEGRATIONS.find(

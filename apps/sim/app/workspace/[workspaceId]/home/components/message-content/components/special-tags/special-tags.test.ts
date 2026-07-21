@@ -229,4 +229,13 @@ describe('service_account tag validation', () => {
     const { segments } = parseSpecialTags(`<credential>${body}</credential>`, false)
     expect(segments.some((segment) => segment.type === 'credential')).toBe(false)
   })
+
+  it.each(['', '   '])(
+    'rejects a blank credentialId (%j) so reconnect cannot target a missing credential',
+    (credentialId) => {
+      const body = JSON.stringify({ type: 'service_account', provider: 'notion', credentialId })
+      const { segments } = parseSpecialTags(`<credential>${body}</credential>`, false)
+      expect(segments.some((segment) => segment.type === 'credential')).toBe(false)
+    }
+  )
 })
