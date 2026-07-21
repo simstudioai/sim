@@ -1444,6 +1444,46 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     color: '#4285F4',
     models: [
       {
+        id: 'gemini-3.6-flash',
+        pricing: {
+          input: 1.5,
+          cachedInput: 0.15,
+          output: 7.5,
+          updatedAt: '2026-07-21',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['minimal', 'low', 'medium', 'high'],
+            default: 'medium',
+          },
+          maxOutputTokens: 65536,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-07-21',
+        recommended: true,
+      },
+      {
+        id: 'gemini-3.5-flash-lite',
+        pricing: {
+          input: 0.3,
+          cachedInput: 0.03,
+          output: 2.5,
+          updatedAt: '2026-07-21',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['minimal', 'low', 'medium', 'high'],
+            default: 'minimal',
+          },
+          maxOutputTokens: 65536,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-07-21',
+        speedOptimized: true,
+      },
+      {
         id: 'gemini-3.5-flash',
         pricing: {
           input: 1.5,
@@ -1461,7 +1501,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2026-05-19',
-        recommended: true,
       },
       {
         id: 'gemini-3.1-pro-preview',
