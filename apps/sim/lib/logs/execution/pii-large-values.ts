@@ -118,20 +118,28 @@ const REF_CONCURRENCY = env.PII_REF_CONCURRENCY ?? 4
 
 /**
  * A single ref past the default inline ceiling hydrates its whole blob at once
- * (~2-3× its serialized size in transient heap), so those run serially instead
- * of in the {@link REF_CONCURRENCY} pool — one 64MB ref is fine, four at once is
- * an OOM on the small trigger.dev machines. Manifests page chunk-by-chunk and
- * stay pooled regardless of total size.
+ * (~2-3× its serialized size in transient heap) — and a manifest whose packer
+ * emitted an oversized chunk (a single item larger than the chunk target)
+ * hydrates that chunk the same way. Those run serially instead of in the
+ * {@link REF_CONCURRENCY} pool — one 64MB hydration is fine, four at once is an
+ * OOM on the small trigger.dev machines. Normally-chunked manifests page ~8MB
+ * at a time and stay pooled regardless of total size.
  */
-function isOversizedSingleRef(ref: object): boolean {
-  return isLargeValueRef(ref) && ref.size > MAX_INLINE_MATERIALIZATION_BYTES
+function requiresSerialHydration(ref: object): boolean {
+  if (isLargeValueRef(ref)) {
+    return ref.size > MAX_INLINE_MATERIALIZATION_BYTES
+  }
+  if (isLargeArrayManifest(ref)) {
+    return ref.chunks.some((chunk) => chunk.byteSize > MAX_INLINE_MATERIALIZATION_BYTES)
+  }
+  return false
 }
 
 /**
  * Dedupe the collected refs by identity, then replace each in parallel (bounded by
- * {@link REF_CONCURRENCY}); oversized single refs run serially after the pool
- * drains (see {@link isOversizedSingleRef}). `Map.set` is synchronous, so
- * concurrent workers writing the shared map do not race.
+ * {@link REF_CONCURRENCY}); refs needing an oversized hydration run serially after
+ * the pool drains (see {@link requiresSerialHydration}). `Map.set` is synchronous,
+ * so concurrent workers writing the shared map do not race.
  *
  * `mapWithConcurrency`'s `fn` must not reject (a rejection fails the pool
  * non-deterministically), so the mapper is total: it catches per-ref errors and
@@ -144,8 +152,8 @@ async function resolveReplacements(
   options: RedactLargeValueRefsOptions
 ): Promise<Map<object, unknown>> {
   const unique = [...new Set(refs)]
-  const pooled = unique.filter((ref) => !isOversizedSingleRef(ref))
-  const oversized = unique.filter(isOversizedSingleRef)
+  const pooled = unique.filter((ref) => !requiresSerialHydration(ref))
+  const oversized = unique.filter(requiresSerialHydration)
   const replacements = new Map<object, unknown>()
   let firstError: unknown
   const resolveOne = async (ref: object): Promise<void> => {

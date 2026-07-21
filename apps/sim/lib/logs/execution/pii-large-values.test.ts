@@ -213,6 +213,22 @@ describe('redactLargeValueRefs', () => {
     const order = mockMaterializeRef.mock.calls.map(([ref]) => (ref as { id: string }).id)
     expect(order).toEqual(['lv_smallsmall12', 'lv_bigbigbigbig'])
   })
+
+  it('processes a manifest containing an oversized chunk serially, after the pooled refs', async () => {
+    const smallRef = { ...REF, id: 'lv_smallsmall12' }
+    chunkData.set(smallRef.id, { note: 'small' })
+    const bigChunkManifest = makeManifest([
+      { id: 'lv_hugechunk000', size: 20 * 1024 * 1024, items: [{ note: 'one giant item' }] },
+    ])
+
+    await redactLargeValueRefs(
+      { finalOutput: { a: bigChunkManifest, b: smallRef } },
+      { entityTypes: [], language: 'en', store: STORE }
+    )
+
+    const order = mockMaterializeRef.mock.calls.map(([ref]) => (ref as { id: string }).id)
+    expect(order).toEqual(['lv_smallsmall12', 'lv_hugechunk000'])
+  })
 })
 
 describe('redactManifest — chunk-wise', () => {
