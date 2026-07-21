@@ -123,7 +123,10 @@ export const PATCH = withRouteHandler(
         return createErrorResponse('Changing the workflow of a chat deployment is not allowed', 400)
       }
 
-      if (authType && chatWorkspaceId) {
+      // Enforce the permission group's chat auth-mode allow-list only when the
+      // mode actually changes, so a grandfathered mode already saved on this chat
+      // can still be re-saved (e.g. a title-only edit) without a 403.
+      if (authType && authType !== existingChatRecord.authType && chatWorkspaceId) {
         try {
           await validateChatDeployAuth(session.user.id, chatWorkspaceId, authType)
         } catch (error) {

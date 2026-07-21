@@ -224,7 +224,7 @@ describe('Chat Edit API Route', () => {
       expect(data.message).toBe('Chat deployment updated successfully')
     })
 
-    it('returns 403 when the updated auth type is blocked by the permission group', async () => {
+    it('returns 403 when the updated auth type changes to a blocked mode', async () => {
       authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-id' },
       })
@@ -234,7 +234,7 @@ describe('Chat Edit API Route', () => {
         chat: {
           id: 'chat-123',
           identifier: 'test-chat',
-          authType: 'public',
+          authType: 'password',
           workflowId: 'workflow-123',
         },
         workspaceId: 'workspace-123',
@@ -250,6 +250,32 @@ describe('Chat Edit API Route', () => {
       expect(response.status).toBe(403)
       expect(mockValidateChatDeployAuth).toHaveBeenCalledWith('user-id', 'workspace-123', 'public')
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    })
+
+    it('does not re-check the auth mode when it is unchanged (grandfathered)', async () => {
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-id' },
+      })
+
+      mockCheckChatAccess.mockResolvedValue({
+        hasAccess: true,
+        chat: {
+          id: 'chat-123',
+          identifier: 'test-chat',
+          authType: 'public',
+          workflowId: 'workflow-123',
+        },
+        workspaceId: 'workspace-123',
+      })
+
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
+        method: 'PATCH',
+        body: JSON.stringify({ authType: 'public', title: 'Renamed' }),
+      })
+      const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
+
+      expect(response.status).toBe(200)
+      expect(mockValidateChatDeployAuth).not.toHaveBeenCalled()
     })
 
     it('rejects the update without admitting a new deploy while an attempt is in flight', async () => {

@@ -372,6 +372,7 @@ export function ChatDeploy({
           <AuthSelector
             key={`${existingChat?.id ?? 'new'}-${formInitCounter}`}
             authType={formData.authType}
+            savedAuthType={existingChat?.authType as AuthType | undefined}
             password={formData.password}
             emails={formData.emails}
             onAuthTypeChange={(type) => updateField('authType', type)}
@@ -584,6 +585,8 @@ function IdentifierInput({
 
 interface AuthSelectorProps {
   authType: AuthType
+  /** The persisted mode of an existing chat, kept selectable even if newly disallowed. */
+  savedAuthType?: AuthType
   password: string
   emails: string[]
   onAuthTypeChange: (type: AuthType) => void
@@ -603,6 +606,7 @@ const AUTH_LABELS: Record<AuthType, string> = {
 
 function AuthSelector({
   authType,
+  savedAuthType,
   password,
   emails,
   onAuthTypeChange,
@@ -680,12 +684,22 @@ function AuthSelector({
     : ['public', 'password', 'email']
 
   // Org access-control may restrict which auth modes are allowed (`null` = all).
-  // The route is the source of truth; this just hides disallowed options, keeping
-  // the current selection visible so the saved state always shows.
+  // The route is the source of truth; this just hides disallowed options. Only a
+  // chat's already-saved mode is grandfathered (kept visible) — not the unsaved
+  // `public` default of a brand-new chat.
   const allowedAuthTypes = permissionConfig.allowedChatDeployAuthTypes
   const authOptions = baseAuthOptions.filter(
-    (type) => allowedAuthTypes === null || allowedAuthTypes.includes(type) || type === authType
+    (type) => allowedAuthTypes === null || allowedAuthTypes.includes(type) || type === savedAuthType
   )
+
+  // If the current selection isn't offered (e.g. a new chat defaulting to a
+  // now-disallowed `public`), snap to the first allowed mode so the form can't
+  // submit a value the server will reject.
+  useEffect(() => {
+    if (authOptions.length > 0 && !authOptions.includes(authType)) {
+      onAuthTypeChange(authOptions[0])
+    }
+  }, [authOptions, authType, onAuthTypeChange])
 
   return (
     <div className='space-y-4'>
