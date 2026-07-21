@@ -194,6 +194,9 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
           navigated = window.open(authorizationUrl, `mcp-oauth-${serverId}`) !== null
         }
         if (!navigated) {
+          try {
+            popup.close()
+          } catch {}
           decConnecting(serverId)
           toast.error('Popup blocked. Please allow popups for this site and retry.')
           return
