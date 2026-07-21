@@ -65,7 +65,11 @@ vi.mock('@/stores/workflows/registry/store', () => ({
   },
 }))
 
-import { syncLocalDraftFromServer } from '@/stores/workflows/sync-local-draft'
+import {
+  canApplyDraftSnapshot,
+  captureDraftVersions,
+  syncLocalDraftFromServer,
+} from '@/stores/workflows/sync-local-draft'
 
 function buildEnvelopeState() {
   return {
@@ -308,5 +312,79 @@ describe('syncLocalDraftFromServer', () => {
     await expect(syncLocalDraftFromServer('workflow-a')).rejects.toThrow('network down')
 
     expect(mockApplyWorkflowStateToStores).not.toHaveBeenCalled()
+  })
+})
+
+describe('canApplyDraftSnapshot', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetRegistryState.mockReturnValue({ activeWorkflowId: 'workflow-a' })
+    mockHasPendingOperations.mockReturnValue(false)
+    mockGetOperationQueueState.mockImplementation(() => ({
+      hasPendingOperations: mockHasPendingOperations,
+      workflowOperationVersions: {},
+      remoteApplyVersions: {},
+    }))
+    mockGetWorkflowDiffState.mockReturnValue({
+      hasActiveDiff: false,
+      pendingExternalUpdates: {},
+      reconcilingWorkflows: {},
+      reconciliationErrors: {},
+      remoteUpdateVersions: {},
+    })
+  })
+
+  it('allows applying when nothing moved since capture', () => {
+    const versions = captureDraftVersions('workflow-a')
+
+    expect(canApplyDraftSnapshot('workflow-a', versions)).toBe(true)
+  })
+
+  it('refuses when an external full reload (workflow-updated) landed since capture', () => {
+    const versions = captureDraftVersions('workflow-a')
+    mockGetWorkflowDiffState.mockReturnValue({
+      hasActiveDiff: false,
+      pendingExternalUpdates: {},
+      reconcilingWorkflows: {},
+      reconciliationErrors: {},
+      remoteUpdateVersions: { 'workflow-a': 1 },
+    })
+
+    expect(canApplyDraftSnapshot('workflow-a', versions)).toBe(false)
+  })
+
+  it('refuses while an external reload is still reconciling', () => {
+    const versions = captureDraftVersions('workflow-a')
+    mockGetWorkflowDiffState.mockReturnValue({
+      hasActiveDiff: false,
+      pendingExternalUpdates: {},
+      reconcilingWorkflows: { 'workflow-a': true },
+      reconciliationErrors: {},
+      remoteUpdateVersions: {},
+    })
+
+    expect(canApplyDraftSnapshot('workflow-a', versions)).toBe(false)
+  })
+
+  it('refuses when a remote collaborator op was applied since capture', () => {
+    const versions = captureDraftVersions('workflow-a')
+    mockGetOperationQueueState.mockImplementation(() => ({
+      hasPendingOperations: mockHasPendingOperations,
+      workflowOperationVersions: {},
+      remoteApplyVersions: { 'workflow-a': 1 },
+    }))
+
+    expect(canApplyDraftSnapshot('workflow-a', versions)).toBe(false)
+  })
+
+  it('refuses when a local edit was enqueued since capture', () => {
+    const versions = captureDraftVersions('workflow-a')
+    mockGetOperationQueueState.mockImplementation(() => ({
+      hasPendingOperations: mockHasPendingOperations,
+      workflowOperationVersions: { 'workflow-a': 1 },
+      remoteApplyVersions: {},
+    }))
+
+    expect(canApplyDraftSnapshot('workflow-a', versions)).toBe(false)
   })
 })

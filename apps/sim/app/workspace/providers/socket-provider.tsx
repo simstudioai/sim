@@ -785,18 +785,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           }
 
           if (workflowData?.state) {
-            const { useOperationQueueStore } = await import('@/stores/operation-queue/store')
-            const versionsAtJoin = {
-              remoteApply:
-                useOperationQueueStore.getState().remoteApplyVersions[workflowData.id] ?? 0,
-              localOperation:
-                useOperationQueueStore.getState().workflowOperationVersions[workflowData.id] ?? 0,
-            }
+            const { canApplyDraftSnapshot, captureDraftVersions, syncLocalDraftFromServer } =
+              await import('@/stores/workflows/sync-local-draft')
+            const versionsAtJoin = captureDraftVersions(workflowData.id)
 
             try {
-              const { syncLocalDraftFromServer } = await import(
-                '@/stores/workflows/sync-local-draft'
-              )
               const synced = await syncLocalDraftFromServer(workflowData.id)
               if (!synced) {
                 logger.info('Join-state sync skipped; keeping local state', {
@@ -808,18 +801,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
               /**
                * The raw payload was captured at join time. Anything applied to
-               * the stores while the HTTP sync was failing — remote broadcasts
-               * or local edits that drained — is newer than the payload, so
-               * applying it would regress those changes. Fall back only when
-               * nothing has moved since the join.
+               * the stores while the HTTP sync was failing — local edits,
+               * remote broadcasts, or an external full reload
+               * (workflow-updated / revert) — is newer than the payload, so
+               * applying it would regress those changes. The shared snapshot
+               * guard covers all of those sources.
                */
-              const queueState = useOperationQueueStore.getState()
-              const storesMovedSinceJoin =
-                (queueState.remoteApplyVersions[workflowData.id] ?? 0) !==
-                  versionsAtJoin.remoteApply ||
-                (queueState.workflowOperationVersions[workflowData.id] ?? 0) !==
-                  versionsAtJoin.localOperation
-              if (storesMovedSinceJoin) {
+              if (!canApplyDraftSnapshot(workflowData.id, versionsAtJoin)) {
                 logger.info('Skipping raw join-state fallback; stores changed since join', {
                   workflowId: workflowData.id,
                 })

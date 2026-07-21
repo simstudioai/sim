@@ -21,17 +21,46 @@ const logger = createLogger('SyncLocalDraft')
 const MAX_SYNC_FETCH_ATTEMPTS = 3
 const SYNC_RETRY_DELAY_MS = 50
 
+/**
+ * Version vector describing everything that can move workflow state under a
+ * full-state snapshot while it is being fetched or held:
+ * - `localOperation`: local edits enqueued (operation queue)
+ * - `remoteApply`: remote collaborator ops applied to the stores
+ * - `remoteUpdate`: external full reloads (workflow-updated / revert)
+ */
+export interface DraftSyncVersions {
+  localOperation: number
+  remoteApply: number
+  remoteUpdate: number
+}
+
+/** Captures the current {@link DraftSyncVersions} for a workflow. */
+export function captureDraftVersions(workflowId: string): DraftSyncVersions {
+  const queueState = useOperationQueueStore.getState()
+  return {
+    localOperation: queueState.workflowOperationVersions[workflowId] ?? 0,
+    remoteApply: queueState.remoteApplyVersions[workflowId] ?? 0,
+    remoteUpdate: useWorkflowDiffStore.getState().remoteUpdateVersions[workflowId] ?? 0,
+  }
+}
+
+/**
+ * Hard guards shared by every snapshot application: the workflow is still
+ * active, nothing local is pending or was enqueued since capture, no diff or
+ * reconciliation is in progress, and no external full reload
+ * (workflow-updated / revert) landed since capture. Remote collaborator ops
+ * (`remoteApply`) are deliberately NOT part of this core — the sync loop
+ * treats them as a refetch signal rather than a refusal.
+ */
 function canApplyServerSnapshot(
   workflowId: string,
-  remoteVersionAtStart: number,
-  localOperationVersionAtStart: number
+  expected: Pick<DraftSyncVersions, 'localOperation' | 'remoteUpdate'>
 ): boolean {
   if (useWorkflowRegistry.getState().activeWorkflowId !== workflowId) return false
   const operationQueueState = useOperationQueueStore.getState()
   if (operationQueueState.hasPendingOperations(workflowId)) return false
   if (
-    (operationQueueState.workflowOperationVersions[workflowId] ?? 0) !==
-    localOperationVersionAtStart
+    (operationQueueState.workflowOperationVersions[workflowId] ?? 0) !== expected.localOperation
   ) {
     return false
   }
@@ -42,7 +71,22 @@ function canApplyServerSnapshot(
     !diffState.pendingExternalUpdates[workflowId] &&
     !diffState.reconcilingWorkflows[workflowId] &&
     !diffState.reconciliationErrors[workflowId] &&
-    (diffState.remoteUpdateVersions[workflowId] ?? 0) === remoteVersionAtStart
+    (diffState.remoteUpdateVersions[workflowId] ?? 0) === expected.remoteUpdate
+  )
+}
+
+/**
+ * Whether a full-state snapshot captured alongside `versions` may still be
+ * applied. Unlike the sync loop — which refetches when remote collaborator
+ * ops land mid-fetch — this treats a `remoteApply` movement as a hard
+ * refusal, because callers holding a fixed snapshot (e.g. the raw join-state
+ * fallback) cannot refetch a fresher one.
+ */
+export function canApplyDraftSnapshot(workflowId: string, versions: DraftSyncVersions): boolean {
+  return (
+    canApplyServerSnapshot(workflowId, versions) &&
+    (useOperationQueueStore.getState().remoteApplyVersions[workflowId] ?? 0) ===
+      versions.remoteApply
   )
 }
 
@@ -66,9 +110,7 @@ function canApplyServerSnapshot(
 export async function syncLocalDraftFromServer(workflowId: string): Promise<boolean> {
   if (useWorkflowRegistry.getState().activeWorkflowId !== workflowId) return false
   if (useOperationQueueStore.getState().hasPendingOperations(workflowId)) return false
-  const localOperationVersionAtStart =
-    useOperationQueueStore.getState().workflowOperationVersions[workflowId] ?? 0
-  const remoteVersionAtStart = useWorkflowDiffStore.getState().remoteUpdateVersions[workflowId] ?? 0
+  const versionsAtStart = captureDraftVersions(workflowId)
 
   let envelope: Awaited<ReturnType<typeof fetchWorkflowEnvelope>> | undefined
   for (let attempt = 1; ; attempt++) {
@@ -81,7 +123,7 @@ export async function syncLocalDraftFromServer(workflowId: string): Promise<bool
       staleTime: 0,
     })
 
-    if (!canApplyServerSnapshot(workflowId, remoteVersionAtStart, localOperationVersionAtStart)) {
+    if (!canApplyServerSnapshot(workflowId, versionsAtStart)) {
       return false
     }
 
