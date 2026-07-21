@@ -171,6 +171,19 @@ describe('McpService connection reuse wiring', () => {
     expect(mockRelease).toHaveBeenCalledWith(false)
   })
 
+  it('keeps the pooled connection warm on a request timeout (does not retire the session)', async () => {
+    // A streamable-HTTP request timeout aborts only that request's stream; the session stays
+    // healthy for the next request, so a timeout must NOT poison the lease (matches every
+    // production MCP client and avoids a connect/stall/reconnect churn loop).
+    mockCallTool.mockRejectedValue(new Error('Request timed out'))
+
+    await expect(
+      mcpService.executeTool(USER_ID, 'server-1', { name: 'do', arguments: {} }, WORKSPACE_ID)
+    ).rejects.toThrow()
+
+    expect(mockRelease).not.toHaveBeenCalledWith(true)
+  })
+
   it('poisons the lease on an auth failure so a rotated credential is re-resolved', async () => {
     mockCallTool.mockRejectedValue(new UnauthorizedError('token rejected'))
 
