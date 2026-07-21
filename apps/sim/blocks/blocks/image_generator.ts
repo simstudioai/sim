@@ -57,7 +57,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
   name: 'Image Generator',
   description: 'Generate images',
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'image_generator_v2' },
+  sunset: { status: 'legacy', replacedBy: 'image_generator_v2' },
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Image Generator into the workflow. Can generate images using DALL-E 3 and GPT Image models.',

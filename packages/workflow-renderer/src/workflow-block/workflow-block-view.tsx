@@ -70,11 +70,12 @@ export interface WorkflowBlockViewProps {
   /** Connection-cycle guard; reads fresh edge state on every call. */
   wouldCreateConnectionCycle: (source: string, target: string) => boolean
 
-  /** Deprecation badge — editor-only. When set, an amber "deprecated" badge shows;
-   * clicking (gated on `canFixDeprecation`) invokes `onFixDeprecation`. */
-  deprecationTooltip?: string
-  canFixDeprecation?: boolean
-  onFixDeprecation?: () => void
+  /** Sunset badge — editor-only. `legacy` shows an amber "legacy" badge, `deprecated`
+   * a red "deprecated" badge; clicking (gated on `canFixSunset`) invokes `onFixSunset`. */
+  sunsetStatus?: 'legacy' | 'deprecated'
+  sunsetTooltip?: string
+  canFixSunset?: boolean
+  onFixSunset?: () => void
 
   /** Child-workflow deploy badge state — editor-only; omit in read-only contexts. */
   isWorkflowSelector?: boolean
@@ -138,9 +139,10 @@ export function WorkflowBlockView({
   routerRows,
   routerContextValue,
   wouldCreateConnectionCycle,
-  deprecationTooltip,
-  canFixDeprecation,
-  onFixDeprecation,
+  sunsetStatus,
+  sunsetTooltip,
+  canFixSunset,
+  onFixSunset,
   isWorkflowSelector,
   childWorkflowId,
   childIsDeployed,
@@ -231,34 +233,34 @@ export function WorkflowBlockView({
             />
           </div>
           <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
-            {deprecationTooltip && (
+            {sunsetStatus && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Badge
-                    variant='amber'
-                    className={canFixDeprecation ? 'cursor-pointer' : 'cursor-not-allowed'}
+                    variant={sunsetStatus === 'deprecated' ? 'red' : 'amber'}
+                    className={canFixSunset ? 'cursor-pointer' : 'cursor-not-allowed'}
                     dot
-                    role={canFixDeprecation ? 'button' : undefined}
-                    tabIndex={canFixDeprecation ? 0 : undefined}
+                    role={canFixSunset ? 'button' : undefined}
+                    tabIndex={canFixSunset ? 0 : undefined}
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (canFixDeprecation) onFixDeprecation?.()
+                      if (canFixSunset) onFixSunset?.()
                     }}
                     onKeyDown={
-                      canFixDeprecation
+                      canFixSunset
                         ? (e) => {
                             e.stopPropagation()
-                            handleKeyboardActivation(e, () => onFixDeprecation?.())
+                            handleKeyboardActivation(e, () => onFixSunset?.())
                           }
                         : undefined
                     }
                   >
-                    deprecated
+                    {sunsetStatus}
                   </Badge>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
                   <span className='text-sm'>
-                    {canFixDeprecation ? deprecationTooltip : 'Edit access required to fix'}
+                    {canFixSunset ? sunsetTooltip : 'Edit access required to fix'}
                   </span>
                 </Tooltip.Content>
               </Tooltip.Root>

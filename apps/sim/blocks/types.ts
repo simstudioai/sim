@@ -497,13 +497,15 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
    */
   preview?: boolean
   /**
-   * Marks a superseded block. Placed instances keep executing and rendering; the
-   * canvas surfaces a deprecation badge and downstream jobs may notify owners.
-   * `replacedBy` is the block `type` users should migrate to — omit when no
-   * direct successor exists. Distinct from {@link hideFromToolbar} (a rendering
+   * Post-GA lifecycle state. `legacy` — superseded but still supported (amber
+   * badge, click-to-upgrade); `deprecated` — no longer supported, slated for
+   * removal (red badge). Placed instances keep executing and rendering in both
+   * states. `replacedBy` is the block `type` to migrate to — omit when no direct
+   * successor exists. Distinct from {@link hideFromToolbar} (a rendering
    * decision) and {@link preview} (unreleased). Remove config at end-of-life.
    */
-  deprecated?: {
+  sunset?: {
+    status: 'legacy' | 'deprecated'
     replacedBy?: string
   }
   triggers?: {

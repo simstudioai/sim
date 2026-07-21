@@ -78,7 +78,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   bgColor: '#40916C',
   icon: DocumentIcon,
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'file_v5' },
+  sunset: { status: 'legacy', replacedBy: 'file_v5' },
   subBlocks: [
     {
       id: 'inputMethod',
@@ -186,7 +186,7 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
   name: 'File (Legacy)',
   description: 'Read and parse multiple files',
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'file_v5' },
+  sunset: { status: 'legacy', replacedBy: 'file_v5' },
   subBlocks: [
     {
       id: 'file',
@@ -280,7 +280,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
   bgColor: '#40916C',
   icon: DocumentIcon,
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'file_v5' },
+  sunset: { status: 'legacy', replacedBy: 'file_v5' },
   subBlocks: [
     {
       id: 'operation',
@@ -571,7 +571,7 @@ export const FileV4Block: BlockConfig<FileParserV3Output> = {
   longDescription:
     'Read workspace files by picker or canonical ID, fetch and parse files from URLs with optional headers, write new workspace files, or append content to existing files.',
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'file_v5' },
+  sunset: { status: 'legacy', replacedBy: 'file_v5' },
   bestPractices: `
   - Use Read when you need an existing workspace file object by picker selection or canonical file ID.
   - Use Fetch for external file URLs. Add headers for authenticated downloads, for example Slack private file URLs require an Authorization Bearer token.
@@ -824,7 +824,7 @@ export const FileV4Block: BlockConfig<FileParserV3Output> = {
 
 export const FileV5Block: BlockConfig<FileParserV3Output> = {
   ...FileV4Block,
-  deprecated: undefined,
+  sunset: undefined,
   type: 'file_v5',
   name: 'File',
   description:

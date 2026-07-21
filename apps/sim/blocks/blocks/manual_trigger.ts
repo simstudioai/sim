@@ -18,7 +18,7 @@ export const ManualTriggerBlock: BlockConfig = {
   `,
   category: 'triggers',
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'start_trigger' },
+  sunset: { status: 'legacy', replacedBy: 'start_trigger' },
   bgColor: '#2563EB',
   icon: ManualTriggerIcon,
   subBlocks: [],

@@ -17,7 +17,7 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
   icon: CursorIcon,
   authMode: AuthMode.ApiKey,
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'cursor_v2' },
+  sunset: { status: 'legacy', replacedBy: 'cursor_v2' },
   subBlocks: [
     {
       id: 'operation',
@@ -224,7 +224,7 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
 
 export const CursorV2Block: BlockConfig<CursorResponse> = {
   ...CursorBlock,
-  deprecated: undefined,
+  sunset: undefined,
   type: 'cursor_v2',
   name: 'Cursor',
   description: 'Launch and manage Cursor cloud agents to work on GitHub repositories',

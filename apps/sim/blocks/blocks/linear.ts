@@ -11,7 +11,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
   name: 'Linear (Legacy)',
   description: 'Interact with Linear issues, projects, and more',
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'linear_v2' },
+  sunset: { status: 'legacy', replacedBy: 'linear_v2' },
   authMode: AuthMode.OAuth,
   triggerAllowed: true,
   longDescription:
@@ -2562,7 +2562,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
  */
 export const LinearV2Block: BlockConfig<LinearResponse> = {
   ...LinearBlock,
-  deprecated: undefined,
+  sunset: undefined,
   type: 'linear_v2',
   name: 'Linear',
   hideFromToolbar: false,
