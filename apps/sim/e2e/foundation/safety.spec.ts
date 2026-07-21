@@ -84,7 +84,7 @@ test.describe('foundation safety guards', () => {
     expect(isLoopbackAddress('::1')).toBe(true)
     expect(isLoopbackAddress('8.8.8.8')).toBe(false)
     expect(areValidE2eHostAddresses(['127.0.0.1'])).toBe(true)
-    expect(areValidE2eHostAddresses(['127.0.0.1', '::1'])).toBe(false)
+    expect(areValidE2eHostAddresses(['127.0.0.1', '::1'])).toBe(true)
     expect(areValidE2eHostAddresses(['::1'])).toBe(false)
     expect(areValidE2eHostAddresses(['127.0.0.2'])).toBe(false)
   })

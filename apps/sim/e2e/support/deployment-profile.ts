@@ -63,7 +63,7 @@ export function createHostedBillingProfile({
 }: HostedBillingProfileOptions): HostedBillingProfile {
   const values: Record<string, string> = {
     NODE_ENV: 'production',
-    NODE_OPTIONS: '--no-warnings --max-old-space-size=8192',
+    NODE_OPTIONS: '--no-warnings --max-old-space-size=8192 --dns-result-order=ipv4first',
     NEXT_TELEMETRY_DISABLED: '1',
     HOME: homeDirectory,
     XDG_CONFIG_HOME: `${homeDirectory}/xdg`,

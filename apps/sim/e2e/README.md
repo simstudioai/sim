@@ -16,7 +16,9 @@ per-run pgvector database.
    echo "127.0.0.1 e2e.sim.ai" | sudo tee -a /etc/hosts
    ```
 
-   The runner refuses to start unless every resolved address is loopback.
+   The runner refuses to start unless every resolved address is loopback and an
+   IPv4 `127.0.0.1` result is present. Chromium and Node are configured to prefer
+   that IPv4 mapping, so CI environments that also synthesize `::1` remain safe.
 
 2. Start a local pgvector/Postgres admin instance:
 

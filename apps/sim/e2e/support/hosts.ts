@@ -12,7 +12,9 @@ export function isLoopbackAddress(address: string): boolean {
 }
 
 export function areValidE2eHostAddresses(addresses: string[]): boolean {
-  return addresses.length > 0 && addresses.every((address) => address === '127.0.0.1')
+  return (
+    addresses.length > 0 && addresses.every(isLoopbackAddress) && addresses.includes('127.0.0.1')
+  )
 }
 
 export async function assertE2eHostResolvesToLoopback(hostname = E2E_HOST): Promise<string[]> {
@@ -33,7 +35,7 @@ export async function assertE2eHostResolvesToLoopback(hostname = E2E_HOST): Prom
 function getHostMappingError(hostname: string, addresses: string[]): string {
   const observed = addresses.length > 0 ? addresses.join(', ') : 'no addresses'
   return [
-    `${hostname} must resolve exclusively to IPv4 127.0.0.1; observed ${observed}.`,
+    `${hostname} must resolve only to loopback and include IPv4 127.0.0.1; observed ${observed}.`,
     `Add it once with: echo "127.0.0.1 ${hostname}" | sudo tee -a /etc/hosts`,
   ].join(' ')
 }
