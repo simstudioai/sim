@@ -9,6 +9,7 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { getAllBlocks } from '@/blocks/registry'
 import type { ToolInput } from '@/executor/handlers/agent/types'
 import type { PiToolResult, PiToolSpec } from '@/executor/handlers/pi/backend'
@@ -52,6 +53,8 @@ export async function buildSimToolSpecs(
         getAllBlocks,
         getTool,
         getToolAsync,
+        resolveCustomBlockBinding: (blockType: string) =>
+          resolveCustomBlockToolBinding(blockType, ctx.workspaceId),
       })
 
       if (!provider?.id) continue

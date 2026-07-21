@@ -1237,6 +1237,28 @@ export async function executeTool(
       }
     }
 
+    // Custom blocks (deploy-as-block) run in-process through WorkflowBlockHandler.
+    // The runner is dynamic-imported from a server-only module so the client-bundled
+    // tool registry never pulls in the executor/db dependency graph (a static or
+    // dynamic executor import in the tool descriptor itself would break the client
+    // build — and with it `getTool('workflow_executor')`).
+    if (normalizedToolId === 'custom_block_executor') {
+      logger.info(`[${requestId}] Running custom block tool ${toolId}`)
+      const { runCustomBlockTool } = await import(
+        '@/executor/handlers/workflow/custom-block-tool-runner'
+      )
+      const result = await runCustomBlockTool(contextParams)
+      const endTime = new Date()
+      return {
+        ...result,
+        timing: {
+          startTime: startTimeISO,
+          endTime: endTime.toISOString(),
+          duration: endTime.getTime() - startTime.getTime(),
+        },
+      }
+    }
+
     // Check for direct execution (no HTTP request needed)
     if (tool.directExecution) {
       logger.info(`[${requestId}] Using directExecution for ${toolId}`)

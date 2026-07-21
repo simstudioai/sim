@@ -7,6 +7,16 @@
  * Pure string utility — no server dependencies, safe to import in client components.
  */
 export function normalizeToolId(toolId: string): string {
+  // Check the longer prefix first — `custom_block_executor_` also starts with
+  // neither `workflow_executor_` nor a knowledge/table op, so ordering is safe,
+  // but keep it explicit since its suffix (`custom_block_<id>`) is itself prefixed.
+  if (
+    toolId.startsWith('custom_block_executor_') &&
+    toolId.length > 'custom_block_executor_'.length
+  ) {
+    return 'custom_block_executor'
+  }
+
   if (toolId.startsWith('workflow_executor_') && toolId.length > 'workflow_executor_'.length) {
     return 'workflow_executor'
   }
