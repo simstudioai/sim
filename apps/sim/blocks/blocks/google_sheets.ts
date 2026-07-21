@@ -13,7 +13,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
   description: 'Read, write, and update data',
   authMode: AuthMode.OAuth,
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'google_sheets_v2' },
+  sunset: { status: 'legacy', replacedBy: 'google_sheets_v2' },
   longDescription:
     'Integrate Google Sheets into the workflow. Can read, write, append, and update data.',
   docsLink: 'https://docs.sim.ai/integrations/google_sheets',

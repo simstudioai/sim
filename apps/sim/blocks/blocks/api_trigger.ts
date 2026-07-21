@@ -15,7 +15,7 @@ export const ApiTriggerBlock: BlockConfig = {
   `,
   category: 'triggers',
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'start_trigger' },
+  sunset: { status: 'legacy', replacedBy: 'start_trigger' },
   bgColor: '#2F55FF',
   icon: ApiIcon,
   subBlocks: [

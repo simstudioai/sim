@@ -14,7 +14,7 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   name: 'AWS Textract',
   description: 'Extract text, tables, and forms from documents',
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'textract_v2' },
+  sunset: { status: 'legacy', replacedBy: 'textract_v2' },
   authMode: AuthMode.ApiKey,
   longDescription: `Integrate AWS Textract into your workflow to extract text, tables, forms, and key-value pairs from documents. Single-page mode supports JPEG, PNG, and single-page PDF. Multi-page mode supports multi-page PDF and TIFF.`,
   docsLink: 'https://docs.sim.ai/integrations/textract',
@@ -239,7 +239,7 @@ function requireAwsCredentials(params: Record<string, unknown>) {
 
 export const TextractV2Block: BlockConfig<TextractParserOutput> = {
   ...TextractBlock,
-  deprecated: undefined,
+  sunset: undefined,
   type: 'textract_v2',
   name: 'AWS Textract',
   hideFromToolbar: false,

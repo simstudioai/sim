@@ -14,7 +14,7 @@ export const ExtendBlock: BlockConfig<ExtendParserOutput> = {
   name: 'Extend',
   description: 'Parse and extract content from documents',
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'extend_v2' },
+  sunset: { status: 'legacy', replacedBy: 'extend_v2' },
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Extend AI into the workflow. Parse and extract structured content from documents including PDFs, images, and Office files.',
@@ -166,7 +166,7 @@ const extendV2SubBlocks = (ExtendBlock.subBlocks || []).flatMap((subBlock) => {
 
 export const ExtendV2Block: BlockConfig<ExtendParserOutput> = {
   ...ExtendBlock,
-  deprecated: undefined,
+  sunset: undefined,
   type: 'extend_v2',
   name: 'Extend',
   hideFromToolbar: false,

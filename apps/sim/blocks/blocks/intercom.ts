@@ -8,7 +8,7 @@ export const IntercomBlock: BlockConfig = {
   type: 'intercom',
   name: 'Intercom (Legacy)',
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'intercom_v2' },
+  sunset: { status: 'legacy', replacedBy: 'intercom_v2' },
   description: 'Manage contacts, companies, conversations, tickets, and messages in Intercom',
   longDescription:
     'Integrate Intercom into the workflow. Can create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create and get tickets; and create messages.',
@@ -1405,7 +1405,7 @@ Return ONLY the numeric timestamp.`,
 
 export const IntercomV2Block: BlockConfig = {
   ...IntercomBlock,
-  deprecated: undefined,
+  sunset: undefined,
   type: 'intercom_v2',
   name: 'Intercom',
   integrationType: IntegrationType.Support,

@@ -280,23 +280,23 @@ function checkIntegrationMetaCoverage(): CheckResult {
   return { kind: 'fail', errors }
 }
 
-function checkDeprecationReplacedBy(): CheckResult {
+function checkSunsetReplacedBy(): CheckResult {
   const errors: string[] = []
 
   for (const block of getAllBlocks()) {
-    const replacedBy = block.deprecated?.replacedBy
+    const replacedBy = block.sunset?.replacedBy
     if (!replacedBy) continue
 
     const target = getBlock(replacedBy)
     if (!target) {
       errors.push(
-        `Block "${block.type}" is deprecated with replacedBy: '${replacedBy}', but no such block exists.`
+        `Block "${block.type}" is sunset with replacedBy: '${replacedBy}', but no such block exists.`
       )
       continue
     }
-    if (target.deprecated) {
+    if (target.sunset) {
       errors.push(
-        `Block "${block.type}" points replacedBy: '${replacedBy}', but that block is itself deprecated.`
+        `Block "${block.type}" points replacedBy: '${replacedBy}', but that block is itself sunset.`
       )
     }
     if (target.preview) {
@@ -307,7 +307,7 @@ function checkDeprecationReplacedBy(): CheckResult {
   }
 
   if (errors.length === 0) {
-    return { kind: 'pass', message: 'Deprecation replacedBy check passed' }
+    return { kind: 'pass', message: 'Sunset replacedBy check passed' }
   }
   return { kind: 'fail', errors }
 }
@@ -332,7 +332,7 @@ function reportResult(label: string, failureHeader: string, result: CheckResult)
 const stabilityResult = checkSubblockIdStability()
 const canonicalResult = checkCanonicalIdContract()
 const metaCoverageResult = checkIntegrationMetaCoverage()
-const deprecationResult = checkDeprecationReplacedBy()
+const sunsetResult = checkSunsetReplacedBy()
 
 const stabilityOk = reportResult(
   'Subblock ID stability check',
@@ -352,10 +352,10 @@ const metaCoverageOk = reportResult(
   metaCoverageResult
 )
 
-const deprecationOk = reportResult(
-  'Deprecation replacedBy check',
-  'A deprecated block must point replacedBy at a real, GA, non-deprecated successor.',
-  deprecationResult
+const sunsetOk = reportResult(
+  'Sunset replacedBy check',
+  'A sunset block must point replacedBy at a real, GA, non-sunset successor.',
+  sunsetResult
 )
 
-process.exit(stabilityOk && canonicalOk && metaCoverageOk && deprecationOk ? 0 : 1)
+process.exit(stabilityOk && canonicalOk && metaCoverageOk && sunsetOk ? 0 : 1)

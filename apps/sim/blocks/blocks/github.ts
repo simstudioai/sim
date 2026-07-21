@@ -20,7 +20,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
   icon: GithubIcon,
   triggerAllowed: true,
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'github_v2' },
+  sunset: { status: 'legacy', replacedBy: 'github_v2' },
   subBlocks: [
     {
       id: 'operation',
@@ -2103,7 +2103,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
 export const GitHubV2Block: BlockConfig<GitHubResponse> = {
   ...GitHubBlock,
-  deprecated: undefined,
+  sunset: undefined,
   type: 'github_v2',
   name: 'GitHub',
   hideFromToolbar: false,

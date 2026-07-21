@@ -12,7 +12,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   name: 'Confluence (Legacy)',
   description: 'Interact with Confluence',
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'confluence_v2' },
+  sunset: { status: 'legacy', replacedBy: 'confluence_v2' },
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Confluence into the workflow. Can read, create, update, delete pages, manage comments, attachments, labels, and search content.',
@@ -361,7 +361,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
 
 export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
   ...ConfluenceBlock,
-  deprecated: undefined,
+  sunset: undefined,
   type: 'confluence_v2',
   name: 'Confluence',
   hideFromToolbar: false,

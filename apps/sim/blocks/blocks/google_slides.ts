@@ -11,7 +11,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
   name: 'Google Slides (Legacy)',
   description: 'Read, write, and create presentations',
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'google_slides_v2' },
+  sunset: { status: 'legacy', replacedBy: 'google_slides_v2' },
   authMode: AuthMode.OAuth,
   longDescription:
     'Build, edit, and export branded Google Slides presentations end-to-end. Copy a template, replace text and image tokens, embed Sheets charts, style text and shapes with brand fonts and colors, manage tables and layouts, group elements, run atomic batch updates, and export to PDF or PPTX.',
@@ -3455,7 +3455,7 @@ const googleSlidesV2Inputs = GoogleSlidesBlock.inputs
 
 export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
   ...GoogleSlidesBlock,
-  deprecated: undefined,
+  sunset: undefined,
   type: 'google_slides_v2',
   name: 'Google Slides',
   description: 'Read, write, and create presentations',

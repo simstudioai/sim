@@ -16,7 +16,7 @@ export const ChatTriggerBlock: BlockConfig = {
   `,
   category: 'triggers',
   hideFromToolbar: true,
-  deprecated: { replacedBy: 'start_trigger' },
+  sunset: { status: 'legacy', replacedBy: 'start_trigger' },
   bgColor: '#6F3DFA',
   icon: ChatTriggerIcon,
   subBlocks: [],
