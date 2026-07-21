@@ -183,3 +183,29 @@ describe('followRedirectsGuarded', () => {
     expect(raw.mock.calls[1][1].body).toBe('data')
   })
 })
+
+describe('followRedirectsGuarded — hardening', () => {
+  it('blocks a private IP-literal as the INITIAL url (guard is self-contained)', async () => {
+    const raw = vi.fn(async () => new Response('ok'))
+    await expect(
+      followRedirectsGuarded(raw, 'http://169.254.169.254/latest/meta-data/', {})
+    ).rejects.toThrow(/Blocked by SSRF policy/)
+    expect(raw).not.toHaveBeenCalled()
+  })
+
+  it('drops entity headers when a 303 switches POST to a bodyless GET', async () => {
+    const raw = vi
+      .fn()
+      .mockResolvedValueOnce(redirectTo('https://a.example/next', 303))
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+    await followRedirectsGuarded(raw, 'https://a.example/x', {
+      method: 'POST',
+      body: '{"a":1}',
+      headers: { 'content-type': 'application/json', 'content-length': '7', 'x-keep': 'yes' },
+    })
+    const hopHeaders = new Headers(raw.mock.calls[1][1].headers)
+    expect(hopHeaders.get('content-type')).toBeNull()
+    expect(hopHeaders.get('content-length')).toBeNull()
+    expect(hopHeaders.get('x-keep')).toBe('yes')
+  })
+})

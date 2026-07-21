@@ -105,7 +105,10 @@ export async function validateUrlWithDNS(
   }
 
   try {
-    const { address } = await dns.lookup(cleanHostname, { verbatim: true })
+    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
+    // on IPv4-only egress (e.g. AWS NAT gateways). See validateMcpServerSsrf.
+    const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
+    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
 
     const resolvedIsLoopback =
       ipaddr.isValid(address) &&
@@ -486,6 +489,9 @@ export async function followRedirectsGuarded(
   init: UndiciRequestInit
 ): Promise<Response> {
   let currentUrl = new URL(input)
+  // The initial URL gets the same IP-literal check as redirect hops, so the exported
+  // guard is self-contained even when a caller skips its own up-front validation.
+  assertGuardedRedirectTarget(currentUrl)
   let method = (init.method ?? 'GET').toUpperCase()
   let body = init.body
   let headers = init.headers
@@ -506,10 +512,20 @@ export async function followRedirectsGuarded(
     const nextUrl = new URL(location, currentUrl)
     assertGuardedRedirectTarget(nextUrl)
     await response.body?.cancel().catch(() => {})
-    // Per the fetch spec: 303 (and 301/302 on POST) switch to a bodyless GET.
+    // Per the fetch spec: 303 (and 301/302 on POST) switch to a bodyless GET, dropping
+    // the entity headers that described the removed body (a retained Content-Length /
+    // Content-Type on a bodyless GET is malformed and undici rejects it).
     if (status === 303 || ((status === 301 || status === 302) && method === 'POST')) {
       method = 'GET'
       body = undefined
+      if (headers !== undefined) {
+        const sanitized = new Headers(headers as HeadersInit)
+        sanitized.delete('content-length')
+        sanitized.delete('content-type')
+        sanitized.delete('content-encoding')
+        sanitized.delete('transfer-encoding')
+        headers = sanitized as unknown as UndiciRequestInit['headers']
+      }
     }
     if (nextUrl.origin !== currentUrl.origin) headers = undefined
     currentUrl = nextUrl
@@ -542,8 +558,22 @@ export function createSsrfGuardedFetchWithDispatcher(options?: { maxResponseSize
 
   const guarded = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const target = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    // A Request input carries its own method/headers/body/signal; lift them into the
+    // init (explicit init fields win, per fetch semantics) so the manual redirect
+    // follower doesn't silently downgrade a guarded POST Request to a bare GET.
+    let effectiveInit: RequestInit = init ?? {}
+    if (typeof Request !== 'undefined' && input instanceof Request) {
+      const bodyAllowed = input.method !== 'GET' && input.method !== 'HEAD'
+      effectiveInit = {
+        method: input.method,
+        headers: input.headers,
+        body: bodyAllowed ? await input.clone().arrayBuffer() : undefined,
+        signal: input.signal,
+        ...init,
+      }
+    }
     // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
-    return followRedirectsGuarded(rawFetch, target, (init ?? {}) as unknown as UndiciRequestInit)
+    return followRedirectsGuarded(rawFetch, target, effectiveInit as unknown as UndiciRequestInit)
   }
 
   return { fetch: guarded, dispatcher }
