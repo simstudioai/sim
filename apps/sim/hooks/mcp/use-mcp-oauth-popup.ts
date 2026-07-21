@@ -58,6 +58,10 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
   // serverId -> popup.closed poll. Best-effort fast "Connecting…" clear when the user
   // abandons the popup; never used to correlate a result.
   const popupPollsRef = useRef<Map<string, number>>(new Map())
+  // serverIds with an in-flight `/oauth/start` request. Guards a fast double-click from
+  // opening two popups; cleared once the request settles, so a later click (to reopen an
+  // abandoned popup) still starts a fresh flow.
+  const startingRef = useRef<Set<string> | null>(null)
 
   const stopConnecting = useCallback((serverId: string) => {
     setConnectingServers((prev) => {
@@ -133,6 +137,9 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
 
   const startOauthForServer = useCallback(
     async (serverId: string) => {
+      const starting = (startingRef.current ??= new Set())
+      if (starting.has(serverId)) return
+      starting.add(serverId)
       setConnectingServers((prev) => new Set(prev).add(serverId))
       try {
         const result = await startOauth({ serverId, workspaceId })
@@ -174,6 +181,8 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
         stopConnecting(serverId)
         logger.error('Failed to start MCP OAuth', e)
         toast.error(toError(e).message || 'Failed to start authorization')
+      } finally {
+        starting.delete(serverId)
       }
     },
     [startOauth, workspaceId, settleFlow, stopConnecting, stopPopupPoll]
