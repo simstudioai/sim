@@ -44,8 +44,7 @@ test('Stripe fake records allowlisted calls and rejects unknown routes', async (
     expect(telemetry.status).toBe(200)
     expect(
       fake.requestLog.some(
-        ({ method, path, unexpected }) =>
-          method === 'POST' && path === '/v1/traces' && !unexpected
+        ({ method, path, unexpected }) => method === 'POST' && path === '/v1/traces' && !unexpected
       )
     ).toBe(true)
 

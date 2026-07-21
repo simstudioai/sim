@@ -1,13 +1,17 @@
 import { expect, test } from '@playwright/test'
+import { resolveStorageStatePath } from '../fixtures/e2e-world'
 import { createScenarioNamespace } from '../fixtures/namespace'
 import {
   canonicalSettingsRoute,
   type ScenarioDefinition,
   type ScenarioOrganizationMembership,
-  type ScenarioPermissionGroup,
   type ScenarioWorkspaceGrant,
 } from '../fixtures/scenario'
-import { ScenarioValidationError, validateScenario } from '../fixtures/validate-scenario'
+import {
+  ScenarioValidationError,
+  validateScenario,
+  validateScenarioSet,
+} from '../fixtures/validate-scenario'
 import {
   createPrimarySettingsScenario,
   createSettingsPersonaScenarios,
@@ -24,6 +28,7 @@ test.describe('pure scenario validation', () => {
     expect(twin.personasByKey.size).toBe(1)
     expect(twin.workspacesByKey.size).toBe(1)
     expect(twin.organizationsByKey.size).toBe(0)
+    expect(() => validateScenarioSet([primary, twin])).not.toThrow()
 
     expect(workspaceExpectation(primary, 'personalPaidOwner').hostContext.plan).toBe('pro_6000')
     expect(workspaceExpectation(primary, 'personalMaxOwner').hostContext.plan).toBe('pro_25000')
@@ -79,6 +84,26 @@ test.describe('pure scenario validation', () => {
       access: 'none',
       roleSource: 'none',
     })
+  })
+
+  test('rejects unsafe storage paths and cross-world identity collisions', () => {
+    const unsafe = validScenario()
+    unsafe.personas = unsafe.personas.map((persona, index) =>
+      index === 0 ? { ...persona, storageStateFilename: '../../escaped.json' } : persona
+    )
+    expectInvalid(unsafe, /separator-free JSON basename/)
+    expect(() => resolveStorageStatePath('/tmp/e2e-auth', '../../escaped.json')).toThrow()
+
+    const definitions = createSettingsPersonaScenarios('cross-world')
+    const primary = validateScenario(definitions.primary)
+    const twin = validateScenario({
+      ...definitions.isolationTwin,
+      namespace: {
+        ...definitions.isolationTwin.namespace,
+        world: definitions.primary.namespace.world,
+      },
+    })
+    expect(() => validateScenarioSet([primary, twin])).toThrow(/duplicate world namespace/)
   })
 
   test('namespaces controllable values deterministically without manufacturing API IDs', () => {
@@ -159,7 +184,6 @@ test.describe('pure scenario validation', () => {
             ...subscription,
             enterprise: {
               plan: 'enterprise',
-              referenceId: 'wrong-plan',
               monthlyPrice: 1,
               seats: 4,
             },
@@ -167,6 +191,26 @@ test.describe('pure scenario validation', () => {
         : subscription
     )
     expectInvalid(metadataOnTeam, /non-Enterprise subscription/)
+  })
+
+  test('rejects unsupported lapsed personal subscriptions before seeding', () => {
+    const scenario = validScenario()
+    scenario.subscriptions = scenario.subscriptions.map((subscription) =>
+      subscription.key === 'personal-paid-subscription'
+        ? { ...subscription, status: 'lapsed' as const }
+        : subscription
+    )
+    expectInvalid(scenario, /unsupported lapsed status for a user payer/)
+  })
+
+  test('rejects organization workspace provisioning from past-due subscriptions', () => {
+    const scenario = validScenario()
+    scenario.subscriptions = scenario.subscriptions.map((subscription) =>
+      subscription.key === 'team-subscription'
+        ? { ...subscription, status: 'past_due' as const }
+        : subscription
+    )
+    expectInvalid(scenario, /cannot be provisioned from a past-due subscription/)
   })
 
   test('rejects permission groups without active Enterprise organization/workspace scope', () => {
@@ -179,7 +223,7 @@ test.describe('pure scenario validation', () => {
     expectInvalid(scenario, /requires an active Enterprise organization/)
   })
 
-  test('rejects duplicate explicit grants and default groups', () => {
+  test('rejects duplicate explicit grants and unsupported all-member groups', () => {
     const duplicateGrant = validScenario()
     duplicateGrant.workspaceGrants = [
       ...duplicateGrant.workspaceGrants,
@@ -187,18 +231,12 @@ test.describe('pure scenario validation', () => {
     ] as ScenarioWorkspaceGrant[]
     expectInvalid(duplicateGrant, /duplicate workspace grant/)
 
-    const duplicateDefault = validScenario()
-    const existing = duplicateDefault.permissionGroups[0]
-    duplicateDefault.permissionGroups = [
-      { ...existing, isDefault: true },
-      {
-        ...existing,
-        key: 'second-default-enterprise-group',
-        name: `${existing.name} Second`,
-        isDefault: true,
-      },
-    ] as ScenarioPermissionGroup[]
-    expectInvalid(duplicateDefault, /duplicate default groups/)
+    const allMemberGroup = validScenario()
+    allMemberGroup.permissionGroups = allMemberGroup.permissionGroups.map((group) => ({
+      ...group,
+      memberUserKeys: [],
+    }))
+    expectInvalid(allMemberGroup, /default and all-member groups are not modeled/)
   })
 
   test('rejects inconsistent hosted and billing flags', () => {

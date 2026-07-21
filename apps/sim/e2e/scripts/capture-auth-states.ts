@@ -1,9 +1,11 @@
-import { mkdirSync } from 'node:fs'
+import { chmodSync, mkdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { chromium, expect } from '@playwright/test'
+import { sleep } from '@sim/utils/helpers'
 import {
   readPersonaCredentials,
   readScenarioManifest,
+  resolveStorageStatePath,
   scenarioManifestSchema,
   writeJsonAtomic,
 } from '../fixtures/e2e-world'
@@ -32,8 +34,8 @@ async function main(): Promise<void> {
       const login = credentials.personas[personaKey]
       if (!login) throw new Error(`Missing private login for persona: ${personaKey}`)
       const context = await browser.newContext({ baseURL: baseUrl })
+      const page = await context.newPage()
       try {
-        const page = await context.newPage()
         await page.goto('/login')
         await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
         await page.getByLabel('Email').fill(login.email)
@@ -56,16 +58,53 @@ async function main(): Promise<void> {
         ) {
           throw new Error(`Active organization mismatch for persona: ${personaKey}`)
         }
+        // Deliberately duplicated by persona contracts: capture must reject lazy workspace creation
+        // before persisting auth, while the later contract independently verifies the saved session.
+        const workspaceResponse = await context.request.get('/api/workspaces?scope=all')
+        if (!workspaceResponse.ok()) {
+          throw new Error(
+            `Workspace inventory failed for ${personaKey}: ${workspaceResponse.status()}`
+          )
+        }
+        const workspacePayload = (await workspaceResponse.json()) as {
+          workspaces?: Array<{ id?: string }>
+        }
+        const actualWorkspaceIds = (workspacePayload.workspaces ?? [])
+          .map(({ id }) => id)
+          .filter((id): id is string => Boolean(id))
+          .sort()
+        const expectedWorkspaceIds = persona.workspaces
+          .filter(({ access }) => access !== 'none')
+          .map(({ workspaceId }) => workspaceId)
+          .sort()
+        if (JSON.stringify(actualWorkspaceIds) !== JSON.stringify(expectedWorkspaceIds)) {
+          throw new Error(`Workspace inventory mismatch for persona: ${personaKey}`)
+        }
 
         await page.goto(persona.canonicalRoute)
-        await expect(page).toHaveURL(/\/settings\/general$/)
+        await expect(page).toHaveURL(new URL(persona.canonicalRoute, baseUrl).toString())
         await expect(page.getByRole('heading', { name: 'General', level: 1 })).toBeVisible()
-        await page.screenshot({
-          path: path.join(screenshotsDirectory, `${personaKey}.png`),
-          fullPage: false,
-        })
-        const storageStatePath = path.join(storageStateDirectory, persona.storageStatePath)
+        const storageStatePath = resolveStorageStatePath(
+          storageStateDirectory,
+          persona.storageStatePath
+        )
         await context.storageState({ path: storageStatePath })
+        chmodSync(storageStatePath, 0o600)
+        if ((statSync(storageStatePath).mode & 0o777) !== 0o600) {
+          throw new Error(`Storage state permissions are not private for persona: ${personaKey}`)
+        }
+      } catch (error) {
+        await page
+          .getByRole('textbox', { name: 'Password' })
+          .fill('')
+          .catch(() => {})
+        await page
+          .screenshot({
+            path: path.join(screenshotsDirectory, `${personaKey}.failure.png`),
+            fullPage: true,
+          })
+          .catch(() => {})
+        throw error
       } finally {
         await context.close()
       }
@@ -108,7 +147,7 @@ async function signInThroughUi(
         `UI sign-in failed for persona ${personaKey} with status ${response.status()}; response body redacted`
       )
     }
-    await new Promise((resolve) => setTimeout(resolve, UI_RETRY_DELAYS_MS[attempt]))
+    await sleep(UI_RETRY_DELAYS_MS[attempt])
   }
 }
 

@@ -1,21 +1,19 @@
-import path from 'node:path'
 import { test as base } from '@playwright/test'
 import {
   type PersonaManifestEntry,
   readScenarioManifest,
+  resolveStorageStatePath,
   type ScenarioManifest,
 } from './e2e-world'
 
 interface PersonaFixtures {
   personaManifest: ScenarioManifest
-  contextForPersona: (
-    personaKey: string
-  ) => Promise<import('@playwright/test').BrowserContext>
+  contextForPersona: (personaKey: string) => Promise<import('@playwright/test').BrowserContext>
 }
 
 export const test = base.extend<PersonaFixtures>({
   personaManifest: [
-    async ({}, use) => {
+    async ({ browserName: _browserName }, use) => {
       const manifest = readScenarioManifest(requiredEnv('E2E_MANIFEST_PATH'))
       if (!manifest.authCaptureComplete) {
         throw new Error('Persona storage states were not captured successfully')
@@ -24,12 +22,17 @@ export const test = base.extend<PersonaFixtures>({
     },
     { scope: 'test' },
   ],
-  contextForPersona: async ({ browser, personaManifest }, use) => {
+  contextForPersona: async ({ browser, contextOptions, personaManifest }, use) => {
     const contexts = new Set<import('@playwright/test').BrowserContext>()
     await use(async (personaKey) => {
       const persona = requirePersona(personaManifest, personaKey)
       const context = await browser.newContext({
-        storageState: path.join(requiredEnv('E2E_STORAGE_STATE_DIR'), persona.storageStatePath),
+        ...contextOptions,
+        baseURL: requiredEnv('E2E_BASE_URL'),
+        storageState: resolveStorageStatePath(
+          requiredEnv('E2E_STORAGE_STATE_DIR'),
+          persona.storageStatePath
+        ),
       })
       contexts.add(context)
       return context

@@ -4,6 +4,8 @@ import type { z } from 'zod'
 // Better Auth does not emit Retry-After for every limiter. The bounded fallback spans its
 // one-minute signup window while still preferring an explicit server header when available.
 const DEFAULT_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000] as const
+const MAX_RETRY_DELAY_MS = 30_000
+const MAX_TOTAL_RETRY_DELAY_MS = 90_000
 
 export interface E2eHttpClientOptions {
   baseUrl: string
@@ -43,6 +45,7 @@ export class E2eHttpClient {
     const expectedStatuses = Array.isArray(options.expectedStatus)
       ? options.expectedStatus
       : [options.expectedStatus ?? 200]
+    let totalRetryDelay = 0
 
     for (let attempt = 1; ; attempt += 1) {
       const response = await this.fetchImplementation(`${this.baseUrl}${options.path}`, {
@@ -60,10 +63,15 @@ export class E2eHttpClient {
       this.onAttempt?.({ method, path: options.path, number: attempt, status: response.status })
 
       if (response.status === 429 && attempt <= this.retryDelaysMs.length) {
-        const delay =
+        const requestedDelay =
           parseRetryAfter(response.headers.get('retry-after')) ?? this.retryDelaysMs[attempt - 1]
-        await this.sleepImplementation(delay)
-        continue
+        const remainingDelayBudget = MAX_TOTAL_RETRY_DELAY_MS - totalRetryDelay
+        if (remainingDelayBudget > 0) {
+          const delay = Math.min(requestedDelay, MAX_RETRY_DELAY_MS, remainingDelayBudget)
+          totalRetryDelay += delay
+          await this.sleepImplementation(delay)
+          continue
+        }
       }
 
       const payload = await readJsonResponse(response, method, options.path)

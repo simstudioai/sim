@@ -11,7 +11,6 @@ import type {
   ScenarioUser,
   ScenarioWorkspace,
   ScenarioWorkspaceGrant,
-  WorkspaceAccess,
 } from './scenario'
 import { SCENARIO_VERSION } from './scenario'
 
@@ -24,6 +23,9 @@ export class ScenarioValidationError extends Error {
     this.issues = issues
   }
 }
+
+const RESOURCE_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
+const STORAGE_STATE_FILENAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\.json$/
 
 export function validateScenario(definition: ScenarioDefinition): ResolvedScenario {
   const issues: string[] = []
@@ -152,6 +154,48 @@ export function validateScenario(definition: ScenarioDefinition): ResolvedScenar
   }
 }
 
+export function validateScenarioSet(scenarios: readonly ResolvedScenario[]): void {
+  const issues: string[] = []
+  validateUniqueValues(
+    'world namespace',
+    scenarios.map(({ definition }) => definition.namespace.world),
+    issues
+  )
+  validateUniqueValues(
+    'world namespace prefix',
+    scenarios.map(({ definition }) => definition.namespace.prefix),
+    issues
+  )
+  validateUniqueValues(
+    'cross-world email',
+    scenarios.flatMap(({ definition }) => [
+      ...definition.users.map(({ email }) => email.toLowerCase()),
+      ...definition.invitations.map(({ email }) => email.toLowerCase()),
+    ]),
+    issues
+  )
+  validateUniqueValues(
+    'cross-world organization slug',
+    scenarios.flatMap(({ definition }) =>
+      definition.organizations.map(({ slug }) => slug.toLowerCase())
+    ),
+    issues
+  )
+  validateUniqueValues(
+    'cross-world persona key',
+    scenarios.flatMap(({ definition }) => definition.personas.map(({ key }) => key)),
+    issues
+  )
+  validateUniqueValues(
+    'cross-world storage-state filename',
+    scenarios.flatMap(({ definition }) =>
+      definition.personas.map(({ storageStateFilename }) => storageStateFilename)
+    ),
+    issues
+  )
+  if (issues.length > 0) throw new ScenarioValidationError(issues)
+}
+
 function indexByKey<T extends { key: ResourceKey }>(
   label: string,
   values: readonly T[],
@@ -161,6 +205,8 @@ function indexByKey<T extends { key: ResourceKey }>(
   for (const value of values) {
     if (!value.key.trim()) {
       issues.push(`${label} key must be non-empty`)
+    } else if (!RESOURCE_KEY_PATTERN.test(value.key)) {
+      issues.push(`${label} key "${value.key}" must be a safe identifier`)
     } else if (result.has(value.key)) {
       issues.push(`duplicate ${label} key "${value.key}"`)
     } else {
@@ -216,6 +262,16 @@ function validateControllableIdentities(definition: ScenarioDefinition, issues: 
     definition.personas.map(({ storageStateFilename }) => storageStateFilename),
     issues
   )
+  for (const { storageStateFilename } of definition.personas) {
+    if (
+      !STORAGE_STATE_FILENAME_PATTERN.test(storageStateFilename) ||
+      storageStateFilename.includes('..')
+    ) {
+      issues.push(
+        `storage-state filename "${storageStateFilename}" must be a separator-free JSON basename`
+      )
+    }
+  }
 }
 
 function validateUniqueValues(label: string, values: readonly string[], issues: string[]): void {
@@ -331,6 +387,11 @@ function validateSubscriptions(
       if (subscription.plan.startsWith('team_') || subscription.plan === 'enterprise') {
         issues.push(`subscription "${subscription.key}" has an invalid plan for a user payer`)
       }
+      if (subscription.status === 'lapsed') {
+        issues.push(
+          `subscription "${subscription.key}" uses unsupported lapsed status for a user payer`
+        )
+      }
     } else {
       const organizationKey = subscription.billingReference.organizationKey
       if (!organizationsByKey.has(organizationKey)) {
@@ -363,7 +424,6 @@ function validateSubscriptions(
       if (
         !metadata ||
         metadata.plan !== 'enterprise' ||
-        !metadata.referenceId ||
         !Number.isFinite(metadata.monthlyPrice) ||
         metadata.monthlyPrice <= 0 ||
         !Number.isInteger(metadata.seats) ||
@@ -417,11 +477,15 @@ function validateWorkspaces(
         workspace.organizationKey,
         workspace.ownerUserKey
       )
+      const organization = organizationsByKey.get(workspace.organizationKey)
       if (
         !ownerMembership ||
-        (ownerMembership.role !== 'owner' && ownerMembership.role !== 'admin')
+        ownerMembership.role !== 'owner' ||
+        organization?.ownerUserKey !== workspace.ownerUserKey
       ) {
-        issues.push(`organization workspace "${workspace.key}" owner must be an owner/admin member`)
+        issues.push(
+          `organization workspace "${workspace.key}" creator must be the organization owner`
+        )
       }
       if (!subscription) {
         issues.push(`organization workspace "${workspace.key}" must retain its subscription record`)
@@ -430,6 +494,11 @@ function validateWorkspaces(
         subscription.billingReference.organizationKey !== workspace.organizationKey
       ) {
         issues.push(`organization workspace "${workspace.key}" has an incoherent subscription`)
+      }
+      if (subscription?.status === 'past_due') {
+        issues.push(
+          `organization workspace "${workspace.key}" cannot be provisioned from a past-due subscription`
+        )
       }
     } else {
       if (workspace.payer.kind !== 'user' || workspace.payer.userKey !== workspace.ownerUserKey) {
@@ -475,7 +544,6 @@ function validatePermissionGroups(
   workspacesByKey: ReadonlyMap<ResourceKey, ScenarioWorkspace>,
   issues: string[]
 ): void {
-  const defaultOrganizations = new Set<ResourceKey>()
   for (const group of definition.permissionGroups) {
     if (!organizationsByKey.has(group.organizationKey)) {
       issues.push(
@@ -484,6 +552,11 @@ function validatePermissionGroups(
     }
     if (group.workspaceKeys.length === 0) {
       issues.push(`permission group "${group.key}" must have Enterprise workspace scope`)
+    }
+    if (group.memberUserKeys.length === 0) {
+      issues.push(
+        `permission group "${group.key}" must name explicit members; default and all-member groups are not modeled`
+      )
     }
     validateUniqueValues(
       `permission group "${group.key}" workspace scope`,
@@ -524,12 +597,6 @@ function validatePermissionGroups(
       if (!membershipFor(definition, group.organizationKey, userKey)) {
         issues.push(`permission group "${group.key}" member "${userKey}" lacks host membership`)
       }
-    }
-    if (group.isDefault) {
-      if (defaultOrganizations.has(group.organizationKey)) {
-        issues.push(`organization "${group.organizationKey}" has duplicate default groups`)
-      }
-      defaultOrganizations.add(group.organizationKey)
     }
   }
 }
@@ -676,8 +743,4 @@ function billingReferenceKey(subscription: ScenarioSubscription): string {
 
 function sameSet(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((value) => right.includes(value))
-}
-
-export function accessRank(access: WorkspaceAccess): number {
-  return { read: 1, write: 2, admin: 3 }[access]
 }

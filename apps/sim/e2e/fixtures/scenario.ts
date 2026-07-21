@@ -6,12 +6,7 @@ export type WorkspaceAccess = 'read' | 'write' | 'admin'
 export type ExpectedWorkspaceAccess = WorkspaceAccess | 'none'
 export type RoleSource = 'owner' | 'explicit' | 'org-admin' | 'none'
 export type OrganizationRole = 'owner' | 'admin' | 'member'
-export type SubscriptionPlan =
-  | 'pro_6000'
-  | 'pro_25000'
-  | 'team_6000'
-  | 'team_25000'
-  | 'enterprise'
+export type SubscriptionPlan = 'pro_6000' | 'pro_25000' | 'team_6000' | 'team_25000' | 'enterprise'
 export type SubscriptionStatus = 'active' | 'past_due' | 'lapsed'
 export type SettingsSection = 'general' | 'secrets' | 'api-keys' | 'inbox' | 'mcp' | 'custom-tools'
 
@@ -53,7 +48,6 @@ export interface ScenarioOrganizationMembership {
 
 export interface EnterpriseSubscriptionMetadata {
   plan: 'enterprise'
-  referenceId: string
   monthlyPrice: number
   seats: number
 }
@@ -101,7 +95,6 @@ export interface ScenarioPermissionGroup {
   organizationKey: ResourceKey
   workspaceKeys: readonly ResourceKey[]
   memberUserKeys: readonly ResourceKey[]
-  isDefault?: boolean
   restrictions: PermissionGroupRestrictions
 }
 

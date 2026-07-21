@@ -36,8 +36,6 @@ const UNHASHED_OS_ENV_KEYS = new Set([
   'GITHUB_ACTIONS',
 ])
 
-export type E2eHashOwner = 'next-build' | 'retained-stack' | 'scenario' | 'rerun'
-
 export interface BuildIdentity {
   schemaVersion: typeof BUILD_MANIFEST_VERSION
   nextBuildHash: string
@@ -62,6 +60,16 @@ export interface BuildReuseDecision {
   nextBuildHash: string
   reason: string
   cacheDirectory: string
+}
+
+export interface BuildArtifactPaths {
+  activeNextDirectory: string
+  buildCacheDirectory: string
+}
+
+const DEFAULT_ARTIFACT_PATHS: BuildArtifactPaths = {
+  activeNextDirectory: NEXT_DIR,
+  buildCacheDirectory: E2E_BUILD_CACHE_DIR,
 }
 
 export function computeBuildIdentity(options: {
@@ -96,57 +104,12 @@ export function computeBuildIdentity(options: {
   }
 }
 
-export function computeExecutionHashes(nextBuildHash: string): {
-  retainedStackHash: string
-  scenarioHash: string
-} {
-  const files = listRepositoryFiles()
-  return {
-    retainedStackHash: hashJson({
-      nextBuildHash,
-      files: hashOwnedFiles(files, 'retained-stack'),
-    }),
-    scenarioHash: hashJson({
-      files: hashOwnedFiles(files, 'scenario'),
-    }),
-  }
-}
-
-export function classifyE2eHashOwner(relativePath: string): E2eHashOwner {
-  const normalized = relativePath.replaceAll(path.sep, '/')
-  if (isNextBuildInput(normalized)) return 'next-build'
-  if (normalized.startsWith('apps/realtime/')) return 'retained-stack'
-  if (normalized === 'apps/sim/playwright.config.ts') return 'retained-stack'
-  if (!normalized.startsWith('apps/sim/e2e/')) return 'retained-stack'
-
-  const e2ePath = normalized.slice('apps/sim/e2e/'.length)
-  if (
-    e2ePath.startsWith('fixtures/') ||
-    e2ePath === 'settings/personas.ts' ||
-    e2ePath === 'scripts/seed-world.ts' ||
-    e2ePath === 'scripts/capture-auth-states.ts'
-  ) {
-    return 'scenario'
-  }
-  if (
-    e2ePath.endsWith('.spec.ts') ||
-    e2ePath.startsWith('auth/') ||
-    e2ePath.startsWith('settings/')
-  ) {
-    return 'rerun'
-  }
-  if (
-    e2ePath.startsWith('support/') ||
-    e2ePath.startsWith('fakes/') ||
-    e2ePath.startsWith('scripts/')
-  ) {
-    return 'retained-stack'
-  }
-  return 'retained-stack'
-}
-
-export function restoreCachedBuild(identity: BuildIdentity): BuildReuseDecision {
-  const cacheDirectory = getCacheDirectory(identity.nextBuildHash)
+export function restoreCachedBuild(
+  identity: BuildIdentity,
+  paths: BuildArtifactPaths = DEFAULT_ARTIFACT_PATHS
+): BuildReuseDecision {
+  clearInterruptedBuildStores(paths.buildCacheDirectory)
+  const cacheDirectory = getCacheDirectory(identity.nextBuildHash, paths)
   const manifestPath = path.join(cacheDirectory, 'manifest.json')
   const artifactDirectory = path.join(cacheDirectory, '.next')
   const miss = (reason: string): BuildReuseDecision => ({
@@ -177,7 +140,7 @@ export function restoreCachedBuild(identity: BuildIdentity): BuildReuseDecision 
     return miss('cached artifact checksum does not match the manifest')
   }
 
-  activateDirectory(artifactDirectory, NEXT_DIR)
+  activateDirectory(artifactDirectory, paths.activeNextDirectory)
   return {
     reused: true,
     nextBuildHash: identity.nextBuildHash,
@@ -186,19 +149,25 @@ export function restoreCachedBuild(identity: BuildIdentity): BuildReuseDecision 
   }
 }
 
-export function storeCompletedBuild(identity: BuildIdentity): BuildReuseDecision {
-  const buildIdPath = path.join(NEXT_DIR, 'BUILD_ID')
+export function storeCompletedBuild(
+  identity: BuildIdentity,
+  paths: BuildArtifactPaths = DEFAULT_ARTIFACT_PATHS
+): BuildReuseDecision {
+  const buildIdPath = path.join(paths.activeNextDirectory, 'BUILD_ID')
   if (!existsSync(buildIdPath)) {
     throw new Error('Next build completed without .next/BUILD_ID')
   }
 
-  mkdirSync(E2E_BUILD_CACHE_DIR, { recursive: true })
-  const cacheDirectory = getCacheDirectory(identity.nextBuildHash)
+  mkdirSync(paths.buildCacheDirectory, { recursive: true })
+  const cacheDirectory = getCacheDirectory(identity.nextBuildHash, paths)
   const temporaryDirectory = `${cacheDirectory}.tmp-${process.pid}-${Date.now()}`
   rmSync(temporaryDirectory, { recursive: true, force: true })
   mkdirSync(temporaryDirectory, { recursive: true })
   const artifactDirectory = path.join(temporaryDirectory, '.next')
-  cpSync(NEXT_DIR, artifactDirectory, { recursive: true, verbatimSymlinks: true })
+  cpSync(paths.activeNextDirectory, artifactDirectory, {
+    recursive: true,
+    verbatimSymlinks: true,
+  })
 
   const manifest: BuildManifest = {
     ...identity,
@@ -223,14 +192,57 @@ export function storeCompletedBuild(identity: BuildIdentity): BuildReuseDecision
   }
 }
 
-export function clearActiveNextBuild(): void {
-  rmSync(NEXT_DIR, { recursive: true, force: true })
+export function pruneBuildCache(
+  retainedHash: string,
+  maxEntries = 1,
+  buildCacheDirectory = E2E_BUILD_CACHE_DIR
+): string[] {
+  if (!existsSync(buildCacheDirectory)) return []
+  clearInterruptedBuildStores(buildCacheDirectory)
+  const entries = readdirSync(buildCacheDirectory)
+  const candidates = entries
+    .filter((name) => !name.includes('.tmp-'))
+    .map((name) => {
+      const directory = path.join(buildCacheDirectory, name)
+      const stats = lstatSync(directory)
+      return stats.isDirectory() && !name.includes('.tmp-')
+        ? { name, directory, modifiedAt: stats.mtimeMs }
+        : null
+    })
+    .filter(
+      (candidate): candidate is { name: string; directory: string; modifiedAt: number } =>
+        candidate !== null
+    )
+    .sort((left, right) => {
+      if (left.name === retainedHash) return -1
+      if (right.name === retainedHash) return 1
+      return right.modifiedAt - left.modifiedAt
+    })
+  const removed = candidates.slice(Math.max(1, maxEntries))
+  for (const candidate of removed) {
+    rmSync(candidate.directory, { recursive: true, force: true })
+  }
+  return removed.map(({ name }) => name)
+}
+
+function clearInterruptedBuildStores(buildCacheDirectory: string): void {
+  if (!existsSync(buildCacheDirectory)) return
+  for (const name of readdirSync(buildCacheDirectory).filter((entry) => entry.includes('.tmp-'))) {
+    rmSync(path.join(buildCacheDirectory, name), { recursive: true, force: true })
+  }
+}
+
+export function clearActiveNextBuild(
+  activeNextDirectory = DEFAULT_ARTIFACT_PATHS.activeNextDirectory
+): void {
+  rmSync(activeNextDirectory, { recursive: true, force: true })
+  clearStaleActivationDirectories(activeNextDirectory)
 }
 
 function listRepositoryFiles(): string[] {
   const result = spawnSync(
     'git',
-    ['-C', REPO_ROOT, 'ls-files', '--cached', '--others', '--exclude-standard'],
+    ['-C', REPO_ROOT, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
     {
       encoding: 'utf8',
       env: { NODE_ENV: 'test', PATH: process.env.PATH ?? '' },
@@ -239,7 +251,7 @@ function listRepositoryFiles(): string[] {
   if (result.status !== 0) {
     throw new Error(`Unable to enumerate E2E hash inputs: ${result.stderr}`)
   }
-  return [...new Set(result.stdout.split(/\r?\n/).filter(Boolean))].sort()
+  return [...new Set(result.stdout.split('\0').filter(Boolean))].sort()
 }
 
 function isNextBuildInput(relativePath: string): boolean {
@@ -253,12 +265,6 @@ function isNextBuildInput(relativePath: string): boolean {
     normalized.startsWith('apps/sim/playwright-report/') ||
     normalized.startsWith('apps/sim/test-results/')
   )
-}
-
-function hashOwnedFiles(files: string[], owner: E2eHashOwner): Array<[string, string]> {
-  return files
-    .filter((file) => classifyE2eHashOwner(file) === owner)
-    .map((file) => [file, hashRepositoryPath(file)])
 }
 
 function hashRepositoryFiles(files: string[]): string {
@@ -308,6 +314,7 @@ function hashDirectory(directory: string): string {
 }
 
 function activateDirectory(source: string, destination: string): void {
+  clearStaleActivationDirectories(destination)
   const temporary = `${destination}.e2e-restore-${process.pid}`
   const backup = `${destination}.e2e-backup-${process.pid}`
   rmSync(temporary, { recursive: true, force: true })
@@ -321,6 +328,17 @@ function activateDirectory(source: string, destination: string): void {
     rmSync(temporary, { recursive: true, force: true })
     if (!existsSync(destination) && existsSync(backup)) renameSync(backup, destination)
     throw error
+  }
+}
+
+function clearStaleActivationDirectories(destination: string): void {
+  const parent = path.dirname(destination)
+  if (!existsSync(parent)) return
+  const base = path.basename(destination)
+  for (const name of readdirSync(parent)) {
+    if (name.startsWith(`${base}.e2e-restore-`) || name.startsWith(`${base}.e2e-backup-`)) {
+      rmSync(path.join(parent, name), { recursive: true, force: true })
+    }
   }
 }
 
@@ -338,8 +356,8 @@ function isMatchingIdentity(manifest: BuildManifest, identity: BuildIdentity): b
   )
 }
 
-function getCacheDirectory(nextBuildHash: string): string {
-  return path.join(E2E_BUILD_CACHE_DIR, nextBuildHash)
+function getCacheDirectory(nextBuildHash: string, paths: BuildArtifactPaths): string {
+  return path.join(paths.buildCacheDirectory, nextBuildHash)
 }
 
 function getExecutableVersion(executable: string): string {

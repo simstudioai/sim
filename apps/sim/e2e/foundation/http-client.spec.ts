@@ -34,6 +34,29 @@ test.describe('E2E HTTP client', () => {
     expect(attempts).toEqual([1, 2])
   })
 
+  test('clamps oversized Retry-After values', async () => {
+    const delays: number[] = []
+    let requestCount = 0
+    const client = new E2eHttpClient({
+      baseUrl: 'http://127.0.0.1:1',
+      retryDelaysMs: [1],
+      fetchImplementation: async () => {
+        requestCount += 1
+        return requestCount === 1
+          ? new Response(JSON.stringify({ error: 'limited' }), {
+              status: 429,
+              headers: { 'content-type': 'application/json', 'retry-after': '3600' },
+            })
+          : Response.json({ ok: true })
+      },
+      sleepImplementation: async (milliseconds) => {
+        delays.push(milliseconds)
+      },
+    })
+    await client.request({ path: '/retry', schema: z.object({ ok: z.literal(true) }) })
+    expect(delays).toEqual([30_000])
+  })
+
   test('keeps independent cookie jars and redacts failed response bodies', async () => {
     const cookieHeaders: Array<string | null> = []
     const createFetch =

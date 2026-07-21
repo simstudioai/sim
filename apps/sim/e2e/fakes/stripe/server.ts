@@ -6,6 +6,7 @@ export const STRIPE_FAKE_ENDPOINTS = {
   health: '/health',
   requestLog: '/__control/requests',
   reset: '/__control/reset',
+  // Co-locate the only other server-side external boundary so the E2E stack needs one loopback fake.
   telemetry: '/v1/traces',
 } as const
 

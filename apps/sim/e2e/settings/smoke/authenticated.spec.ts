@@ -2,9 +2,11 @@ import { createHash } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
+import { FOUNDATION_TEST_PASSWORD } from '../../support/runtime-secrets'
 
 test('billing-enabled signup, login, and settings use real Sim boundaries', async ({
   browser,
+  contextOptions,
   page,
 }, testInfo) => {
   test.slow()
@@ -15,7 +17,7 @@ test('billing-enabled signup, login, and settings use real Sim boundaries', asyn
     .digest('hex')
     .slice(0, 16)
   const email = `e2e-foundation-${runId}-${testIdentity}@example.com`
-  const password = 'E2eFoundation1!'
+  const password = FOUNDATION_TEST_PASSWORD
   const storageStatePath = path.join(requiredEnv('E2E_STORAGE_STATE_DIR'), `${testIdentity}.json`)
 
   await page.goto('/signup')
@@ -44,7 +46,11 @@ test('billing-enabled signup, login, and settings use real Sim boundaries', asyn
   await expect(page).toHaveURL(/\/workspace(?:\/|$)/)
 
   await page.context().storageState({ path: storageStatePath })
-  const restoredContext = await browser.newContext({ storageState: storageStatePath })
+  const restoredContext = await browser.newContext({
+    ...contextOptions,
+    baseURL: requiredEnv('E2E_BASE_URL'),
+    storageState: storageStatePath,
+  })
   try {
     const restoredPage = await restoredContext.newPage()
     await restoredPage.goto(`${requiredEnv('E2E_BASE_URL')}${settingsPath}`)

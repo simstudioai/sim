@@ -17,7 +17,16 @@ const FORBIDDEN_OPTIONS = [
   '--fully-parallel',
   '--pass-with-no-tests',
   '--list',
+  '--output',
+  '--output-dir',
+  '--reporter',
+  '--trace',
+  '--timeout',
+  '--debug',
+  '--ui',
 ] as const
+const SAFE_BOOLEAN_OPTIONS = new Set(['--no-deps', '--headed', '--quiet'])
+const SAFE_VALUE_OPTIONS = new Set(['--grep', '--grep-invert', '-g'])
 
 export interface E2eRunOptions {
   playwrightArgs: string[]
@@ -46,6 +55,12 @@ export function parseRunOptions(
   if (reuseBuild && environment.ci) {
     throw new Error('--reuse-build is local-only; CI must run a fresh one-shot build')
   }
+  if (hasOption(normalizedArgs, '--no-deps') && environment.ci) {
+    throw new Error('--no-deps is local-only; CI must run the complete project dependency chain')
+  }
+  if (normalizedArgs.some((arg) => arg.startsWith('--no-deps='))) {
+    throw new Error('Use --no-deps without a value')
+  }
   for (const option of FORBIDDEN_OPTIONS) {
     if (hasOption(normalizedArgs, option)) {
       throw new Error(`${option} cannot override E2E orchestration invariants`)
@@ -58,9 +73,13 @@ export function parseRunOptions(
     throw new Error('Use canonical --shard=<current/total> syntax')
   }
   const playwrightArgs = normalizedArgs.filter((arg) => arg !== '--reuse-build')
+  assertSupportedPlaywrightArgs(playwrightArgs)
   const projects = getEqualsOptionValues(playwrightArgs, '--project')
   const unknownProject = projects.find((project) => !E2E_PROJECTS.has(project))
   if (unknownProject) throw new Error(`Unknown E2E Playwright project: ${unknownProject}`)
+  if (normalizedArgs.includes('--no-deps') && projects.length !== 1) {
+    throw new Error('--no-deps requires exactly one explicit canonical --project=<name>')
+  }
   const hasShard = hasOption(playwrightArgs, '--shard')
 
   if (
@@ -77,7 +96,31 @@ export function parseRunOptions(
   return { playwrightArgs, reuseBuild }
 }
 
+function assertSupportedPlaywrightArgs(args: string[]): void {
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index]
+    if (!argument.startsWith('-')) continue
+    if (SAFE_BOOLEAN_OPTIONS.has(argument)) continue
+    if (argument.startsWith('--project=') || argument.startsWith('--shard=')) continue
+    const equalsName = argument.includes('=') ? argument.slice(0, argument.indexOf('=')) : argument
+    if (SAFE_VALUE_OPTIONS.has(equalsName) && argument.includes('=')) continue
+    if (SAFE_VALUE_OPTIONS.has(argument)) {
+      if (args[index + 1] === undefined) {
+        throw new Error(`${argument} requires a value`)
+      }
+      index += 1
+      continue
+    }
+    throw new Error(
+      `${argument} is not a supported E2E Playwright option; artifact and orchestration overrides are denied`
+    )
+  }
+}
+
 function hasOption(args: string[], name: string): boolean {
+  if (name.startsWith('-') && !name.startsWith('--')) {
+    return args.some((arg) => arg === name || arg.startsWith(name))
+  }
   return args.some((arg) => arg === name || arg.startsWith(`${name}=`))
 }
 

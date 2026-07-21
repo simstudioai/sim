@@ -13,7 +13,7 @@ interface SandboxBundleIntegrity {
   outputs: Record<string, string>
 }
 
-export function verifySandboxBundleIntegrity(): void {
+export function verifySandboxBundleIntegrity(options?: { runningBunVersion?: string }): void {
   const integrity = readJson<SandboxBundleIntegrity>(path.join(REPO_ROOT, INTEGRITY_PATH))
   if (integrity.schemaVersion !== 1) {
     throw new Error(`Unsupported sandbox bundle integrity version: ${integrity.schemaVersion}`)
@@ -24,6 +24,12 @@ export function verifySandboxBundleIntegrity(): void {
   if (repositoryPackage.packageManager !== `bun@${integrity.bunVersion}`) {
     throw new Error(
       `Sandbox bundle Bun fingerprint is ${integrity.bunVersion}, but package.json declares ${repositoryPackage.packageManager ?? 'nothing'}`
+    )
+  }
+  const runningBunVersion = options?.runningBunVersion ?? process.versions.bun
+  if (runningBunVersion !== integrity.bunVersion) {
+    throw new Error(
+      `Sandbox bundles require Bun ${integrity.bunVersion}, but verification is running under ${runningBunVersion ?? 'Node'}`
     )
   }
 

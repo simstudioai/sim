@@ -300,14 +300,6 @@ jobs:
           key: ${{ github.repository }}-playwright-browsers-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ~/.cache/ms-playwright
 
-      - name: Restore E2E Next.js build cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: ./apps/sim/.next/cache
-          key: ${{ runner.os }}-nextjs-e2e-hosted-billing-${{ hashFiles('bun.lock') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-e2e-hosted-billing-${{ hashFiles('bun.lock') }}-
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -327,7 +319,7 @@ jobs:
         run: bun run test:e2e
 
       - name: Upload E2E diagnostics
-        if: failure() || cancelled()
+        if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: settings-e2e-${{ github.run_id }}
@@ -336,6 +328,8 @@ jobs:
             apps/sim/test-results/
             apps/sim/e2e/.runs/
             !apps/sim/e2e/.runs/**/auth/**
+            !apps/sim/e2e/.runs/**/private/**
+            !apps/sim/e2e/.runs/**/homes/**
           if-no-files-found: ignore
           include-hidden-files: true
           retention-days: 7

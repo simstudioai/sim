@@ -27,12 +27,13 @@ export async function createPermissionGroup(
     description?: string
     workspaceIds: string[]
     config: RestrictedPermissionConfig
+    isDefault: boolean
   }
 ): Promise<z.infer<typeof permissionGroupSchema>> {
   const response = await ownerClient.request({
     method: 'POST',
     path: `/api/organizations/${organizationId}/permission-groups`,
-    body: { ...input, isDefault: false },
+    body: input,
     schema: z.object({ permissionGroup: permissionGroupSchema }),
     expectedStatus: 201,
   })

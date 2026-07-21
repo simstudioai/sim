@@ -102,5 +102,3 @@ export function formatRedactedEnvironmentSummary(
     `Shadowed local keys: ${childEnvironment.shadowedKeys.join(', ') || '(none)'}`,
   ].join('\n')
 }
-
-export const E2E_OS_PASSTHROUGH_KEYS = OS_PASSTHROUGH_KEYS

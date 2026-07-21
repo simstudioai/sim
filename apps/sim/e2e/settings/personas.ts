@@ -134,7 +134,6 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
       seats: 3,
       enterprise: {
         plan: 'enterprise',
-        referenceId: namespace.slug('enterprise-contract'),
         monthlyPrice: 12_000,
         seats: 3,
       },
@@ -167,6 +166,15 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
     {
       key: 'team-workspace',
       name: namespace.name('team-workspace'),
+      ownerUserKey: 'paid-organization-owner',
+      organizationKey: 'team-organization',
+      payer: { kind: 'organization', organizationKey: 'team-organization' },
+      subscriptionKey: 'team-subscription',
+      ...HOSTED_BILLING,
+    },
+    {
+      key: 'team-invitation-workspace',
+      name: namespace.name('team-invitation-workspace'),
       ownerUserKey: 'paid-organization-owner',
       organizationKey: 'team-organization',
       payer: { kind: 'organization', organizationKey: 'team-organization' },
@@ -224,7 +232,10 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
       token: namespace.invitationToken('pending-team-invitation'),
       role: 'member',
       expiresAt: '2099-01-01T00:00:00.000Z',
-      workspaceGrants: [{ workspaceKey: 'team-workspace', access: 'read' }],
+      workspaceGrants: [
+        { workspaceKey: 'team-workspace', access: 'read' },
+        { workspaceKey: 'team-invitation-workspace', access: 'write' },
+      ],
     },
   ] as const
 
@@ -241,6 +252,15 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
     ]),
     persona(namespace, 'paidOrganizationOwner', 'paid-organization-owner', [
       expected('team-workspace', 'admin', 'owner', 'owner', 'organization', 'team_6000', true),
+      expected(
+        'team-invitation-workspace',
+        'admin',
+        'owner',
+        'owner',
+        'organization',
+        'team_6000',
+        true
+      ),
     ]),
     persona(namespace, 'workspaceReadMember', 'workspace-read-member', [
       expected('team-workspace', 'read', 'explicit', 'member', 'organization', 'team_6000', false),

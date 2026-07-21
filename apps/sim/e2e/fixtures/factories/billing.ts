@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { organization, subscription, userStats } from '@sim/db/schema'
+import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 
@@ -36,6 +36,7 @@ export async function arrangeSubscription(input: SubscriptionArrangement): Promi
   const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1_000)
   const id = generateId()
   const status = input.status ?? 'active'
+  const stripeCustomerId = await resolveCanonicalStripeCustomerId(input.referenceId)
   const metadata =
     input.plan === 'enterprise'
       ? {
@@ -51,12 +52,13 @@ export async function arrangeSubscription(input: SubscriptionArrangement): Promi
       id,
       plan: input.plan,
       referenceId: input.referenceId,
-      stripeCustomerId: `cus_e2e_${id}`,
-      stripeSubscriptionId: `sub_e2e_${id}`,
+      stripeCustomerId,
+      // Stripe lifecycle calls are outside Step 2; do not invent a remote subscription identity.
+      stripeSubscriptionId: null,
       status,
       periodStart: now,
       periodEnd,
-      cancelAtPeriodEnd: status !== 'active',
+      cancelAtPeriodEnd: false,
       canceledAt: status === 'canceled' ? now : null,
       endedAt: status === 'canceled' ? now : null,
       seats: input.seats,
@@ -99,6 +101,26 @@ export async function arrangeSubscription(input: SubscriptionArrangement): Promi
   })
 
   return { id }
+}
+
+async function resolveCanonicalStripeCustomerId(referenceId: string): Promise<string> {
+  const direct = await db
+    .select({ stripeCustomerId: user.stripeCustomerId })
+    .from(user)
+    .where(eq(user.id, referenceId))
+    .limit(1)
+  const directCustomerId = direct[0]?.stripeCustomerId
+  if (directCustomerId) return directCustomerId
+
+  const owner = await db
+    .select({ stripeCustomerId: user.stripeCustomerId })
+    .from(member)
+    .innerJoin(user, eq(user.id, member.userId))
+    .where(and(eq(member.organizationId, referenceId), eq(member.role, 'owner')))
+    .limit(1)
+  const ownerCustomerId = owner[0]?.stripeCustomerId
+  if (ownerCustomerId) return ownerCustomerId
+  throw new Error(`Billing reference has no canonical Stripe customer: ${referenceId}`)
 }
 
 export async function lapseOrganizationSubscription(input: {

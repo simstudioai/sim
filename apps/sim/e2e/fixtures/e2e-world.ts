@@ -2,13 +2,16 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { z } from 'zod'
-import type {
-  ResolvedScenario,
-  ScenarioPersona,
-  ScenarioWorkspace,
-} from './scenario'
+import type { ResolvedScenario, ScenarioPersona } from './scenario'
 
 export const PERSONA_MANIFEST_VERSION = 1 as const
+const SAFE_IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
+const STORAGE_STATE_FILENAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\.json$/
+const safeIdentifierSchema = z.string().regex(SAFE_IDENTIFIER_PATTERN)
+const storageStateFilenameSchema = z
+  .string()
+  .regex(STORAGE_STATE_FILENAME_PATTERN)
+  .refine((value) => !value.includes('..'), 'storage-state filename must not contain ".."')
 
 const workspaceExpectationSchema = z.object({
   workspaceId: z.string(),
@@ -19,27 +22,20 @@ const workspaceExpectationSchema = z.object({
     isOwner: z.boolean(),
     hostMembership: z.enum(['owner', 'member', 'external']),
     payerScope: z.enum(['user', 'organization']),
-    plan: z.enum([
-      'free',
-      'pro_6000',
-      'pro_25000',
-      'team_6000',
-      'team_25000',
-      'enterprise',
-    ]),
+    plan: z.enum(['free', 'pro_6000', 'pro_25000', 'team_6000', 'team_25000', 'enterprise']),
     hosted: z.boolean(),
     billingEnabled: z.boolean(),
   }),
 })
 
 export const personaManifestEntrySchema = z.object({
-  key: z.string(),
-  world: z.string(),
+  key: safeIdentifierSchema,
+  world: safeIdentifierSchema,
   userId: z.string(),
   email: z.string().email(),
   name: z.string(),
   expectedActiveOrganizationId: z.string().nullable(),
-  storageStatePath: z.string(),
+  storageStatePath: storageStateFilenameSchema,
   canonicalRoute: z.string().startsWith('/'),
   workspaces: z.array(workspaceExpectationSchema).min(1),
   permissionGroupIds: z.array(z.string()),
@@ -65,10 +61,7 @@ const worldManifestSchema = z.object({
   ),
   organizationMemberIds: z.record(z.string(), z.string()),
   workspaceIds: z.record(z.string(), z.string()),
-  workspaceIdentities: z.record(
-    z.string(),
-    z.object({ id: z.string(), name: z.string() })
-  ),
+  workspaceIdentities: z.record(z.string(), z.object({ id: z.string(), name: z.string() })),
   subscriptionIds: z.record(z.string(), z.string()),
   permissionIds: z.record(z.string(), z.string()),
   permissionGroupIds: z.record(z.string(), z.string()),
@@ -82,15 +75,15 @@ export const scenarioManifestSchema = z.object({
   runId: z.string(),
   createdAt: z.string(),
   authCaptureComplete: z.boolean(),
-  worlds: z.record(z.string(), worldManifestSchema),
-  personas: z.record(z.string(), personaManifestEntrySchema),
+  worlds: z.record(safeIdentifierSchema, worldManifestSchema),
+  personas: z.record(safeIdentifierSchema, personaManifestEntrySchema),
 })
 
 export const personaCredentialsSchema = z.object({
   schemaVersion: z.literal(PERSONA_MANIFEST_VERSION),
   runId: z.string(),
   personas: z.record(
-    z.string(),
+    safeIdentifierSchema,
     z.object({
       email: z.string().email(),
       password: z.string().min(12),
@@ -147,6 +140,9 @@ export function buildScenarioManifest(runId: string, worlds: E2EWorld[]): Scenar
 
   for (const world of worlds) {
     const worldKey = world.scenario.definition.namespace.world
+    if (manifest.worlds[worldKey]) {
+      throw new Error(`Duplicate world namespace: ${worldKey}`)
+    }
     manifest.worlds[worldKey] = {
       namespace: world.scenario.definition.namespace,
       userIds: mapValues(world.records.users, ({ id }) => id),
@@ -185,6 +181,16 @@ export function readScenarioManifest(filePath: string): ScenarioManifest {
 
 export function readPersonaCredentials(filePath: string): PersonaCredentials {
   return personaCredentialsSchema.parse(JSON.parse(readFileSync(filePath, 'utf8')))
+}
+
+export function resolveStorageStatePath(directory: string, filename: string): string {
+  const safeFilename = storageStateFilenameSchema.parse(filename)
+  const root = path.resolve(directory)
+  const resolved = path.resolve(root, safeFilename)
+  if (path.dirname(resolved) !== root) {
+    throw new Error(`Storage-state path escapes its run directory: ${filename}`)
+  }
+  return resolved
 }
 
 export function writeJsonAtomic(filePath: string, value: unknown, mode = 0o600): void {

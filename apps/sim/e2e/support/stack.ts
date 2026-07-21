@@ -1,8 +1,9 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import {
   clearActiveNextBuild,
   computeBuildIdentity,
+  pruneBuildCache,
   restoreCachedBuild,
   storeCompletedBuild,
 } from './build-manifest'
@@ -24,9 +25,10 @@ export interface StackCommandOptions {
   logsDirectory: string
 }
 
-export interface BuildAppOptions extends StackCommandOptions {
+export interface BuildAppOptions extends Omit<StackCommandOptions, 'env'> {
   buildEnvironment: ChildEnvironment
   reuseBuild: boolean
+  ci: boolean
 }
 
 export async function runMigrations(options: StackCommandOptions): Promise<void> {
@@ -64,11 +66,15 @@ export async function capturePersonaAuthStates(options: StackCommandOptions): Pr
 
 export async function buildApp(options: BuildAppOptions): Promise<void> {
   verifySandboxBundleIntegrity()
-  const identity = computeBuildIdentity({
-    buildEnvironment: options.buildEnvironment,
-    nodeExecutable: options.nodeExecutable,
-  })
+  const identity =
+    options.ci || !options.reuseBuild
+      ? null
+      : computeBuildIdentity({
+          buildEnvironment: options.buildEnvironment,
+          nodeExecutable: options.nodeExecutable,
+        })
   if (options.reuseBuild) {
+    if (!identity) throw new Error('CI cannot restore a local E2E build cache')
     const reuseDecision = restoreCachedBuild(identity)
     writeBuildDecision(options.logsDirectory, reuseDecision)
     if (reuseDecision.reused) {
@@ -80,7 +86,10 @@ export async function buildApp(options: BuildAppOptions): Promise<void> {
 
   clearActiveNextBuild()
   const buildHome = options.buildEnvironment.env.HOME
-  if (buildHome) mkdirSync(buildHome, { recursive: true })
+  if (buildHome) {
+    rmSync(buildHome, { recursive: true, force: true })
+    mkdirSync(buildHome, { recursive: true, mode: 0o700 })
+  }
   await runCommand({
     name: 'next-build',
     command: options.nodeExecutable,
@@ -89,8 +98,18 @@ export async function buildApp(options: BuildAppOptions): Promise<void> {
     env: options.buildEnvironment.env,
     logsDirectory: options.logsDirectory,
   })
-  const storedDecision = storeCompletedBuild(identity)
-  writeBuildDecision(options.logsDirectory, storedDecision)
+  if (identity) {
+    const storedDecision = storeCompletedBuild(identity)
+    pruneBuildCache(identity.nextBuildHash)
+    writeBuildDecision(options.logsDirectory, storedDecision)
+  } else {
+    writeBuildDecision(options.logsDirectory, {
+      reused: false,
+      reason: options.ci
+        ? 'CI build cache population is disabled'
+        : 'local cache population requires --reuse-build',
+    })
+  }
 }
 
 export async function startRealtime(options: StackCommandOptions): Promise<ManagedProcess> {

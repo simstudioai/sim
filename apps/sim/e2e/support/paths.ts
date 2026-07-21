@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-export const SIM_APP_DIR = path.resolve(process.cwd())
+export const SIM_APP_DIR = path.resolve(__dirname, '../..')
 export const REPO_ROOT = path.resolve(SIM_APP_DIR, '../..')
 export const DB_PACKAGE_DIR = path.join(REPO_ROOT, 'packages/db')
 export const REALTIME_APP_DIR = path.join(REPO_ROOT, 'apps/realtime')

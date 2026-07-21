@@ -1,5 +1,27 @@
-import { SETTINGS_PERSONA_KEYS } from './personas'
+import { existsSync } from 'node:fs'
+import path from 'node:path'
 import { expect, requirePersona, test } from '../fixtures/persona-test'
+import { SETTINGS_PERSONA_KEYS } from './personas'
+
+test('persona workers receive no privileged setup values', () => {
+  expect(process.env.ADMIN_API_KEY).toBeUndefined()
+  expect(process.env.DATABASE_URL).toBeUndefined()
+  expect(process.env.E2E_CREDENTIALS_PATH).toBeUndefined()
+  for (const key of [
+    'BETTER_AUTH_SECRET',
+    'ENCRYPTION_KEY',
+    'API_ENCRYPTION_KEY',
+    'INTERNAL_API_SECRET',
+    'STRIPE_SECRET_KEY',
+    'STRIPE_WEBHOOK_SECRET',
+  ]) {
+    expect(process.env[key]).toBeUndefined()
+  }
+  expect(process.env.HOME).toMatch(/[\\/]homes[\\/]playwright$/)
+  const privateDirectory = path.join(path.dirname(requiredEnv('E2E_MANIFEST_PATH')), 'private')
+  expect(existsSync(path.join(privateDirectory, 'persona-credentials.json'))).toBe(false)
+  expect(existsSync(path.join(privateDirectory, 'synthetic-secrets.json'))).toBe(false)
+})
 
 for (const personaKey of SETTINGS_PERSONA_KEYS) {
   test(`${personaKey} matches its real API contract`, async ({
@@ -8,6 +30,27 @@ for (const personaKey of SETTINGS_PERSONA_KEYS) {
   }) => {
     const persona = requirePersona(personaManifest, personaKey)
     const context = await contextForPersona(personaKey)
+    const page = await context.newPage()
+    const canonicalUrl = new URL(persona.canonicalRoute, requiredEnv('E2E_BASE_URL')).toString()
+    await page.goto(canonicalUrl)
+    await expect(page).toHaveURL(canonicalUrl)
+    await expect(page.getByRole('heading', { name: 'General', level: 1 })).toBeVisible()
+    if (personaKey === 'permissionGroupRestricted') {
+      await expect(page.getByRole('button', { name: 'General', exact: true })).toBeVisible()
+      for (const label of ['Secrets', 'Sim API keys', 'Sim mailer', 'MCP tools', 'Custom tools']) {
+        await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0)
+      }
+      const workspaceId = persona.workspaces.find(({ access }) => access !== 'none')?.workspaceId
+      expect(workspaceId).toBeTruthy()
+      for (const section of ['secrets', 'api-keys', 'inbox', 'mcp', 'custom-tools']) {
+        const deniedUrl = new URL(
+          `/workspace/${encodeURIComponent(workspaceId ?? '')}/settings/${section}`,
+          requiredEnv('E2E_BASE_URL')
+        ).toString()
+        const response = await page.goto(deniedUrl)
+        expect(response?.status(), `${section} must be denied by the server route gate`).toBe(404)
+      }
+    }
 
     const sessionResponse = await context.request.get('/api/auth/get-session')
     expect(sessionResponse.status()).toBe(200)
@@ -20,9 +63,13 @@ for (const personaKey of SETTINGS_PERSONA_KEYS) {
       email: persona.email,
       role: persona.expectedPlatformRole,
     })
-    expect(session.session?.activeOrganizationId ?? null).toBe(
-      persona.expectedActiveOrganizationId
-    )
+    expect(session.session?.activeOrganizationId ?? null).toBe(persona.expectedActiveOrganizationId)
+    const settingsResponse = await context.request.get('/api/users/me/settings')
+    expect(settingsResponse.status()).toBe(200)
+    const userSettings = (await settingsResponse.json()) as {
+      data?: { superUserModeEnabled?: boolean }
+    }
+    expect(userSettings.data?.superUserModeEnabled ?? false).toBe(persona.expectedSuperUserMode)
 
     const workspacesResponse = await context.request.get('/api/workspaces?scope=all')
     expect(workspacesResponse.status()).toBe(200)
@@ -67,6 +114,25 @@ for (const personaKey of SETTINGS_PERSONA_KEYS) {
         expected.hostContext.payerScope === 'organization' &&
           (expected.roleSource === 'owner' || expected.roleSource === 'org-admin')
       )
+
+      const permissionsResponse = await context.request.get(
+        `/api/workspaces/${encodeURIComponent(expected.workspaceId)}/permissions`
+      )
+      expect(permissionsResponse.status()).toBe(200)
+      const permissionPayload = (await permissionsResponse.json()) as {
+        users?: Array<{
+          userId?: string
+          permissionType?: string
+          roleSource?: string
+          isExternal?: boolean
+        }>
+      }
+      const viewer = permissionPayload.users?.find(({ userId }) => userId === persona.userId)
+      expect(viewer).toMatchObject({
+        permissionType: expected.access,
+        roleSource: expected.roleSource,
+        isExternal: expected.hostContext.hostMembership === 'external',
+      })
     }
 
     const accessibleWorkspace = persona.workspaces.find(({ access }) => access !== 'none')
@@ -94,4 +160,10 @@ for (const personaKey of SETTINGS_PERSONA_KEYS) {
       expect(group.permissionGroupId).toBeNull()
     }
   })
+}
+
+function requiredEnv(key: string): string {
+  const value = process.env[key]
+  if (!value) throw new Error(`Missing persona contract environment value: ${key}`)
+  return value
 }

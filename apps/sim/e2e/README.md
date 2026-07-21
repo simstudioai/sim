@@ -54,11 +54,18 @@ Stripe fake and realtime, builds and starts Next.js, seeds the validated persona
 world through production APIs plus narrow trusted arrangements, captures each
 persona through the real login UI, runs Playwright on Node 22, then stops
 services and drops only that guarded database.
+Server telemetry currently shares the strict loopback Stripe-fake process; the
+generic modular fake-service refactor remains scoped to the roadmap's
+`e2e/06b-enterprise-integrations` phase.
+An exclusive checkout-level orchestrator lock prevents concurrent runs from
+racing on `.next`, the shared build cache, or the fixed app/realtime ports.
 
 On interruption, the runner launches a detached cleanup supervisor before
 exiting. It terminates managed process groups, force-drops the guarded database,
 and removes temporary auth/cloud-config directories even if another Ctrl-C
 terminates the foreground package runner.
+Cleanup failures retain the lock and require the reported resources to be
+inspected and cleaned before manually removing `e2e/.cache/orchestrator.lock`.
 
 Pass Playwright arguments after `--`:
 
@@ -66,6 +73,19 @@ Pass Playwright arguments after `--`:
 bun run test:e2e -- --project=hosted-billing-chromium-navigation
 bun run test:e2e -- --grep "unauthenticated"
 ```
+
+Projects form a dependency chain to keep shared boundaries serialized. Selecting
+the personas project therefore also runs navigation and workflows by default,
+and an upstream failure skips its dependents. For focused local iteration,
+`--no-deps` is explicitly supported:
+
+```bash
+bun run test:e2e -- --project=hosted-billing-chromium-personas --no-deps
+```
+
+`--no-deps` requires exactly one explicit canonical project. It skips only
+Playwright project dependencies; the guarded one-shot stack still performs full
+seed and auth setup. Do not use it for full verification; the runner rejects it in CI.
 
 For a local follow-up run, reuse only a verified build while still creating a
 new database, Stripe fake, app, realtime process, and browser run:
@@ -77,8 +97,13 @@ bun run test:e2e -- --reuse-build --project=hosted-billing-chromium-navigation
 The cache lives under ignored `e2e/.cache/builds/`. A hit requires matching
 source contents (including uncommitted/untracked files), build/public profile,
 Node/Bun/Next versions, platform, `BUILD_ID`, and the cached artifact checksum.
-Any mismatch performs and caches a fresh build. CI rejects `--reuse-build`.
-`--skip-build` remains unsupported.
+Any mismatch performs and caches a fresh local build; only the most recent cache
+entry is retained because this application's production artifact is several
+gigabytes. CI rejects `--reuse-build` and does not copy or hash a disposable
+cache artifact. Plain local runs also skip cache identity computation,
+multi-gigabyte copying, and cache population; only an explicit `--reuse-build`
+request pays those costs. Cache restore also removes abandoned temporary stores
+from interrupted writes before accepting a hit. `--skip-build` remains unsupported.
 
 Keep-stack/rerun supervision is intentionally unavailable. The initial safety
 experiment requires descriptor ownership, mutation observation, state snapshots,
@@ -92,7 +117,9 @@ safe because they do not execute tests.
 
 Sharding is supported only for the navigation project. The runner rejects
 `--shard` for workflows, persona contracts, and the dedicated two-worker
-cross-world isolation project.
+cross-world isolation project. Project dependencies serialize navigation,
+workflows, and persona contracts before the isolation project opens its
+two-worker pool.
 
 ## Diagnostics
 
@@ -100,7 +127,7 @@ cross-world isolation project.
 - Traces and screenshots: `test-results/`
 - App, realtime, migration, seed, auth-capture, and fake logs:
   `e2e/.runs/<runId>/logs/`
-- Non-secret persona manifest and post-login auth-capture screenshots:
+- Non-secret persona manifest and auth-capture failure screenshots:
   `e2e/.runs/<runId>/`
 
 Open the report:
@@ -123,12 +150,35 @@ non-secret manifest and storage-state directory, never passwords, the admin API
 key, or the database URL. Next build/start shadow
 keys found in local `.env*` files, while children that cannot load those files
 omit denied keys entirely. Developer credentials are not used as test state or
-written to reports. Synthetic persona passwords live in a private run-home file
-and are removed with the auth/cloud-config directory during teardown.
+written to reports. Named persona credentials and a separate all-synthetic-user
+canary list live outside every child `HOME` in a private run directory. Auth
+capture receives only the persona file, which is deleted immediately after
+capture; storage states are mode `0600` and excluded from CI artifacts. Captured
+passwords are loaded into orchestrator memory, then both secret files are
+deleted before Playwright starts. After managed processes stop and logs flush,
+the in-memory canary scans the manifest, logs, report files, and trace archives
+and fails if a synthetic password, invitation token, or runtime secret escaped
+the excluded private directories. Cancelled CI runs do not upload unscanned
+diagnostics, and an unreadable canary or incomplete archive scan causes all
+potentially unscanned diagnostic roots to be scrubbed. Storage-state session cookies are intentionally not canaried
+because authenticated Playwright traces contain them by design; they are
+synthetic and invalid once the run database is dropped.
+Fresh-session recapture is deliberately deferred. Future membership-mutation
+coverage must explicitly restore a private credential handoff and re-review its
+access boundary rather than assuming credentials persist through Playwright.
 
-E2E builds verify the reviewed sandbox-bundle source/dependency/output
-fingerprint and never regenerate committed `.cjs` files. Regeneration remains an
-explicit repository maintenance operation.
+E2E builds verify the pinned Bun executable plus reviewed sandbox-bundle
+source, direct dependency, and output fingerprints and never regenerate
+committed `.cjs` files.
+`bun run build:sandbox-bundles:integrity` is the explicit maintenance command
+that regenerates bundles and their reviewed integrity manifest together.
+Unrelated monorepo lockfile changes do not invalidate the bundle fingerprint;
+the committed output hashes still detect any transitive change that alters a
+bundle.
+
+Reset/reseed cleanup remains deferred with keep-stack supervision. Ordinary
+runs own a unique guarded database and remove it wholesale rather than carrying
+untested row-level deletion code.
 
 Provider log scans are diagnostic tripwires, not proof of zero egress. The
 primary boundaries are the default-deny child environment, provider disabling,

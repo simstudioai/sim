@@ -7,12 +7,15 @@ export async function arrangePendingInvitation(input: {
   token: string
   inviterId: string
   organizationId: string
-  workspaceId: string
   role: 'admin' | 'member'
-  permission: 'admin' | 'write' | 'read'
-}): Promise<{ invitationId: string; grantId: string }> {
+  expiresAt: Date
+  workspaceGrants: Array<{
+    workspaceId: string
+    permission: 'admin' | 'write' | 'read'
+  }>
+}): Promise<{ invitationId: string; grantIds: string[] }> {
   const invitationId = generateId()
-  const grantId = generateId()
+  const grantIds = input.workspaceGrants.map(() => generateId())
   const now = new Date()
   await db.transaction(async (tx) => {
     await tx.insert(invitation).values({
@@ -25,18 +28,22 @@ export async function arrangePendingInvitation(input: {
       role: input.role,
       status: 'pending',
       token: input.token,
-      expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1_000),
+      expiresAt: input.expiresAt,
       createdAt: now,
       updatedAt: now,
     })
-    await tx.insert(invitationWorkspaceGrant).values({
-      id: grantId,
-      invitationId,
-      workspaceId: input.workspaceId,
-      permission: input.permission,
-      createdAt: now,
-      updatedAt: now,
-    })
+    if (input.workspaceGrants.length > 0) {
+      await tx.insert(invitationWorkspaceGrant).values(
+        input.workspaceGrants.map((grant, index) => ({
+          id: grantIds[index],
+          invitationId,
+          workspaceId: grant.workspaceId,
+          permission: grant.permission,
+          createdAt: now,
+          updatedAt: now,
+        }))
+      )
+    }
   })
-  return { invitationId, grantId }
+  return { invitationId, grantIds }
 }
