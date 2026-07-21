@@ -678,7 +678,10 @@ function AuthSelector({
 
   const { config: permissionConfig } = usePermissionConfig()
 
-  const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
+  // SSO shows when the env flag is on, or when this chat is already saved as SSO,
+  // so an existing SSO mode is never dropped (and silently downgraded by the snap
+  // effect below) when the flag is off.
+  const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')) || savedAuthType === 'sso'
   const baseAuthOptions: AuthType[] = ssoEnabled
     ? ['public', 'password', 'email', 'sso']
     : ['public', 'password', 'email']
