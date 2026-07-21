@@ -54,8 +54,8 @@ export function EmailLayout({
           <Section style={baseStyles.header}>
             <Img
               src={brand.logoUrl || `${baseUrl}/brand/color/email/wordmark.png`}
-              height='34'
-              {...(hasCustomLogo ? {} : { width: '70' })}
+              height='41'
+              {...(hasCustomLogo ? {} : { width: '68' })}
               alt={brand.name}
               style={hasCustomLogo ? { display: 'block', width: 'auto' } : { display: 'block' }}
             />
