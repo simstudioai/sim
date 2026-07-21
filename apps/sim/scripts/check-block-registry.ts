@@ -284,24 +284,35 @@ function checkSunsetReplacedBy(): CheckResult {
   const errors: string[] = []
 
   for (const block of getAllBlocks()) {
-    const replacedBy = block.sunset?.replacedBy
-    if (!replacedBy) continue
+    const sunset = block.sunset
+    if (!sunset) continue
 
-    const target = getBlock(replacedBy)
+    if (!sunset.replacedBy) {
+      // `legacy` needs a successor to render its badge + upgrade action; `deprecated`
+      // (red) legitimately badges without one.
+      if (sunset.status === 'legacy') {
+        errors.push(
+          `Block "${block.type}" is sunset (legacy) but has no replacedBy — legacy blocks must name a successor or they render no badge.`
+        )
+      }
+      continue
+    }
+
+    const target = getBlock(sunset.replacedBy)
     if (!target) {
       errors.push(
-        `Block "${block.type}" is sunset with replacedBy: '${replacedBy}', but no such block exists.`
+        `Block "${block.type}" is sunset with replacedBy: '${sunset.replacedBy}', but no such block exists.`
       )
       continue
     }
     if (target.sunset) {
       errors.push(
-        `Block "${block.type}" points replacedBy: '${replacedBy}', but that block is itself sunset.`
+        `Block "${block.type}" points replacedBy: '${sunset.replacedBy}', but that block is itself sunset.`
       )
     }
     if (target.preview) {
       errors.push(
-        `Block "${block.type}" points replacedBy: '${replacedBy}', but that block is preview (not GA).`
+        `Block "${block.type}" points replacedBy: '${sunset.replacedBy}', but that block is preview (not GA).`
       )
     }
   }
