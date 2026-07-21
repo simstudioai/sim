@@ -285,11 +285,6 @@ type AsyncExecutionParams = {
 interface AsyncExecutionResult {
   response: NextResponse
   retainExecutionClaim: boolean
-  /**
-   * When true, the caller must not release the admission ticket — ownership
-   * transferred to the in-process inline runner which releases on completion.
-   */
-  retainAdmissionTicket: boolean
 }
 
 /** Mutable bag so async inline work can retain the HTTP admission ticket. */
@@ -391,7 +386,6 @@ async function handleAsyncExecution(
     return {
       response: NextResponse.json({ error: 'Failed to queue async execution' }, { status: 500 }),
       retainExecutionClaim: false,
-      retainAdmissionTicket: false,
     }
   }
 
@@ -443,7 +437,6 @@ async function handleAsyncExecution(
       return {
         response: NextResponse.json({ error: 'Failed to queue async execution' }, { status: 500 }),
         retainExecutionClaim: false,
-        retainAdmissionTicket: false,
       }
     }
 
@@ -457,7 +450,6 @@ async function handleAsyncExecution(
         { status: 503, headers: { [WORKFLOW_EXECUTION_ID_HEADER]: executionId } }
       ),
       retainExecutionClaim: true,
-      retainAdmissionTicket: false,
     }
   }
 
@@ -521,7 +513,6 @@ async function handleAsyncExecution(
       { status: 202 }
     ),
     retainExecutionClaim: true,
-    retainAdmissionTicket: executeInline,
   }
 }
 

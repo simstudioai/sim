@@ -34,6 +34,11 @@ const {
   mockReleaseExecutionIdClaim,
   mockReleaseExecutionSlot,
   mockRequireBillingAttributionHeader,
+  mockShouldExecuteInline,
+  mockStartJob,
+  mockCompleteJob,
+  mockMarkJobFailed,
+  mockExecuteWorkflowJob,
   mockValidatePublicApiAllowed,
 } = vi.hoisted(() => ({
   mockAssertBillingAttributionSnapshot: vi.fn((value: unknown) => {
@@ -52,6 +57,11 @@ const {
   mockReleaseExecutionIdClaim: vi.fn(),
   mockReleaseExecutionSlot: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
+  mockShouldExecuteInline: vi.fn(() => false),
+  mockStartJob: vi.fn(),
+  mockCompleteJob: vi.fn(),
+  mockMarkJobFailed: vi.fn(),
+  mockExecuteWorkflowJob: vi.fn(),
   mockValidatePublicApiAllowed: vi.fn(),
 }))
 
@@ -114,11 +124,11 @@ vi.mock('@/lib/execution/payloads/store', () => ({
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({
     enqueue: mockEnqueue,
-    startJob: vi.fn(),
-    completeJob: vi.fn(),
-    markJobFailed: vi.fn(),
+    startJob: mockStartJob,
+    completeJob: mockCompleteJob,
+    markJobFailed: mockMarkJobFailed,
   }),
-  shouldExecuteInline: vi.fn().mockReturnValue(false),
+  shouldExecuteInline: mockShouldExecuteInline,
 }))
 
 vi.mock('@/lib/core/utils/urls', () => ({
@@ -136,7 +146,7 @@ vi.mock('@/lib/execution/call-chain', () => ({
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
 vi.mock('@/background/workflow-execution', () => ({
-  executeWorkflowJob: vi.fn(),
+  executeWorkflowJob: mockExecuteWorkflowJob,
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -288,6 +298,8 @@ describe('workflow execute async route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockShouldExecuteInline.mockReturnValue(false)
+    mockExecuteWorkflowJob.mockResolvedValue({ success: true })
     mockGenerateId.mockReset().mockReturnValue('execution-123')
     mockClaimExecutionId.mockImplementation(async (executionId: string) => ({
       key: `workflow-execution-id:${executionId}`,
@@ -390,6 +402,36 @@ describe('workflow execute async route', () => {
         }),
       })
     )
+  })
+
+  it('retains the admission ticket until database-backed async execution finishes', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    let resolveInlineExecution!: () => void
+    const inlineExecution = new Promise<void>((resolve) => {
+      resolveInlineExecution = resolve
+    })
+    mockExecuteWorkflowJob.mockReturnValueOnce(inlineExecution)
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { input: { hello: 'world' } },
+        {
+          'Content-Type': 'application/json',
+          'X-Execution-Mode': 'async',
+        }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(202)
+    expect(getAdmissionGateStatus().inflight).toBe(1)
+
+    resolveInlineExecution()
+    await vi.waitFor(() => {
+      expect(getAdmissionGateStatus().inflight).toBe(0)
+    })
+    expect(mockCompleteJob).toHaveBeenCalledWith('job-123', expect.anything())
   })
 
   it('applies admission backpressure to session-backed async executions', async () => {
