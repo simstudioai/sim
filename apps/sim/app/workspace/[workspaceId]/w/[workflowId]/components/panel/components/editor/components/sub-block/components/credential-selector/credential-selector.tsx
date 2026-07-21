@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { Button, Combobox } from '@sim/emcn'
+import { Button, Combobox, type ComboboxOptionGroup } from '@sim/emcn'
 import { ExternalLink, KeyRound } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
@@ -104,17 +104,22 @@ export function CredentialSelector({
   const credentialsLoading = isAllCredentials ? allCredentialsLoading : oauthCredentialsLoading
 
   const credentialKind = subBlock.credentialKind
+  const isMergedKinds = credentialKind === 'any'
 
   const credentials = useMemo(() => {
     // A custom-bot or service-account picker lists only the reusable
-    // service-account credentials, including in trigger mode.
+    // service-account credentials, including in trigger mode. A merged ('any')
+    // picker lists OAuth accounts and bots together.
     if (credentialKind === 'custom-bot' || credentialKind === 'service-account') {
       return rawCredentials.filter((cred) => cred.type === 'service_account')
+    }
+    if (isMergedKinds) {
+      return rawCredentials
     }
     return isTriggerMode && !subBlock.allowServiceAccounts
       ? rawCredentials.filter((cred) => cred.type !== 'service_account')
       : rawCredentials
-  }, [rawCredentials, isTriggerMode, credentialKind, subBlock.allowServiceAccounts])
+  }, [rawCredentials, isTriggerMode, credentialKind, isMergedKinds, subBlock.allowServiceAccounts])
 
   // Resolved service-account provider metadata for the token-paste connect
   // modal. Gated on `credentialKind` and using the non-throwing lookup so it
@@ -239,6 +244,7 @@ export function CredentialSelector({
       const oauthCredentials = allWorkspaceCredentials.filter((c) => c.type === 'oauth')
       return oauthCredentials.map((cred) => ({ label: cred.displayName, value: cred.id }))
     }
+    if (isMergedKinds) return []
 
     const options = credentials.map((cred) => ({
       label: cred.name,
@@ -266,6 +272,7 @@ export function CredentialSelector({
     return options
   }, [
     isAllCredentials,
+    isMergedKinds,
     allWorkspaceCredentials,
     credentials,
     credentialKind,
@@ -273,6 +280,41 @@ export function CredentialSelector({
     getProviderIcon,
     getProviderName,
   ])
+
+  const comboboxGroups = useMemo<ComboboxOptionGroup[] | undefined>(() => {
+    if (!isMergedKinds) return undefined
+
+    const toOption = (cred: (typeof credentials)[number]) => ({
+      label: cred.name,
+      value: cred.id,
+      iconElement: getProviderIcon((cred.provider ?? provider) as OAuthProvider),
+    })
+
+    return [
+      {
+        section: `${getProviderName(provider)} accounts`,
+        items: [
+          ...credentials.filter((c) => c.type !== 'service_account').map(toOption),
+          {
+            label: `Connect ${getProviderName(provider)} account`,
+            value: '__connect_account__',
+            iconElement: <ExternalLink className='size-3' />,
+          },
+        ],
+      },
+      {
+        section: 'Custom bots',
+        items: [
+          ...credentials.filter((c) => c.type === 'service_account').map(toOption),
+          {
+            label: 'Set up a custom bot',
+            value: '__connect_bot__',
+            iconElement: <ExternalLink className='size-3' />,
+          },
+        ],
+      },
+    ]
+  }, [isMergedKinds, credentials, provider, getProviderIcon, getProviderName])
 
   const selectedCredentialProvider = selectedCredential?.provider ?? provider
   const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
@@ -320,7 +362,15 @@ export function CredentialSelector({
   const handleComboboxChange = useCallback(
     (value: string) => {
       if (value === '__connect_account__') {
+        if (isMergedKinds) {
+          setShowConnectModal(true)
+          return
+        }
         handleAddCredential()
+        return
+      }
+      if (value === '__connect_bot__') {
+        setShowSlackBotModal(true)
         return
       }
 
@@ -335,13 +385,21 @@ export function CredentialSelector({
       setIsEditing(true)
       setEditingValue(value)
     },
-    [isAllCredentials, allWorkspaceCredentials, credentials, handleAddCredential, handleSelect]
+    [
+      isAllCredentials,
+      isMergedKinds,
+      allWorkspaceCredentials,
+      credentials,
+      handleAddCredential,
+      handleSelect,
+    ]
   )
 
   return (
     <div>
       <Combobox
         options={comboboxOptions}
+        groups={comboboxGroups}
         value={displayValue}
         selectedValue={selectedId}
         onChange={handleComboboxChange}
@@ -350,8 +408,10 @@ export function CredentialSelector({
           hasDependencies && !depsSatisfied ? 'Fill in required fields above first' : label
         }
         disabled={effectiveDisabled}
-        editable={true}
-        filterOptions={true}
+        editable={!isMergedKinds}
+        filterOptions={!isMergedKinds}
+        searchable={isMergedKinds}
+        searchPlaceholder='Search credentials...'
         isLoading={credentialsLoading}
         overlayContent={overlayContent}
         className={overlayContent ? 'pl-7' : ''}
@@ -371,7 +431,7 @@ export function CredentialSelector({
                 workflowId: activeWorkflowId || '',
                 displayName: selectedCredential?.name ?? getProviderName(provider),
                 providerId: effectiveProviderId,
-                preCount: credentials.length,
+                preCount: credentials.filter((c) => c.type !== 'service_account').length,
                 workspaceId,
                 requestedAt: Date.now(),
               })
