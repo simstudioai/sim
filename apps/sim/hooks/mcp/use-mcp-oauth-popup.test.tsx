@@ -34,7 +34,11 @@ import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
  * Mounts the hook in a real React 19 root under jsdom, wrapped in a real
  * `QueryClientProvider`, so query/mutation lifecycles run exactly as in the app.
  */
-function renderHookWithClient<T>(useHook: () => T): { result: () => T; unmount: () => void } {
+function renderHookWithClient<T>(useHook: () => T): {
+  result: () => T
+  queryClient: QueryClient
+  unmount: () => void
+} {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -60,7 +64,7 @@ function renderHookWithClient<T>(useHook: () => T): { result: () => T; unmount: 
     )
   })
 
-  return { result: () => latest, unmount: () => act(() => root.unmount()) }
+  return { result: () => latest, queryClient, unmount: () => act(() => root.unmount()) }
 }
 
 async function flush() {
@@ -136,6 +140,24 @@ describe('useMcpOauthPopup', () => {
 
     // Both distinct clicks reached the mutation — the guard only blocks concurrent re-entry.
     expect(mockStartOauth).toHaveBeenCalledTimes(2)
+
+    hook.unmount()
+  })
+
+  it('invalidates server queries when start reports already_authorized', async () => {
+    mockStartOauth.mockResolvedValue({ status: 'already_authorized' })
+
+    const hook = renderHookWithClient(() => useMcpOauthPopup({ workspaceId: 'w1' }))
+    await flush()
+    const invalidateSpy = vi.spyOn(hook.queryClient, 'invalidateQueries')
+
+    await act(async () => {
+      await hook.result().startOauthForServer('s1')
+    })
+    await flush()
+
+    // The server is already connected — the UI must still refresh so it reflects that.
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['mcp', 'servers', 'w1'] })
 
     hook.unmount()
   })
