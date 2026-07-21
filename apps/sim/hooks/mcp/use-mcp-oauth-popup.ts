@@ -140,9 +140,17 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
       const starting = (startingRef.current ??= new Set())
       if (starting.has(serverId)) return
       starting.add(serverId)
-      // Kill any prior attempt's popup.closed poll up front: left running, its callback could
-      // fire mid-reopen and clear "Connecting…" for this fresh flow (stale-poll race).
+      // Fully retire any prior attempt for this server up front — its popup.closed poll, its
+      // safety timeout, and its pending-flow entry. Left in place, any of them could fire
+      // during the new `/oauth/start` await (a late popup close, a lapsed timeout, or a stale
+      // BroadcastChannel result via settleFlow) and clear "Connecting…" for this fresh flow.
       stopPopupPoll(serverId)
+      for (const [prevState, flow] of pendingFlowsRef.current) {
+        if (flow.serverId === serverId) {
+          window.clearTimeout(flow.timeout)
+          pendingFlowsRef.current.delete(prevState)
+        }
+      }
       setConnectingServers((prev) => new Set(prev).add(serverId))
       try {
         const result = await startOauth({ serverId, workspaceId })
@@ -151,14 +159,6 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
           return
         }
         const { popup, state } = result
-        // Drop any prior in-flight flow for this server (e.g. an abandoned attempt now being
-        // retried) so its stale safety timeout can't later clear this new flow's state.
-        for (const [prevState, flow] of pendingFlowsRef.current) {
-          if (flow.serverId === serverId) {
-            window.clearTimeout(flow.timeout)
-            pendingFlowsRef.current.delete(prevState)
-          }
-        }
         // Track this in-flight flow keyed by its `state` nonce for the BroadcastChannel gate,
         // bounded by a safety timeout in case no result ever arrives (popup abandoned, or a
         // callback failure the client can't otherwise clear).
