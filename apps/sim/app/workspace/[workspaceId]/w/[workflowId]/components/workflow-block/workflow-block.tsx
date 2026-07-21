@@ -117,7 +117,7 @@ function getBlockSunset(
       return {
         status: 'legacy',
         kind: 'block',
-        tooltip: 'This block is legacy. Click to upgrade',
+        tooltip: 'This is a legacy block. Click to upgrade',
         prompt: `The "${name}" block is legacy. ${migrationPrompt(name, target)}${hasModel ? ' Also pick a current, non-deprecated model.' : ''}`,
       }
     }
