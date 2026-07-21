@@ -48,9 +48,30 @@ function isRetryableChunkError(error: unknown): boolean {
   if (error instanceof MaskChunkHttpError) {
     return RETRYABLE_STATUSES.has(error.status)
   }
-  // A rejected fetch (connection refused/reset, DNS, socket drop) is transient;
-  // anything else (shape mismatch, token minting failure) is deterministic.
-  return error instanceof TypeError
+  // A rejected fetch (connection refused/reset, DNS, socket drop) is transient —
+  // Node wraps these in TypeError('fetch failed'). Runtime-level request
+  // timeouts (undici's default 300s headers/body timeout, Bun's TimeoutError)
+  // and mid-flight socket closes surface with their own names/codes per runtime;
+  // all are congestion or connection churn, not a deterministic failure: a chunk
+  // queued behind a saturated Presidio fleet must retry, not fail the payload.
+  if (error instanceof TypeError) {
+    return true
+  }
+  const { name, code } = (error ?? {}) as { name?: unknown; code?: unknown }
+  if (name === 'TimeoutError' || name === 'HeadersTimeoutError' || name === 'BodyTimeoutError') {
+    return true
+  }
+  return (
+    typeof code === 'string' &&
+    [
+      'ECONNRESET',
+      'ECONNREFUSED',
+      'EPIPE',
+      'ETIMEDOUT',
+      'ConnectionClosed',
+      'ConnectionRefused',
+    ].includes(code)
+  )
 }
 
 /**

@@ -82,6 +82,17 @@ describe('maskPIIBatchViaHttp', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('retries a runtime-level request timeout and then succeeds', async () => {
+    const timeout = new Error('The operation timed out.')
+    timeout.name = 'TimeoutError'
+    fetchMock.mockRejectedValueOnce(timeout)
+
+    const out = await maskPIIBatchViaHttp(['a'], [])
+
+    expect(out).toEqual(['M(a)'])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('gives up after the retry budget is exhausted on a persistent 5xx', async () => {
     fetchMock.mockImplementation(async () => new Response('down', { status: 503 }))
 
