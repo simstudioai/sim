@@ -46,7 +46,7 @@ function toOption(
   if (resource === 'environments') {
     const type = row.config?.type
     const suffix = type ? ` (${type})` : ''
-    return { id: row.id, label: `${name || row.id}${suffix}` }
+    return { id: row.id, label: `${name || row.id}${suffix}`, ...(type ? { type } : {}) }
   }
   if (resource === 'vaults') {
     return { id: row.id, label: name || row.id }

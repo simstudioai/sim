@@ -12,6 +12,8 @@ import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contra
 export const managedAgentOptionSchema = z.object({
   id: z.string(),
   label: z.string(),
+  /** Environment execution model — only set for the `environments` resource, used to filter by mode. */
+  type: z.enum(['cloud', 'self_hosted']).optional(),
 })
 export type ManagedAgentOption = z.output<typeof managedAgentOptionSchema>
 

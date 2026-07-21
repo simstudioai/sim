@@ -14,10 +14,10 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
  * the browser.
  */
 
-function credentialIdForBlock(blockId: string): string | null {
+function readSubBlockValue(blockId: string, key: string): string | null {
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
   if (!activeWorkflowId) return null
-  const value = useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[blockId]?.credential
+  const value = useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[blockId]?.[key]
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
@@ -25,7 +25,7 @@ async function fetchOptions(
   blockId: string,
   resource: ManagedAgentResource
 ): Promise<ManagedAgentOption[]> {
-  const credentialId = credentialIdForBlock(blockId)
+  const credentialId = readSubBlockValue(blockId, 'credential')
   if (!credentialId) return []
   try {
     const { options } = await requestJson(listManagedAgentOptionsContract, {
@@ -41,10 +41,16 @@ export function fetchManagedAgentAgentOptions(blockId: string): Promise<ManagedA
   return fetchOptions(blockId, 'agents')
 }
 
-export function fetchManagedAgentEnvironmentOptions(
+export async function fetchManagedAgentEnvironmentOptions(
   blockId: string
 ): Promise<ManagedAgentOption[]> {
-  return fetchOptions(blockId, 'environments')
+  const options = await fetchOptions(blockId, 'environments')
+  // Filter to the selected environment type so cloud/self-hosted stay separate
+  // (self-hosted rejects `resources`, so the two modes expose different fields).
+  // Options with an unknown type are kept as a safety net.
+  const mode = readSubBlockValue(blockId, 'environmentType')
+  if (mode !== 'cloud' && mode !== 'self_hosted') return options
+  return options.filter((option) => option.type === undefined || option.type === mode)
 }
 
 export function fetchManagedAgentVaultOptions(blockId: string): Promise<ManagedAgentOption[]> {

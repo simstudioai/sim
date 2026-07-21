@@ -124,26 +124,26 @@ describe('buildSessionCreatePayload — metadata', () => {
 })
 
 describe('buildSessionCreatePayload — self-hosted routing', () => {
-  it('routes memory to metadata and never sends resources (self-hosted rejects resources)', () => {
+  it('never sends resources on self-hosted and does not auto-route memory (no native support)', () => {
     const payload = buildSessionCreatePayload({
       ...BASE,
       environmentType: 'self_hosted',
       memoryStoreId: 'memstore_01',
       memoryAccess: 'read_only',
+      memoryInstructions: 'use it',
+      files: [{ fileId: 'file_1' }],
       sessionParameters: { SOURCE_TYPE: 'git' },
     })
     expect(payload.resources).toBeUndefined()
-    expect(payload.metadata).toEqual({
-      SOURCE_TYPE: 'git',
-      memory_store_ids: 'memstore_01',
-      memory_access: 'read_only',
-    })
+    // Only the author's explicit metadata is forwarded — memory is NOT injected.
+    expect(payload.metadata).toEqual({ SOURCE_TYPE: 'git' })
   })
 
-  it('drops file attachments on self-hosted (not supported as resources)', () => {
+  it('sends no metadata on self-hosted when the author set none', () => {
     const payload = buildSessionCreatePayload({
       ...BASE,
       environmentType: 'self_hosted',
+      memoryStoreId: 'memstore_01',
       files: [{ fileId: 'file_1' }],
     })
     expect(payload.resources).toBeUndefined()

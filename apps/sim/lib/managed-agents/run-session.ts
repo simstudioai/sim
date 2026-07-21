@@ -6,6 +6,7 @@ import {
   type AnthropicSessionEvent,
   type CreateSessionInput,
   createSession,
+  type EnvironmentType,
   getEnvironmentType,
   getSession,
   interruptSession,
@@ -40,6 +41,8 @@ export interface RunManagedAgentInput {
   apiKey: string
   agentId: string
   environmentId: string
+  /** Env-type hint from the block; used only if server-side resolution fails. */
+  environmentType?: EnvironmentType
   userMessage: string
   title?: string
   vaultIds?: string[]
@@ -106,12 +109,11 @@ export async function runManagedAgentSession(
 
   // Resolve the environment type up front so the payload routes correctly:
   // self-hosted environments reject `resources`, so memory must go via metadata
-  // there. Best-effort — an undefined result falls back to cloud behavior.
-  const environmentType = await getEnvironmentType({
-    apiKey,
-    environmentId: input.environmentId,
-    signal,
-  })
+  // there. The authoritative source is the API; the block's hint is only a
+  // fallback if that lookup fails.
+  const environmentType =
+    (await getEnvironmentType({ apiKey, environmentId: input.environmentId, signal })) ??
+    input.environmentType
 
   const createInput: CreateSessionInput = {
     apiKey,

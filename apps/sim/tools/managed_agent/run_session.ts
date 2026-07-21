@@ -58,6 +58,13 @@ export const managedAgentRunSessionTool: ToolConfig<
       visibility: 'user-only',
       description: 'Environment id inside the linked Claude workspace.',
     },
+    environmentType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        "Environment execution model hint ('cloud' | 'self_hosted'); the actual type is re-resolved server-side for routing.",
+    },
     userMessage: {
       type: 'string',
       required: true,
@@ -158,11 +165,17 @@ export const managedAgentRunSessionTool: ToolConfig<
     const workflowId = params._context?.workflowId?.trim()
     const title = workflowId ? `Sim workflow ${workflowId}` : undefined
 
+    const environmentType =
+      params.environmentType === 'self_hosted' || params.environmentType === 'cloud'
+        ? params.environmentType
+        : undefined
+
     const result = await runManagedAgentSession({
       apiKey,
       agentId,
       environmentId,
       userMessage: (params.userMessage ?? '').toString(),
+      ...(environmentType ? { environmentType } : {}),
       ...(title ? { title } : {}),
       ...(vaultIds.length > 0 ? { vaultIds } : {}),
       ...(memoryStoreId ? { memoryStoreId } : {}),

@@ -15,6 +15,8 @@ export interface ManagedAgentRunSessionParams {
   agent: string
   /** Environment id from the linked Claude workspace. */
   environment: string
+  /** Env-type hint ('cloud' | 'self_hosted') from the block; re-resolved server-side. */
+  environmentType?: string
   /** The user's turn as plain text. Resolved by the executor. */
   userMessage: string
   /** Zero or more vault ids for MCP auth (array, json string, or comma-list). */

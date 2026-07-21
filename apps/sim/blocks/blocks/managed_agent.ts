@@ -11,10 +11,11 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 /**
  * Claude Managed Agents block.
  *
- * Invokes a Claude Platform Managed Agent (cloud or self-hosted) as a
- * workflow node and returns the assistant's final text. Memory and metadata
- * route automatically, so one block covers both cloud and self-hosted
- * environments.
+ * Invokes a Claude Platform Managed Agent (cloud or self-hosted) as a workflow
+ * node and returns the assistant's final text. One block covers both models:
+ * the Environment type selector filters the environment list and shows only the
+ * fields that apply — memory stores and files are cloud-only (self-hosted
+ * rejects the `resources` attach), while session metadata works for both.
  *
  * Authentication is a selectable Claude Platform credential (an Anthropic
  * workspace API key). The credential's key is resolved server-side at run
@@ -44,6 +45,19 @@ export const ManagedAgentBlock: BlockConfig = {
       placeholder: 'Select a Claude Platform credential',
     },
     {
+      id: 'environmentType',
+      title: 'Environment type',
+      type: 'dropdown',
+      required: true,
+      options: [
+        { label: 'Cloud', id: 'cloud' },
+        { label: 'Self-hosted', id: 'self_hosted' },
+      ],
+      value: () => 'cloud',
+      description:
+        'Self-hosted environments run on your own infrastructure and route memory via session metadata; file attachments are cloud-only.',
+    },
+    {
       id: 'agent',
       title: 'Agent',
       type: 'combobox',
@@ -62,7 +76,7 @@ export const ManagedAgentBlock: BlockConfig = {
       placeholder: 'Select an environment…',
       commandSearchable: true,
       options: [],
-      dependsOn: ['credential'],
+      dependsOn: ['credential', 'environmentType'],
       fetchOptions: fetchManagedAgentEnvironmentOptions,
     },
     {
@@ -104,6 +118,10 @@ export const ManagedAgentBlock: BlockConfig = {
       commandSearchable: true,
       options: [],
       dependsOn: ['credential'],
+      // Cloud only: memory stores attach as `resources[]`, which self-hosted
+      // rejects. A self-hosted worker that uses a store reads its id from a
+      // Metadata key the author sets explicitly.
+      condition: { field: 'environmentType', value: 'cloud' },
       fetchOptions: fetchManagedAgentMemoryStoreOptions,
     },
     {
@@ -117,7 +135,12 @@ export const ManagedAgentBlock: BlockConfig = {
         { label: 'Read only', id: 'read_only' },
       ],
       value: () => 'read_write',
-      condition: { field: 'memoryStoreId', value: '', not: true },
+      condition: {
+        field: 'memoryStoreId',
+        value: '',
+        not: true,
+        and: { field: 'environmentType', value: 'cloud' },
+      },
       description: 'read_write pushes changes back on session exit; read_only never writes.',
     },
     {
@@ -127,7 +150,14 @@ export const ManagedAgentBlock: BlockConfig = {
       required: false,
       mode: 'advanced',
       placeholder: 'Optional — how the agent should use this memory store',
-      condition: { field: 'memoryStoreId', value: '', not: true },
+      // Cloud only: instructions are a `resources[]` memory-attach concept the
+      // API renders into the system prompt; self-hosted has no resource attach.
+      condition: {
+        field: 'memoryStoreId',
+        value: '',
+        not: true,
+        and: { field: 'environmentType', value: 'cloud' },
+      },
       description: 'Per-attachment guidance rendered into the memory section of the system prompt.',
     },
     {
@@ -136,9 +166,11 @@ export const ManagedAgentBlock: BlockConfig = {
       type: 'table',
       required: false,
       mode: 'advanced',
+      // Cloud only: files attach as `resources[]`, which self-hosted rejects.
+      condition: { field: 'environmentType', value: 'cloud' },
       columns: ['File ID', 'Mount path'],
       description:
-        'Files-API file ids (file_...) to attach as file resources (cloud environments). Mount path is optional.',
+        'Files-API file ids (file_...) to attach as file resources. Mount path is optional.',
     },
     {
       id: 'sessionParameters',
@@ -156,6 +188,11 @@ export const ManagedAgentBlock: BlockConfig = {
   },
   inputs: {
     credential: { type: 'string', description: 'Claude Platform credential id.' },
+    environmentType: {
+      type: 'string',
+      description:
+        "Environment execution model — 'cloud' or 'self_hosted'. Filters the environment picker and gates cloud-only fields; the actual type is re-resolved server-side for routing.",
+    },
     agent: { type: 'string', description: 'Managed-agent id inside the linked Claude workspace.' },
     environment: {
       type: 'string',

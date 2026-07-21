@@ -118,10 +118,11 @@ function managedAgentsHeaders(
  *
  * Cloud environments attach memory stores and files via the `resources[]`
  * array. Self-hosted environments REJECT `resources` (a documented 400 —
- * "resources are not supported with self-hosted environments"), so there the
- * memory store is surfaced to the worker via `metadata.memory_store_ids` /
- * `metadata.memory_access` and files are dropped. Session parameters always go
- * on `metadata` for both.
+ * "resources are not supported with self-hosted environments") and have no
+ * native memory/file attach, so those are omitted there; the block hides the
+ * fields accordingly. Session parameters always go on `metadata` for both — a
+ * self-hosted worker that consumes a memory store reads it from a metadata key
+ * the author sets explicitly.
  */
 export function buildSessionCreatePayload(input: CreateSessionInput): Record<string, unknown> {
   const payload: Record<string, unknown> = {
@@ -131,16 +132,8 @@ export function buildSessionCreatePayload(input: CreateSessionInput): Record<str
   if (input.title) payload.title = input.title
   if (input.vaultIds && input.vaultIds.length > 0) payload.vault_ids = input.vaultIds
 
-  const metadata: Record<string, string> = { ...(input.sessionParameters ?? {}) }
-
-  if (input.environmentType === 'self_hosted') {
-    // No `resources` on self-hosted — route memory through metadata (the
-    // worker consumes these keys) and drop file attachments.
-    if (input.memoryStoreId) {
-      metadata.memory_store_ids = input.memoryStoreId
-      metadata.memory_access = input.memoryAccess ?? 'read_write'
-    }
-  } else {
+  // `resources` (memory stores + files) are cloud-only. Self-hosted rejects them.
+  if (input.environmentType !== 'self_hosted') {
     const resources: Array<Record<string, unknown>> = []
     if (input.memoryStoreId) {
       const memory: Record<string, unknown> = {
@@ -162,7 +155,9 @@ export function buildSessionCreatePayload(input: CreateSessionInput): Record<str
     if (resources.length > 0) payload.resources = resources
   }
 
-  if (Object.keys(metadata).length > 0) payload.metadata = metadata
+  if (input.sessionParameters && Object.keys(input.sessionParameters).length > 0) {
+    payload.metadata = { ...input.sessionParameters }
+  }
   return payload
 }
 
