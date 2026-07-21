@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isPrivateIp } from '@sim/security/ssrf'
+import { isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/env-flags'
 
@@ -722,8 +722,7 @@ export function validateExternalUrl(
   const protocol = parsedUrl.protocol
   const hostname = parsedUrl.hostname.toLowerCase()
 
-  const cleanHostname =
-    hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+  const cleanHostname = unwrapIpv6Brackets(hostname)
 
   let isLocalhost = cleanHostname === 'localhost'
   if (ipaddr.isValid(cleanHostname)) {

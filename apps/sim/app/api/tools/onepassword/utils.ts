@@ -12,7 +12,7 @@ import type {
   Website,
 } from '@1password/sdk'
 import { createLogger } from '@sim/logger'
-import { isPrivateIp } from '@sim/security/ssrf'
+import { isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import * as ipaddr from 'ipaddr.js'
@@ -305,8 +305,7 @@ export async function validateConnectServerUrl(serverUrl: string): Promise<strin
     throw new Error('1Password server URL is not a valid URL')
   }
 
-  const clean =
-    hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+  const clean = unwrapIpv6Brackets(hostname)
 
   if (ipaddr.isValid(clean)) {
     assertConnectIpAllowed(clean, clean)

@@ -332,6 +332,11 @@ async function executeToolInner(
   switch (tool) {
     case 'browser_navigate': {
       const url = requireStr(params, 'url')
+      // Up-front SSRF check for a clean model-facing error. The partition's
+      // onBeforeRequest is the actual enforcement seam (it also catches
+      // page-initiated navigations); this pre-check exists because loadURL's
+      // rejection is swallowed below, so a blocked nav would otherwise surface
+      // as a blank page with no error.
       const guard = await checkAgentUrl(url)
       if (!guard.ok) {
         throw new ToolError(guard.error ?? 'That address was blocked.')

@@ -352,7 +352,7 @@ function capturePanelSnapshot(): void {
     })
     .catch((error) => {
       logger.warn('Could not capture browser panel snapshot', {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       })
     })
 }

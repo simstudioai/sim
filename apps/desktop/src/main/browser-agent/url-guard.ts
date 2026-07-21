@@ -6,6 +6,27 @@ import { parseHttpUrl } from '@/main/navigation'
 
 const logger = createLogger('BrowserAgentUrlGuard')
 
+/** Hard deadline on the SSRF DNS lookup so a slow/hung resolver can't suspend
+ * the check — and the onBeforeRequest callback that awaits it — indefinitely.
+ * A timeout rejects, which fails closed (blocks) via the caller's catch. */
+const DNS_TIMEOUT_MS = 5_000
+
+/** dns.lookup bounded by {@link DNS_TIMEOUT_MS}; the timer is always cleared so a
+ * won race never leaves a dangling rejection. */
+async function resolveHost(host: string) {
+  let timer: NodeJS.Timeout | undefined
+  try {
+    return await Promise.race([
+      dns.lookup(host, { all: true, verbatim: true }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('DNS lookup timed out')), DNS_TIMEOUT_MS)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export interface UrlGuardResult {
   ok: boolean
   error?: string
@@ -52,7 +73,7 @@ export async function checkAgentUrl(rawUrl: string): Promise<UrlGuardResult> {
   }
 
   try {
-    const resolved = await dns.lookup(host, { all: true, verbatim: true })
+    const resolved = await resolveHost(host)
     if (resolved.some(({ address }) => isPrivateIp(address))) {
       logger.warn('Blocked agent navigation resolving to private IP', { host })
       return BLOCKED

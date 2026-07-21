@@ -60,6 +60,18 @@ describe('checkAgentUrl', () => {
     mockLookup.mockRejectedValue(new Error('ENOTFOUND'))
     expect((await checkAgentUrl('https://nope.invalid/')).ok).toBe(false)
   })
+
+  it('fails closed when the DNS lookup exceeds the deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      mockLookup.mockReturnValue(new Promise(() => {})) // never resolves
+      const pending = checkAgentUrl('https://slow.test/')
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect((await pending).ok).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe('isBlockedRequestUrl', () => {

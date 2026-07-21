@@ -3,7 +3,7 @@ import http from 'http'
 import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
-import { isPrivateIp, isPrivateIpHost } from '@sim/security/ssrf'
+import { isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import * as ipaddr from 'ipaddr.js'
@@ -49,10 +49,7 @@ export async function validateUrlWithDNS(
   const hostname = parsedUrl.hostname
 
   const hostnameLower = hostname.toLowerCase()
-  const cleanHostname =
-    hostnameLower.startsWith('[') && hostnameLower.endsWith(']')
-      ? hostnameLower.slice(1, -1)
-      : hostnameLower
+  const cleanHostname = unwrapIpv6Brackets(hostnameLower)
 
   let isLocalhost = cleanHostname === 'localhost'
   if (ipaddr.isValid(cleanHostname)) {
@@ -129,9 +126,7 @@ export async function validateDatabaseHost(
     return { isValid: false, error: `${paramName} is required` }
   }
 
-  const lowerHost = host.toLowerCase()
-  const cleanHost =
-    lowerHost.startsWith('[') && lowerHost.endsWith(']') ? lowerHost.slice(1, -1) : lowerHost
+  const cleanHost = unwrapIpv6Brackets(host.toLowerCase())
 
   if (cleanHost === 'localhost' && !isPrivateDatabaseHostsAllowed) {
     return { isValid: false, error: `${paramName} cannot be localhost` }
