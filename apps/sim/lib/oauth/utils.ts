@@ -609,6 +609,18 @@ for (const [baseProviderId, providerConfig] of Object.entries(OAUTH_PROVIDERS)) 
       baseProvider: baseProviderId,
       serviceKey,
     }
+    // Service-account credentials are stored under `serviceAccountProviderId`
+    // (e.g. `claude-platform-service-account`). Map it to the same base so
+    // icon/name resolution doesn't fall back to a mis-split base provider — the
+    // hyphen split only recovers a single-segment base (`google`), not a
+    // multi-segment one (`claude-platform`). First service to claim it wins.
+    const saProviderId = service.serviceAccountProviderId
+    if (saProviderId && !PROVIDER_ID_TO_BASE_PROVIDER[saProviderId]) {
+      PROVIDER_ID_TO_BASE_PROVIDER[saProviderId] = {
+        baseProvider: baseProviderId,
+        serviceKey,
+      }
+    }
   }
 }
 

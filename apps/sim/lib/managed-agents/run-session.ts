@@ -216,7 +216,12 @@ export async function runManagedAgentSession(
           })
         },
         onEvent: async (event) => {
-          if (event.id && seenIds.has(event.id)) return undefined
+          // Skip idless events — `event_start`/`event_delta` stream previews
+          // carry no id, are never persisted, and are never deduped, so
+          // accumulating their text would double it once the persisted
+          // `agent.message` arrives. Final text always lands as an id-bearing
+          // event, so previews add nothing. Mirrors the catch-up loop.
+          if (!event.id || seenIds.has(event.id)) return undefined
           return (await process(event)) ? true : undefined
         },
       })
