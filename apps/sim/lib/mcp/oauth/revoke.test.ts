@@ -31,7 +31,7 @@ const {
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createPinnedFetchWithDispatcher: vi.fn(() => ({
+  createSsrfGuardedFetchWithDispatcher: vi.fn(() => ({
     fetch: mockUndiciFetch,
     dispatcher: { destroy: vi.fn(() => Promise.resolve()) },
   })),

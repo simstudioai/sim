@@ -105,10 +105,7 @@ export async function validateUrlWithDNS(
   }
 
   try {
-    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
-    // on IPv4-only egress (e.g. AWS NAT gateways). See validateMcpServerSsrf.
-    const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
-    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
+    const { address } = await dns.lookup(cleanHostname, { verbatim: true })
 
     const resolvedIsLoopback =
       ipaddr.isValid(address) &&
@@ -420,6 +417,136 @@ export function createPinnedLookup(resolvedIP: string): LookupFunction {
       callback(null, resolvedIP, family)
     }
   }
+}
+
+/**
+ * DNS lookup that resolves normally and validates EVERY resolved address against
+ * the SSRF policy at socket-connect time (the LibreChat `getSSRFConnect` pattern).
+ * Private/reserved/loopback records are filtered out; if nothing publicly routable
+ * remains the connect fails. Because the check runs on each dial — including
+ * redirects and reconnects — there is no validated-then-trusted window for a DNS
+ * rebind to slip through, and unlike single-IP pinning the connector keeps the
+ * full public address set, so the OS/undici can fall back across addresses.
+ * IPv4 is ordered first (`verbatim: false`) — our egress is IPv4-only.
+ */
+export function createSsrfGuardedLookup(): LookupFunction {
+  return (hostname, options, callback) => {
+    dns
+      .lookup(hostname, { all: true, verbatim: false })
+      .then((addresses) => {
+        const usable = addresses.filter((entry) => !isPrivateOrReservedIP(entry.address))
+        if (usable.length === 0) {
+          callback(
+            new Error(`Blocked by SSRF policy: ${hostname} has no publicly routable address`),
+            '',
+            4
+          )
+          return
+        }
+        if (options.all) callback(null, usable)
+        else callback(null, usable[0].address, usable[0].family)
+      })
+      .catch((error) => callback(toError(error), '', 4))
+  }
+}
+
+const MAX_GUARDED_REDIRECTS = 5
+
+/**
+ * Rejects a redirect hop whose target is a private/reserved IP LITERAL. Node's
+ * `net.connect` bypasses the custom `lookup` for numeric hosts (`isIP(host)`
+ * short-circuits), so the connect-time guard never sees IP-literal dials —
+ * a 3xx to `http://169.254.169.254/` would otherwise connect directly. Hostname
+ * targets are covered by {@link createSsrfGuardedLookup} at connect time.
+ */
+function assertGuardedRedirectTarget(url: URL): void {
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`Blocked by SSRF policy: redirect to unsupported protocol ${url.protocol}`)
+  }
+  const host =
+    url.hostname.startsWith('[') && url.hostname.endsWith(']')
+      ? url.hostname.slice(1, -1)
+      : url.hostname
+  if (ipaddr.isValid(host) && isPrivateOrReservedIP(host)) {
+    throw new Error('Blocked by SSRF policy: redirect to a private or reserved address')
+  }
+}
+
+/**
+ * Manual, revalidating redirect follower used by the guarded fetch. Auto-follow
+ * is unsafe here on two counts the connect-time lookup cannot cover: IP-literal
+ * redirect targets bypass the lookup entirely (validated per hop instead), and
+ * undici retains CUSTOM request headers across cross-origin redirects (it strips
+ * only Authorization/Cookie) — so caller headers are dropped on any cross-origin
+ * hop. Exported for tests.
+ */
+export async function followRedirectsGuarded(
+  rawFetch: (url: string, init: UndiciRequestInit) => Promise<Response>,
+  input: string,
+  init: UndiciRequestInit
+): Promise<Response> {
+  let currentUrl = new URL(input)
+  let method = (init.method ?? 'GET').toUpperCase()
+  let body = init.body
+  let headers = init.headers
+  for (let hop = 0; ; hop++) {
+    const response = await rawFetch(currentUrl.href, {
+      ...init,
+      method,
+      body,
+      headers,
+      redirect: 'manual',
+    })
+    const status = response.status
+    const location = response.headers.get('location')
+    if (![301, 302, 303, 307, 308].includes(status) || !location) return response
+    if (hop >= MAX_GUARDED_REDIRECTS) {
+      throw new Error(`Blocked by SSRF policy: more than ${MAX_GUARDED_REDIRECTS} redirects`)
+    }
+    const nextUrl = new URL(location, currentUrl)
+    assertGuardedRedirectTarget(nextUrl)
+    await response.body?.cancel().catch(() => {})
+    // Per the fetch spec: 303 (and 301/302 on POST) switch to a bodyless GET.
+    if (status === 303 || ((status === 301 || status === 302) && method === 'POST')) {
+      method = 'GET'
+      body = undefined
+    }
+    if (nextUrl.origin !== currentUrl.origin) headers = undefined
+    currentUrl = nextUrl
+  }
+}
+
+/**
+ * SSRF-guarded `fetch` + its `Agent` for outbound requests to user-controlled
+ * hosts: DNS resolves normally, and every socket connect validates the chosen
+ * addresses via {@link createSsrfGuardedLookup}; redirects are followed manually
+ * with per-hop validation (see {@link followRedirectsGuarded}) so IP-literal
+ * targets can't bypass the lookup and custom headers never cross origins. See
+ * {@link createPinnedFetchWithDispatcher} for the `maxResponseSize` semantics.
+ */
+export function createSsrfGuardedFetchWithDispatcher(options?: { maxResponseSize?: number }): {
+  fetch: typeof fetch
+  dispatcher: Agent
+} {
+  const dispatcher = new Agent({
+    allowH2: false,
+    connect: { lookup: createSsrfGuardedLookup() },
+    ...(options?.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
+  })
+
+  const rawFetch = async (url: string, init: UndiciRequestInit): Promise<Response> => {
+    const response = await undiciFetch(url, { ...init, dispatcher })
+    // double-cast-allowed: undici Response and DOM Response are structurally compatible at runtime
+    return response as unknown as Response
+  }
+
+  const guarded = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const target = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
+    return followRedirectsGuarded(rawFetch, target, (init ?? {}) as unknown as UndiciRequestInit)
+  }
+
+  return { fetch: guarded, dispatcher }
 }
 
 /**

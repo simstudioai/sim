@@ -21,7 +21,7 @@ vi.mock('@sim/logger', () => ({
 }))
 
 vi.mock('@/lib/mcp/pinned-fetch', () => ({
-  createPinnedMcpFetch: vi.fn(() => ({ fetch: vi.fn(), close: mockPinnedClose })),
+  createGuardedMcpFetch: vi.fn(() => ({ fetch: vi.fn(), close: mockPinnedClose })),
 }))
 
 /**

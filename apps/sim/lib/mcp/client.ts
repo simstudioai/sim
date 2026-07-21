@@ -13,7 +13,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
-import { createPinnedMcpFetch } from '@/lib/mcp/pinned-fetch'
+import { createGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
   type McpClientOptions,
   McpConnectionError,
@@ -73,7 +73,7 @@ export class McpClient {
   private onToolsChanged?: McpToolsChangedCallback
   private authProvider?: McpClientOptions['authProvider']
   private isConnected = false
-  private closePinnedTransport?: () => Promise<void>
+  private closeGuardedTransport?: () => Promise<void>
 
   constructor(options: McpClientOptions) {
     this.config = options.config
@@ -96,12 +96,14 @@ export class McpClient {
       throw new McpError('OAuth MCP server requires an authProvider')
     }
     const useOauth = this.config.authType === 'oauth'
-    const pinned = resolvedIP ? createPinnedMcpFetch(resolvedIP) : undefined
-    this.closePinnedTransport = pinned?.close
+    // `resolvedIP` non-null signals the SSRF policy is active for this server (it is null in
+    // allowlist mode / localhost-on-self-hosted); the guard validates addresses per-connect.
+    const guarded = resolvedIP ? createGuardedMcpFetch() : undefined
+    this.closeGuardedTransport = guarded?.close
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
       requestInit: { headers: this.config.headers },
-      ...(pinned ? { fetch: pinned.fetch } : {}),
+      ...(guarded ? { fetch: guarded.fetch } : {}),
     })
 
     this.client = new Client(
@@ -235,9 +237,9 @@ export class McpClient {
    * followed by the caller's `disconnect()`) never destroy the same Agent twice.
    */
   private async closeTransportAgent(): Promise<void> {
-    const close = this.closePinnedTransport
+    const close = this.closeGuardedTransport
     if (!close) return
-    this.closePinnedTransport = undefined
+    this.closeGuardedTransport = undefined
     try {
       await close()
     } catch (error) {
