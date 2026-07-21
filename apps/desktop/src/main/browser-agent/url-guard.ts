@@ -14,10 +14,14 @@ const DNS_TIMEOUT_MS = 5_000
 /** dns.lookup bounded by {@link DNS_TIMEOUT_MS}; the timer is always cleared so a
  * won race never leaves a dangling rejection. */
 async function resolveHost(host: string) {
+  const lookup = dns.lookup(host, { all: true, verbatim: true })
+  // If the timeout wins the race the lookup stays pending; swallow its eventual
+  // settlement so a late rejection can't surface as an unhandled rejection.
+  lookup.catch(() => {})
   let timer: NodeJS.Timeout | undefined
   try {
     return await Promise.race([
-      dns.lookup(host, { all: true, verbatim: true }),
+      lookup,
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error('DNS lookup timed out')), DNS_TIMEOUT_MS)
       }),
