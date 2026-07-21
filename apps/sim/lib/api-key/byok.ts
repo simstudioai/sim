@@ -187,6 +187,20 @@ export async function getApiKeyWithBYOK(
     throw new Error(`API key is required for Ollama Cloud ${model}`)
   }
 
+  const isOpenRouterModel =
+    provider === 'openrouter' ||
+    model.startsWith('openrouter/') ||
+    useProvidersStore.getState().providers.openrouter.models.includes(model)
+  if (isOpenRouterModel) {
+    if (userProvidedKey) {
+      return { apiKey: userProvidedKey, isBYOK: false }
+    }
+    if (env.OPENROUTER_API_KEY) {
+      return { apiKey: env.OPENROUTER_API_KEY, isBYOK: false }
+    }
+    throw new Error(`API key is required for OpenRouter ${model}`)
+  }
+
   const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
   if (isBedrockModel) {
     return { apiKey: PROVIDER_PLACEHOLDER_KEY, isBYOK: false }

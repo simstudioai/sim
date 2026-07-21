@@ -22,6 +22,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import type { TraceSpan } from '@/lib/logs/types'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
+import { recordWorkflowExecution } from '@/lib/workflows/executor/execution-metrics'
 
 /**
  * GenAI Semantic Convention Attributes
@@ -372,6 +373,12 @@ export function createOTelSpansForWorkflowExecution(params: {
     }
 
     rootSpan.end(new Date(params.endTime))
+    recordWorkflowExecution({
+      workflowId: params.workflowId,
+      trigger: params.trigger,
+      status: params.status,
+      durationMs: params.totalDurationMs,
+    })
 
     logger.debug('Created OTel spans for workflow execution', {
       workflowId: params.workflowId,

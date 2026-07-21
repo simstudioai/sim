@@ -147,6 +147,7 @@ vi.mock('@sim/utils/id', () => ({
   ),
 }))
 
+import { getAdmissionGateStatus, tryAdmit } from '@/lib/core/admission/gate'
 import { storeLargeValue } from '@/lib/execution/payloads/store'
 import { POST } from './route'
 
@@ -163,7 +164,10 @@ const billingAttribution = {
   payerSubscription: null,
 }
 
-function createSessionReplayRequest(executionId: string): NextRequest {
+function createSessionReplayRequest(
+  executionId: string,
+  executionMode: 'async' | 'sync' = 'async'
+): NextRequest {
   return createMockRequest(
     'POST',
     {
@@ -173,7 +177,8 @@ function createSessionReplayRequest(executionId: string): NextRequest {
     },
     {
       'Content-Type': 'application/json',
-      'X-Execution-Mode': 'async',
+      Cookie: 'session=value',
+      ...(executionMode === 'async' ? { 'X-Execution-Mode': 'async' } : {}),
     }
   )
 }
@@ -385,6 +390,51 @@ describe('workflow execute async route', () => {
         }),
       })
     )
+  })
+
+  it('applies admission backpressure to session-backed async executions', async () => {
+    hybridAuthMockFns.mockHasExternalApiCredentials.mockReturnValue(false)
+    const heldTickets = Array.from({ length: getAdmissionGateStatus().maxInflight }, () =>
+      tryAdmit()
+    ).filter((ticket): ticket is NonNullable<ReturnType<typeof tryAdmit>> => ticket !== null)
+
+    try {
+      const response = await POST(
+        createSessionReplayRequest('66666666-6666-4666-8666-666666666666'),
+        {
+          params: Promise.resolve({ id: 'workflow-1' }),
+        }
+      )
+
+      expect(response.status).toBe(429)
+      expect(mockCheckHybridAuth).not.toHaveBeenCalled()
+      expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    } finally {
+      for (const ticket of heldTickets) {
+        ticket.release()
+      }
+    }
+  })
+
+  it('leaves session-backed synchronous executions on their existing path', async () => {
+    hybridAuthMockFns.mockHasExternalApiCredentials.mockReturnValue(false)
+    const heldTickets = Array.from({ length: getAdmissionGateStatus().maxInflight }, () =>
+      tryAdmit()
+    ).filter((ticket): ticket is NonNullable<ReturnType<typeof tryAdmit>> => ticket !== null)
+
+    try {
+      const response = await POST(
+        createSessionReplayRequest('77777777-7777-4777-8777-777777777777', 'sync'),
+        { params: Promise.resolve({ id: 'workflow-1' }) }
+      )
+
+      expect(response.status).not.toBe(429)
+      expect(mockCheckHybridAuth).toHaveBeenCalled()
+    } finally {
+      for (const ticket of heldTickets) {
+        ticket.release()
+      }
+    }
   })
 
   it('preserves a first-use execution ID supplied by an authenticated session', async () => {

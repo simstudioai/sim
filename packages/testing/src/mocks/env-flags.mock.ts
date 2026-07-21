@@ -32,6 +32,7 @@ export const envFlagsMock = {
   isE2BDocEnabled: false,
   isOllamaConfigured: false,
   isAzureConfigured: false,
+  isOpenRouterConfigured: false,
   isInvitationsDisabled: false,
   isPublicApiDisabled: false,
   isGoogleAuthDisabled: false,

@@ -5,7 +5,11 @@ import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('AdmissionGate')
 
-const MAX_INFLIGHT = Number.parseInt(env.ADMISSION_GATE_MAX_INFLIGHT ?? '') || 500
+/**
+ * Default matches the web DB pool (`primaryMax=10`) so admitted in-process work
+ * cannot silently outrun shared connections + heap. Override per pod via env.
+ */
+const MAX_INFLIGHT = Number.parseInt(env.ADMISSION_GATE_MAX_INFLIGHT ?? '') || 10
 
 let inflight = 0
 
@@ -19,6 +23,10 @@ export interface AdmissionTicket {
  * Zero external calls — purely in-process atomic counter. Each pod maintains its
  * own counter, so the effective aggregate limit across N pods is N × MAX_INFLIGHT.
  * Configure ADMISSION_GATE_MAX_INFLIGHT per pod based on what each pod can sustain.
+ *
+ * Callers that run work inline after returning HTTP 202 must retain the ticket
+ * until that work finishes — releasing on response alone does not bound
+ * concurrent executions.
  */
 export function tryAdmit(): AdmissionTicket | null {
   if (inflight >= MAX_INFLIGHT) {

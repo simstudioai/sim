@@ -3,11 +3,13 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsHosted, mockIsAzureConfigured, mockIsOllamaConfigured } = vi.hoisted(() => ({
-  mockIsHosted: { value: false },
-  mockIsAzureConfigured: { value: false },
-  mockIsOllamaConfigured: { value: false },
-}))
+const { mockIsHosted, mockIsAzureConfigured, mockIsOllamaConfigured, mockIsOpenRouterConfigured } =
+  vi.hoisted(() => ({
+    mockIsHosted: { value: false },
+    mockIsAzureConfigured: { value: false },
+    mockIsOllamaConfigured: { value: false },
+    mockIsOpenRouterConfigured: { value: false },
+  }))
 
 const {
   mockGetHostedModels,
@@ -43,6 +45,12 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   },
   get isOllamaConfigured() {
     return mockIsOllamaConfigured.value
+  },
+  get isOpenRouterConfigured() {
+    return mockIsOpenRouterConfigured.value
+  },
+  get isCohereConfigured() {
+    return false
   },
 }))
 
@@ -106,6 +114,7 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     mockIsHosted.value = false
     mockIsAzureConfigured.value = false
     mockIsOllamaConfigured.value = false
+    mockIsOpenRouterConfigured.value = false
     mockProviders.value = {
       base: { models: [], isLoading: false },
       ollama: { models: [], isLoading: false },
@@ -208,6 +217,13 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     it('requires API key when model is in the openrouter store bucket', () => {
       mockProviders.value.openrouter.models = ['openrouter/anthropic/claude']
       expect(evaluateCondition('openrouter/anthropic/claude')).toBe(true)
+    })
+
+    it('does not require API key for openrouter/ models when OpenRouter is configured', () => {
+      mockIsOpenRouterConfigured.value = true
+      expect(evaluateCondition('openrouter/deepseek/deepseek-v4-flash')).toBe(false)
+      mockProviders.value.openrouter.models = ['openrouter/anthropic/claude']
+      expect(evaluateCondition('openrouter/anthropic/claude')).toBe(false)
     })
 
     it('is case-insensitive for store lookup', () => {

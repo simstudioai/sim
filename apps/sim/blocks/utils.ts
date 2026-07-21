@@ -4,6 +4,7 @@ import {
   isCohereConfigured,
   isHosted,
   isOllamaConfigured,
+  isOpenRouterConfigured,
 } from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
@@ -196,6 +197,13 @@ function shouldRequireApiKeyForModel(model: string): boolean {
       normalizedModel.startsWith('azure-openai/') ||
       normalizedModel.startsWith('azure-anthropic/') ||
       AZURE_MODELS.some((m) => m.toLowerCase() === normalizedModel))
+  ) {
+    return false
+  }
+  if (
+    isOpenRouterConfigured &&
+    (normalizedModel.startsWith('openrouter/') ||
+      getProviderFromStore(normalizedModel) === 'openrouter')
   ) {
     return false
   }

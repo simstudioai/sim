@@ -262,6 +262,16 @@ export const isAzureConfigured = isTruthy(getEnv('NEXT_PUBLIC_AZURE_CONFIGURED')
 export const isCohereConfigured = isTruthy(getEnv('NEXT_PUBLIC_COHERE_CONFIGURED'))
 
 /**
+ * Whether an OpenRouter API key is pre-configured (`OPENROUTER_API_KEY`).
+ * When true, Agent/Router/Evaluator blocks hide the API Key field for OpenRouter models
+ * and resolve the key from the environment at execution time.
+ * Client bundles also honor `NEXT_PUBLIC_OPENROUTER_CONFIGURED=true` so the field stays
+ * hidden in the editor (server-only `OPENROUTER_API_KEY` never reaches the browser).
+ */
+export const isOpenRouterConfigured =
+  Boolean(env.OPENROUTER_API_KEY) || isTruthy(getEnv('NEXT_PUBLIC_OPENROUTER_CONFIGURED'))
+
+/**
  * Are invitations disabled globally
  * When true, workspace invitations are disabled for all users
  */
