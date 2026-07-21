@@ -62,6 +62,23 @@ const tableTrigger = trigger([
   { id: 'manualTableId', mode: 'trigger-advanced', canonicalParamId: 'tableId', required: true },
 ])
 
+const slackTrigger = trigger([
+  { id: 'eventType', mode: 'trigger', required: true },
+  {
+    id: 'customBotCredential',
+    mode: 'trigger',
+    canonicalParamId: 'botCredential',
+    serviceId: 'slack',
+    required: true,
+  },
+  {
+    id: 'manualBotCredential',
+    mode: 'trigger-advanced',
+    canonicalParamId: 'botCredential',
+    required: true,
+  },
+])
+
 function makeBlock(
   type: string,
   subBlockValues: Record<string, unknown>,
@@ -154,6 +171,28 @@ describe('buildProviderConfig canonical collapse', () => {
     )
     const { providerConfig } = buildProviderConfig(block, 'table_new_row', tableTrigger)
     expect(providerConfig.tableId).toBe('ACTIVE')
+  })
+
+  it('collapses the slack bot credential pair under botCredential for the routing branch', () => {
+    const block = makeBlock('slack_v2', {
+      eventType: 'message',
+      customBotCredential: 'cred_bot_1',
+    })
+    const result = buildProviderConfig(block, 'slack_oauth', slackTrigger)
+
+    expect(result.providerConfig.botCredential).toBe('cred_bot_1')
+    expect(result.providerConfig.eventType).toBe('message')
+    // The slack trigger has no generic triggerCredentials field — the routing
+    // branch resolves botCredential itself.
+    expect(result.credentialReference).toBeUndefined()
+    expect(result.credentialServiceId).toBeUndefined()
+  })
+
+  it('reports a missing required slack bot credential as a missing field', () => {
+    const block = makeBlock('slack_v2', { eventType: 'message' })
+    const result = buildProviderConfig(block, 'slack_oauth', slackTrigger)
+
+    expect(result.missingFields.length).toBeGreaterThan(0)
   })
 })
 

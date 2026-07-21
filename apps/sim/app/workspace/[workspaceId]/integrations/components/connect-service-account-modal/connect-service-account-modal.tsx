@@ -178,6 +178,7 @@ export function ConnectServiceAccountModal({
         credentialId={credentialId}
         initialDisplayName={credentialDisplayName}
         initialDescription={credentialDescription}
+        onCreated={onCreated}
       />
     )
   }

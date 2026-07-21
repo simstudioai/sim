@@ -271,17 +271,7 @@ export const slackEventById = new Map<string, SlackEventCatalogEntry>(
   SLACK_EVENT_CATALOG.map((entry) => [entry.id, entry])
 )
 
-/** Event ids the official shared Sim app subscribes to (Sim-mode gating SOT). */
-export const SIM_SUBSCRIBED_EVENTS: readonly string[] = SLACK_EVENT_CATALOG.filter(
-  (entry) => entry.simSubscribed
-).map((entry) => entry.id)
-
-/** Dropdown options for Sim mode — only officially-subscribed events. */
-export const SLACK_SIM_EVENT_OPTIONS = SLACK_EVENT_CATALOG.filter(
-  (entry) => entry.simSubscribed
-).map((entry) => ({ label: entry.label, id: entry.id }))
-
-/** Dropdown options for Custom mode — every event (manifest generated on demand). */
+/** Dropdown options for the event picker — every event (manifest generated on demand). */
 export const SLACK_ALL_EVENT_OPTIONS = SLACK_EVENT_CATALOG.map((entry) => ({
   label: entry.label,
   id: entry.id,
