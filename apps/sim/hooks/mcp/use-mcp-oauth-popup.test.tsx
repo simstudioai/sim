@@ -180,7 +180,7 @@ describe('useMcpOauthPopup', () => {
     hook.unmount()
   })
 
-  it('keeps the row connecting when a reopen fails but a prior flow is still live', async () => {
+  it('clears the row when a reopen fails (the reopen blanked the prior window)', async () => {
     mockStartOauth.mockResolvedValueOnce({
       status: 'redirect',
       authorizationUrl: 'https://as.example/a?state=st-a',
@@ -195,14 +195,15 @@ describe('useMcpOauthPopup', () => {
     await flush()
     expect(hook.result().connectingServers.has('s1')).toBe(true)
 
-    // Reopen fails (e.g. popup blocked). The still-live prior flow must keep the row connecting
-    // rather than the failed attempt clearing it (deterministic reference counting).
-    mockStartOauth.mockRejectedValueOnce(new Error('Popup blocked'))
+    // Reopen fails after the named-window open already navigated the prior auth window to
+    // about:blank — the prior flow is moot (windowless), so BOTH it and the failed attempt
+    // clear, leaving the row idle with 'Connect with OAuth' immediately available.
+    mockStartOauth.mockRejectedValueOnce(new Error('start failed'))
     await act(async () => {
       await hook.result().startOauthForServer('s1')
     })
     await flush()
-    expect(hook.result().connectingServers.has('s1')).toBe(true)
+    expect(hook.result().connectingServers.has('s1')).toBe(false)
 
     hook.unmount()
   })

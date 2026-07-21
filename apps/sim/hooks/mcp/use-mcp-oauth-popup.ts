@@ -168,14 +168,14 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
         return
       }
       popup.focus?.()
+      // Opening the shared named window just navigated ANY prior authorization window to
+      // about:blank, so prior flows for this server are moot regardless of how this attempt
+      // ends — retire them now (a failed start must not leave a windowless flow "connecting"
+      // for the 10-minute safety timeout).
+      retireFlows(serverId)
       incConnecting(serverId) // this attempt begins
       try {
         const result = await startOauth({ serverId, workspaceId })
-        // The replacement start succeeded (already-authorized, or a fresh authorization is
-        // underway), so retire any prior attempt for this server now — its result is moot and
-        // the server-side `state` it depended on has been overwritten. A *failed* start
-        // (below) leaves prior flows intact.
-        retireFlows(serverId)
         if (result.status === 'already_authorized') {
           try {
             popup.close()
@@ -185,11 +185,18 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
           return
         }
         const { authorizationUrl, state } = result
+        let navigated = true
         try {
           popup.location.replace(authorizationUrl)
         } catch {
           // A COOP-severed reused window can refuse scripted navigation; reopen by name.
-          window.open(authorizationUrl, `mcp-oauth-${serverId}`)
+          // This runs after the await, so it can itself be popup-blocked — check it.
+          navigated = window.open(authorizationUrl, `mcp-oauth-${serverId}`) !== null
+        }
+        if (!navigated) {
+          decConnecting(serverId)
+          toast.error('Popup blocked. Please allow popups for this site and retry.')
+          return
         }
         // Track the in-flight flow by its `state` nonce for the BroadcastChannel gate, bounded by
         // a safety timeout in case no result ever arrives (popup abandoned, or a callback the

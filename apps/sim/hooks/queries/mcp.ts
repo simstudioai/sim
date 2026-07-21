@@ -317,12 +317,28 @@ export function useStartMcpOauth() {
   return useMutation<StartMcpOauthMutationResult, Error, { serverId: string; workspaceId: string }>(
     {
       mutationFn: async ({ serverId, workspaceId }) => {
-        const result = await requestJson(startMcpOauthContract, {
-          query: { serverId, workspaceId },
-          // A stalled /oauth/start must settle so the caller can reset the connecting
-          // state and close its pre-opened popup instead of appearing bricked.
-          signal: AbortSignal.timeout(30_000),
-        })
+        // A stalled /oauth/start must settle so the caller can reset the connecting
+        // state and close its pre-opened popup instead of appearing bricked.
+        // Feature-detect AbortSignal.timeout (Safari <16 lacks it) with a plain
+        // controller fallback.
+        let timeoutSignal: AbortSignal | undefined
+        let timeoutId: ReturnType<typeof setTimeout> | undefined
+        if (typeof AbortSignal.timeout === 'function') {
+          timeoutSignal = AbortSignal.timeout(30_000)
+        } else {
+          const controller = new AbortController()
+          timeoutId = setTimeout(() => controller.abort(new Error('Request timed out')), 30_000)
+          timeoutSignal = controller.signal
+        }
+        let result: Awaited<ReturnType<typeof requestJson<typeof startMcpOauthContract>>>
+        try {
+          result = await requestJson(startMcpOauthContract, {
+            query: { serverId, workspaceId },
+            signal: timeoutSignal,
+          })
+        } finally {
+          if (timeoutId !== undefined) clearTimeout(timeoutId)
+        }
         if (result.status === 'already_authorized') return { status: 'already_authorized' }
 
         const parsedUrl = new URL(result.authorizationUrl)
