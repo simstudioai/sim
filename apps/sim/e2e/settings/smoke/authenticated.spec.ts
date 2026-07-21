@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
 
@@ -51,6 +52,10 @@ test('billing-enabled signup, login, and settings use real Sim boundaries', asyn
   } finally {
     await restoredContext.close()
   }
+  writeFileSync(
+    path.join(requiredEnv('E2E_MARKER_DIR'), `foundation-authenticated-${testIdentity}.json`),
+    JSON.stringify({ runId, testIdentity })
+  )
 })
 
 async function assertGeneralSettings(page: import('@playwright/test').Page): Promise<void> {

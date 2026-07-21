@@ -6,6 +6,10 @@ per-run pgvector database.
 
 ## One-time setup
 
+0. Install Node 22 and Bun. Playwright workers require Node 22; set
+   `E2E_NODE_BINARY` to an alternate Node 22 executable when `node` on `PATH`
+   points elsewhere.
+
 1. Map the hosted E2E origin to loopback:
 
    ```bash
@@ -24,6 +28,9 @@ per-run pgvector database.
      -p 5432:5432 \
      pgvector/pgvector:pg17
    ```
+
+   Cleanup uses `DROP DATABASE ... WITH (FORCE)`, which requires PostgreSQL 13
+   or newer and is supported by the pinned pgvector/PostgreSQL 17 image.
 
 3. Install Chromium from `apps/sim`:
 
@@ -80,3 +87,7 @@ node ../../node_modules/@playwright/test/cli.js show-trace test-results/<test>/t
 The runner starts every child process from a fresh environment. It allowlists
 only deterministic E2E values and shadows keys found in local `.env*` files, so
 developer credentials are not used as test state or written to reports.
+
+Provider log scans are diagnostic tripwires, not proof of zero egress. The
+primary boundaries are the default-deny child environment, provider disabling,
+loopback-only service bindings, and guarded Stripe transport.

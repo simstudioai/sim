@@ -12,7 +12,7 @@ import {
 } from '../support/database'
 import { buildChildEnvironment, discoverEnvFileKeys } from '../support/env'
 import { areValidE2eHostAddresses, isLoopbackAddress } from '../support/hosts'
-import { assertPortAvailable } from '../support/process'
+import { assertPortAvailable, spawnManagedProcess } from '../support/process'
 
 test.describe('foundation safety guards', () => {
   test('discovers env keys without leaking values and shadows unknown keys', () => {
@@ -95,6 +95,15 @@ test.describe('foundation safety guards', () => {
     ).toThrow(/coupled workflows must remain unsharded/)
   })
 
+  test('Playwright CLI arguments cannot override orchestration invariants', () => {
+    expect(() => parseRunOptions(['--workers=8'])).toThrow(/cannot override/)
+    expect(() => parseRunOptions(['--config=other.config.ts'])).toThrow(/cannot override/)
+    expect(() => parseRunOptions(['--project', 'hosted-billing-chromium-navigation'])).toThrow(
+      /canonical/
+    )
+    expect(() => parseRunOptions(['--pass-with-no-tests'])).toThrow(/cannot override/)
+  })
+
   test('port preflight rejects an existing listener', async () => {
     const server = createServer()
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -106,6 +115,25 @@ test.describe('foundation safety guards', () => {
       await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve()))
       )
+    }
+  })
+
+  test('spawn failures finalize without hanging cleanup', async () => {
+    const logsDirectory = mkdtempSync(path.join(os.tmpdir(), 'sim-e2e-spawn-'))
+    try {
+      const managed = spawnManagedProcess({
+        name: 'missing-command',
+        command: path.join(logsDirectory, 'does-not-exist'),
+        args: [],
+        cwd: logsDirectory,
+        env: { NODE_ENV: 'test', PATH: process.env.PATH ?? '' },
+        logsDirectory,
+      })
+      const completion = await managed.completion
+      expect(completion.error).toBeTruthy()
+      await expect(managed.stop()).resolves.toBeUndefined()
+    } finally {
+      rmSync(logsDirectory, { recursive: true, force: true })
     }
   })
 })

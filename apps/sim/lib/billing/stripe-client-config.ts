@@ -30,7 +30,7 @@ function getDatabaseName(databaseUrl: string | undefined): string | null {
 
 function isLoopbackHostname(hostname: string): boolean {
   const normalized = hostname.toLowerCase()
-  if (normalized === 'localhost' || normalized === '[::1]') return true
+  if (normalized === 'localhost') return true
 
   const octets = normalized.split('.')
   return (

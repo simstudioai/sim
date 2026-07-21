@@ -67,13 +67,7 @@ export async function dropRunDatabase(adminUrl: string, databaseName: string): P
   assertLoopbackPostgresUrl(adminUrl)
   const sql = postgres(adminUrl, { max: 1, connect_timeout: 10 })
   try {
-    await sql`
-      SELECT pg_terminate_backend(pid)
-      FROM pg_stat_activity
-      WHERE datname = ${databaseName}
-        AND pid <> pg_backend_pid()
-    `
-    await sql.unsafe(`DROP DATABASE IF EXISTS "${databaseName}"`)
+    await sql.unsafe(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`)
   } finally {
     await sql.end()
   }

@@ -15,8 +15,15 @@ export interface CommandOptions {
 export interface ManagedProcess {
   name: string
   child: ChildProcess
+  completion: Promise<ProcessCompletion>
   logPath: string
   stop(): Promise<void>
+}
+
+interface ProcessCompletion {
+  code: number | null
+  signal: NodeJS.Signals | null
+  error?: Error
 }
 
 const activeProcesses = new Set<ManagedProcess>()
@@ -30,30 +37,56 @@ export function spawnManagedProcess(options: CommandOptions): ManagedProcess {
     env: options.env as NodeJS.ProcessEnv,
     stdio: ['ignore', logFd, logFd],
   })
+  let resolveCompletion!: (completion: ProcessCompletion) => void
+  const completion = new Promise<ProcessCompletion>((resolve) => {
+    resolveCompletion = resolve
+  })
+  let finalized = false
   const managed: ManagedProcess = {
     name: options.name,
     child,
+    completion,
     logPath,
-    stop: () => stopProcess(child),
+    stop: () => stopProcess(managed),
   }
-  activeProcesses.add(managed)
-  child.once('exit', () => {
+  const finalize = (result: ProcessCompletion): void => {
+    if (finalized) return
+    finalized = true
     activeProcesses.delete(managed)
     closeSync(logFd)
-  })
+    resolveCompletion(result)
+  }
+  activeProcesses.add(managed)
+  child.once('error', (error) => finalize({ code: null, signal: null, error }))
+  child.once('exit', (code, signal) => finalize({ code, signal }))
   return managed
 }
 
 export async function runCommand(options: CommandOptions): Promise<void> {
   const managed = spawnManagedProcess(options)
-  const exitCode = await waitForExit(managed.child)
-  if (exitCode !== 0) {
-    throw new Error(`${options.name} exited with code ${exitCode}. See ${managed.logPath}`)
+  const result = await managed.completion
+  if (result.error) {
+    throw new Error(`${options.name} failed to spawn. See ${managed.logPath}`, {
+      cause: result.error,
+    })
+  }
+  if (result.code !== 0) {
+    throw new Error(
+      `${options.name} exited with ${result.code ?? result.signal ?? 'unknown status'}. See ${managed.logPath}`
+    )
   }
 }
 
 export async function stopProcesses(processes: ManagedProcess[]): Promise<void> {
-  await Promise.allSettled([...processes].reverse().map((process) => process.stop()))
+  const results = await Promise.allSettled(
+    [...processes].reverse().map((process) => process.stop())
+  )
+  const failures = results.flatMap((result) =>
+    result.status === 'rejected' ? [result.reason] : []
+  )
+  if (failures.length > 0) {
+    throw new AggregateError(failures, 'Failed to stop one or more managed E2E processes')
+  }
 }
 
 export async function stopAllManagedProcesses(): Promise<void> {
@@ -64,55 +97,37 @@ export function stopAllManagedProcessesSync(
   termTimeoutMs = 5_000,
   killTimeoutMs = 2_000
 ): number[] {
-  const managedProcesses = [...activeProcesses]
-  for (const managed of managedProcesses) sendSignal(managed.child, 'SIGTERM')
-
-  const deadline = Date.now() + termTimeoutMs
-  while (Date.now() < deadline && managedProcesses.some(({ child }) => isProcessRunning(child))) {
-    sleepSync(50)
-  }
-
-  for (const { child } of managedProcesses) {
-    if (isProcessRunning(child)) sendSignal(child, 'SIGKILL')
-  }
-
-  const killDeadline = Date.now() + killTimeoutMs
-  while (
-    Date.now() < killDeadline &&
-    managedProcesses.some(({ child }) => isProcessRunning(child))
-  ) {
-    sleepSync(25)
-  }
-
-  return managedProcesses.flatMap(({ child }) =>
-    child.pid && isProcessRunning(child) ? [child.pid] : []
-  )
+  const processIds = [
+    ...new Set([...activeProcesses].flatMap(({ child }) => (child.pid ? [child.pid] : []))),
+  ]
+  sendSignalToPids(processIds, 'SIGTERM')
+  sleepSync(termTimeoutMs)
+  let runningPids = getRunningPids(processIds)
+  sendSignalToPids(runningPids, 'SIGKILL')
+  sleepSync(killTimeoutMs)
+  runningPids = getRunningPids(processIds)
+  return runningPids
 }
 
 export async function waitForManagedProcessReady(
   process: ManagedProcess,
-  readiness: Promise<void>
+  readiness: (signal: AbortSignal) => Promise<void>
 ): Promise<void> {
   if (process.child.exitCode !== null || process.child.signalCode !== null) {
     throw new Error(`${process.name} exited before readiness. See ${process.logPath}`)
   }
 
-  let onExit: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined
-  const exited = new Promise<never>((_, reject) => {
-    onExit = (code, signal) => {
-      reject(
-        new Error(
-          `${process.name} exited before readiness with ${code ?? signal ?? 'unknown status'}. See ${process.logPath}`
-        )
-      )
-    }
-    process.child.once('exit', onExit)
+  const controller = new AbortController()
+  const exited = process.completion.then((result) => {
+    throw new Error(
+      `${process.name} exited before readiness with ${result.error?.message ?? result.code ?? result.signal ?? 'unknown status'}. See ${process.logPath}`
+    )
   })
 
   try {
-    await Promise.race([readiness, exited])
+    await Promise.race([readiness(controller.signal), exited])
   } finally {
-    if (onExit) process.child.off('exit', onExit)
+    controller.abort(new Error(`${process.name} readiness polling cancelled`))
   }
 }
 
@@ -131,57 +146,72 @@ export async function assertPortAvailable(port: number, host = '127.0.0.1'): Pro
   })
 }
 
-function waitForExit(child: ChildProcess): Promise<number | null> {
-  return new Promise((resolve, reject) => {
-    child.once('error', reject)
-    child.once('exit', (code) => resolve(code))
-  })
-}
-
-async function stopProcess(child: ChildProcess): Promise<void> {
+async function stopProcess(managed: ManagedProcess): Promise<void> {
+  const { child } = managed
+  if (!child.pid) {
+    await managed.completion
+    return
+  }
   if (child.exitCode !== null || child.signalCode !== null) return
-  sendSignal(child, 'SIGTERM')
+  const processIds = [child.pid]
+  sendSignalToPids(processIds, 'SIGTERM')
 
   const stopped = await Promise.race([
-    waitForExit(child).then(() => true),
+    managed.completion.then(() => true),
     new Promise<false>((resolve) => setTimeout(() => resolve(false), 5_000)),
   ])
   if (stopped) return
 
-  sendSignal(child, 'SIGKILL')
-  await waitForExit(child)
-}
-
-function sendSignal(child: ChildProcess, signal: NodeJS.Signals): void {
-  if (!child.pid) return
-  try {
-    child.kill(signal)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
+  sendSignalToPids(processIds.filter(isPidRunning), 'SIGKILL')
+  const killed = await Promise.race([
+    managed.completion.then(() => true),
+    new Promise<false>((resolve) => setTimeout(() => resolve(false), 2_000)),
+  ])
+  if (!killed) {
+    throw new Error(`Managed process ${managed.name} did not exit after SIGKILL`)
   }
 }
 
-/**
- * Managed commands currently run their server/build work in the direct child.
- * If a future command introduces durable grandchildren, process-tree cleanup
- * should be added alongside that command rather than implied here.
- */
-function isProcessRunning(child: ChildProcess): boolean {
-  if (!child.pid) return false
-  try {
-    process.kill(child.pid, 0)
-    if (process.platform !== 'win32') {
-      const status = spawnSync('ps', ['-o', 'stat=', '-p', String(child.pid)], {
-        encoding: 'utf8',
-        env: { NODE_ENV: 'test', PATH: process.env.PATH ?? '' },
-      })
-      if (status.status !== 0 || status.stdout.trim().startsWith('Z')) return false
+function sendSignalToPids(processIds: number[], signal: NodeJS.Signals): void {
+  for (const processId of processIds) {
+    try {
+      process.kill(processId, signal)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
     }
-    return true
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false
-    throw error
   }
+}
+
+function isPidRunning(processId: number): boolean {
+  return getRunningPids([processId]).length > 0
+}
+
+function getRunningPids(processIds: number[]): number[] {
+  if (processIds.length === 0) return []
+  if (process.platform === 'win32') {
+    return processIds.filter((processId) => {
+      try {
+        process.kill(processId, 0)
+        return true
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false
+        throw error
+      }
+    })
+  }
+
+  const status = spawnSync('ps', ['-o', 'pid=,stat=', '-p', processIds.join(',')], {
+    encoding: 'utf8',
+    env: { NODE_ENV: 'test', PATH: process.env.PATH ?? '' },
+  })
+  if (status.status !== 0 && status.status !== 1) {
+    throw new Error(`Unable to inspect managed E2E processes: ${status.stderr}`)
+  }
+  return status.stdout.split('\n').flatMap((line) => {
+    const [pidText, processStatus] = line.trim().split(/\s+/)
+    const pid = Number(pidText)
+    return Number.isInteger(pid) && !processStatus?.startsWith('Z') ? [pid] : []
+  })
 }
 
 function sleepSync(milliseconds: number): void {

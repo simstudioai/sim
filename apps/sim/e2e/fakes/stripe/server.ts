@@ -20,7 +20,7 @@ export interface StripeFakeRequestRecord {
 
 export interface StripeFakeServerOptions {
   apiKey: string
-  hostname?: '127.0.0.1' | '::1'
+  hostname?: '127.0.0.1'
   maxBodyBytes?: number
   port?: number
 }
@@ -169,19 +169,17 @@ function unescapeSearchValue(value: string): string {
   return value.replace(/\\(["\\])/g, '$1')
 }
 
-function customerMatchesSearch(customer: FakeCustomer, query: string): boolean {
-  const emailMatch = /(?:^|\s)email:"((?:\\.|[^"])*)"/.exec(query)
-  if (emailMatch && customer.email !== unescapeSearchValue(emailMatch[1])) return false
-
-  const metadataPattern = /(-?)metadata\["([^"]+)"\]:"((?:\\.|[^"])*)"/g
-  for (const match of query.matchAll(metadataPattern)) {
-    const isNegative = match[1] === '-'
-    const actual = customer.metadata[match[2]]
-    const expected = unescapeSearchValue(match[3])
-    if (isNegative ? actual === expected : actual !== expected) return false
+function parseSupportedCustomerSearchEmail(query: string): string {
+  const match = /^email:"((?:\\.|[^"])*)" AND -metadata\["customerType"\]:"organization"$/.exec(
+    query
+  )
+  if (!match) {
+    throw new RequestBodyError(
+      `Stripe fake does not implement customer search query: ${query}`,
+      501
+    )
   }
-
-  return true
+  return unescapeSearchValue(match[1])
 }
 
 function parseLimit(parameters: URLSearchParams): number {
@@ -362,9 +360,13 @@ export function createStripeFakeServer(options: StripeFakeServerOptions): Stripe
           method === 'GET' ? url.searchParams : (formBody ?? parseFormBody(request, ''))
         const query = parameters.get('query')
         if (!query) throw new RequestBodyError('Stripe fake customer search requires query', 400)
+        const email = parseSupportedCustomerSearchEmail(query)
 
         const data = [...customers.values()]
-          .filter((customer) => customerMatchesSearch(customer, query))
+          .filter(
+            (customer) =>
+              customer.email === email && customer.metadata.customerType !== 'organization'
+          )
           .slice(0, parseLimit(parameters))
         sendJson(
           response,
@@ -430,6 +432,10 @@ export function createStripeFakeServer(options: StripeFakeServerOptions): Stripe
         error instanceof RequestBodyError
           ? error
           : new RequestBodyError('Stripe fake rejected malformed request parameters', 400)
+      if (bodyError.status === 501) {
+        const recorded = records.at(-1)
+        if (recorded) recorded.unexpected = true
+      }
       sendStripeError(
         response,
         bodyError.status,

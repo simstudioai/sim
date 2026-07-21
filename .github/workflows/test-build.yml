@@ -304,9 +304,9 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ./apps/sim/.next/cache
-          key: ${{ runner.os }}-nextjs-e2e-hosted-billing-${{ hashFiles('bun.lock') }}
+          key: ${{ runner.os }}-nextjs-e2e-hosted-billing-${{ hashFiles('bun.lock') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-nextjs-e2e-hosted-billing-
+            ${{ runner.os }}-nextjs-e2e-hosted-billing-${{ hashFiles('bun.lock') }}-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -319,6 +319,7 @@ jobs:
         run: bun run test:e2e:install-browsers -- --with-deps
 
       - name: Run settings E2E foundation
+        timeout-minutes: 40
         working-directory: apps/sim
         env:
           CI: 'true'
@@ -336,4 +337,5 @@ jobs:
             apps/sim/e2e/.runs/
             !apps/sim/e2e/.runs/**/auth/**
           if-no-files-found: ignore
+          include-hidden-files: true
           retention-days: 7

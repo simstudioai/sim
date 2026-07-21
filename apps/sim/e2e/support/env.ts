@@ -8,7 +8,6 @@ const SENSITIVE_KEY_PATTERN =
 
 const OS_PASSTHROUGH_KEYS = [
   'PATH',
-  'HOME',
   'USER',
   'SHELL',
   'TMPDIR',
@@ -17,7 +16,6 @@ const OS_PASSTHROUGH_KEYS = [
   'SYSTEMROOT',
   'CI',
   'GITHUB_ACTIONS',
-  'PLAYWRIGHT_BROWSERS_PATH',
 ] as const
 
 export interface ChildEnvironment {

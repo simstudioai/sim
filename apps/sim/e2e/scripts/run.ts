@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { type StripeFakeServer, startStripeFakeServer } from '../fakes/stripe/server'
 import {
@@ -15,7 +15,7 @@ import {
   assertNoForbiddenProviderInitialization,
   assertNoForbiddenProviderTraffic,
 } from '../support/diagnostics'
-import { formatRedactedEnvironmentSummary } from '../support/env'
+import { E2E_OS_PASSTHROUGH_KEYS, formatRedactedEnvironmentSummary } from '../support/env'
 import { assertE2eHostResolvesToLoopback } from '../support/hosts'
 import { getRunDirectory, SIM_APP_DIR } from '../support/paths'
 import {
@@ -41,8 +41,12 @@ async function main(): Promise<void> {
   const runDirectory = getRunDirectory(runId)
   const logsDirectory = path.join(runDirectory, 'logs')
   const storageStateDirectory = path.join(runDirectory, 'auth')
+  const markerDirectory = path.join(runDirectory, 'markers')
+  const homeDirectory = path.join(runDirectory, 'home')
   mkdirSync(logsDirectory, { recursive: true })
   mkdirSync(storageStateDirectory, { recursive: true })
+  mkdirSync(markerDirectory, { recursive: true })
+  mkdirSync(homeDirectory, { recursive: true })
 
   const nodeExecutable = resolveNode22()
   const bunExecutable = resolveBunExecutable()
@@ -54,58 +58,69 @@ async function main(): Promise<void> {
   let app: ManagedProcess | null = null
   let cleanupPromise: Promise<void> | null = null
   let failed = false
-  let interrupted = false
 
   const cleanup = (): Promise<void> => {
     if (cleanupPromise) return cleanupPromise
     cleanupPromise = (async () => {
-      await stopAllManagedProcesses()
-
-      if (stripeFake) {
-        writeFileSync(
-          path.join(logsDirectory, 'stripe-requests.json'),
-          JSON.stringify(stripeFake.requestLog, null, 2)
-        )
-        await stripeFake.stop()
+      const failures: unknown[] = []
+      try {
+        await stopAllManagedProcesses()
+      } catch (error) {
+        failures.push(error)
       }
 
-      if (runDatabase) {
+      if (stripeFake) {
         try {
-          await dropRunDatabase(adminDatabaseUrl, runDatabase.name)
+          writeFileSync(
+            path.join(logsDirectory, 'stripe-requests.json'),
+            JSON.stringify(stripeFake.requestLog, null, 2)
+          )
         } catch (error) {
-          failed = true
-          process.exitCode = 1
-          console.error(`Failed to drop ${runDatabase.name}:`, error)
+          failures.push(error)
         }
+        try {
+          await stripeFake.stop()
+        } catch (error) {
+          failures.push(error)
+        }
+      }
+
+      for (const sensitiveDirectory of [storageStateDirectory, homeDirectory]) {
+        try {
+          rmSync(sensitiveDirectory, { recursive: true, force: true })
+        } catch (error) {
+          failures.push(error)
+        }
+      }
+
+      try {
+        if (runDatabase) await dropRunDatabase(adminDatabaseUrl, runDatabase.name)
+      } catch (error) {
+        failures.push(error)
+      }
+
+      if (failures.length > 0) {
+        throw new AggregateError(failures, 'One or more E2E cleanup stages failed')
       }
     })()
     return cleanupPromise
   }
 
   const handleSignal = (signal: NodeJS.Signals): void => {
-    if (interrupted) return
-    interrupted = true
     failed = true
     const exitCode = signal === 'SIGINT' ? 130 : 143
     process.exitCode = exitCode
     console.error(`Received ${signal}; cleaning up the E2E run`)
-    const survivingPids = stopAllManagedProcessesSync()
-    if (survivingPids.length > 0) {
-      console.error(`E2E child processes survived SIGKILL: ${survivingPids.join(', ')}`)
-    }
-    if (stripeFake) {
-      writeFileSync(
-        path.join(logsDirectory, 'stripe-requests.json'),
-        JSON.stringify(stripeFake.requestLog, null, 2)
-      )
-    }
+    const signalFailures: unknown[] = []
     if (runDatabase) {
+      console.error(`Dropping guarded E2E database ${runDatabase.name}`)
       const cleanupResult = spawnSync(
         bunExecutable,
         ['--no-env-file', path.join(SIM_APP_DIR, 'e2e/scripts/cleanup-database.ts')],
         {
           cwd: SIM_APP_DIR,
           encoding: 'utf8',
+          timeout: 15_000,
           env: {
             NODE_ENV: 'test',
             PATH: process.env.PATH ?? '',
@@ -115,13 +130,47 @@ async function main(): Promise<void> {
         }
       )
       if (cleanupResult.status !== 0) {
-        console.error(cleanupResult.stderr || cleanupResult.stdout)
+        signalFailures.push(
+          cleanupResult.error ??
+            new Error(cleanupResult.stderr || cleanupResult.stdout || 'Database cleanup failed')
+        )
       } else {
         runDatabase = null
+        console.error('Guarded E2E database cleanup complete')
       }
     }
+    try {
+      const survivingPids = stopAllManagedProcessesSync(500, 250)
+      if (survivingPids.length > 0) {
+        signalFailures.push(
+          new Error(`E2E child processes survived SIGKILL: ${survivingPids.join(', ')}`)
+        )
+      }
+      console.error('E2E child process cleanup complete')
+    } catch (error) {
+      signalFailures.push(error)
+    }
+    if (stripeFake) {
+      try {
+        writeFileSync(
+          path.join(logsDirectory, 'stripe-requests.json'),
+          JSON.stringify(stripeFake.requestLog, null, 2)
+        )
+      } catch (error) {
+        signalFailures.push(error)
+      }
+    }
+    for (const sensitiveDirectory of [storageStateDirectory, homeDirectory]) {
+      try {
+        rmSync(sensitiveDirectory, { recursive: true, force: true })
+      } catch (error) {
+        signalFailures.push(error)
+      }
+    }
+    for (const error of signalFailures) console.error(error)
     process.exit(exitCode)
   }
+  // `once` is intentional: a second signal uses the OS default force termination.
   process.once('SIGINT', handleSignal)
   process.once('SIGTERM', handleSignal)
 
@@ -147,6 +196,8 @@ async function main(): Promise<void> {
       runId,
       databaseUrl: runDatabase.url,
       stripeApiBaseUrl: stripeFake.baseUrl,
+      homeDirectory,
+      playwrightBrowsersPath: resolvePlaywrightBrowsersPath(),
       ci: process.env.CI === 'true',
     })
     console.info(formatRedactedEnvironmentSummary(profile.id, profile.childEnvironment))
@@ -168,7 +219,8 @@ async function main(): Promise<void> {
     const playwrightEnvironment = createPlaywrightEnvironment(
       profile.childEnvironment.env,
       runId,
-      storageStateDirectory
+      storageStateDirectory,
+      markerDirectory
     )
     await runPlaywright(
       {
@@ -179,7 +231,11 @@ async function main(): Promise<void> {
       options.playwrightArgs
     )
     const provisioning = await inspectFoundationUsers(runDatabase.url, runId)
-    assertAuthenticatedSmokeEffectsIfPresent(stripeFake, provisioning)
+    assertAuthenticatedSmokeEffectsIfPresent(
+      stripeFake,
+      provisioning,
+      hasFoundationCompletionMarker(markerDirectory)
+    )
   } catch (error) {
     failed = true
     console.error(error)
@@ -194,7 +250,13 @@ async function main(): Promise<void> {
       process.exitCode = 1
       console.error(error)
     }
-    await cleanup()
+    try {
+      await cleanup()
+    } catch (error) {
+      failed = true
+      process.exitCode = 1
+      console.error(error)
+    }
     process.off('SIGINT', handleSignal)
     process.off('SIGTERM', handleSignal)
     console.info(`E2E ${failed ? 'failed' : 'completed'}; diagnostics: ${runDirectory}`)
@@ -230,24 +292,22 @@ function resolveNode22(): string {
   return executable
 }
 
+function resolvePlaywrightBrowsersPath(): string {
+  if (process.env.PLAYWRIGHT_BROWSERS_PATH) return process.env.PLAYWRIGHT_BROWSERS_PATH
+  const parentHome = process.env.HOME
+  if (!parentHome) throw new Error('HOME is required to locate installed Playwright browsers')
+  return process.platform === 'darwin'
+    ? path.join(parentHome, 'Library/Caches/ms-playwright')
+    : path.join(parentHome, '.cache/ms-playwright')
+}
+
 function createPlaywrightEnvironment(
   stackEnvironment: Record<string, string>,
   runId: string,
-  storageStateDirectory: string
+  storageStateDirectory: string,
+  markerDirectory: string
 ): Record<string, string> {
-  const keys = [
-    'PATH',
-    'HOME',
-    'USER',
-    'SHELL',
-    'TMPDIR',
-    'TMP',
-    'TEMP',
-    'SYSTEMROOT',
-    'CI',
-    'GITHUB_ACTIONS',
-    'PLAYWRIGHT_BROWSERS_PATH',
-  ]
+  const keys = [...E2E_OS_PASSTHROUGH_KEYS, 'HOME', 'PLAYWRIGHT_BROWSERS_PATH']
   const env: Record<string, string> = {}
   for (const key of keys) {
     const value = stackEnvironment[key]
@@ -260,12 +320,14 @@ function createPlaywrightEnvironment(
     E2E_RUN_ID: runId,
     E2E_BASE_URL: E2E_ORIGIN,
     E2E_STORAGE_STATE_DIR: storageStateDirectory,
+    E2E_MARKER_DIR: markerDirectory,
   }
 }
 
 function assertAuthenticatedSmokeEffectsIfPresent(
   stripeFake: StripeFakeServer,
-  provisioning: FoundationProvisioningResult
+  provisioning: FoundationProvisioningResult,
+  completed: boolean
 ): void {
   const created = stripeFake.requestLog.some(
     ({ method, path }) => method === 'POST' && path === '/v1/customers'
@@ -278,7 +340,7 @@ function assertAuthenticatedSmokeEffectsIfPresent(
         .join(', ')}`
     )
   }
-  if (!created && provisioning.count === 0) {
+  if (!completed) {
     console.info('Authenticated foundation smoke was filtered out; skipping its post-run probes')
     return
   }
@@ -292,6 +354,13 @@ function assertAuthenticatedSmokeEffectsIfPresent(
   if (!provisioning.allHaveStats) {
     throw new Error('A foundation user was not initialized with user_stats')
   }
+}
+
+function hasFoundationCompletionMarker(markerDirectory: string): boolean {
+  return (
+    existsSync(markerDirectory) &&
+    readdirSync(markerDirectory).some((name) => name.startsWith('foundation-authenticated-'))
+  )
 }
 
 await main()

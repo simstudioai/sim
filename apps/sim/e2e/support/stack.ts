@@ -61,11 +61,11 @@ export async function startRealtime(options: StackCommandOptions): Promise<Manag
     logsDirectory: options.logsDirectory,
   })
   try {
-    await waitForManagedProcessReady(
-      realtime,
+    await waitForManagedProcessReady(realtime, (signal) =>
       waitForHttpReady({
         name: 'Realtime',
         url: 'http://127.0.0.1:3002/health',
+        signal,
         validate: async (response) => {
           if (!response.ok) return false
           const body = (await response.json()) as { status?: string; runId?: string }
@@ -102,11 +102,11 @@ export async function startApp(options: StackCommandOptions): Promise<ManagedPro
     logsDirectory: options.logsDirectory,
   })
   try {
-    await waitForManagedProcessReady(
-      app,
+    await waitForManagedProcessReady(app, (signal) =>
       waitForHttpReady({
         name: 'Next.js',
         url: 'http://127.0.0.1:3000/api/health',
+        signal,
         validate: async (response) => {
           if (!response.ok) return false
           const body = (await response.json()) as { status?: string; runId?: string }

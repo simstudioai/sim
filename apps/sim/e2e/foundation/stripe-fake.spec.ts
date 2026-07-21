@@ -27,6 +27,23 @@ test('Stripe fake records allowlisted calls and rejects unknown routes', async (
       id: expect.stringMatching(/^cus_e2e_/),
     })
 
+    const search = await fetch(
+      `${baseUrl}/v1/customers/search?${new URLSearchParams({
+        query: 'email:"foundation@example.com" AND -metadata["customerType"]:"organization"',
+        limit: '1',
+      })}`,
+      { headers: { authorization: `Bearer ${apiKey}` } }
+    )
+    expect(search.status).toBe(200)
+
+    const unsupportedSearch = await fetch(
+      `${baseUrl}/v1/customers/search?${new URLSearchParams({
+        query: 'name:"Foundation"',
+      })}`,
+      { headers: { authorization: `Bearer ${apiKey}` } }
+    )
+    expect(unsupportedSearch.status).toBe(501)
+
     const unknown = await fetch(`${baseUrl}/v1/invoices`, {
       headers: { authorization: `Bearer ${apiKey}` },
     })

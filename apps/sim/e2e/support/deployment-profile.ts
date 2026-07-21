@@ -22,6 +22,8 @@ const REQUIRED_KEYS = [
   'STRIPE_API_BASE_URL',
   'E2E_PROFILE',
   'E2E_RUN_ID',
+  'HOME',
+  'PLAYWRIGHT_BROWSERS_PATH',
 ] as const
 
 const ALLOWED_SENSITIVE_KEYS = new Set([
@@ -40,6 +42,8 @@ export interface HostedBillingProfileOptions {
   runId: string
   databaseUrl: string
   stripeApiBaseUrl: string
+  homeDirectory: string
+  playwrightBrowsersPath: string
   ci: boolean
 }
 
@@ -53,12 +57,22 @@ export function createHostedBillingProfile({
   runId,
   databaseUrl,
   stripeApiBaseUrl,
+  homeDirectory,
+  playwrightBrowsersPath,
   ci,
 }: HostedBillingProfileOptions): HostedBillingProfile {
   const values: Record<string, string> = {
     NODE_ENV: 'production',
     NODE_OPTIONS: '--no-warnings --max-old-space-size=8192',
     NEXT_TELEMETRY_DISABLED: '1',
+    HOME: homeDirectory,
+    XDG_CONFIG_HOME: `${homeDirectory}/xdg`,
+    AWS_EC2_METADATA_DISABLED: 'true',
+    AWS_SHARED_CREDENTIALS_FILE: '/dev/null',
+    AWS_CONFIG_FILE: '/dev/null',
+    CLOUDSDK_CONFIG: `${homeDirectory}/gcloud`,
+    AZURE_CONFIG_DIR: `${homeDirectory}/azure`,
+    PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsersPath,
     E2E_PROFILE,
     E2E_RUN_ID: runId,
     E2E_BASE_URL: E2E_ORIGIN,
@@ -114,7 +128,7 @@ function validateProfileValues(values: Record<string, string>): void {
     throw new Error('E2E profile requires a sim_e2e_ database')
   }
   const stripeUrl = new URL(values.STRIPE_API_BASE_URL)
-  if (!['127.0.0.1', 'localhost', '::1', '[::1]'].includes(stripeUrl.hostname)) {
-    throw new Error('E2E Stripe API must use a loopback hostname')
+  if (stripeUrl.hostname !== '127.0.0.1') {
+    throw new Error('E2E Stripe API must use numeric IPv4 loopback 127.0.0.1')
   }
 }

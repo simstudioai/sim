@@ -27,14 +27,14 @@ export async function inspectFoundationUsers(
 ): Promise<FoundationProvisioningResult> {
   const sql = postgres(databaseUrl, { max: 1, connect_timeout: 10 })
   try {
-    const pattern = `e2e-foundation-${runId}-%@example.com`
+    const prefix = `e2e-foundation-${runId}-`
     const rows = await sql<Array<{ stripeCustomerId: string | null; hasStats: boolean }>>`
       SELECT
         u.stripe_customer_id AS "stripeCustomerId",
         (s.user_id IS NOT NULL) AS "hasStats"
       FROM "user" u
       LEFT JOIN user_stats s ON s.user_id = u.id
-      WHERE u.email LIKE ${pattern}
+      WHERE starts_with(u.email, ${prefix})
     `
     return {
       count: rows.length,
