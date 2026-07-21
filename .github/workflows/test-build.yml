@@ -10,7 +10,7 @@ permissions:
 jobs:
   test-build:
     name: Lint and Test
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
 
     steps:
@@ -27,25 +27,28 @@ jobs:
         with:
           node-version: 22
 
-      # Sticky-disk keys are scoped by event name, and fork PRs get their own
-      # namespace on top: untrusted fork runs must never share a disk with
-      # push runs (whose disks feed production image builds) or with trusted
-      # internal-PR runs.
-      - name: Mount Bun cache (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      # Cache keys are scoped by event name, and fork PRs get their own
+      # namespace on top: untrusted fork runs must never share a cache with
+      # push runs (whose caches feed production image builds) or with trusted
+      # internal-PR runs. The scoping holds on both backends.
+      - name: Mount Bun cache
+        uses: ./.github/actions/cache-mount
         with:
+          provider: ${{ vars.CI_PROVIDER }}
           key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ~/.bun/install/cache
 
-      - name: Mount node_modules (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      - name: Mount node_modules
+        uses: ./.github/actions/cache-mount
         with:
+          provider: ${{ vars.CI_PROVIDER }}
           key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./node_modules
 
-      - name: Mount Turbo cache (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      - name: Mount Turbo cache
+        uses: ./.github/actions/cache-mount
         with:
+          provider: ${{ vars.CI_PROVIDER }}
           key: ${{ github.repository }}-turbo-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./.turbo
 
@@ -185,10 +188,11 @@ jobs:
   # with test-build (identical content from the same lockfile — LWW loss is
   # harmless), but the Turbo cache gets its own key: with a shared key, only
   # the last committer's new entries survive each run, so the test and build
-  # Turbo entries would evict each other nondeterministically.
+  # Turbo entries would evict each other nondeterministically. The same split
+  # is correct on actions/cache, which is likewise last-writer-wins per key.
   build:
     name: Build App
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
 
     steps:
@@ -205,21 +209,24 @@ jobs:
         with:
           node-version: 22
 
-      - name: Mount Bun cache (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      - name: Mount Bun cache
+        uses: ./.github/actions/cache-mount
         with:
+          provider: ${{ vars.CI_PROVIDER }}
           key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ~/.bun/install/cache
 
-      - name: Mount node_modules (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      - name: Mount node_modules
+        uses: ./.github/actions/cache-mount
         with:
+          provider: ${{ vars.CI_PROVIDER }}
           key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./node_modules
 
-      - name: Mount Turbo cache (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      - name: Mount Turbo cache
+        uses: ./.github/actions/cache-mount
         with:
+          provider: ${{ vars.CI_PROVIDER }}
           key: ${{ github.repository }}-turbo-cache-build-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./.turbo
 
