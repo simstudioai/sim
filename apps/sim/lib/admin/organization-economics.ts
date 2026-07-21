@@ -4,7 +4,7 @@ import { Decimal, toDecimal } from '@/lib/billing/utils/decimal'
 
 export interface TeamOrganizationEconomics {
   seats: number
-  includedMonthlyDollars: number
+  planAllowanceDollars: number
   monthlyInvoiceAmountUsd: number
 }
 
@@ -17,7 +17,7 @@ export function getTeamOrganizationEconomics(
   const seats = Math.max(0, Math.trunc(internalMemberCount))
   return {
     seats,
-    includedMonthlyDollars: (getPlanTierCredits(plan) * seats) / CREDIT_MULTIPLIER,
+    planAllowanceDollars: (getPlanTierCredits(plan) * seats) / CREDIT_MULTIPLIER,
     monthlyInvoiceAmountUsd: getPlanTierDollars(plan) * seats,
   }
 }
@@ -29,15 +29,15 @@ export function getTeamOrganizationEconomics(
  */
 export function getOrganizationUsageLimitFallbackDollars(params: {
   creditBalanceDollarsBeforeGrant: string | number
-  includedDollars: number
+  planAllowanceDollars: number
   configuredUsageLimitDollars: number | null
 }): string {
   const configuredUsageLimitDollars =
     params.configuredUsageLimitDollars === null
       ? toDecimal(0)
       : toDecimal(params.configuredUsageLimitDollars)
-  const includedUsageLimitDollars = toDecimal(params.includedDollars)
-  return Decimal.max(configuredUsageLimitDollars, includedUsageLimitDollars)
+  const planAllowanceDollars = toDecimal(params.planAllowanceDollars)
+  return Decimal.max(configuredUsageLimitDollars, planAllowanceDollars)
     .plus(toDecimal(params.creditBalanceDollarsBeforeGrant))
     .toString()
 }

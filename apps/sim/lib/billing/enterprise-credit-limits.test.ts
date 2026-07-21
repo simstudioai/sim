@@ -10,14 +10,12 @@ describe('deriveEnterpriseCreditLimits', () => {
       deriveEnterpriseCreditLimits({
         metadata: {
           invoiceAmountCents: '99900',
-          includedMonthlyCredits: '10000',
           usageLimitCredits: '20000',
         },
         monthlyPriceUsd: 999,
         prepaidBalanceDollars: 10,
       })
     ).toEqual({
-      includedMonthlyCredits: 10000,
       configuredUsageLimitCredits: 20000,
       prepaidCredits: 2000,
       effectiveUsageLimitCredits: 22000,
@@ -25,20 +23,19 @@ describe('deriveEnterpriseCreditLimits', () => {
     })
   })
 
-  it('uses the included allowance as the base when it exceeds configuration', () => {
+  it('uses the configured usage limit without an invoice-derived floor', () => {
     expect(
       deriveEnterpriseCreditLimits({
         metadata: {
-          includedMonthlyCredits: '10000',
           usageLimitCredits: '8000',
         },
         monthlyPriceUsd: 999,
         prepaidBalanceDollars: 10,
       }).effectiveUsageLimitCredits
-    ).toBe(12000)
+    ).toBe(10000)
   })
 
-  it('uses the legacy monthly-price allowance only when credit metadata is absent', () => {
+  it('defaults the usage limit to the monthly price when metadata is absent', () => {
     expect(
       deriveEnterpriseCreditLimits({
         metadata: {},
@@ -46,7 +43,6 @@ describe('deriveEnterpriseCreditLimits', () => {
         prepaidBalanceDollars: 0,
       })
     ).toEqual({
-      includedMonthlyCredits: 10000,
       configuredUsageLimitCredits: 10000,
       prepaidCredits: 0,
       effectiveUsageLimitCredits: 10000,
@@ -58,7 +54,6 @@ describe('deriveEnterpriseCreditLimits', () => {
     expect(
       deriveEnterpriseCreditLimits({
         metadata: {
-          includedMonthlyCredits: '20000',
           usageLimitCredits: '20000',
         },
         monthlyPriceUsd: 100,
