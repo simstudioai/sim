@@ -31,7 +31,10 @@ const {
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createPinnedFetch: vi.fn(() => mockUndiciFetch),
+  createPinnedFetchWithDispatcher: vi.fn(() => ({
+    fetch: mockUndiciFetch,
+    dispatcher: { destroy: vi.fn(() => Promise.resolve()) },
+  })),
 }))
 vi.mock('@/lib/mcp/domain-check', () => ({
   validateMcpServerSsrf: mockValidateMcpServerSsrf,

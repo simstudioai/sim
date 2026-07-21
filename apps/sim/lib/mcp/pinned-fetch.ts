@@ -1,8 +1,6 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
-import {
-  createPinnedFetch,
-  createPinnedFetchWithDispatcher,
-} from '@/lib/core/security/input-validation.server'
+import type { Agent } from 'undici'
+import { createPinnedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { validateMcpServerSsrf } from '@/lib/mcp/domain-check'
 import { McpError } from '@/lib/mcp/types'
 
@@ -47,15 +45,35 @@ export function createPinnedMcpFetch(resolvedIP: string): PinnedMcpFetch {
 const OAUTH_FETCH_TIMEOUT_MS = 30_000
 
 /**
- * Awaits `promise` but rejects with the signal's reason if `signal` aborts first.
- * Bounds `dns.lookup`-based SSRF validation (which accepts no signal) by the
- * composed deadline + caller signal. Removes the abort listener once `promise`
- * settles so a late abort can't surface as an unhandled rejection.
+ * Cap on a guarded OAuth response body. Discovery/registration/token/refresh/revocation
+ * replies are always well under 1 KB; this ceiling is purely a DoS backstop so a
+ * malicious authorization server (reached via attacker-controllable metadata URLs)
+ * can't stream a multi-GB body within the deadline and exhaust memory. undici rejects
+ * with `UND_ERR_RES_EXCEEDED_MAX_SIZE` once the decoded body exceeds it.
  */
-function raceWithSignal<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+const MAX_OAUTH_RESPONSE_BYTES = 1_048_576
+
+/** True for undici's response-too-large rejection, however it's wrapped by `fetch`. */
+function isResponseTooLarge(error: unknown): boolean {
+  const e = error as { code?: string; cause?: { code?: string } } | null
+  return (
+    e?.code === 'UND_ERR_RES_EXCEEDED_MAX_SIZE' ||
+    e?.cause?.code === 'UND_ERR_RES_EXCEEDED_MAX_SIZE'
+  )
+}
+
+/**
+ * Bounds `promise` by the composed deadline/caller `signal`, rejecting with the signal's
+ * reason if it aborts first. Holds every guarded phase inside the deadline — the
+ * `dns.lookup`-based SSRF validation (which takes no signal of its own), the HTTP
+ * request, and the response body read. Either path attaches a rejection handler to
+ * `promise` (the pre-aborted `.catch`, or `.then(resolve, reject)`), so a settlement
+ * arriving after the deadline has fired — once we've stopped awaiting it and are tearing
+ * the request down — can't surface as an unhandled rejection. The abort listener is
+ * removed once `promise` settles.
+ */
+function withDeadline<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) {
-    // The promise is already in flight; adopt its settlement so a later rejection
-    // (SSRF/DNS failure) can't surface as an unhandled rejection once we've aborted.
     promise.catch(() => {})
     return Promise.reject(signal.reason)
   }
@@ -76,27 +94,97 @@ function raceWithSignal<T>(promise: Promise<T>, signal: AbortSignal): Promise<T>
 }
 
 /**
- * Builds a `FetchLike` that validates every outbound request URL against the
- * MCP SSRF policy before issuing it, then pins the connection to the resolved
- * IP. Unlike the live transport — where the server URL is validated once up
- * front — OAuth discovery and RFC 7009 revocation follow URLs taken verbatim
- * from attacker-controllable authorization-server metadata
- * (`authorization_servers`, `token_endpoint`, `revocation_endpoint`, …). Each
- * such hop must be re-validated, so this guard runs `validateMcpServerSsrf`
- * per request and rejects private/reserved/loopback targets (honoring
- * `ALLOWED_MCP_DOMAINS` and self-hosted localhost rules).
+ * Reads a guarded OAuth response fully under the deadline, then returns a detached,
+ * in-memory copy. The MCP SDK reads discovery/registration/token/refresh bodies
+ * lazily — AFTER `auth()`'s injected fetch resolves — and applies no timeout of its
+ * own, so returning the live response would let the body read escape every deadline
+ * (the "Connecting… forever" hang). Buffering here brings the body read inside the
+ * wall-clock `signal`: undici's `bodyTimeout` only measures idle gaps between chunks
+ * and cannot bound a slow-drip or stalled body. These bodies are always small JSON.
+ */
+async function bufferUnderDeadline(response: Response, signal: AbortSignal): Promise<Response> {
+  const body = await withDeadline(response.arrayBuffer(), signal)
+  const headers = new Headers(response.headers)
+  // The buffered copy is decoded and detached from the socket; drop framing headers
+  // that would misdescribe it.
+  headers.delete('content-encoding')
+  headers.delete('content-length')
+  const nullBody = response.status === 204 || response.status === 205 || response.status === 304
+  return new Response(nullBody ? null : body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
+
+/**
+ * Hands a streaming guarded response back live instead of buffering it. The only
+ * streaming reply a guarded call can see is the auth-type probe's `initialize`
+ * (`text/event-stream`), and the probe classifies from headers alone — buffering it
+ * would drain the stream or stall on a server that holds it open (misclassifying auth).
+ * The per-request pinned Agent (if any) is torn down once the stream ends, the caller
+ * cancels it, or the deadline aborts, so the socket is never stranded; the `tee` keeps
+ * the returned body fully readable meanwhile. Teardown ownership moves here, out of the
+ * caller's `finally`.
+ */
+function releaseStreamOnSettle(
+  response: Response,
+  dispatcher: Agent | undefined,
+  signal: AbortSignal
+): Response {
+  if (!dispatcher || !response.body) {
+    void dispatcher?.destroy().catch(() => {})
+    return response
+  }
+  const [drain, passthrough] = response.body.tee()
+  void (async () => {
+    const reader = drain.getReader()
+    const onAbort = () => void reader.cancel().catch(() => {})
+    if (signal.aborted) onAbort()
+    else signal.addEventListener('abort', onAbort, { once: true })
+    try {
+      while (!(await reader.read()).done) {
+        // Drain to end-of-stream so the Agent can be torn down once the reply completes.
+      }
+    } catch {
+      // Aborted or errored — the teardown below still runs.
+    } finally {
+      signal.removeEventListener('abort', onAbort)
+      void dispatcher.destroy().catch(() => {})
+    }
+  })()
+  return new Response(passthrough, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  })
+}
+
+/**
+ * Builds a `FetchLike` for one-shot MCP OAuth calls (discovery, dynamic client
+ * registration, token exchange/refresh, RFC 7009 revocation). It validates every
+ * outbound URL against the MCP SSRF policy before issuing it, then pins the
+ * connection to the resolved IP. Unlike the live transport — where the server URL is
+ * validated once up front — these hops follow URLs taken verbatim from
+ * attacker-controllable authorization-server metadata (`authorization_servers`,
+ * `token_endpoint`, `revocation_endpoint`, …), so each is re-validated and
+ * private/reserved/loopback targets are rejected (honoring `ALLOWED_MCP_DOMAINS` and
+ * self-hosted localhost rules).
  *
- * Each request is bounded by a `timeoutMs` deadline via `AbortSignal.timeout`,
- * composed with any caller-provided signal so cancellation still works. Only our
- * own deadline is relabeled to an `McpError`; a caller abort or any other failure
- * propagates unchanged.
+ * Three correctness guarantees, each of which the MCP SDK does NOT provide itself (it
+ * sets no timeout on any OAuth leg and reads bodies lazily):
+ * - **Bounded end-to-end.** The `timeoutMs` deadline (`AbortSignal.timeout`) composed
+ *   with any caller signal covers SSRF validation, the request, AND the response body
+ *   read — the body is buffered here so the SDK's later read can't outlive the
+ *   deadline. Only our own deadline is relabeled to an `McpError`; a caller abort or
+ *   any other failure propagates unchanged.
+ * - **No leaked sockets.** The per-request pinned Agent is `destroy()`ed on every path,
+ *   releasing the keep-alive socket a one-shot flow would otherwise strand.
+ * - **Detached response.** The returned `Response` is an in-memory copy, safe to read
+ *   after the underlying socket is gone.
  *
- * Both the deadline and any caller-provided signal cover the whole guarded call —
- * SSRF validation (whose `dns.lookup` takes no signal, so it's raced against the
- * composed signal) and the HTTP request — so a caller awaiting this never waits
- * past `timeoutMs` and can cancel at any point, including mid-validation. A
- * stalled DNS resolution still runs to completion in the background, but its
- * result is discarded.
+ * A stalled DNS resolution still runs to completion in the background, but its result
+ * is discarded.
  *
  * @param timeoutMs Per-request deadline in ms (defaults to 30s; override for tests).
  * @throws McpSsrfError if a request URL resolves to a blocked IP address
@@ -106,22 +194,54 @@ export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOU
   return (async (url, init) => {
     const target = typeof url === 'string' ? url : url.href
     const timeoutSignal = AbortSignal.timeout(timeoutMs)
-    // Compose deadline + caller signal up front so both phases — SSRF validation
-    // and the HTTP request — are bounded by the deadline and caller cancellation.
+    // Compose deadline + caller signal up front so every phase — SSRF validation, the
+    // HTTP request, and the body read — is bounded by the deadline and caller cancellation.
     const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
+    // The per-request pinned Agent MUST be torn down: it holds a keep-alive socket the
+    // one-shot OAuth flow never reuses, so leaving it open leaks a socket per leg.
+    let dispatcher: Agent | undefined
     try {
-      const resolvedIP = await raceWithSignal(validateMcpServerSsrf(target), signal)
-      const pinnedFetch: FetchLike = resolvedIP ? createPinnedFetch(resolvedIP) : globalThis.fetch
-      return await pinnedFetch(url, { ...init, signal })
+      const resolvedIP = await withDeadline(validateMcpServerSsrf(target), signal)
+      let response: Response
+      if (resolvedIP) {
+        const pinned = createPinnedFetchWithDispatcher(resolvedIP, {
+          maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
+        })
+        dispatcher = pinned.dispatcher
+        response = await withDeadline(pinned.fetch(url, { ...init, signal }), signal)
+      } else {
+        // No pin (self-hosted allowlist) — global fetch over the shared dispatcher.
+        response = await withDeadline(globalThis.fetch(url, { ...init, signal }), signal)
+      }
+      // A `text/event-stream` reply is the auth-type probe's `initialize` (the only
+      // streaming case a guarded call sees); hand it back live with its own teardown so
+      // the caller reads headers without the buffer draining/stalling the stream. Every
+      // OAuth leg is single-shot JSON and falls through to be buffered and torn down.
+      const contentType = response.headers.get('content-type') ?? ''
+      if (contentType.includes('text/event-stream')) {
+        const streamed = releaseStreamOnSettle(response, dispatcher, signal)
+        dispatcher = undefined // teardown ownership handed to releaseStreamOnSettle
+        return streamed
+      }
+      return await bufferUnderDeadline(response, signal)
     } catch (error) {
+      const host = URL.canParse(target) ? new URL(target).host : target
       // Relabel only when our own deadline is what fired — identified by the
       // rejection reason's identity, not init.signal's state (which may abort
       // independently just after the deadline).
       if (timeoutSignal.aborted && error === timeoutSignal.reason) {
-        const host = URL.canParse(target) ? new URL(target).host : target
         throw new McpError(`MCP authorization request to ${host} timed out after ${timeoutMs}ms`)
       }
+      if (isResponseTooLarge(error)) {
+        throw new McpError(
+          `MCP authorization response from ${host} exceeded ${MAX_OAUTH_RESPONSE_BYTES} bytes`
+        )
+      }
       throw error
+    } finally {
+      // Destroy (not close) so a hung leg can't make teardown itself hang; this releases
+      // the pooled keep-alive socket the per-request Agent would otherwise strand.
+      await dispatcher?.destroy().catch(() => {})
     }
   }) satisfies FetchLike
 }
