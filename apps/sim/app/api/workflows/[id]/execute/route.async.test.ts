@@ -431,7 +431,7 @@ describe('workflow execute async route', () => {
     await vi.waitFor(() => {
       expect(getAdmissionGateStatus().inflight).toBe(0)
     })
-    expect(mockCompleteJob).toHaveBeenCalledWith('job-123', expect.anything())
+    expect(mockCompleteJob).toHaveBeenCalledWith('job-123', undefined)
   })
 
   it('applies admission backpressure to session-backed async executions', async () => {
