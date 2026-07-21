@@ -263,6 +263,34 @@ describe('runManagedAgentSession', () => {
     expect(mocks.sendSessionEvents).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps requires_action pending when lagging history holds only an older lifecycle event', async () => {
+    // Live sees requires_action@:02 (newest). Catch-up history LAGS — it holds
+    // only an older, unseen running@:00. By timestamp that older event must not
+    // clear the newer pause, so the idle snapshot must not complete the run.
+    const runningAt = (id: string, at: string): AnthropicSessionEvent => ({
+      id,
+      type: 'session.status_running',
+      processed_at: at,
+    })
+    const idleAt = (id: string, stop: string, at: string): AnthropicSessionEvent => ({
+      id,
+      type: 'session.status_idle',
+      stop_reason: { type: stop },
+      processed_at: at,
+    })
+    scriptStreamBatches([
+      [msg('e1', 'hi'), idleAt('ra1', 'requires_action', '2026-01-01T00:00:02Z')],
+      [idleAt('e2', 'end_turn', '2026-01-01T00:00:05Z')],
+    ])
+    mocks.listSessionEvents.mockResolvedValueOnce([runningAt('run0', '2026-01-01T00:00:00Z')])
+    mocks.getSession.mockResolvedValue({ status: 'idle' })
+
+    const result = await runManagedAgentSession({ ...BASE })
+
+    expect(result.ok).toBe(true)
+    expect(mocks.openSessionStream).toHaveBeenCalledTimes(2) // older running did not clear the newer pause
+  })
+
   it('does not complete on a session_idle event that carries no stop_reason', async () => {
     // An idle event with no stop_reason (e.g. pre-first-turn) must NOT be
     // treated as complete via the event path — defer to the status gate, which

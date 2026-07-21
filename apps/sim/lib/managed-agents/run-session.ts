@@ -67,23 +67,16 @@ type Terminal = { status: 'complete' | 'error'; reason?: string }
 /** Result of handling one event: an optional terminal signal, plus whether the event must be retried. */
 type HandleResult = { terminal?: Terminal; retry?: boolean }
 
-/**
- * The most recent lifecycle event (`session.status_*` / `session.error`) in a
- * chronological history, or `undefined`. The events list is authoritative and
- * ordered, so the last such event reflects the session's current state — used
- * to recompute the pending-action state without depending on the order events
- * happened to arrive across the live stream and catch-up.
- */
-function findLastLifecycleEvent(
-  history: AnthropicSessionEvent[]
-): AnthropicSessionEvent | undefined {
-  for (let i = history.length - 1; i >= 0; i--) {
-    const type = history[i].type
-    if (type && (type.startsWith('session.status_') || type === 'session.error')) {
-      return history[i]
-    }
-  }
-  return undefined
+/** True for session lifecycle events (`session.status_*` / `session.error`). */
+function isLifecycleEvent(type: string | undefined): boolean {
+  return !!type && (type.startsWith('session.status_') || type === 'session.error')
+}
+
+/** Epoch millis for an event's `processed_at`; absent/queued/unparseable counts as newest. */
+function eventTime(value: string | null | undefined): number {
+  if (!value) return Number.POSITIVE_INFINITY
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed
 }
 
 /** Best-effort `user.interrupt` for a session Sim is abandoning (cancel / cap). Never throws. */
@@ -172,9 +165,12 @@ export async function runManagedAgentSession(
   const startedAt = Date.now()
   let backoffMs = RECONNECT_BACKOFF_START_MS
   let sawActivity = false
-  // A `requires_action` idle is a pending pause (waiting on a tool result), not
-  // a finished turn. Tracking it prevents the quiet-status path from reporting
-  // an in-progress session complete; it clears once the session resumes.
+  // A `requires_action` idle means the session is paused waiting on a tool
+  // result, not finished. We derive it from the NEWEST lifecycle event by
+  // `processed_at` (tracked across the live stream and catch-up), so a lagging
+  // or out-of-order history can never clear a newer pause and let an idle
+  // snapshot report an in-progress session complete.
+  let latestLifecycleAt = Number.NEGATIVE_INFINITY
   let requiresActionOutstanding = false
   let terminal: Terminal | null = null
 
@@ -186,11 +182,13 @@ export async function runManagedAgentSession(
     ) {
       sawActivity = true
     }
-    if (event.type === 'session.status_running' || event.type === 'agent.message') {
-      requiresActionOutstanding = false
-    }
-    if (event.type === 'session.status_idle' && event.stop_reason?.type === 'requires_action') {
-      requiresActionOutstanding = true
+    if (isLifecycleEvent(event.type)) {
+      const at = eventTime(event.processed_at)
+      if (at >= latestLifecycleAt) {
+        latestLifecycleAt = at
+        requiresActionOutstanding =
+          event.type === 'session.status_idle' && event.stop_reason?.type === 'requires_action'
+      }
     }
     const outcome = await handleEvent({ event, assistantText, apiKey, sessionId, signal })
     // Mark the event seen only once fully handled. A custom-tool reply that
@@ -240,11 +238,6 @@ export async function runManagedAgentSession(
       // gap. Events are deduped by id; entries without an id are skipped here
       // (they are non-persisted stream previews, never history).
       const history = await listSessionEvents({ apiKey, sessionId, signal })
-      // Snapshot the live-observed pending state before catch-up mutates it:
-      // catch-up may process an OLDER `agent.message` that clears it, but that
-      // stale event must not override a newer `requires_action` the live stream
-      // saw when the history has no lifecycle event to arbitrate.
-      const pendingBeforeCatchup: boolean = requiresActionOutstanding
       let progressed = false
       for (const event of history) {
         if (!event.id || seenIds.has(event.id)) continue
@@ -257,18 +250,6 @@ export async function runManagedAgentSession(
         if (isTerminal) break
       }
       if (terminal || signal?.aborted) break
-
-      // Recompute the pending-action state from the chronological history,
-      // which is authoritative and ordered. When history carries a lifecycle
-      // event, it decides (overriding any out-of-order flag flip from catch-up
-      // — an older `agent.message` must not clear a newer `requires_action`
-      // pause). When it carries NONE, restore the live-observed state rather
-      // than trusting a stale catch-up mutation.
-      const lastLifecycle = findLastLifecycleEvent(history)
-      requiresActionOutstanding = lastLifecycle
-        ? lastLifecycle.type === 'session.status_idle' &&
-          lastLifecycle.stop_reason?.type === 'requires_action'
-        : pendingBeforeCatchup
 
       // Still no terminal event. Consult the authoritative session status: a
       // finished session reports `idle`/`terminated`; a working one reports
