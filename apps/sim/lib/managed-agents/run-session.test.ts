@@ -251,6 +251,18 @@ describe('runManagedAgentSession', () => {
     expect(mocks.sleep).toHaveBeenCalled() // backed off instead of resetting on the retry event
   })
 
+  it('interrupts the session when a mid-run stream failure ends the loop', async () => {
+    mocks.openSessionStream.mockRejectedValue(new Error('stream 502'))
+
+    const result = await runManagedAgentSession({ ...BASE })
+
+    expect(result.ok).toBe(false)
+    expect(mocks.interruptSession).toHaveBeenCalledWith({
+      apiKey: BASE.apiKey,
+      sessionId: 'sess_1',
+    })
+  })
+
   it('interrupts the session and reports aborted when the workflow is cancelled', async () => {
     const controller = new AbortController()
     // Cancel right after the session is created, before the stream loop runs.

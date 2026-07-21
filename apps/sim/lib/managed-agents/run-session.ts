@@ -278,8 +278,10 @@ export async function runManagedAgentSession(
       }
     }
   } catch (error) {
+    // Any exit from the loop with the session possibly still running must stop
+    // it — a mid-run stream/API failure is no different from an abort or cap.
+    await interruptQuietly(apiKey, sessionId)
     if (signal?.aborted) {
-      await interruptQuietly(apiKey, sessionId)
       return { ok: false, content: assistantText.value, sessionId, error: 'aborted' }
     }
     logger.error('Managed agent stream failed', { sessionId, error: getErrorMessage(error) })
