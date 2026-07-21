@@ -46,8 +46,6 @@ runs:
       uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
 
     # No cache-to: type=gha — it shares the 10 GB repo quota with the cache mounts.
-    # Heap trimmed from the 8192 default: 16 GB runners OOM-killed next build (exit
-    # 137). Hardcoded, not an input, so a caller can't re-raise it.
     - name: Build and push (GitHub)
       if: inputs.provider != '' && inputs.provider != 'blacksmith'
       uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
@@ -57,6 +55,5 @@ runs:
         platforms: ${{ inputs.platforms }}
         push: true
         tags: ${{ inputs.tags }}
-        build-args: NEXT_BUILD_HEAP_MB=4096
         provenance: false
         sbom: false

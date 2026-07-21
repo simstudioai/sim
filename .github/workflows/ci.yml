@@ -11,8 +11,9 @@ name: CI
 # against the provider you're escaping. Every runs-on and both composite actions
 # share this predicate and must change together.
 #
-# GitHub mode is break-glass, not a peer — 4 vCPU/16 GB, cold layers, and the app
-# image build is the tight spot (it OOM-killed next build on the first live flip).
+# GitHub mode is break-glass, not a peer — cold layers, slower runs. The app image
+# is the one job on a paid larger runner: next build needs ~32 GB and OOM-kills
+# (exit 137) on the free 16 GB runners at any heap ceiling.
 
 on:
   push:
@@ -95,7 +96,7 @@ jobs:
     name: Build Dev ECR
     needs: [detect-version, migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || matrix.gh_runner }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -104,14 +105,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Only the app image needs the paid 8-core/32 GB runner: next build
+          # exhausts the free 16 GB one (exit 137). The others build in <5 min.
           - dockerfile: ./docker/app.Dockerfile
             ecr_repo_secret: ECR_APP
+            gh_runner: linux-x64-8-core
           - dockerfile: ./docker/db.Dockerfile
             ecr_repo_secret: ECR_MIGRATIONS
+            gh_runner: ubuntu-latest
           - dockerfile: ./docker/realtime.Dockerfile
             ecr_repo_secret: ECR_REALTIME
+            gh_runner: ubuntu-latest
           - dockerfile: ./docker/pii.Dockerfile
             ecr_repo_secret: ECR_PII
+            gh_runner: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -200,7 +207,7 @@ jobs:
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || matrix.gh_runner }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -213,15 +220,19 @@ jobs:
           - dockerfile: ./docker/app.Dockerfile
             ghcr_image: ghcr.io/simstudioai/simstudio
             ecr_repo_secret: ECR_APP
+            gh_runner: linux-x64-8-core
           - dockerfile: ./docker/db.Dockerfile
             ghcr_image: ghcr.io/simstudioai/migrations
             ecr_repo_secret: ECR_MIGRATIONS
+            gh_runner: ubuntu-latest
           - dockerfile: ./docker/realtime.Dockerfile
             ghcr_image: ghcr.io/simstudioai/realtime
             ecr_repo_secret: ECR_REALTIME
+            gh_runner: ubuntu-latest
           - dockerfile: ./docker/pii.Dockerfile
             ghcr_image: ghcr.io/simstudioai/pii
             ecr_repo_secret: ECR_PII
+            gh_runner: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -364,7 +375,7 @@ jobs:
   # never moves a documented tag.
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404-arm' || 'ubuntu-24.04-arm' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404-arm' || matrix.gh_runner }}
     timeout-minutes: 30
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -376,12 +387,16 @@ jobs:
         include:
           - dockerfile: ./docker/app.Dockerfile
             image: ghcr.io/simstudioai/simstudio
+            gh_runner: linux-arm64-8-core
           - dockerfile: ./docker/db.Dockerfile
             image: ghcr.io/simstudioai/migrations
+            gh_runner: ubuntu-24.04-arm
           - dockerfile: ./docker/realtime.Dockerfile
             image: ghcr.io/simstudioai/realtime
+            gh_runner: ubuntu-24.04-arm
           - dockerfile: ./docker/pii.Dockerfile
             image: ghcr.io/simstudioai/pii
+            gh_runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout code
