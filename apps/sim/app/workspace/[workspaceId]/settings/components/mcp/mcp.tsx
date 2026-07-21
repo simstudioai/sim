@@ -71,6 +71,7 @@ interface ServerListItemProps {
   isConnecting: boolean
   isLoadingTools?: boolean
   isRefreshing?: boolean
+  discoveryError?: string | null
   onRemove: () => void
   onViewDetails: () => void
   onAuthorize: () => void
@@ -84,6 +85,7 @@ function ServerListItem({
   isConnecting,
   isLoadingTools = false,
   isRefreshing = false,
+  discoveryError = null,
   onRemove,
   onViewDetails,
   onAuthorize,
@@ -95,8 +97,17 @@ function ServerListItem({
     server.lastError,
     server.authType
   )
+  // A live discovery failure whose stored status hasn't caught up yet would otherwise read as
+  // "0 tools"; surface it directly so a failed row reads as failed, not empty.
+  const showDiscoveryError =
+    Boolean(discoveryError) &&
+    tools.length === 0 &&
+    server.connectionStatus !== 'error' &&
+    server.connectionStatus !== 'disconnected'
   const hasConnectionIssue =
-    server.connectionStatus === 'error' || server.connectionStatus === 'disconnected'
+    server.connectionStatus === 'error' ||
+    server.connectionStatus === 'disconnected' ||
+    showDiscoveryError
 
   return (
     <div className='flex items-center justify-between gap-3'>
@@ -117,7 +128,9 @@ function ServerListItem({
             ? 'Refreshing...'
             : isLoadingTools && tools.length === 0
               ? 'Loading...'
-              : toolsLabel}
+              : showDiscoveryError
+                ? discoveryError
+                : toolsLabel}
         </p>
       </div>
       <div className='flex flex-shrink-0 items-center gap-1'>
@@ -390,6 +403,11 @@ export function MCP() {
   // (`toolsError`) must not blank the page — the servers still render, each row surfacing its
   // own discovery state via `toolsStateByServer`, with a non-blocking notice above the list.
   const listError = serversError
+  // Any per-server discovery failure — even a partial one where other servers succeeded (which
+  // suppresses the aggregate `toolsError`) — so the notice below still surfaces it.
+  const hasDiscoveryError =
+    Boolean(toolsError) ||
+    Array.from(toolsStateByServer.values()).some((state) => state.error != null)
   const hasServers = servers && servers.length > 0
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && servers.length > 0
 
@@ -661,7 +679,7 @@ export function MCP() {
           </SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
-            {toolsError && (
+            {hasDiscoveryError && (
               <p className='text-[var(--text-error)] text-xs leading-tight'>
                 {getErrorMessage(toolsError, 'Some tools could not be discovered')}
               </p>
@@ -686,6 +704,9 @@ export function MCP() {
                   isRefreshing={
                     refreshServerMutation.isPending &&
                     refreshServerMutation.variables?.serverId === server.id
+                  }
+                  discoveryError={
+                    serverToolsState?.error ? getErrorMessage(serverToolsState.error) : null
                   }
                   onRemove={() => handleRemoveServer(server.id)}
                   onViewDetails={() => handleViewDetails(server.id)}
