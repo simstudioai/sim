@@ -53,10 +53,14 @@ export function createPinnedMcpFetch(resolvedIP: string): PinnedMcpFetch {
       })
       return response
     } catch (error) {
+      const e = error as { name?: string; code?: string; cause?: { name?: string; code?: string } }
       transportLogger.warn('MCP transport request failed', {
         host,
         method,
         ms: Date.now() - startedAt,
+        errorName: e?.name,
+        errorCode: e?.code ?? e?.cause?.code,
+        causeName: e?.cause?.name,
       })
       throw error
     }
