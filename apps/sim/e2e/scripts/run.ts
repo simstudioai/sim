@@ -199,7 +199,10 @@ async function main(): Promise<void> {
     await buildApp(stackOptions)
     realtime = await startRealtime(stackOptions)
     app = await startApp(stackOptions)
-    await assertAdminApiBoundary(E2E_ORIGIN, profile.childEnvironment.env.ADMIN_API_KEY)
+    await assertAdminApiBoundary(
+      'http://127.0.0.1:3000',
+      profile.childEnvironment.env.ADMIN_API_KEY
+    )
     assertNoForbiddenProviderInitialization([app.logPath, realtime.logPath])
 
     const playwrightEnvironment = createPlaywrightEnvironment(
@@ -293,7 +296,7 @@ function createPlaywrightEnvironment(
   storageStateDirectory: string,
   markerDirectory: string
 ): Record<string, string> {
-  const keys = [...E2E_OS_PASSTHROUGH_KEYS, 'HOME', 'PLAYWRIGHT_BROWSERS_PATH']
+  const keys = [...E2E_OS_PASSTHROUGH_KEYS, 'HOME', 'NODE_OPTIONS', 'PLAYWRIGHT_BROWSERS_PATH']
   const env: Record<string, string> = {}
   for (const key of keys) {
     const value = stackEnvironment[key]
