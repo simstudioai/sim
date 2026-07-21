@@ -13,14 +13,30 @@ const FORBIDDEN_OPTIONS = [
 
 export interface E2eRunOptions {
   playwrightArgs: string[]
+  reuseBuild: boolean
 }
 
-export function parseRunOptions(argv: string[]): E2eRunOptions {
+export function parseRunOptions(
+  argv: string[],
+  environment: { ci: boolean } = { ci: process.env.CI === 'true' }
+): E2eRunOptions {
   const normalizedArgs = argv[0] === '--' ? argv.slice(1) : [...argv]
   if (normalizedArgs.includes('--skip-build')) {
     throw new Error(
       '--skip-build remains disabled until the planned profile/source-keyed build reuse experiment proves it safe'
     )
+  }
+  if (hasOption(normalizedArgs, '--keep-stack')) {
+    throw new Error(
+      '--keep-stack is unavailable: the all-or-nothing retained-stack safety experiment was deferred'
+    )
+  }
+  if (normalizedArgs.some((arg) => arg.startsWith('--reuse-build='))) {
+    throw new Error('Use --reuse-build without a value')
+  }
+  const reuseBuild = normalizedArgs.includes('--reuse-build')
+  if (reuseBuild && environment.ci) {
+    throw new Error('--reuse-build is local-only; CI must run a fresh one-shot build')
   }
   for (const option of FORBIDDEN_OPTIONS) {
     if (hasOption(normalizedArgs, option)) {
@@ -33,7 +49,7 @@ export function parseRunOptions(argv: string[]): E2eRunOptions {
   if (normalizedArgs.includes('--shard')) {
     throw new Error('Use canonical --shard=<current/total> syntax')
   }
-  const playwrightArgs = [...normalizedArgs]
+  const playwrightArgs = normalizedArgs.filter((arg) => arg !== '--reuse-build')
   const projects = getEqualsOptionValues(playwrightArgs, '--project')
   const unknownProject = projects.find(
     (project) => project !== NAVIGATION_PROJECT && project !== WORKFLOWS_PROJECT
@@ -52,7 +68,7 @@ export function parseRunOptions(argv: string[]): E2eRunOptions {
     )
   }
 
-  return { playwrightArgs }
+  return { playwrightArgs, reuseBuild }
 }
 
 function hasOption(args: string[], name: string): boolean {

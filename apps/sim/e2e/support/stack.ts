@@ -1,4 +1,12 @@
+import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import {
+  clearActiveNextBuild,
+  computeBuildIdentity,
+  restoreCachedBuild,
+  storeCompletedBuild,
+} from './build-manifest'
+import type { ChildEnvironment } from './env'
 import { DB_PACKAGE_DIR, PLAYWRIGHT_CLI, REALTIME_APP_DIR, REPO_ROOT, SIM_APP_DIR } from './paths'
 import {
   type ManagedProcess,
@@ -7,12 +15,18 @@ import {
   waitForManagedProcessReady,
 } from './process'
 import { waitForHttpReady } from './readiness'
+import { verifySandboxBundleIntegrity } from './sandbox-bundles'
 
 export interface StackCommandOptions {
   bunExecutable: string
   nodeExecutable: string
   env: Record<string, string>
   logsDirectory: string
+}
+
+export interface BuildAppOptions extends StackCommandOptions {
+  buildEnvironment: ChildEnvironment
+  reuseBuild: boolean
 }
 
 export async function runMigrations(options: StackCommandOptions): Promise<void> {
@@ -26,23 +40,35 @@ export async function runMigrations(options: StackCommandOptions): Promise<void>
   })
 }
 
-export async function buildApp(options: StackCommandOptions): Promise<void> {
-  await runCommand({
-    name: 'sandbox-bundles',
-    command: options.bunExecutable,
-    args: ['--no-env-file', 'run', 'build:sandbox-bundles'],
-    cwd: SIM_APP_DIR,
-    env: options.env,
-    logsDirectory: options.logsDirectory,
+export async function buildApp(options: BuildAppOptions): Promise<void> {
+  verifySandboxBundleIntegrity()
+  const identity = computeBuildIdentity({
+    buildEnvironment: options.buildEnvironment,
+    nodeExecutable: options.nodeExecutable,
   })
+  if (options.reuseBuild) {
+    const reuseDecision = restoreCachedBuild(identity)
+    writeBuildDecision(options.logsDirectory, reuseDecision)
+    if (reuseDecision.reused) {
+      console.info(`Reused verified Next build ${identity.nextBuildHash}`)
+      return
+    }
+    console.info(`Next build cache miss: ${reuseDecision.reason}`)
+  }
+
+  clearActiveNextBuild()
+  const buildHome = options.buildEnvironment.env.HOME
+  if (buildHome) mkdirSync(buildHome, { recursive: true })
   await runCommand({
     name: 'next-build',
     command: options.nodeExecutable,
     args: [path.join(REPO_ROOT, 'node_modules/next/dist/bin/next'), 'build'],
     cwd: SIM_APP_DIR,
-    env: options.env,
+    env: options.buildEnvironment.env,
     logsDirectory: options.logsDirectory,
   })
+  const storedDecision = storeCompletedBuild(identity)
+  writeBuildDecision(options.logsDirectory, storedDecision)
 }
 
 export async function startRealtime(options: StackCommandOptions): Promise<ManagedProcess> {
@@ -133,4 +159,11 @@ export async function runPlaywright(
     env: options.env,
     logsDirectory: options.logsDirectory,
   })
+}
+
+function writeBuildDecision(logsDirectory: string, decision: object): void {
+  writeFileSync(
+    path.join(logsDirectory, 'build-reuse-decision.json'),
+    `${JSON.stringify(decision, null, 2)}\n`
+  )
 }

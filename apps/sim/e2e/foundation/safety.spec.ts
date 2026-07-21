@@ -5,11 +5,13 @@ import path from 'node:path'
 import { loadEnvConfig } from '@next/env'
 import { expect, test } from '@playwright/test'
 import { parseRunOptions } from '../scripts/options'
+import { classifyE2eHashOwner } from '../support/build-manifest'
 import {
   assertLoopbackPostgresUrl,
   assertSafeDatabaseName,
   buildRunDatabaseUrl,
 } from '../support/database'
+import { createHostedBillingProfile } from '../support/deployment-profile'
 import { buildChildEnvironment, discoverEnvFileKeys } from '../support/env'
 import { areValidE2eHostAddresses, isLoopbackAddress } from '../support/hosts'
 import {
@@ -17,6 +19,7 @@ import {
   spawnManagedProcess,
   waitForManagedProcessReady,
 } from '../support/process'
+import { verifySandboxBundleIntegrity } from '../support/sandbox-bundles'
 import { parseProcessGroupIds } from '../support/signal-cleanup'
 
 test.describe('foundation safety guards', () => {
@@ -60,6 +63,38 @@ test.describe('foundation safety guards', () => {
       delete process.env[emptyKey]
       rmSync(directory, { recursive: true, force: true })
     }
+  })
+
+  test('deployment profile projects least-privilege build and runtime environments', () => {
+    const profile = createHostedBillingProfile({
+      runId: 'projection_test',
+      databaseUrl: 'postgresql://postgres:postgres@127.0.0.1:5432/sim_e2e_projection_test',
+      stripeApiBaseUrl: 'http://127.0.0.1:40123',
+      homeDirectory: path.join(os.tmpdir(), 'sim-e2e-projection'),
+      playwrightBrowsersPath: path.join(os.tmpdir(), 'sim-e2e-browsers'),
+      ci: false,
+    })
+    const { build, app, realtime, migration, seed, authCapture, playwright } = profile.environments
+
+    expect(build.env.DATABASE_URL).toContain('/sim_e2e_build_sentinel')
+    expect(build.env.DATABASE_URL).not.toBe(app.env.DATABASE_URL)
+    expect(build.env.STRIPE_API_BASE_URL).toBe('http://127.0.0.1:1')
+    expect(build.env.E2E_RUN_ID).toBe('build_sentinel')
+
+    for (const key of Object.keys(app.env).filter((key) => key.startsWith('NEXT_PUBLIC_'))) {
+      expect(build.env[key], `${key} must be identical at build and runtime`).toBe(app.env[key])
+    }
+
+    expect(seed.env.ADMIN_API_KEY).toBe(app.env.ADMIN_API_KEY)
+    expect(seed.env.DATABASE_URL).toBe(app.env.DATABASE_URL)
+    expect(authCapture.env.ADMIN_API_KEY).toBeUndefined()
+    expect(authCapture.env.DATABASE_URL).toBeUndefined()
+    expect(playwright.env.ADMIN_API_KEY).toBeUndefined()
+    expect(playwright.env.DATABASE_URL).toBeUndefined()
+    expect(realtime.env.ADMIN_API_KEY).toBeUndefined()
+    expect(realtime.env.STRIPE_SECRET_KEY).toBeUndefined()
+    expect(migration.env.ADMIN_API_KEY).toBeUndefined()
+    expect(migration.env.MIGRATION_DATABASE_URL).toBe(app.env.DATABASE_URL)
   })
 
   test('database guards reject shared or remote targets', () => {
@@ -109,6 +144,26 @@ test.describe('foundation safety guards', () => {
       /canonical/
     )
     expect(() => parseRunOptions(['--pass-with-no-tests'])).toThrow(/cannot override/)
+    expect(parseRunOptions(['--reuse-build'], { ci: false })).toEqual({
+      playwrightArgs: [],
+      reuseBuild: true,
+    })
+    expect(() => parseRunOptions(['--reuse-build'], { ci: true })).toThrow(/local-only/)
+    expect(() => parseRunOptions(['--keep-stack'], { ci: false })).toThrow(/deferred/)
+  })
+
+  test('hash ownership follows execution ownership', () => {
+    expect(classifyE2eHashOwner('apps/sim/e2e/settings/navigation/routes.spec.ts')).toBe('rerun')
+    expect(classifyE2eHashOwner('apps/sim/e2e/fixtures/scenario.ts')).toBe('scenario')
+    expect(classifyE2eHashOwner('apps/sim/e2e/scripts/seed-world.ts')).toBe('scenario')
+    expect(classifyE2eHashOwner('apps/sim/e2e/fakes/stripe/server.ts')).toBe('retained-stack')
+    expect(classifyE2eHashOwner('apps/sim/e2e/support/readiness.ts')).toBe('retained-stack')
+    expect(classifyE2eHashOwner('apps/realtime/src/index.ts')).toBe('retained-stack')
+    expect(classifyE2eHashOwner('apps/sim/app/page.tsx')).toBe('next-build')
+  })
+
+  test('committed sandbox bundles match the reviewed fingerprint', () => {
+    expect(() => verifySandboxBundleIntegrity()).not.toThrow()
   })
 
   test('empty signal cleanup groups never become PID zero', () => {

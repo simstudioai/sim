@@ -23,7 +23,7 @@ import {
   assertNoForbiddenProviderInitialization,
   assertNoForbiddenProviderTraffic,
 } from '../support/diagnostics'
-import { E2E_OS_PASSTHROUGH_KEYS, formatRedactedEnvironmentSummary } from '../support/env'
+import { formatRedactedEnvironmentSummary } from '../support/env'
 import { assertE2eHostResolvesToLoopback } from '../support/hosts'
 import { getRunDirectory, SIM_APP_DIR } from '../support/paths'
 import {
@@ -186,27 +186,42 @@ async function main(): Promise<void> {
       playwrightBrowsersPath: resolvePlaywrightBrowsersPath(),
       ci: process.env.CI === 'true',
     })
-    console.info(formatRedactedEnvironmentSummary(profile.id, profile.childEnvironment))
+    for (const [name, environment] of Object.entries(profile.environments)) {
+      console.info(formatRedactedEnvironmentSummary(`${profile.id}/${name}`, environment))
+    }
 
-    const stackOptions = {
+    const commandOptions = {
       bunExecutable,
       nodeExecutable,
-      env: profile.childEnvironment.env,
       logsDirectory,
     }
 
-    await runMigrations(stackOptions)
-    await buildApp(stackOptions)
-    realtime = await startRealtime(stackOptions)
-    app = await startApp(stackOptions)
+    await runMigrations({
+      ...commandOptions,
+      env: profile.environments.migration.env,
+    })
+    await buildApp({
+      ...commandOptions,
+      env: profile.environments.app.env,
+      buildEnvironment: profile.environments.build,
+      reuseBuild: options.reuseBuild,
+    })
+    realtime = await startRealtime({
+      ...commandOptions,
+      env: profile.environments.realtime.env,
+    })
+    app = await startApp({
+      ...commandOptions,
+      env: profile.environments.app.env,
+    })
     await assertAdminApiBoundary(
       'http://127.0.0.1:3000',
-      profile.childEnvironment.env.ADMIN_API_KEY
+      profile.environments.app.env.ADMIN_API_KEY
     )
     assertNoForbiddenProviderInitialization([app.logPath, realtime.logPath])
 
     const playwrightEnvironment = createPlaywrightEnvironment(
-      profile.childEnvironment.env,
+      profile.environments.playwright.env,
       runId,
       storageStateDirectory,
       markerDirectory
@@ -291,19 +306,13 @@ function resolvePlaywrightBrowsersPath(): string {
 }
 
 function createPlaywrightEnvironment(
-  stackEnvironment: Record<string, string>,
+  baseEnvironment: Record<string, string>,
   runId: string,
   storageStateDirectory: string,
   markerDirectory: string
 ): Record<string, string> {
-  const keys = [...E2E_OS_PASSTHROUGH_KEYS, 'HOME', 'NODE_OPTIONS', 'PLAYWRIGHT_BROWSERS_PATH']
-  const env: Record<string, string> = {}
-  for (const key of keys) {
-    const value = stackEnvironment[key]
-    if (value !== undefined) env[key] = value
-  }
   return {
-    ...env,
+    ...baseEnvironment,
     E2E_PROFILE,
     E2E_ORCHESTRATED: '1',
     E2E_RUN_ID: runId,

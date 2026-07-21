@@ -1,17 +1,17 @@
 import { buildChildEnvironment, type ChildEnvironment } from './env'
+import { E2E_CACHE_DIR } from './paths'
 
 export const E2E_PROFILE = 'hosted-billing-chromium'
 export const E2E_HOST = 'e2e.sim.ai'
 export const E2E_ORIGIN = `http://${E2E_HOST}:3000`
 export const E2E_SOCKET_ORIGIN = `http://${E2E_HOST}:3002`
 
-const REQUIRED_KEYS = [
+const APP_REQUIRED_KEYS = [
   'NODE_ENV',
   'NEXT_PUBLIC_APP_URL',
   'BETTER_AUTH_URL',
   'BETTER_AUTH_SECRET',
   'DATABASE_URL',
-  'MIGRATION_DATABASE_URL',
   'ENCRYPTION_KEY',
   'API_ENCRYPTION_KEY',
   'INTERNAL_API_SECRET',
@@ -23,7 +23,31 @@ const REQUIRED_KEYS = [
   'E2E_PROFILE',
   'E2E_RUN_ID',
   'HOME',
-  'PLAYWRIGHT_BROWSERS_PATH',
+] as const
+const APP_ENVIRONMENT_KEYS = [
+  ...APP_REQUIRED_KEYS,
+  'NODE_OPTIONS',
+  'NEXT_TELEMETRY_DISABLED',
+  'XDG_CONFIG_HOME',
+  'AWS_EC2_METADATA_DISABLED',
+  'AWS_SHARED_CREDENTIALS_FILE',
+  'AWS_CONFIG_FILE',
+  'CLOUDSDK_CONFIG',
+  'AZURE_CONFIG_DIR',
+  'E2E_BASE_URL',
+  'EMAIL_VERIFICATION_ENABLED',
+  'EMAIL_PASSWORD_SIGNUP_ENABLED',
+  'NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED',
+  'DISABLE_REGISTRATION',
+  'DISABLE_EMAIL_SIGNUP',
+  'SIGNUP_MX_VALIDATION_ENABLED',
+  'NEXT_PUBLIC_POSTHOG_ENABLED',
+  'BLACKLISTED_PROVIDERS',
+  'STRIPE_WEBHOOK_SECRET',
+  'STRIPE_FREE_PRICE_ID',
+  'SOCKET_SERVER_URL',
+  'NEXT_PUBLIC_SOCKET_URL',
+  'CI',
 ] as const
 
 const ALLOWED_SENSITIVE_KEYS = new Set([
@@ -50,7 +74,15 @@ export interface HostedBillingProfileOptions {
 export interface HostedBillingProfile {
   id: typeof E2E_PROFILE
   origin: typeof E2E_ORIGIN
-  childEnvironment: ChildEnvironment
+  environments: {
+    build: ChildEnvironment
+    app: ChildEnvironment
+    realtime: ChildEnvironment
+    migration: ChildEnvironment
+    seed: ChildEnvironment
+    authCapture: ChildEnvironment
+    playwright: ChildEnvironment
+  }
 }
 
 export function createHostedBillingProfile({
@@ -105,16 +137,160 @@ export function createHostedBillingProfile({
   }
 
   validateProfileValues(values)
+  const buildHomeDirectory = `${E2E_CACHE_DIR}/build-home`
+  const buildValues = {
+    ...pickValues(values, APP_ENVIRONMENT_KEYS),
+    XDG_CONFIG_HOME: `${buildHomeDirectory}/xdg`,
+    AWS_EC2_METADATA_DISABLED: values.AWS_EC2_METADATA_DISABLED,
+    AWS_SHARED_CREDENTIALS_FILE: values.AWS_SHARED_CREDENTIALS_FILE,
+    AWS_CONFIG_FILE: values.AWS_CONFIG_FILE,
+    CLOUDSDK_CONFIG: `${buildHomeDirectory}/gcloud`,
+    AZURE_CONFIG_DIR: `${buildHomeDirectory}/azure`,
+    E2E_RUN_ID: 'build_sentinel',
+    HOME: buildHomeDirectory,
+    DATABASE_URL: 'postgresql://e2e_build:e2e_build@127.0.0.1:1/sim_e2e_build_sentinel',
+    STRIPE_API_BASE_URL: 'http://127.0.0.1:1',
+    CI: 'false',
+  }
+  validateProfileValues(buildValues)
 
   return {
     id: E2E_PROFILE,
     origin: E2E_ORIGIN,
-    childEnvironment: buildChildEnvironment({
-      values,
-      required: REQUIRED_KEYS,
-      allowedSensitiveKeys: ALLOWED_SENSITIVE_KEYS,
-    }),
+    environments: {
+      build: createEnvironment(buildValues, APP_REQUIRED_KEYS),
+      app: createEnvironment(pickValues(values, APP_ENVIRONMENT_KEYS), APP_REQUIRED_KEYS),
+      realtime: createEnvironment(
+        pickValues(values, [
+          'NODE_ENV',
+          'NODE_OPTIONS',
+          'HOME',
+          'DATABASE_URL',
+          'BETTER_AUTH_URL',
+          'BETTER_AUTH_SECRET',
+          'INTERNAL_API_SECRET',
+          'NEXT_PUBLIC_APP_URL',
+          'E2E_RUN_ID',
+          'CI',
+        ]),
+        [
+          'NODE_ENV',
+          'HOME',
+          'DATABASE_URL',
+          'BETTER_AUTH_URL',
+          'BETTER_AUTH_SECRET',
+          'INTERNAL_API_SECRET',
+          'NEXT_PUBLIC_APP_URL',
+          'E2E_RUN_ID',
+        ],
+        false
+      ),
+      migration: createEnvironment(
+        pickValues(values, [
+          'NODE_ENV',
+          'NODE_OPTIONS',
+          'HOME',
+          'MIGRATION_DATABASE_URL',
+          'DATABASE_URL',
+          'E2E_PROFILE',
+          'E2E_RUN_ID',
+          'CI',
+        ]),
+        ['NODE_ENV', 'HOME', 'MIGRATION_DATABASE_URL', 'DATABASE_URL', 'E2E_PROFILE', 'E2E_RUN_ID'],
+        false
+      ),
+      seed: createEnvironment(
+        pickValues(values, [
+          'NODE_ENV',
+          'NODE_OPTIONS',
+          'HOME',
+          'DATABASE_URL',
+          'ADMIN_API_KEY',
+          'E2E_PROFILE',
+          'E2E_RUN_ID',
+          'E2E_BASE_URL',
+          'CI',
+        ]),
+        [
+          'NODE_ENV',
+          'HOME',
+          'DATABASE_URL',
+          'ADMIN_API_KEY',
+          'E2E_PROFILE',
+          'E2E_RUN_ID',
+          'E2E_BASE_URL',
+        ],
+        false
+      ),
+      authCapture: createEnvironment(
+        pickValues(values, [
+          'NODE_ENV',
+          'NODE_OPTIONS',
+          'HOME',
+          'PLAYWRIGHT_BROWSERS_PATH',
+          'E2E_PROFILE',
+          'E2E_RUN_ID',
+          'E2E_BASE_URL',
+          'CI',
+        ]),
+        [
+          'NODE_ENV',
+          'HOME',
+          'PLAYWRIGHT_BROWSERS_PATH',
+          'E2E_PROFILE',
+          'E2E_RUN_ID',
+          'E2E_BASE_URL',
+        ],
+        false
+      ),
+      playwright: createEnvironment(
+        pickValues(values, [
+          'NODE_ENV',
+          'NODE_OPTIONS',
+          'HOME',
+          'PLAYWRIGHT_BROWSERS_PATH',
+          'E2E_PROFILE',
+          'E2E_RUN_ID',
+          'E2E_BASE_URL',
+          'CI',
+        ]),
+        [
+          'NODE_ENV',
+          'HOME',
+          'PLAYWRIGHT_BROWSERS_PATH',
+          'E2E_PROFILE',
+          'E2E_RUN_ID',
+          'E2E_BASE_URL',
+        ],
+        false
+      ),
+    },
   }
+}
+
+function createEnvironment(
+  values: Record<string, string>,
+  required: readonly string[],
+  shadowDiscovered = true
+): ChildEnvironment {
+  return buildChildEnvironment({
+    values,
+    required,
+    allowedSensitiveKeys: ALLOWED_SENSITIVE_KEYS,
+    shadowDiscovered,
+  })
+}
+
+function pickValues(
+  values: Record<string, string>,
+  keys: readonly string[]
+): Record<string, string> {
+  return Object.fromEntries(
+    keys.flatMap((key) => {
+      const value = values[key]
+      return value === undefined ? [] : [[key, value]]
+    })
+  )
 }
 
 function validateProfileValues(values: Record<string, string>): void {

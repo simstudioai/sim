@@ -22,6 +22,7 @@ package-lock.json
 /apps/**/test-results/
 /apps/**/e2e/.runs/
 /apps/**/e2e/.auth/
+/apps/**/e2e/.cache/
 
 # next.js
 /.next/

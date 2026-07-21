@@ -65,6 +65,24 @@ bun run test:e2e -- --project=hosted-billing-chromium-navigation
 bun run test:e2e -- --grep "unauthenticated"
 ```
 
+For a local follow-up run, reuse only a verified build while still creating a
+new database, Stripe fake, app, realtime process, and browser run:
+
+```bash
+bun run test:e2e -- --reuse-build --project=hosted-billing-chromium-navigation
+```
+
+The cache lives under ignored `e2e/.cache/builds/`. A hit requires matching
+source contents (including uncommitted/untracked files), build/public profile,
+Node/Bun/Next versions, platform, `BUILD_ID`, and the cached artifact checksum.
+Any mismatch performs and caches a fresh build. CI rejects `--reuse-build`.
+`--skip-build` remains unsupported.
+
+Keep-stack/rerun supervision is intentionally unavailable. The initial safety
+experiment requires descriptor ownership, mutation observation, state snapshots,
+and teardown to ship as one unit; until all of those are proven, each invocation
+uses the normal one-shot lifecycle.
+
 Do not invoke `playwright test` directly. Raw Playwright bypasses environment,
 database, process, sharding, and teardown guards; the config rejects runs that
 were not launched by the orchestrator. Report and trace viewer commands remain
@@ -91,9 +109,17 @@ Open a trace:
 node ../../node_modules/@playwright/test/cli.js show-trace test-results/<test>/trace.zip
 ```
 
-The runner starts every child process from a fresh environment. It allowlists
-only deterministic E2E values and shadows keys found in local `.env*` files, so
-developer credentials are not used as test state or written to reports.
+The runner starts every child process from a fresh, purpose-specific
+environment. Next build receives deterministic sentinels instead of the run
+database/fake endpoint; app, realtime, migrations, future seeding/auth capture,
+and Playwright each receive only their required values. Next build/start shadow
+keys found in local `.env*` files, while children that cannot load those files
+omit denied keys entirely. Developer credentials are not used as test state or
+written to reports.
+
+E2E builds verify the reviewed sandbox-bundle source/dependency/output
+fingerprint and never regenerate committed `.cjs` files. Regeneration remains an
+explicit repository maintenance operation.
 
 Provider log scans are diagnostic tripwires, not proof of zero egress. The
 primary boundaries are the default-deny child environment, provider disabling,
