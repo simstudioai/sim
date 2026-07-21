@@ -238,7 +238,7 @@ export class McpClient {
   }
 
   /**
-   * Tears down the pinned transport's HTTP/2 Agent, releasing its sockets. Must run
+   * Tears down the guarded transport's Agent, releasing its sockets. Must run
    * on every terminal path — successful disconnect, and failed or cancelled connect —
    * since a failed `connect()` discards this client without a `disconnect()` call.
    * Idempotent: the handle is cleared before use so repeat calls (a failed connect

@@ -106,7 +106,8 @@ export async function validateUrlWithDNS(
 
   try {
     // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
-    // on IPv4-only egress (e.g. AWS NAT gateways). See validateMcpServerSsrf.
+    // on IPv4-only egress (e.g. AWS NAT gateways) — still-pinned consumers (providers, SSO,
+    // A2A) depend on this ordering.
     const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
     const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
 
