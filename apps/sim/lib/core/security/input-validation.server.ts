@@ -188,7 +188,10 @@ export async function validateDatabaseHost(
   }
 
   try {
-    const { address } = await dns.lookup(cleanHost, { verbatim: true })
+    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
+    // on IPv4-only egress (e.g. AWS NAT gateways).
+    const resolved = await dns.lookup(cleanHost, { all: true, verbatim: true })
+    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
 
     if (isPrivateOrReservedIP(address) && !isPrivateDatabaseHostsAllowed) {
       logger.warn('Database host resolves to blocked IP address', {
