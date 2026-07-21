@@ -177,18 +177,23 @@ test.describe('foundation safety guards', () => {
     ).toThrow(/coupled E2E projects must remain unsharded/)
     expect(() => parseRunOptions(['--project=hosted-billing-chromium-personas'])).not.toThrow()
     expect(() =>
-      parseRunOptions(['--project=hosted-billing-chromium-personas', '--no-deps'])
+      parseRunOptions(['--project=hosted-billing-chromium-personas', '--no-deps'], { ci: false })
     ).not.toThrow()
     expect(() =>
       parseRunOptions(['--project=hosted-billing-chromium-personas', '--no-deps'], { ci: true })
     ).toThrow(/--no-deps is local-only/)
-    expect(() => parseRunOptions(['--no-deps'])).toThrow(/exactly one explicit canonical/)
+    expect(() => parseRunOptions(['--no-deps'], { ci: false })).toThrow(
+      /exactly one explicit canonical/
+    )
     expect(() =>
-      parseRunOptions([
-        '--project=hosted-billing-chromium-navigation',
-        '--project=hosted-billing-chromium-personas',
-        '--no-deps',
-      ])
+      parseRunOptions(
+        [
+          '--project=hosted-billing-chromium-navigation',
+          '--project=hosted-billing-chromium-personas',
+          '--no-deps',
+        ],
+        { ci: false }
+      )
     ).toThrow(/exactly one explicit canonical/)
     expect(() =>
       parseRunOptions(['--project=hosted-billing-chromium-persona-isolation', '--shard=1/2'])
