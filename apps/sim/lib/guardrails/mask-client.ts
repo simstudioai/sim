@@ -1,3 +1,5 @@
+import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import type { GuardrailsMaskBatchResult } from '@/lib/api/contracts'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { env } from '@/lib/core/config/env'
@@ -19,6 +21,39 @@ import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 64
 
 /**
+ * Per-chunk retry budget for transient failures (network errors, 408/429/5xx).
+ * A large payload fans out into many chunk requests, so a single blip — an ALB
+ * 502 during a deploy, a Presidio pod restart — must not fail the whole
+ * redaction (and, on the execution-altering stages, abort the run). With the
+ * default 500ms→30s jittered backoff this rides out ~2 minutes of outage per
+ * chunk before giving up. Deterministic failures (4xx, shape mismatches) throw
+ * immediately.
+ */
+const MAX_CHUNK_ATTEMPTS = 8
+
+const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
+
+class MaskChunkHttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly retryAfterMs: number | null
+  ) {
+    super(message)
+    this.name = 'MaskChunkHttpError'
+  }
+}
+
+function isRetryableChunkError(error: unknown): boolean {
+  if (error instanceof MaskChunkHttpError) {
+    return RETRYABLE_STATUSES.has(error.status)
+  }
+  // A rejected fetch (connection refused/reset, DNS, socket drop) is transient;
+  // anything else (shape mismatch, token minting failure) is deterministic.
+  return error instanceof TypeError
+}
+
+/**
  * Mask PII across many strings via the internal app-container endpoint.
  *
  * Only the app task reaches the Presidio service (it holds `PII_URL`), but the
@@ -29,8 +64,10 @@ const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 64
  * concurrency, so a large payload fans out rather than serializing; order is
  * preserved, so the returned array matches `texts` length.
  *
- * Rejects on any non-2xx, timeout, or shape mismatch so the caller can apply
- * its own fail-safe (scrubbing rather than leaking).
+ * Transient chunk failures (network errors, 408/429/5xx) retry with jittered
+ * backoff (see {@link MAX_CHUNK_ATTEMPTS}); only a deterministic failure or an
+ * exhausted retry budget rejects, so the caller can apply its own fail-safe
+ * (scrubbing rather than leaking).
  */
 export async function maskPIIBatchViaHttp(
   texts: string[],
@@ -64,8 +101,29 @@ async function postChunk(
   language: string | undefined,
   customPatterns: CustomPiiPattern[] | undefined
 ): Promise<string[]> {
-  // Mint per request: a single token (5min TTL) can expire mid-batch when a
-  // large execution fans out into many sequential chunk requests.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await postChunkOnce(url, texts, entityTypes, language, customPatterns)
+    } catch (error) {
+      if (attempt >= MAX_CHUNK_ATTEMPTS || !isRetryableChunkError(error)) {
+        throw error
+      }
+      const retryAfterMs = error instanceof MaskChunkHttpError ? error.retryAfterMs : null
+      await sleep(backoffWithJitter(attempt, retryAfterMs))
+    }
+  }
+}
+
+async function postChunkOnce(
+  url: string,
+  texts: string[],
+  entityTypes: string[],
+  language: string | undefined,
+  customPatterns: CustomPiiPattern[] | undefined
+): Promise<string[]> {
+  // Mint per attempt: a single token (5min TTL) can expire mid-batch when a
+  // large execution fans out into many sequential chunk requests or a chunk
+  // spends its retry budget waiting out an outage.
   const token = await generateInternalToken()
 
   // boundary-raw-fetch: internal server-to-server call to the app container (internal JWT auth, configurable base URL)
@@ -80,7 +138,11 @@ async function postChunk(
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
-    throw new Error(`PII mask-batch request failed (${response.status}): ${detail.slice(0, 200)}`)
+    throw new MaskChunkHttpError(
+      `PII mask-batch request failed (${response.status}): ${detail.slice(0, 200)}`,
+      response.status,
+      parseRetryAfter(response.headers.get('retry-after'))
+    )
   }
 
   const data = (await response.json()) as GuardrailsMaskBatchResult
