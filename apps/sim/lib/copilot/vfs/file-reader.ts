@@ -26,7 +26,8 @@ function recordSpanError(span: Span, err: unknown) {
 
 const logger = createLogger('FileReader')
 
-const MAX_TEXT_READ_BYTES = 5 * 1024 * 1024 // 5 MB
+/** Inline text-read cap — exported so callers can align their own byte-sniff budgets with what read() can actually display. */
+export const MAX_TEXT_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 // Parseable-document byte cap. Large office/PDF files can still
 // produce huge extracted text; reject up front to avoid wasting a

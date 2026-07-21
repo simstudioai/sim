@@ -2843,8 +2843,8 @@ export const MaterializeFile: ToolCatalogEntry = {
       operation: {
         type: 'string',
         description:
-          'What to do with the file. "save" promotes it to a permanent files/ path. "import" imports a workflow JSON as a workspace workflow. Defaults to "save".',
-        enum: ['save', 'import'],
+          'What to do with the file. "save" promotes it to a permanent files/ path. "import" imports a workflow JSON as a workspace workflow. "extract" decompresses a .zip upload into files/<archive>/. Defaults to "save".',
+        enum: ['save', 'import', 'extract'],
         default: 'save',
       },
     },
@@ -4720,6 +4720,7 @@ export const ManageSkillOperationValues = [
 export const MaterializeFileOperation = {
   save: 'save',
   import: 'import',
+  extract: 'extract',
 } as const
 
 export type MaterializeFileOperation =
@@ -4728,6 +4729,7 @@ export type MaterializeFileOperation =
 export const MaterializeFileOperationValues = [
   MaterializeFileOperation.save,
   MaterializeFileOperation.import,
+  MaterializeFileOperation.extract,
 ] as const
 
 export const QueryUserTableOperation = {
