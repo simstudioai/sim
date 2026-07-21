@@ -37,6 +37,16 @@ export function EmailFooter({
     fontFamily: typography.fontFamily,
   }
 
+  /**
+   * Social icons are linked images. `display: block` removes the 2–3px gap
+   * Outlook adds under inline images, and `border: 0` prevents the blue link
+   * border older Outlook versions draw around linked images.
+   */
+  const socialIconStyle = {
+    display: 'block' as const,
+    border: 0,
+  }
+
   return (
     <Section
       style={{
@@ -77,6 +87,7 @@ export function EmailFooter({
                                 width='20'
                                 height='20'
                                 alt='X'
+                                style={socialIconStyle}
                               />
                             </Link>
                           </td>
@@ -87,6 +98,7 @@ export function EmailFooter({
                                 width='20'
                                 height='20'
                                 alt='LinkedIn'
+                                style={socialIconStyle}
                               />
                             </Link>
                           </td>
@@ -97,6 +109,7 @@ export function EmailFooter({
                                 width='20'
                                 height='20'
                                 alt='GitHub'
+                                style={socialIconStyle}
                               />
                             </Link>
                           </td>
@@ -107,6 +120,7 @@ export function EmailFooter({
                                 width='20'
                                 height='20'
                                 alt='Slack'
+                                style={socialIconStyle}
                               />
                             </Link>
                           </td>
