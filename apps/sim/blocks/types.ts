@@ -367,15 +367,24 @@ export interface SubBlockConfig {
   serviceId?: string
   requiredScopes?: string[]
   /**
-   * Narrows an `oauth-input` selector to a specific credential kind. `'custom-bot'`
-   * lists only reusable custom Slack bot credentials (service-account type) and its
-   * connect row opens the custom-bot setup modal instead of the OAuth flow.
-   * `'service-account'` is the generic equivalent for a no-OAuth provider: it lists
-   * only service-account credentials and its connect row opens the descriptor-driven
-   * token-paste modal (`ConnectServiceAccountModal`). `'any'` lists OAuth accounts
-   * and custom bots together in a grouped dropdown with a connect action for each kind.
+   * Narrows an `oauth-input` selector to a specific credential kind.
+   * `'service-account'` lists only service-account credentials; its connect row
+   * opens the provider's setup modal (resolved from the service-account setup
+   * registry — a bespoke wizard when registered, the generic token-paste modal
+   * otherwise). `'any'` lists OAuth accounts and service accounts together in a
+   * grouped dropdown with a connect action for each kind.
    */
-  credentialKind?: 'custom-bot' | 'service-account' | 'any'
+  credentialKind?: 'service-account' | 'any'
+  /**
+   * Overrides the credential picker's section and connect-row copy. Unset keys
+   * fall back to generic provider-derived labels.
+   */
+  credentialLabels?: {
+    oauthGroup?: string
+    oauthConnect?: string
+    serviceAccountGroup?: string
+    serviceAccountConnect?: string
+  }
   /**
    * Opts a trigger-mode `oauth-input` selector into listing service-account
    * credentials, which are otherwise excluded in trigger mode. Set only when the

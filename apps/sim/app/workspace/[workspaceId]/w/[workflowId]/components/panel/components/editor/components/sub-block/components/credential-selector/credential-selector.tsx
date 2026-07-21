@@ -18,7 +18,6 @@ import {
   ConnectServiceAccountModal,
   type ServiceAccountProviderId,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
-import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
@@ -53,8 +52,7 @@ export function CredentialSelector({
   const workspaceId = (params?.workspaceId as string) || ''
   const [showConnectModal, setShowConnectModal] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
-  const [showSlackBotModal, setShowSlackBotModal] = useState(false)
-  const [showServiceAccountModal, setShowServiceAccountModal] = useState(false)
+  const [showSetupModal, setShowSetupModal] = useState(false)
   const [editingValue, setEditingValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -107,10 +105,10 @@ export function CredentialSelector({
   const isMergedKinds = credentialKind === 'any'
 
   const credentials = useMemo(() => {
-    // A custom-bot or service-account picker lists only the reusable
-    // service-account credentials, including in trigger mode. A merged ('any')
-    // picker lists OAuth accounts and bots together.
-    if (credentialKind === 'custom-bot' || credentialKind === 'service-account') {
+    // A service-account picker lists only the reusable service-account
+    // credentials, including in trigger mode. A merged ('any') picker lists
+    // OAuth accounts and service accounts together.
+    if (credentialKind === 'service-account') {
       return rawCredentials.filter((cred) => cred.type === 'service_account')
     }
     if (isMergedKinds) {
@@ -121,12 +119,15 @@ export function CredentialSelector({
       : rawCredentials
   }, [rawCredentials, isTriggerMode, credentialKind, isMergedKinds, subBlock.allowServiceAccounts])
 
-  // Resolved service-account provider metadata for the token-paste connect
-  // modal. Gated on `credentialKind` and using the non-throwing lookup so it
-  // never runs (or throws) for the OAuth / custom-bot pickers.
+  // Resolved service-account provider metadata for the setup modal. Gated on
+  // `credentialKind` and using the non-throwing lookup so it never runs (or
+  // throws) for plain OAuth pickers.
   const serviceAccountService = useMemo(
-    () => (credentialKind === 'service-account' ? getServiceConfigByServiceId(serviceId) : null),
-    [credentialKind, serviceId]
+    () =>
+      credentialKind === 'service-account' || isMergedKinds
+        ? getServiceConfigByServiceId(serviceId)
+        : null,
+    [credentialKind, isMergedKinds, serviceId]
   )
 
   const selectedCredential = useMemo(
@@ -203,12 +204,8 @@ export function CredentialSelector({
   )
 
   const handleAddCredential = useCallback(() => {
-    if (credentialKind === 'custom-bot') {
-      setShowSlackBotModal(true)
-      return
-    }
     if (credentialKind === 'service-account') {
-      setShowServiceAccountModal(true)
+      setShowSetupModal(true)
       return
     }
     setShowConnectModal(true)
@@ -254,17 +251,14 @@ export function CredentialSelector({
 
     options.push({
       label:
-        credentialKind === 'custom-bot'
-          ? credentials.length > 0
-            ? 'Connect another custom bot'
-            : 'Set up a custom bot'
-          : credentialKind === 'service-account'
-            ? credentials.length > 0
+        credentialKind === 'service-account'
+          ? (subBlock.credentialLabels?.serviceAccountConnect ??
+            (credentials.length > 0
               ? `Add another ${getProviderName(provider)} key`
-              : `Add ${getProviderName(provider)} key`
-            : credentials.length > 0
-              ? `Connect another ${getProviderName(provider)} account`
-              : `Connect ${getProviderName(provider)} account`,
+              : `Add ${getProviderName(provider)} key`))
+          : credentials.length > 0
+            ? `Connect another ${getProviderName(provider)} account`
+            : `Connect ${getProviderName(provider)} account`,
       value: '__connect_account__',
       iconElement: <ExternalLink className='size-3' />,
     })
@@ -276,6 +270,7 @@ export function CredentialSelector({
     allWorkspaceCredentials,
     credentials,
     credentialKind,
+    subBlock.credentialLabels,
     provider,
     getProviderIcon,
     getProviderName,
@@ -284,6 +279,7 @@ export function CredentialSelector({
   const comboboxGroups = useMemo<ComboboxOptionGroup[] | undefined>(() => {
     if (!isMergedKinds) return undefined
 
+    const labels = subBlock.credentialLabels
     const toOption = (cred: (typeof credentials)[number]) => ({
       label: cred.name,
       value: cred.id,
@@ -292,29 +288,36 @@ export function CredentialSelector({
 
     return [
       {
-        section: 'Sim app',
+        section: labels?.oauthGroup ?? `${getProviderName(provider)} accounts`,
         items: [
           ...credentials.filter((c) => c.type !== 'service_account').map(toOption),
           {
-            label: 'Connect the Sim app',
+            label: labels?.oauthConnect ?? `Connect ${getProviderName(provider)} account`,
             value: '__connect_account__',
             iconElement: <ExternalLink className='size-3' />,
           },
         ],
       },
       {
-        section: 'Custom bots',
+        section: labels?.serviceAccountGroup ?? 'Service accounts',
         items: [
           ...credentials.filter((c) => c.type === 'service_account').map(toOption),
           {
-            label: 'Set up a custom bot',
-            value: '__connect_bot__',
+            label: labels?.serviceAccountConnect ?? `Add ${getProviderName(provider)} key`,
+            value: '__connect_service_account__',
             iconElement: <ExternalLink className='size-3' />,
           },
         ],
       },
     ]
-  }, [isMergedKinds, credentials, provider, getProviderIcon])
+  }, [
+    isMergedKinds,
+    subBlock.credentialLabels,
+    credentials,
+    provider,
+    getProviderIcon,
+    getProviderName,
+  ])
 
   const selectedCredentialProvider = selectedCredential?.provider ?? provider
   const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
@@ -369,8 +372,8 @@ export function CredentialSelector({
         handleAddCredential()
         return
       }
-      if (value === '__connect_bot__') {
-        setShowSlackBotModal(true)
+      if (value === '__connect_service_account__') {
+        setShowSetupModal(true)
         return
       }
 
@@ -477,22 +480,10 @@ export function CredentialSelector({
         />
       )}
 
-      {showSlackBotModal && (
-        <ConnectSlackBotModal
-          open={showSlackBotModal}
-          onOpenChange={setShowSlackBotModal}
-          workspaceId={workspaceId}
-          onCreated={(newCredentialId) => {
-            setStoreValue(newCredentialId)
-            refetchCredentials()
-          }}
-        />
-      )}
-
-      {showServiceAccountModal && serviceAccountService?.serviceAccountProviderId && (
+      {showSetupModal && serviceAccountService?.serviceAccountProviderId && (
         <ConnectServiceAccountModal
-          open={showServiceAccountModal}
-          onOpenChange={setShowServiceAccountModal}
+          open={showSetupModal}
+          onOpenChange={setShowSetupModal}
           workspaceId={workspaceId}
           serviceAccountProviderId={
             serviceAccountService.serviceAccountProviderId as ServiceAccountProviderId

@@ -2638,7 +2638,17 @@ const SLACK_WEBHOOK_TRIGGER_SUBBLOCK_IDS = new Set(
 function adaptSubBlockForV2(sb: SubBlockConfig): SubBlockConfig {
   const { dependsOn, condition, ...rest } = sb
   if (sb.id === 'credential') {
-    return { ...rest, credentialKind: 'any', placeholder: 'Select Slack account or bot' }
+    return {
+      ...rest,
+      credentialKind: 'any',
+      placeholder: 'Select Slack account or bot',
+      credentialLabels: {
+        oauthGroup: 'Sim app',
+        oauthConnect: 'Connect the Sim app',
+        serviceAccountGroup: 'Custom bots',
+        serviceAccountConnect: 'Set up a custom bot',
+      },
+    }
   }
   if (sb.id === 'manualCredential') {
     return { ...rest, placeholder: 'Enter credential ID' }

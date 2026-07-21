@@ -55,7 +55,8 @@ export const slackOAuthTrigger: TriggerConfig = {
       type: 'oauth-input',
       canonicalParamId: 'botCredential',
       serviceId: 'slack',
-      credentialKind: 'custom-bot',
+      credentialKind: 'service-account',
+      credentialLabels: { serviceAccountConnect: 'Set up a custom bot' },
       requiredScopes: getScopesForService('slack'),
       placeholder: 'Select a connected bot',
       description:
