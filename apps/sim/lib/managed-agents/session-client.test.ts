@@ -110,7 +110,7 @@ describe('buildSessionCreatePayload — metadata', () => {
     expect(buildSessionCreatePayload({ ...BASE, sessionParameters: {} }).metadata).toBeUndefined()
   })
 
-  it('keeps memory on resources and never folds it into metadata', () => {
+  it('keeps memory on resources and never folds it into metadata (cloud)', () => {
     const payload = buildSessionCreatePayload({
       ...BASE,
       memoryStoreId: 'memstore_01',
@@ -120,6 +120,48 @@ describe('buildSessionCreatePayload — metadata', () => {
     expect(payload.resources).toEqual([
       { type: 'memory_store', memory_store_id: 'memstore_01', access: 'read_write' },
     ])
+  })
+})
+
+describe('buildSessionCreatePayload — self-hosted routing', () => {
+  it('routes memory to metadata and never sends resources (self-hosted rejects resources)', () => {
+    const payload = buildSessionCreatePayload({
+      ...BASE,
+      environmentType: 'self_hosted',
+      memoryStoreId: 'memstore_01',
+      memoryAccess: 'read_only',
+      sessionParameters: { SOURCE_TYPE: 'git' },
+    })
+    expect(payload.resources).toBeUndefined()
+    expect(payload.metadata).toEqual({
+      SOURCE_TYPE: 'git',
+      memory_store_ids: 'memstore_01',
+      memory_access: 'read_only',
+    })
+  })
+
+  it('drops file attachments on self-hosted (not supported as resources)', () => {
+    const payload = buildSessionCreatePayload({
+      ...BASE,
+      environmentType: 'self_hosted',
+      files: [{ fileId: 'file_1' }],
+    })
+    expect(payload.resources).toBeUndefined()
+    expect(payload.metadata).toBeUndefined()
+  })
+
+  it('cloud (default) still attaches memory + files as resources', () => {
+    const payload = buildSessionCreatePayload({
+      ...BASE,
+      environmentType: 'cloud',
+      memoryStoreId: 'memstore_01',
+      files: [{ fileId: 'file_1' }],
+    })
+    expect(payload.resources).toEqual([
+      { type: 'memory_store', memory_store_id: 'memstore_01', access: 'read_write' },
+      { type: 'file', file_id: 'file_1' },
+    ])
+    expect(payload.metadata).toBeUndefined()
   })
 })
 

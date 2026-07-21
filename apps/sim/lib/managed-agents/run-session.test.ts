@@ -12,6 +12,7 @@ const { mocks } = vi.hoisted(() => ({
     openSessionStream: vi.fn(),
     listSessionEvents: vi.fn(),
     getSession: vi.fn(),
+    getEnvironmentType: vi.fn(),
     interruptSession: vi.fn(),
     readSSEEvents: vi.fn(),
     sleep: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock('@/lib/managed-agents/session-client', () => ({
   openSessionStream: mocks.openSessionStream,
   listSessionEvents: mocks.listSessionEvents,
   getSession: mocks.getSession,
+  getEnvironmentType: mocks.getEnvironmentType,
   interruptSession: mocks.interruptSession,
 }))
 vi.mock('@/lib/core/utils/sse', () => ({ readSSEEvents: mocks.readSSEEvents }))
@@ -72,6 +74,7 @@ beforeEach(() => {
   mocks.openSessionStream.mockResolvedValue({})
   mocks.listSessionEvents.mockResolvedValue([])
   mocks.getSession.mockResolvedValue(null)
+  mocks.getEnvironmentType.mockResolvedValue('cloud')
   mocks.interruptSession.mockResolvedValue(undefined)
 })
 

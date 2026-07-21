@@ -6,6 +6,7 @@ import {
   type AnthropicSessionEvent,
   type CreateSessionInput,
   createSession,
+  getEnvironmentType,
   getSession,
   interruptSession,
   listSessionEvents,
@@ -103,10 +104,20 @@ export async function runManagedAgentSession(
   const userMessage = input.userMessage.trim()
   if (!userMessage) return { ok: false, content: '', error: 'User message is required.' }
 
+  // Resolve the environment type up front so the payload routes correctly:
+  // self-hosted environments reject `resources`, so memory must go via metadata
+  // there. Best-effort — an undefined result falls back to cloud behavior.
+  const environmentType = await getEnvironmentType({
+    apiKey,
+    environmentId: input.environmentId,
+    signal,
+  })
+
   const createInput: CreateSessionInput = {
     apiKey,
     agentId: input.agentId,
     environmentId: input.environmentId,
+    ...(environmentType ? { environmentType } : {}),
     ...(input.title ? { title: input.title } : {}),
     ...(input.vaultIds && input.vaultIds.length > 0 ? { vaultIds: input.vaultIds } : {}),
     ...(input.memoryStoreId ? { memoryStoreId: input.memoryStoreId } : {}),

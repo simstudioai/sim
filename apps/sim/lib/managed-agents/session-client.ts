@@ -51,6 +51,12 @@ export interface SessionAuth {
 export interface CreateSessionInput extends SessionAuth {
   agentId: string
   environmentId: string
+  /**
+   * Environment execution model. Self-hosted environments reject the
+   * `resources` array, so memory is routed via `metadata` and files are
+   * dropped for them. Defaults to cloud behavior when unset.
+   */
+  environmentType?: EnvironmentType
   /** Optional session title stored on the Anthropic session. */
   title?: string
   /** OAuth credential vaults the agent's MCP tools can reference. */
@@ -76,6 +82,9 @@ export interface SessionUsage {
   inputTokens?: number
   outputTokens?: number
 }
+
+/** Environment execution model per `GET /v1/environments/{id}` → `config.type`. */
+export type EnvironmentType = 'cloud' | 'self_hosted'
 
 /** Authoritative session status per `GET /v1/sessions/{id}`. */
 export type SessionStatus = 'idle' | 'running' | 'rescheduling' | 'terminated'
@@ -105,10 +114,14 @@ function managedAgentsHeaders(
 }
 
 /**
- * Builds the request body for `POST /v1/sessions`. Memory stores and files
- * attach via the `resources[]` array; user key/values go on `metadata`. This
- * shape is env-type agnostic — the same body works for cloud and self-hosted
- * environments per the docs.
+ * Builds the request body for `POST /v1/sessions`.
+ *
+ * Cloud environments attach memory stores and files via the `resources[]`
+ * array. Self-hosted environments REJECT `resources` (a documented 400 —
+ * "resources are not supported with self-hosted environments"), so there the
+ * memory store is surfaced to the worker via `metadata.memory_store_ids` /
+ * `metadata.memory_access` and files are dropped. Session parameters always go
+ * on `metadata` for both.
  */
 export function buildSessionCreatePayload(input: CreateSessionInput): Record<string, unknown> {
   const payload: Record<string, unknown> = {
@@ -118,29 +131,38 @@ export function buildSessionCreatePayload(input: CreateSessionInput): Record<str
   if (input.title) payload.title = input.title
   if (input.vaultIds && input.vaultIds.length > 0) payload.vault_ids = input.vaultIds
 
-  const resources: Array<Record<string, unknown>> = []
-  if (input.memoryStoreId) {
-    const memory: Record<string, unknown> = {
-      type: 'memory_store',
-      memory_store_id: input.memoryStoreId,
-      access: input.memoryAccess ?? 'read_write',
-    }
-    if (input.memoryInstructions) memory.instructions = input.memoryInstructions
-    resources.push(memory)
-  }
-  if (input.files && input.files.length > 0) {
-    for (const file of input.files) {
-      if (!file.fileId) continue
-      const entry: Record<string, unknown> = { type: 'file', file_id: file.fileId }
-      if (file.mountPath) entry.mount_path = file.mountPath
-      resources.push(entry)
-    }
-  }
-  if (resources.length > 0) payload.resources = resources
+  const metadata: Record<string, string> = { ...(input.sessionParameters ?? {}) }
 
-  if (input.sessionParameters && Object.keys(input.sessionParameters).length > 0) {
-    payload.metadata = { ...input.sessionParameters }
+  if (input.environmentType === 'self_hosted') {
+    // No `resources` on self-hosted — route memory through metadata (the
+    // worker consumes these keys) and drop file attachments.
+    if (input.memoryStoreId) {
+      metadata.memory_store_ids = input.memoryStoreId
+      metadata.memory_access = input.memoryAccess ?? 'read_write'
+    }
+  } else {
+    const resources: Array<Record<string, unknown>> = []
+    if (input.memoryStoreId) {
+      const memory: Record<string, unknown> = {
+        type: 'memory_store',
+        memory_store_id: input.memoryStoreId,
+        access: input.memoryAccess ?? 'read_write',
+      }
+      if (input.memoryInstructions) memory.instructions = input.memoryInstructions
+      resources.push(memory)
+    }
+    if (input.files && input.files.length > 0) {
+      for (const file of input.files) {
+        if (!file.fileId) continue
+        const entry: Record<string, unknown> = { type: 'file', file_id: file.fileId }
+        if (file.mountPath) entry.mount_path = file.mountPath
+        resources.push(entry)
+      }
+    }
+    if (resources.length > 0) payload.resources = resources
   }
+
+  if (Object.keys(metadata).length > 0) payload.metadata = metadata
   return payload
 }
 
@@ -342,6 +364,30 @@ export async function managedAgentsList<T>(
     path: input.path,
     beta: input.beta,
   })
+}
+
+/**
+ * GET /v1/environments/{id} — resolves the environment's execution model from
+ * `config.type`. Drives session-payload routing: self-hosted rejects
+ * `resources`. Returns `undefined` on any error so the caller can fall back to
+ * cloud behavior.
+ */
+export async function getEnvironmentType(
+  input: SessionAuth & { environmentId: string }
+): Promise<EnvironmentType | undefined> {
+  try {
+    const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/environments/${input.environmentId}`, {
+      method: 'GET',
+      headers: managedAgentsHeaders(input.apiKey),
+      signal: input.signal,
+    })
+    if (!resp.ok) return undefined
+    const body = (await resp.json()) as { config?: { type?: unknown } }
+    const type = body.config?.type
+    return type === 'cloud' || type === 'self_hosted' ? type : undefined
+  } catch {
+    return undefined
+  }
 }
 
 /**
