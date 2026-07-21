@@ -40,6 +40,7 @@ import {
 import { createWorkspace, grantWorkspacePermission } from '../fixtures/factories/workspaces'
 import { E2eHttpClient } from '../fixtures/http-client'
 import type { ResolvedScenario, ScenarioSubscription } from '../fixtures/scenario'
+import { expectedUsageLimit, initialSubscriptionStatus } from '../fixtures/scenario-billing'
 import { validateScenario, validateScenarioSet } from '../fixtures/validate-scenario'
 import { createSettingsPersonaScenarios } from '../settings/personas'
 import { writeSyntheticSecretCanary } from '../support/leak-canary'
@@ -727,57 +728,6 @@ function resolveBillingReference(world: E2EWorld, subscription: ScenarioSubscrip
         subscription.billingReference.organizationKey,
         'subscription organization'
       ).id
-}
-
-function initialSubscriptionStatus(
-  scenario: ResolvedScenario,
-  definition: ScenarioSubscription
-): 'active' | 'past_due' | 'canceled' {
-  if (definition.status !== 'lapsed') return definition.status
-  const hasEntitledReplacement = scenario.definition.subscriptions.some(
-    (candidate) =>
-      candidate.key !== definition.key &&
-      (candidate.status === 'active' || candidate.status === 'past_due') &&
-      sameBillingReference(candidate, definition)
-  )
-  return hasEntitledReplacement ? 'canceled' : 'active'
-}
-
-function sameBillingReference(left: ScenarioSubscription, right: ScenarioSubscription): boolean {
-  const identity = (subscription: ScenarioSubscription): string =>
-    subscription.billingReference.kind === 'user'
-      ? `user/${subscription.billingReference.userKey}`
-      : `organization/${subscription.billingReference.organizationKey}`
-  return identity(left) === identity(right)
-}
-
-function expectedUsageLimit(scenario: ResolvedScenario, userKey: string): string | null {
-  const membership = scenario.definition.organizationMemberships.find(
-    (candidate) => candidate.userKey === userKey
-  )
-  if (membership) {
-    const organizationSubscription = scenario.definition.subscriptions.find(
-      (candidate) =>
-        candidate.billingReference.kind === 'organization' &&
-        candidate.billingReference.organizationKey === membership.organizationKey
-    )
-    if (
-      organizationSubscription?.status === 'active' ||
-      organizationSubscription?.status === 'past_due'
-    ) {
-      return null
-    }
-  }
-  const personalSubscription = scenario.definition.subscriptions.find(
-    (candidate) =>
-      candidate.billingReference.kind === 'user' &&
-      candidate.billingReference.userKey === userKey &&
-      (candidate.status === 'active' || candidate.status === 'past_due')
-  )
-  if (personalSubscription?.plan.startsWith('pro_')) {
-    return String(Number(personalSubscription.plan.split('_')[1]) / 200)
-  }
-  return '5'
 }
 
 function matchesEnterpriseMetadata(

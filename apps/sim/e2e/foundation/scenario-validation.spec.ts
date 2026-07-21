@@ -7,6 +7,7 @@ import {
   type ScenarioOrganizationMembership,
   type ScenarioWorkspaceGrant,
 } from '../fixtures/scenario'
+import { expectedUsageLimit } from '../fixtures/scenario-billing'
 import {
   ScenarioValidationError,
   validateScenario,
@@ -254,7 +255,15 @@ test.describe('pure scenario validation', () => {
         : persona
     )
 
-    expect(() => validateScenario(scenario)).not.toThrow()
+    const resolved = validateScenario(scenario)
+    if (lapsed.billingReference.kind !== 'organization') {
+      throw new Error('Expected an organization subscription')
+    }
+    const ownerUserKey = resolved.organizationsByKey.get(
+      lapsed.billingReference.organizationKey
+    )?.ownerUserKey
+    if (!ownerUserKey) throw new Error('Expected an organization owner')
+    expect(expectedUsageLimit(resolved, ownerUserKey)).toBeNull()
   })
 
   test('rejects permission groups without active Enterprise organization/workspace scope', () => {
