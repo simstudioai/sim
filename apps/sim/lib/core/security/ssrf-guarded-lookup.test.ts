@@ -209,3 +209,24 @@ describe('followRedirectsGuarded — hardening', () => {
     expect(hopHeaders.get('x-keep')).toBe('yes')
   })
 })
+
+describe('followRedirectsGuarded — cross-origin body protection', () => {
+  it('refuses a cross-origin 307 that would forward a request body', async () => {
+    const raw = vi.fn(async () => redirectTo('https://b.example/steal', 307))
+    await expect(
+      followRedirectsGuarded(raw, 'https://a.example/token', {
+        method: 'POST',
+        body: 'client_secret=shh',
+      })
+    ).rejects.toThrow(/cross-origin redirect would forward a request body/)
+  })
+
+  it('allows a bodyless cross-origin redirect', async () => {
+    const raw = vi
+      .fn()
+      .mockResolvedValueOnce(redirectTo('https://b.example/next', 302))
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+    const res = await followRedirectsGuarded(raw, 'https://a.example/x', {})
+    expect(res.status).toBe(200)
+  })
+})

@@ -530,7 +530,17 @@ export async function followRedirectsGuarded(
         headers = sanitized as unknown as UndiciRequestInit['headers']
       }
     }
-    if (nextUrl.origin !== currentUrl.origin) headers = undefined
+    if (nextUrl.origin !== currentUrl.origin) {
+      headers = undefined
+      // 307/308 preserve method+body; forwarding a body cross-origin can hand OAuth
+      // client secrets / tokens to an open-redirect target now that redirects really
+      // dial the new origin. No legitimate MCP/OAuth flow does this — refuse it.
+      if (body !== undefined && body !== null) {
+        throw new Error(
+          'Blocked by SSRF policy: cross-origin redirect would forward a request body'
+        )
+      }
+    }
     currentUrl = nextUrl
   }
 }

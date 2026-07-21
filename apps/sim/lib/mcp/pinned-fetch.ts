@@ -2,6 +2,7 @@ import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { createLogger } from '@sim/logger'
 import type { Agent } from 'undici'
 import {
+  createPinnedFetchWithDispatcher,
   createSsrfGuardedFetchWithDispatcher,
   isPrivateOrReservedIP,
 } from '@/lib/core/security/input-validation.server'
@@ -35,6 +36,18 @@ export interface GuardedMcpFetch {
  * the transport has no concurrency to gain from h2. `close` tears down pooled sockets
  * (incl. the SSE connection) on disconnect.
  */
+/**
+ * Legacy single-IP pin, kept ONLY for self-hosted private/loopback resolutions
+ * (a DNS alias the policy explicitly permits): the guarded lookup would filter
+ * the address and strand the connect, while an unguarded fallback would reopen
+ * rebinding/redirect escape. Pinning to the validated address preserves the old
+ * behavior and its security property for exactly this carve-out.
+ */
+export function createPinnedPrivateMcpFetch(resolvedIP: string): GuardedMcpFetch {
+  const { fetch: pinnedFetch, dispatcher } = createPinnedFetchWithDispatcher(resolvedIP)
+  return { fetch: pinnedFetch, close: () => dispatcher.destroy() }
+}
+
 export function createGuardedMcpFetch(): GuardedMcpFetch {
   const { fetch: guardedFetch, dispatcher } = createSsrfGuardedFetchWithDispatcher()
   // Per-request phase logging: a stalled transport request (e.g. a first `initialize` that hangs
@@ -219,10 +232,16 @@ export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOU
       const resolvedIP = await withDeadline(validateMcpServerSsrf(target), signal)
       logger.info('OAuth guarded fetch: requesting', { host, guarded: Boolean(resolvedIP) })
       let response: Response
-      // A private/loopback resolvedIP only occurs on self-hosted where the policy permits
-      // it — the guarded lookup would filter it out, so those go over global fetch like the
-      // allowlist carve-out below.
-      if (resolvedIP && !isPrivateOrReservedIP(resolvedIP)) {
+      if (resolvedIP && isPrivateOrReservedIP(resolvedIP)) {
+        // Self-hosted private/loopback resolution (policy-permitted): the guarded lookup
+        // would filter the address, and an unguarded fallback would reopen rebinding —
+        // keep the legacy pin to the validated address for exactly this case.
+        const pinned = createPinnedFetchWithDispatcher(resolvedIP, {
+          maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
+        })
+        dispatcher = pinned.dispatcher
+        response = await withDeadline(pinned.fetch(url, { ...init, signal }), signal)
+      } else if (resolvedIP) {
         const guarded = createSsrfGuardedFetchWithDispatcher({
           maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
         })

@@ -6,11 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCreateGuardedFetchWithDispatcher,
+  mockCreatePinnedFetchWithDispatcher,
   mockValidateMcpServerSsrf,
   sentinelFetch,
   mockDestroy,
 } = vi.hoisted(() => ({
   mockCreateGuardedFetchWithDispatcher: vi.fn(),
+  mockCreatePinnedFetchWithDispatcher: vi.fn(),
   mockValidateMcpServerSsrf: vi.fn(),
   sentinelFetch: vi.fn(),
   mockDestroy: vi.fn(),
@@ -18,6 +20,7 @@ const {
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
   createSsrfGuardedFetchWithDispatcher: mockCreateGuardedFetchWithDispatcher,
+  createPinnedFetchWithDispatcher: mockCreatePinnedFetchWithDispatcher,
   isPrivateOrReservedIP: (ip: string) =>
     ip.startsWith('127.') || ip.startsWith('10.') || ip === '::1',
 }))
@@ -349,20 +352,22 @@ describe('createSsrfGuardedMcpFetch', () => {
 })
 
 describe('self-hosted private-resolution carve-out', () => {
-  it('routes a loopback-resolving host over global fetch (guarded lookup would filter it)', async () => {
-    // Self-hosted DNS alias -> 127.0.0.1: policy allows it, so the guard must not
-    // strand the connect. Falls back to global fetch, same as the allowlist path.
+  it('keeps the legacy pin for a loopback-resolving host (guarded lookup would filter it)', async () => {
+    // Self-hosted DNS alias -> 127.0.0.1: policy allows it. The guarded lookup would
+    // strand the connect and an unguarded fallback would reopen rebinding — so this case
+    // pins to the validated address, preserving the old behavior and its security property.
     mockValidateMcpServerSsrf.mockResolvedValue('127.0.0.1')
-    const globalFetch = vi
-      .spyOn(globalThis, 'fetch')
-      .mockImplementation(async () => new Response('ok'))
-    try {
-      const fetchLike = createSsrfGuardedMcpFetch()
-      await fetchLike('https://my-local-alias/mcp')
-      expect(mockCreateGuardedFetchWithDispatcher).not.toHaveBeenCalled()
-      expect(globalFetch).toHaveBeenCalledTimes(1)
-    } finally {
-      globalFetch.mockRestore()
-    }
+    mockCreatePinnedFetchWithDispatcher.mockReturnValue({
+      fetch: sentinelFetch,
+      dispatcher: { destroy: mockDestroy },
+    })
+    sentinelFetch.mockImplementation(async () => new Response('ok'))
+    const fetchLike = createSsrfGuardedMcpFetch()
+    await fetchLike('https://my-local-alias/mcp')
+    expect(mockCreatePinnedFetchWithDispatcher).toHaveBeenCalledWith(
+      '127.0.0.1',
+      expect.objectContaining({ maxResponseSize: expect.any(Number) })
+    )
+    expect(mockCreateGuardedFetchWithDispatcher).not.toHaveBeenCalled()
   })
 })

@@ -14,7 +14,7 @@ import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { isPrivateOrReservedIP } from '@/lib/core/security/input-validation.server'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
-import { createGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
+import { createGuardedMcpFetch, createPinnedPrivateMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
   type McpClientOptions,
   McpConnectionError,
@@ -100,10 +100,13 @@ export class McpClient {
     // `resolvedIP` non-null signals the SSRF policy is active for this server (it is null in
     // allowlist mode / localhost-on-self-hosted); the guard validates addresses per-connect.
     // A private/loopback resolvedIP only reaches here on self-hosted (where the policy
-    // permits it) — the guarded lookup would filter it, so those connect unguarded like the
-    // localhost carve-out.
-    const guarded =
-      resolvedIP && !isPrivateOrReservedIP(resolvedIP) ? createGuardedMcpFetch() : undefined
+    // permits it) — the guarded lookup would filter it, so that case keeps the legacy pin
+    // to the validated address (old behavior + its anti-rebinding property).
+    const guarded = resolvedIP
+      ? isPrivateOrReservedIP(resolvedIP)
+        ? createPinnedPrivateMcpFetch(resolvedIP)
+        : createGuardedMcpFetch()
+      : undefined
     this.closeGuardedTransport = guarded?.close
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
