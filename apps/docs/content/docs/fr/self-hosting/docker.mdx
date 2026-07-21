@@ -45,6 +45,14 @@ Ouvrez [http://localhost:3000](http://localhost:3000)
   secrets stockés illisibles, et modifier `BETTER_AUTH_SECRET` invalide les sessions existantes.
 </Callout>
 
+Vous avez déjà un `.env` (par exemple d'une installation antérieure à ces secrets requis) ? Le bloc ci-dessus ne l'écrase pas. Ajoutez seulement les secrets manquants — les valeurs existantes sont préservées :
+
+```bash
+for key in BETTER_AUTH_SECRET ENCRYPTION_KEY API_ENCRYPTION_KEY INTERNAL_API_SECRET; do
+  grep -q "^${key}=" .env || printf '%s=%s\n' "$key" "$(openssl rand -hex 32)" >> .env
+done
+```
+
 ## Configuration de production
 
 ### 1. Configurer l'environnement

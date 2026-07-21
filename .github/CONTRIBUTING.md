@@ -195,6 +195,14 @@ Back up this `.env` file separately in a secured secret store; do not bundle it 
 backups. Do not regenerate the values when restarting an existing installation: changing encryption
 keys can make stored secrets unreadable, and changing `BETTER_AUTH_SECRET` invalidates sessions.
 
+Already have a `.env` (for example from an install that predates these required secrets)? The block above refuses to overwrite it. Add only the missing secrets instead — this preserves every existing value:
+
+```bash
+for key in BETTER_AUTH_SECRET ENCRYPTION_KEY API_ENCRYPTION_KEY INTERNAL_API_SECRET; do
+  grep -q "^${key}=" .env || printf '%s=%s\n' "$key" "$(openssl rand -hex 32)" >> .env
+done
+```
+
 #### Using Local Models
 
 To use local models with Sim:

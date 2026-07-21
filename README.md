@@ -109,6 +109,14 @@ Back up the generated `.env` file separately in a secured secret store; do not b
 database backups. Replacing its encryption keys can make stored secrets unreadable, while replacing
 `BETTER_AUTH_SECRET` invalidates existing sessions.
 
+Already have a `.env` (for example from an earlier install that predates these required secrets)? The block above refuses to overwrite it. Add only the missing secrets instead — this preserves every existing value:
+
+```bash
+for key in BETTER_AUTH_SECRET ENCRYPTION_KEY API_ENCRYPTION_KEY INTERNAL_API_SECRET; do
+  grep -q "^${key}=" .env || printf '%s=%s\n' "$key" "$(openssl rand -hex 32)" >> .env
+done
+```
+
 Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https://docs.vllm.ai/). See the [Docker self-hosting docs](https://docs.sim.ai/self-hosting/docker) for setup details.
 
 ### Manual Setup
