@@ -93,6 +93,12 @@ function isTimeoutError(error: unknown): boolean {
   if (error instanceof McpError && error.code === ErrorCode.RequestTimeout) {
     return true
   }
+  // AbortSignal.timeout / undici surface a DOMException named TimeoutError whose
+  // message ("The operation was aborted due to timeout") lacks "timed out".
+  const e = error as { name?: string; cause?: { name?: string } } | null
+  if (e?.name === 'TimeoutError' || e?.cause?.name === 'TimeoutError') {
+    return true
+  }
   return getErrorMessage(error, '').toLowerCase().includes('timed out')
 }
 

@@ -186,6 +186,21 @@ describe('McpService connection reuse wiring', () => {
     expect(mockRelease).toHaveBeenCalledWith(false, true)
   })
 
+  it('classifies an AbortSignal.timeout-shaped TimeoutError as a timeout for the breaker', async () => {
+    // DOMException name 'TimeoutError' with a message that lacks "timed out".
+    mockCallTool.mockRejectedValue(
+      Object.assign(new Error('The operation was aborted due to timeout'), {
+        name: 'TimeoutError',
+      })
+    )
+
+    await expect(
+      mcpService.executeTool(USER_ID, 'server-1', { name: 'do', arguments: {} }, WORKSPACE_ID)
+    ).rejects.toThrow()
+
+    expect(mockRelease).toHaveBeenCalledWith(false, true)
+  })
+
   it('poisons the lease on an auth failure so a rotated credential is re-resolved', async () => {
     mockCallTool.mockRejectedValue(new UnauthorizedError('token rejected'))
 
