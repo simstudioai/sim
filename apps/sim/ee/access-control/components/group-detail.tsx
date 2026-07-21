@@ -1111,6 +1111,10 @@ export function GroupDetail({
   )
 
   const setFileShareAuthTypes = useCallback((values: string[]) => {
+    // At least one mode must stay allowed while public sharing is enabled — an
+    // empty allow-list would silently block every share. To turn public sharing
+    // off entirely, uncheck Public Sharing instead.
+    if (values.length === 0) return
     setEditingConfig((prev) => ({
       ...prev,
       allowedFileShareAuthTypes:
@@ -1124,6 +1128,10 @@ export function GroupDetail({
   )
 
   const setChatDeployAuthTypes = useCallback((values: string[]) => {
+    // At least one mode must stay allowed while chat deploy is enabled — an empty
+    // allow-list would silently block every chat deployment. To turn chat deploy
+    // off entirely, use the Hide Chat toggle instead.
+    if (values.length === 0) return
     setEditingConfig((prev) => ({
       ...prev,
       allowedChatDeployAuthTypes:
