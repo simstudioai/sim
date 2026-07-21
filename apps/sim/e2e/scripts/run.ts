@@ -61,6 +61,7 @@ async function main(): Promise<void> {
   const adminDatabaseUrl = process.env.E2E_PG_ADMIN_URL ?? DEFAULT_ADMIN_DATABASE_URL
 
   let runDatabase: RunDatabase | null = null
+  let databaseCreationComplete = false
   let stripeFake: StripeFakeServer | null = null
   let realtime: ManagedProcess | null = null
   let app: ManagedProcess | null = null
@@ -141,6 +142,7 @@ async function main(): Promise<void> {
             HOME: homeDirectory,
             E2E_PG_ADMIN_URL: adminDatabaseUrl,
             E2E_DATABASE_NAME: runDatabase.name,
+            E2E_DATABASE_CREATION_COMPLETE: String(databaseCreationComplete),
             E2E_CLEANUP_PROCESS_GROUPS: getActiveManagedProcessGroupIds().join(','),
             E2E_CLEANUP_DIRECTORIES: JSON.stringify([storageStateDirectory, homeDirectory]),
           },
@@ -168,6 +170,7 @@ async function main(): Promise<void> {
       url: buildRunDatabaseUrl(adminDatabaseUrl, runDatabaseName),
     }
     await createRunDatabase(adminDatabaseUrl, runDatabaseName)
+    databaseCreationComplete = true
     stripeFake = await startStripeFakeServer({
       apiKey: STRIPE_TEST_KEY,
       hostname: '127.0.0.1',

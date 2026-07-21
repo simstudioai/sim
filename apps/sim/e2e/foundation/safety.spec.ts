@@ -13,6 +13,7 @@ import {
 import { buildChildEnvironment, discoverEnvFileKeys } from '../support/env'
 import { areValidE2eHostAddresses, isLoopbackAddress } from '../support/hosts'
 import { assertPortAvailable, spawnManagedProcess } from '../support/process'
+import { parseProcessGroupIds } from '../support/signal-cleanup'
 
 test.describe('foundation safety guards', () => {
   test('discovers env keys without leaking values and shadows unknown keys', () => {
@@ -103,6 +104,12 @@ test.describe('foundation safety guards', () => {
       /canonical/
     )
     expect(() => parseRunOptions(['--pass-with-no-tests'])).toThrow(/cannot override/)
+  })
+
+  test('empty signal cleanup groups never become PID zero', () => {
+    expect(parseProcessGroupIds(undefined)).toEqual([])
+    expect(parseProcessGroupIds('')).toEqual([])
+    expect(parseProcessGroupIds(' 123, 0, -1, nope, 456 ')).toEqual([123, 456])
   })
 
   test('port preflight rejects an existing listener', async () => {

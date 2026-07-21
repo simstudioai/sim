@@ -95,5 +95,26 @@ export async function dropRunDatabaseWithRetries(
     }
     await sleep(intervalMs)
   } while (Date.now() < deadline)
-  if (lastError) throw lastError
+  if (await runDatabaseExists(adminUrl, databaseName)) {
+    throw (
+      lastError ??
+      new Error(`Guarded E2E database still exists after forced-drop retry window: ${databaseName}`)
+    )
+  }
+}
+
+async function runDatabaseExists(adminUrl: string, databaseName: string): Promise<boolean> {
+  assertSafeDatabaseName(databaseName)
+  assertLoopbackPostgresUrl(adminUrl)
+  const sql = postgres(adminUrl, { max: 1, connect_timeout: 10, onnotice: () => {} })
+  try {
+    const rows = await sql<Array<{ exists: boolean }>>`
+      SELECT EXISTS(
+        SELECT 1 FROM pg_database WHERE datname = ${databaseName}
+      ) AS "exists"
+    `
+    return rows[0]?.exists ?? false
+  } finally {
+    await sql.end()
+  }
 }
