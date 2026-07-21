@@ -134,7 +134,7 @@ describe('McpService connection reuse wiring', () => {
       expect.objectContaining({ key: `server-1:${WORKSPACE_ID}:${USER_ID}`, serverId: 'server-1' })
     )
     expect(mockCallTool).toHaveBeenCalledTimes(1)
-    expect(mockRelease).toHaveBeenCalledWith(false)
+    expect(mockRelease).toHaveBeenCalledWith(false, false)
     expect(poolClient.disconnect).not.toHaveBeenCalled()
     // A pool hit must not re-resolve env vars (acquire never invoked `create`).
     expect(mockResolveEnvVars).not.toHaveBeenCalled()
@@ -158,7 +158,7 @@ describe('McpService connection reuse wiring', () => {
       mcpService.executeTool(USER_ID, 'server-1', { name: 'do', arguments: {} }, WORKSPACE_ID)
     ).rejects.toThrow()
 
-    expect(mockRelease).toHaveBeenCalledWith(true)
+    expect(mockRelease).toHaveBeenCalledWith(true, false)
   })
 
   it('keeps the pooled connection warm on a benign (non-connection) tool error', async () => {
@@ -168,20 +168,37 @@ describe('McpService connection reuse wiring', () => {
       mcpService.executeTool(USER_ID, 'server-1', { name: 'do', arguments: {} }, WORKSPACE_ID)
     ).rejects.toThrow()
 
-    expect(mockRelease).toHaveBeenCalledWith(false)
+    expect(mockRelease).toHaveBeenCalledWith(false, false)
   })
 
   it('keeps the pooled connection warm on a request timeout (does not retire the session)', async () => {
     // A streamable-HTTP request timeout aborts only that request's stream; the session stays
     // healthy for the next request, so a timeout must NOT poison the lease (matches every
-    // production MCP client and avoids a connect/stall/reconnect churn loop).
+    // production MCP client and avoids a connect/stall/reconnect churn loop). It DOES report
+    // sawTimeout so the pool's consecutive-timeout circuit breaker can retire a half-open
+    // transport after repeated strikes.
     mockCallTool.mockRejectedValue(new Error('Request timed out'))
 
     await expect(
       mcpService.executeTool(USER_ID, 'server-1', { name: 'do', arguments: {} }, WORKSPACE_ID)
     ).rejects.toThrow()
 
-    expect(mockRelease).not.toHaveBeenCalledWith(true)
+    expect(mockRelease).toHaveBeenCalledWith(false, true)
+  })
+
+  it('classifies an AbortSignal.timeout-shaped TimeoutError as a timeout for the breaker', async () => {
+    // DOMException name 'TimeoutError' with a message that lacks "timed out".
+    mockCallTool.mockRejectedValue(
+      Object.assign(new Error('The operation was aborted due to timeout'), {
+        name: 'TimeoutError',
+      })
+    )
+
+    await expect(
+      mcpService.executeTool(USER_ID, 'server-1', { name: 'do', arguments: {} }, WORKSPACE_ID)
+    ).rejects.toThrow()
+
+    expect(mockRelease).toHaveBeenCalledWith(false, true)
   })
 
   it('poisons the lease on an auth failure so a rotated credential is re-resolved', async () => {
@@ -191,7 +208,7 @@ describe('McpService connection reuse wiring', () => {
       mcpService.executeTool(USER_ID, 'server-1', { name: 'do', arguments: {} }, WORKSPACE_ID)
     ).rejects.toThrow()
 
-    expect(mockRelease).toHaveBeenCalledWith(true)
+    expect(mockRelease).toHaveBeenCalledWith(true, false)
   })
 
   it('retries and recovers when a rotated credential causes a one-off auth failure', async () => {
@@ -209,7 +226,7 @@ describe('McpService connection reuse wiring', () => {
     expect(result).toEqual({ content: [] })
     expect(mockCallTool).toHaveBeenCalledTimes(2)
     // First attempt poisoned the stale lease; the retry re-acquired a fresh one.
-    expect(mockRelease).toHaveBeenCalledWith(true)
+    expect(mockRelease).toHaveBeenCalledWith(true, false)
     expect(mockAcquire).toHaveBeenCalledTimes(2)
   })
 })

@@ -93,6 +93,12 @@ function isTimeoutError(error: unknown): boolean {
   if (error instanceof McpError && error.code === ErrorCode.RequestTimeout) {
     return true
   }
+  // AbortSignal.timeout / undici surface a DOMException named TimeoutError whose
+  // message ("The operation was aborted due to timeout") lacks "timed out".
+  const e = error as { name?: string; cause?: { name?: string } } | null
+  if (e?.name === 'TimeoutError' || e?.cause?.name === 'TimeoutError') {
+    return true
+  }
   return getErrorMessage(error, '').toLowerCase().includes('timed out')
 }
 
@@ -425,13 +431,17 @@ class McpService {
         create,
       })
       let poison = false
+      let sawTimeout = false
       try {
         return await fn(lease.client)
       } catch (error) {
         poison = isDeadConnectionError(error)
+        // A lone timeout keeps the session; the pool's circuit breaker retires it
+        // after consecutive timeouts with no healthy request in between.
+        sawTimeout = isTimeoutError(error)
         throw error
       } finally {
-        await lease.release(poison)
+        await lease.release(poison, sawTimeout)
       }
     }
 
