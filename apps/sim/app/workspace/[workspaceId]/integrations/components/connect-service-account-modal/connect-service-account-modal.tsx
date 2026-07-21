@@ -108,6 +108,8 @@ interface ConnectServiceAccountModalProps {
   credentialDisplayName?: string
   /** Existing description, used to seed reconnect-capable modals. */
   credentialDescription?: string
+  /** Called with the new credential id after a successful create (token-paste providers). */
+  onCreated?: (credentialId: string) => void
 }
 
 /**
@@ -132,6 +134,7 @@ export function ConnectServiceAccountModal({
   credentialId,
   credentialDisplayName,
   credentialDescription,
+  onCreated,
 }: ConnectServiceAccountModalProps) {
   const clientCredentialDescriptor = getClientCredentialAccountDescriptor(serviceAccountProviderId)
   if (clientCredentialDescriptor) {
@@ -162,6 +165,7 @@ export function ConnectServiceAccountModal({
         credentialId={credentialId}
         initialDisplayName={credentialDisplayName}
         initialDescription={credentialDescription}
+        onCreated={onCreated}
       />
     )
   }

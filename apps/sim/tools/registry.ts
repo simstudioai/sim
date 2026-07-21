@@ -2466,6 +2466,7 @@ import {
   mailgunListMessagesTool,
   mailgunSendMessageTool,
 } from '@/tools/mailgun'
+import { managedAgentRunSessionTool } from '@/tools/managed_agent'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from '@/tools/mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from '@/tools/memory'
 import {
@@ -5486,6 +5487,7 @@ export const tools: Record<string, ToolConfig> = {
   mailgun_add_list_member: mailgunAddListMemberTool,
   mailgun_list_domains: mailgunListDomainsTool,
   mailgun_get_domain: mailgunGetDomainTool,
+  managed_agent_run_session: managedAgentRunSessionTool,
   sms_send: smsSendTool,
   jira_retrieve: jiraRetrieveTool,
   jira_update: jiraUpdateTool,
