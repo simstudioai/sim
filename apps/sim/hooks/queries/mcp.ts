@@ -310,7 +310,7 @@ export function useCreateMcpServer() {
  * correlate the eventual result back to this exact flow.
  */
 export type StartMcpOauthMutationResult =
-  | { status: 'redirect'; popup: Window; state: string }
+  | { status: 'redirect'; authorizationUrl: string; state: string }
   | { status: 'already_authorized' }
 
 export function useStartMcpOauth() {
@@ -319,6 +319,9 @@ export function useStartMcpOauth() {
       mutationFn: async ({ serverId, workspaceId }) => {
         const result = await requestJson(startMcpOauthContract, {
           query: { serverId, workspaceId },
+          // A stalled /oauth/start must settle so the caller can reset the connecting
+          // state and close its pre-opened popup instead of appearing bricked.
+          signal: AbortSignal.timeout(30_000),
         })
         if (result.status === 'already_authorized') return { status: 'already_authorized' }
 
@@ -332,15 +335,10 @@ export function useStartMcpOauth() {
         if (!state) {
           throw new Error('Authorization URL is missing the OAuth state parameter')
         }
-        const popup = window.open(
-          result.authorizationUrl,
-          `mcp-oauth-${serverId}`,
-          'width=560,height=720,resizable=yes,scrollbars=yes'
-        )
-        if (!popup) {
-          throw new Error('Popup blocked. Please allow popups for this site and retry.')
-        }
-        return { status: 'redirect', popup, state }
+        // The popup itself is opened SYNCHRONOUSLY by the caller inside the user's
+        // click (popup-first) — opening it here, after the network await, loses the
+        // user activation and gets silently popup-blocked.
+        return { status: 'redirect', authorizationUrl: result.authorizationUrl, state }
       },
     }
   )
