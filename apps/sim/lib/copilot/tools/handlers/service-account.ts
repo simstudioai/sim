@@ -3,7 +3,10 @@ import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { getServiceAccountGatingBlockType } from '@/lib/credentials/service-account-provider-ids'
+import {
+  getServiceAccountConnectNoun,
+  getServiceAccountGatingBlockType,
+} from '@/lib/credentials/service-account-provider-ids'
 import {
   listServiceAccountIntegrationNames,
   resolveServiceAccountIntegration,
@@ -65,6 +68,8 @@ export async function executeServiceAccountGetSetupLink(
     const url = new URL(`${baseUrl}/workspace/${context.workspaceId}/integrations/${match.slug}`)
     url.searchParams.set(CONNECT_QUERY_PARAM, CONNECT_MODE.serviceAccount)
 
+    const connectNoun = getServiceAccountConnectNoun(match.serviceAccountProviderId)
+
     return {
       success: true,
       output: {
@@ -72,8 +77,9 @@ export async function executeServiceAccountGetSetupLink(
         instructions:
           `Emit <credential>{"type":"service_account","provider":"${match.providerId}"}</credential> ` +
           `to open the ${match.serviceName} setup form directly in this chat. Only fall back to ` +
-          `setup_url when you cannot render a tag (headless/MCP). The form collects the ` +
-          `credential — never ask the user to paste key material into chat.`,
+          `setup_url when you cannot render a tag (headless/MCP). Before or alongside the tag, tell ` +
+          `the user they'll need a ${connectNoun} — the form collects it, so never ask them to paste ` +
+          `key material into chat.`,
         provider: match.serviceName,
         // The OAuth provider value, NOT the service-account provider id — both
         // the tag renderer and the link renderer resolve display metadata from
@@ -81,6 +87,9 @@ export async function executeServiceAccountGetSetupLink(
         // registered first: `google-service-account` labels Google Sheets "Gmail".
         providerId: match.providerId,
         serviceAccountProviderId: match.serviceAccountProviderId,
+        // The vendor noun for the secret the form collects ("private app token",
+        // "server-to-server app"), so the agent can tell the user what to prepare.
+        connectNoun,
         /** Headless fallback only; interactive chat should emit the tag. */
         setup_url: url.toString(),
       },

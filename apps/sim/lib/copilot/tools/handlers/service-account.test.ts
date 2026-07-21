@@ -45,6 +45,7 @@ interface Output {
   provider?: string
   providerId?: string
   serviceAccountProviderId?: string
+  connectNoun?: string
   instructions?: string
 }
 
@@ -69,6 +70,10 @@ describe('executeServiceAccountGetSetupLink', () => {
     expect(output.setup_url).toContain('/integrations/notion?connect=service-account')
     // The agent is steered to emit the tag, not surface the URL as a link.
     expect(output.instructions).toContain('service_account')
+    // The tool carries the secret's noun so the agent can tell the user what to
+    // prepare — this is the discovery surface, replacing the reverted VFS field.
+    expect(output.connectNoun).toBe('integration secret')
+    expect(output.instructions).toContain('integration secret')
     // An ungated provider never consults block visibility.
     expect(mockGetBlockVisibility).not.toHaveBeenCalled()
   })

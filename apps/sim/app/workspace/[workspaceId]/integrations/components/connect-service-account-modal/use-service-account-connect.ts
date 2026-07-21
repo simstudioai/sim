@@ -1,9 +1,10 @@
 'use client'
 
 import { type ComponentType, useMemo } from 'react'
-import { getClientCredentialAccountDescriptor } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { getServiceAccountGatingBlockType } from '@/lib/credentials/service-account-provider-ids'
-import { getTokenServiceAccountDescriptor } from '@/lib/credentials/token-service-accounts/descriptors'
+import {
+  getServiceAccountConnectNoun,
+  getServiceAccountGatingBlockType,
+} from '@/lib/credentials/service-account-provider-ids'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/connect-service-account-modal'
 import { getBlock } from '@/blocks'
@@ -66,15 +67,9 @@ export function useServiceAccountConnectTarget({
   return useMemo(() => {
     if (!serviceAccountProviderId || !serviceName || !serviceIcon) return null
 
-    const nounDescriptor =
-      getTokenServiceAccountDescriptor(serviceAccountProviderId) ??
-      getClientCredentialAccountDescriptor(serviceAccountProviderId)
-
     const label = isSlackBot
       ? 'Set up a custom bot'
-      : nounDescriptor
-        ? `Add ${nounDescriptor.connectNoun}`
-        : 'Add service account'
+      : `Add ${getServiceAccountConnectNoun(serviceAccountProviderId)}`
 
     return { serviceAccountProviderId, serviceName, serviceIcon, label, hidden }
   }, [serviceAccountProviderId, serviceName, serviceIcon, isSlackBot, hidden])

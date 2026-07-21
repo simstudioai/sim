@@ -1,5 +1,11 @@
-import { isClientCredentialAccountProviderId } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
+import {
+  getClientCredentialAccountDescriptor,
+  isClientCredentialAccountProviderId,
+} from '@/lib/credentials/client-credential-accounts/descriptors'
+import {
+  getTokenServiceAccountDescriptor,
+  isTokenServiceAccountProviderId,
+} from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -53,4 +59,19 @@ export function isServiceAccountProviderId(value: string): boolean {
  */
 export function getServiceAccountGatingBlockType(providerId: string): string | null {
   return providerId === SLACK_CUSTOM_BOT_PROVIDER_ID ? 'slack_v2' : null
+}
+
+/**
+ * Vendor-accurate noun for the credential a service-account provider collects
+ * ("private app token", "server-to-server app", …), for connect-control labels
+ * and agent-facing discovery. Token-paste and client-credential providers name
+ * their own; bespoke providers (Google JSON key, Atlassian token) fall back to
+ * the generic "service account". Single source shared by the connect hook and
+ * the VFS catalog so the wording can't drift.
+ */
+export function getServiceAccountConnectNoun(providerId: string): string {
+  if (providerId === SLACK_CUSTOM_BOT_PROVIDER_ID) return 'custom bot'
+  const descriptor =
+    getTokenServiceAccountDescriptor(providerId) ?? getClientCredentialAccountDescriptor(providerId)
+  return descriptor?.connectNoun ?? 'service account'
 }
