@@ -425,13 +425,17 @@ class McpService {
         create,
       })
       let poison = false
+      let sawTimeout = false
       try {
         return await fn(lease.client)
       } catch (error) {
         poison = isDeadConnectionError(error)
+        // A lone timeout keeps the session; the pool's circuit breaker retires it
+        // after consecutive timeouts with no healthy request in between.
+        sawTimeout = isTimeoutError(error)
         throw error
       } finally {
-        await lease.release(poison)
+        await lease.release(poison, sawTimeout)
       }
     }
 
