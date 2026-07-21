@@ -79,6 +79,8 @@ test.describe('foundation safety guards', () => {
     expect(build.env.DATABASE_URL).toContain('/sim_e2e_build_sentinel')
     expect(build.env.DATABASE_URL).not.toBe(app.env.DATABASE_URL)
     expect(build.env.STRIPE_API_BASE_URL).toBe('http://127.0.0.1:1')
+    expect(build.env.TELEMETRY_ENDPOINT).toBe('http://127.0.0.1:1/v1/traces')
+    expect(app.env.TELEMETRY_ENDPOINT).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1\/traces$/)
     expect(build.env.E2E_RUN_ID).toBe('build_sentinel')
 
     for (const key of Object.keys(app.env).filter((key) => key.startsWith('NEXT_PUBLIC_'))) {
@@ -134,7 +136,13 @@ test.describe('foundation safety guards', () => {
     ).not.toThrow()
     expect(() =>
       parseRunOptions(['--project=hosted-billing-chromium-workflows', '--shard=1/2'])
-    ).toThrow(/coupled workflows must remain unsharded/)
+    ).toThrow(/coupled E2E projects must remain unsharded/)
+    expect(() =>
+      parseRunOptions(['--project=hosted-billing-chromium-personas'])
+    ).not.toThrow()
+    expect(() =>
+      parseRunOptions(['--project=hosted-billing-chromium-persona-isolation', '--shard=1/2'])
+    ).toThrow(/coupled E2E projects must remain unsharded/)
   })
 
   test('Playwright CLI arguments cannot override orchestration invariants', () => {

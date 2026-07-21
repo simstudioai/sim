@@ -15,7 +15,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: isCI,
   retries: 0,
-  workers: 1,
+  workers: 2,
   timeout: 60_000,
   expect: {
     timeout: 10_000,
@@ -53,6 +53,18 @@ export default defineConfig({
       testMatch: ['**/settings/smoke/authenticated.spec.ts', '**/settings/workflows/**/*.spec.ts'],
       fullyParallel: false,
       workers: 1,
+    },
+    {
+      name: 'hosted-billing-chromium-personas',
+      testMatch: '**/settings/persona-contracts.spec.ts',
+      fullyParallel: false,
+      workers: 1,
+    },
+    {
+      name: 'hosted-billing-chromium-persona-isolation',
+      testMatch: '**/settings/persona-isolation.spec.ts',
+      fullyParallel: true,
+      workers: 2,
     },
   ],
 })

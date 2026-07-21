@@ -37,7 +37,15 @@ import {
   type ManagedProcess,
   stopAllManagedProcesses,
 } from '../support/process'
-import { buildApp, runMigrations, runPlaywright, startApp, startRealtime } from '../support/stack'
+import {
+  buildApp,
+  capturePersonaAuthStates,
+  runMigrations,
+  runPlaywright,
+  seedE2eWorld,
+  startApp,
+  startRealtime,
+} from '../support/stack'
 import { parseRunOptions } from './options'
 
 const DEFAULT_ADMIN_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:5432/postgres'
@@ -51,6 +59,9 @@ async function main(): Promise<void> {
   const storageStateDirectory = path.join(runDirectory, 'auth')
   const markerDirectory = path.join(runDirectory, 'markers')
   const homeDirectory = path.join(runDirectory, 'home')
+  const manifestPath = path.join(runDirectory, 'persona-manifest.json')
+  const credentialsPath = path.join(homeDirectory, 'persona-credentials.json')
+  const authScreenshotsDirectory = path.join(runDirectory, 'auth-capture-screenshots')
   mkdirSync(logsDirectory, { recursive: true })
   mkdirSync(storageStateDirectory, { recursive: true })
   mkdirSync(markerDirectory, { recursive: true })
@@ -220,11 +231,31 @@ async function main(): Promise<void> {
     )
     assertNoForbiddenProviderInitialization([app.logPath, realtime.logPath])
 
+    await seedE2eWorld({
+      ...commandOptions,
+      env: {
+        ...profile.environments.seed.env,
+        E2E_MANIFEST_PATH: manifestPath,
+        E2E_CREDENTIALS_PATH: credentialsPath,
+      },
+    })
+    await capturePersonaAuthStates({
+      ...commandOptions,
+      env: {
+        ...profile.environments.authCapture.env,
+        E2E_MANIFEST_PATH: manifestPath,
+        E2E_CREDENTIALS_PATH: credentialsPath,
+        E2E_STORAGE_STATE_DIR: storageStateDirectory,
+        E2E_AUTH_SCREENSHOT_DIR: authScreenshotsDirectory,
+      },
+    })
+
     const playwrightEnvironment = createPlaywrightEnvironment(
       profile.environments.playwright.env,
       runId,
       storageStateDirectory,
-      markerDirectory
+      markerDirectory,
+      manifestPath
     )
     await runPlaywright(
       {
@@ -309,7 +340,8 @@ function createPlaywrightEnvironment(
   baseEnvironment: Record<string, string>,
   runId: string,
   storageStateDirectory: string,
-  markerDirectory: string
+  markerDirectory: string,
+  manifestPath: string
 ): Record<string, string> {
   return {
     ...baseEnvironment,
@@ -319,6 +351,7 @@ function createPlaywrightEnvironment(
     E2E_BASE_URL: E2E_ORIGIN,
     E2E_STORAGE_STATE_DIR: storageStateDirectory,
     E2E_MARKER_DIR: markerDirectory,
+    E2E_MANIFEST_PATH: manifestPath,
   }
 }
 

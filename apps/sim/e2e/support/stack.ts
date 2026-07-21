@@ -40,6 +40,28 @@ export async function runMigrations(options: StackCommandOptions): Promise<void>
   })
 }
 
+export async function seedE2eWorld(options: StackCommandOptions): Promise<void> {
+  await runCommand({
+    name: 'seed-world',
+    command: options.bunExecutable,
+    args: ['--no-env-file', path.join(SIM_APP_DIR, 'e2e/scripts/seed-world.ts')],
+    cwd: SIM_APP_DIR,
+    env: options.env,
+    logsDirectory: options.logsDirectory,
+  })
+}
+
+export async function capturePersonaAuthStates(options: StackCommandOptions): Promise<void> {
+  await runCommand({
+    name: 'capture-auth-states',
+    command: options.nodeExecutable,
+    args: ['--import', 'tsx', path.join(SIM_APP_DIR, 'e2e/scripts/capture-auth-states.ts')],
+    cwd: SIM_APP_DIR,
+    env: options.env,
+    logsDirectory: options.logsDirectory,
+  })
+}
+
 export async function buildApp(options: BuildAppOptions): Promise<void> {
   verifySandboxBundleIntegrity()
   const identity = computeBuildIdentity({

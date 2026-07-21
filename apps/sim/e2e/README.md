@@ -50,8 +50,10 @@ E2E_PG_ADMIN_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres \
 ```
 
 The runner creates a unique `sim_e2e_<runId>` database, migrates it, starts the
-Stripe fake and realtime, builds and starts Next.js, runs Playwright on Node 22,
-then stops services and drops only that guarded database.
+Stripe fake and realtime, builds and starts Next.js, seeds the validated persona
+world through production APIs plus narrow trusted arrangements, captures each
+persona through the real login UI, runs Playwright on Node 22, then stops
+services and drops only that guarded database.
 
 On interruption, the runner launches a detached cleanup supervisor before
 exiting. It terminates managed process groups, force-drops the guarded database,
@@ -89,13 +91,17 @@ were not launched by the orchestrator. Report and trace viewer commands remain
 safe because they do not execute tests.
 
 Sharding is supported only for the navigation project. The runner rejects
-`--shard` for `hosted-billing-chromium-workflows`.
+`--shard` for workflows, persona contracts, and the dedicated two-worker
+cross-world isolation project.
 
 ## Diagnostics
 
 - HTML report: `playwright-report/`
 - Traces and screenshots: `test-results/`
-- App, realtime, migration, and fake logs: `e2e/.runs/<runId>/logs/`
+- App, realtime, migration, seed, auth-capture, and fake logs:
+  `e2e/.runs/<runId>/logs/`
+- Non-secret persona manifest and post-login auth-capture screenshots:
+  `e2e/.runs/<runId>/`
 
 Open the report:
 
@@ -111,11 +117,14 @@ node ../../node_modules/@playwright/test/cli.js show-trace test-results/<test>/t
 
 The runner starts every child process from a fresh, purpose-specific
 environment. Next build receives deterministic sentinels instead of the run
-database/fake endpoint; app, realtime, migrations, future seeding/auth capture,
-and Playwright each receive only their required values. Next build/start shadow
+database/fake endpoint; app, realtime, migrations, seeding, auth capture, and
+Playwright each receive only their required values. Playwright receives the
+non-secret manifest and storage-state directory, never passwords, the admin API
+key, or the database URL. Next build/start shadow
 keys found in local `.env*` files, while children that cannot load those files
 omit denied keys entirely. Developer credentials are not used as test state or
-written to reports.
+written to reports. Synthetic persona passwords live in a private run-home file
+and are removed with the auth/cloud-config directory during teardown.
 
 E2E builds verify the reviewed sandbox-bundle source/dependency/output
 fingerprint and never regenerate committed `.cjs` files. Regeneration remains an

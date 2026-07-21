@@ -20,6 +20,7 @@ const APP_REQUIRED_KEYS = [
   'NEXT_PUBLIC_BILLING_ENABLED',
   'STRIPE_SECRET_KEY',
   'STRIPE_API_BASE_URL',
+  'TELEMETRY_ENDPOINT',
   'E2E_PROFILE',
   'E2E_RUN_ID',
   'HOME',
@@ -131,6 +132,7 @@ export function createHostedBillingProfile({
     STRIPE_WEBHOOK_SECRET: 'whsec_sim_e2e_foundation',
     STRIPE_FREE_PRICE_ID: 'price_e2e_free',
     STRIPE_API_BASE_URL: stripeApiBaseUrl,
+    TELEMETRY_ENDPOINT: `${stripeApiBaseUrl}/v1/traces`,
     SOCKET_SERVER_URL: 'http://127.0.0.1:3002',
     NEXT_PUBLIC_SOCKET_URL: E2E_SOCKET_ORIGIN,
     CI: ci ? 'true' : 'false',
@@ -150,6 +152,7 @@ export function createHostedBillingProfile({
     HOME: buildHomeDirectory,
     DATABASE_URL: 'postgresql://e2e_build:e2e_build@127.0.0.1:1/sim_e2e_build_sentinel',
     STRIPE_API_BASE_URL: 'http://127.0.0.1:1',
+    TELEMETRY_ENDPOINT: 'http://127.0.0.1:1/v1/traces',
     CI: 'false',
   }
   validateProfileValues(buildValues)

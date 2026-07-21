@@ -6,6 +6,7 @@ export const STRIPE_FAKE_ENDPOINTS = {
   health: '/health',
   requestLog: '/__control/requests',
   reset: '/__control/reset',
+  telemetry: '/v1/traces',
 } as const
 
 const DEFAULT_MAX_BODY_BYTES = 64 * 1024
@@ -63,6 +64,7 @@ function isExpectedStripeRequest(method: string, path: string): boolean {
     ((method === 'GET' || method === 'POST') && path === '/v1/customers/search') ||
     (method === 'GET' && path === '/v1/customers') ||
     (method === 'POST' && path === '/v1/customers') ||
+    (method === 'POST' && path === STRIPE_FAKE_ENDPOINTS.telemetry) ||
     (method === 'GET' && /^\/v1\/customers\/cus_e2e_[a-f0-9]+$/.test(path))
   )
 }
@@ -325,6 +327,11 @@ export function createStripeFakeServer(options: StripeFakeServerOptions): Stripe
       path: url.pathname,
       unexpected: !expected,
     })
+
+    if (method === 'POST' && url.pathname === STRIPE_FAKE_ENDPOINTS.telemetry) {
+      sendJson(response, 200, { partialSuccess: {} }, requestId)
+      return
+    }
 
     if (!secureEqual(request.headers.authorization, expectedAuthorization)) {
       sendStripeError(

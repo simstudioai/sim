@@ -1,5 +1,13 @@
 const NAVIGATION_PROJECT = 'hosted-billing-chromium-navigation'
 const WORKFLOWS_PROJECT = 'hosted-billing-chromium-workflows'
+const PERSONAS_PROJECT = 'hosted-billing-chromium-personas'
+const PERSONA_ISOLATION_PROJECT = 'hosted-billing-chromium-persona-isolation'
+const E2E_PROJECTS = new Set([
+  NAVIGATION_PROJECT,
+  WORKFLOWS_PROJECT,
+  PERSONAS_PROJECT,
+  PERSONA_ISOLATION_PROJECT,
+])
 const FORBIDDEN_OPTIONS = [
   '--config',
   '-c',
@@ -51,9 +59,7 @@ export function parseRunOptions(
   }
   const playwrightArgs = normalizedArgs.filter((arg) => arg !== '--reuse-build')
   const projects = getEqualsOptionValues(playwrightArgs, '--project')
-  const unknownProject = projects.find(
-    (project) => project !== NAVIGATION_PROJECT && project !== WORKFLOWS_PROJECT
-  )
+  const unknownProject = projects.find((project) => !E2E_PROJECTS.has(project))
   if (unknownProject) throw new Error(`Unknown E2E Playwright project: ${unknownProject}`)
   const hasShard = hasOption(playwrightArgs, '--shard')
 
@@ -64,7 +70,7 @@ export function parseRunOptions(
       projects.some((project) => project !== NAVIGATION_PROJECT))
   ) {
     throw new Error(
-      `--shard is supported only with --project=${NAVIGATION_PROJECT}; coupled workflows must remain unsharded`
+      `--shard is supported only with --project=${NAVIGATION_PROJECT}; coupled E2E projects must remain unsharded`
     )
   }
 
