@@ -59,7 +59,7 @@ export function acquireE2eRunLock(
         token: descriptor.token,
         setProcessGroupIds(processGroupIds: number[]): void {
           const current = readDescriptor(lockPath)
-          if (current?.token !== descriptor.token) return
+          if (current?.token !== descriptor.token || current.pid !== descriptor.pid) return
           const normalized = [...new Set(processGroupIds)].filter(
             (processGroupId) => Number.isInteger(processGroupId) && processGroupId > 0
           )
@@ -76,7 +76,7 @@ export function acquireE2eRunLock(
         },
         transfer(pid: number): boolean {
           const current = readDescriptor(lockPath)
-          if (current?.token !== descriptor.token) return false
+          if (current?.token !== descriptor.token || current.pid !== descriptor.pid) return false
           writeDescriptor(lockPath, {
             ...current,
             pid,
@@ -86,10 +86,10 @@ export function acquireE2eRunLock(
           return transferred?.token === descriptor.token && transferred.pid === pid
         },
         retain(reason: string): void {
-          retainE2eRunLock(lockPath, descriptor.token, reason)
+          retainE2eRunLock(lockPath, descriptor.token, descriptor.pid, reason)
         },
         release(): void {
-          releaseE2eRunLock(lockPath, descriptor.token)
+          releaseE2eRunLock(lockPath, descriptor.token, descriptor.pid)
         },
       }
     } catch (error) {
@@ -119,17 +119,22 @@ export function acquireE2eRunLock(
   throw new Error(`Unable to acquire E2E orchestrator lock: ${lockPath}`)
 }
 
-export function releaseE2eRunLock(lockPath: string, token: string): void {
+export function releaseE2eRunLock(lockPath: string, token: string, expectedOwnerPid: number): void {
   if (!existsSync(lockPath)) return
   const current = readDescriptor(lockPath)
-  if (current?.token === token) {
+  if (current?.token === token && current.pid === expectedOwnerPid) {
     rmSync(lockPath, { recursive: true, force: true })
   }
 }
 
-export function retainE2eRunLock(lockPath: string, token: string, reason: string): void {
+export function retainE2eRunLock(
+  lockPath: string,
+  token: string,
+  expectedOwnerPid: number,
+  reason: string
+): void {
   const current = readDescriptor(lockPath)
-  if (current?.token !== token) return
+  if (current?.token !== token || current.pid !== expectedOwnerPid) return
   writeDescriptor(lockPath, { ...current, retainedFailure: reason })
 }
 

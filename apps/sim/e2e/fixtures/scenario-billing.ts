@@ -8,7 +8,7 @@ export function sameBillingReference(
   left: ScenarioSubscription,
   right: ScenarioSubscription
 ): boolean {
-  return billingReferenceIdentity(left) === billingReferenceIdentity(right)
+  return billingReferenceKey(left) === billingReferenceKey(right)
 }
 
 export function initialSubscriptionStatus(
@@ -51,7 +51,7 @@ export function expectedUsageLimit(scenario: ResolvedScenario, userKey: string):
   return '5'
 }
 
-function billingReferenceIdentity(subscription: ScenarioSubscription): string {
+export function billingReferenceKey(subscription: ScenarioSubscription): string {
   return subscription.billingReference.kind === 'user'
     ? `user/${subscription.billingReference.userKey}`
     : `organization/${subscription.billingReference.organizationKey}`

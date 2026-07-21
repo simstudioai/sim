@@ -13,6 +13,7 @@ import type {
   ScenarioWorkspaceGrant,
 } from './scenario'
 import { SCENARIO_VERSION } from './scenario'
+import { billingReferenceKey, isEntitledSubscription } from './scenario-billing'
 
 export class ScenarioValidationError extends Error {
   readonly issues: readonly string[]
@@ -412,7 +413,7 @@ function validateSubscriptions(
       }
     }
 
-    if (subscription.status === 'active' || subscription.status === 'past_due') {
+    if (isEntitledSubscription(subscription)) {
       if (entitledBillingReferences.has(reference)) {
         issues.push(`billing reference "${reference}" has duplicate entitled subscriptions`)
       }
@@ -461,7 +462,7 @@ function validateWorkspaces(
     }
     const entitledSubscription = definition.subscriptions.find(
       (candidate) =>
-        (candidate.status === 'active' || candidate.status === 'past_due') &&
+        isEntitledSubscription(candidate) &&
         billingReferenceKey(candidate) === payerReferenceKey(workspace)
     )
     if (entitledSubscription && subscription?.key !== entitledSubscription.key) {
@@ -685,7 +686,7 @@ function validatePersonaWorkspaceExpectation(
     : undefined
   const entitledSubscription = [...subscriptionsByKey.values()].find(
     (candidate) =>
-      (candidate.status === 'active' || candidate.status === 'past_due') &&
+      isEntitledSubscription(candidate) &&
       billingReferenceKey(candidate) === payerReferenceKey(workspace)
   )
   const actualPlan = entitledSubscription?.plan ?? 'free'
@@ -752,12 +753,6 @@ function membershipFor(
   return definition.organizationMemberships.find(
     (membership) => membership.organizationKey === organizationKey && membership.userKey === userKey
   )
-}
-
-function billingReferenceKey(subscription: ScenarioSubscription): string {
-  return subscription.billingReference.kind === 'user'
-    ? `user/${subscription.billingReference.userKey}`
-    : `organization/${subscription.billingReference.organizationKey}`
 }
 
 function payerReferenceKey(workspace: ScenarioWorkspace): string {

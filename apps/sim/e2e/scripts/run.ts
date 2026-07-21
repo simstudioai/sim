@@ -164,6 +164,8 @@ async function main(): Promise<void> {
   }
 
   const signalCleanup = createSingleFlightSignalCleanup(async (signal) => {
+    const cleanupProcessGroupIds = getActiveManagedProcessGroupIds()
+    setManagedProcessGroupObserver(null)
     failed = true
     const exitCode = signal === 'SIGINT' ? 130 : 143
     process.exitCode = exitCode
@@ -197,7 +199,7 @@ async function main(): Promise<void> {
                 E2E_PG_ADMIN_URL: adminDatabaseUrl,
                 E2E_DATABASE_NAME: runDatabase.name,
                 E2E_DATABASE_CREATION_COMPLETE: String(databaseCreationComplete),
-                E2E_CLEANUP_PROCESS_GROUPS: getActiveManagedProcessGroupIds().join(','),
+                E2E_CLEANUP_PROCESS_GROUPS: cleanupProcessGroupIds.join(','),
                 E2E_CLEANUP_DIRECTORIES: JSON.stringify([
                   storageStateDirectory,
                   privateDirectory,
@@ -368,79 +370,80 @@ async function main(): Promise<void> {
     console.error(error)
     process.exitCode = 1
   } finally {
-    if (runDatabase && existsSync(manifestPath)) {
+    if (signalCleanup.claimNormalFinalization()) {
+      process.off('SIGINT', handleSigint)
+      process.off('SIGTERM', handleSigterm)
+
+      if (runDatabase && existsSync(manifestPath)) {
+        try {
+          await assertManifestWorkspaceIdentities(runDatabase.url, manifestPath)
+        } catch (error) {
+          failed = true
+          process.exitCode = 1
+          console.error(error)
+        }
+      }
       try {
-        await assertManifestWorkspaceIdentities(runDatabase.url, manifestPath)
+        leakCanarySecrets = loadSyntheticSecretCanaryForScan(leakCanarySecrets, canarySecretsPath)
+      } catch (error) {
+        canaryCoverageComplete = false
+        failed = true
+        process.exitCode = 1
+        console.error(error)
+      } finally {
+        rmSync(credentialsPath, { force: true })
+        rmSync(canarySecretsPath, { force: true })
+      }
+      let cleanupSucceeded = false
+      try {
+        await cleanup()
+        cleanupSucceeded = true
       } catch (error) {
         failed = true
         process.exitCode = 1
         console.error(error)
       }
-    }
-    try {
-      leakCanarySecrets = loadSyntheticSecretCanaryForScan(leakCanarySecrets, canarySecretsPath)
-    } catch (error) {
-      canaryCoverageComplete = false
-      failed = true
-      process.exitCode = 1
-      console.error(error)
-    } finally {
-      rmSync(credentialsPath, { force: true })
-      rmSync(canarySecretsPath, { force: true })
-    }
-    let cleanupSucceeded = false
-    try {
-      await cleanup()
-      cleanupSucceeded = true
-    } catch (error) {
-      failed = true
-      process.exitCode = 1
-      console.error(error)
-    }
-    try {
-      assertNoForbiddenProviderTraffic(
-        [app?.logPath, realtime?.logPath].filter((value): value is string => Boolean(value))
-      )
-    } catch (error) {
-      failed = true
-      process.exitCode = 1
-      console.error(error)
-    }
-    if (canaryCoverageComplete && leakCanarySecrets.length > 0) {
       try {
-        await assertNoSyntheticSecretLeaks({
-          secrets: leakCanarySecrets,
-          roots: diagnosticRoots,
-          excludedPaths: [privateDirectory, storageStateDirectory],
-        })
-        writeFileSync(
-          path.join(markerDirectory, 'leak-scan-complete.json'),
-          `${JSON.stringify({ runId, completedAt: new Date().toISOString() })}\n`,
-          { mode: 0o600 }
+        assertNoForbiddenProviderTraffic(
+          [app?.logPath, realtime?.logPath].filter((value): value is string => Boolean(value))
         )
       } catch (error) {
         failed = true
         process.exitCode = 1
         console.error(error)
+      }
+      if (canaryCoverageComplete && leakCanarySecrets.length > 0) {
+        try {
+          await assertNoSyntheticSecretLeaks({
+            secrets: leakCanarySecrets,
+            roots: diagnosticRoots,
+            excludedPaths: [privateDirectory, storageStateDirectory],
+          })
+          writeFileSync(
+            path.join(markerDirectory, 'leak-scan-complete.json'),
+            `${JSON.stringify({ runId, completedAt: new Date().toISOString() })}\n`,
+            { mode: 0o600 }
+          )
+        } catch (error) {
+          failed = true
+          process.exitCode = 1
+          console.error(error)
+          diagnosticsRetained = scrubDiagnostics(diagnosticRoots)
+          if (diagnosticsRetained) cleanupSucceeded = false
+        }
+      } else if (!canaryCoverageComplete) {
         diagnosticsRetained = scrubDiagnostics(diagnosticRoots)
         if (diagnosticsRetained) cleanupSucceeded = false
       }
-    } else if (!canaryCoverageComplete) {
-      diagnosticsRetained = scrubDiagnostics(diagnosticRoots)
-      if (diagnosticsRetained) cleanupSucceeded = false
-    }
-    if (!signalCleanup.isStarted()) {
-      process.off('SIGINT', handleSigint)
-      process.off('SIGTERM', handleSigterm)
       setManagedProcessGroupObserver(null)
       if (cleanupSucceeded) runLock.release()
       else runLock.retain('normal cleanup failed; inspect diagnostics and clean resources manually')
+      console.info(
+        diagnosticsRetained
+          ? `E2E ${failed ? 'failed' : 'completed'}; diagnostics: ${runDirectory}`
+          : 'E2E failed; diagnostics were scrubbed because complete secret scanning was impossible'
+      )
     }
-    console.info(
-      diagnosticsRetained
-        ? `E2E ${failed ? 'failed' : 'completed'}; diagnostics: ${runDirectory}`
-        : 'E2E failed; diagnostics were scrubbed because complete secret scanning was impossible'
-    )
   }
 }
 

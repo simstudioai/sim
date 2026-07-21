@@ -257,10 +257,24 @@ test.describe('foundation safety guards', () => {
     expect(cleanup.start('SIGINT')).toBe(first)
     expect(cleanup.start('SIGTERM')).toBe(first)
     expect(cleanup.isStarted()).toBe(true)
+    expect(cleanup.claimNormalFinalization()).toBe(false)
     await Promise.resolve()
     expect(handledSignals).toEqual(['SIGINT'])
     finishCleanup()
     await first
+  })
+
+  test('normal finalization atomically prevents later signal cleanup', async () => {
+    let signalCleanupCalls = 0
+    const cleanup = createSingleFlightSignalCleanup(async () => {
+      signalCleanupCalls += 1
+    })
+
+    expect(cleanup.claimNormalFinalization()).toBe(true)
+    expect(cleanup.claimNormalFinalization()).toBe(false)
+    await cleanup.start('SIGTERM')
+    expect(cleanup.isStarted()).toBe(false)
+    expect(signalCleanupCalls).toBe(0)
   })
 
   test('port preflight rejects an existing listener', async () => {

@@ -9,16 +9,25 @@ export function parseProcessGroupIds(rawValue: string | undefined): number[] {
 
 export interface SingleFlightSignalCleanup {
   isStarted(): boolean
+  claimNormalFinalization(): boolean
   start(signal: NodeJS.Signals): Promise<void>
 }
 
 export function createSingleFlightSignalCleanup(
   cleanup: (signal: NodeJS.Signals) => Promise<void>
 ): SingleFlightSignalCleanup {
+  let finalizationOwner: 'none' | 'normal' | 'signal' = 'none'
   let cleanupPromise: Promise<void> | null = null
   return {
-    isStarted: () => cleanupPromise !== null,
+    isStarted: () => finalizationOwner === 'signal',
+    claimNormalFinalization() {
+      if (finalizationOwner !== 'none') return false
+      finalizationOwner = 'normal'
+      return true
+    },
     start(signal) {
+      if (finalizationOwner === 'normal') return Promise.resolve()
+      finalizationOwner = 'signal'
       cleanupPromise ??= Promise.resolve().then(() => cleanup(signal))
       return cleanupPromise
     },

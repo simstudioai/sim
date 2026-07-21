@@ -166,6 +166,43 @@ test('orchestrator lock rejects live ownership and recovers stale descriptors', 
   }
 })
 
+test('transferred run lock rejects mutations from its former owner', async () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), 'sim-e2e-transferred-run-lock-'))
+  const lockPath = path.join(directory, 'orchestrator.lock')
+  const supervisor = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1_000)'], {
+    stdio: 'ignore',
+  })
+  try {
+    await once(supervisor, 'spawn')
+    if (!supervisor.pid) throw new Error('Expected cleanup supervisor PID')
+    const lock = acquireE2eRunLock(lockPath)
+    expect(lock.transfer(supervisor.pid)).toBe(true)
+    expect(lock.transfer(process.pid)).toBe(false)
+
+    lock.setProcessGroupIds([supervisor.pid])
+    lock.retain('former owner must not retain')
+    lock.release()
+
+    const descriptor = JSON.parse(
+      readFileSync(path.join(lockPath, 'owner.json'), 'utf8')
+    ) as Record<string, unknown>
+    expect(descriptor.pid).toBe(supervisor.pid)
+    expect(descriptor.processGroupIds).toEqual([])
+    expect(descriptor.retainedFailure).toBeUndefined()
+    expect(existsSync(lockPath)).toBe(true)
+
+    supervisor.kill('SIGKILL')
+    await once(supervisor, 'exit')
+    const recovered = acquireE2eRunLock(lockPath)
+    recovered.release()
+  } finally {
+    if (supervisor.exitCode === null && supervisor.signalCode === null) {
+      supervisor.kill('SIGKILL')
+    }
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
 test('stale orchestrator recovery terminates its persisted process groups', async () => {
   test.skip(process.platform === 'win32', 'POSIX process-group cleanup is tested on Unix')
   const directory = mkdtempSync(path.join(os.tmpdir(), 'sim-e2e-stale-process-group-'))
