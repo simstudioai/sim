@@ -72,6 +72,7 @@ import {
   slackUpdateViewTool,
 } from '@/tools/slack'
 import type { ToolConfig } from '@/tools/types'
+import { customBlockExecutorTool, workflowExecutorTool } from '@/tools/workflow'
 
 /**
  * Dev-only minimal tool registry. Swapped in for `@/tools/registry` via a
@@ -87,6 +88,10 @@ export const tools: Record<string, ToolConfig> = {
   http_request: httpRequestTool,
   function_execute: functionExecuteTool,
   guardrails_validate: guardrailsValidateTool,
+  // Needed so workflow-as-tool and custom (deploy-as-block) tools resolve their
+  // config in minimal-registry dev mode (both route through `workflow_executor`).
+  workflow_executor: workflowExecutorTool,
+  deployed_block_executor: customBlockExecutorTool,
   gmail_send_v2: gmailSendV2Tool,
   gmail_read_v2: gmailReadV2Tool,
   gmail_search_v2: gmailSearchV2Tool,
