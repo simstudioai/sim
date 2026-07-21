@@ -20,7 +20,7 @@ export async function arrangePendingInvitation(input: {
   await db.transaction(async (tx) => {
     await tx.insert(invitation).values({
       id: invitationId,
-      kind: 'workspace',
+      kind: 'organization',
       email: input.email.trim().toLowerCase(),
       inviterId: input.inviterId,
       organizationId: input.organizationId,

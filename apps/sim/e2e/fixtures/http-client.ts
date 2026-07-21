@@ -98,10 +98,6 @@ export class E2eHttpClient {
     return this.serializeCookies()
   }
 
-  clearCookies(): void {
-    this.cookies.clear()
-  }
-
   private captureCookies(headers: Headers): void {
     const values =
       'getSetCookie' in headers && typeof headers.getSetCookie === 'function'

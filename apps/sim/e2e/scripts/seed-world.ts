@@ -551,7 +551,7 @@ async function assertTrustedWorldInvariants(world: E2EWorld): Promise<void> {
       .limit(1)
     if (
       !row ||
-      row.kind !== 'workspace' ||
+      row.kind !== 'organization' ||
       row.email !== definition.email ||
       row.inviterId !==
         required(
