@@ -176,7 +176,12 @@ interface UserCustomToolResultEvent {
   is_error: boolean
 }
 
-export type OutboundSessionEvent = UserMessageEvent | UserCustomToolResultEvent
+/** Stops a running session mid-execution; the session stays usable afterward. */
+interface UserInterruptEvent {
+  type: 'user.interrupt'
+}
+
+export type OutboundSessionEvent = UserMessageEvent | UserCustomToolResultEvent | UserInterruptEvent
 
 /** POST /v1/sessions/{id}/events with a single `user.message`. */
 export async function sendUserMessage(
@@ -205,6 +210,28 @@ export async function sendSessionEvents(
     const detail = await resp.text().catch(() => '')
     throw new Error(`Anthropic events.send failed (${resp.status}): ${detail.slice(0, 400)}`)
   }
+}
+
+/** Best-effort timeout for the fire-on-cancel interrupt (its own, since the run signal is already aborted). */
+const INTERRUPT_TIMEOUT_MS = 5000
+
+/**
+ * POST /v1/sessions/{id}/events with a `user.interrupt` — stops a session that
+ * is still running so it stops consuming the workspace API key once Sim has
+ * given up on it (workflow cancelled or wall-clock cap hit). Deliberately uses
+ * its OWN short timeout rather than the run's abort signal, which is already
+ * aborted by the time this fires.
+ */
+export async function interruptSession(input: {
+  apiKey: string
+  sessionId: string
+}): Promise<void> {
+  await sendSessionEvents({
+    apiKey: input.apiKey,
+    sessionId: input.sessionId,
+    events: [{ type: 'user.interrupt' }],
+    signal: AbortSignal.timeout(INTERRUPT_TIMEOUT_MS),
+  })
 }
 
 /** GET /v1/sessions/{id}/events/stream — opens the SSE response. */

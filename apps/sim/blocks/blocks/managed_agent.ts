@@ -77,6 +77,7 @@ export const ManagedAgentBlock: BlockConfig = {
       title: 'Credential vaults',
       type: 'dropdown',
       required: false,
+      mode: 'advanced',
       placeholder: 'Optional — pick zero or more OAuth vaults',
       searchable: true,
       multiSelect: true,
@@ -90,6 +91,7 @@ export const ManagedAgentBlock: BlockConfig = {
         'I own or am authorized to use these vaults. I understand this means this agent can assume the identity granted by them.',
       type: 'switch',
       required: false,
+      mode: 'advanced',
       description: 'Required when at least one vault is selected above.',
     },
     {
@@ -97,6 +99,7 @@ export const ManagedAgentBlock: BlockConfig = {
       title: 'Memory store',
       type: 'combobox',
       required: false,
+      mode: 'advanced',
       placeholder: 'Optional — pick a memory store',
       commandSearchable: true,
       options: [],
@@ -108,6 +111,7 @@ export const ManagedAgentBlock: BlockConfig = {
       title: 'Memory access',
       type: 'dropdown',
       required: false,
+      mode: 'advanced',
       options: [
         { label: 'Read + write (default)', id: 'read_write' },
         { label: 'Read only', id: 'read_only' },
@@ -121,6 +125,7 @@ export const ManagedAgentBlock: BlockConfig = {
       title: 'Memory instructions',
       type: 'long-input',
       required: false,
+      mode: 'advanced',
       placeholder: 'Optional — how the agent should use this memory store',
       condition: { field: 'memoryStoreId', value: '', not: true },
       description: 'Per-attachment guidance rendered into the memory section of the system prompt.',
@@ -130,6 +135,7 @@ export const ManagedAgentBlock: BlockConfig = {
       title: 'Files',
       type: 'table',
       required: false,
+      mode: 'advanced',
       columns: ['File ID', 'Mount path'],
       description:
         'Files-API file ids (file_...) to attach as file resources (cloud environments). Mount path is optional.',
@@ -139,6 +145,7 @@ export const ManagedAgentBlock: BlockConfig = {
       title: 'Metadata',
       type: 'table',
       required: false,
+      mode: 'advanced',
       columns: ['Key', 'Value'],
       description:
         'Optional key/value metadata forwarded on the session. On self-hosted environments each key is exposed to the agent as an env var.',

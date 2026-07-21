@@ -31,6 +31,8 @@ export interface ManagedAgentRunSessionParams {
   files?: unknown
   /** Key/value session metadata, as table rows or a flat object. */
   sessionParameters?: unknown
+  /** Execution context injected by the executor (used to title the session for traceability). */
+  _context?: { workflowId?: string }
 }
 
 export interface ManagedAgentRunSessionResponse extends ToolResponse {

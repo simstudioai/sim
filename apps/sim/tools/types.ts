@@ -183,8 +183,10 @@ export interface ToolConfig<P = any, R = any> {
   /**
    * Direct execution function for tools that don't need HTTP requests.
    * If provided, this will be called instead of making an HTTP request.
+   * Receives the workflow execution's abort signal (when one is active) so
+   * long-running direct executions can propagate cancellation.
    */
-  directExecution?: (params: P) => Promise<ToolResponse>
+  directExecution?: (params: P, signal?: AbortSignal) => Promise<ToolResponse>
 
   /**
    * Optional dynamic schema enrichment for specific params.

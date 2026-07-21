@@ -110,7 +110,7 @@ export const managedAgentRunSessionTool: ToolConfig<
     headers: () => ({}),
   },
 
-  directExecution: async (params): Promise<ManagedAgentRunSessionResponse> => {
+  directExecution: async (params, signal): Promise<ManagedAgentRunSessionResponse> => {
     const apiKey = params.accessToken
     if (!apiKey) {
       return {
@@ -146,17 +146,25 @@ export const managedAgentRunSessionTool: ToolConfig<
     const memoryAccess = normalizeMemoryAccess(params.memoryAccess)
     const memoryInstructions = params.memoryInstructions?.trim() || undefined
 
+    // Title the Anthropic session so it is traceable to its Sim workflow from
+    // the Claude Platform console. Only the workflow id is available in the
+    // client-safe execution context (names would require a DB lookup).
+    const workflowId = params._context?.workflowId?.trim()
+    const title = workflowId ? `Sim workflow ${workflowId}` : undefined
+
     const result = await runManagedAgentSession({
       apiKey,
       agentId,
       environmentId,
       userMessage: (params.userMessage ?? '').toString(),
+      ...(title ? { title } : {}),
       ...(vaultIds.length > 0 ? { vaultIds } : {}),
       ...(memoryStoreId ? { memoryStoreId } : {}),
       ...(memoryStoreId && memoryAccess ? { memoryAccess } : {}),
       ...(memoryStoreId && memoryInstructions ? { memoryInstructions } : {}),
       ...(files.length > 0 ? { files } : {}),
       ...(sessionParameters ? { sessionParameters } : {}),
+      ...(signal ? { signal } : {}),
     })
 
     if (!result.ok) {

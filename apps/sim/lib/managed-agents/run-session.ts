@@ -7,6 +7,7 @@ import {
   type CreateSessionInput,
   createSession,
   getSession,
+  interruptSession,
   listSessionEvents,
   openSessionStream,
   sendSessionEvents,
@@ -59,6 +60,39 @@ export interface RunManagedAgentResult {
 }
 
 type Terminal = { status: 'complete' | 'error'; reason?: string }
+/** Result of handling one event: an optional terminal signal, plus whether the event must be retried. */
+type HandleResult = { terminal?: Terminal; retry?: boolean }
+
+/**
+ * The most recent lifecycle event (`session.status_*` / `session.error`) in a
+ * chronological history, or `undefined`. The events list is authoritative and
+ * ordered, so the last such event reflects the session's current state — used
+ * to recompute the pending-action state without depending on the order events
+ * happened to arrive across the live stream and catch-up.
+ */
+function findLastLifecycleEvent(
+  history: AnthropicSessionEvent[]
+): AnthropicSessionEvent | undefined {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const type = history[i].type
+    if (type && (type.startsWith('session.status_') || type === 'session.error')) {
+      return history[i]
+    }
+  }
+  return undefined
+}
+
+/** Best-effort `user.interrupt` for a session Sim is abandoning (cancel / cap). Never throws. */
+async function interruptQuietly(apiKey: string, sessionId: string): Promise<void> {
+  try {
+    await interruptSession({ apiKey, sessionId })
+  } catch (err) {
+    logger.warn('Failed to interrupt managed agent session on cancel', {
+      sessionId,
+      error: getErrorMessage(err),
+    })
+  }
+}
 
 export async function runManagedAgentSession(
   input: RunManagedAgentInput
@@ -128,7 +162,6 @@ export async function runManagedAgentSession(
   let terminal: Terminal | null = null
 
   const process = async (event: AnthropicSessionEvent): Promise<boolean> => {
-    if (event.id) seenIds.add(event.id)
     if (
       event.type === 'agent.message' ||
       event.type === 'agent.custom_tool_use' ||
@@ -143,8 +176,12 @@ export async function runManagedAgentSession(
       requiresActionOutstanding = true
     }
     const outcome = await handleEvent({ event, assistantText, apiKey, sessionId, signal })
-    if (outcome) {
-      terminal = outcome
+    // Mark the event seen only once fully handled. A custom-tool reply that
+    // failed to send stays unseen so the next catch-up retries it instead of
+    // stranding the session on an unanswered requires_action pause.
+    if (event.id && !outcome.retry) seenIds.add(event.id)
+    if (outcome.terminal) {
+      terminal = outcome.terminal
       return true
     }
     return false
@@ -154,6 +191,9 @@ export async function runManagedAgentSession(
     for (let iteration = 0; iteration < MAX_RECONNECT_ITERATIONS && !terminal; iteration++) {
       if (signal?.aborted) break
       if (Date.now() - startedAt > MAX_SESSION_MS) {
+        // Giving up on a session that may still be running — stop it so it
+        // does not keep consuming the workspace key past our cap.
+        await interruptQuietly(apiKey, sessionId)
         terminal = {
           status: 'error',
           reason: `Session did not reach a terminal state within ${Math.floor(MAX_SESSION_MS / 1000)}s.`,
@@ -191,6 +231,20 @@ export async function runManagedAgentSession(
       }
       if (terminal || signal?.aborted) break
 
+      // Recompute the pending-action state from the chronological history,
+      // which is authoritative and ordered. This overrides any out-of-order
+      // flag flip made while processing catch-up events — an older
+      // `agent.message` recovered after the live stream must not clear a newer
+      // `requires_action` pause and let a still-waiting session report done.
+      // Falls back to the stream-tracked flag when the history carries no
+      // lifecycle events (e.g. status changes not persisted to the list).
+      const lastLifecycle = findLastLifecycleEvent(history)
+      if (lastLifecycle) {
+        requiresActionOutstanding =
+          lastLifecycle.type === 'session.status_idle' &&
+          lastLifecycle.stop_reason?.type === 'requires_action'
+      }
+
       // Still no terminal event. Consult the authoritative session status: a
       // finished session reports `idle`/`terminated`; a working one reports
       // `running`. `idle` counts as complete only once the agent has actually
@@ -216,6 +270,7 @@ export async function runManagedAgentSession(
     }
   } catch (error) {
     if (signal?.aborted) {
+      await interruptQuietly(apiKey, sessionId)
       return { ok: false, content: assistantText.value, sessionId, error: 'aborted' }
     }
     logger.error('Managed agent stream failed', { sessionId, error: getErrorMessage(error) })
@@ -228,6 +283,7 @@ export async function runManagedAgentSession(
   }
 
   if (signal?.aborted) {
+    await interruptQuietly(apiKey, sessionId)
     return { ok: false, content: assistantText.value, sessionId, error: 'aborted' }
   }
   if (!terminal || terminal.status === 'error') {
@@ -260,7 +316,7 @@ async function handleEvent(args: {
   apiKey: string
   sessionId: string
   signal?: AbortSignal
-}): Promise<Terminal | null> {
+}): Promise<HandleResult> {
   const { event, assistantText, apiKey, sessionId, signal } = args
 
   if (event.type === 'agent.message') {
@@ -271,7 +327,7 @@ async function handleEvent(args: {
         }
       }
     }
-    return null
+    return {}
   }
 
   if (event.type === 'agent.custom_tool_use') {
@@ -281,7 +337,7 @@ async function handleEvent(args: {
       logger.warn('Managed Agent custom_tool_use arrived without an id — skipping reply', {
         sessionId,
       })
-      return null
+      return {}
     }
     logger.warn(
       `Managed Agent invoked a custom tool "${event.name ?? '<unknown>'}" that Sim does not provide — replying with error`
@@ -310,27 +366,37 @@ async function handleEvent(args: {
         sessionId,
         error: getErrorMessage(err),
       })
+      // Leave the event unseen so the next catch-up retries the reply rather
+      // than stranding the session on this unanswered tool call.
+      return { retry: true }
     }
-    return null
+    return {}
   }
 
   if (event.type === 'session.status_terminated') {
-    return { status: 'error', reason: event.error?.message ?? 'session_terminated' }
+    return { terminal: { status: 'error', reason: event.error?.message ?? 'session_terminated' } }
   }
 
   if (event.type === 'session.status_idle') {
     const stop = event.stop_reason?.type
     // `requires_action` is not terminal — the session is paused for a pending
     // tool call and will emit a terminal event once it resolves.
-    if (stop === 'requires_action') return null
-    if (stop === 'retries_exhausted') return { status: 'error', reason: 'retries_exhausted' }
+    if (stop === 'requires_action') return {}
+    if (stop === 'retries_exhausted') {
+      return { terminal: { status: 'error', reason: 'retries_exhausted' } }
+    }
     // `end_turn` (or an unspecified idle) means the agent finished its turn.
-    return { status: 'complete' }
+    return { terminal: { status: 'complete' } }
   }
 
   if (event.type === 'session.error') {
-    return { status: 'error', reason: event.error?.message ?? event.message ?? 'session_error' }
+    return {
+      terminal: {
+        status: 'error',
+        reason: event.error?.message ?? event.message ?? 'session_error',
+      },
+    }
   }
 
-  return null
+  return {}
 }

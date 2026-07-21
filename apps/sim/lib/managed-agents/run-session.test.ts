@@ -12,6 +12,7 @@ const { mocks } = vi.hoisted(() => ({
     openSessionStream: vi.fn(),
     listSessionEvents: vi.fn(),
     getSession: vi.fn(),
+    interruptSession: vi.fn(),
     readSSEEvents: vi.fn(),
     sleep: vi.fn(),
   },
@@ -24,6 +25,7 @@ vi.mock('@/lib/managed-agents/session-client', () => ({
   openSessionStream: mocks.openSessionStream,
   listSessionEvents: mocks.listSessionEvents,
   getSession: mocks.getSession,
+  interruptSession: mocks.interruptSession,
 }))
 vi.mock('@/lib/core/utils/sse', () => ({ readSSEEvents: mocks.readSSEEvents }))
 vi.mock('@sim/utils/helpers', () => ({ sleep: mocks.sleep }))
@@ -66,9 +68,17 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.createSession.mockResolvedValue({ id: 'sess_1' })
   mocks.sendUserMessage.mockResolvedValue(undefined)
+  mocks.sendSessionEvents.mockResolvedValue(undefined)
   mocks.openSessionStream.mockResolvedValue({})
   mocks.listSessionEvents.mockResolvedValue([])
   mocks.getSession.mockResolvedValue(null)
+  mocks.interruptSession.mockResolvedValue(undefined)
+})
+
+const customToolUse = (id: string, name: string): AnthropicSessionEvent => ({
+  id,
+  type: 'agent.custom_tool_use',
+  name,
 })
 
 describe('runManagedAgentSession', () => {
@@ -161,6 +171,66 @@ describe('runManagedAgentSession', () => {
     expect(result.ok).toBe(false)
     expect(result.error).toBe('boom')
     expect(result.sessionId).toBe('sess_1')
+  })
+
+  it('keeps requires_action pending when catch-up recovers an older message (ordering)', async () => {
+    // Live stream sees a message then a requires_action pause. Catch-up then
+    // recovers an EARLIER, unseen agent.message — processing it would clear the
+    // pending flag, but the history's latest lifecycle event is still
+    // requires_action, so the session must NOT be reported complete.
+    scriptStreamBatches([
+      [msg('e1', 'hi '), idle('r1', 'requires_action')],
+      [idle('e2', 'end_turn')],
+    ])
+    mocks.listSessionEvents.mockResolvedValueOnce([
+      msg('e0', 'earlier'), // unseen, older than r1
+      idle('r1', 'requires_action'), // latest lifecycle event in history
+    ])
+    mocks.getSession.mockResolvedValue({ status: 'idle' })
+
+    const result = await runManagedAgentSession({ ...BASE })
+
+    expect(result.ok).toBe(true)
+    // Reopened rather than completing early on the idle snapshot.
+    expect(mocks.openSessionStream).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a custom-tool reply that failed to send instead of stranding the session', async () => {
+    // Stream 1: a custom tool call whose error reply fails to send — the event
+    // must stay unseen. Reconnect (status running) → reopen. Stream 2: the same
+    // tool call is retried (reply succeeds), then end_turn completes.
+    scriptStreamBatches([
+      [customToolUse('t1', 'foo')],
+      [customToolUse('t1', 'foo'), idle('e2', 'end_turn')],
+    ])
+    mocks.sendSessionEvents.mockRejectedValueOnce(new Error('network')).mockResolvedValue(undefined)
+    mocks.getSession
+      .mockResolvedValueOnce({ status: 'running' })
+      .mockResolvedValue({ status: 'idle' })
+
+    const result = await runManagedAgentSession({ ...BASE })
+
+    expect(result.ok).toBe(true)
+    // Reply attempted twice: the failed send was retried on reconnect.
+    expect(mocks.sendSessionEvents).toHaveBeenCalledTimes(2)
+  })
+
+  it('interrupts the session and reports aborted when the workflow is cancelled', async () => {
+    const controller = new AbortController()
+    // Cancel right after the session is created, before the stream loop runs.
+    mocks.sendUserMessage.mockImplementation(async () => {
+      controller.abort()
+    })
+    scriptStreamBatches([[]])
+
+    const result = await runManagedAgentSession({ ...BASE, signal: controller.signal })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('aborted')
+    expect(mocks.interruptSession).toHaveBeenCalledWith({
+      apiKey: BASE.apiKey,
+      sessionId: 'sess_1',
+    })
   })
 
   it('rejects an empty user message before creating a session', async () => {
