@@ -1,5 +1,4 @@
 import { auth, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
-import { withMcpHttpDiagnostics } from '@/lib/mcp/http-diagnostics'
 import { createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
 
 type McpAuthOptions = Parameters<typeof auth>[1]
@@ -18,6 +17,6 @@ export function mcpAuthGuarded(
 ): ReturnType<typeof auth> {
   return auth(provider, {
     ...options,
-    fetchFn: withMcpHttpDiagnostics(options.fetchFn ?? createSsrfGuardedMcpFetch(), 'oauth'),
+    fetchFn: options.fetchFn ?? createSsrfGuardedMcpFetch(),
   })
 }
