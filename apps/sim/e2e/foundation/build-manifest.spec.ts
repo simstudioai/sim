@@ -124,12 +124,13 @@ test('orchestrator lock rejects live ownership and recovers stale descriptors', 
   try {
     const lock = acquireE2eRunLock(lockPath)
     expect(() => acquireE2eRunLock(lockPath)).toThrow(/Another E2E orchestrator/)
-    lock.transfer(process.pid)
+    expect(lock.transfer(process.pid)).toBe(true)
     expect(() => acquireE2eRunLock(lockPath)).toThrow(/Another E2E orchestrator/)
     lock.retain('manual cleanup required')
-    lock.transfer(process.pid)
+    expect(lock.transfer(process.pid)).toBe(true)
     expect(() => acquireE2eRunLock(lockPath)).toThrow(/manual cleanup required/)
     lock.release()
+    expect(lock.transfer(process.pid)).toBe(false)
 
     mkdirSync(lockPath)
     expect(() => acquireE2eRunLock(lockPath)).toThrow(/is acquiring/)

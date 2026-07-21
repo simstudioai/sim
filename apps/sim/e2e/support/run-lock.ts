@@ -32,7 +32,7 @@ export interface E2eRunLock {
   path: string
   token: string
   setProcessGroupIds(processGroupIds: number[]): void
-  transfer(pid: number): void
+  transfer(pid: number): boolean
   retain(reason: string): void
   release(): void
 }
@@ -74,14 +74,16 @@ export function acquireE2eRunLock(
             ),
           })
         },
-        transfer(pid: number): void {
+        transfer(pid: number): boolean {
           const current = readDescriptor(lockPath)
-          if (current?.token !== descriptor.token) return
+          if (current?.token !== descriptor.token) return false
           writeDescriptor(lockPath, {
             ...current,
             pid,
             processStartIdentity: readProcessStartIdentity(pid),
           })
+          const transferred = readDescriptor(lockPath)
+          return transferred?.token === descriptor.token && transferred.pid === pid
         },
         retain(reason: string): void {
           retainE2eRunLock(lockPath, descriptor.token, reason)

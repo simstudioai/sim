@@ -111,6 +111,7 @@ async function main(): Promise<void> {
   let canaryCoverageComplete = true
   let diagnosticsRetained = true
   let failed = false
+  let signalCleanupStarted = false
 
   const cleanup = (): Promise<void> => {
     if (cleanupPromise) return cleanupPromise
@@ -163,6 +164,8 @@ async function main(): Promise<void> {
   }
 
   const handleSignal = async (signal: NodeJS.Signals): Promise<void> => {
+    if (signalCleanupStarted) return
+    signalCleanupStarted = true
     failed = true
     const exitCode = signal === 'SIGINT' ? 130 : 143
     process.exitCode = exitCode
@@ -211,7 +214,9 @@ async function main(): Promise<void> {
         if (!cleanupProcess.pid) {
           throw new Error('Detached E2E cleanup supervisor started without a process ID')
         }
-        runLock.transfer(cleanupProcess.pid)
+        if (!runLock.transfer(cleanupProcess.pid)) {
+          throw new Error('Detached E2E cleanup supervisor could not acquire run-lock ownership')
+        }
         lockTransferred = true
         cleanupProcess.unref()
         console.error(`Detached E2E cleanup supervisor started as PID ${cleanupProcess.pid}`)
@@ -227,7 +232,8 @@ async function main(): Promise<void> {
     }
     process.exit(exitCode)
   }
-  // `once` is intentional: a second signal uses the OS default force termination.
+  // Both signal types share a synchronous single-flight guard so opposite signals cannot launch
+  // competing supervisors while the first handler awaits child-process startup.
   const handleSigint = (): void => void handleSignal('SIGINT')
   const handleSigterm = (): void => void handleSignal('SIGTERM')
   process.once('SIGINT', handleSigint)
@@ -412,8 +418,10 @@ async function main(): Promise<void> {
     process.off('SIGINT', handleSigint)
     process.off('SIGTERM', handleSigterm)
     setManagedProcessGroupObserver(null)
-    if (cleanupSucceeded) runLock.release()
-    else runLock.retain('normal cleanup failed; inspect diagnostics and clean resources manually')
+    if (!signalCleanupStarted) {
+      if (cleanupSucceeded) runLock.release()
+      else runLock.retain('normal cleanup failed; inspect diagnostics and clean resources manually')
+    }
     console.info(
       diagnosticsRetained
         ? `E2E ${failed ? 'failed' : 'completed'}; diagnostics: ${runDirectory}`
