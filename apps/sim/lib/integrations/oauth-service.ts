@@ -152,11 +152,3 @@ export function resolveServiceAccountIntegration(
     null
   )
 }
-
-/**
- * Names every integration that offers a service-account flow, for error copy
- * that has to tell the agent what it could have asked for instead.
- */
-export function listServiceAccountIntegrationNames(): string[] {
-  return SERVICE_ACCOUNT_INTEGRATIONS.map((entry) => entry.serviceName)
-}

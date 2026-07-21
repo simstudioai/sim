@@ -15,6 +15,25 @@ export async function executeOAuthGetAuthLink(
   const rawCredentialId = rawParams.credentialId || rawParams.credential_id
   const credentialId = rawCredentialId ? String(rawCredentialId) : undefined
   const baseUrl = getBaseUrl()
+
+  // A service account is not an OAuth provider. Catch it here — before the fuzzy
+  // resolver's substring match can swallow e.g. `slack-custom-bot` into the
+  // Slack OAuth service — and return a coherent failure directly rather than
+  // throwing into the generic catch below, which would attach a contradicting
+  // workspace `oauth_url` and "connect manually" message. Normalize spaces and
+  // underscores so a readable form ("slack custom bot") is caught too.
+  const serviceAccountId = providerName
+    .toLowerCase()
+    .trim()
+    .replace(/[\s_]+/g, '-')
+  if (isServiceAccountProviderId(serviceAccountId)) {
+    const message =
+      `"${providerName}" is a service account, not an OAuth provider. ` +
+      `Emit a service_account credential tag with the service's OAuth provider ` +
+      `value instead (e.g. "slack") — it opens the service account setup form in chat.`
+    return { success: false, error: message, output: { message } }
+  }
+
   try {
     if (!context.workspaceId || !context.userId) {
       throw new Error('workspaceId and userId are required to generate an OAuth link')
@@ -106,19 +125,6 @@ async function generateOAuthLink(
 
   const allServices = getAllOAuthServices()
   const normalizedInput = providerName.toLowerCase().trim()
-
-  // Reject a service-account id before the fuzzy pass below can swallow it.
-  // That pass matches on substring containment, so `slack-custom-bot` contains
-  // `slack` and silently resolves to the Slack OAuth service — the tool then
-  // returns a personal-OAuth authorize URL, reports success, and the user
-  // connects their own account when they asked for a shared bot.
-  if (isServiceAccountProviderId(normalizedInput)) {
-    throw new Error(
-      `"${providerName}" is a service account, not an OAuth provider. ` +
-        `Emit a service_account credential tag with the service's OAuth provider ` +
-        `value instead (e.g. "slack") — it opens the service account setup form in chat.`
-    )
-  }
 
   const matched =
     allServices.find((s) => s.providerId === normalizedInput) ||

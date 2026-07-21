@@ -224,18 +224,20 @@ describe('executeOAuthGetAuthLink service account rejection', () => {
    * shared bot. Failing loudly is the point: a wrong link that looks right is
    * worse than an error the agent can recover from.
    */
-  it('rejects a service account id instead of degrading to the OAuth flow', async () => {
+  it('rejects a service account id with a coherent recovery message, not a workspace link', async () => {
     const result = await executeOAuthGetAuthLink({ providerName: 'slack-custom-bot' }, context)
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('service account')
     expect(result.error).toContain('service_account credential tag')
-    // The failure output must not carry an authorize URL the agent could
-    // surface as a Connect button anyway.
-    expect((result.output as { setup_url?: string }).setup_url).toBeUndefined()
-    expect((result.output as { oauth_url: string }).oauth_url).not.toContain(
-      '/api/auth/oauth2/authorize'
-    )
+    const output = result.output as { setup_url?: string; oauth_url?: string; message: string }
+    // The rejection must not fall into the generic catch, which would attach a
+    // contradicting workspace oauth_url and a "connect manually" message — the
+    // agent would then surface a workspace link instead of the tag.
+    expect(output.setup_url).toBeUndefined()
+    expect(output.oauth_url).toBeUndefined()
+    expect(output.message).toContain('service_account credential tag')
+    expect(output.message).not.toContain('Connect manually')
   })
 
   it.each([
@@ -244,6 +246,11 @@ describe('executeOAuthGetAuthLink service account rejection', () => {
     'google-service-account',
     'atlassian-service-account',
     'SLACK-CUSTOM-BOT',
+    // Readable forms must be normalized (spaces/underscores → hyphens) so they
+    // are caught too, not passed to the fuzzy OAuth resolver.
+    'slack custom bot',
+    'google service account',
+    'notion_service_account',
   ])('rejects %s', async (providerName) => {
     const result = await executeOAuthGetAuthLink({ providerName }, context)
     expect(result.success).toBe(false)

@@ -4,7 +4,6 @@
 import { describe, expect, it } from 'vitest'
 import integrationsJson from '@/lib/integrations/integrations.json'
 import {
-  listServiceAccountIntegrationNames,
   resolveOAuthServiceForSlug,
   resolveServiceAccountIntegration,
 } from '@/lib/integrations/oauth-service'
@@ -168,14 +167,5 @@ describe('resolveServiceAccountIntegration', () => {
     expect(resolveServiceAccountIntegration('dropbox')).toBeNull()
     expect(resolveServiceAccountIntegration('')).toBeNull()
     expect(resolveServiceAccountIntegration('   ')).toBeNull()
-  })
-
-  it.concurrent('reports a service-account provider for every match it returns', () => {
-    const names = listServiceAccountIntegrationNames()
-    expect(names.length).toBeGreaterThan(0)
-    for (const name of names) {
-      const match = resolveServiceAccountIntegration(name)
-      expect(match?.serviceAccountProviderId).toBeTruthy()
-    }
   })
 })
