@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -48,36 +48,39 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
   const queryClient = useQueryClient()
   const { mutateAsync: startOauth } = useStartMcpOauth()
 
-  const [connectingServers, setConnectingServers] = useState<Set<string>>(() => new Set())
-  // OAuth `state` nonce -> { serverId, safety timeout }. The state keys the BroadcastChannel
-  // correlation: the callback echoes it on every result (even failures that can't resolve a
-  // serverId), so the tab that started this exact flow matches it while other same-origin tabs
-  // ignore it. Cleared only when the flow completes or times out, never by popup.closed polling
-  // — COOP can make popup.closed misreport, and clearing early would drop a genuine completion.
+  // Per-server count of live authorization attempts; a row shows "Connecting…" / "Reopen
+  // authorization" while its count > 0. Reference counting (not a boolean set) keeps the label
+  // deterministic across concurrent attempts: a reopen increments before the superseded flow
+  // decrements, so the count never dips to 0 mid-reopen (no flicker), and every attempt clears
+  // exactly once (never stuck).
+  const [connectingCounts, setConnectingCounts] = useState<Map<string, number>>(() => new Map())
+  // OAuth `state` nonce -> { serverId, safety timeout }. `state` keys the BroadcastChannel
+  // correlation: the callback echoes it on every result (even failures that resolve no serverId),
+  // so the tab that started this exact flow matches it while other same-origin tabs — and
+  // unrelated flows in this tab — ignore the broadcast.
   const pendingFlowsRef = useRef<Map<string, { serverId: string; timeout: number }>>(new Map())
-  // serverId -> popup.closed poll. Best-effort fast "Connecting…" clear when the user
-  // abandons the popup; never used to correlate a result.
-  const popupPollsRef = useRef<Map<string, number>>(new Map())
-  // serverIds with an in-flight `/oauth/start` request. Guards a fast double-click from
-  // opening two popups; cleared once the request settles, so a later click (to reopen an
-  // abandoned popup) still starts a fresh flow.
+  // serverIds with an in-flight `/oauth/start` request — guards a fast double-click from opening
+  // two popups. Cleared once the request settles, so a later click (to reopen an abandoned
+  // popup) still starts a fresh flow.
   const startingRef = useRef<Set<string> | null>(null)
 
-  const stopConnecting = useCallback((serverId: string) => {
-    setConnectingServers((prev) => {
-      if (!prev.has(serverId)) return prev
-      const next = new Set(prev)
-      next.delete(serverId)
+  const incConnecting = useCallback((serverId: string) => {
+    setConnectingCounts((prev) => {
+      const next = new Map(prev)
+      next.set(serverId, (next.get(serverId) ?? 0) + 1)
       return next
     })
   }, [])
 
-  const stopPopupPoll = useCallback((serverId: string) => {
-    const poll = popupPollsRef.current.get(serverId)
-    if (poll !== undefined) {
-      window.clearInterval(poll)
-      popupPollsRef.current.delete(serverId)
-    }
+  const decConnecting = useCallback((serverId: string) => {
+    setConnectingCounts((prev) => {
+      const current = prev.get(serverId)
+      if (current === undefined) return prev
+      const next = new Map(prev)
+      if (current <= 1) next.delete(serverId)
+      else next.set(serverId, current - 1)
+      return next
+    })
   }, [])
 
   const invalidateServer = useCallback(
@@ -89,44 +92,47 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
     [queryClient, workspaceId]
   )
 
-  /** End a flow entirely (by its state nonce): stop the spinner, safety timeout, and popup poll. */
+  /** End one flow by its `state` nonce, decrementing its server's connecting count exactly once. */
   const settleFlow = useCallback(
     (state: string) => {
       const flow = pendingFlowsRef.current.get(state)
       if (!flow) return
       window.clearTimeout(flow.timeout)
       pendingFlowsRef.current.delete(state)
-      stopPopupPoll(flow.serverId)
-      // Don't clear the spinner while a newer start for this server is in flight — that reopen
-      // owns the spinner now, so a stale settle for the superseded flow must not flicker it.
-      if (!startingRef.current?.has(flow.serverId)) stopConnecting(flow.serverId)
+      decConnecting(flow.serverId)
     },
-    [stopConnecting, stopPopupPoll]
+    [decConnecting]
+  )
+
+  /** Retire every prior flow for a server, superseded by a fresh attempt (each decrements once). */
+  const retireFlows = useCallback(
+    (serverId: string) => {
+      const states: string[] = []
+      for (const [state, flow] of pendingFlowsRef.current) {
+        if (flow.serverId === serverId) states.push(state)
+      }
+      for (const state of states) settleFlow(state)
+    },
+    [settleFlow]
   )
 
   useEffect(() => {
     const pending = pendingFlowsRef.current
-    const polls = popupPollsRef.current
     return () => {
       for (const { timeout } of pending.values()) window.clearTimeout(timeout)
-      for (const p of polls.values()) window.clearInterval(p)
       pending.clear()
-      polls.clear()
     }
   }, [])
 
   useEffect(() => {
-    // The callback signals over a same-origin BroadcastChannel (see the OAuth callback
-    // route): a provider whose authorize page sets COOP `same-origin` severs
-    // `window.opener`, so a popup `postMessage` can be lost and leave the row stuck on
-    // "Connecting…". A BroadcastChannel is origin-scoped, so it needs no origin check.
+    // The callback signals over a same-origin BroadcastChannel (see the OAuth callback route): a
+    // provider whose authorize page sets COOP `same-origin` severs `window.opener`, so a popup
+    // `postMessage` can be lost and leave the row stuck on "Connecting…". A BroadcastChannel is
+    // origin-scoped, so it needs no origin check.
     const channel = new BroadcastChannel('mcp-oauth')
     channel.onmessage = (event) => {
       const data = event.data as Partial<McpOauthCallbackMessage> | null
       if (data?.type !== 'mcp-oauth') return
-      // A BroadcastChannel reaches every same-origin tab, so react only to a result for a flow
-      // THIS tab started, matched on the OAuth `state` nonce. Every result (success or failure)
-      // carries it, so unrelated tabs — and unrelated flows in this tab — ignore the broadcast.
       if (!data.state) return
       const flow = pendingFlowsRef.current.get(data.state)
       if (!flow) return
@@ -147,61 +153,52 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
       const starting = (startingRef.current ??= new Set())
       if (starting.has(serverId)) return
       starting.add(serverId)
-      // Whether a prior attempt for this server is still live. If the replacement `/oauth/start`
-      // fails, we keep that prior flow intact so its popup can still complete and be honored.
-      const hadPriorFlow = Array.from(pendingFlowsRef.current.values()).some(
-        (flow) => flow.serverId === serverId
-      )
-      setConnectingServers((prev) => new Set(prev).add(serverId))
+      incConnecting(serverId) // this attempt begins
       try {
         const result = await startOauth({ serverId, workspaceId })
+        // The replacement start succeeded (already-authorized, or a fresh popup opened), so retire
+        // any prior attempt for this server now — its result is moot and the server-side `state`
+        // it depended on has been overwritten. A *failed* start (below) leaves prior flows intact.
+        retireFlows(serverId)
         if (result.status === 'already_authorized') {
           invalidateServer(serverId)
-          stopConnecting(serverId)
+          decConnecting(serverId) // this attempt ends
           return
         }
-        const { popup, state } = result
-        // Replacement start succeeded — only now retire any prior attempt for this server (its
-        // poll, safety timeout, pending entry). Kept until here so a failed reopen preserves the
-        // original flow, and so a stale settle for it can't fire without the `starting` guard.
-        stopPopupPoll(serverId)
-        for (const [prevState, flow] of pendingFlowsRef.current) {
-          if (flow.serverId === serverId) {
-            window.clearTimeout(flow.timeout)
-            pendingFlowsRef.current.delete(prevState)
-          }
-        }
-        // Track this in-flight flow keyed by its `state` nonce for the BroadcastChannel gate,
-        // bounded by a safety timeout in case no result ever arrives (popup abandoned, or a
-        // callback failure the client can't otherwise clear).
+        // Track the in-flight flow by its `state` nonce for the BroadcastChannel gate, bounded by
+        // a safety timeout in case no result ever arrives (popup abandoned, or a callback the
+        // client can't otherwise observe under COOP).
+        const { state } = result
         pendingFlowsRef.current.set(state, {
           serverId,
           timeout: window.setTimeout(() => settleFlow(state), OAUTH_FLOW_TIMEOUT_MS),
         })
-        // Best-effort: clear "Connecting…" quickly when the user closes the popup without
-        // finishing. popup.closed can misreport under COOP, so this only stops the spinner —
-        // it never touches `pendingFlowsRef`, so it can't drop a real result.
-        popupPollsRef.current.set(
-          serverId,
-          window.setInterval(() => {
-            if (popup.closed) {
-              stopPopupPoll(serverId)
-              if (!startingRef.current?.has(serverId)) stopConnecting(serverId)
-            }
-          }, 500)
-        )
       } catch (e) {
-        // Preserve a still-live prior flow (it may yet complete); only clear the spinner when
-        // this was the sole attempt for the server.
-        if (!hadPriorFlow) stopConnecting(serverId)
+        decConnecting(serverId) // this attempt ends; any prior flow keeps its own count
         logger.error('Failed to start MCP OAuth', e)
         toast.error(toError(e).message || 'Failed to start authorization')
       } finally {
         starting.delete(serverId)
       }
     },
-    [startOauth, workspaceId, settleFlow, stopConnecting, stopPopupPoll, invalidateServer]
+    [
+      startOauth,
+      workspaceId,
+      settleFlow,
+      retireFlows,
+      incConnecting,
+      decConnecting,
+      invalidateServer,
+    ]
   )
+
+  const connectingServers = useMemo(() => {
+    const set = new Set<string>()
+    for (const [serverId, count] of connectingCounts) {
+      if (count > 0) set.add(serverId)
+    }
+    return set
+  }, [connectingCounts])
 
   return { connectingServers, startOauthForServer }
 }

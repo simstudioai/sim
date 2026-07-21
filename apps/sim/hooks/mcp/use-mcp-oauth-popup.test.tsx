@@ -161,4 +161,31 @@ describe('useMcpOauthPopup', () => {
 
     hook.unmount()
   })
+
+  it('keeps the row connecting when a reopen fails but a prior flow is still live', async () => {
+    mockStartOauth.mockResolvedValueOnce({
+      status: 'redirect',
+      popup: { closed: false },
+      state: 'st-a',
+    })
+    const hook = renderHookWithClient(() => useMcpOauthPopup({ workspaceId: 'w1' }))
+    await flush()
+
+    await act(async () => {
+      await hook.result().startOauthForServer('s1')
+    })
+    await flush()
+    expect(hook.result().connectingServers.has('s1')).toBe(true)
+
+    // Reopen fails (e.g. popup blocked). The still-live prior flow must keep the row connecting
+    // rather than the failed attempt clearing it (deterministic reference counting).
+    mockStartOauth.mockRejectedValueOnce(new Error('Popup blocked'))
+    await act(async () => {
+      await hook.result().startOauthForServer('s1')
+    })
+    await flush()
+    expect(hook.result().connectingServers.has('s1')).toBe(true)
+
+    hook.unmount()
+  })
 })
