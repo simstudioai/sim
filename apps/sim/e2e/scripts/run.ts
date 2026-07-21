@@ -46,6 +46,7 @@ import {
 } from '../support/process'
 import { acquireE2eRunLock } from '../support/run-lock'
 import { createE2eRuntimeSecrets, runtimeSecretValues } from '../support/runtime-secrets'
+import { createSingleFlightSignalCleanup } from '../support/signal-cleanup'
 import {
   buildApp,
   capturePersonaAuthStates,
@@ -111,7 +112,6 @@ async function main(): Promise<void> {
   let canaryCoverageComplete = true
   let diagnosticsRetained = true
   let failed = false
-  let signalCleanupStarted = false
 
   const cleanup = (): Promise<void> => {
     if (cleanupPromise) return cleanupPromise
@@ -163,81 +163,95 @@ async function main(): Promise<void> {
     return cleanupPromise
   }
 
-  const handleSignal = async (signal: NodeJS.Signals): Promise<void> => {
-    if (signalCleanupStarted) return
-    signalCleanupStarted = true
+  const signalCleanup = createSingleFlightSignalCleanup(async (signal) => {
     failed = true
     const exitCode = signal === 'SIGINT' ? 130 : 143
     process.exitCode = exitCode
     console.error(`Received ${signal}; cleaning up the E2E run`)
-    if (stripeFake) {
-      try {
-        writeFileSync(
-          path.join(logsDirectory, 'stripe-requests.json'),
-          JSON.stringify(stripeFake.requestLog, null, 2)
-        )
-      } catch {}
-    }
     let lockTransferred = false
-    if (runDatabase) {
-      const cleanupLogFd = openSync(path.join(logsDirectory, 'signal-cleanup.log'), 'a')
-      try {
-        const cleanupProcess = spawn(
-          bunExecutable,
-          ['--no-env-file', path.join(SIM_APP_DIR, 'e2e/scripts/signal-cleanup.ts')],
-          {
-            cwd: SIM_APP_DIR,
-            detached: true,
-            env: {
-              NODE_ENV: 'test',
-              PATH: process.env.PATH ?? '',
-              HOME: setupHomeDirectory,
-              E2E_PG_ADMIN_URL: adminDatabaseUrl,
-              E2E_DATABASE_NAME: runDatabase.name,
-              E2E_DATABASE_CREATION_COMPLETE: String(databaseCreationComplete),
-              E2E_CLEANUP_PROCESS_GROUPS: getActiveManagedProcessGroupIds().join(','),
-              E2E_CLEANUP_DIRECTORIES: JSON.stringify([
-                storageStateDirectory,
-                privateDirectory,
-                homesDirectory,
-              ]),
-              E2E_RUN_LOCK_PATH: runLock.path,
-              E2E_RUN_LOCK_TOKEN: runLock.token,
-            },
-            stdio: ['ignore', cleanupLogFd, cleanupLogFd],
-          }
-        )
-        await new Promise<void>((resolve, reject) => {
-          cleanupProcess.once('spawn', resolve)
-          cleanupProcess.once('error', reject)
-        })
-        if (!cleanupProcess.pid) {
-          throw new Error('Detached E2E cleanup supervisor started without a process ID')
+    try {
+      if (stripeFake) {
+        try {
+          writeFileSync(
+            path.join(logsDirectory, 'stripe-requests.json'),
+            JSON.stringify(stripeFake.requestLog, null, 2)
+          )
+        } catch (error) {
+          console.error(error)
         }
-        if (!runLock.transfer(cleanupProcess.pid)) {
-          throw new Error('Detached E2E cleanup supervisor could not acquire run-lock ownership')
-        }
-        lockTransferred = true
-        cleanupProcess.unref()
-        console.error(`Detached E2E cleanup supervisor started as PID ${cleanupProcess.pid}`)
-      } catch (error) {
-        console.error(error)
-      } finally {
-        closeSync(cleanupLogFd)
       }
+      if (runDatabase) {
+        let cleanupLogFd: number | null = null
+        try {
+          cleanupLogFd = openSync(path.join(logsDirectory, 'signal-cleanup.log'), 'a')
+          const cleanupProcess = spawn(
+            bunExecutable,
+            ['--no-env-file', path.join(SIM_APP_DIR, 'e2e/scripts/signal-cleanup.ts')],
+            {
+              cwd: SIM_APP_DIR,
+              detached: true,
+              env: {
+                NODE_ENV: 'test',
+                PATH: process.env.PATH ?? '',
+                HOME: setupHomeDirectory,
+                E2E_PG_ADMIN_URL: adminDatabaseUrl,
+                E2E_DATABASE_NAME: runDatabase.name,
+                E2E_DATABASE_CREATION_COMPLETE: String(databaseCreationComplete),
+                E2E_CLEANUP_PROCESS_GROUPS: getActiveManagedProcessGroupIds().join(','),
+                E2E_CLEANUP_DIRECTORIES: JSON.stringify([
+                  storageStateDirectory,
+                  privateDirectory,
+                  homesDirectory,
+                ]),
+                E2E_RUN_LOCK_PATH: runLock.path,
+                E2E_RUN_LOCK_TOKEN: runLock.token,
+              },
+              stdio: ['ignore', cleanupLogFd, cleanupLogFd],
+            }
+          )
+          await new Promise<void>((resolve, reject) => {
+            cleanupProcess.once('spawn', resolve)
+            cleanupProcess.once('error', reject)
+          })
+          if (!cleanupProcess.pid) {
+            throw new Error('Detached E2E cleanup supervisor started without a process ID')
+          }
+          if (!runLock.transfer(cleanupProcess.pid)) {
+            throw new Error('Detached E2E cleanup supervisor could not acquire run-lock ownership')
+          }
+          lockTransferred = true
+          cleanupProcess.unref()
+          console.error(`Detached E2E cleanup supervisor started as PID ${cleanupProcess.pid}`)
+        } finally {
+          if (cleanupLogFd !== null) {
+            try {
+              closeSync(cleanupLogFd)
+            } catch (error) {
+              console.error(error)
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error(error)
     }
-    if (!lockTransferred) {
-      if (runDatabase) runLock.retain('signal cleanup supervisor failed to start')
-      else runLock.release()
+    try {
+      if (!lockTransferred) {
+        if (runDatabase) runLock.retain('signal cleanup supervisor failed to start')
+        else runLock.release()
+      }
+    } catch (error) {
+      console.error('Unable to update E2E run-lock after signal cleanup startup failure', error)
+    } finally {
+      process.exit(exitCode)
     }
-    process.exit(exitCode)
-  }
-  // Both signal types share a synchronous single-flight guard so opposite signals cannot launch
-  // competing supervisors while the first handler awaits child-process startup.
-  const handleSigint = (): void => void handleSignal('SIGINT')
-  const handleSigterm = (): void => void handleSignal('SIGTERM')
-  process.once('SIGINT', handleSigint)
-  process.once('SIGTERM', handleSigterm)
+  })
+  // Persistent handlers keep repeated or opposite signals from invoking the OS default while
+  // the first handler awaits ownership transfer. The synchronous guard keeps cleanup single-flight.
+  const handleSigint = (): void => void signalCleanup.start('SIGINT')
+  const handleSigterm = (): void => void signalCleanup.start('SIGTERM')
+  process.on('SIGINT', handleSigint)
+  process.on('SIGTERM', handleSigterm)
 
   try {
     const hostAddresses = await assertE2eHostResolvesToLoopback()
@@ -415,10 +429,10 @@ async function main(): Promise<void> {
       diagnosticsRetained = scrubDiagnostics(diagnosticRoots)
       if (diagnosticsRetained) cleanupSucceeded = false
     }
-    process.off('SIGINT', handleSigint)
-    process.off('SIGTERM', handleSigterm)
-    setManagedProcessGroupObserver(null)
-    if (!signalCleanupStarted) {
+    if (!signalCleanup.isStarted()) {
+      process.off('SIGINT', handleSigint)
+      process.off('SIGTERM', handleSigterm)
+      setManagedProcessGroupObserver(null)
       if (cleanupSucceeded) runLock.release()
       else runLock.retain('normal cleanup failed; inspect diagnostics and clean resources manually')
     }

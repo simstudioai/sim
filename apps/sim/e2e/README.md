@@ -65,8 +65,9 @@ new writer.
 
 On interruption, the runner launches a detached cleanup supervisor before
 exiting. It terminates managed process groups, force-drops the guarded database,
-and removes temporary auth/cloud-config directories even if another Ctrl-C
-terminates the foreground package runner.
+and removes temporary auth/cloud-config directories. Repeated or opposite
+signals remain on the same single-flight path until the supervisor owns the
+lock, after which the foreground runner exits.
 Cleanup failures retain the lock and require the reported resources to be
 inspected and cleaned before manually removing `e2e/.cache/orchestrator.lock`.
 Failure to start the detached cleanup supervisor also retains the lock.
