@@ -208,7 +208,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const provider = new SimMcpOauthProvider({ row, preregistered })
     let result: Awaited<ReturnType<typeof mcpAuthGuarded>>
     try {
-      result = await timedStep('mcpAuthGuarded', 60_000, () =>
+      result = await timedStep('mcpAuthGuarded', 120_000, () =>
         mcpAuthGuarded(provider, {
           serverUrl,
           authorizationCode: code,
@@ -236,7 +236,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     try {
       // forceRefresh: skip any stale cache from before re-auth.
-      await timedStep('discoverServerTools', 30_000, () =>
+      await timedStep('discoverServerTools', 60_000, () =>
         mcpService.discoverServerTools(session.user.id, server.id, server.workspaceId, true)
       )
     } catch (e) {

@@ -164,7 +164,7 @@ export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOU
     try {
       logger.info('OAuth guarded fetch: validating', { host })
       const resolvedIP = await withDeadline(validateMcpServerSsrf(target), signal)
-      logger.info('OAuth guarded fetch: requesting', { host, resolvedIP: resolvedIP ?? 'unpinned' })
+      logger.info('OAuth guarded fetch: requesting', { host, pinned: Boolean(resolvedIP) })
       let response: Response
       if (resolvedIP) {
         const pinned = createPinnedFetchWithDispatcher(resolvedIP, {
