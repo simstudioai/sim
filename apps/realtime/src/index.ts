@@ -31,6 +31,7 @@ async function createRoomManager(io: SocketIOServer): Promise<IRoomManager> {
 async function main() {
   const httpServer = createServer()
   const PORT = env.PORT
+  const HOST = env.REALTIME_HOST
 
   logger.info('Starting Socket.IO server...', {
     port: PORT,
@@ -96,9 +97,9 @@ async function main() {
 
   await assertSchemaCompatibility()
 
-  httpServer.listen(PORT, '0.0.0.0', () => {
-    logger.info(`Socket.IO server running on port ${PORT}`)
-    logger.info(`Health check available at: http://localhost:${PORT}/health`)
+  httpServer.listen(PORT, HOST, () => {
+    logger.info(`Socket.IO server running on ${HOST}:${PORT}`)
+    logger.info(`Health check available at: http://${HOST}:${PORT}/health`)
   })
 
   const shutdown = async () => {

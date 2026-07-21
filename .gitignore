@@ -35,6 +35,7 @@ package-lock.json
 **/dist/
 **/standalone/
 sim-standalone.tar.gz
+/.artifacts/
 
 # redis
 dump.rdb

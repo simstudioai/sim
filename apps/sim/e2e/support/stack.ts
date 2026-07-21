@@ -55,6 +55,7 @@ export async function startRealtime(options: StackCommandOptions): Promise<Manag
       ...options.env,
       SIM_DB_ROLE: 'realtime',
       DB_APP_NAME: 'sim-realtime',
+      REALTIME_HOST: '127.0.0.1',
       PORT: '3002',
     },
     logsDirectory: options.logsDirectory,

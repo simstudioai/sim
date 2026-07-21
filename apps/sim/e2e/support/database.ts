@@ -28,7 +28,13 @@ export function assertSafeDatabaseName(name: string): void {
 export function assertLoopbackPostgresUrl(rawUrl: string): URL {
   const url = new URL(rawUrl)
   const hostname = url.hostname.replace(/^\[|\]$/g, '')
-  if (!(hostname === 'localhost' || hostname === '::1' || isLoopbackAddress(hostname))) {
+  if (!['postgres:', 'postgresql:'].includes(url.protocol)) {
+    throw new Error(`E2E PostgreSQL admin URL requires postgres protocol, received ${url.protocol}`)
+  }
+  if (url.search || url.hash) {
+    throw new Error('E2E PostgreSQL admin URL must not contain query parameters or a fragment')
+  }
+  if (!isLoopbackAddress(hostname)) {
     throw new Error(`E2E PostgreSQL admin URL must be loopback, received ${url.hostname}`)
   }
   return url

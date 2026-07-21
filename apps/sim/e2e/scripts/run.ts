@@ -11,7 +11,10 @@ import {
   type RunDatabase,
 } from '../support/database'
 import { createHostedBillingProfile, E2E_ORIGIN, E2E_PROFILE } from '../support/deployment-profile'
-import { assertNoForbiddenProviderInitialization } from '../support/diagnostics'
+import {
+  assertNoForbiddenProviderInitialization,
+  assertNoForbiddenProviderTraffic,
+} from '../support/diagnostics'
 import { formatRedactedEnvironmentSummary } from '../support/env'
 import { assertE2eHostResolvesToLoopback } from '../support/hosts'
 import { getRunDirectory, SIM_APP_DIR } from '../support/paths'
@@ -23,8 +26,8 @@ import {
 import {
   assertPortAvailable,
   type ManagedProcess,
-  signalAllManagedProcesses,
   stopAllManagedProcesses,
+  stopAllManagedProcessesSync,
 } from '../support/process'
 import { buildApp, runMigrations, runPlaywright, startApp, startRealtime } from '../support/stack'
 import { parseRunOptions } from './options'
@@ -86,7 +89,10 @@ async function main(): Promise<void> {
     const exitCode = signal === 'SIGINT' ? 130 : 143
     process.exitCode = exitCode
     console.error(`Received ${signal}; cleaning up the E2E run`)
-    signalAllManagedProcesses()
+    const survivingPids = stopAllManagedProcessesSync()
+    if (survivingPids.length > 0) {
+      console.error(`E2E child processes survived SIGKILL: ${survivingPids.join(', ')}`)
+    }
     if (stripeFake) {
       writeFileSync(
         path.join(logsDirectory, 'stripe-requests.json'),
@@ -179,6 +185,15 @@ async function main(): Promise<void> {
     console.error(error)
     process.exitCode = 1
   } finally {
+    try {
+      assertNoForbiddenProviderTraffic(
+        [app?.logPath, realtime?.logPath].filter((value): value is string => Boolean(value))
+      )
+    } catch (error) {
+      failed = true
+      process.exitCode = 1
+      console.error(error)
+    }
     await cleanup()
     process.off('SIGINT', handleSignal)
     process.off('SIGTERM', handleSignal)

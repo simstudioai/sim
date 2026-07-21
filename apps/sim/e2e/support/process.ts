@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from 'node:child_process'
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
 import { closeSync, mkdirSync, openSync } from 'node:fs'
 import { createServer } from 'node:net'
 import path from 'node:path'
@@ -60,12 +60,33 @@ export async function stopAllManagedProcesses(): Promise<void> {
   await stopProcesses([...activeProcesses])
 }
 
-export function signalAllManagedProcesses(): void {
-  for (const managed of activeProcesses) {
-    if (managed.child.exitCode === null && managed.child.signalCode === null) {
-      managed.child.kill('SIGTERM')
-    }
+export function stopAllManagedProcessesSync(
+  termTimeoutMs = 5_000,
+  killTimeoutMs = 2_000
+): number[] {
+  const managedProcesses = [...activeProcesses]
+  for (const managed of managedProcesses) sendSignal(managed.child, 'SIGTERM')
+
+  const deadline = Date.now() + termTimeoutMs
+  while (Date.now() < deadline && managedProcesses.some(({ child }) => isProcessRunning(child))) {
+    sleepSync(50)
   }
+
+  for (const { child } of managedProcesses) {
+    if (isProcessRunning(child)) sendSignal(child, 'SIGKILL')
+  }
+
+  const killDeadline = Date.now() + killTimeoutMs
+  while (
+    Date.now() < killDeadline &&
+    managedProcesses.some(({ child }) => isProcessRunning(child))
+  ) {
+    sleepSync(25)
+  }
+
+  return managedProcesses.flatMap(({ child }) =>
+    child.pid && isProcessRunning(child) ? [child.pid] : []
+  )
 }
 
 export async function waitForManagedProcessReady(
@@ -119,7 +140,7 @@ function waitForExit(child: ChildProcess): Promise<number | null> {
 
 async function stopProcess(child: ChildProcess): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) return
-  child.kill('SIGTERM')
+  sendSignal(child, 'SIGTERM')
 
   const stopped = await Promise.race([
     waitForExit(child).then(() => true),
@@ -127,6 +148,43 @@ async function stopProcess(child: ChildProcess): Promise<void> {
   ])
   if (stopped) return
 
-  child.kill('SIGKILL')
+  sendSignal(child, 'SIGKILL')
   await waitForExit(child)
+}
+
+function sendSignal(child: ChildProcess, signal: NodeJS.Signals): void {
+  if (!child.pid) return
+  try {
+    child.kill(signal)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
+  }
+}
+
+/**
+ * Managed commands currently run their server/build work in the direct child.
+ * If a future command introduces durable grandchildren, process-tree cleanup
+ * should be added alongside that command rather than implied here.
+ */
+function isProcessRunning(child: ChildProcess): boolean {
+  if (!child.pid) return false
+  try {
+    process.kill(child.pid, 0)
+    if (process.platform !== 'win32') {
+      const status = spawnSync('ps', ['-o', 'stat=', '-p', String(child.pid)], {
+        encoding: 'utf8',
+        env: { NODE_ENV: 'test', PATH: process.env.PATH ?? '' },
+      })
+      if (status.status !== 0 || status.stdout.trim().startsWith('Z')) return false
+    }
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false
+    throw error
+  }
+}
+
+function sleepSync(milliseconds: number): void {
+  const signal = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT))
+  Atomics.wait(signal, 0, 0, milliseconds)
 }

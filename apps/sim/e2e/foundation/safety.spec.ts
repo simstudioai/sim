@@ -11,7 +11,7 @@ import {
   buildRunDatabaseUrl,
 } from '../support/database'
 import { buildChildEnvironment, discoverEnvFileKeys } from '../support/env'
-import { isLoopbackAddress } from '../support/hosts'
+import { areValidE2eHostAddresses, isLoopbackAddress } from '../support/hosts'
 import { assertPortAvailable } from '../support/process'
 
 test.describe('foundation safety guards', () => {
@@ -63,6 +63,12 @@ test.describe('foundation safety guards', () => {
     expect(() =>
       assertLoopbackPostgresUrl('postgresql://postgres:postgres@example.com/postgres')
     ).toThrow()
+    expect(() =>
+      assertLoopbackPostgresUrl('postgresql://postgres:postgres@localhost/postgres')
+    ).toThrow()
+    expect(() =>
+      assertLoopbackPostgresUrl('postgresql://postgres:postgres@127.0.0.1/postgres?sslmode=disable')
+    ).toThrow()
     expect(
       buildRunDatabaseUrl(
         'postgresql://postgres:postgres@127.0.0.1:5432/postgres',
@@ -76,6 +82,8 @@ test.describe('foundation safety guards', () => {
     expect(isLoopbackAddress('127.10.20.30')).toBe(true)
     expect(isLoopbackAddress('::1')).toBe(true)
     expect(isLoopbackAddress('8.8.8.8')).toBe(false)
+    expect(areValidE2eHostAddresses(['127.0.0.1', '::1'])).toBe(true)
+    expect(areValidE2eHostAddresses(['::1'])).toBe(false)
   })
 
   test('sharding is limited to the navigation project', () => {

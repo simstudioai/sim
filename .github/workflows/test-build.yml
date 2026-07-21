@@ -294,12 +294,6 @@ jobs:
           key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./node_modules
 
-      - name: Mount E2E Turbo cache (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
-        with:
-          key: ${{ github.repository }}-turbo-cache-e2e-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
-          path: ./.turbo
-
       - name: Mount Playwright browsers (Sticky Disk)
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
@@ -329,7 +323,6 @@ jobs:
         env:
           CI: 'true'
           E2E_PG_ADMIN_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/postgres'
-          TURBO_CACHE_DIR: .turbo
         run: bun run test:e2e
 
       - name: Upload E2E diagnostics
