@@ -69,7 +69,15 @@ interface ModelDefinition {
   releaseDate?: string
   recommended?: boolean
   speedOptimized?: boolean
-  deprecated?: boolean
+  /**
+   * Post-availability lifecycle, mirroring `BlockConfig.sunset`. `legacy` —
+   * superseded but still callable (amber); `deprecated` — the provider retired
+   * it and API calls now fail (red). `deprecated` models are hidden from pickers
+   * but stay {@link isKnownModelId} so existing pinned workflows still validate.
+   */
+  sunset?: {
+    status: 'legacy' | 'deprecated'
+  }
 }
 
 export interface ProviderDefinition {
@@ -284,7 +292,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1047576,
         releaseDate: '2025-04-14',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       // GPT-5.6 family
       {
@@ -615,7 +623,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2025-08-07',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       // o-series reasoning models
       {
@@ -634,7 +642,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-04-16',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'o3-pro',
@@ -665,7 +673,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-04-16',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'o3-mini',
@@ -683,7 +691,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-01-31',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'o1',
@@ -701,7 +709,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2024-12-17',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       // Legacy
       {
@@ -718,7 +726,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2024-05-13',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
     ],
   },
@@ -891,7 +899,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-08-05',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-opus-4-0',
@@ -911,7 +919,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-05-22',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'claude-sonnet-4-5',
@@ -951,7 +959,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-05-22',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'claude-haiku-4-5',
@@ -988,7 +996,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2024-03-13',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
     ],
   },
@@ -1018,7 +1026,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2024-11-20',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'azure/gpt-5.4',
@@ -1398,7 +1406,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-08-05',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'azure-anthropic/claude-haiku-4-5',
@@ -1585,7 +1593,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2025-02-05',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'gemini-2.0-flash-lite',
@@ -1600,7 +1608,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2025-02-25',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'deep-research-pro-preview-12-2025',
@@ -1708,7 +1716,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2025-11-18',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'vertex/gemini-3-flash-preview',
@@ -1800,7 +1808,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2025-02-05',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'vertex/gemini-2.0-flash-lite',
@@ -1814,7 +1822,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2025-02-25',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'vertex/deep-research-pro-preview-12-2025',
@@ -1899,7 +1907,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2024-12-26',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'deepseek-r1',
@@ -1912,7 +1920,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {},
         contextWindow: 128000,
         releaseDate: '2025-01-20',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'deepseek-reasoner',
@@ -1982,7 +1990,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2025-07-09',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'grok-4-0709',
@@ -1997,7 +2005,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2025-07-09',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'grok-4-1-fast-reasoning',
@@ -2012,7 +2020,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2025-11-19',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'grok-4-1-fast-non-reasoning',
@@ -2027,7 +2035,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2025-11-19',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'grok-4-fast-reasoning',
@@ -2042,7 +2050,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2025-09-19',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'grok-4-fast-non-reasoning',
@@ -2057,7 +2065,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2025-09-19',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'grok-code-fast-1',
@@ -2072,7 +2080,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 256000,
         releaseDate: '2025-08-28',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'grok-4.20-0309-reasoning',
@@ -2129,7 +2137,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2025-02-17',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'grok-3-fast-latest',
@@ -2144,7 +2152,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2025-02-17',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
     ],
   },
@@ -2184,7 +2192,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {},
         contextWindow: 32768,
         releaseDate: '2024-08-27',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'cerebras/qwen-3-235b-a22b-instruct-2507',
@@ -2196,7 +2204,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {},
         contextWindow: 131072,
         releaseDate: '2025-07-29',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'cerebras/zai-glm-4.7',
@@ -2297,7 +2305,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 131072,
         releaseDate: '2025-04-29',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'groq/qwen/qwen3.6-27b',
@@ -2351,7 +2359,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 131072,
         releaseDate: '2025-04-05',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'groq/moonshotai/kimi-k2-instruct-0905',
@@ -2363,7 +2371,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {},
         contextWindow: 262144,
         releaseDate: '2025-09-05',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
     ],
   },
@@ -2940,7 +2948,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2024-11-18',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'magistral-medium-latest',
@@ -2980,7 +2988,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2025-09-18',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'magistral-small-2509',
@@ -2994,7 +3002,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2025-09-18',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'mistral-medium-latest',
@@ -3073,7 +3081,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2025-06-20',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'open-mistral-nemo',
@@ -3139,7 +3147,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 256000,
         releaseDate: '2025-12-09',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'devstral-small-2507',
@@ -3153,7 +3161,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2025-07-10',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'devstral-medium-2507',
@@ -3167,7 +3175,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2025-07-10',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'ministral-14b-latest',
@@ -3347,21 +3355,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-08-05',
-        deprecated: true,
-      },
-      {
-        id: 'bedrock/amazon.nova-2-pro-v1:0',
-        pricing: {
-          input: 1.375,
-          output: 11.0,
-          updatedAt: '2026-06-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 1000000,
-        releaseDate: '2025-12-02',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'bedrock/amazon.nova-2-lite-v1:0',
@@ -3391,7 +3385,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2025-04-30',
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'bedrock/amazon.nova-pro-v1:0',
@@ -3493,7 +3487,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2024-09-25',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'bedrock/meta.llama3-2-11b-instruct-v1:0',
@@ -3507,7 +3501,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2024-09-25',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'bedrock/meta.llama3-2-3b-instruct-v1:0',
@@ -3521,7 +3515,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2024-09-25',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'bedrock/meta.llama3-2-1b-instruct-v1:0',
@@ -3535,7 +3529,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2024-09-25',
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'bedrock/meta.llama3-1-405b-instruct-v1:0',
@@ -3548,7 +3542,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 128000,
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'bedrock/meta.llama3-1-70b-instruct-v1:0',
@@ -3593,19 +3587,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         releaseDate: '2025-12-02',
       },
       {
-        id: 'bedrock/mistral.mistral-large-2411-v1:0',
-        pricing: {
-          input: 2.0,
-          output: 6.0,
-          updatedAt: '2026-04-01',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
-        deprecated: true,
-      },
-      {
         id: 'bedrock/mistral.mistral-large-2407-v1:0',
         pricing: {
           input: 2.0,
@@ -3616,7 +3597,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 128000,
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'bedrock/mistral.pixtral-large-2502-v1:0',
@@ -3710,7 +3691,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 32000,
-        deprecated: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'bedrock/cohere.command-r-plus-v1:0',
@@ -3723,7 +3704,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 128000,
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'bedrock/cohere.command-r-v1:0',
@@ -3736,7 +3717,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 128000,
-        deprecated: true,
+        sunset: { status: 'legacy' },
       },
     ],
   },
@@ -3850,20 +3831,29 @@ export function isKnownModelId(modelId: string): boolean {
   return false
 }
 
-const DEPRECATED_STATIC_MODEL_IDS = new Set<string>()
+const MODEL_SUNSET_STATUS = new Map<string, 'legacy' | 'deprecated'>()
 for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
   if ((DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)) continue
   for (const model of provider.models) {
-    if (model.deprecated) DEPRECATED_STATIC_MODEL_IDS.add(model.id.toLowerCase())
+    if (model.sunset) MODEL_SUNSET_STATUS.set(model.id.toLowerCase(), model.sunset.status)
   }
 }
 
 /**
- * Whether a stored model id is a deprecated static-catalog model. Dynamic-provider
- * and unknown ids are never deprecated (they carry no static catalog entry).
+ * The sunset tier of a static-catalog model — `legacy` (superseded, callable) or
+ * `deprecated` (retired, API fails) — or `undefined` when not sunset. Mirrors
+ * reading `BlockConfig.sunset.status`. Dynamic-provider and unknown ids return
+ * `undefined` (no static catalog entry).
  */
+export function getModelSunsetStatus(
+  modelId: string | undefined | null
+): 'legacy' | 'deprecated' | undefined {
+  return modelId ? MODEL_SUNSET_STATUS.get(modelId.toLowerCase()) : undefined
+}
+
+/** Whether a stored model id is sunset (either tier). */
 export function isModelDeprecated(modelId: string | undefined | null): boolean {
-  return !!modelId && DEPRECATED_STATIC_MODEL_IDS.has(modelId.toLowerCase())
+  return getModelSunsetStatus(modelId) !== undefined
 }
 
 function getRecommendedModels(): string[] {

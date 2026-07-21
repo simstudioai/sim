@@ -460,7 +460,7 @@ function getStaticModelOptionsForVFS(): StaticModelOption[] {
       }
       if (model.recommended) option.recommended = true
       if (model.speedOptimized) option.speedOptimized = true
-      if (model.deprecated) option.deprecated = true
+      if (model.sunset) option.deprecated = true
       models.push(option)
     }
   }
