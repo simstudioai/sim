@@ -3,6 +3,7 @@ import http from 'http'
 import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
+import { isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import * as ipaddr from 'ipaddr.js'
@@ -19,49 +20,6 @@ const logger = createLogger('InputValidation')
 export interface AsyncValidationResult extends ValidationResult {
   resolvedIP?: string
   originalHostname?: string
-}
-
-/**
- * Checks if an IP address is private or reserved (not routable on the public internet)
- * Uses ipaddr.js for robust handling of all IP formats including:
- * - Octal notation (0177.0.0.1)
- * - Hex notation (0x7f000001)
- * - IPv4-mapped IPv6 (::ffff:127.0.0.1)
- * - IPv4-compatible IPv6 (::a.b.c.d / ::xxxx:xxxx, RFC 4291 §2.5.5.1, deprecated)
- * - Various edge cases that regex patterns miss
- */
-export function isPrivateOrReservedIP(ip: string): boolean {
-  try {
-    if (!ipaddr.isValid(ip)) {
-      return true
-    }
-
-    const addr = ipaddr.process(ip)
-    const range = addr.range()
-
-    if (range !== 'unicast') {
-      return true
-    }
-
-    if (addr.kind() === 'ipv6') {
-      const v6 = addr as ipaddr.IPv6
-      const parts = v6.parts
-      const firstSixZero = parts.slice(0, 6).every((p) => p === 0)
-      if (firstSixZero) {
-        const embedded = ipaddr.fromByteArray([
-          (parts[6] >> 8) & 0xff,
-          parts[6] & 0xff,
-          (parts[7] >> 8) & 0xff,
-          parts[7] & 0xff,
-        ])
-        return embedded.range() !== 'unicast'
-      }
-    }
-
-    return false
-  } catch {
-    return true
-  }
 }
 
 /**
@@ -91,10 +49,7 @@ export async function validateUrlWithDNS(
   const hostname = parsedUrl.hostname
 
   const hostnameLower = hostname.toLowerCase()
-  const cleanHostname =
-    hostnameLower.startsWith('[') && hostnameLower.endsWith(']')
-      ? hostnameLower.slice(1, -1)
-      : hostnameLower
+  const cleanHostname = unwrapIpv6Brackets(hostnameLower)
 
   let isLocalhost = cleanHostname === 'localhost'
   if (ipaddr.isValid(cleanHostname)) {
@@ -114,7 +69,7 @@ export async function validateUrlWithDNS(
         return ip === '127.0.0.1' || ip === '::1'
       })()
 
-    if (isPrivateOrReservedIP(address) && !(isLocalhost && resolvedIsLoopback && !isHosted)) {
+    if (isPrivateIp(address) && !(isLocalhost && resolvedIsLoopback && !isHosted)) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
@@ -171,26 +126,20 @@ export async function validateDatabaseHost(
     return { isValid: false, error: `${paramName} is required` }
   }
 
-  const lowerHost = host.toLowerCase()
-  const cleanHost =
-    lowerHost.startsWith('[') && lowerHost.endsWith(']') ? lowerHost.slice(1, -1) : lowerHost
+  const cleanHost = unwrapIpv6Brackets(host.toLowerCase())
 
   if (cleanHost === 'localhost' && !isPrivateDatabaseHostsAllowed) {
     return { isValid: false, error: `${paramName} cannot be localhost` }
   }
 
-  if (
-    ipaddr.isValid(cleanHost) &&
-    isPrivateOrReservedIP(cleanHost) &&
-    !isPrivateDatabaseHostsAllowed
-  ) {
+  if (isPrivateIpHost(cleanHost) && !isPrivateDatabaseHostsAllowed) {
     return { isValid: false, error: `${paramName} cannot be a private IP address` }
   }
 
   try {
     const { address } = await dns.lookup(cleanHost, { verbatim: true })
 
-    if (isPrivateOrReservedIP(address) && !isPrivateDatabaseHostsAllowed) {
+    if (isPrivateIp(address) && !isPrivateDatabaseHostsAllowed) {
       logger.warn('Database host resolves to blocked IP address', {
         paramName,
         hostname: host,

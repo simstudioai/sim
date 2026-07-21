@@ -22,6 +22,8 @@ import type {
   BrowserToolName,
 } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import type { BrowserWindow, WebContents } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import { ToolError } from '@/main/browser-agent/errors'
@@ -41,6 +43,7 @@ import {
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
 import * as session from '@/main/browser-agent/session'
+import { checkAgentUrl } from '@/main/browser-agent/url-guard'
 
 const logger = createLogger('BrowserAgentDriver')
 
@@ -126,7 +129,7 @@ function instrumentTab(contents: WebContents): void {
     .then(() => cdp.setColorScheme(contents, session.getBrowserTheme()))
     .catch((error) => {
       logger.warn('CDP instrumentation failed', {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       })
     })
   for (const event of [
@@ -160,7 +163,7 @@ export function initDriver(
       onTabThemeChanged: (contents, theme) => {
         void cdp.setColorScheme(contents, theme).catch((error) => {
           logger.warn('Could not update browser tab theme', {
-            error: error instanceof Error ? error.message : String(error),
+            error: getErrorMessage(error),
           })
         })
       },
@@ -172,10 +175,6 @@ export function initDriver(
     },
     getMainWindow
   )
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function str(params: Record<string, unknown>, key: string): string | undefined {
@@ -205,10 +204,6 @@ function requireNum(params: Record<string, unknown>, key: string): number {
   return value
 }
 
-// ---------------------------------------------------------------------------
-// Page-function execution
-// ---------------------------------------------------------------------------
-
 /**
  * Serializes a self-contained page function and executes it in the page's
  * main world with JSON-encoded arguments (Electron's executeJavaScript has no
@@ -223,7 +218,7 @@ async function execInPage<Args extends unknown[], Result>(
   try {
     return (await contents.executeJavaScript(expression, true)) as Result
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = getErrorMessage(error)
     throw new ToolError(
       `Cannot act on this page (${message}). Browser-internal pages cannot be automated — ` +
         'navigate to a regular website first.'
@@ -263,10 +258,6 @@ function unwrapPageResult(result: unknown): unknown {
   return result
 }
 
-// ---------------------------------------------------------------------------
-// Navigation
-// ---------------------------------------------------------------------------
-
 function waitForLoadComplete(contents: WebContents, timeoutMs: number): Promise<void> {
   return new Promise((resolve) => {
     let settled = false
@@ -301,10 +292,6 @@ async function activeElementState(contents: WebContents): Promise<Record<string,
   return typeof state === 'object' && state !== null ? (state as Record<string, unknown>) : {}
 }
 
-// ---------------------------------------------------------------------------
-// Takeover
-// ---------------------------------------------------------------------------
-
 /**
  * Hands control to the user: the page is already natively interactive in the
  * panel, and the chat's takeover tool row shows the reason with a Done chip.
@@ -338,10 +325,6 @@ async function runTakeover(): Promise<unknown> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Tool implementations
-// ---------------------------------------------------------------------------
-
 async function executeToolInner(
   tool: BrowserToolName,
   params: Record<string, unknown>
@@ -349,8 +332,14 @@ async function executeToolInner(
   switch (tool) {
     case 'browser_navigate': {
       const url = requireStr(params, 'url')
-      if (!/^https?:\/\//i.test(url)) {
-        throw new ToolError('URL must be absolute and start with http:// or https://')
+      // Up-front SSRF check for a clean model-facing error. The partition's
+      // onBeforeRequest is the actual enforcement seam (it also catches
+      // page-initiated navigations); this pre-check exists because loadURL's
+      // rejection is swallowed below, so a blocked nav would otherwise surface
+      // as a blank page with no error.
+      const guard = await checkAgentUrl(url)
+      if (!guard.ok) {
+        throw new ToolError(guard.error ?? 'That address was blocked.')
       }
       const tab = session.ensureTab()
       const contents = tab.view.webContents
@@ -378,12 +367,15 @@ async function executeToolInner(
 
     case 'browser_open_tab': {
       const url = str(params, 'url')
+      if (url) {
+        const guard = await checkAgentUrl(url)
+        if (!guard.ok) {
+          throw new ToolError(guard.error ?? 'That address was blocked.')
+        }
+      }
       const tab = session.addTab()
       const contents = tab.view.webContents
       if (url) {
-        if (!/^https?:\/\//i.test(url)) {
-          throw new ToolError('URL must be absolute and start with http:// or https://')
-        }
         void contents.loadURL(url).catch(() => {})
         const result = await navigationResult(contents)
         return { tabId: tab.id, ...result }
@@ -580,10 +572,6 @@ function withNotices(result: unknown): unknown {
   return { value: result, notices }
 }
 
-// ---------------------------------------------------------------------------
-// Public entry points
-// ---------------------------------------------------------------------------
-
 /** One real browser can only do one thing at a time — serialize tool calls. */
 let toolQueue: Promise<unknown> = Promise.resolve()
 
@@ -623,7 +611,7 @@ export async function executeTool(
   try {
     return { ok: true, result: await settled }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = getErrorMessage(error)
     logger.warn('Browser tool failed', { tool, error: message })
     return { ok: false, error: message }
   }

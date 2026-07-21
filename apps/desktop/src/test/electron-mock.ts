@@ -30,6 +30,10 @@ export const app = {
   dock: { downloadFinished: vi.fn() },
 }
 
+export const crashReporter = {
+  start: vi.fn(),
+}
+
 export const shell = {
   openExternal: vi.fn(() => Promise.resolve()),
   showItemInFolder: vi.fn(),
@@ -177,6 +181,7 @@ function createWebContentsMock() {
     session: {
       setPermissionRequestHandler: vi.fn(),
       setPermissionCheckHandler: vi.fn(),
+      webRequest: { onBeforeRequest: vi.fn() },
       on: vi.fn(),
     },
   }

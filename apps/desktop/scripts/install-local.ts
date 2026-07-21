@@ -104,14 +104,7 @@ run('bun', ['run', 'build'])
 // framework), which turns local signing into a multi-minute stall. Local
 // installs don't need timestamped signatures — only notarized distribution
 // builds do.
-run('bunx', [
-  'electron-builder',
-  '--mac',
-  'dir',
-  '--publish',
-  'never',
-  '-c.mac.timestamp=none',
-])
+run('bunx', ['electron-builder', '--mac', 'dir', '--publish', 'never', '-c.mac.timestamp=none'])
 
 const builtApp = RELEASE_DIRS.map((dir) => join(dir, APP_NAME)).find(existsSync)
 if (!builtApp) {

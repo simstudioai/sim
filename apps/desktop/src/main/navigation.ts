@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { isLoopbackHostname } from '@sim/security/ssrf'
 import { shell } from 'electron'
-import { LOCAL_HOSTNAMES } from '@/main/config'
 
 const logger = createLogger('DesktopNavigation')
 
@@ -56,7 +56,7 @@ const AUTH_SURFACE_PREFIXES: readonly string[] = [
 
 const MCP_POPUP_NAME_PREFIX = 'mcp-oauth-'
 
-function parseHttpUrl(raw: string): URL | null {
+export function parseHttpUrl(raw: string): URL | null {
   try {
     const url = new URL(raw)
     if (url.protocol !== 'http:' && url.protocol !== 'https:') {
@@ -160,7 +160,11 @@ export function classifyWindowOpen(
     }
     return 'popup-internal'
   }
-  if (frameName.startsWith(MCP_POPUP_NAME_PREFIX)) {
+  // The MCP OAuth popup opens the provider's cross-origin authorization URL
+  // (always https). The frame name is renderer-controlled, so gate the in-app
+  // popup on https too — an http(s-less) page can never ride the mcp-oauth name
+  // into an in-app window; it goes to the system browser like any external URL.
+  if (frameName.startsWith(MCP_POPUP_NAME_PREFIX) && url.protocol === 'https:') {
     return 'popup-mcp'
   }
   return 'external'
@@ -203,7 +207,7 @@ export function isSafeExternalUrl(raw: string, allowHttpLocalhost = false): bool
     return true
   }
   if (url.protocol === 'http:') {
-    return allowHttpLocalhost && LOCAL_HOSTNAMES.has(url.hostname)
+    return allowHttpLocalhost && isLoopbackHostname(url.hostname)
   }
   return false
 }

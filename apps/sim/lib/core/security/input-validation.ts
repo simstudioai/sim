@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/env-flags'
 
@@ -401,7 +402,7 @@ export function validateHostname(
   }
 
   if (ipaddr.isValid(lowerHostname)) {
-    if (isPrivateOrReservedIP(lowerHostname)) {
+    if (isPrivateIp(lowerHostname)) {
       logger.warn('Hostname matches blocked IP range', {
         paramName,
         hostname: hostname.substring(0, 100),
@@ -721,8 +722,7 @@ export function validateExternalUrl(
   const protocol = parsedUrl.protocol
   const hostname = parsedUrl.hostname.toLowerCase()
 
-  const cleanHostname =
-    hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+  const cleanHostname = unwrapIpv6Brackets(hostname)
 
   let isLocalhost = cleanHostname === 'localhost'
   if (ipaddr.isValid(cleanHostname)) {
@@ -754,7 +754,7 @@ export function validateExternalUrl(
   }
 
   if (!isLocalhost && ipaddr.isValid(cleanHostname)) {
-    if (isPrivateOrReservedIP(cleanHostname)) {
+    if (isPrivateIp(cleanHostname)) {
       return {
         isValid: false,
         error: `${paramName} cannot point to private IP addresses`,
@@ -795,29 +795,6 @@ export function validateProxyUrl(
   paramName = 'proxyUrl'
 ): ValidationResult {
   return validateExternalUrl(url, paramName)
-}
-
-/**
- * Checks if an IP address is private or reserved (not routable on the public internet)
- * Uses ipaddr.js for robust handling of all IP formats including:
- * - Octal notation (0177.0.0.1)
- * - Hex notation (0x7f000001)
- * - IPv4-mapped IPv6 (::ffff:127.0.0.1)
- * - Various edge cases that regex patterns miss
- */
-function isPrivateOrReservedIP(ip: string): boolean {
-  try {
-    if (!ipaddr.isValid(ip)) {
-      return true
-    }
-
-    const addr = ipaddr.process(ip)
-    const range = addr.range()
-
-    return range !== 'unicast'
-  } catch {
-    return true
-  }
 }
 
 /**
