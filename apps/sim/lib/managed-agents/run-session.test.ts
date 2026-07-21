@@ -121,6 +121,23 @@ describe('runManagedAgentSession', () => {
     expect(mocks.sleep).toHaveBeenCalled() // backed off while running
   })
 
+  it('does not complete on idle status while a requires_action is outstanding', async () => {
+    // Stream 1: text then a requires_action idle (pending), then closes.
+    // Reconnect: nothing new, status idle — but must NOT complete (pending).
+    // Stream 2: end_turn → complete.
+    scriptStreamBatches([
+      [msg('e1', 'partial'), idle('r1', 'requires_action')],
+      [idle('e2', 'end_turn')],
+    ])
+    mocks.getSession.mockResolvedValue({ status: 'idle' })
+
+    const result = await runManagedAgentSession({ ...BASE })
+
+    expect(result.ok).toBe(true)
+    expect(result.content).toBe('partial')
+    expect(mocks.openSessionStream).toHaveBeenCalledTimes(2) // reopened rather than completing early
+  })
+
   it('does not complete on a fresh idle before the agent has started', async () => {
     // Stream closes immediately with nothing; catch-up empty; status idle but no
     // activity yet → must NOT complete. Then it starts and finishes.

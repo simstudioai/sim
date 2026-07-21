@@ -75,10 +75,10 @@ export const ManagedAgentBlock: BlockConfig = {
     {
       id: 'vaults',
       title: 'Credential vaults',
-      type: 'combobox',
+      type: 'dropdown',
       required: false,
       placeholder: 'Optional — pick zero or more OAuth vaults',
-      commandSearchable: true,
+      searchable: true,
       multiSelect: true,
       options: [],
       dependsOn: ['credential'],

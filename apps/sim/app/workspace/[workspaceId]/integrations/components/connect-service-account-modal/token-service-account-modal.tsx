@@ -72,6 +72,8 @@ interface TokenServiceAccountModalProps {
   credentialId?: string
   initialDisplayName?: string
   initialDescription?: string
+  /** Called with the new credential id after a successful create (not reconnect). */
+  onCreated?: (credentialId: string) => void
 }
 
 /**
@@ -91,6 +93,7 @@ export function TokenServiceAccountModal({
   credentialId,
   initialDisplayName,
   initialDescription,
+  onCreated,
 }: TokenServiceAccountModalProps) {
   const [apiToken, setApiToken] = useState('')
   const [domain, setDomain] = useState('')
@@ -139,7 +142,7 @@ export function TokenServiceAccountModal({
           description: description.trim() || undefined,
         })
       } else {
-        await createCredential.mutateAsync({
+        const created = await createCredential.mutateAsync({
           workspaceId,
           type: 'service_account',
           providerId: descriptor.providerId,
@@ -147,6 +150,7 @@ export function TokenServiceAccountModal({
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
         })
+        onCreated?.(created.credential.id)
       }
       onOpenChange(false)
     } catch (err: unknown) {

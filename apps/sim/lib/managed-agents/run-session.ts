@@ -121,6 +121,10 @@ export async function runManagedAgentSession(
   const startedAt = Date.now()
   let backoffMs = RECONNECT_BACKOFF_START_MS
   let sawActivity = false
+  // A `requires_action` idle is a pending pause (waiting on a tool result), not
+  // a finished turn. Tracking it prevents the quiet-status path from reporting
+  // an in-progress session complete; it clears once the session resumes.
+  let requiresActionOutstanding = false
   let terminal: Terminal | null = null
 
   const process = async (event: AnthropicSessionEvent): Promise<boolean> => {
@@ -131,6 +135,12 @@ export async function runManagedAgentSession(
       event.type === 'session.status_running'
     ) {
       sawActivity = true
+    }
+    if (event.type === 'session.status_running' || event.type === 'agent.message') {
+      requiresActionOutstanding = false
+    }
+    if (event.type === 'session.status_idle' && event.stop_reason?.type === 'requires_action') {
+      requiresActionOutstanding = true
     }
     const outcome = await handleEvent({ event, assistantText, apiKey, sessionId, signal })
     if (outcome) {
@@ -190,7 +200,7 @@ export async function runManagedAgentSession(
         terminal = { status: 'error', reason: 'Session terminated.' }
         break
       }
-      if (snapshot?.status === 'idle' && sawActivity) {
+      if (snapshot?.status === 'idle' && sawActivity && !requiresActionOutstanding) {
         terminal = { status: 'complete' }
         break
       }
