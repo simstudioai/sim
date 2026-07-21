@@ -2,7 +2,7 @@ import { db, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@
 import { createLogger } from '@sim/logger'
 import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
 import { SUBFLOW_TYPES } from '@sim/workflow-types/workflow'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, gte, isNull, lt } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { clampParallelBatchSize } from './subflow-helpers'
 import type { DbOrTx, NormalizedWorkflowData } from './types'
@@ -180,6 +180,27 @@ export async function loadWorkflowFromNormalizedTablesRaw(
   }
 }
 
+/**
+ * Optimistic-concurrency guard matching a row's `updated_at` against the value
+ * read earlier through Drizzle.
+ *
+ * Postgres stores `timestamp` columns with microsecond precision, but Drizzle's
+ * default `date` mode surfaces them as JS `Date`s, which truncate to
+ * milliseconds. A strict equality guard therefore never matches rows whose
+ * `updated_at` was stamped by SQL `now()`/`defaultNow()` (non-zero
+ * sub-millisecond digits are lost on read), silently turning the UPDATE into a
+ * permanent no-op — migrations then re-run on every load without ever
+ * persisting. Matching the enclosing millisecond restores the intended
+ * semantics: any concurrent writer stamps a fresh `updated_at`, which falls
+ * outside this window.
+ */
+function updatedAtMatches(expected: Date) {
+  return and(
+    gte(workflowBlocks.updatedAt, expected),
+    lt(workflowBlocks.updatedAt, new Date(expected.getTime() + 1))
+  )
+}
+
 export async function persistMigratedBlocks(
   workflowId: string,
   originalBlocks: Record<string, BlockState>,
@@ -197,7 +218,7 @@ export async function persistMigratedBlocks(
               eq(workflowBlocks.workflowId, workflowId),
               expectedUpdatedAt === null
                 ? isNull(workflowBlocks.updatedAt)
-                : eq(workflowBlocks.updatedAt, expectedUpdatedAt)
+                : updatedAtMatches(expectedUpdatedAt)
             )
           : and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId))
 
