@@ -237,6 +237,10 @@ export interface ChipModalTabsProps {
  * Reusing `ChipSwitch` keeps every tabbed modal visually identical to the
  * segmented toggles elsewhere in the app (e.g. the billing-period switch).
  *
+ * Pinned to `w-fit` so the pill always hugs its tabs: dropped directly into a
+ * flex column the `inline-flex` trough is otherwise blockified and stretched
+ * full-width by `align-items: stretch`. A caller-supplied width class still wins.
+ *
  * @example
  * ```tsx
  * <ChipModalBody>
@@ -262,7 +266,7 @@ function ChipModalTabs({
       onChange={onChange}
       aria-label={ariaLabel}
       options={tabs.map((tab) => ({ value: tab.value, label: tab.label, icon: tab.icon }))}
-      className={className}
+      className={cn('w-fit', className)}
     />
   )
 }
