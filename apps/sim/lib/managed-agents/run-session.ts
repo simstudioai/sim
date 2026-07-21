@@ -216,12 +216,7 @@ export async function runManagedAgentSession(
           })
         },
         onEvent: async (event) => {
-          // Skip idless events — `event_start`/`event_delta` stream previews
-          // carry no id, are never persisted, and are never deduped, so
-          // accumulating their text would double it once the persisted
-          // `agent.message` arrives. Final text always lands as an id-bearing
-          // event, so previews add nothing. Mirrors the catch-up loop.
-          if (!event.id || seenIds.has(event.id)) return undefined
+          if (event.id && seenIds.has(event.id)) return undefined
           return (await process(event)) ? true : undefined
         },
       })
@@ -232,6 +227,11 @@ export async function runManagedAgentSession(
       // gap. Events are deduped by id; entries without an id are skipped here
       // (they are non-persisted stream previews, never history).
       const history = await listSessionEvents({ apiKey, sessionId, signal })
+      // Snapshot the live-observed pending state before catch-up mutates it:
+      // catch-up may process an OLDER `agent.message` that clears it, but that
+      // stale event must not override a newer `requires_action` the live stream
+      // saw when the history has no lifecycle event to arbitrate.
+      const pendingBeforeCatchup: boolean = requiresActionOutstanding
       let progressed = false
       for (const event of history) {
         if (!event.id || seenIds.has(event.id)) continue
@@ -246,18 +246,16 @@ export async function runManagedAgentSession(
       if (terminal || signal?.aborted) break
 
       // Recompute the pending-action state from the chronological history,
-      // which is authoritative and ordered. This overrides any out-of-order
-      // flag flip made while processing catch-up events — an older
-      // `agent.message` recovered after the live stream must not clear a newer
-      // `requires_action` pause and let a still-waiting session report done.
-      // Falls back to the stream-tracked flag when the history carries no
-      // lifecycle events (e.g. status changes not persisted to the list).
+      // which is authoritative and ordered. When history carries a lifecycle
+      // event, it decides (overriding any out-of-order flag flip from catch-up
+      // — an older `agent.message` must not clear a newer `requires_action`
+      // pause). When it carries NONE, restore the live-observed state rather
+      // than trusting a stale catch-up mutation.
       const lastLifecycle = findLastLifecycleEvent(history)
-      if (lastLifecycle) {
-        requiresActionOutstanding =
-          lastLifecycle.type === 'session.status_idle' &&
+      requiresActionOutstanding = lastLifecycle
+        ? lastLifecycle.type === 'session.status_idle' &&
           lastLifecycle.stop_reason?.type === 'requires_action'
-      }
+        : pendingBeforeCatchup
 
       // Still no terminal event. Consult the authoritative session status: a
       // finished session reports `idle`/`terminated`; a working one reports
@@ -347,7 +345,11 @@ async function handleEvent(args: {
   const { event, assistantText, apiKey, sessionId, signal } = args
 
   if (event.type === 'agent.message') {
-    if (Array.isArray(event.content)) {
+    // Accumulate text only from persisted (id-bearing) messages. An idless
+    // `agent.message` is a stream-only preview that is never deduped, so
+    // appending it would double the text once the persisted copy arrives.
+    // Idless lifecycle/terminal events still flow through the handlers below.
+    if (event.id && Array.isArray(event.content)) {
       for (const block of event.content) {
         if (block?.type === 'text' && typeof block.text === 'string') {
           assistantText.value += block.text

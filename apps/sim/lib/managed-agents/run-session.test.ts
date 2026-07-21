@@ -195,6 +195,51 @@ describe('runManagedAgentSession', () => {
     expect(mocks.openSessionStream).toHaveBeenCalledTimes(2)
   })
 
+  it('preserves live requires_action when catch-up has an older message but no lifecycle event', async () => {
+    // Live stream sees a message + requires_action pause. Catch-up recovers an
+    // older, unseen agent.message but NO lifecycle event — processing it clears
+    // the pending flag, and with no lifecycle evidence in history the live
+    // pending state must be restored (not completed on the idle snapshot).
+    scriptStreamBatches([
+      [msg('e1', 'hi '), idle('r1', 'requires_action')],
+      [idle('e2', 'end_turn')],
+    ])
+    mocks.listSessionEvents.mockResolvedValueOnce([msg('e0', 'earlier')]) // no lifecycle event
+    mocks.getSession.mockResolvedValue({ status: 'idle' })
+
+    const result = await runManagedAgentSession({ ...BASE })
+
+    expect(result.ok).toBe(true)
+    expect(mocks.openSessionStream).toHaveBeenCalledTimes(2) // did not complete on the idle snapshot
+  })
+
+  it('completes on an idless terminal event delivered only on the live stream', async () => {
+    // An idless session.status_idle(end_turn) must still register as terminal —
+    // idless events are processed (only text accumulation is id-gated).
+    scriptStreamBatches([[{ type: 'session.status_idle', stop_reason: { type: 'end_turn' } }]])
+    mocks.getSession.mockResolvedValue({ status: 'idle' })
+
+    const result = await runManagedAgentSession({ ...BASE })
+
+    expect(result.ok).toBe(true)
+    expect(mocks.openSessionStream).toHaveBeenCalledTimes(1) // completed, not dropped
+  })
+
+  it('does not double-count text from an idless preview of a persisted message', async () => {
+    scriptStreamBatches([
+      [
+        { type: 'agent.message', content: [{ type: 'text', text: 'hi' }] }, // idless preview
+        msg('e1', 'hi'), // persisted copy of the same text
+        idle('e2', 'end_turn'),
+      ],
+    ])
+    mocks.getSession.mockResolvedValue({ status: 'idle' })
+
+    const result = await runManagedAgentSession({ ...BASE })
+
+    expect(result.content).toBe('hi') // not 'hihi'
+  })
+
   it('retries a custom-tool reply that failed to send instead of stranding the session', async () => {
     // Stream 1: a custom tool call whose error reply fails to send — the event
     // must stay unseen. Reconnect (status running) → reopen. Stream 2: the same
