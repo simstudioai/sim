@@ -105,7 +105,10 @@ export async function validateUrlWithDNS(
   }
 
   try {
-    const { address } = await dns.lookup(cleanHostname, { verbatim: true })
+    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
+    // on IPv4-only egress (e.g. AWS NAT gateways). See validateMcpServerSsrf.
+    const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
+    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
 
     const resolvedIsLoopback =
       ipaddr.isValid(address) &&
