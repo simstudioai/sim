@@ -406,7 +406,7 @@ export async function executeDeployChat(
 
     // Enforce the permission group's chat auth-mode allow-list, but only when the
     // mode actually changes (or on a first deploy) so an existing grandfathered
-    // mode can be re-saved. New/changed modes must be allowed.
+    // mode can be re-saved.
     if (workflowRecord.workspaceId && resolvedAuthType !== existingDeployment?.authType) {
       try {
         await validateChatDeployAuth(context.userId, workflowRecord.workspaceId, resolvedAuthType)

@@ -677,27 +677,20 @@ function AuthSelector({
   }
 
   const { config: permissionConfig } = usePermissionConfig()
+  const allowedAuthTypes = permissionConfig.allowedChatDeployAuthTypes
 
-  // SSO shows when the env flag is on, or when this chat is already saved as SSO,
-  // so an existing SSO mode is never dropped (and silently downgraded by the snap
-  // effect below) when the flag is off.
-  const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')) || savedAuthType === 'sso'
-  const baseAuthOptions: AuthType[] = ssoEnabled
+  const ssoAvailable =
+    isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')) ||
+    savedAuthType === 'sso' ||
+    (allowedAuthTypes?.includes('sso') ?? false)
+  const baseAuthOptions: AuthType[] = ssoAvailable
     ? ['public', 'password', 'email', 'sso']
     : ['public', 'password', 'email']
 
-  // Org access-control may restrict which auth modes are allowed (`null` = all).
-  // The route is the source of truth; this just hides disallowed options. Only a
-  // chat's already-saved mode is grandfathered (kept visible) — not the unsaved
-  // `public` default of a brand-new chat.
-  const allowedAuthTypes = permissionConfig.allowedChatDeployAuthTypes
   const authOptions = baseAuthOptions.filter(
     (type) => allowedAuthTypes === null || allowedAuthTypes.includes(type) || type === savedAuthType
   )
 
-  // If the current selection isn't offered (e.g. a new chat defaulting to a
-  // now-disallowed `public`), snap to the first allowed mode so the form can't
-  // submit a value the server will reject.
   useEffect(() => {
     if (authOptions.length > 0 && !authOptions.includes(authType)) {
       onAuthTypeChange(authOptions[0])
