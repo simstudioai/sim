@@ -452,14 +452,20 @@ export function createPinnedFetch(
  * caller with a defined connection lifetime (e.g. a long-lived MCP transport) can
  * tear the Agent down on close instead of waiting for its idle timeout. Closing
  * the Agent is what releases any pooled keep-alive / HTTP/2 sockets it holds.
+ *
+ * `maxResponseSize` caps the (decoded) response body in bytes and makes undici reject
+ * with `UND_ERR_RES_EXCEEDED_MAX_SIZE` once exceeded — a DoS backstop for one-shot
+ * callers reading from a URL taken from untrusted metadata. Omit it (the default) to
+ * leave the response unbounded, which streaming consumers like the MCP transport need.
  */
 export function createPinnedFetchWithDispatcher(
   resolvedIP: string,
-  options?: { allowH2?: boolean }
+  options?: { allowH2?: boolean; maxResponseSize?: number }
 ): { fetch: typeof fetch; dispatcher: Agent } {
   const dispatcher = new Agent({
     allowH2: options?.allowH2 ?? false,
     connect: { lookup: createPinnedLookup(resolvedIP) },
+    ...(options?.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
   })
 
   const pinned = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
