@@ -5737,7 +5737,6 @@ export function SmtpIcon(props: SVGProps<SVGSVGElement>) {
         strokeLinecap='round'
         strokeLinejoin='round'
       />
-      <circle cx='24' cy='6' r='4' fill='currentColor' stroke='none' />
     </svg>
   )
 }

@@ -232,8 +232,15 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     questionDismissed,
   })
 
+  // A visible question card (active or answered recap) sits 12px below the
+  // preceding prose (chat-content's `space-y-3`). The row's default `pb-6`
+  // would leave 24px underneath — asymmetric. Shrink the trailing gap to match
+  // so the card breathes equally top and bottom. Dismissed cards fall back to
+  // the normal message rhythm (they render the standard actions row instead).
+  const showsQuestionCard = endsWithQuestion && !questionDismissed
+
   return (
-    <div className={rowClassName}>
+    <div className={cn(rowClassName, showsQuestionCard && 'pb-3')}>
       <MessageContent
         blocks={blocks}
         fallbackContent={message.content}
