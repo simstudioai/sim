@@ -107,14 +107,19 @@ export async function waitForManagedProcessReady(
   }
 
   const controller = new AbortController()
+  let ready = false
   const exited = process.completion.then((result) => {
+    if (ready) return
     throw new Error(
       `${process.name} exited before readiness with ${result.error?.message ?? result.code ?? result.signal ?? 'unknown status'}. See ${process.logPath}`
     )
   })
+  const becameReady = readiness(controller.signal).then(() => {
+    ready = true
+  })
 
   try {
-    await Promise.race([readiness(controller.signal), exited])
+    await Promise.race([becameReady, exited])
   } finally {
     controller.abort(new Error(`${process.name} readiness polling cancelled`))
   }

@@ -12,7 +12,11 @@ import {
 } from '../support/database'
 import { buildChildEnvironment, discoverEnvFileKeys } from '../support/env'
 import { areValidE2eHostAddresses, isLoopbackAddress } from '../support/hosts'
-import { assertPortAvailable, spawnManagedProcess } from '../support/process'
+import {
+  assertPortAvailable,
+  spawnManagedProcess,
+  waitForManagedProcessReady,
+} from '../support/process'
 import { parseProcessGroupIds } from '../support/signal-cleanup'
 
 test.describe('foundation safety guards', () => {
@@ -142,6 +146,32 @@ test.describe('foundation safety guards', () => {
       expect(completion.error).toBeTruthy()
       await expect(managed.stop()).resolves.toBeUndefined()
     } finally {
+      rmSync(logsDirectory, { recursive: true, force: true })
+    }
+  })
+
+  test('process exit after readiness does not create an unhandled rejection', async () => {
+    const logsDirectory = mkdtempSync(path.join(os.tmpdir(), 'sim-e2e-ready-'))
+    let unhandled: unknown
+    const onUnhandled = (error: unknown) => {
+      unhandled = error
+    }
+    process.once('unhandledRejection', onUnhandled)
+    try {
+      const managed = spawnManagedProcess({
+        name: 'ready-process',
+        command: 'sleep',
+        args: ['10'],
+        cwd: logsDirectory,
+        env: { NODE_ENV: 'test', PATH: process.env.PATH ?? '' },
+        logsDirectory,
+      })
+      await waitForManagedProcessReady(managed, async () => {})
+      await managed.stop()
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(unhandled).toBeUndefined()
+    } finally {
+      process.off('unhandledRejection', onUnhandled)
       rmSync(logsDirectory, { recursive: true, force: true })
     }
   })
