@@ -16,6 +16,7 @@ import type {
   DesktopOAuthConnectScope,
   DesktopPreferenceKey,
   DesktopPreferences,
+  DesktopWindowState,
   LocalFilesystemRequest,
   LocalFilesystemResponse,
   SimDesktopApi,
@@ -48,6 +49,16 @@ const api: SimDesktopApi = {
     return () => {
       ipcRenderer.removeListener('desktop:command', listener)
     }
+  },
+  windowState: {
+    getState: (): Promise<DesktopWindowState> => ipcRenderer.invoke('desktop:window-state:get'),
+    onStateChange: (callback: (state: DesktopWindowState) => void): (() => void) => {
+      const listener = (_event: unknown, state: DesktopWindowState) => callback(state)
+      ipcRenderer.on('desktop:window-state:changed', listener)
+      return () => {
+        ipcRenderer.removeListener('desktop:window-state:changed', listener)
+      }
+    },
   },
   settings: {
     getPreferences: (): Promise<DesktopPreferences> => ipcRenderer.invoke('desktop:settings:get'),

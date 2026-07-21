@@ -195,6 +195,7 @@ export interface CreateMainWindowDeps {
   preloadPath: string
   isPackaged: boolean
   onClosed: () => void
+  onFullScreenChange?: (isFullScreen: boolean) => void
 }
 
 /**
@@ -245,6 +246,8 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
   }
   win.on('resize', persistBounds)
   win.on('move', persistBounds)
+  win.on('enter-full-screen', () => deps.onFullScreenChange?.(true))
+  win.on('leave-full-screen', () => deps.onFullScreenChange?.(false))
 
   win.webContents.on('will-prevent-unload', (event) => {
     const choice = dialog.showMessageBoxSync(win, {

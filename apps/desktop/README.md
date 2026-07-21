@@ -84,6 +84,8 @@ Overall this is **within normal thin-wrapper coupling** — every item is either
 
 Local unsigned build: `bun run package:dir` (app in `release/mac-universal/`). Signed: `bun run package:mac` with `CSC_LINK`/`CSC_KEY_PASSWORD` exported.
 
+Pre-release share (no Developer ID yet): `SIM_DESKTOP_DEFAULT_ORIGIN=https://www.dev.sim.ai bun run package:share` builds a DMG whose fresh installs default to that origin (baked at build time; official builds leave it unset → prod) and skips per-file signature timestamps. Recipients must clear quarantine once: `xattr -cr /Applications/Sim.app`.
+
 CI (`.github/workflows/desktop-release.yml`, wired into `ci.yml`):
 - Runs only after `create-release` on a `vX.Y.Z:` commit to main — **never before**: `scripts/create-single-release.ts` skips creation if the tag exists, so a desktop job publishing first would eat the changelog. The job builds `--publish never` and uploads assets with `gh release upload --clobber` (idempotent re-runs).
 - **Secrets gate**: `check-desktop-signing` in `ci.yml` probes the six Apple secrets and skips the desktop job with a warning until they exist — releases never fail on a missing Apple account, and the first release after the secrets land ships desktop artifacts automatically. Manual/one-off builds: Actions → "Desktop Release (macOS)" → Run workflow with a `vX.Y.Z` version (`publish: false` uploads artifacts to the run instead of the release).

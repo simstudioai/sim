@@ -53,6 +53,7 @@ describe('registerIpcHandlers', () => {
         notify: vi.fn(() => true),
         applySystemPreferences: vi.fn(),
       },
+      getWindowState: vi.fn(() => ({ isFullScreen: true })),
       launcher: {
         openChat: vi.fn(),
         openApp: vi.fn(),
@@ -140,6 +141,15 @@ describe('registerIpcHandlers', () => {
       body: 'Sim finished responding.',
       route: '/workspace/ws1/chat/c1',
     })
+  })
+
+  it('reports native fullscreen state only to the app origin', async () => {
+    const { invoke } = collectHandlers()
+    const getWindowState = invoke.get('desktop:window-state:get')
+
+    expect(await getWindowState?.(evilEvent)).toEqual({ isFullScreen: false })
+    expect(await getWindowState?.(appEvent)).toEqual({ isFullScreen: true })
+    expect(deps.getWindowState).toHaveBeenCalledTimes(1)
   })
 
   it('restricts shell-control channels to bundled local pages', () => {

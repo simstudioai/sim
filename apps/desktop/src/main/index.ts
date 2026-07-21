@@ -166,6 +166,9 @@ function main(): void {
       partition: partitionForOrigin(origin),
       preloadPath,
       isPackaged: app.isPackaged,
+      onFullScreenChange: (isFullScreen) => {
+        getMainWindow()?.webContents.send('desktop:window-state:changed', { isFullScreen })
+      },
       onClosed: () => {
         mainWindow = null
       },
@@ -328,6 +331,7 @@ function main(): void {
       retryLoad: () => loadHealth?.retry(),
       localFilesystem,
       settings: desktopSettings,
+      getWindowState: () => ({ isFullScreen: getMainWindow()?.isFullScreen() ?? false }),
       beginOAuthConnect: (providerId, scope) => connectFlow.beginConnectHandoff(providerId, scope),
       launcher: {
         openChat: (target) => {

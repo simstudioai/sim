@@ -1,5 +1,5 @@
 import { isBrowserTheme, isBrowserToolName } from '@sim/browser-protocol'
-import type { DesktopNotificationPayload } from '@sim/desktop-bridge'
+import type { DesktopNotificationPayload, DesktopWindowState } from '@sim/desktop-bridge'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { ipcMain } from 'electron'
 import { executeTool, getTabsState, handlePanelAction } from '@/main/browser-agent/driver'
@@ -127,6 +127,7 @@ export interface IpcDeps {
   retryLoad: () => void
   localFilesystem: LocalFilesystemService
   settings: DesktopSettingsService
+  getWindowState: () => DesktopWindowState
   beginOAuthConnect: (providerId: string, scope: OAuthConnectScope) => Promise<boolean>
   launcher: {
     openChat: (target: LauncherOpenChatTarget) => void
@@ -231,6 +232,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         const payload = parseDesktopNotificationPayload(raw)
         return payload ? deps.settings.notify(payload) : false
       },
+    },
+    'desktop:window-state:get': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: { isFullScreen: false },
+      handler: () => deps.getWindowState(),
     },
     'browser-agent:execute-tool': {
       kind: 'invoke',

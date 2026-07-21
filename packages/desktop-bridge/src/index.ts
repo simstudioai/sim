@@ -231,6 +231,15 @@ export interface SimDesktopSettingsApi {
 
 export type DesktopCommand = 'toggle-sidebar'
 
+export interface DesktopWindowState {
+  isFullScreen: boolean
+}
+
+export interface SimDesktopWindowStateApi {
+  getState(): Promise<DesktopWindowState>
+  onStateChange(callback: (state: DesktopWindowState) => void): () => void
+}
+
 export interface SimDesktopApi {
   openExternal(url: string): Promise<boolean>
   /**
@@ -248,6 +257,7 @@ export interface SimDesktopApi {
   localFilesystem(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
   /** Subscribe to commands initiated by the native application menu. */
   onCommand?(callback: (command: DesktopCommand) => void): () => void
+  windowState?: SimDesktopWindowStateApi
   settings?: SimDesktopSettingsApi
   browserAgent?: SimDesktopBrowserAgentApi
   launcher?: SimDesktopLauncherApi

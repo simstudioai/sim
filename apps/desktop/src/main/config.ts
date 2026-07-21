@@ -5,7 +5,17 @@ import { isLoopbackHostname } from '@sim/security/ssrf'
 
 const logger = createLogger('DesktopConfig')
 
-export const DEFAULT_ORIGIN = 'https://sim.ai'
+/**
+ * The server origin fresh installs point at. `scripts/build.ts` can bake an
+ * override in via SIM_DESKTOP_DEFAULT_ORIGIN (pre-release builds shared
+ * against dev/staging); official builds default to production. The esbuild
+ * define replaces the env read at bundle time, so a packaged app never
+ * consults the runtime environment for this.
+ */
+export const DEFAULT_ORIGIN =
+  (process.env.SIM_DESKTOP_DEFAULT_ORIGIN?.startsWith('https://') &&
+    process.env.SIM_DESKTOP_DEFAULT_ORIGIN) ||
+  'https://sim.ai'
 
 export interface WindowBounds {
   x?: number
