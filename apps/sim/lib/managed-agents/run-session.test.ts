@@ -291,6 +291,31 @@ describe('runManagedAgentSession', () => {
     expect(mocks.openSessionStream).toHaveBeenCalledTimes(2) // older running did not clear the newer pause
   })
 
+  it('an untimestamped running event does not clear a timestamped requires_action', async () => {
+    // A stray lifecycle event without processed_at must not outrank (clear) a
+    // timestamped requires_action pause, nor poison later timestamped events.
+    const idleAt = (id: string, stop: string, at: string): AnthropicSessionEvent => ({
+      id,
+      type: 'session.status_idle',
+      stop_reason: { type: stop },
+      processed_at: at,
+    })
+    scriptStreamBatches([
+      [
+        msg('e1', 'hi'),
+        idleAt('ra1', 'requires_action', '2026-01-01T00:00:02Z'),
+        { id: 'runX', type: 'session.status_running' }, // no processed_at
+      ],
+      [idleAt('e2', 'end_turn', '2026-01-01T00:00:05Z')],
+    ])
+    mocks.getSession.mockResolvedValue({ status: 'idle' })
+
+    const result = await runManagedAgentSession({ ...BASE })
+
+    expect(result.ok).toBe(true)
+    expect(mocks.openSessionStream).toHaveBeenCalledTimes(2) // stray running did not clear the pause
+  })
+
   it('does not complete on a session_idle event that carries no stop_reason', async () => {
     // An idle event with no stop_reason (e.g. pre-first-turn) must NOT be
     // treated as complete via the event path — defer to the status gate, which

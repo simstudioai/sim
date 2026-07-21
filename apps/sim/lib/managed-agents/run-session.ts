@@ -72,11 +72,18 @@ function isLifecycleEvent(type: string | undefined): boolean {
   return !!type && (type.startsWith('session.status_') || type === 'session.error')
 }
 
-/** Epoch millis for an event's `processed_at`; absent/queued/unparseable counts as newest. */
+/**
+ * Epoch millis for an event's `processed_at`. A missing/unparseable value
+ * counts as OLDEST (`-Infinity`) so an untimestamped lifecycle event can never
+ * outrank a timestamped one in either direction — a stray untimestamped event
+ * neither poisons the high-water mark (blocking later real events) nor clears a
+ * timestamped pause. Persisted lifecycle events always carry `processed_at`;
+ * this is purely defensive.
+ */
 function eventTime(value: string | null | undefined): number {
-  if (!value) return Number.POSITIVE_INFINITY
+  if (!value) return Number.NEGATIVE_INFINITY
   const parsed = Date.parse(value)
-  return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed
+  return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed
 }
 
 /** Best-effort `user.interrupt` for a session Sim is abandoning (cancel / cap). Never throws. */
