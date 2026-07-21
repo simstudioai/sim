@@ -9,28 +9,52 @@ import { Callout } from 'fumadocs-ui/components/callout'
 ## 快速开始
 
 ```bash
-# Clone and start
+# Clone the repository
 git clone https://github.com/simstudioai/sim.git && cd sim
+
+# Generate persistent secrets once (.env is ignored by Git)
+(
+  set -euC
+  if [ -e .env ]; then
+    echo 'Refusing to overwrite existing .env' >&2
+    exit 1
+  fi
+  umask 077
+  better_auth_secret=$(openssl rand -hex 32)
+  encryption_key=$(openssl rand -hex 32)
+  api_encryption_key=$(openssl rand -hex 32)
+  internal_api_secret=$(openssl rand -hex 32)
+  cat > .env << EOF
+BETTER_AUTH_SECRET=$better_auth_secret
+ENCRYPTION_KEY=$encryption_key
+API_ENCRYPTION_KEY=$api_encryption_key
+INTERNAL_API_SECRET=$internal_api_secret
+EOF
+)
+
+# Start Sim
 docker compose -f docker-compose.prod.yml up -d
 ```
 
 打开 [http://localhost:3000](http://localhost:3000)
 
+<Callout type="warning">
+  请将生成的 `.env` 单独备份到安全的密钥存储中，不要与数据库备份放在一起。重启现有安装时不要重新生成这些值。
+  更改加密密钥可能会导致已存储的密钥无法读取，而更改 `BETTER_AUTH_SECRET` 会使现有会话失效。
+</Callout>
+
 ## 生产环境设置
 
 ### 1. 配置环境
 
-```bash
-# Generate secrets
-cat > .env << EOF
-DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
-BETTER_AUTH_SECRET=$(openssl rand -hex 32)
-ENCRYPTION_KEY=$(openssl rand -hex 32)
-INTERNAL_API_SECRET=$(openssl rand -hex 32)
+保留快速开始期间生成的密钥，并将公共 URL 添加到同一个 `.env` 文件中：
+
+```dotenv
 NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
 BETTER_AUTH_URL=https://sim.yourdomain.com
-EOF
 ```
+
+如果跳过了快速开始，请先运行其中的密钥生成步骤。切勿替换已经包含数据的安装所使用的加密密钥。
 
 ### 2. 启动服务
 
@@ -124,6 +148,8 @@ docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
 ### 外部 Ollama
 
 如果 Ollama 在您的主机上运行（而不是在 Docker 中）：
+
+请先完成快速开始以创建持久化的 `.env`，然后使用相应的主机 URL：
 
 ```bash
 # macOS/Windows

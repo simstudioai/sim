@@ -165,11 +165,35 @@ After running this command, open [http://localhost:3000/](http://localhost:3000/
 git clone https://github.com/<your-username>/sim.git
 cd sim
 
+# Generate persistent secrets once (the file is ignored by Git)
+(
+  set -euC
+  if [ -e .env ]; then
+    echo 'Refusing to overwrite existing .env' >&2
+    exit 1
+  fi
+  umask 077
+  better_auth_secret=$(openssl rand -hex 32)
+  encryption_key=$(openssl rand -hex 32)
+  api_encryption_key=$(openssl rand -hex 32)
+  internal_api_secret=$(openssl rand -hex 32)
+  cat > .env << EOF
+BETTER_AUTH_SECRET=$better_auth_secret
+ENCRYPTION_KEY=$encryption_key
+API_ENCRYPTION_KEY=$api_encryption_key
+INTERNAL_API_SECRET=$internal_api_secret
+EOF
+)
+
 # Start Sim
 docker compose -f docker-compose.prod.yml up -d
 ```
 
 Access the application at [http://localhost:3000/](http://localhost:3000/)
+
+Back up this `.env` file separately in a secured secret store; do not bundle it with database
+backups. Do not regenerate the values when restarting an existing installation: changing encryption
+keys can make stored secrets unreadable, and changing `BETTER_AUTH_SECRET` invalidates sessions.
 
 #### Using Local Models
 
