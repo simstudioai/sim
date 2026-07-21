@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
+import { hasOtherEntitledOrganizationSubscription } from '@/lib/billing/subscriptions/organization-coverage'
 import { detachOrganizationWorkspaces } from '@/lib/workspaces/organization-workspaces'
 
 const CREDITS_PER_DOLLAR = 200
@@ -66,6 +67,8 @@ export async function arrangeSubscription(input: SubscriptionArrangement): Promi
       billingInterval: 'month',
       metadata,
     })
+
+    if (status === 'canceled') return
 
     if (input.plan.startsWith('pro_')) {
       await tx
@@ -142,6 +145,13 @@ export async function lapseOrganizationSubscription(input: {
         periodEnd: now,
       })
       .where(eq(subscription.id, input.subscriptionId))
+  })
+
+  if (await hasOtherEntitledOrganizationSubscription(input.organizationId, input.subscriptionId)) {
+    return
+  }
+
+  await db.transaction(async (tx) => {
     await tx
       .update(organization)
       .set({ orgUsageLimit: null, updatedAt: now })

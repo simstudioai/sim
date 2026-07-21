@@ -226,6 +226,37 @@ test.describe('pure scenario validation', () => {
     expectInvalid(scenario, /current entitled subscription "replacement-team-subscription"/)
   })
 
+  test('allows a lapsed history while a replacement subscription retains organization coverage', () => {
+    const scenario = validScenario()
+    const lapsed = scenario.subscriptions.find(({ key }) => key === 'lapsed-team-subscription')!
+    scenario.subscriptions = [
+      ...scenario.subscriptions,
+      { ...lapsed, key: 'replacement-team-subscription', status: 'active' },
+    ]
+    scenario.workspaces = scenario.workspaces.map((workspace) =>
+      workspace.key === 'lapsed-organization-workspace'
+        ? { ...workspace, subscriptionKey: 'replacement-team-subscription' }
+        : workspace
+    )
+    scenario.personas = scenario.personas.map((persona) =>
+      persona.key === 'freeOrganizationOwner'
+        ? {
+            ...persona,
+            workspaces: persona.workspaces.map((expectation) => ({
+              ...expectation,
+              hostContext: {
+                ...expectation.hostContext,
+                payerScope: 'organization',
+                plan: 'team_6000',
+              },
+            })),
+          }
+        : persona
+    )
+
+    expect(() => validateScenario(scenario)).not.toThrow()
+  })
+
   test('rejects permission groups without active Enterprise organization/workspace scope', () => {
     const scenario = validScenario()
     scenario.permissionGroups = scenario.permissionGroups.map((group) => ({

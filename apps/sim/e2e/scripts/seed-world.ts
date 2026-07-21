@@ -176,7 +176,7 @@ async function createOrganizationsAndSubscriptions(
     const created = await arrangeSubscription({
       referenceId,
       plan: subscription.plan,
-      status: subscription.status === 'lapsed' ? 'active' : subscription.status,
+      status: initialSubscriptionStatus(world.scenario, subscription),
       seats: subscription.seats,
       memberUserIds,
       enterprise: subscription.enterprise
@@ -727,6 +727,28 @@ function resolveBillingReference(world: E2EWorld, subscription: ScenarioSubscrip
         subscription.billingReference.organizationKey,
         'subscription organization'
       ).id
+}
+
+function initialSubscriptionStatus(
+  scenario: ResolvedScenario,
+  definition: ScenarioSubscription
+): 'active' | 'past_due' | 'canceled' {
+  if (definition.status !== 'lapsed') return definition.status
+  const hasEntitledReplacement = scenario.definition.subscriptions.some(
+    (candidate) =>
+      candidate.key !== definition.key &&
+      (candidate.status === 'active' || candidate.status === 'past_due') &&
+      sameBillingReference(candidate, definition)
+  )
+  return hasEntitledReplacement ? 'canceled' : 'active'
+}
+
+function sameBillingReference(left: ScenarioSubscription, right: ScenarioSubscription): boolean {
+  const identity = (subscription: ScenarioSubscription): string =>
+    subscription.billingReference.kind === 'user'
+      ? `user/${subscription.billingReference.userKey}`
+      : `organization/${subscription.billingReference.organizationKey}`
+  return identity(left) === identity(right)
 }
 
 function expectedUsageLimit(scenario: ResolvedScenario, userKey: string): string | null {
