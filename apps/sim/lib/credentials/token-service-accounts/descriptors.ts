@@ -369,8 +369,6 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/managed-agent',
-    helpText:
-      'Use an Anthropic workspace API key with Managed Agents access. The key is scoped to one Anthropic workspace — its agents, environments, vaults, and memory stores.',
   },
 }
 
