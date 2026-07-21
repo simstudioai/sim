@@ -1,8 +1,35 @@
 /**
  * @vitest-environment node
  */
+import Module from 'node:module'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerEmitFunctions, useOperationQueueStore } from '@/stores/operation-queue/store'
+
+function addWorkflowOperation(id: string) {
+  useOperationQueueStore.getState().addToQueue({
+    id,
+    workflowId: 'workflow-a',
+    userId: 'user-1',
+    operation: {
+      operation: 'replace-state',
+      target: 'workflow',
+      payload: { state: { operationId: id } },
+    },
+  })
+}
+
+function addBlockOperation(id: string, blockId: string) {
+  useOperationQueueStore.getState().addToQueue({
+    id,
+    workflowId: 'workflow-a',
+    userId: 'user-1',
+    operation: {
+      operation: 'block-update',
+      target: 'block',
+      payload: { id: blockId },
+    },
+  })
+}
 
 describe('operation queue room gating', () => {
   beforeEach(() => {
@@ -10,7 +37,7 @@ describe('operation queue room gating', () => {
     useOperationQueueStore.setState({
       operations: [],
       workflowOperationVersions: {},
-      isProcessing: false,
+      processingOperationId: null,
       hasOperationError: false,
     })
     registerEmitFunctions(vi.fn(), vi.fn(), vi.fn(), null)
@@ -20,7 +47,7 @@ describe('operation queue room gating', () => {
     useOperationQueueStore.setState({
       operations: [],
       workflowOperationVersions: {},
-      isProcessing: false,
+      processingOperationId: null,
       hasOperationError: false,
     })
     registerEmitFunctions(vi.fn(), vi.fn(), vi.fn(), null)
@@ -92,7 +119,7 @@ describe('operation queue room gating', () => {
     expect(skippingEmit).toHaveBeenCalledTimes(1)
 
     const state = useOperationQueueStore.getState()
-    expect(state.isProcessing).toBe(false)
+    expect(state.processingOperationId).toBeNull()
     expect(state.hasOperationError).toBe(false)
     expect(state.operations).toEqual([
       expect.objectContaining({ id: 'op-1', status: 'pending', retryCount: 0 }),
@@ -133,63 +160,250 @@ describe('operation queue room gating', () => {
     useOperationQueueStore.getState().confirmOperation('op-1')
   })
 
-  it('triggers offline mode for a non-retryable failure and recovers via clearError', () => {
-    registerEmitFunctions(
-      vi.fn(() => true),
-      vi.fn(),
-      vi.fn(),
-      'workflow-a'
-    )
+  it('advances exactly once after a successful acknowledgement', () => {
+    const workflowEmit = vi.fn(() => true)
+    registerEmitFunctions(workflowEmit, vi.fn(), vi.fn(), 'workflow-a')
 
-    useOperationQueueStore.getState().addToQueue({
-      id: 'op-1',
-      workflowId: 'workflow-a',
-      userId: 'user-1',
-      operation: {
-        operation: 'replace-state',
-        target: 'workflow',
-        payload: { state: {} },
-      },
+    addWorkflowOperation('op-1')
+    addWorkflowOperation('op-2')
+
+    expect(workflowEmit).toHaveBeenCalledTimes(1)
+    expect(useOperationQueueStore.getState().processingOperationId).toBe('op-1')
+
+    useOperationQueueStore.getState().confirmOperation('op-1')
+
+    expect(workflowEmit).toHaveBeenCalledTimes(2)
+    expect(useOperationQueueStore.getState().processingOperationId).toBe('op-2')
+
+    useOperationQueueStore.getState().confirmOperation('op-2')
+
+    expect(workflowEmit).toHaveBeenCalledTimes(2)
+    expect(useOperationQueueStore.getState().processingOperationId).toBeNull()
+    expect(useOperationQueueStore.getState().operations).toEqual([])
+  })
+
+  it('advances when an acknowledgement arrives during retry backoff', async () => {
+    vi.useFakeTimers()
+    try {
+      const workflowEmit = vi.fn(() => true)
+      registerEmitFunctions(workflowEmit, vi.fn(), vi.fn(), 'workflow-a')
+
+      addWorkflowOperation('op-1')
+      addWorkflowOperation('op-2')
+
+      useOperationQueueStore.getState().failOperation('op-1', true)
+
+      expect(workflowEmit).toHaveBeenCalledTimes(1)
+      expect(useOperationQueueStore.getState().processingOperationId).toBeNull()
+      expect(useOperationQueueStore.getState().operations).toEqual([
+        expect.objectContaining({ id: 'op-1', status: 'pending', retryCount: 1 }),
+        expect.objectContaining({ id: 'op-2', status: 'pending', retryCount: 0 }),
+      ])
+
+      useOperationQueueStore.getState().confirmOperation('op-1')
+
+      expect(workflowEmit).toHaveBeenCalledTimes(2)
+      expect(useOperationQueueStore.getState().processingOperationId).toBe('op-2')
+      expect(useOperationQueueStore.getState().operations).toEqual([
+        expect.objectContaining({ id: 'op-2', status: 'processing' }),
+      ])
+
+      await vi.advanceTimersByTimeAsync(2000)
+
+      expect(workflowEmit).toHaveBeenCalledTimes(2)
+      expect(useOperationQueueStore.getState().processingOperationId).toBe('op-2')
+      useOperationQueueStore.getState().confirmOperation('op-2')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not release the active operation for an unknown acknowledgement', () => {
+    const workflowEmit = vi.fn(() => true)
+    registerEmitFunctions(workflowEmit, vi.fn(), vi.fn(), 'workflow-a')
+
+    addWorkflowOperation('op-1')
+    addWorkflowOperation('op-2')
+
+    useOperationQueueStore.getState().confirmOperation('unknown-operation')
+
+    expect(workflowEmit).toHaveBeenCalledTimes(1)
+    expect(useOperationQueueStore.getState().processingOperationId).toBe('op-1')
+    expect(useOperationQueueStore.getState().operations.map((operation) => operation.id)).toEqual([
+      'op-1',
+      'op-2',
+    ])
+
+    useOperationQueueStore.getState().confirmOperation('op-1')
+    useOperationQueueStore.getState().confirmOperation('op-2')
+  })
+
+  it('does not release the active operation for a stale acknowledgement', () => {
+    const workflowEmit = vi.fn(() => true)
+    registerEmitFunctions(workflowEmit, vi.fn(), vi.fn(), 'workflow-a')
+
+    addWorkflowOperation('op-1')
+    addWorkflowOperation('op-2')
+    addWorkflowOperation('op-3')
+
+    useOperationQueueStore.getState().confirmOperation('op-2')
+
+    expect(workflowEmit).toHaveBeenCalledTimes(1)
+    expect(useOperationQueueStore.getState().processingOperationId).toBe('op-1')
+    expect(useOperationQueueStore.getState().operations.map((operation) => operation.id)).toEqual([
+      'op-1',
+      'op-3',
+    ])
+
+    useOperationQueueStore.getState().confirmOperation('op-1')
+
+    expect(workflowEmit).toHaveBeenCalledTimes(2)
+    expect(useOperationQueueStore.getState().processingOperationId).toBe('op-3')
+    useOperationQueueStore.getState().confirmOperation('op-3')
+  })
+
+  it('ignores a stale failure for a pending operation', () => {
+    const workflowEmit = vi.fn(() => true)
+    registerEmitFunctions(workflowEmit, vi.fn(), vi.fn(), 'workflow-a')
+
+    addWorkflowOperation('op-1')
+    addWorkflowOperation('op-2')
+
+    useOperationQueueStore.getState().failOperation('op-2')
+
+    expect(workflowEmit).toHaveBeenCalledTimes(1)
+    expect(useOperationQueueStore.getState().processingOperationId).toBe('op-1')
+    expect(useOperationQueueStore.getState().operations).toEqual([
+      expect.objectContaining({ id: 'op-1', status: 'processing', retryCount: 0 }),
+      expect.objectContaining({ id: 'op-2', status: 'pending', retryCount: 0 }),
+    ])
+
+    useOperationQueueStore.getState().confirmOperation('op-1')
+    useOperationQueueStore.getState().confirmOperation('op-2')
+  })
+
+  it('does not advance when cancelling an unrelated pending operation', () => {
+    const workflowEmit = vi.fn(() => true)
+    registerEmitFunctions(workflowEmit, vi.fn(), vi.fn(), 'workflow-a')
+
+    addWorkflowOperation('op-1')
+    addBlockOperation('op-2', 'block-2')
+    addWorkflowOperation('op-3')
+
+    useOperationQueueStore.getState().cancelOperationsForBlock('block-2')
+
+    expect(workflowEmit).toHaveBeenCalledTimes(1)
+    expect(useOperationQueueStore.getState().processingOperationId).toBe('op-1')
+    expect(useOperationQueueStore.getState().operations.map((operation) => operation.id)).toEqual([
+      'op-1',
+      'op-3',
+    ])
+
+    useOperationQueueStore.getState().confirmOperation('op-1')
+
+    expect(workflowEmit).toHaveBeenCalledTimes(2)
+    expect(useOperationQueueStore.getState().processingOperationId).toBe('op-3')
+    useOperationQueueStore.getState().confirmOperation('op-3')
+  })
+
+  it('releases ownership and advances once when cancelling the active operation', () => {
+    const workflowEmit = vi.fn(() => true)
+    registerEmitFunctions(workflowEmit, vi.fn(), vi.fn(), 'workflow-a')
+
+    addBlockOperation('op-1', 'block-1')
+    addWorkflowOperation('op-2')
+
+    useOperationQueueStore.getState().cancelOperationsForBlock('block-1')
+
+    expect(workflowEmit).toHaveBeenCalledTimes(2)
+    expect(useOperationQueueStore.getState().processingOperationId).toBe('op-2')
+    expect(useOperationQueueStore.getState().operations).toEqual([
+      expect.objectContaining({ id: 'op-2', status: 'processing' }),
+    ])
+
+    useOperationQueueStore.getState().confirmOperation('op-2')
+    expect(workflowEmit).toHaveBeenCalledTimes(2)
+    expect(useOperationQueueStore.getState().processingOperationId).toBeNull()
+  })
+
+  it('drops a failed operation with a missing target and advances once', () => {
+    const originalRequire = Module.prototype.require
+    const requireSpy = vi.spyOn(Module.prototype, 'require').mockImplementation(function (
+      moduleId: string
+    ) {
+      if (moduleId === '@/stores/workflows/workflow/store') {
+        return { useWorkflowStore: { getState: () => ({ blocks: {} }) } }
+      }
+      return originalRequire.call(this, moduleId)
     })
+
+    try {
+      const workflowEmit = vi.fn(() => true)
+      registerEmitFunctions(workflowEmit, vi.fn(), vi.fn(), 'workflow-a')
+
+      addBlockOperation('op-1', 'missing-block')
+      addWorkflowOperation('op-2')
+
+      useOperationQueueStore.getState().failOperation('op-1', false)
+
+      expect(workflowEmit).toHaveBeenCalledTimes(2)
+      expect(useOperationQueueStore.getState().hasOperationError).toBe(false)
+      expect(useOperationQueueStore.getState().processingOperationId).toBe('op-2')
+      expect(useOperationQueueStore.getState().operations).toEqual([
+        expect.objectContaining({ id: 'op-2', status: 'processing' }),
+      ])
+
+      useOperationQueueStore.getState().confirmOperation('op-2')
+    } finally {
+      requireSpy.mockRestore()
+    }
+  })
+
+  it('triggers offline mode for a non-retryable failure and recovers via clearError', () => {
+    const workflowEmit = vi.fn(() => true)
+    registerEmitFunctions(workflowEmit, vi.fn(), vi.fn(), 'workflow-a')
+
+    addWorkflowOperation('op-1')
+    addWorkflowOperation('op-2')
 
     useOperationQueueStore.getState().failOperation('op-1', false)
 
+    expect(workflowEmit).toHaveBeenCalledTimes(1)
     expect(useOperationQueueStore.getState().hasOperationError).toBe(true)
     expect(useOperationQueueStore.getState().operations).toEqual([])
+    expect(useOperationQueueStore.getState().processingOperationId).toBeNull()
 
     useOperationQueueStore.getState().clearError()
 
     expect(useOperationQueueStore.getState().hasOperationError).toBe(false)
   })
 
-  it('triggers offline mode once retries exhaust for retryable failures', () => {
-    registerEmitFunctions(
-      vi.fn(() => true),
-      vi.fn(),
-      vi.fn(),
-      'workflow-a'
-    )
+  it('retries only after ownership is reacquired and enters offline mode after max retries', async () => {
+    vi.useFakeTimers()
+    try {
+      const workflowEmit = vi.fn(() => true)
+      registerEmitFunctions(workflowEmit, vi.fn(), vi.fn(), 'workflow-a')
+      addWorkflowOperation('op-1')
 
-    useOperationQueueStore.getState().addToQueue({
-      id: 'op-1',
-      workflowId: 'workflow-a',
-      userId: 'user-1',
-      operation: {
-        operation: 'replace-state',
-        target: 'workflow',
-        payload: { state: {} },
-      },
-    })
+      for (const delay of [2000, 4000, 8000]) {
+        useOperationQueueStore.getState().failOperation('op-1', true)
 
-    useOperationQueueStore.getState().failOperation('op-1', true)
-    useOperationQueueStore.getState().failOperation('op-1', true)
-    useOperationQueueStore.getState().failOperation('op-1', true)
-    expect(useOperationQueueStore.getState().hasOperationError).toBe(false)
+        expect(useOperationQueueStore.getState().processingOperationId).toBeNull()
+        expect(useOperationQueueStore.getState().hasOperationError).toBe(false)
 
-    useOperationQueueStore.getState().failOperation('op-1', true)
+        await vi.advanceTimersByTimeAsync(delay)
+        expect(useOperationQueueStore.getState().processingOperationId).toBe('op-1')
+      }
 
-    expect(useOperationQueueStore.getState().hasOperationError).toBe(true)
-    expect(useOperationQueueStore.getState().operations).toEqual([])
+      useOperationQueueStore.getState().failOperation('op-1', true)
+
+      expect(workflowEmit).toHaveBeenCalledTimes(4)
+      expect(useOperationQueueStore.getState().hasOperationError).toBe(true)
+      expect(useOperationQueueStore.getState().operations).toEqual([])
+      expect(useOperationQueueStore.getState().processingOperationId).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reports pending operations per workflow', () => {

@@ -68,6 +68,25 @@ export function registerEmitFunctions(
 
 let currentRegisteredWorkflowId: string | null = null
 
+function releaseQueueOwnership(operationId: string): boolean {
+  const state = useOperationQueueStore.getState()
+  if (state.processingOperationId !== operationId) {
+    return false
+  }
+
+  useOperationQueueStore.setState({ processingOperationId: null })
+  return true
+}
+
+function advanceQueueAfterRelease(operationId: string): boolean {
+  if (!releaseQueueOwnership(operationId)) {
+    return false
+  }
+
+  useOperationQueueStore.getState().processNextOperation()
+  return true
+}
+
 /** Targets whose payload id refers to a canvas block (subflow ids are loop/parallel blocks). */
 const BLOCK_SCOPED_TARGETS = ['block', 'subblock', 'subflow']
 
@@ -107,18 +126,17 @@ function dropOperationForMissingTarget(operation: QueuedOperation): boolean {
       targetId,
     }
   )
-  useOperationQueueStore.setState((s) => ({
-    operations: s.operations.filter((op) => op.id !== operation.id),
-    isProcessing: false,
+  useOperationQueueStore.setState((state) => ({
+    operations: state.operations.filter((op) => op.id !== operation.id),
   }))
-  useOperationQueueStore.getState().processNextOperation()
+  advanceQueueAfterRelease(operation.id)
   return true
 }
 
 export const useOperationQueueStore = create<OperationQueueState>((set, get) => ({
   operations: [],
   workflowOperationVersions: {},
-  isProcessing: false,
+  processingOperationId: null,
   hasOperationError: false,
 
   addToQueue: (operation) => {
@@ -222,6 +240,11 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
   confirmOperation: (operationId) => {
     const state = get()
     const operation = state.operations.find((op) => op.id === operationId)
+    if (!operation) {
+      logger.debug('Ignoring confirmation for operation not in queue', { operationId })
+      return
+    }
+
     const newOperations = state.operations.filter((op) => op.id !== operationId)
 
     const retryTimeout = retryTimeouts.get(operationId)
@@ -241,9 +264,12 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       remainingOps: newOperations.length,
     })
 
-    set({ operations: newOperations, isProcessing: false })
-
-    get().processNextOperation()
+    set({ operations: newOperations })
+    if (state.processingOperationId === null) {
+      get().processNextOperation()
+      return
+    }
+    advanceQueueAfterRelease(operationId)
   },
 
   failOperation: (operationId: string, retryable = true) => {
@@ -251,6 +277,14 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     const operation = state.operations.find((op) => op.id === operationId)
     if (!operation) {
       logger.warn('Attempted to fail operation that does not exist in queue', { operationId })
+      return
+    }
+
+    if (state.processingOperationId !== operationId) {
+      logger.debug('Ignoring failure for operation that does not own the queue', {
+        operationId,
+        processingOperationId: state.processingOperationId,
+      })
       return
     }
 
@@ -308,8 +342,8 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
             ? { ...op, retryCount: newRetryCount, status: 'pending' as const }
             : op
         ),
-        isProcessing: false,
       }))
+      releaseQueueOwnership(operationId)
 
       const timeout = setTimeout(() => {
         retryTimeouts.delete(operationId)
@@ -349,7 +383,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
   processNextOperation: () => {
     const state = get()
 
-    if (state.isProcessing) {
+    if (state.processingOperationId) {
       return
     }
 
@@ -368,7 +402,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       operations: state.operations.map((op) =>
         op.id === nextOperation.id ? { ...op, status: 'processing' as const } : op
       ),
-      isProcessing: true,
+      processingOperationId: nextOperation.id,
     }))
 
     logger.debug('Processing operation sequentially', {
@@ -421,8 +455,8 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
         operations: state.operations.map((o) =>
           o.id === nextOperation.id ? { ...o, status: 'pending' as const } : o
         ),
-        isProcessing: false,
       }))
+      releaseQueueOwnership(nextOperation.id)
       return
     }
 
@@ -545,17 +579,20 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       return true
     })
 
-    set({
-      operations: newOperations,
-      isProcessing: false,
-    })
+    set({ operations: newOperations })
 
     logger.debug('Cancelled operations for block', {
       blockId,
       cancelledOperations: operationsToCancel.length,
     })
 
-    get().processNextOperation()
+    const processingOperationId = state.processingOperationId
+    if (
+      processingOperationId &&
+      operationsToCancel.some((operation) => operation.id === processingOperationId)
+    ) {
+      advanceQueueAfterRelease(processingOperationId)
+    }
   },
 
   cancelOperationsForVariable: (variableId: string) => {
@@ -592,17 +629,20 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
         )
     )
 
-    set({
-      operations: newOperations,
-      isProcessing: false,
-    })
+    set({ operations: newOperations })
 
     logger.debug('Cancelled operations for variable', {
       variableId,
       cancelledOperations: operationsToCancel.length,
     })
 
-    get().processNextOperation()
+    const processingOperationId = state.processingOperationId
+    if (
+      processingOperationId &&
+      operationsToCancel.some((operation) => operation.id === processingOperationId)
+    ) {
+      advanceQueueAfterRelease(processingOperationId)
+    }
   },
 
   cancelOperationsForWorkflow: (workflowId: string) => {
@@ -621,10 +661,15 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
         operationTimeouts.delete(opId)
       }
     })
-    set((s) => ({
-      operations: s.operations.filter((op) => op.workflowId !== workflowId),
-      isProcessing: false,
+    const processingOperation = state.processingOperationId
+      ? state.operations.find((operation) => operation.id === state.processingOperationId)
+      : undefined
+    set((currentState) => ({
+      operations: currentState.operations.filter((op) => op.workflowId !== workflowId),
     }))
+    if (processingOperation?.workflowId === workflowId) {
+      advanceQueueAfterRelease(processingOperation.id)
+    }
   },
 
   triggerOfflineMode: () => {
@@ -637,7 +682,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
     set({
       operations: [],
-      isProcessing: false,
+      processingOperationId: null,
       hasOperationError: true,
     })
   },
@@ -662,7 +707,7 @@ export function useOperationQueue() {
       return useOperationQueueStore.getState().operations
     },
     get isProcessing() {
-      return useOperationQueueStore.getState().isProcessing
+      return Boolean(useOperationQueueStore.getState().processingOperationId)
     },
     hasOperationError,
     addToQueue: actions.addToQueue,
