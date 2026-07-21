@@ -42,7 +42,7 @@ class OauthCallbackStepTimeout extends Error {
 async function timedStep<T>(step: string, ms: number, fn: () => Promise<T>): Promise<T> {
   const start = Date.now()
   logger.info(`OAuth callback step start: ${step}`)
-  const work = fn()
+  const work = Promise.resolve(fn())
   work.catch(() => {})
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
