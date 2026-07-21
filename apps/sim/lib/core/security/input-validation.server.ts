@@ -506,12 +506,14 @@ export async function followRedirectsGuarded(
     const status = response.status
     const location = response.headers.get('location')
     if (![301, 302, 303, 307, 308].includes(status) || !location) return response
+    // Cancel the redirect body up front so the throw paths below (hop cap, blocked
+    // target) can't leave a socket checked out on the long-lived Agent.
+    await response.body?.cancel().catch(() => {})
     if (hop >= MAX_GUARDED_REDIRECTS) {
       throw new Error(`Blocked by SSRF policy: more than ${MAX_GUARDED_REDIRECTS} redirects`)
     }
     const nextUrl = new URL(location, currentUrl)
     assertGuardedRedirectTarget(nextUrl)
-    await response.body?.cancel().catch(() => {})
     // Per the fetch spec: 303 (and 301/302 on POST) switch to a bodyless GET, dropping
     // the entity headers that described the removed body (a retained Content-Length /
     // Content-Type on a bodyless GET is malformed and undici rejects it).
@@ -524,6 +526,7 @@ export async function followRedirectsGuarded(
         sanitized.delete('content-type')
         sanitized.delete('content-encoding')
         sanitized.delete('transfer-encoding')
+        // double-cast-allowed: Headers is a valid undici HeadersInit at runtime but the DOM/undici types differ
         headers = sanitized as unknown as UndiciRequestInit['headers']
       }
     }
