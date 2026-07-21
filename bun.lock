@@ -543,6 +543,7 @@
         "@sim/tsconfig": "workspace:*",
         "@types/node": "24.2.1",
         "typescript": "^7.0.2",
+        "vitest": "^4.1.0",
       },
     },
     "packages/workflow-renderer": {
