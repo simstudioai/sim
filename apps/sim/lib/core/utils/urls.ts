@@ -1,3 +1,4 @@
+import { isLoopbackHostname } from '@sim/security/hostnames'
 import { env, getEnv } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/env-flags'
 
@@ -103,17 +104,6 @@ export function getEmailDomain(): string {
 
 const DEFAULT_SOCKET_URL = 'http://localhost:3002'
 const DEFAULT_OLLAMA_URL = 'http://localhost:11434'
-export const LOCALHOST_HOSTNAMES: ReadonlySet<string> = new Set([
-  'localhost',
-  '127.0.0.1',
-  '[::1]',
-  '::1',
-])
-
-export function isLoopbackHostname(hostname: string): boolean {
-  return LOCALHOST_HOSTNAMES.has(hostname)
-}
-
 /**
  * Parses a comma-separated list of origins (e.g. from a `TRUSTED_ORIGINS` env
  * var) into a deduped array of normalized origins. Invalid entries are dropped.
@@ -152,7 +142,7 @@ export function parseOriginList(
 export function isLocalhostUrl(url: string): boolean {
   try {
     const { hostname } = new URL(url)
-    return LOCALHOST_HOSTNAMES.has(hostname)
+    return isLoopbackHostname(hostname)
   } catch {
     return false
   }
@@ -208,7 +198,7 @@ export function getSocketUrl(): string {
   if (explicit) return explicit
 
   const browserOrigin = getBrowserOrigin()
-  if (browserOrigin && !LOCALHOST_HOSTNAMES.has(new URL(browserOrigin).hostname)) {
+  if (browserOrigin && !isLoopbackHostname(new URL(browserOrigin).hostname)) {
     return browserOrigin
   }
 
