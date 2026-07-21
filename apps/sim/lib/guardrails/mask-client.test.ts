@@ -109,6 +109,16 @@ describe('maskPIIBatchViaHttp', () => {
     expect(mockToken).toHaveBeenCalledTimes(2)
   })
 
+  it('does not retry a null 200 body (deterministic, not a transient TypeError)', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })
+    )
+
+    await expect(maskPIIBatchViaHttp(['a'], [])).rejects.toThrow(/unexpected result/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(mockSleep).not.toHaveBeenCalled()
+  })
+
   it('does not retry a shape mismatch (deterministic server bug)', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ nope: true }), {

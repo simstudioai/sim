@@ -166,8 +166,8 @@ async function postChunkOnce(
     )
   }
 
-  const data = (await response.json()) as GuardrailsMaskBatchResult
-  if (!Array.isArray(data.masked)) {
+  const data = (await response.json()) as GuardrailsMaskBatchResult | null
+  if (!data || !Array.isArray(data.masked)) {
     throw new Error('PII mask-batch returned an unexpected result')
   }
   return data.masked

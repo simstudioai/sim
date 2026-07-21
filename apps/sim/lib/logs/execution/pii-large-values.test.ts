@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockMaterializeRef, mockStoreLargeValue, mockCompact, mockMaskBatch } = vi.hoisted(() => ({
@@ -244,7 +245,7 @@ describe('redactLargeValueRefs', () => {
       if (ref.size > 16 * 1024 * 1024) {
         inFlight++
         maxInFlight = Math.max(maxInFlight, inFlight)
-        await new Promise((resolve) => setTimeout(resolve, 1))
+        await sleep(1)
         inFlight--
       }
       return chunkData.get(ref.id)
