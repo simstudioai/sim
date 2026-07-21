@@ -60,6 +60,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest) => {
       .values({
         id: generateShortId(),
         userId,
+        ...defaultUserSettings,
         ...validatedData,
         updatedAt: new Date(),
       })

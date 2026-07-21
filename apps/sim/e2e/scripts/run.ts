@@ -41,14 +41,11 @@ import {
   assertPortAvailable,
   getActiveManagedProcessGroupIds,
   type ManagedProcess,
+  setManagedProcessGroupObserver,
   stopAllManagedProcesses,
 } from '../support/process'
 import { acquireE2eRunLock } from '../support/run-lock'
-import {
-  createE2eRuntimeSecrets,
-  FOUNDATION_TEST_PASSWORD,
-  runtimeSecretValues,
-} from '../support/runtime-secrets'
+import { createE2eRuntimeSecrets, runtimeSecretValues } from '../support/runtime-secrets'
 import {
   buildApp,
   capturePersonaAuthStates,
@@ -102,6 +99,7 @@ async function main(): Promise<void> {
   const adminDatabaseUrl = process.env.E2E_PG_ADMIN_URL ?? DEFAULT_ADMIN_DATABASE_URL
   const runtimeSecrets = createE2eRuntimeSecrets()
   const runLock = acquireE2eRunLock()
+  setManagedProcessGroupObserver((processGroupIds) => runLock.setProcessGroupIds(processGroupIds))
 
   let runDatabase: RunDatabase | null = null
   let databaseCreationComplete = false
@@ -109,10 +107,7 @@ async function main(): Promise<void> {
   let realtime: ManagedProcess | null = null
   let app: ManagedProcess | null = null
   let cleanupPromise: Promise<void> | null = null
-  let leakCanarySecrets: string[] = [
-    FOUNDATION_TEST_PASSWORD,
-    ...runtimeSecretValues(runtimeSecrets),
-  ]
+  let leakCanarySecrets: string[] = runtimeSecretValues(runtimeSecrets)
   let canaryCoverageComplete = true
   let diagnosticsRetained = true
   let failed = false
@@ -167,7 +162,7 @@ async function main(): Promise<void> {
     return cleanupPromise
   }
 
-  const handleSignal = (signal: NodeJS.Signals): void => {
+  const handleSignal = async (signal: NodeJS.Signals): Promise<void> => {
     failed = true
     const exitCode = signal === 'SIGINT' ? 130 : 143
     process.exitCode = exitCode
@@ -183,45 +178,60 @@ async function main(): Promise<void> {
     let lockTransferred = false
     if (runDatabase) {
       const cleanupLogFd = openSync(path.join(logsDirectory, 'signal-cleanup.log'), 'a')
-      const cleanupProcess = spawn(
-        bunExecutable,
-        ['--no-env-file', path.join(SIM_APP_DIR, 'e2e/scripts/signal-cleanup.ts')],
-        {
-          cwd: SIM_APP_DIR,
-          detached: true,
-          env: {
-            NODE_ENV: 'test',
-            PATH: process.env.PATH ?? '',
-            HOME: setupHomeDirectory,
-            E2E_PG_ADMIN_URL: adminDatabaseUrl,
-            E2E_DATABASE_NAME: runDatabase.name,
-            E2E_DATABASE_CREATION_COMPLETE: String(databaseCreationComplete),
-            E2E_CLEANUP_PROCESS_GROUPS: getActiveManagedProcessGroupIds().join(','),
-            E2E_CLEANUP_DIRECTORIES: JSON.stringify([
-              storageStateDirectory,
-              privateDirectory,
-              homesDirectory,
-            ]),
-            E2E_RUN_LOCK_PATH: runLock.path,
-            E2E_RUN_LOCK_TOKEN: runLock.token,
-          },
-          stdio: ['ignore', cleanupLogFd, cleanupLogFd],
+      try {
+        const cleanupProcess = spawn(
+          bunExecutable,
+          ['--no-env-file', path.join(SIM_APP_DIR, 'e2e/scripts/signal-cleanup.ts')],
+          {
+            cwd: SIM_APP_DIR,
+            detached: true,
+            env: {
+              NODE_ENV: 'test',
+              PATH: process.env.PATH ?? '',
+              HOME: setupHomeDirectory,
+              E2E_PG_ADMIN_URL: adminDatabaseUrl,
+              E2E_DATABASE_NAME: runDatabase.name,
+              E2E_DATABASE_CREATION_COMPLETE: String(databaseCreationComplete),
+              E2E_CLEANUP_PROCESS_GROUPS: getActiveManagedProcessGroupIds().join(','),
+              E2E_CLEANUP_DIRECTORIES: JSON.stringify([
+                storageStateDirectory,
+                privateDirectory,
+                homesDirectory,
+              ]),
+              E2E_RUN_LOCK_PATH: runLock.path,
+              E2E_RUN_LOCK_TOKEN: runLock.token,
+            },
+            stdio: ['ignore', cleanupLogFd, cleanupLogFd],
+          }
+        )
+        await new Promise<void>((resolve, reject) => {
+          cleanupProcess.once('spawn', resolve)
+          cleanupProcess.once('error', reject)
+        })
+        if (!cleanupProcess.pid) {
+          throw new Error('Detached E2E cleanup supervisor started without a process ID')
         }
-      )
-      if (cleanupProcess.pid) {
         runLock.transfer(cleanupProcess.pid)
         lockTransferred = true
+        cleanupProcess.unref()
+        console.error(`Detached E2E cleanup supervisor started as PID ${cleanupProcess.pid}`)
+      } catch (error) {
+        console.error(error)
+      } finally {
+        closeSync(cleanupLogFd)
       }
-      cleanupProcess.unref()
-      closeSync(cleanupLogFd)
-      console.error(`Detached E2E cleanup supervisor started as PID ${cleanupProcess.pid}`)
     }
-    if (!lockTransferred) runLock.release()
+    if (!lockTransferred) {
+      if (runDatabase) runLock.retain('signal cleanup supervisor failed to start')
+      else runLock.release()
+    }
     process.exit(exitCode)
   }
   // `once` is intentional: a second signal uses the OS default force termination.
-  process.once('SIGINT', handleSignal)
-  process.once('SIGTERM', handleSignal)
+  const handleSigint = (): void => void handleSignal('SIGINT')
+  const handleSigterm = (): void => void handleSignal('SIGTERM')
+  process.once('SIGINT', handleSigint)
+  process.once('SIGTERM', handleSigterm)
 
   try {
     const hostAddresses = await assertE2eHostResolvesToLoopback()
@@ -383,6 +393,11 @@ async function main(): Promise<void> {
           roots: diagnosticRoots,
           excludedPaths: [privateDirectory, storageStateDirectory],
         })
+        writeFileSync(
+          path.join(markerDirectory, 'leak-scan-complete.json'),
+          `${JSON.stringify({ runId, completedAt: new Date().toISOString() })}\n`,
+          { mode: 0o600 }
+        )
       } catch (error) {
         failed = true
         process.exitCode = 1
@@ -394,8 +409,9 @@ async function main(): Promise<void> {
       diagnosticsRetained = scrubDiagnostics(diagnosticRoots)
       if (diagnosticsRetained) cleanupSucceeded = false
     }
-    process.off('SIGINT', handleSignal)
-    process.off('SIGTERM', handleSignal)
+    process.off('SIGINT', handleSigint)
+    process.off('SIGTERM', handleSigterm)
+    setManagedProcessGroupObserver(null)
     if (cleanupSucceeded) runLock.release()
     else runLock.retain('normal cleanup failed; inspect diagnostics and clean resources manually')
     console.info(

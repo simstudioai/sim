@@ -1,4 +1,5 @@
 import { test as base } from '@playwright/test'
+import { type BrowserNetworkGuard, installBrowserNetworkGuard } from '../support/browser-network'
 import {
   type PersonaManifestEntry,
   readScenarioManifest,
@@ -23,7 +24,7 @@ export const test = base.extend<PersonaFixtures>({
     { scope: 'test' },
   ],
   contextForPersona: async ({ browser, contextOptions, personaManifest }, use) => {
-    const contexts = new Set<import('@playwright/test').BrowserContext>()
+    const contexts = new Map<import('@playwright/test').BrowserContext, BrowserNetworkGuard>()
     await use(async (personaKey) => {
       const persona = requirePersona(personaManifest, personaKey)
       const context = await browser.newContext({
@@ -34,10 +35,25 @@ export const test = base.extend<PersonaFixtures>({
           persona.storageStatePath
         ),
       })
-      contexts.add(context)
+      contexts.set(context, await installBrowserNetworkGuard(context))
       return context
     })
-    await Promise.all([...contexts].map((context) => context.close()))
+    const failures: unknown[] = []
+    for (const [context, guard] of contexts) {
+      try {
+        await context.close()
+      } catch (error) {
+        failures.push(error)
+      }
+      try {
+        guard.assertNoUnexpectedRequests()
+      } catch (error) {
+        failures.push(error)
+      }
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'Persona browser cleanup or network isolation failed')
+    }
   },
 })
 

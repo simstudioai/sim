@@ -47,6 +47,19 @@ export function verifySandboxBundleIntegrity(options?: { runningBunVersion?: str
   }
 }
 
+export function verifyGeneratedSandboxBundles(outputDirectory: string): void {
+  const integrity = readJson<SandboxBundleIntegrity>(path.join(REPO_ROOT, INTEGRITY_PATH))
+  for (const [relativePath, expectedHash] of Object.entries(integrity.outputs)) {
+    const outputPath = path.join(outputDirectory, path.basename(relativePath))
+    const actualHash = hashFile(outputPath)
+    if (actualHash !== expectedHash) {
+      throw new Error(
+        `Fresh sandbox bundle output changed for ${relativePath}; regenerate bundles and review integrity.json`
+      )
+    }
+  }
+}
+
 function verifyHashes(kind: string, expected: Record<string, string>): void {
   for (const [relativePath, expectedHash] of Object.entries(expected)) {
     const actualHash = hashFile(path.join(REPO_ROOT, relativePath))

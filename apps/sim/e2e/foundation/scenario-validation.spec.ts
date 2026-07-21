@@ -64,7 +64,10 @@ test.describe('pure scenario validation', () => {
         ({ userKey }) => userKey === 'enterprise-organization-admin'
       )
     ).toBe(false)
-    expect(workspaceExpectation(primary, 'freeOrganizationOwner').hostContext.plan).toBe('free')
+    expect(workspaceExpectation(primary, 'freeOrganizationOwner').hostContext).toMatchObject({
+      payerScope: 'user',
+      plan: 'free',
+    })
     expect(primary.subscriptionsByKey.get('lapsed-team-subscription')?.status).toBe('lapsed')
 
     const restricted = primary.personasByKey.get('permissionGroupRestricted')
@@ -211,6 +214,16 @@ test.describe('pure scenario validation', () => {
         : subscription
     )
     expectInvalid(scenario, /cannot be provisioned from a past-due subscription/)
+  })
+
+  test("requires a workspace to reference its payer's current entitled subscription", () => {
+    const scenario = validScenario()
+    const lapsed = scenario.subscriptions.find(({ key }) => key === 'lapsed-team-subscription')!
+    scenario.subscriptions = [
+      ...scenario.subscriptions,
+      { ...lapsed, key: 'replacement-team-subscription', status: 'active' },
+    ]
+    expectInvalid(scenario, /current entitled subscription "replacement-team-subscription"/)
   })
 
   test('rejects permission groups without active Enterprise organization/workspace scope', () => {

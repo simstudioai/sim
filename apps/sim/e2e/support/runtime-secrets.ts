@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto'
 
+// This fixed smoke-test input is public test data, not a secret canary. Failure traces may
+// contain it by design; generated persona credentials and runtime keys remain canaried.
 export const FOUNDATION_TEST_PASSWORD = 'E2eFoundation1!'
 
 export interface E2eRuntimeSecrets {

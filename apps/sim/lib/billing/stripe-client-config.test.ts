@@ -84,6 +84,11 @@ describe('buildStripeClientConfig', () => {
       message: 'requires a guarded sim_e2e_* database',
     },
     {
+      name: 'a remote database with an E2E-shaped name',
+      environment: { DATABASE_URL: 'postgresql://db.example.com/sim_e2e_config_test' },
+      message: 'requires a loopback Postgres database',
+    },
+    {
       name: 'an empty E2E database suffix',
       environment: { DATABASE_URL: 'postgresql://127.0.0.1/sim_e2e_' },
       message: 'requires a guarded sim_e2e_* database',

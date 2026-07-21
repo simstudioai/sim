@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
+import { detachOrganizationWorkspaces } from '@/lib/workspaces/organization-workspaces'
 
 const CREDITS_PER_DOLLAR = 200
 const FREE_USAGE_LIMIT_DOLLARS = '5'
@@ -157,6 +158,7 @@ export async function lapseOrganizationSubscription(input: {
         .where(inArray(userStats.userId, input.memberUserIds))
     }
   })
+  await detachOrganizationWorkspaces(input.organizationId)
 }
 
 function planCredits(plan: SubscriptionArrangement['plan']): number {

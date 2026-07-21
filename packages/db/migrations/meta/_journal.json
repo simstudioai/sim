@@ -1842,6 +1842,13 @@
       "when": 1784252317428,
       "tag": "0263_workflow_fork_sync_excluded",
       "breakpoints": true
+    },
+    {
+      "idx": 264,
+      "version": "7",
+      "when": 1784669806081,
+      "tag": "0264_settings_super_user_default",
+      "breakpoints": true
     }
   ]
 }

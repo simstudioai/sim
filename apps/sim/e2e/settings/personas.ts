@@ -294,15 +294,7 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
       ),
     ]),
     persona(namespace, 'freeOrganizationOwner', 'free-organization-owner', [
-      expected(
-        'lapsed-organization-workspace',
-        'admin',
-        'owner',
-        'owner',
-        'organization',
-        'free',
-        true
-      ),
+      expected('lapsed-organization-workspace', 'admin', 'owner', 'owner', 'user', 'free', true),
     ]),
     persona(
       namespace,

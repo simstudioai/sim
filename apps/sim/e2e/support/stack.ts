@@ -16,7 +16,7 @@ import {
   waitForManagedProcessReady,
 } from './process'
 import { waitForHttpReady } from './readiness'
-import { verifySandboxBundleIntegrity } from './sandbox-bundles'
+import { verifyGeneratedSandboxBundles, verifySandboxBundleIntegrity } from './sandbox-bundles'
 
 export interface StackCommandOptions {
   bunExecutable: string
@@ -66,6 +66,7 @@ export async function capturePersonaAuthStates(options: StackCommandOptions): Pr
 
 export async function buildApp(options: BuildAppOptions): Promise<void> {
   verifySandboxBundleIntegrity()
+  await verifyFreshSandboxBundleOutputs(options)
   const identity =
     options.ci || !options.reuseBuild
       ? null
@@ -109,6 +110,28 @@ export async function buildApp(options: BuildAppOptions): Promise<void> {
         ? 'CI build cache population is disabled'
         : 'local cache population requires --reuse-build',
     })
+  }
+}
+
+async function verifyFreshSandboxBundleOutputs(options: BuildAppOptions): Promise<void> {
+  const outputDirectory = path.join(options.logsDirectory, '.sandbox-bundle-check')
+  rmSync(outputDirectory, { recursive: true, force: true })
+  try {
+    await runCommand({
+      name: 'sandbox-bundle-check',
+      command: options.bunExecutable,
+      args: [
+        '--no-env-file',
+        path.join(SIM_APP_DIR, 'lib/execution/sandbox/bundles/build.ts'),
+        `--output-dir=${outputDirectory}`,
+      ],
+      cwd: SIM_APP_DIR,
+      env: options.buildEnvironment.env,
+      logsDirectory: options.logsDirectory,
+    })
+    verifyGeneratedSandboxBundles(outputDirectory)
+  } finally {
+    rmSync(outputDirectory, { recursive: true, force: true })
   }
 }
 

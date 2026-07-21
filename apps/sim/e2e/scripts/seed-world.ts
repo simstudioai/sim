@@ -8,6 +8,7 @@ import {
   subscription,
   user,
   userStats,
+  workspace,
 } from '@sim/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
@@ -528,6 +529,46 @@ async function assertTrustedWorldInvariants(world: E2EWorld): Promise<void> {
         !matchesEnterpriseMetadata(row.metadata, definition, row.referenceId)
       ) {
         throw new Error(`Persisted subscription does not match scenario: ${definition.key}`)
+      }
+      if (definition.status === 'lapsed' && definition.billingReference.kind === 'organization') {
+        const ownerUserKey = required(
+          world.scenario.organizationsByKey,
+          definition.billingReference.organizationKey,
+          'lapsed organization definition'
+        ).ownerUserKey
+        const ownerUserId = required(
+          world.records.users,
+          ownerUserKey,
+          'lapsed organization owner'
+        ).id
+        for (const workspaceDefinition of world.scenario.definition.workspaces.filter(
+          ({ subscriptionKey }) => subscriptionKey === definition.key
+        )) {
+          const workspaceId = required(
+            world.records.workspaces,
+            workspaceDefinition.key,
+            'lapsed organization workspace'
+          ).id
+          const [persistedWorkspace] = await db
+            .select({
+              organizationId: workspace.organizationId,
+              billedAccountUserId: workspace.billedAccountUserId,
+              workspaceMode: workspace.workspaceMode,
+            })
+            .from(workspace)
+            .where(eq(workspace.id, workspaceId))
+            .limit(1)
+          if (
+            !persistedWorkspace ||
+            persistedWorkspace.organizationId !== null ||
+            persistedWorkspace.billedAccountUserId !== ownerUserId ||
+            persistedWorkspace.workspaceMode !== 'grandfathered_shared'
+          ) {
+            throw new Error(
+              `Lapsed organization workspace did not enter its dormant state: ${workspaceDefinition.key}`
+            )
+          }
+        }
       }
     }
   }

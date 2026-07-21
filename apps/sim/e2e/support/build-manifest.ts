@@ -25,6 +25,13 @@ const ROOT_BUILD_FILES = new Set([
   'turbo.json',
   'tsconfig.json',
 ])
+const E2E_BUILD_HARNESS_FILES = new Set([
+  'apps/sim/e2e/support/build-manifest.ts',
+  'apps/sim/e2e/support/deployment-profile.ts',
+  'apps/sim/e2e/support/env.ts',
+  'apps/sim/e2e/support/sandbox-bundles.ts',
+  'apps/sim/e2e/support/stack.ts',
+])
 const UNHASHED_OS_ENV_KEYS = new Set([
   'PATH',
   'USER',
@@ -254,11 +261,12 @@ function listRepositoryFiles(): string[] {
   return [...new Set(result.stdout.split('\0').filter(Boolean))].sort()
 }
 
-function isNextBuildInput(relativePath: string): boolean {
+export function isNextBuildInput(relativePath: string): boolean {
   const normalized = relativePath.replaceAll(path.sep, '/')
   if (normalized.startsWith('packages/')) return true
   if (ROOT_BUILD_FILES.has(normalized)) return true
   if (!normalized.startsWith('apps/sim/')) return false
+  if (E2E_BUILD_HARNESS_FILES.has(normalized)) return true
   return !(
     normalized.startsWith('apps/sim/e2e/') ||
     normalized.startsWith('apps/sim/.next/') ||

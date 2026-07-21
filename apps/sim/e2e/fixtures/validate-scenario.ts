@@ -459,6 +459,16 @@ function validateWorkspaces(
         `workspace "${workspace.key}" references missing subscription "${workspace.subscriptionKey}"`
       )
     }
+    const entitledSubscription = definition.subscriptions.find(
+      (candidate) =>
+        (candidate.status === 'active' || candidate.status === 'past_due') &&
+        billingReferenceKey(candidate) === payerReferenceKey(workspace)
+    )
+    if (entitledSubscription && subscription?.key !== entitledSubscription.key) {
+      issues.push(
+        `workspace "${workspace.key}" must reference its payer's current entitled subscription "${entitledSubscription.key}"`
+      )
+    }
 
     if (workspace.organizationKey) {
       if (!organizationsByKey.has(workspace.organizationKey)) {
@@ -670,19 +680,28 @@ function validatePersonaWorkspaceExpectation(
       `persona "${personaKey}" owner/admin expectation for "${workspace.key}" is below admin`
     )
   }
-  const subscription = workspace.subscriptionKey
+  const declaredSubscription = workspace.subscriptionKey
     ? subscriptionsByKey.get(workspace.subscriptionKey)
     : undefined
-  const actualPlan = !subscription || subscription.status === 'lapsed' ? 'free' : subscription.plan
+  const entitledSubscription = [...subscriptionsByKey.values()].find(
+    (candidate) =>
+      (candidate.status === 'active' || candidate.status === 'past_due') &&
+      billingReferenceKey(candidate) === payerReferenceKey(workspace)
+  )
+  const actualPlan = entitledSubscription?.plan ?? 'free'
   const actualMembership = actual.isOwner
     ? 'owner'
     : actual.organizationRole
       ? 'member'
       : 'external'
+  const actualPayerScope =
+    workspace.organizationKey && declaredSubscription?.status === 'lapsed'
+      ? 'user'
+      : workspace.payer.kind
   if (
     expected.hostContext.isOwner !== actual.isOwner ||
     expected.hostContext.hostMembership !== actualMembership ||
-    expected.hostContext.payerScope !== workspace.payer.kind ||
+    expected.hostContext.payerScope !== actualPayerScope ||
     expected.hostContext.plan !== actualPlan ||
     expected.hostContext.hosted !== workspace.hosted ||
     expected.hostContext.billingEnabled !== workspace.billingEnabled
@@ -739,6 +758,12 @@ function billingReferenceKey(subscription: ScenarioSubscription): string {
   return subscription.billingReference.kind === 'user'
     ? `user/${subscription.billingReference.userKey}`
     : `organization/${subscription.billingReference.organizationKey}`
+}
+
+function payerReferenceKey(workspace: ScenarioWorkspace): string {
+  return workspace.payer.kind === 'user'
+    ? `user/${workspace.payer.userKey}`
+    : `organization/${workspace.payer.organizationKey}`
 }
 
 function sameSet(left: readonly string[], right: readonly string[]): boolean {

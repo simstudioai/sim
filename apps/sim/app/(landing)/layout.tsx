@@ -11,6 +11,7 @@ import { XPageViewTracker } from '@/app/(landing)/x-page-view-tracker'
 const HUBSPOT_SCRIPT_SRC = 'https://js-na2.hs-scripts.com/246720681.js' as const
 
 const X_PIXEL_ID = 'q5xbl' as const
+const isMarketingAnalyticsEnabled = isHosted && !process.env.E2E_PROFILE
 
 /** X (Twitter) conversion tracking base code — loads uwt.js and fires the initial PageView. */
 const X_PIXEL_BASE_CODE = `!function(e,t,n,s,u,a){e.twq||(s=e.twq=function(){s.exe?s.exe.apply(s,arguments):s.queue.push(arguments);
@@ -43,7 +44,7 @@ export default function LandingLayout({ children }: { children: ReactNode }) {
     <LandingShell>
       {children}
       {/* HubSpot + X pixel tracking — hosted only */}
-      {isHosted && (
+      {isMarketingAnalyticsEnabled && (
         <>
           <Script id='hs-script-loader' src={HUBSPOT_SCRIPT_SRC} strategy='afterInteractive' />
           <Script id='x-pixel-base' strategy='afterInteractive'>

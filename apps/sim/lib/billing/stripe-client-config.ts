@@ -28,6 +28,19 @@ function getDatabaseName(databaseUrl: string | undefined): string | null {
   }
 }
 
+function hasLoopbackDatabaseHostname(databaseUrl: string | undefined): boolean {
+  if (!databaseUrl) return false
+  try {
+    const parsed = new URL(databaseUrl)
+    return (
+      (parsed.protocol === 'postgres:' || parsed.protocol === 'postgresql:') &&
+      isLoopbackHostname(parsed.hostname)
+    )
+  } catch {
+    return false
+  }
+}
+
 function isLoopbackHostname(hostname: string): boolean {
   const normalized = hostname.toLowerCase()
   if (normalized === 'localhost') return true
@@ -102,6 +115,9 @@ export function buildStripeClientConfig(
   const databaseName = getDatabaseName(environment.DATABASE_URL)
   if (!databaseName || !E2E_DATABASE_NAME_PATTERN.test(databaseName)) {
     throw new Error('STRIPE_API_BASE_URL requires a guarded sim_e2e_* database')
+  }
+  if (!hasLoopbackDatabaseHostname(environment.DATABASE_URL)) {
+    throw new Error('STRIPE_API_BASE_URL requires a loopback Postgres database')
   }
 
   const endpoint = parseStripeApiBaseUrl(override)

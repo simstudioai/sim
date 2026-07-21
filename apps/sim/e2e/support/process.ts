@@ -29,6 +29,14 @@ interface ProcessCompletion {
 }
 
 const activeProcesses = new Set<ManagedProcess>()
+let processGroupObserver: ((processGroupIds: number[]) => void) | null = null
+
+export function setManagedProcessGroupObserver(
+  observer: ((processGroupIds: number[]) => void) | null
+): void {
+  processGroupObserver = observer
+  notifyProcessGroupObserver()
+}
 
 export function spawnManagedProcess(options: CommandOptions): ManagedProcess {
   mkdirSync(options.logsDirectory, { recursive: true })
@@ -55,11 +63,15 @@ export function spawnManagedProcess(options: CommandOptions): ManagedProcess {
   const finalize = (result: ProcessCompletion): void => {
     if (finalized) return
     finalized = true
-    if (!child.pid || !isProcessGroupAlive(child.pid)) activeProcesses.delete(managed)
+    if (!child.pid || !isProcessGroupAlive(child.pid)) {
+      activeProcesses.delete(managed)
+      notifyProcessGroupObserver()
+    }
     closeSync(logFd)
     resolveCompletion(result)
   }
   activeProcesses.add(managed)
+  notifyProcessGroupObserver()
   child.once('error', (error) => finalize({ code: null, signal: null, error }))
   child.once('exit', (code, signal) => finalize({ code, signal }))
   return managed
@@ -99,6 +111,10 @@ export async function stopAllManagedProcesses(): Promise<void> {
 
 export function getActiveManagedProcessGroupIds(): number[] {
   return [...new Set([...activeProcesses].flatMap(({ child }) => (child.pid ? [child.pid] : [])))]
+}
+
+function notifyProcessGroupObserver(): void {
+  processGroupObserver?.(getActiveManagedProcessGroupIds())
 }
 
 export async function waitForManagedProcessReady(
@@ -148,10 +164,12 @@ async function stopProcess(managed: ManagedProcess): Promise<void> {
   if (!child.pid) {
     await managed.completion
     activeProcesses.delete(managed)
+    notifyProcessGroupObserver()
     return
   }
   if (!isProcessGroupAlive(child.pid)) {
     activeProcesses.delete(managed)
+    notifyProcessGroupObserver()
     return
   }
   const processIds = [child.pid]
@@ -159,6 +177,7 @@ async function stopProcess(managed: ManagedProcess): Promise<void> {
 
   if (await waitForProcessGroupExit(child.pid, 5_000)) {
     activeProcesses.delete(managed)
+    notifyProcessGroupObserver()
     return
   }
 
@@ -167,6 +186,7 @@ async function stopProcess(managed: ManagedProcess): Promise<void> {
     throw new Error(`Managed process group ${managed.name} survived SIGKILL`)
   }
   activeProcesses.delete(managed)
+  notifyProcessGroupObserver()
 }
 
 async function waitForProcessGroupExit(groupId: number, timeoutMs: number): Promise<boolean> {
