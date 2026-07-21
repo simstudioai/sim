@@ -6,6 +6,7 @@ import { validateMcpServerSsrf } from '@/lib/mcp/domain-check'
 import { McpError } from '@/lib/mcp/types'
 
 const logger = createLogger('McpOauthFetch')
+const transportLogger = createLogger('McpTransportFetch')
 
 /** Pinned fetch for the live MCP transport, plus a handle to release its sockets. */
 export interface PinnedMcpFetch {
@@ -25,7 +26,42 @@ export interface PinnedMcpFetch {
  */
 export function createPinnedMcpFetch(resolvedIP: string): PinnedMcpFetch {
   const { fetch: pinnedFetch, dispatcher } = createPinnedFetchWithDispatcher(resolvedIP)
-  return { fetch: pinnedFetch, close: () => dispatcher.destroy() }
+  // Per-request phase logging: a stalled transport request (e.g. a first `initialize` that hangs
+  // to the client timeout) shows whether it stalls BEFORE response headers ("request" with no
+  // "response headers" = connect/request stall) or AFTER ("response headers" then the SDK's
+  // stream read stalls). Isolates the client-side first-connect stall.
+  const instrumentedFetch: typeof fetch = async (input, init) => {
+    const method = init?.method ?? (input instanceof Request ? input.method : 'GET')
+    const target =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input instanceof Request
+            ? input.url
+            : String(input)
+    const host = URL.canParse(target) ? new URL(target).host : target
+    const startedAt = Date.now()
+    transportLogger.info('MCP transport request', { host, method })
+    try {
+      const response = await pinnedFetch(input, init)
+      transportLogger.info('MCP transport response headers', {
+        host,
+        method,
+        status: response.status,
+        ttfbMs: Date.now() - startedAt,
+      })
+      return response
+    } catch (error) {
+      transportLogger.warn('MCP transport request failed', {
+        host,
+        method,
+        ms: Date.now() - startedAt,
+      })
+      throw error
+    }
+  }
+  return { fetch: instrumentedFetch, close: () => dispatcher.destroy() }
 }
 
 /**
