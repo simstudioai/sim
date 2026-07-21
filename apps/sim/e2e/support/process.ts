@@ -34,6 +34,7 @@ export function spawnManagedProcess(options: CommandOptions): ManagedProcess {
   const logFd = openSync(logPath, 'a')
   const child: ChildProcess = spawn(options.command, options.args, {
     cwd: options.cwd,
+    detached: process.platform !== 'win32',
     env: options.env as NodeJS.ProcessEnv,
     stdio: ['ignore', logFd, logFd],
   })
@@ -93,20 +94,8 @@ export async function stopAllManagedProcesses(): Promise<void> {
   await stopProcesses([...activeProcesses])
 }
 
-export function stopAllManagedProcessesSync(
-  termTimeoutMs = 5_000,
-  killTimeoutMs = 2_000
-): number[] {
-  const processIds = [
-    ...new Set([...activeProcesses].flatMap(({ child }) => (child.pid ? [child.pid] : []))),
-  ]
-  sendSignalToPids(processIds, 'SIGTERM')
-  sleepSync(termTimeoutMs)
-  let runningPids = getRunningPids(processIds)
-  sendSignalToPids(runningPids, 'SIGKILL')
-  sleepSync(killTimeoutMs)
-  runningPids = getRunningPids(processIds)
-  return runningPids
+export function getActiveManagedProcessGroupIds(): number[] {
+  return [...new Set([...activeProcesses].flatMap(({ child }) => (child.pid ? [child.pid] : [])))]
 }
 
 export async function waitForManagedProcessReady(
@@ -175,9 +164,16 @@ async function stopProcess(managed: ManagedProcess): Promise<void> {
 function sendSignalToPids(processIds: number[], signal: NodeJS.Signals): void {
   for (const processId of processIds) {
     try {
-      process.kill(processId, signal)
+      if (process.platform !== 'win32') process.kill(-processId, signal)
+      else process.kill(processId, signal)
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === 'ESRCH') continue
+      if (code === 'EPERM' && process.platform !== 'win32') {
+        process.kill(processId, signal)
+        continue
+      }
+      throw error
     }
   }
 }
@@ -212,9 +208,4 @@ function getRunningPids(processIds: number[]): number[] {
     const pid = Number(pidText)
     return Number.isInteger(pid) && !processStatus?.startsWith('Z') ? [pid] : []
   })
-}
-
-function sleepSync(milliseconds: number): void {
-  const signal = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT))
-  Atomics.wait(signal, 0, 0, milliseconds)
 }

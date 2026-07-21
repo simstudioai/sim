@@ -51,6 +51,11 @@ The runner creates a unique `sim_e2e_<runId>` database, migrates it, starts the
 Stripe fake and realtime, builds and starts Next.js, runs Playwright on Node 22,
 then stops services and drops only that guarded database.
 
+On interruption, the runner launches a detached cleanup supervisor before
+exiting. It terminates managed process groups, force-drops the guarded database,
+and removes temporary auth/cloud-config directories even if another Ctrl-C
+terminates the foreground package runner.
+
 Pass Playwright arguments after `--`:
 
 ```bash

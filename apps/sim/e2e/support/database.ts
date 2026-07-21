@@ -1,3 +1,4 @@
+import { sleep } from '@sim/utils/helpers'
 import postgres from 'postgres'
 import { isLoopbackAddress } from './hosts'
 
@@ -65,10 +66,34 @@ export async function createRunDatabase(
 export async function dropRunDatabase(adminUrl: string, databaseName: string): Promise<void> {
   assertSafeDatabaseName(databaseName)
   assertLoopbackPostgresUrl(adminUrl)
-  const sql = postgres(adminUrl, { max: 1, connect_timeout: 10 })
+  const sql = postgres(adminUrl, {
+    max: 1,
+    connect_timeout: 10,
+    onnotice: () => {},
+  })
   try {
     await sql.unsafe(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`)
   } finally {
     await sql.end()
   }
+}
+
+export async function dropRunDatabaseWithRetries(
+  adminUrl: string,
+  databaseName: string,
+  deadlineMs = 5_000,
+  intervalMs = 100
+): Promise<void> {
+  const deadline = Date.now() + deadlineMs
+  let lastError: unknown
+  do {
+    try {
+      await dropRunDatabase(adminUrl, databaseName)
+      lastError = undefined
+    } catch (error) {
+      lastError = error
+    }
+    await sleep(intervalMs)
+  } while (Date.now() < deadline)
+  if (lastError) throw lastError
 }

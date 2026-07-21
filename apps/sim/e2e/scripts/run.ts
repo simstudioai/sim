@@ -1,6 +1,14 @@
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import path from 'node:path'
 import { type StripeFakeServer, startStripeFakeServer } from '../fakes/stripe/server'
 import {
@@ -25,9 +33,9 @@ import {
 } from '../support/probes'
 import {
   assertPortAvailable,
+  getActiveManagedProcessGroupIds,
   type ManagedProcess,
   stopAllManagedProcesses,
-  stopAllManagedProcessesSync,
 } from '../support/process'
 import { buildApp, runMigrations, runPlaywright, startApp, startRealtime } from '../support/stack'
 import { parseRunOptions } from './options'
@@ -111,63 +119,38 @@ async function main(): Promise<void> {
     const exitCode = signal === 'SIGINT' ? 130 : 143
     process.exitCode = exitCode
     console.error(`Received ${signal}; cleaning up the E2E run`)
-    const signalFailures: unknown[] = []
-    if (runDatabase) {
-      console.error(`Dropping guarded E2E database ${runDatabase.name}`)
-      const cleanupResult = spawnSync(
-        bunExecutable,
-        ['--no-env-file', path.join(SIM_APP_DIR, 'e2e/scripts/cleanup-database.ts')],
-        {
-          cwd: SIM_APP_DIR,
-          encoding: 'utf8',
-          timeout: 15_000,
-          env: {
-            NODE_ENV: 'test',
-            PATH: process.env.PATH ?? '',
-            E2E_PG_ADMIN_URL: adminDatabaseUrl,
-            E2E_DATABASE_NAME: runDatabase.name,
-          },
-        }
-      )
-      if (cleanupResult.status !== 0) {
-        signalFailures.push(
-          cleanupResult.error ??
-            new Error(cleanupResult.stderr || cleanupResult.stdout || 'Database cleanup failed')
-        )
-      } else {
-        runDatabase = null
-        console.error('Guarded E2E database cleanup complete')
-      }
-    }
-    try {
-      const survivingPids = stopAllManagedProcessesSync(500, 250)
-      if (survivingPids.length > 0) {
-        signalFailures.push(
-          new Error(`E2E child processes survived SIGKILL: ${survivingPids.join(', ')}`)
-        )
-      }
-      console.error('E2E child process cleanup complete')
-    } catch (error) {
-      signalFailures.push(error)
-    }
     if (stripeFake) {
       try {
         writeFileSync(
           path.join(logsDirectory, 'stripe-requests.json'),
           JSON.stringify(stripeFake.requestLog, null, 2)
         )
-      } catch (error) {
-        signalFailures.push(error)
-      }
+      } catch {}
     }
-    for (const sensitiveDirectory of [storageStateDirectory, homeDirectory]) {
-      try {
-        rmSync(sensitiveDirectory, { recursive: true, force: true })
-      } catch (error) {
-        signalFailures.push(error)
-      }
+    if (runDatabase) {
+      const cleanupLogFd = openSync(path.join(logsDirectory, 'signal-cleanup.log'), 'a')
+      const cleanupProcess = spawn(
+        bunExecutable,
+        ['--no-env-file', path.join(SIM_APP_DIR, 'e2e/scripts/signal-cleanup.ts')],
+        {
+          cwd: SIM_APP_DIR,
+          detached: true,
+          env: {
+            NODE_ENV: 'test',
+            PATH: process.env.PATH ?? '',
+            HOME: homeDirectory,
+            E2E_PG_ADMIN_URL: adminDatabaseUrl,
+            E2E_DATABASE_NAME: runDatabase.name,
+            E2E_CLEANUP_PROCESS_GROUPS: getActiveManagedProcessGroupIds().join(','),
+            E2E_CLEANUP_DIRECTORIES: JSON.stringify([storageStateDirectory, homeDirectory]),
+          },
+          stdio: ['ignore', cleanupLogFd, cleanupLogFd],
+        }
+      )
+      cleanupProcess.unref()
+      closeSync(cleanupLogFd)
+      console.error(`Detached E2E cleanup supervisor started as PID ${cleanupProcess.pid}`)
     }
-    for (const error of signalFailures) console.error(error)
     process.exit(exitCode)
   }
   // `once` is intentional: a second signal uses the OS default force termination.

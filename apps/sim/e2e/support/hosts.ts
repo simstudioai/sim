@@ -13,9 +13,7 @@ export function isLoopbackAddress(address: string): boolean {
 
 export function areValidE2eHostAddresses(addresses: string[]): boolean {
   return (
-    addresses.length > 0 &&
-    addresses.every(isLoopbackAddress) &&
-    addresses.some((address) => isIP(address) === 4 && isLoopbackAddress(address))
+    addresses.length > 0 && addresses.every(isLoopbackAddress) && addresses.includes('127.0.0.1')
   )
 }
 
