@@ -11,6 +11,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { isPrivateOrReservedIP } from '@/lib/core/security/input-validation.server'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import { createGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
@@ -98,7 +99,11 @@ export class McpClient {
     const useOauth = this.config.authType === 'oauth'
     // `resolvedIP` non-null signals the SSRF policy is active for this server (it is null in
     // allowlist mode / localhost-on-self-hosted); the guard validates addresses per-connect.
-    const guarded = resolvedIP ? createGuardedMcpFetch() : undefined
+    // A private/loopback resolvedIP only reaches here on self-hosted (where the policy
+    // permits it) — the guarded lookup would filter it, so those connect unguarded like the
+    // localhost carve-out.
+    const guarded =
+      resolvedIP && !isPrivateOrReservedIP(resolvedIP) ? createGuardedMcpFetch() : undefined
     this.closeGuardedTransport = guarded?.close
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,

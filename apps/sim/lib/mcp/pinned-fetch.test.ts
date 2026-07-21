@@ -18,6 +18,8 @@ const {
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
   createSsrfGuardedFetchWithDispatcher: mockCreateGuardedFetchWithDispatcher,
+  isPrivateOrReservedIP: (ip: string) =>
+    ip.startsWith('127.') || ip.startsWith('10.') || ip === '::1',
 }))
 vi.mock('@/lib/mcp/domain-check', () => ({
   validateMcpServerSsrf: mockValidateMcpServerSsrf,
@@ -340,6 +342,25 @@ describe('createSsrfGuardedMcpFetch', () => {
       expect(globalFetch).toHaveBeenCalledTimes(1)
       // No pinned Agent was created, so there is nothing to tear down.
       expect(mockDestroy).not.toHaveBeenCalled()
+    } finally {
+      globalFetch.mockRestore()
+    }
+  })
+})
+
+describe('self-hosted private-resolution carve-out', () => {
+  it('routes a loopback-resolving host over global fetch (guarded lookup would filter it)', async () => {
+    // Self-hosted DNS alias -> 127.0.0.1: policy allows it, so the guard must not
+    // strand the connect. Falls back to global fetch, same as the allowlist path.
+    mockValidateMcpServerSsrf.mockResolvedValue('127.0.0.1')
+    const globalFetch = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async () => new Response('ok'))
+    try {
+      const fetchLike = createSsrfGuardedMcpFetch()
+      await fetchLike('https://my-local-alias/mcp')
+      expect(mockCreateGuardedFetchWithDispatcher).not.toHaveBeenCalled()
+      expect(globalFetch).toHaveBeenCalledTimes(1)
     } finally {
       globalFetch.mockRestore()
     }

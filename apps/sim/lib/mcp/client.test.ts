@@ -276,7 +276,7 @@ describe('McpClient notification handler', () => {
     const client = new McpClient({
       config: createConfig(),
       securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-      resolvedIP: '203.0.113.10',
+      resolvedIP: '93.184.216.34',
     })
 
     // A failed connect discards the client without a disconnect(), so the Agent
@@ -290,7 +290,7 @@ describe('McpClient notification handler', () => {
     const client = new McpClient({
       config: createConfig(),
       securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-      resolvedIP: '203.0.113.10',
+      resolvedIP: '93.184.216.34',
     })
 
     await client.connect()
@@ -304,7 +304,7 @@ describe('McpClient notification handler', () => {
     const client = new McpClient({
       config: createConfig(),
       securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-      resolvedIP: '203.0.113.10',
+      resolvedIP: '93.184.216.34',
     })
 
     await expect(client.connect()).rejects.toThrow()

@@ -1,7 +1,10 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { createLogger } from '@sim/logger'
 import type { Agent } from 'undici'
-import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
+import {
+  createSsrfGuardedFetchWithDispatcher,
+  isPrivateOrReservedIP,
+} from '@/lib/core/security/input-validation.server'
 import { validateMcpServerSsrf } from '@/lib/mcp/domain-check'
 import { McpError } from '@/lib/mcp/types'
 
@@ -216,7 +219,10 @@ export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOU
       const resolvedIP = await withDeadline(validateMcpServerSsrf(target), signal)
       logger.info('OAuth guarded fetch: requesting', { host, guarded: Boolean(resolvedIP) })
       let response: Response
-      if (resolvedIP) {
+      // A private/loopback resolvedIP only occurs on self-hosted where the policy permits
+      // it — the guarded lookup would filter it out, so those go over global fetch like the
+      // allowlist carve-out below.
+      if (resolvedIP && !isPrivateOrReservedIP(resolvedIP)) {
         const guarded = createSsrfGuardedFetchWithDispatcher({
           maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
         })
