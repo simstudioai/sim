@@ -176,23 +176,50 @@ analyzer = build_analyzer()
 batch_analyzer = BatchAnalyzerEngine(analyzer_engine=analyzer)
 anonymizer = AnonymizerEngine()
 
-# Every entity the spaCy NER recognizers can produce. A request touching any of
-# these must run spaCy; a request naming only non-NER (regex/checksum) entities can
-# skip it. Derived from the live registry so it stays authoritative if Presidio's
-# default entity set changes (e.g. ORGANIZATION), unioned with a known floor so an
-# unexpectedly empty derivation can never let an NER request skip the NLP pass.
+# Every entity the spaCy NER recognizers can actually produce. A request touching
+# any of these must run spaCy; a request naming only non-NER (regex/checksum)
+# entities can skip it. The registry's SpacyRecognizers CLAIM every entity in
+# Presidio's default NER-model mapping — including PHONE_NUMBER/AGE/ID/EMAIL,
+# which exist for transformer models and which no spaCy model can emit — so the
+# claimed set is intersected with the entities the loaded models' NER labels map
+# onto. Without that filter, selecting PHONE_NUMBER (present in nearly every
+# redaction rule) silently forces the full spaCy pass and the regex-only fast
+# path never fires. The floor guarantees the core NER entities always take the
+# full pass even if label introspection ever derives empty.
 _SPACY_NER_FLOOR = frozenset({"PERSON", "LOCATION", "NRP", "DATE_TIME", "ORGANIZATION"})
-NER_ENTITIES = _SPACY_NER_FLOOR | frozenset(
-    entity
-    for recognizer in analyzer.registry.recognizers
-    if isinstance(recognizer, SpacyRecognizer)
-    for entity in recognizer.supported_entities
+
+
+def _producible_ner_entities() -> frozenset:
+    """Presidio entities some loaded spaCy model's NER labels map onto."""
+    configuration = getattr(analyzer.nlp_engine, "ner_model_configuration", None)
+    mapping = configuration.model_to_presidio_entity_mapping if configuration else {}
+    producible = set()
+    for nlp in getattr(analyzer.nlp_engine, "nlp", {}).values():
+        if "ner" not in nlp.pipe_names:
+            continue
+        for label in nlp.get_pipe("ner").labels:
+            entity = mapping.get(label)
+            if entity:
+                producible.add(entity)
+    return frozenset(producible)
+
+
+NER_ENTITIES = _SPACY_NER_FLOOR | (
+    frozenset(
+        entity
+        for recognizer in analyzer.registry.recognizers
+        if isinstance(recognizer, SpacyRecognizer)
+        for entity in recognizer.supported_entities
+    )
+    & _producible_ner_entities()
 )
 
 # One blank NlpArtifacts per language, built once at startup. Passing these to
 # analyze() skips nlp_engine.process_text (the spaCy tok2vec+ner pass) entirely:
-# the pattern recognizers still match on the raw text, SpacyRecognizer is excluded
-# by the entity filter, and score_threshold is unset so detection is identical.
+# the pattern recognizers still match on the raw text, SpacyRecognizer finds
+# nothing in blank artifacts (and can only be consulted at all for claimed-but-
+# unproducible entities like PHONE_NUMBER), and score_threshold is unset so
+# detection is identical.
 # Only context-based score boosting (which needs real tokens) is unavailable — an
 # accepted trade for skipping NER on the hot block-output path. Read-only, so it
 # is safe to share across requests and workers.
