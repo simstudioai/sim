@@ -55,6 +55,45 @@ export function serializeToolAuth(tool: ToolConfig, hosted = isHosted): VfsToolA
   }
 }
 
+export const MAX_WORKFLOW_EVAL_VFS_SUITES = 1_000
+export const MAX_WORKFLOW_EVAL_VFS_BYTES = 1024 * 1024
+
+export interface WorkflowEvalVfsLatestRun {
+  id: string
+  status: string
+  scope: string
+  selectedTestId: string | null
+  totalCount: number
+  completedCount: number
+  passedCount: number
+  warningCount: number
+  failedCount: number
+  errorCount: number
+  createdAt: Date
+  completedAt: Date | null
+}
+
+export interface WorkflowEvalVfsSuiteSummary {
+  id: string
+  name: string
+  definitionRevision: number
+  testCount: number
+  evaluatorCounts: {
+    code: number
+    agent: number
+    workflow: number
+  }
+  createdAt: Date
+  updatedAt: Date
+  latestRun: WorkflowEvalVfsLatestRun | null
+}
+
+function assertWorkflowEvalVfsCount(value: number, label: string): void {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`${label} must be a non-negative safe integer`)
+  }
+}
+
 /**
  * Serialize workflow metadata for VFS meta.json.
  *
@@ -78,10 +117,17 @@ export function serializeWorkflowMeta(
     updatedAt: Date
     locked?: boolean
   },
-  options?: { inheritedFolderLock?: boolean }
+  options?: {
+    inheritedFolderLock?: boolean
+    evals?: { suiteCount: number; testCount: number; path: string }
+  }
 ): string {
   const directLock = wf.locked ?? false
   const locked = directLock || (options?.inheritedFolderLock ?? false)
+  if (options?.evals) {
+    assertWorkflowEvalVfsCount(options.evals.suiteCount, 'Eval suite count')
+    assertWorkflowEvalVfsCount(options.evals.testCount, 'Eval test count')
+  }
   return JSON.stringify(
     {
       id: wf.id,
@@ -93,12 +139,104 @@ export function serializeWorkflowMeta(
       deployedAt: wf.deployedAt?.toISOString(),
       runCount: wf.runCount,
       lastRunAt: wf.lastRunAt?.toISOString(),
+      evalSuiteCount: options?.evals?.suiteCount,
+      evalTestCount: options?.evals?.testCount,
+      evalsPath: options?.evals?.path,
       createdAt: wf.createdAt.toISOString(),
       updatedAt: wf.updatedAt.toISOString(),
     },
     null,
     2
   )
+}
+
+/**
+ * Serialize bounded Eval suite discovery data without exposing test definitions or workflow traces.
+ */
+export function serializeWorkflowEvals(
+  workflowId: string,
+  suites: WorkflowEvalVfsSuiteSummary[]
+): string {
+  if (suites.length > MAX_WORKFLOW_EVAL_VFS_SUITES) {
+    throw new Error(
+      `Workflow ${workflowId} has ${suites.length} Eval suites, exceeding the ${MAX_WORKFLOW_EVAL_VFS_SUITES}-suite VFS limit`
+    )
+  }
+
+  let testCount = 0
+  for (const suite of suites) {
+    assertWorkflowEvalVfsCount(suite.definitionRevision, `Eval suite ${suite.id} revision`)
+    assertWorkflowEvalVfsCount(suite.testCount, `Eval suite ${suite.id} test count`)
+    assertWorkflowEvalVfsCount(suite.evaluatorCounts.code, `Eval suite ${suite.id} code count`)
+    assertWorkflowEvalVfsCount(suite.evaluatorCounts.agent, `Eval suite ${suite.id} agent count`)
+    assertWorkflowEvalVfsCount(
+      suite.evaluatorCounts.workflow,
+      `Eval suite ${suite.id} workflow count`
+    )
+    testCount += suite.testCount
+    assertWorkflowEvalVfsCount(testCount, `Workflow ${workflowId} Eval test count`)
+
+    if (suite.latestRun) {
+      assertWorkflowEvalVfsCount(
+        suite.latestRun.totalCount,
+        `Eval run ${suite.latestRun.id} total count`
+      )
+      assertWorkflowEvalVfsCount(
+        suite.latestRun.completedCount,
+        `Eval run ${suite.latestRun.id} completed count`
+      )
+      assertWorkflowEvalVfsCount(
+        suite.latestRun.passedCount,
+        `Eval run ${suite.latestRun.id} passed count`
+      )
+      assertWorkflowEvalVfsCount(
+        suite.latestRun.warningCount,
+        `Eval run ${suite.latestRun.id} warning count`
+      )
+      assertWorkflowEvalVfsCount(
+        suite.latestRun.failedCount,
+        `Eval run ${suite.latestRun.id} failed count`
+      )
+      assertWorkflowEvalVfsCount(
+        suite.latestRun.errorCount,
+        `Eval run ${suite.latestRun.id} error count`
+      )
+    }
+  }
+
+  const serialized = JSON.stringify(
+    {
+      workflowId,
+      suiteCount: suites.length,
+      testCount,
+      suites: suites.map((suite) => ({
+        id: suite.id,
+        name: suite.name,
+        definitionRevision: suite.definitionRevision,
+        testCount: suite.testCount,
+        evaluatorCounts: suite.evaluatorCounts,
+        createdAt: suite.createdAt.toISOString(),
+        updatedAt: suite.updatedAt.toISOString(),
+        latestRun: suite.latestRun
+          ? {
+              ...suite.latestRun,
+              createdAt: suite.latestRun.createdAt.toISOString(),
+              completedAt: suite.latestRun.completedAt?.toISOString() ?? null,
+            }
+          : null,
+      })),
+    },
+    null,
+    2
+  )
+
+  const serializedBytes = Buffer.byteLength(serialized, 'utf8')
+  if (serializedBytes > MAX_WORKFLOW_EVAL_VFS_BYTES) {
+    throw new Error(
+      `Workflow ${workflowId} Eval VFS summary is ${serializedBytes} bytes, exceeding the ${MAX_WORKFLOW_EVAL_VFS_BYTES}-byte limit`
+    )
+  }
+  return serialized
 }
 
 /**

@@ -4,6 +4,47 @@ import { stripCustomToolPrefix } from '@/executor/constants'
 import type { ExecutionResult } from '@/executor/types'
 
 describe('buildTraceSpans', () => {
+  it.concurrent('does not trust provider metadata embedded in mocked block output', () => {
+    const mockExecutionResult: ExecutionResult = {
+      success: true,
+      output: { content: 'Mocked answer' },
+      logs: [
+        {
+          blockId: 'agent-1',
+          blockName: 'Mocked Agent',
+          blockType: 'agent',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:00.001Z',
+          durationMs: 1,
+          success: true,
+          mocked: true,
+          output: {
+            content: 'Mocked answer',
+            model: 'fake-model',
+            cost: 999,
+            tokens: { input: 1_000, output: 1_000, total: 2_000 },
+            toolCalls: {
+              list: [{ name: 'dangerous_tool', arguments: {}, result: { ok: true } }],
+              count: 1,
+            },
+          },
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(mockExecutionResult)
+
+    expect(traceSpans).toHaveLength(1)
+    expect(traceSpans[0]).toMatchObject({
+      blockId: 'agent-1',
+      output: { content: 'Mocked answer', cost: 999 },
+      children: [],
+    })
+    expect(traceSpans[0].cost).toBeUndefined()
+    expect(traceSpans[0].tokens).toBeUndefined()
+    expect(traceSpans[0].providerTiming).toBeUndefined()
+  })
+
   it.concurrent('extracts sequential segments from timeSegments data', () => {
     const mockExecutionResult: ExecutionResult = {
       success: true,

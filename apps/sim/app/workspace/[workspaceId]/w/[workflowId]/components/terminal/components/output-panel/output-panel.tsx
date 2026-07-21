@@ -82,6 +82,7 @@ const OutputCodeContent = React.memo(function OutputCodeContent({
  */
 export interface OutputPanelProps {
   selectedEntry: ConsoleEntry
+  hasViewTabs: boolean
   handleOutputPanelResizePointerDown: (e: React.PointerEvent<HTMLElement>) => void
   handleHeaderClick: () => void
   isExpanded: boolean
@@ -109,6 +110,7 @@ export interface OutputPanelProps {
  */
 export const OutputPanel = React.memo(function OutputPanel({
   selectedEntry,
+  hasViewTabs,
   handleOutputPanelResizePointerDown,
   handleHeaderClick,
   isExpanded,
@@ -305,7 +307,10 @@ export const OutputPanel = React.memo(function OutputPanel({
 
         {/* Header */}
         <div
-          className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-2.5'
+          className={clsx(
+            'group flex flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-2.5',
+            hasViewTabs ? 'h-[38px] py-1' : 'h-[30px]'
+          )}
           onClick={handleHeaderClick}
         >
           <div className='flex items-center'>

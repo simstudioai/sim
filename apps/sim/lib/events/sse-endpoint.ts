@@ -12,10 +12,7 @@ import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 interface SSESubscription {
-  subscribe(
-    workspaceId: string,
-    send: (eventName: string, data: Record<string, unknown>) => void
-  ): () => void
+  subscribe(workspaceId: string, send: SSESend): () => void
 }
 
 interface WorkspaceSSEConfig {
@@ -25,9 +22,138 @@ interface WorkspaceSSEConfig {
 
 const HEARTBEAT_INTERVAL_MS = 30_000
 
-export function createWorkspaceSSE(config: WorkspaceSSEConfig) {
-  const logger = createLogger(`${config.label}-SSE`)
+export type SSESend = (eventName: string, data: Record<string, unknown>) => void
 
+interface SSEStreamConfig {
+  label: string
+  request: Request
+  subscribe: (send: SSESend) => () => void
+  metadata?: Record<string, unknown>
+  maxBufferedBytes?: number
+  maxConnectionDurationMs?: number
+}
+
+/** Creates an authenticated caller's named-event SSE response and owns stream cleanup. */
+export function createSSEStream({
+  label,
+  request,
+  subscribe,
+  metadata = {},
+  maxBufferedBytes,
+  maxConnectionDurationMs,
+}: SSEStreamConfig): Response {
+  if (
+    maxBufferedBytes !== undefined &&
+    (!Number.isSafeInteger(maxBufferedBytes) || maxBufferedBytes <= 0)
+  ) {
+    throw new Error('SSE maxBufferedBytes must be a positive safe integer')
+  }
+  if (
+    maxConnectionDurationMs !== undefined &&
+    (!Number.isSafeInteger(maxConnectionDurationMs) || maxConnectionDurationMs <= 0)
+  ) {
+    throw new Error('SSE maxConnectionDurationMs must be a positive safe integer')
+  }
+
+  const logger = createLogger(`${label}-SSE`)
+  const encoder = new TextEncoder()
+  const unsubscribers: Array<() => void> = []
+  let cleaned = false
+
+  const cleanup = () => {
+    if (cleaned) return
+    cleaned = true
+    for (const unsubscribe of unsubscribers) {
+      unsubscribe()
+    }
+    logger.info('SSE connection closed', metadata)
+  }
+
+  const stream = new ReadableStream(
+    {
+      start(controller) {
+        const enqueue = (payload: string): void => {
+          if (cleaned) return
+          const chunk = encoder.encode(payload)
+          if (
+            maxBufferedBytes !== undefined &&
+            controller.desiredSize !== null &&
+            chunk.byteLength > controller.desiredSize
+          ) {
+            logger.warn('SSE client fell behind; closing stream', metadata)
+            cleanup()
+            try {
+              controller.error(new Error('SSE client fell behind the live event stream'))
+            } catch {}
+            return
+          }
+          try {
+            controller.enqueue(chunk)
+          } catch {
+            cleanup()
+          }
+        }
+
+        const send: SSESend = (eventName, data) => {
+          enqueue(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`)
+        }
+
+        const unsubscribe = subscribe(send)
+        if (cleaned) {
+          unsubscribe()
+          return
+        }
+        unsubscribers.push(unsubscribe)
+
+        const heartbeat = setInterval(() => {
+          if (cleaned) {
+            clearInterval(heartbeat)
+            return
+          }
+          enqueue(': heartbeat\n\n')
+        }, HEARTBEAT_INTERVAL_MS)
+        unsubscribers.push(() => clearInterval(heartbeat))
+
+        if (maxConnectionDurationMs !== undefined) {
+          const rotation = setTimeout(() => {
+            logger.info('Rotating SSE connection', metadata)
+            cleanup()
+            try {
+              controller.close()
+            } catch {}
+          }, maxConnectionDurationMs)
+          unsubscribers.push(() => clearTimeout(rotation))
+        }
+
+        request.signal.addEventListener(
+          'abort',
+          () => {
+            cleanup()
+            try {
+              controller.close()
+            } catch {}
+          },
+          { once: true }
+        )
+
+        logger.info('SSE connection opened', metadata)
+      },
+      cancel() {
+        cleanup()
+      },
+    },
+    maxBufferedBytes === undefined
+      ? undefined
+      : {
+          highWaterMark: maxBufferedBytes,
+          size: (chunk: Uint8Array) => chunk.byteLength,
+        }
+  )
+
+  return new Response(stream, { headers: SSE_HEADERS })
+}
+
+export function createWorkspaceSSE(config: WorkspaceSSEConfig) {
   return async function GET(request: NextRequest): Promise<Response> {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -45,70 +171,20 @@ export function createWorkspaceSSE(config: WorkspaceSSEConfig) {
       return new Response('Access denied to workspace', { status: 403 })
     }
 
-    const encoder = new TextEncoder()
-    const unsubscribers: Array<() => void> = []
-    let cleaned = false
-
-    const cleanup = () => {
-      if (cleaned) return
-      cleaned = true
-      for (const unsub of unsubscribers) {
-        unsub()
-      }
-      logger.info(`SSE connection closed for workspace ${workspaceId}`)
-    }
-
-    const stream = new ReadableStream({
-      start(controller) {
-        const send = (eventName: string, data: Record<string, unknown>) => {
-          if (cleaned) return
-          try {
-            controller.enqueue(
-              encoder.encode(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`)
-            )
-          } catch {
-            // Stream already closed
-          }
-        }
-
-        for (const subscription of config.subscriptions) {
-          const unsub = subscription.subscribe(workspaceId, send)
-          unsubscribers.push(unsub)
-        }
-
-        const heartbeat = setInterval(() => {
-          if (cleaned) {
-            clearInterval(heartbeat)
-            return
-          }
-          try {
-            controller.enqueue(encoder.encode(': heartbeat\n\n'))
-          } catch {
-            clearInterval(heartbeat)
-          }
-        }, HEARTBEAT_INTERVAL_MS)
-        unsubscribers.push(() => clearInterval(heartbeat))
-
-        request.signal.addEventListener(
-          'abort',
-          () => {
-            cleanup()
-            try {
-              controller.close()
-            } catch {
-              // Already closed
-            }
-          },
-          { once: true }
+    return createSSEStream({
+      label: config.label,
+      request,
+      metadata: { workspaceId },
+      subscribe: (send) => {
+        const unsubscribers = config.subscriptions.map((subscription) =>
+          subscription.subscribe(workspaceId, send)
         )
-
-        logger.info(`SSE connection opened for workspace ${workspaceId}`)
-      },
-      cancel() {
-        cleanup()
+        return () => {
+          for (const unsubscribe of unsubscribers) {
+            unsubscribe()
+          }
+        }
       },
     })
-
-    return new Response(stream, { headers: SSE_HEADERS })
   }
 }

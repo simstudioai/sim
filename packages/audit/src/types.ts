@@ -190,6 +190,11 @@ export const AuditAction = {
   WORKFLOW_VARIABLES_UPDATED: 'workflow.variables_updated',
   WORKFLOW_PUBLIC_API_TOGGLED: 'workflow.public_api_toggled',
   WORKFLOW_EXPORTED: 'workflow.exported',
+  WORKFLOW_EVAL_SUITE_CREATED: 'workflow.eval_suite_created',
+  WORKFLOW_EVAL_SUITE_UPDATED: 'workflow.eval_suite_updated',
+  WORKFLOW_EVAL_SUITE_ARCHIVED: 'workflow.eval_suite_archived',
+  WORKFLOW_EVAL_RUN_QUEUED: 'workflow.eval_run_queued',
+  WORKFLOW_EVAL_RUN_STOPPED: 'workflow.eval_run_stopped',
 
   // Workspaces
   WORKSPACE_CREATED: 'workspace.created',

@@ -74,6 +74,66 @@ describe('BlockExecutor', () => {
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
   })
 
+  it('skips the handler and input resolution for mocked blocks', async () => {
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const resolveInputs = vi.spyOn(resolver, 'resolveInputsForFunctionBlock')
+    const execute = vi.fn(async () => ({ result: 'real' }))
+    const handler: BlockHandler = { canHandle: () => true, execute }
+    const mockOutput = { result: 'mocked', nested: { count: 2 } }
+    const executor = new BlockExecutor(
+      [handler],
+      resolver,
+      {
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        blockMocks: new Map([[block.id, mockOutput]]),
+        metadata: {
+          requestId: 'request-1',
+          executionId: 'execution-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          userId: 'user-1',
+          triggerType: 'manual',
+          useDraftState: false,
+          startTime: new Date().toISOString(),
+        },
+      },
+      state
+    )
+    const context = createContext(state)
+    context.blockMocks = new Map([[block.id, mockOutput]])
+    const node = createNode(block)
+    node.id = 'function-block-1__clone'
+    node.metadata.originalBlockId = block.id
+
+    const output = await executor.execute(context, node, block)
+
+    expect(execute).not.toHaveBeenCalled()
+    expect(resolveInputs).not.toHaveBeenCalled()
+    expect(output).toEqual(mockOutput)
+    expect(output).not.toBe(mockOutput)
+    expect(state.getBlockOutput(node.id)).toEqual(mockOutput)
+    expect(context.blockLogs).toEqual([
+      expect.objectContaining({
+        blockId: node.id,
+        mocked: true,
+        success: true,
+        input: {},
+        output: mockOutput,
+      }),
+    ])
+  })
+
   it('persists function output arrays as manifests in execution state', async () => {
     const block = createBlock()
     const workflow: SerializedWorkflow = {

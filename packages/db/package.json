@@ -22,6 +22,7 @@
     "db:push": "bunx drizzle-kit push --config=./drizzle.config.ts",
     "db:migrate": "bun --env-file=.env run ./scripts/migrate.ts",
     "db:reconcile-workspace-storage": "bun --env-file=.env run ./scripts/reconcile-workspace-storage.ts",
+    "db:seed-workflow-evals": "NODE_ENV=development bun --env-file=.env run ./scripts/seed-workflow-evals.ts",
     "db:studio": "bunx drizzle-kit studio --config=./drizzle.config.ts",
     "test": "vitest run",
     "type-check": "tsc --noEmit",

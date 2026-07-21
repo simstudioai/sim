@@ -23,6 +23,8 @@ export interface PubSubChannel<T> {
 interface PubSubChannelConfig {
   channel: string
   label: string
+  /** Prevents large transient events from accumulating in memory while Redis is disconnected. */
+  bufferPublishesWhileDisconnected?: boolean
 }
 
 class RedisPubSubChannel<T> implements PubSubChannel<T> {
@@ -45,7 +47,11 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
       },
     } satisfies RedisOptions
 
-    this.pub = new Redis(redisUrl, { ...commonOpts, connectionName: `${config.label}-pub` })
+    this.pub = new Redis(redisUrl, {
+      ...commonOpts,
+      connectionName: `${config.label}-pub`,
+      enableOfflineQueue: config.bufferPublishesWhileDisconnected ?? true,
+    })
     this.sub = new Redis(redisUrl, { ...commonOpts, connectionName: `${config.label}-sub` })
 
     this.pub.on('error', (err) =>

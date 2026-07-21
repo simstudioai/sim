@@ -23,6 +23,7 @@ export function createServerToolHandler(toolId: string): ToolHandler {
         messageId: context.messageId,
         parentToolCallId: context.parentToolCallId,
         abortSignal: context.abortSignal,
+        userStopSignal: context.userStopSignal,
       })
 
       const rec =

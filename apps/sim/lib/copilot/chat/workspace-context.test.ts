@@ -89,6 +89,35 @@ describe('buildWorkspaceMd - workflow VFS state paths', () => {
     expect(JSON.stringify(buildVfsSnapshot(data))).not.toContain('PRIVATE WORKFLOW DESCRIPTION')
     expect(buildVfsSnapshot(data).workflows?.[0]).not.toHaveProperty('description')
   })
+
+  it('advertises the lazy Eval index when a workflow has active suites', () => {
+    const md = buildWorkspaceMd(
+      baseData({
+        workflows: [
+          {
+            id: 'wf-1',
+            name: 'Root Flow',
+            isDeployed: false,
+            folderPath: null,
+            evalSuiteCount: 3,
+            evalTestCount: 46,
+          },
+        ],
+      })
+    )
+
+    expect(md).toContain('VFS Evals path: `workflows/Root%20Flow/evals.json` (3 suites, 46 tests)')
+  })
+
+  it('omits the Eval index marker when a workflow has no active suites', () => {
+    const md = buildWorkspaceMd(
+      baseData({
+        workflows: [{ id: 'wf-1', name: 'Root Flow', isDeployed: false, folderPath: null }],
+      })
+    )
+
+    expect(md).not.toContain('evals.json')
+  })
 })
 
 describe('buildWorkspaceMd - connected integrations / credentials', () => {

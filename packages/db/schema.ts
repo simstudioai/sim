@@ -397,6 +397,306 @@ export const workflowExecutionLogs = pgTable(
   })
 )
 
+export const workflowEvalSuite = pgTable(
+  'workflow_eval_suite',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    definitionVersion: integer('definition_version').notNull().default(1),
+    definitionRevision: integer('definition_revision').notNull().default(1),
+    tests: jsonb('tests').notNull(),
+    archivedAt: timestamp('archived_at'),
+    createdByUserId: text('created_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    definitionVersionCheck: check(
+      'workflow_eval_suite_definition_version_check',
+      sql`${table.definitionVersion} = 1`
+    ),
+    definitionRevisionCheck: check(
+      'workflow_eval_suite_definition_revision_check',
+      sql`${table.definitionRevision} >= 1`
+    ),
+    workflowNameUnique: uniqueIndex('workflow_eval_suite_workflow_name_unique').on(
+      table.workflowId,
+      table.name
+    ),
+    workflowCreatedIdx: index('workflow_eval_suite_workflow_created_idx').on(
+      table.workflowId,
+      table.createdAt,
+      table.id
+    ),
+  })
+)
+
+export const workflowEvalRun = pgTable(
+  'workflow_eval_run',
+  {
+    id: text('id').primaryKey(),
+    suiteId: text('suite_id')
+      .notNull()
+      .references(() => workflowEvalSuite.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    status: text('status').notNull(),
+    definitionSnapshot: jsonb('definition_snapshot').notNull(),
+    suiteDefinitionRevision: integer('suite_definition_revision').notNull().default(1),
+    scope: text('scope').notNull().default('suite'),
+    selectedTestId: text('selected_test_id'),
+    billingAttribution: jsonb('billing_attribution').notNull(),
+    revision: integer('revision').notNull().default(0),
+    totalCount: integer('total_count').notNull(),
+    completedCount: integer('completed_count').notNull().default(0),
+    passedCount: integer('passed_count').notNull().default(0),
+    warningCount: integer('warning_count').notNull().default(0),
+    failedCount: integer('failed_count').notNull().default(0),
+    errorCount: integer('error_count').notNull().default(0),
+    errorKind: text('error_kind'),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    triggeredByUserId: text('triggered_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    statusCheck: check(
+      'workflow_eval_run_status_check',
+      sql`${table.status} IN ('queued', 'running', 'completed', 'error', 'cancelled')`
+    ),
+    scopeCheck: check(
+      'workflow_eval_run_scope_check',
+      sql`(${table.scope} = 'suite' AND ${table.selectedTestId} IS NULL) OR (${table.scope} = 'test' AND ${table.selectedTestId} IS NOT NULL)`
+    ),
+    suiteDefinitionRevisionCheck: check(
+      'workflow_eval_run_suite_definition_revision_check',
+      sql`${table.suiteDefinitionRevision} >= 1`
+    ),
+    countsCheck: check(
+      'workflow_eval_run_counts_check',
+      sql`${table.revision} >= 0 AND ${table.totalCount} BETWEEN 0 AND 1000 AND ${table.completedCount} >= 0 AND ${table.passedCount} >= 0 AND ${table.warningCount} >= 0 AND ${table.failedCount} >= 0 AND ${table.errorCount} >= 0 AND ${table.completedCount} = ${table.passedCount} + ${table.warningCount} + ${table.failedCount} + ${table.errorCount} AND ${table.completedCount} <= ${table.totalCount}`
+    ),
+    terminalCountsCheck: check(
+      'workflow_eval_run_terminal_counts_check',
+      sql`(${table.status} <> 'queued' OR ${table.completedCount} = 0) AND (${table.status} <> 'completed' OR ${table.completedCount} = ${table.totalCount})`
+    ),
+    completionCheck: check(
+      'workflow_eval_run_completion_check',
+      sql`((${table.status} IN ('queued', 'running') AND ${table.completedAt} IS NULL) OR (${table.status} IN ('completed', 'error', 'cancelled') AND ${table.completedAt} IS NOT NULL))`
+    ),
+    startedCheck: check(
+      'workflow_eval_run_started_check',
+      sql`${table.status} NOT IN ('running', 'completed') OR ${table.startedAt} IS NOT NULL`
+    ),
+    errorCheck: check(
+      'workflow_eval_run_error_check',
+      sql`((${table.status} = 'error' AND ${table.errorKind} = 'infrastructure' AND ${table.errorCode} ~ '^[a-z][a-z0-9_]{0,127}$' AND char_length(${table.errorMessage}) BETWEEN 1 AND 20000) OR (${table.status} <> 'error' AND ${table.errorKind} IS NULL AND ${table.errorCode} IS NULL AND ${table.errorMessage} IS NULL))`
+    ),
+    activeSuiteUnique: uniqueIndex('workflow_eval_run_active_suite_unique')
+      .on(table.suiteId)
+      .where(sql`${table.status} IN ('queued', 'running')`),
+    suiteCreatedIdx: index('workflow_eval_run_suite_created_idx').on(
+      table.suiteId,
+      sql`${table.createdAt} DESC`,
+      sql`${table.id} DESC`
+    ),
+    workspaceCreatedIdx: index('workflow_eval_run_workspace_created_idx').on(
+      table.workspaceId,
+      sql`${table.createdAt} DESC`,
+      sql`${table.id} DESC`
+    ),
+  })
+)
+
+export const workflowEvalRunTarget = pgTable(
+  'workflow_eval_run_target',
+  {
+    runId: text('run_id')
+      .notNull()
+      .references(() => workflowEvalRun.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').notNull(),
+    snapshotId: text('snapshot_id')
+      .notNull()
+      .references(() => workflowExecutionSnapshots.id, { onDelete: 'restrict' }),
+    stateHash: text('state_hash').notNull(),
+    isSubject: boolean('is_subject').notNull().default(false),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.runId, table.workflowId] }),
+    runSnapshotUnique: uniqueIndex('workflow_eval_run_target_run_snapshot_unique').on(
+      table.runId,
+      table.snapshotId
+    ),
+    subjectUnique: uniqueIndex('workflow_eval_run_target_subject_unique')
+      .on(table.runId)
+      .where(sql`${table.isSubject}`),
+    snapshotIdx: index('workflow_eval_run_target_snapshot_idx').on(table.snapshotId),
+    stateHashCheck: check(
+      'workflow_eval_run_target_state_hash_check',
+      sql`char_length(${table.stateHash}) = 64`
+    ),
+  })
+)
+
+export const workflowEvalTestRun = pgTable(
+  'workflow_eval_test_run',
+  {
+    id: text('id').primaryKey(),
+    runId: text('run_id')
+      .notNull()
+      .references(() => workflowEvalRun.id, { onDelete: 'cascade' }),
+    testId: text('test_id').notNull(),
+    ordinal: integer('ordinal').notNull(),
+    name: text('name').notNull(),
+    evaluatorType: text('evaluator_type').notNull(),
+    phase: text('phase').notNull(),
+    outcome: text('outcome'),
+    score: doublePrecision('score'),
+    reason: text('reason'),
+    errorBlockIds: jsonb('error_block_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    errorKind: text('error_kind'),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    subjectExecutionId: text('subject_execution_id').notNull(),
+    judgeExecutionId: text('judge_execution_id'),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    evaluatorTypeCheck: check(
+      'workflow_eval_test_run_evaluator_type_check',
+      sql`${table.evaluatorType} IN ('code', 'agent', 'workflow')`
+    ),
+    phaseCheck: check(
+      'workflow_eval_test_run_phase_check',
+      sql`${table.phase} IN ('queued', 'running_subject', 'running_evaluator', 'completed', 'error')`
+    ),
+    ordinalCheck: check(
+      'workflow_eval_test_run_ordinal_check',
+      sql`${table.ordinal} BETWEEN 0 AND 999`
+    ),
+    scoreOutcomeCheck: check(
+      'workflow_eval_test_run_score_outcome_check',
+      sql`((${table.outcome} = 'pass' AND ${table.score} >= 8 AND ${table.score} <= 10) OR (${table.outcome} = 'warning' AND ${table.score} >= 5 AND ${table.score} < 8) OR (${table.outcome} = 'fail' AND ${table.score} >= 0 AND ${table.score} < 5) OR (${table.outcome} IS NULL AND ${table.score} IS NULL))`
+    ),
+    lifecycleCheck: check(
+      'workflow_eval_test_run_lifecycle_check',
+      sql`((${table.phase} = 'queued' AND ${table.outcome} IS NULL AND ${table.score} IS NULL AND ${table.reason} IS NULL AND ${table.errorKind} IS NULL AND ${table.errorCode} IS NULL AND ${table.errorMessage} IS NULL AND ${table.startedAt} IS NULL AND ${table.completedAt} IS NULL) OR (${table.phase} IN ('running_subject', 'running_evaluator') AND ${table.outcome} IS NULL AND ${table.score} IS NULL AND ${table.reason} IS NULL AND ${table.errorKind} IS NULL AND ${table.errorCode} IS NULL AND ${table.errorMessage} IS NULL AND ${table.startedAt} IS NOT NULL AND ${table.completedAt} IS NULL) OR (${table.phase} = 'completed' AND ${table.outcome} IS NOT NULL AND ${table.score} IS NOT NULL AND ${table.errorKind} IS NULL AND ${table.errorCode} IS NULL AND ${table.errorMessage} IS NULL AND ${table.startedAt} IS NOT NULL AND ${table.completedAt} IS NOT NULL) OR (${table.phase} = 'error' AND ${table.outcome} IS NULL AND ${table.score} IS NULL AND ${table.reason} IS NULL AND ${table.errorKind} IS NOT NULL AND ${table.errorCode} IS NOT NULL AND ${table.errorMessage} IS NOT NULL AND ${table.startedAt} IS NOT NULL AND ${table.completedAt} IS NOT NULL))`
+    ),
+    errorCheck: check(
+      'workflow_eval_test_run_error_check',
+      sql`(${table.errorKind} IS NULL OR ${table.errorKind} IN ('subject', 'evaluator', 'infrastructure')) AND (${table.errorCode} IS NULL OR ${table.errorCode} ~ '^[a-z][a-z0-9_]{0,127}$') AND (${table.errorMessage} IS NULL OR char_length(${table.errorMessage}) BETWEEN 1 AND 20000) AND (${table.reason} IS NULL OR char_length(${table.reason}) BETWEEN 1 AND 20000)`
+    ),
+    codeScoreCheck: check(
+      'workflow_eval_test_run_code_score_check',
+      sql`${table.evaluatorType} <> 'code' OR ${table.phase} <> 'completed' OR ((${table.outcome} = 'pass' AND ${table.score} = 10) OR (${table.outcome} = 'fail' AND ${table.score} = 0))`
+    ),
+    judgeExecutionCheck: check(
+      'workflow_eval_test_run_judge_execution_check',
+      sql`((${table.evaluatorType} = 'workflow' AND ${table.judgeExecutionId} IS NOT NULL) OR (${table.evaluatorType} <> 'workflow' AND ${table.judgeExecutionId} IS NULL))`
+    ),
+    runTestUnique: uniqueIndex('workflow_eval_test_run_run_test_unique').on(
+      table.runId,
+      table.testId
+    ),
+    runOrdinalUnique: uniqueIndex('workflow_eval_test_run_run_ordinal_unique').on(
+      table.runId,
+      table.ordinal
+    ),
+    subjectExecutionIdx: index('workflow_eval_test_run_subject_execution_idx').on(
+      table.subjectExecutionId
+    ),
+    judgeExecutionIdx: index('workflow_eval_test_run_judge_execution_idx').on(
+      table.judgeExecutionId
+    ),
+  })
+)
+
+export const workflowEvalCriterionRun = pgTable(
+  'workflow_eval_criterion_run',
+  {
+    id: text('id').primaryKey(),
+    testRunId: text('test_run_id')
+      .notNull()
+      .references(() => workflowEvalTestRun.id, { onDelete: 'cascade' }),
+    criterionId: text('criterion_id').notNull(),
+    ordinal: integer('ordinal').notNull(),
+    name: text('name').notNull(),
+    phase: text('phase').notNull(),
+    verdict: text('verdict'),
+    confidence: doublePrecision('confidence'),
+    reason: text('reason'),
+    requestedModel: text('requested_model').notNull(),
+    providerId: text('provider_id'),
+    responseModel: text('response_model'),
+    promptVersion: text('prompt_version').notNull(),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    totalTokens: integer('total_tokens'),
+    cost: decimal('cost'),
+    durationMs: integer('duration_ms'),
+    errorKind: text('error_kind'),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    phaseCheck: check(
+      'workflow_eval_criterion_run_phase_check',
+      sql`${table.phase} IN ('queued', 'running', 'completed', 'error')`
+    ),
+    ordinalCheck: check(
+      'workflow_eval_criterion_run_ordinal_check',
+      sql`${table.ordinal} BETWEEN 0 AND 11`
+    ),
+    verdictConfidenceCheck: check(
+      'workflow_eval_criterion_run_verdict_confidence_check',
+      sql`(${table.verdict} IS NULL OR ${table.verdict} IN ('pass', 'warning', 'fail')) AND (${table.confidence} IS NULL OR (${table.confidence} >= 0 AND ${table.confidence} <= 1))`
+    ),
+    lifecycleCheck: check(
+      'workflow_eval_criterion_run_lifecycle_check',
+      sql`((${table.phase} = 'queued' AND ${table.verdict} IS NULL AND ${table.confidence} IS NULL AND ${table.reason} IS NULL AND ${table.errorKind} IS NULL AND ${table.errorCode} IS NULL AND ${table.errorMessage} IS NULL AND ${table.startedAt} IS NULL AND ${table.completedAt} IS NULL) OR (${table.phase} = 'running' AND ${table.verdict} IS NULL AND ${table.confidence} IS NULL AND ${table.reason} IS NULL AND ${table.errorKind} IS NULL AND ${table.errorCode} IS NULL AND ${table.errorMessage} IS NULL AND ${table.startedAt} IS NOT NULL AND ${table.completedAt} IS NULL) OR (${table.phase} = 'completed' AND ${table.verdict} IS NOT NULL AND ${table.confidence} IS NOT NULL AND ${table.reason} IS NOT NULL AND ${table.errorKind} IS NULL AND ${table.errorCode} IS NULL AND ${table.errorMessage} IS NULL AND ${table.startedAt} IS NOT NULL AND ${table.completedAt} IS NOT NULL) OR (${table.phase} = 'error' AND ${table.verdict} IS NULL AND ${table.confidence} IS NULL AND ${table.reason} IS NULL AND ${table.errorKind} IS NOT NULL AND ${table.errorCode} IS NOT NULL AND ${table.errorMessage} IS NOT NULL AND ${table.startedAt} IS NOT NULL AND ${table.completedAt} IS NOT NULL))`
+    ),
+    metadataCheck: check(
+      'workflow_eval_criterion_run_metadata_check',
+      sql`char_length(${table.requestedModel}) BETWEEN 1 AND 200 AND char_length(${table.promptVersion}) BETWEEN 1 AND 128 AND (${table.providerId} IS NULL OR char_length(${table.providerId}) BETWEEN 1 AND 128) AND (${table.responseModel} IS NULL OR char_length(${table.responseModel}) BETWEEN 1 AND 200)`
+    ),
+    usageCheck: check(
+      'workflow_eval_criterion_run_usage_check',
+      sql`(${table.inputTokens} IS NULL OR ${table.inputTokens} >= 0) AND (${table.outputTokens} IS NULL OR ${table.outputTokens} >= 0) AND (${table.totalTokens} IS NULL OR ${table.totalTokens} >= 0) AND (${table.cost} IS NULL OR (${table.cost} >= 0 AND ${table.cost} <> 'NaN'::numeric)) AND (${table.durationMs} IS NULL OR ${table.durationMs} >= 0)`
+    ),
+    errorCheck: check(
+      'workflow_eval_criterion_run_error_check',
+      sql`(${table.errorKind} IS NULL OR ${table.errorKind} IN ('subject', 'evaluator', 'infrastructure')) AND (${table.errorCode} IS NULL OR ${table.errorCode} ~ '^[a-z][a-z0-9_]{0,127}$') AND (${table.errorMessage} IS NULL OR char_length(${table.errorMessage}) BETWEEN 1 AND 20000) AND (${table.reason} IS NULL OR char_length(${table.reason}) BETWEEN 1 AND 4000)`
+    ),
+    testCriterionUnique: uniqueIndex('workflow_eval_criterion_run_test_criterion_unique').on(
+      table.testRunId,
+      table.criterionId
+    ),
+    testOrdinalUnique: uniqueIndex('workflow_eval_criterion_run_test_ordinal_unique').on(
+      table.testRunId,
+      table.ordinal
+    ),
+  })
+)
+
 export const executionLargeValueReferenceSourceEnum = pgEnum(
   'execution_large_value_reference_source',
   ['execution_log', 'paused_snapshot']
@@ -3139,6 +3439,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'knowledge-base',
   'voice-input',
   'enrichment',
+  'eval',
 ])
 
 export const usageLog = pgTable(

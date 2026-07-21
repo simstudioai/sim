@@ -16,13 +16,19 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 
-const { mockTask, mockExecuteWorkflowCore, mockGetScheduleTimeValues, mockGetSubBlockValue } =
-  vi.hoisted(() => ({
-    mockTask: vi.fn((config) => config),
-    mockExecuteWorkflowCore: vi.fn(),
-    mockGetScheduleTimeValues: vi.fn(),
-    mockGetSubBlockValue: vi.fn(),
-  }))
+const {
+  mockTask,
+  mockExecuteWorkflowCore,
+  mockGetBoundedSnapshotForWorkflow,
+  mockGetScheduleTimeValues,
+  mockGetSubBlockValue,
+} = vi.hoisted(() => ({
+  mockTask: vi.fn((config) => config),
+  mockExecuteWorkflowCore: vi.fn(),
+  mockGetBoundedSnapshotForWorkflow: vi.fn(),
+  mockGetScheduleTimeValues: vi.fn(),
+  mockGetSubBlockValue: vi.fn(),
+}))
 
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
@@ -45,6 +51,10 @@ vi.mock('drizzle-orm', () => ({
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
+
+vi.mock('@/lib/logs/execution/snapshot/service', () => ({
+  snapshotService: { getBoundedSnapshotForWorkflow: mockGetBoundedSnapshotForWorkflow },
+}))
 
 vi.mock('@/lib/core/execution-limits', () => ({
   createTimeoutAbortController: vi.fn(() => ({
@@ -88,8 +98,9 @@ vi.mock('@/executor/utils/errors', () => ({
   hasExecutionResult: vi.fn().mockReturnValue(false),
 }))
 
+import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import { executeScheduleJob } from './schedule-execution'
-import { executeWorkflowJob } from './workflow-execution'
+import { executeWorkflowJob, WorkflowExecutionAdmissionError } from './workflow-execution'
 
 const billingAttribution = {
   actorUserId: 'actor-1',
@@ -104,9 +115,35 @@ const billingAttribution = {
   payerSubscription: null,
 }
 
+const pinnedWorkflowState = {
+  blocks: {
+    'pinned-start': {
+      id: 'pinned-start',
+      type: 'starter',
+      name: 'Pinned Start',
+      position: { x: 0, y: 0 },
+      subBlocks: {},
+      outputs: {},
+      enabled: true,
+    },
+  },
+  edges: [],
+  loops: {},
+  parallels: {},
+  variables: {
+    'variable-1': {
+      id: 'variable-1',
+      name: 'message',
+      type: 'string' as const,
+      value: 'pinned',
+    },
+  },
+}
+
 describe('async preprocessing correlation threading', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetBoundedSnapshotForWorkflow.mockReset()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([
       {
@@ -153,7 +190,7 @@ describe('async preprocessing correlation threading', () => {
       metadata: { duration: 10, userId: 'actor-1' },
     })
 
-    await executeWorkflowJob({
+    const result = await executeWorkflowJob({
       workflowId: 'workflow-1',
       userId: 'actor-1',
       workspaceId: 'workspace-1',
@@ -163,12 +200,56 @@ describe('async preprocessing correlation threading', () => {
       requestId: 'request-1',
     })
 
+    expect(result.durationMs).toBe(10)
+
     const loggingSession = LoggingSessionMock.mock.results[0]?.value
     expect(loggingSession).toBeDefined()
     expect(loggingSession.safeStart).not.toHaveBeenCalled()
     expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
       expect.objectContaining({
         loggingSession,
+      })
+    )
+  })
+
+  it('fails fast when core execution omits duration metadata', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'success',
+      output: { ok: true },
+      metadata: { userId: 'actor-1' },
+    })
+
+    await expect(
+      executeWorkflowJob({
+        workflowId: 'workflow-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
+        billingAttribution,
+        triggerType: 'api',
+        executionId: 'execution-without-duration',
+        requestId: 'request-without-duration',
+      })
+    ).rejects.toThrow('Workflow execution completed without valid duration metadata')
+
+    const loggingSession = LoggingSessionMock.mock.results[0]?.value
+    expect(loggingSession.safeCompleteWithError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: 'Workflow execution completed without valid duration metadata',
+        }),
       })
     )
   })
@@ -220,17 +301,21 @@ describe('async preprocessing correlation threading', () => {
       error: { message: 'preprocessing failed', statusCode: 500 },
     })
 
-    await expect(
-      executeWorkflowJob({
-        workflowId: 'workflow-1',
-        userId: 'actor-1',
-        workspaceId: 'workspace-1',
-        triggerType: 'api',
-        executionId: 'execution-1',
-        requestId: 'request-1',
-        billingAttribution,
-      })
-    ).rejects.toThrow('preprocessing failed')
+    const execution = executeWorkflowJob({
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      triggerType: 'api',
+      executionId: 'execution-1',
+      requestId: 'request-1',
+      billingAttribution,
+    })
+
+    await expect(execution).rejects.toMatchObject({
+      name: 'WorkflowExecutionAdmissionError',
+      code: 'preprocessing_failed',
+      message: 'preprocessing failed',
+    })
 
     expect(mockPreprocessExecution).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -246,6 +331,70 @@ describe('async preprocessing correlation threading', () => {
         },
       })
     )
+  })
+
+  it('classifies pinned snapshot validation failures as admission errors', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockGetBoundedSnapshotForWorkflow.mockRejectedValueOnce(new Error('snapshot hash mismatch'))
+
+    const execution = executeWorkflowJob({
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      triggerType: 'workflow',
+      executionId: 'snapshot-execution',
+      requestId: 'snapshot-request',
+      billingAttribution,
+      workflowStateSnapshotId: 'snapshot-1',
+    })
+
+    await expect(execution).rejects.toBeInstanceOf(WorkflowExecutionAdmissionError)
+    await expect(execution).rejects.toMatchObject({
+      code: 'snapshot_load_failed',
+      message: 'Failed to load pinned workflow snapshot: snapshot hash mismatch',
+    })
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+  })
+
+  it('does not classify core workflow failures as admission errors', async () => {
+    const coreError = new Error('subject block failed')
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockExecuteWorkflowCore.mockRejectedValueOnce(coreError)
+
+    const execution = executeWorkflowJob({
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      triggerType: 'workflow',
+      executionId: 'core-failure-execution',
+      requestId: 'core-failure-request',
+      billingAttribution,
+    })
+
+    await expect(execution).rejects.toBe(coreError)
+    expect(coreError).not.toBeInstanceOf(WorkflowExecutionAdmissionError)
   })
 
   it('does not repeat admission gates for route-admitted workflow jobs', async () => {
@@ -273,6 +422,153 @@ describe('async preprocessing correlation threading', () => {
         skipUsageLimits: true,
       })
     )
+  })
+
+  it('skips the deployment gate and preserves draft execution metadata when requested', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'success',
+      output: { ok: true },
+      metadata: { duration: 10, userId: 'actor-1' },
+    })
+
+    await executeWorkflowJob({
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      triggerType: 'workflow',
+      executionId: 'draft-execution',
+      requestId: 'draft-request',
+      billingAttribution,
+      useDraftState: true,
+    })
+
+    expect(mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({ checkDeployment: false })
+    )
+    expect(vi.mocked(ExecutionSnapshot)).toHaveBeenCalledWith(
+      expect.objectContaining({ useDraftState: true }),
+      expect.anything(),
+      undefined,
+      {},
+      []
+    )
+  })
+
+  it('loads a bounded pinned snapshot as the draft override and uses its variables', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {
+          'live-variable': {
+            id: 'live-variable',
+            name: 'message',
+            type: 'string',
+            value: 'live',
+          },
+        },
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockGetBoundedSnapshotForWorkflow.mockResolvedValueOnce({
+      id: 'snapshot-1',
+      workflowId: 'workflow-1',
+      stateHash: '0'.repeat(64),
+      stateData: pinnedWorkflowState,
+      createdAt: '2026-07-17T00:00:00.000Z',
+    })
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'success',
+      output: { ok: true },
+      metadata: { duration: 10, userId: 'actor-1' },
+    })
+
+    await executeWorkflowJob({
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      triggerType: 'workflow',
+      executionId: 'pinned-execution',
+      requestId: 'pinned-request',
+      billingAttribution,
+      workflowStateSnapshotId: 'snapshot-1',
+      triggerBlockId: 'pinned-start',
+    })
+
+    expect(mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({ checkDeployment: false })
+    )
+    expect(mockGetBoundedSnapshotForWorkflow).toHaveBeenCalledWith('snapshot-1', 'workflow-1')
+    expect(vi.mocked(ExecutionSnapshot)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        useDraftState: true,
+        triggerBlockId: 'pinned-start',
+        workflowStateOverride: {
+          blocks: pinnedWorkflowState.blocks,
+          edges: pinnedWorkflowState.edges,
+          loops: pinnedWorkflowState.loops,
+          parallels: pinnedWorkflowState.parallels,
+        },
+      }),
+      expect.anything(),
+      undefined,
+      pinnedWorkflowState.variables,
+      []
+    )
+  })
+
+  it('rejects contradictory pinned and deployed-state controls before preprocessing', async () => {
+    await expect(
+      executeWorkflowJob({
+        workflowId: 'workflow-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
+        triggerType: 'workflow',
+        executionId: 'invalid-pinned-execution',
+        requestId: 'invalid-pinned-request',
+        billingAttribution,
+        workflowStateSnapshotId: 'snapshot-1',
+        useDraftState: false,
+      })
+    ).rejects.toThrow('Pinned workflow state cannot be combined with useDraftState=false')
+
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    expect(mockGetBoundedSnapshotForWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty explicit trigger block before preprocessing', async () => {
+    await expect(
+      executeWorkflowJob({
+        workflowId: 'workflow-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
+        triggerType: 'workflow',
+        executionId: 'invalid-trigger-execution',
+        requestId: 'invalid-trigger-request',
+        billingAttribution,
+        triggerBlockId: ' ',
+      })
+    ).rejects.toThrow('Trigger block ID must be a non-empty string')
+
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
   it('passes schedule correlation into preprocessing', async () => {

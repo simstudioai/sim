@@ -153,6 +153,7 @@ export interface ChatMessage {
 
 export const SUBAGENT_LABELS: Record<string, string> = {
   workflow: 'Workflow Agent',
+  eval: 'Eval Agent',
   debug: 'Debug Agent',
   deploy: 'Deploy Agent',
   auth: 'Auth Agent',

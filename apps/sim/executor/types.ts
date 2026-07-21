@@ -261,6 +261,8 @@ export interface BlockLog {
   endedAt: string
   durationMs: number
   success: boolean
+  /** The block handler was skipped and output was supplied by an Eval test. */
+  mocked?: boolean
   output?: NormalizedBlockOutput
   input?: Record<string, unknown>
   error?: string
@@ -336,6 +338,8 @@ export interface ExecutionContext {
   copilotToolExecution?: boolean
   /** In-flight block-output PII redaction policy (resolved `blockOutputs` stage). */
   piiBlockOutputRedaction?: PiiBlockOutputRedaction
+  /** Eval-only subject block outputs keyed by canonical draft block ID. */
+  blockMocks?: ReadonlyMap<string, unknown>
 
   permissionConfig?: PermissionGroupConfig | null
   permissionConfigLoaded?: boolean

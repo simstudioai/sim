@@ -12,6 +12,7 @@ const { mockFetch, mockIsPlatformAdmin, envRef, flagRef } = vi.hoisted(() => ({
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
     FORKING_ENABLED: undefined as boolean | undefined,
     DEPLOY_AS_BLOCK: undefined as boolean | undefined,
+    WORKFLOW_EVALS: undefined as boolean | undefined,
   },
   flagRef: { isAppConfigEnabled: false },
 }))
@@ -110,6 +111,7 @@ describe('isFeatureEnabled', () => {
     flagRef.isAppConfigEnabled = false
     envRef.FORKING_ENABLED = undefined
     envRef.DEPLOY_AS_BLOCK = undefined
+    envRef.WORKFLOW_EVALS = undefined
   })
 
   describe('workspace-forking flag', () => {
@@ -145,6 +147,23 @@ describe('isFeatureEnabled', () => {
       withAppConfig({ 'deploy-as-block': { orgIds: ['o1'] } })
       expect(await isFeatureEnabled('deploy-as-block', { orgId: 'o1' })).toBe(true)
       expect(await isFeatureEnabled('deploy-as-block', { orgId: 'o2' })).toBe(false)
+    })
+  })
+
+  describe('workflow-evals flag', () => {
+    it('falls back to WORKFLOW_EVALS when AppConfig is disabled', async () => {
+      envRef.WORKFLOW_EVALS = undefined
+      expect(await isFeatureEnabled('workflow-evals', { userId: 'u1', orgId: 'o1' })).toBe(false)
+
+      envRef.WORKFLOW_EVALS = true
+      expect(await isFeatureEnabled('workflow-evals', { userId: 'u1', orgId: 'o1' })).toBe(true)
+    })
+
+    it('targets specific orgs via AppConfig, ignoring the fallback secret', async () => {
+      envRef.WORKFLOW_EVALS = undefined
+      withAppConfig({ 'workflow-evals': { orgIds: ['o1'] } })
+      expect(await isFeatureEnabled('workflow-evals', { orgId: 'o1' })).toBe(true)
+      expect(await isFeatureEnabled('workflow-evals', { orgId: 'o2' })).toBe(false)
     })
   })
 

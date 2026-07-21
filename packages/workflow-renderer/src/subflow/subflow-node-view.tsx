@@ -43,6 +43,8 @@ export interface SubflowNodeViewProps {
   isFocused: boolean
   /** Resolved run-path outcome for the execution ring. */
   runPathStatus?: BlockRunStatus
+  /** Whether a selected eval result implicates this subflow. */
+  isEvalErrorHighlighted?: boolean
   /** Diff state when comparing workflow versions. */
   diffStatus?: DiffStatus
   /** Depth in the parent container hierarchy (drives nesting styling). */
@@ -86,6 +88,7 @@ export function SubflowNodeView({
   isLocked,
   isFocused,
   runPathStatus,
+  isEvalErrorHighlighted = false,
   diffStatus,
   nestingLevel,
   canEditWorkflow,
@@ -107,17 +110,20 @@ export function SubflowNodeView({
     isFocused ||
     isSelected ||
     isPreviewSelected ||
+    isEvalErrorHighlighted ||
     diffStatus === 'new' ||
     diffStatus === 'edited' ||
     !!runPathStatus
 
   /**
-   * Ring color priority: selection (blue) → diff (green/orange) → run-path
-   * (green/red). Uses boxShadow (not outline) so child nodes rendered as
-   * viewport-level siblings by ReactFlow don't clip the parent's ring.
+   * Ring color priority: eval error (red) → selection (blue) → diff
+   * (green/orange) → run-path (green/red). Uses boxShadow (not outline) so
+   * child nodes rendered as viewport-level siblings by ReactFlow don't clip
+   * the parent's ring.
    */
   const getRingColor = (): string | undefined => {
     if (!hasRing) return undefined
+    if (isEvalErrorHighlighted) return 'var(--text-error)'
     if (isFocused || isSelected || isPreviewSelected) return 'var(--brand-secondary)'
     if (diffStatus === 'new') return 'var(--brand-accent)'
     if (diffStatus === 'edited') return 'var(--warning)'

@@ -2,18 +2,20 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import type { BlockConfig } from '@/blocks/types'
-import { hostedKeyEnabledWhen } from '@/tools/hosting'
-import type { ToolConfig } from '@/tools/types'
 import {
+  MAX_WORKFLOW_EVAL_VFS_SUITES,
   serializeApiKeyIntegrations,
   serializeBlockSchema,
   serializeFileMeta,
   serializeIntegrationSchema,
   serializeKBMeta,
   serializeTableMeta,
+  serializeWorkflowEvals,
   serializeWorkflowMeta,
-} from './serializers'
+} from '@/lib/copilot/vfs/serializers'
+import type { BlockConfig } from '@/blocks/types'
+import { hostedKeyEnabledWhen } from '@/tools/hosting'
+import type { ToolConfig } from '@/tools/types'
 
 function hostedTool(id: string, conditional = false): ToolConfig {
   return {
@@ -215,6 +217,105 @@ describe('hosted-key VFS metadata', () => {
     )
     expect(schema.inputs.apiKey).toBeDefined()
     expect(schema.toolAuth.search.mode).toBe('hosted_or_byok')
+  })
+})
+
+describe('workflow Eval VFS metadata', () => {
+  it('advertises Eval discovery only for workflows with active suites', () => {
+    const workflow = {
+      id: 'workflow-1',
+      name: 'Support',
+      isDeployed: false,
+      runCount: 0,
+      createdAt: new Date('2026-07-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-07-09T00:00:00.000Z'),
+    }
+    const withEvals = JSON.parse(
+      serializeWorkflowMeta(workflow, {
+        evals: {
+          suiteCount: 3,
+          testCount: 46,
+          path: 'workflows/Support/evals.json',
+        },
+      })
+    )
+    const withoutEvals = JSON.parse(serializeWorkflowMeta(workflow))
+
+    expect(withEvals).toMatchObject({
+      evalSuiteCount: 3,
+      evalTestCount: 46,
+      evalsPath: 'workflows/Support/evals.json',
+    })
+    expect(withoutEvals).not.toHaveProperty('evalSuiteCount')
+    expect(withoutEvals).not.toHaveProperty('evalTestCount')
+    expect(withoutEvals).not.toHaveProperty('evalsPath')
+  })
+})
+
+describe('serializeWorkflowEvals', () => {
+  const suite = {
+    id: 'suite-1',
+    name: 'Support regression',
+    definitionRevision: 4,
+    testCount: 3,
+    evaluatorCounts: { code: 1, agent: 1, workflow: 1 },
+    createdAt: new Date('2026-07-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-07-09T00:00:00.000Z'),
+    latestRun: {
+      id: 'run-1',
+      status: 'completed',
+      scope: 'suite',
+      selectedTestId: null,
+      totalCount: 3,
+      completedCount: 3,
+      passedCount: 1,
+      warningCount: 1,
+      failedCount: 1,
+      errorCount: 0,
+      createdAt: new Date('2026-07-10T00:00:00.000Z'),
+      completedAt: new Date('2026-07-10T00:01:00.000Z'),
+    },
+  }
+
+  it('serializes compact suite discovery and latest-run status without definitions', () => {
+    const summary = JSON.parse(serializeWorkflowEvals('workflow-1', [suite]))
+
+    expect(summary).toMatchObject({
+      workflowId: 'workflow-1',
+      suiteCount: 1,
+      testCount: 3,
+      suites: [
+        {
+          id: 'suite-1',
+          name: 'Support regression',
+          definitionRevision: 4,
+          testCount: 3,
+          evaluatorCounts: { code: 1, agent: 1, workflow: 1 },
+          latestRun: {
+            id: 'run-1',
+            status: 'completed',
+            passedCount: 1,
+            warningCount: 1,
+            failedCount: 1,
+          },
+        },
+      ],
+    })
+    expect(summary.suites[0]).not.toHaveProperty('tests')
+    expect(summary.suites[0]).not.toHaveProperty('definition')
+    expect(summary.suites[0].latestRun).not.toHaveProperty('definitionSnapshot')
+  })
+
+  it('rejects more suite rows than the VFS limit', () => {
+    const suites = Array.from({ length: MAX_WORKFLOW_EVAL_VFS_SUITES + 1 }, (_, index) => ({
+      ...suite,
+      id: `suite-${index}`,
+      latestRun: null,
+    }))
+
+    expect(() => serializeWorkflowEvals('workflow-1', suites)).toThrow(
+      `exceeding the ${MAX_WORKFLOW_EVAL_VFS_SUITES}-suite VFS limit`
+    )
   })
 })
 

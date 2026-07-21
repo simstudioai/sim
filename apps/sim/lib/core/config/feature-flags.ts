@@ -112,6 +112,13 @@ const FEATURE_FLAGS = {
       'custom-block publish/list routes. Off-AppConfig falls back to DEPLOY_AS_BLOCK.',
     fallback: 'DEPLOY_AS_BLOCK',
   },
+  'workflow-evals': {
+    description:
+      'Expose workflow eval suites, run code-evaluated suites, and inspect their latest results ' +
+      'in the workflow terminal. The server applies this gate before reading or starting evals. ' +
+      'Off-AppConfig falls back to WORKFLOW_EVALS.',
+    fallback: 'WORKFLOW_EVALS',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**

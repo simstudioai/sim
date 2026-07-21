@@ -58,6 +58,8 @@ export interface WorkspaceMdData {
     isDeployed: boolean
     lastRunAt?: Date | null
     folderPath?: string | null
+    evalSuiteCount?: number
+    evalTestCount?: number
   }>
   knowledgeBases: Array<{
     id: string
@@ -157,6 +159,17 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
       const workflowDir = canonicalWorkflowVfsDir({ name: wf.name, folderPath: wf.folderPath })
       parts.push(`${indent}  VFS dir: \`${workflowDir}\``)
       parts.push(`${indent}  VFS state path: \`${workflowDir}/state.json\``)
+      if (wf.evalSuiteCount && wf.evalSuiteCount > 0) {
+        if (!Number.isSafeInteger(wf.evalTestCount) || (wf.evalTestCount ?? -1) < 0) {
+          throw new Error(`Workflow ${wf.id} has Eval suites without a valid Eval test count`)
+        }
+        const testCount = wf.evalTestCount as number
+        const suiteLabel = wf.evalSuiteCount === 1 ? 'suite' : 'suites'
+        const testLabel = testCount === 1 ? 'test' : 'tests'
+        parts.push(
+          `${indent}  VFS Evals path: \`${workflowDir}/evals.json\` (${wf.evalSuiteCount} ${suiteLabel}, ${testCount} ${testLabel})`
+        )
+      }
       // `deployed` is a structural flag (kept); `lastRunAt` is intentionally
       // omitted — it changes on every run and would bust the cached prompt
       // prefix that carries this inventory. Current run data lives in

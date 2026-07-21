@@ -70,6 +70,19 @@ describe('humanizeToolName', () => {
 })
 
 describe('getToolDisplayTitle natural-language coverage', () => {
+  it('labels the Eval subagent trigger', () => {
+    expect(getToolDisplayTitle('eval')).toBe('Eval Agent')
+  })
+
+  it('uses Eval Suite instead of Workflow Eval Suite in Eval tool titles', () => {
+    expect(getToolDisplayTitle('create_workflow_eval_suite')).toBe('Creating Eval Suite')
+    expect(getToolDisplayTitle('get_workflow_eval_suite')).toBe('Getting Eval Suite')
+    expect(getToolDisplayTitle('list_workflow_eval_suites')).toBe('Listing Eval Suites')
+    expect(getToolDisplayTitle('run_workflow_eval_suite')).toBe('Running Eval Suite')
+    expect(getToolDisplayTitle('update_workflow_eval_suite')).toBe('Updating Eval Suite')
+    expect(getToolDisplayTitle('archive_workflow_eval_suite')).toBe('Archiving Eval Suite')
+  })
+
   it('gives gerund titles to tools that previously fell through to humanize', () => {
     expect(getToolDisplayTitle('deploy_api')).toBe('Deploying API')
     expect(getToolDisplayTitle('list_workspace_mcp_servers')).toBe('Listing MCP servers')

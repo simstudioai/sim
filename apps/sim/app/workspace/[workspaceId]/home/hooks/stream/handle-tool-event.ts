@@ -2,7 +2,16 @@ import {
   MothershipStreamV1ToolPhase,
   MothershipStreamV1ToolStatus,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import {
+  ArchiveWorkflowEvalSuite,
+  CreateWorkflowEvalSuite,
+  Read as ReadTool,
+  RunWorkflowEvalSuite,
+  RunWorkflowEvalTest,
+  StopWorkflowEvalRun,
+  UpdateWorkflowEvalSuite,
+  WorkspaceFile,
+} from '@/lib/copilot/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import {
   extractResourcesFromToolResult,
@@ -24,16 +33,81 @@ import {
   type ToolNode,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
 import { deploymentKeys } from '@/hooks/queries/deployments'
+import { workflowEvalKeys } from '@/hooks/queries/evals'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { workflowKeys } from '@/hooks/queries/workflows'
+import { useTerminalStore } from '@/stores/terminal'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 type ToolEvent = Extract<PersistedStreamEventEnvelope, { type: 'tool' }>
+
+const EVAL_RUN_TOOL_NAMES = new Set<string>([RunWorkflowEvalSuite.id, RunWorkflowEvalTest.id])
+const EVAL_MUTATION_TOOL_NAMES = new Set<string>([
+  CreateWorkflowEvalSuite.id,
+  UpdateWorkflowEvalSuite.id,
+  ArchiveWorkflowEvalSuite.id,
+  RunWorkflowEvalSuite.id,
+  RunWorkflowEvalTest.id,
+  StopWorkflowEvalRun.id,
+])
 
 /** The display agent id for a tool's owning span (undefined on the main lane). */
 function agentIdForSpan(ctx: StreamLoopContext, spanId: string): string | undefined {
   if (spanId === MAIN_SPAN) return undefined
   const agent = ctx.state.model.nodes.get(spanId)
   return agent?.kind === 'agent' ? agent.agentId : undefined
+}
+
+function activateEvalWorkflowResource(ctx: StreamLoopContext, output: unknown): void {
+  if (!output || typeof output !== 'object') {
+    throw new Error('Successful Eval run tool result is missing its output')
+  }
+  const workflowId = (output as Record<string, unknown>).workflowId
+  if (typeof workflowId !== 'string' || workflowId.length === 0) {
+    throw new Error('Successful Eval run tool result is missing workflowId')
+  }
+
+  const { deps } = ctx
+  const existingResource = deps.resourcesRef.current.find(
+    (resource) => resource.type === 'workflow' && resource.id === workflowId
+  )
+  const cachedWorkflow = deps.queryClient
+    .getQueryData<WorkflowMetadata[]>(workflowKeys.list(deps.workspaceId, 'active'))
+    ?.find((workflow) => workflow.id === workflowId)
+  const resource =
+    existingResource ??
+    ({
+      type: 'workflow',
+      id: workflowId,
+      title: cachedWorkflow?.name ?? 'Workflow',
+    } as const)
+
+  useTerminalStore.getState().requestTerminalView(workflowId, 'evals')
+  const wasAdded = deps.addResource(resource)
+  if (!wasAdded) {
+    deps.setActiveResourceId(workflowId)
+  }
+  deps.onResourceEventRef.current?.()
+
+  const wasRegistered = deps.ensureWorkflowInRegistry(workflowId, resource.title, deps.workspaceId)
+  if (wasAdded && wasRegistered) {
+    useWorkflowRegistry.getState().setActiveWorkflow(workflowId)
+  } else {
+    useWorkflowRegistry.getState().loadWorkflowState(workflowId)
+  }
+}
+
+function invalidateEvalSuiteCache(ctx: StreamLoopContext, output: unknown): void {
+  if (!output || typeof output !== 'object') {
+    throw new Error('Successful Eval mutation tool result is missing its output')
+  }
+  const workflowId = (output as Record<string, unknown>).workflowId
+  if (typeof workflowId !== 'string' || workflowId.length === 0) {
+    throw new Error('Successful Eval mutation tool result is missing workflowId')
+  }
+
+  ctx.deps.queryClient.invalidateQueries({ queryKey: workflowEvalKeys.suiteList(workflowId) })
 }
 
 /**
@@ -75,6 +149,12 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
   }
   if (WORKFLOW_MUTATION_TOOL_NAMES.has(name) && isSuccess) {
     deps.queryClient.invalidateQueries({ queryKey: workflowKeys.list(deps.workspaceId) })
+  }
+  if (EVAL_MUTATION_TOOL_NAMES.has(name) && isSuccess) {
+    invalidateEvalSuiteCache(ctx, output)
+  }
+  if (EVAL_RUN_TOOL_NAMES.has(name) && isSuccess) {
+    activateEvalWorkflowResource(ctx, output)
   }
 
   const extractedResources =

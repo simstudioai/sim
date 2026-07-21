@@ -71,6 +71,20 @@ import {
   slackUpdateMessageTool,
   slackUpdateViewTool,
 } from '@/tools/slack'
+import {
+  tableBatchInsertRowsTool,
+  tableCreateTool,
+  tableDeleteRowsByFilterTool,
+  tableDeleteRowTool,
+  tableGetRowTool,
+  tableGetSchemaTool,
+  tableInsertRowTool,
+  tableListTool,
+  tableQueryRowsTool,
+  tableUpdateRowsByFilterTool,
+  tableUpdateRowTool,
+  tableUpsertRowTool,
+} from '@/tools/table'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -79,9 +93,9 @@ import type { ToolConfig } from '@/tools/types'
  * next.config.ts) so the local dev server never compiles the full ~247-tool
  * graph (~2,074 modules) that the shared workspace layout otherwise drags into
  * every route. Only these tools execute in minimal mode; unset the flag for the
- * full set. The slack and gmail v2 sets back the `slack`/`slack_v2` and
- * `gmail_v2` blocks kept in `blocks/registry-maps.minimal.ts`. NEVER aliased in
- * production.
+ * full set. The table, slack, and gmail v2 sets back the `table`,
+ * `slack`/`slack_v2`, and `gmail_v2` blocks kept in
+ * `blocks/registry-maps.minimal.ts`. NEVER aliased in production.
  */
 export const tools: Record<string, ToolConfig> = {
   http_request: httpRequestTool,
@@ -153,4 +167,16 @@ export const tools: Record<string, ToolConfig> = {
   slack_set_title: slackSetTitleTool,
   slack_update_message: slackUpdateMessageTool,
   slack_update_view: slackUpdateViewTool,
+  table_create: tableCreateTool,
+  table_list: tableListTool,
+  table_insert_row: tableInsertRowTool,
+  table_batch_insert_rows: tableBatchInsertRowsTool,
+  table_upsert_row: tableUpsertRowTool,
+  table_update_row: tableUpdateRowTool,
+  table_update_rows_by_filter: tableUpdateRowsByFilterTool,
+  table_delete_row: tableDeleteRowTool,
+  table_delete_rows_by_filter: tableDeleteRowsByFilterTool,
+  table_query_rows: tableQueryRowsTool,
+  table_get_row: tableGetRowTool,
+  table_get_schema: tableGetSchemaTool,
 }

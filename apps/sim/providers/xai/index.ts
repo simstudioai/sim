@@ -50,6 +50,7 @@ export const xAIProvider: ProviderConfig = {
     const xai = new OpenAI({
       apiKey: request.apiKey,
       baseURL: 'https://api.x.ai/v1',
+      ...(request.maxRetries !== undefined ? { maxRetries: request.maxRetries } : {}),
     })
 
     logger.info('XAI Provider - Initial request configuration:', {

@@ -13,6 +13,8 @@ interface BlockRingOptions {
   isDeletedBlock: boolean
   diffStatus: BlockDiffStatus
   runPathStatus: BlockRunPathStatus
+  /** Whether a selected eval result implicates this block. */
+  isEvalErrorHighlighted: boolean
   isPreviewSelection?: boolean
   /** Whether the block is selected via shift-click or selection box (shows blue ring) */
   isSelected?: boolean
@@ -33,9 +35,17 @@ export function getBlockRingStyles(options: BlockRingOptions): {
     isDeletedBlock,
     diffStatus,
     runPathStatus,
+    isEvalErrorHighlighted,
     isPreviewSelection,
     isSelected,
   } = options
+
+  if (isEvalErrorHighlighted) {
+    return {
+      hasRing: true,
+      ringClassName: 'ring-[1.75px] ring-[var(--text-error)]',
+    }
+  }
 
   const hasRing =
     isExecuting ||
