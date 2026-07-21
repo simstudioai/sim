@@ -140,6 +140,9 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
       const starting = (startingRef.current ??= new Set())
       if (starting.has(serverId)) return
       starting.add(serverId)
+      // Kill any prior attempt's popup.closed poll up front: left running, its callback could
+      // fire mid-reopen and clear "Connecting…" for this fresh flow (stale-poll race).
+      stopPopupPoll(serverId)
       setConnectingServers((prev) => new Set(prev).add(serverId))
       try {
         const result = await startOauth({ serverId, workspaceId })
