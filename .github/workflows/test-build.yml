@@ -10,7 +10,7 @@ permissions:
 jobs:
   test-build:
     name: Lint and Test
-    runs-on: ${{ vars.CI_PROVIDER == 'github' && 'ubuntu-latest' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
 
     steps:
@@ -192,7 +192,7 @@ jobs:
   # is correct on actions/cache, which is likewise last-writer-wins per key.
   build:
     name: Build App
-    runs-on: ${{ vars.CI_PROVIDER == 'github' && 'ubuntu-latest' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
 
     steps:

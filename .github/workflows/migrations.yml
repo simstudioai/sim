@@ -24,7 +24,7 @@ permissions:
 jobs:
   migrate:
     name: Apply Database Migrations
-    runs-on: ${{ vars.CI_PROVIDER == 'github' && 'ubuntu-latest' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 45
 
     steps:

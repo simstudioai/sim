@@ -3,7 +3,7 @@ description: Mount a build cache directory using Blacksmith sticky disks, or the
 
 inputs:
   provider:
-    description: Set to 'github' to use actions/cache. Any other value (including unset) uses Blacksmith sticky disks.
+    description: Empty or 'blacksmith' selects sticky disks. Any other value selects actions/cache. Must stay byte-identical to the runs-on predicate in the calling workflow.
     required: false
     default: ''
   key:
@@ -13,11 +13,15 @@ inputs:
     description: Filesystem path the cache is mounted at.
     required: true
 
+# The two conditions are exact complements of the runs-on expression the caller
+# uses. They must be inverted together: a job placed on ubuntu-latest that then
+# took the sticky-disk branch would hard-fail, since stickydisk hot-mounts an
+# ext4 volume from Blacksmith's storage agents and cannot run anywhere else.
 runs:
   using: composite
   steps:
     - name: Mount sticky disk
-      if: inputs.provider != 'github'
+      if: inputs.provider == '' || inputs.provider == 'blacksmith'
       uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
       with:
         key: ${{ inputs.key }}
@@ -28,7 +32,7 @@ runs:
     # would freeze the cache at whatever the first run wrote — the run-scoped
     # suffix plus a prefix restore-key reproduces the rolling behaviour.
     - name: Restore and save cache
-      if: inputs.provider == 'github'
+      if: inputs.provider != '' && inputs.provider != 'blacksmith'
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
       with:
         key: ${{ inputs.key }}-${{ github.run_id }}

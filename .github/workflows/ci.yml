@@ -10,6 +10,16 @@ name: CI
 # Blacksmith outage there is no working CI to merge a switchover commit through,
 # and the variable takes effect on the next run with nothing to land.
 #
+# Only unset or the exact value 'blacksmith' selects Blacksmith; everything else
+# selects GitHub-hosted. The unrecognized case resolves toward GitHub on purpose,
+# because that is the provider that is always available: a typo'd or whitespace-
+# padded break-glass value then yields slow-but-working CI instead of jobs queued
+# forever against the provider you were trying to escape. `==` is case-insensitive
+# in Actions expressions, so 'GitHub' and 'Blacksmith' both work. Every runs-on
+# expression and both composite actions use this same predicate — they must be
+# changed together, since a job on ubuntu-latest that took a Blacksmith-only
+# branch would hard-fail.
+#
 # GitHub mode is a break-glass fallback, not a peer. Public-repo ubuntu-latest is
 # 4 vCPU with no free 8-core tier, the 10 GB repo cache quota will thrash across
 # the bun/node_modules/turbo mounts, and image builds start from cold layers — so
@@ -46,7 +56,7 @@ jobs:
   # Detect if this is a version release commit (e.g., "v0.5.24: ...")
   detect-version:
     name: Detect Version
-    runs-on: ${{ vars.CI_PROVIDER == 'github' && 'ubuntu-latest' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     outputs:
@@ -99,7 +109,7 @@ jobs:
     name: Build Dev ECR
     needs: [detect-version, migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    runs-on: ${{ vars.CI_PROVIDER == 'github' && 'ubuntu-latest' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -157,7 +167,7 @@ jobs:
     name: Deploy Trigger.dev (Dev)
     needs: [migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    runs-on: ${{ vars.CI_PROVIDER == 'github' && 'ubuntu-latest' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - name: Checkout code
@@ -204,7 +214,7 @@ jobs:
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: ${{ vars.CI_PROVIDER == 'github' && 'ubuntu-latest' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -298,7 +308,7 @@ jobs:
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: ${{ vars.CI_PROVIDER == 'github' && 'ubuntu-latest' || 'blacksmith-2vcpu-ubuntu-2404' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -368,7 +378,7 @@ jobs:
   # never moves a documented tag.
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
-    runs-on: ${{ vars.CI_PROVIDER == 'github' && 'ubuntu-24.04-arm' || 'blacksmith-8vcpu-ubuntu-2404-arm' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404-arm' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 30
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -411,7 +421,7 @@ jobs:
   # after the deploy gate (promote-images) and the ARM64 build both pass.
   create-ghcr-manifests:
     name: Create GHCR Manifests
-    runs-on: ${{ vars.CI_PROVIDER == 'github' && 'ubuntu-latest' || 'blacksmith-2vcpu-ubuntu-2404' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
     needs: [promote-images, build-ghcr-arm64, detect-version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -477,7 +487,7 @@ jobs:
   # Check if docs changed
   check-docs-changes:
     name: Check Docs Changes
-    runs-on: ${{ vars.CI_PROVIDER == 'github' && 'ubuntu-latest' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     outputs:
@@ -506,7 +516,7 @@ jobs:
   # Create GitHub Release (only for version commits on main, after all builds complete)
   create-release:
     name: Create GitHub Release
-    runs-on: ${{ vars.CI_PROVIDER == 'github' && 'ubuntu-latest' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
     needs: [create-ghcr-manifests, detect-version]
     if: needs.detect-version.outputs.is_release == 'true'
