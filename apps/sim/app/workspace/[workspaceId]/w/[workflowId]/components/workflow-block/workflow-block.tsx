@@ -146,8 +146,8 @@ function getBlockSunset(
       return {
         status: 'legacy',
         kind: 'model',
-        tooltip: `${model} is deprecated. Click to upgrade`,
-        prompt: `The "${name}" block uses the deprecated model "${model}". Switch it to the latest equivalent model.`,
+        tooltip: `${model} is a legacy model. Click to upgrade`,
+        prompt: `The "${name}" block uses the legacy model "${model}". Switch it to the latest equivalent model.`,
       }
     }
   }
