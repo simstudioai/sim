@@ -69,6 +69,7 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
             status: 'ok',
             timestamp: new Date().toISOString(),
             connections,
+            ...(process.env.E2E_RUN_ID ? { runId: process.env.E2E_RUN_ID } : {}),
           })
         )
       } catch (error) {

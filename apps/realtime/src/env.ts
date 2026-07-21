@@ -14,6 +14,7 @@ const EnvSchema = z.object({
   INTERNAL_API_SECRET: z.string().min(32),
   NEXT_PUBLIC_APP_URL: z.string().url(),
   ALLOWED_ORIGINS: z.string().optional(),
+  REALTIME_HOST: z.string().min(1).default('0.0.0.0'),
   PORT: z.coerce.number().int().positive().default(3002),
   SIM_DB_ROLE: z.enum(['web', 'trigger', 'realtime']).optional(),
   DISABLE_AUTH: z
