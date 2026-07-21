@@ -12,6 +12,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
   type: 'notion',
   name: 'Notion (Legacy)',
   hideFromToolbar: true,
+  deprecated: { replacedBy: 'notion_v2' },
   description: 'Manage Notion pages',
   authMode: AuthMode.OAuth,
   longDescription:

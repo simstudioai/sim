@@ -19,6 +19,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   bgColor: '#FFFFFF',
   icon: GoogleCalendarIcon,
   hideFromToolbar: true,
+  deprecated: { replacedBy: 'google_calendar_v2' },
   subBlocks: [
     {
       id: 'operation',
@@ -925,6 +926,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
 export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
   ...GoogleCalendarBlock,
+  deprecated: undefined,
   type: 'google_calendar_v2',
   name: 'Google Calendar',
   hideFromToolbar: false,

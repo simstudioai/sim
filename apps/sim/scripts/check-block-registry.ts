@@ -26,7 +26,7 @@
 
 import { execSync } from 'child_process'
 import { SUBBLOCK_ID_MIGRATIONS } from '@/lib/workflows/migrations/subblock-migrations'
-import { getAllBlocks, getBlockMeta } from '@/blocks/registry'
+import { getAllBlocks, getBlock, getBlockMeta } from '@/blocks/registry'
 import { tools as toolRegistry } from '@/tools/registry'
 
 const baseRef = process.argv[2] || 'HEAD~1'
@@ -280,6 +280,38 @@ function checkIntegrationMetaCoverage(): CheckResult {
   return { kind: 'fail', errors }
 }
 
+function checkDeprecationReplacedBy(): CheckResult {
+  const errors: string[] = []
+
+  for (const block of getAllBlocks()) {
+    const replacedBy = block.deprecated?.replacedBy
+    if (!replacedBy) continue
+
+    const target = getBlock(replacedBy)
+    if (!target) {
+      errors.push(
+        `Block "${block.type}" is deprecated with replacedBy: '${replacedBy}', but no such block exists.`
+      )
+      continue
+    }
+    if (target.deprecated) {
+      errors.push(
+        `Block "${block.type}" points replacedBy: '${replacedBy}', but that block is itself deprecated.`
+      )
+    }
+    if (target.preview) {
+      errors.push(
+        `Block "${block.type}" points replacedBy: '${replacedBy}', but that block is preview (not GA).`
+      )
+    }
+  }
+
+  if (errors.length === 0) {
+    return { kind: 'pass', message: 'Deprecation replacedBy check passed' }
+  }
+  return { kind: 'fail', errors }
+}
+
 function reportResult(label: string, failureHeader: string, result: CheckResult): boolean {
   if (result.kind === 'pass') {
     console.log(`✓ ${result.message}`)
@@ -300,6 +332,7 @@ function reportResult(label: string, failureHeader: string, result: CheckResult)
 const stabilityResult = checkSubblockIdStability()
 const canonicalResult = checkCanonicalIdContract()
 const metaCoverageResult = checkIntegrationMetaCoverage()
+const deprecationResult = checkDeprecationReplacedBy()
 
 const stabilityOk = reportResult(
   'Subblock ID stability check',
@@ -319,4 +352,10 @@ const metaCoverageOk = reportResult(
   metaCoverageResult
 )
 
-process.exit(stabilityOk && canonicalOk && metaCoverageOk ? 0 : 1)
+const deprecationOk = reportResult(
+  'Deprecation replacedBy check',
+  'A deprecated block must point replacedBy at a real, GA, non-deprecated successor.',
+  deprecationResult
+)
+
+process.exit(stabilityOk && canonicalOk && metaCoverageOk && deprecationOk ? 0 : 1)

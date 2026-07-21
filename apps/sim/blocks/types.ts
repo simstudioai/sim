@@ -496,6 +496,16 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
    * gated. Remove at GA.
    */
   preview?: boolean
+  /**
+   * Marks a superseded block. Placed instances keep executing and rendering; the
+   * canvas surfaces a deprecation badge and downstream jobs may notify owners.
+   * `replacedBy` is the block `type` users should migrate to — omit when no
+   * direct successor exists. Distinct from {@link hideFromToolbar} (a rendering
+   * decision) and {@link preview} (unreleased). Remove config at end-of-life.
+   */
+  deprecated?: {
+    replacedBy?: string
+  }
   triggers?: {
     enabled: boolean
     available: string[] // List of trigger IDs this block supports

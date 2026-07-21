@@ -10,6 +10,7 @@ export const StarterBlock: BlockConfig = {
   bgColor: '#2FB3FF',
   icon: StartIcon,
   hideFromToolbar: true,
+  deprecated: { replacedBy: 'start_trigger' },
   subBlocks: [
     // Main trigger selector
     {

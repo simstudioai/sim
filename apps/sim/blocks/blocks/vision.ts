@@ -26,6 +26,7 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
   name: 'Vision (Legacy)',
   description: 'Analyze images with vision models',
   hideFromToolbar: true,
+  deprecated: {},
   authMode: AuthMode.ApiKey,
   longDescription: 'Integrate Vision into the workflow. Can analyze images with vision models.',
   docsLink: 'https://docs.sim.ai/integrations/vision',
@@ -109,6 +110,7 @@ export const VisionV2Block: BlockConfig<VisionResponse> = {
   name: 'Vision',
   description: 'Analyze images with vision models',
   hideFromToolbar: true,
+  deprecated: {},
   tools: {
     access: ['vision_tool_v2'],
     config: {

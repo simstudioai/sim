@@ -3850,6 +3850,22 @@ export function isKnownModelId(modelId: string): boolean {
   return false
 }
 
+const DEPRECATED_STATIC_MODEL_IDS = new Set<string>()
+for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
+  if ((DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)) continue
+  for (const model of provider.models) {
+    if (model.deprecated) DEPRECATED_STATIC_MODEL_IDS.add(model.id.toLowerCase())
+  }
+}
+
+/**
+ * Whether a stored model id is a deprecated static-catalog model. Dynamic-provider
+ * and unknown ids are never deprecated (they carry no static catalog entry).
+ */
+export function isModelDeprecated(modelId: string | undefined | null): boolean {
+  return !!modelId && DEPRECATED_STATIC_MODEL_IDS.has(modelId.toLowerCase())
+}
+
 function getRecommendedModels(): string[] {
   const models: string[] = []
   for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {

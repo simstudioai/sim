@@ -64,4 +64,5 @@ export const WorkflowBlock: BlockConfig = {
     },
   },
   hideFromToolbar: true,
+  deprecated: { replacedBy: 'workflow_input' },
 }

@@ -57,6 +57,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   bgColor: '#FFFFFF',
   icon: GmailIcon,
   hideFromToolbar: true,
+  deprecated: { replacedBy: 'gmail_v2' },
   triggerAllowed: true,
   subBlocks: [
     // Operation selector
@@ -575,6 +576,7 @@ Return ONLY the search query - no explanations, no extra text.`,
 
 export const GmailV2Block: BlockConfig<GmailToolResponse> = {
   ...GmailBlock,
+  deprecated: undefined,
   type: 'gmail_v2',
   name: 'Gmail',
   hideFromToolbar: false,

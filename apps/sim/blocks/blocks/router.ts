@@ -157,6 +157,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
   bgColor: '#28C43F',
   icon: ConnectIcon,
   hideFromToolbar: true, // Hide legacy version from toolbar
+  deprecated: { replacedBy: 'router_v2' },
   subBlocks: [
     {
       id: 'prompt',
