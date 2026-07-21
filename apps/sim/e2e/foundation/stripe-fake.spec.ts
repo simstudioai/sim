@@ -36,6 +36,18 @@ test('Stripe fake records allowlisted calls and rejects unknown routes', async (
     )
     expect(search.status).toBe(200)
 
+    const telemetry = await fetch(`${baseUrl}/v1/traces`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ resourceSpans: [] }),
+    })
+    expect(telemetry.status).toBe(200)
+    expect(
+      fake.requestLog.some(
+        ({ method, path, unexpected }) => method === 'POST' && path === '/v1/traces' && !unexpected
+      )
+    ).toBe(true)
+
     const unsupportedSearch = await fetch(
       `${baseUrl}/v1/customers/search?${new URLSearchParams({
         query: 'name:"Foundation"',

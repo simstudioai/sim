@@ -1,4 +1,13 @@
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import {
+  clearActiveNextBuild,
+  computeBuildIdentity,
+  pruneBuildCache,
+  restoreCachedBuild,
+  storeCompletedBuild,
+} from './build-manifest'
+import type { ChildEnvironment } from './env'
 import { DB_PACKAGE_DIR, PLAYWRIGHT_CLI, REALTIME_APP_DIR, REPO_ROOT, SIM_APP_DIR } from './paths'
 import {
   type ManagedProcess,
@@ -7,12 +16,19 @@ import {
   waitForManagedProcessReady,
 } from './process'
 import { waitForHttpReady } from './readiness'
+import { verifySandboxBundleIntegrity } from './sandbox-bundles'
 
 export interface StackCommandOptions {
   bunExecutable: string
   nodeExecutable: string
   env: Record<string, string>
   logsDirectory: string
+}
+
+export interface BuildAppOptions extends Omit<StackCommandOptions, 'env'> {
+  buildEnvironment: ChildEnvironment
+  reuseBuild: boolean
+  ci: boolean
 }
 
 export async function runMigrations(options: StackCommandOptions): Promise<void> {
@@ -26,23 +42,74 @@ export async function runMigrations(options: StackCommandOptions): Promise<void>
   })
 }
 
-export async function buildApp(options: StackCommandOptions): Promise<void> {
+export async function seedE2eWorld(options: StackCommandOptions): Promise<void> {
   await runCommand({
-    name: 'sandbox-bundles',
+    name: 'seed-world',
     command: options.bunExecutable,
-    args: ['--no-env-file', 'run', 'build:sandbox-bundles'],
+    args: ['--no-env-file', path.join(SIM_APP_DIR, 'e2e/scripts/seed-world.ts')],
     cwd: SIM_APP_DIR,
     env: options.env,
     logsDirectory: options.logsDirectory,
   })
+}
+
+export async function capturePersonaAuthStates(options: StackCommandOptions): Promise<void> {
+  await runCommand({
+    name: 'capture-auth-states',
+    command: options.nodeExecutable,
+    args: ['--import', 'tsx', path.join(SIM_APP_DIR, 'e2e/scripts/capture-auth-states.ts')],
+    cwd: SIM_APP_DIR,
+    env: options.env,
+    logsDirectory: options.logsDirectory,
+  })
+}
+
+export async function buildApp(options: BuildAppOptions): Promise<void> {
+  verifySandboxBundleIntegrity()
+  const identity =
+    options.ci || !options.reuseBuild
+      ? null
+      : computeBuildIdentity({
+          buildEnvironment: options.buildEnvironment,
+          nodeExecutable: options.nodeExecutable,
+        })
+  if (options.reuseBuild) {
+    if (!identity) throw new Error('CI cannot restore a local E2E build cache')
+    const reuseDecision = restoreCachedBuild(identity)
+    writeBuildDecision(options.logsDirectory, reuseDecision)
+    if (reuseDecision.reused) {
+      console.info(`Reused verified Next build ${identity.nextBuildHash}`)
+      return
+    }
+    console.info(`Next build cache miss: ${reuseDecision.reason}`)
+  }
+
+  clearActiveNextBuild()
+  const buildHome = options.buildEnvironment.env.HOME
+  if (buildHome) {
+    rmSync(buildHome, { recursive: true, force: true })
+    mkdirSync(buildHome, { recursive: true, mode: 0o700 })
+  }
   await runCommand({
     name: 'next-build',
     command: options.nodeExecutable,
     args: [path.join(REPO_ROOT, 'node_modules/next/dist/bin/next'), 'build'],
     cwd: SIM_APP_DIR,
-    env: options.env,
+    env: options.buildEnvironment.env,
     logsDirectory: options.logsDirectory,
   })
+  if (identity) {
+    const storedDecision = storeCompletedBuild(identity)
+    pruneBuildCache(identity.nextBuildHash)
+    writeBuildDecision(options.logsDirectory, storedDecision)
+  } else {
+    writeBuildDecision(options.logsDirectory, {
+      reused: false,
+      reason: options.ci
+        ? 'CI build cache population is disabled'
+        : 'local cache population requires --reuse-build',
+    })
+  }
 }
 
 export async function startRealtime(options: StackCommandOptions): Promise<ManagedProcess> {
@@ -133,4 +200,11 @@ export async function runPlaywright(
     env: options.env,
     logsDirectory: options.logsDirectory,
   })
+}
+
+function writeBuildDecision(logsDirectory: string, decision: object): void {
+  writeFileSync(
+    path.join(logsDirectory, 'build-reuse-decision.json'),
+    `${JSON.stringify(decision, null, 2)}\n`
+  )
 }

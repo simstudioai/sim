@@ -1,7 +1,9 @@
-import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
 import { closeSync, mkdirSync, openSync } from 'node:fs'
 import { createServer } from 'node:net'
 import path from 'node:path'
+import { sleep } from '@sim/utils/helpers'
+import { isProcessGroupAlive } from './signal-cleanup'
 
 export interface CommandOptions {
   name: string
@@ -53,7 +55,7 @@ export function spawnManagedProcess(options: CommandOptions): ManagedProcess {
   const finalize = (result: ProcessCompletion): void => {
     if (finalized) return
     finalized = true
-    activeProcesses.delete(managed)
+    if (!child.pid || !isProcessGroupAlive(child.pid)) activeProcesses.delete(managed)
     closeSync(logFd)
     resolveCompletion(result)
   }
@@ -66,6 +68,7 @@ export function spawnManagedProcess(options: CommandOptions): ManagedProcess {
 export async function runCommand(options: CommandOptions): Promise<void> {
   const managed = spawnManagedProcess(options)
   const result = await managed.completion
+  await managed.stop()
   if (result.error) {
     throw new Error(`${options.name} failed to spawn. See ${managed.logPath}`, {
       cause: result.error,
@@ -144,26 +147,35 @@ async function stopProcess(managed: ManagedProcess): Promise<void> {
   const { child } = managed
   if (!child.pid) {
     await managed.completion
+    activeProcesses.delete(managed)
     return
   }
-  if (child.exitCode !== null || child.signalCode !== null) return
+  if (!isProcessGroupAlive(child.pid)) {
+    activeProcesses.delete(managed)
+    return
+  }
   const processIds = [child.pid]
   sendSignalToPids(processIds, 'SIGTERM')
 
-  const stopped = await Promise.race([
-    managed.completion.then(() => true),
-    new Promise<false>((resolve) => setTimeout(() => resolve(false), 5_000)),
-  ])
-  if (stopped) return
-
-  sendSignalToPids(processIds.filter(isPidRunning), 'SIGKILL')
-  const killed = await Promise.race([
-    managed.completion.then(() => true),
-    new Promise<false>((resolve) => setTimeout(() => resolve(false), 2_000)),
-  ])
-  if (!killed) {
-    throw new Error(`Managed process ${managed.name} did not exit after SIGKILL`)
+  if (await waitForProcessGroupExit(child.pid, 5_000)) {
+    activeProcesses.delete(managed)
+    return
   }
+
+  sendSignalToPids(processIds, 'SIGKILL')
+  if (!(await waitForProcessGroupExit(child.pid, 2_000))) {
+    throw new Error(`Managed process group ${managed.name} survived SIGKILL`)
+  }
+  activeProcesses.delete(managed)
+}
+
+async function waitForProcessGroupExit(groupId: number, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (!isProcessGroupAlive(groupId)) return true
+    await sleep(50)
+  }
+  return !isProcessGroupAlive(groupId)
 }
 
 function sendSignalToPids(processIds: number[], signal: NodeJS.Signals): void {
@@ -187,36 +199,4 @@ function sendSignalToPids(processIds: number[], signal: NodeJS.Signals): void {
       throw error
     }
   }
-}
-
-function isPidRunning(processId: number): boolean {
-  return getRunningPids([processId]).length > 0
-}
-
-function getRunningPids(processIds: number[]): number[] {
-  if (processIds.length === 0) return []
-  if (process.platform === 'win32') {
-    return processIds.filter((processId) => {
-      try {
-        process.kill(processId, 0)
-        return true
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false
-        throw error
-      }
-    })
-  }
-
-  const status = spawnSync('ps', ['-o', 'pid=,stat=', '-p', processIds.join(',')], {
-    encoding: 'utf8',
-    env: { NODE_ENV: 'test', PATH: process.env.PATH ?? '' },
-  })
-  if (status.status !== 0 && status.status !== 1) {
-    throw new Error(`Unable to inspect managed E2E processes: ${status.stderr}`)
-  }
-  return status.stdout.split('\n').flatMap((line) => {
-    const [pidText, processStatus] = line.trim().split(/\s+/)
-    const pid = Number(pidText)
-    return Number.isInteger(pid) && !processStatus?.startsWith('Z') ? [pid] : []
-  })
 }

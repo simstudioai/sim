@@ -29,6 +29,7 @@ export interface BuildChildEnvironmentOptions {
   required: readonly string[]
   allowedSensitiveKeys: ReadonlySet<string>
   envDirectory?: string
+  shadowDiscovered?: boolean
 }
 
 export function discoverEnvFileKeys(directory = SIM_APP_DIR): string[] {
@@ -55,6 +56,7 @@ export function buildChildEnvironment({
   required,
   allowedSensitiveKeys,
   envDirectory = SIM_APP_DIR,
+  shadowDiscovered = true,
 }: BuildChildEnvironmentOptions): ChildEnvironment {
   const missing = required.filter((key) => !values[key]?.trim())
   if (missing.length > 0) {
@@ -76,10 +78,12 @@ export function buildChildEnvironment({
 
   const discoveredKeys = discoverEnvFileKeys(envDirectory)
   const shadowedKeys: string[] = []
-  for (const key of discoveredKeys) {
-    if (key in env) continue
-    env[key] = ''
-    shadowedKeys.push(key)
+  if (shadowDiscovered) {
+    for (const key of discoveredKeys) {
+      if (key in env) continue
+      env[key] = ''
+      shadowedKeys.push(key)
+    }
   }
 
   return { env, discoveredKeys, shadowedKeys }
@@ -98,5 +102,3 @@ export function formatRedactedEnvironmentSummary(
     `Shadowed local keys: ${childEnvironment.shadowedKeys.join(', ') || '(none)'}`,
   ].join('\n')
 }
-
-export const E2E_OS_PASSTHROUGH_KEYS = OS_PASSTHROUGH_KEYS

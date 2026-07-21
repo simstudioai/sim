@@ -1,4 +1,5 @@
 import postgres from 'postgres'
+import { readScenarioManifest } from '../fixtures/e2e-world'
 
 export async function assertAdminApiBoundary(origin: string, adminKey: string): Promise<void> {
   const endpoint = `${origin}/api/v1/admin/users?limit=1&offset=0`
@@ -40,6 +41,39 @@ export async function inspectFoundationUsers(
       count: rows.length,
       allHaveStripeCustomers: rows.every((row) => row.stripeCustomerId?.startsWith('cus_e2e_')),
       allHaveStats: rows.every((row) => row.hasStats),
+    }
+  } finally {
+    await sql.end()
+  }
+}
+
+export async function assertManifestWorkspaceIdentities(
+  databaseUrl: string,
+  manifestPath: string
+): Promise<void> {
+  const manifest = readScenarioManifest(manifestPath)
+  const expected = Object.values(manifest.worlds).flatMap((world) =>
+    Object.values(world.workspaceIdentities)
+  )
+  const sql = postgres(databaseUrl, { max: 1, connect_timeout: 10 })
+  try {
+    const ids = expected.map(({ id }) => id)
+    const rows =
+      ids.length === 0
+        ? []
+        : await sql<Array<{ id: string; name: string }>>`
+            SELECT id, name
+            FROM workspace
+            WHERE id = ANY(${ids})
+          `
+    const actualById = new Map(rows.map((row) => [row.id, row.name]))
+    for (const workspace of expected) {
+      if (actualById.get(workspace.id) !== workspace.name) {
+        throw new Error(`Manifest workspace changed or disappeared: ${workspace.id}`)
+      }
+    }
+    if (rows.length !== expected.length) {
+      throw new Error('Manifest workspace inventory contains unexpected duplicates')
     }
   } finally {
     await sql.end()
