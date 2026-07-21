@@ -19,6 +19,10 @@ inputs:
   tags:
     description: Comma-separated list of tags to push.
     required: true
+  build-args:
+    description: Newline-separated build args forwarded to the builder.
+    required: false
+    default: ''
 
 # Registry logins must already have run in the calling job — both backends read
 # the same ~/.docker/config.json. provenance/sbom stay off everywhere: the
@@ -40,6 +44,7 @@ runs:
         platforms: ${{ inputs.platforms }}
         push: true
         tags: ${{ inputs.tags }}
+        build-args: ${{ inputs.build-args }}
         provenance: false
         sbom: false
 
@@ -51,6 +56,11 @@ runs:
     # the GitHub equivalent (cache-to: type=gha) shares the same 10 GB repo
     # cache quota as the bun/node_modules/turbo mounts, and four images of
     # layers would evict them. Fallback builds are cold by design.
+    # NEXT_BUILD_HEAP_MB is trimmed from the 8192 default here because these
+    # runners have 16 GB total and `next build` was getting OOM-killed (exit
+    # 137) partway through. Only app.Dockerfile declares the arg; the other
+    # images ignore it harmlessly, so it is set unconditionally rather than
+    # threaded per-image through every call site.
     - name: Build and push (GitHub)
       if: inputs.provider != '' && inputs.provider != 'blacksmith'
       uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
@@ -60,5 +70,8 @@ runs:
         platforms: ${{ inputs.platforms }}
         push: true
         tags: ${{ inputs.tags }}
+        build-args: |
+          NEXT_BUILD_HEAP_MB=4096
+          ${{ inputs.build-args }}
         provenance: false
         sbom: false

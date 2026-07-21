@@ -153,6 +153,14 @@ jobs:
       - name: Type-check realtime server
         run: bunx turbo run type-check --filter=@sim/realtime
 
+      # cloud-review-tools.test.ts runs the real helper script, which shells out
+      # to `rg`. In production that script runs inside the E2B sandbox, whose
+      # template apt-installs ripgrep — but the test executes it on the runner,
+      # so the runner needs it too. Blacksmith's image ships rg and GitHub's does
+      # not, which made this an invisible dependency on the runner provider.
+      - name: Install ripgrep
+        run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
+
       - name: Run tests with coverage
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'

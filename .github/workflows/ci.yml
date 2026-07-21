@@ -21,9 +21,15 @@ name: CI
 # branch would hard-fail.
 #
 # GitHub mode is a break-glass fallback, not a peer. Public-repo ubuntu-latest is
-# 4 vCPU with no free 8-core tier, the 10 GB repo cache quota will thrash across
-# the bun/node_modules/turbo mounts, and image builds start from cold layers — so
-# expect slower runs, not different results. Blacksmith-only actions are reached
+# 4 vCPU / 16 GB with no free 8-core tier, the 10 GB repo cache quota will thrash
+# across the bun/node_modules/turbo mounts, and image builds start from cold
+# layers. The first live flip (2026-07-21) proved it is not merely slower: the
+# app image OOM-killed `next build`, and one test failed because it shells out to
+# `rg`, which Blacksmith's image ships and GitHub's does not. Both are addressed
+# now — ripgrep is installed explicitly in test-build.yml, and the GitHub path
+# trims NEXT_BUILD_HEAP_MB — but the app image build stays the tight spot here
+# and is the first thing to check if a fallback run fails. Blacksmith-only
+# actions are reached
 # exclusively through .github/actions/cache-mount and .github/actions/docker-build,
 # which branch internally; a bare useblacksmith/* step added anywhere else will
 # hard-fail in GitHub mode rather than silently degrade.
