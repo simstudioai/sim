@@ -33,16 +33,15 @@ export async function detectMcpAuthType(
     return 'headers'
   }
 
-  // When the caller pre-validated the IP we pin to it directly and own the Agent's
-  // lifetime; the SSRF-guarded fetch (used when we must validate ourselves) manages its
-  // own per-request Agent teardown internally.
+  // Pre-validated IP → pin directly (we own the Agent); otherwise the SSRF-guarded fetch
+  // self-manages its per-request Agent teardown.
   const pinned = resolvedIP ? createPinnedFetchWithDispatcher(resolvedIP) : undefined
   const probeFetch: FetchLike = pinned?.fetch ?? createSsrfGuardedMcpFetch()
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
-  // Best-effort session cleanup runs after we return the classification; the pinned
-  // Agent must outlive it, so we tear it down once cleanup settles.
+  // Session cleanup runs after we return; the pinned Agent must outlive it, so tear it
+  // down once cleanup settles.
   let sessionClose: Promise<void> = Promise.resolve()
 
   try {
@@ -87,8 +86,7 @@ export async function detectMcpAuthType(
     return 'headers'
   } finally {
     clearTimeout(timer)
-    // Destroy (not close) so a hung request can't make teardown itself hang; wait for
-    // the best-effort session-close hop first so it isn't aborted mid-flight.
+    // destroy() after the session-close hop settles, so that cleanup isn't aborted mid-flight.
     if (pinned) {
       void sessionClose.finally(() => pinned.dispatcher.destroy().catch(() => {}))
     }
