@@ -1,0 +1,64 @@
+name: Docker Build and Push
+description: Set up a buildx builder and build/push an image, using Blacksmith's builder or the upstream Docker actions on GitHub-hosted runners.
+
+inputs:
+  provider:
+    description: Set to 'github' to use the upstream docker/* actions. Any other value (including unset) uses Blacksmith's builder.
+    required: false
+    default: ''
+  context:
+    description: Build context.
+    required: false
+    default: .
+  file:
+    description: Path to the Dockerfile.
+    required: true
+  platforms:
+    description: Target platforms, e.g. linux/amd64.
+    required: true
+  tags:
+    description: Comma-separated list of tags to push.
+    required: true
+
+# Registry logins must already have run in the calling job — both backends read
+# the same ~/.docker/config.json. provenance/sbom stay off everywhere: the
+# attestation manifests they add break `imagetools create` retagging in the
+# promote-images and create-ghcr-manifests jobs.
+runs:
+  using: composite
+  steps:
+    - name: Set up Blacksmith builder
+      if: inputs.provider != 'github'
+      uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
+
+    - name: Build and push (Blacksmith)
+      if: inputs.provider != 'github'
+      uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.file }}
+        platforms: ${{ inputs.platforms }}
+        push: true
+        tags: ${{ inputs.tags }}
+        provenance: false
+        sbom: false
+
+    - name: Set up Docker Buildx
+      if: inputs.provider == 'github'
+      uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+    # No layer cache here. Blacksmith caches layers on the builder itself;
+    # the GitHub equivalent (cache-to: type=gha) shares the same 10 GB repo
+    # cache quota as the bun/node_modules/turbo mounts, and four images of
+    # layers would evict them. Fallback builds are cold by design.
+    - name: Build and push (GitHub)
+      if: inputs.provider == 'github'
+      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.file }}
+        platforms: ${{ inputs.platforms }}
+        push: true
+        tags: ${{ inputs.tags }}
+        provenance: false
+        sbom: false

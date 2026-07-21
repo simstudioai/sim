@@ -1,0 +1,36 @@
+name: Cache Mount
+description: Mount a build cache directory using Blacksmith sticky disks, or the GitHub Actions cache when running on GitHub-hosted runners.
+
+inputs:
+  provider:
+    description: Set to 'github' to use actions/cache. Any other value (including unset) uses Blacksmith sticky disks.
+    required: false
+    default: ''
+  key:
+    description: Cache key. Shared by both backends, so callers keep one key regardless of provider.
+    required: true
+  path:
+    description: Filesystem path the cache is mounted at.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Mount sticky disk
+      if: inputs.provider != 'github'
+      uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      with:
+        key: ${{ inputs.key }}
+        path: ${{ inputs.path }}
+
+    # Sticky disks always re-commit the mounted path, so the cache rolls forward
+    # every run. actions/cache skips its save step on an exact key hit, which
+    # would freeze the cache at whatever the first run wrote — the run-scoped
+    # suffix plus a prefix restore-key reproduces the rolling behaviour.
+    - name: Restore and save cache
+      if: inputs.provider == 'github'
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      with:
+        key: ${{ inputs.key }}-${{ github.run_id }}
+        restore-keys: ${{ inputs.key }}-
+        path: ${{ inputs.path }}
