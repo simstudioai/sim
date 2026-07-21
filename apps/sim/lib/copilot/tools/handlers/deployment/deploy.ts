@@ -22,6 +22,10 @@ import {
   performFullUndeploy,
 } from '@/lib/workflows/orchestration'
 import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
+import {
+  ChatDeployAuthNotAllowedError,
+  validateChatDeployAuth,
+} from '@/ee/access-control/utils/permission-check'
 import { ensureWorkflowAccess } from '../access'
 import type { DeployApiParams, DeployChatParams, DeployMcpParams } from '../param-types'
 
@@ -399,6 +403,20 @@ export async function executeDeployChat(
       params.customizations?.imageUrl ||
       params.customizations?.iconUrl ||
       existingCustomizations.imageUrl
+
+    // Enforce the permission group's chat auth-mode allow-list, but only when the
+    // mode actually changes (or on a first deploy) so an existing grandfathered
+    // mode can be re-saved.
+    if (workflowRecord.workspaceId && resolvedAuthType !== existingDeployment?.authType) {
+      try {
+        await validateChatDeployAuth(context.userId, workflowRecord.workspaceId, resolvedAuthType)
+      } catch (error) {
+        if (error instanceof ChatDeployAuthNotAllowedError) {
+          return { success: false, error: error.message }
+        }
+        throw error
+      }
+    }
 
     const result = await performChatDeploy({
       workflowId,
