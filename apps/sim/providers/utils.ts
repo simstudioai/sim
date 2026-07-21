@@ -620,7 +620,7 @@ export async function transformBlockTool(
   // Custom (deploy-as-block) blocks resolve to the generic `workflow_executor`, but
   // as an agent tool they must run through the authority boundary (owner identity,
   // latest deployment, curated outputs) — not the plain workflow executor. Route
-  // them to the dedicated in-process `custom_block_executor` tool, carrying the
+  // them to the dedicated in-process `deployed_block_executor` tool, carrying the
   // block TYPE (never a source workflow id) so authority is re-resolved server-side.
   // Dynamic imports keep the DB/executor dependency graph out of client bundles.
   if (isCustomBlockType(block.type)) {
@@ -629,9 +629,9 @@ export async function transformBlockTool(
       logger.warn(`Custom block tool binding not resolved for type: ${block.type}`)
       return null
     }
-    const customToolConfig = getTool('custom_block_executor')
+    const customToolConfig = getTool('deployed_block_executor')
     if (!customToolConfig) {
-      logger.warn('custom_block_executor tool not registered')
+      logger.warn('deployed_block_executor tool not registered')
       return null
     }
     const inputMapping = assembleCustomBlockInputMapping(block.params || {})
@@ -653,7 +653,7 @@ export async function transformBlockTool(
     }
     return {
       // Unique per block so two custom-block tools never collide on the wire.
-      id: `custom_block_executor_${block.type}`,
+      id: `deployed_block_executor_${block.type}`,
       // Name/description come from the block itself — never the source workflow's
       // metadata, which the consumer has no access to.
       name: blockDef.name,

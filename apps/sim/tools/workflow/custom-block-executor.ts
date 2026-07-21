@@ -16,7 +16,11 @@ interface CustomBlockExecutorParams {
  * custom-block branch returns first).
  */
 export const customBlockExecutorTool: ToolConfig<CustomBlockExecutorParams> = {
-  id: 'custom_block_executor',
+  // NOT `custom_block_executor`: `custom_` is the user-defined custom-tool namespace
+  // (`isCustomTool`), so that id would make `executeTool` resolve this through the
+  // DB custom-tool lookup, skip `postProcessToolOutput`'s internal-field stripping,
+  // and let `disableCustomTools` workspaces block deploy-as-block tools.
+  id: 'deployed_block_executor',
   name: 'Custom Block Executor',
   description: 'Execute a published custom block (a workflow packaged as a reusable block).',
   version: '1.0.0',

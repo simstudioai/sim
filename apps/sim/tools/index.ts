@@ -1242,7 +1242,7 @@ export async function executeTool(
     // tool registry never pulls in the executor/db dependency graph (a static or
     // dynamic executor import in the tool descriptor itself would break the client
     // build — and with it `getTool('workflow_executor')`).
-    if (normalizedToolId === 'custom_block_executor') {
+    if (normalizedToolId === 'deployed_block_executor') {
       logger.info(`[${requestId}] Running custom block tool ${toolId}`)
       const { runCustomBlockTool } = await import(
         '@/executor/handlers/workflow/custom-block-tool-runner'

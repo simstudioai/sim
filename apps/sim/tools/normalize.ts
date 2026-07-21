@@ -7,14 +7,15 @@
  * Pure string utility — no server dependencies, safe to import in client components.
  */
 export function normalizeToolId(toolId: string): string {
-  // Check the longer prefix first — `custom_block_executor_` also starts with
-  // neither `workflow_executor_` nor a knowledge/table op, so ordering is safe,
-  // but keep it explicit since its suffix (`custom_block_<id>`) is itself prefixed.
+  // Custom (deploy-as-block) tools: 'deployed_block_executor_custom_block_<id>' ->
+  // 'deployed_block_executor'. Note the id deliberately does NOT start with
+  // `custom_` — that prefix is the user-defined custom-tool namespace
+  // (`isCustomTool`), and colliding with it misroutes resolution and permissions.
   if (
-    toolId.startsWith('custom_block_executor_') &&
-    toolId.length > 'custom_block_executor_'.length
+    toolId.startsWith('deployed_block_executor_') &&
+    toolId.length > 'deployed_block_executor_'.length
   ) {
-    return 'custom_block_executor'
+    return 'deployed_block_executor'
   }
 
   if (toolId.startsWith('workflow_executor_') && toolId.length > 'workflow_executor_'.length) {

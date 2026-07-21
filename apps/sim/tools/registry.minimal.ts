@@ -91,7 +91,7 @@ export const tools: Record<string, ToolConfig> = {
   // Needed so workflow-as-tool and custom (deploy-as-block) tools resolve their
   // config in minimal-registry dev mode (both route through `workflow_executor`).
   workflow_executor: workflowExecutorTool,
-  custom_block_executor: customBlockExecutorTool,
+  deployed_block_executor: customBlockExecutorTool,
   gmail_send_v2: gmailSendV2Tool,
   gmail_read_v2: gmailReadV2Tool,
   gmail_search_v2: gmailSearchV2Tool,

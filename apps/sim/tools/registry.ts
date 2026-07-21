@@ -8185,7 +8185,7 @@ export const tools: Record<string, ToolConfig> = {
   google_forms_delete_watch: googleFormsDeleteWatchTool,
   google_forms_renew_watch: googleFormsRenewWatchTool,
   workflow_executor: workflowExecutorTool,
-  custom_block_executor: customBlockExecutorTool,
+  deployed_block_executor: customBlockExecutorTool,
   wealthbox_read_contact: wealthboxReadContactTool,
   wealthbox_write_contact: wealthboxWriteContactTool,
   wealthbox_read_task: wealthboxReadTaskTool,

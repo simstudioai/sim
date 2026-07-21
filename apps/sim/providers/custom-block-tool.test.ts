@@ -3,6 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { transformBlockTool } from '@/providers/utils'
+import { normalizeToolId } from '@/tools/normalize'
 
 const mockResolve = vi.fn()
 
@@ -17,8 +18,8 @@ const options = {
     },
   ],
   getTool: (id: string) =>
-    id === 'custom_block_executor'
-      ? { id: 'custom_block_executor', description: 'exec' }
+    id === 'deployed_block_executor'
+      ? { id: 'deployed_block_executor', description: 'exec' }
       : undefined,
   resolveCustomBlockBinding: mockResolve,
 }
@@ -28,7 +29,7 @@ describe('transformBlockTool — custom blocks', () => {
     vi.clearAllMocks()
   })
 
-  it('builds an id-keyed custom_block_executor tool and omits file[] fields', async () => {
+  it('builds an id-keyed deployed_block_executor tool and omits file[] fields', async () => {
     mockResolve.mockResolvedValue({
       workflowId: 'wf-src',
       inputFields: [
@@ -45,7 +46,7 @@ describe('transformBlockTool — custom blocks', () => {
 
     expect(tool).not.toBeNull()
     // Unique per block, name/description from the block (never the source workflow).
-    expect(tool!.id).toBe('custom_block_executor_custom_block_test')
+    expect(tool!.id).toBe('deployed_block_executor_custom_block_test')
     expect(tool!.name).toBe('The Elder')
     // Baked params: block type + assembled (id-keyed) input mapping.
     expect(tool!.params.blockType).toBe('custom_block_test')
@@ -57,6 +58,22 @@ describe('transformBlockTool — custom blocks', () => {
     expect(tool!.parameters.required).toEqual(['inputMapping'])
 
     expect(mockResolve).toHaveBeenCalledWith('custom_block_test')
+  })
+
+  it('keeps the tool id out of the user-defined custom-tool namespace', async () => {
+    mockResolve.mockResolvedValue({
+      workflowId: 'wf-src',
+      inputFields: [{ id: 'q', name: 'Question', type: 'string' }],
+      requiredInputIds: [],
+    })
+
+    const tool = await transformBlockTool({ type: 'custom_block_test', params: {} }, options)
+
+    // `custom_` is the custom-tool prefix (`isCustomTool`). Colliding with it makes
+    // executeTool resolve via the DB custom-tool lookup, skip internal-field
+    // stripping, and let `disableCustomTools` block deploy-as-block tools.
+    expect(tool!.id.startsWith('custom_')).toBe(false)
+    expect(normalizeToolId(tool!.id)).toBe('deployed_block_executor')
   })
 
   it('does not offer the tool when a required file input has no preset value', async () => {
