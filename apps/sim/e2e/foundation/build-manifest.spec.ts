@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import {
   existsSync,
   mkdirSync,
@@ -14,6 +16,7 @@ import {
   type BuildArtifactPaths,
   type BuildIdentity,
   clearActiveNextBuild,
+  isNextBuildInput,
   pruneBuildCache,
   restoreCachedBuild,
   storeCompletedBuild,
@@ -33,6 +36,13 @@ const identity: BuildIdentity = {
 }
 
 test.describe('verified Next build cache', () => {
+  test('hashes build-affecting E2E harness files without hashing test artifacts', () => {
+    expect(isNextBuildInput('apps/sim/e2e/support/stack.ts')).toBe(true)
+    expect(isNextBuildInput('apps/sim/e2e/support/deployment-profile.ts')).toBe(true)
+    expect(isNextBuildInput('apps/sim/e2e/settings/persona-contracts.spec.ts')).toBe(false)
+    expect(isNextBuildInput('apps/sim/test-results/trace.zip')).toBe(false)
+  })
+
   test('stores, restores, and rejects artifact corruption', () => {
     withBuildPaths((paths) => {
       writeBuild(paths.activeNextDirectory, 'build-one', 'original')
@@ -114,12 +124,13 @@ test('orchestrator lock rejects live ownership and recovers stale descriptors', 
   try {
     const lock = acquireE2eRunLock(lockPath)
     expect(() => acquireE2eRunLock(lockPath)).toThrow(/Another E2E orchestrator/)
-    lock.transfer(process.pid)
+    expect(lock.transfer(process.pid)).toBe(true)
     expect(() => acquireE2eRunLock(lockPath)).toThrow(/Another E2E orchestrator/)
     lock.retain('manual cleanup required')
-    lock.transfer(process.pid)
+    expect(lock.transfer(process.pid)).toBe(true)
     expect(() => acquireE2eRunLock(lockPath)).toThrow(/manual cleanup required/)
     lock.release()
+    expect(lock.transfer(process.pid)).toBe(false)
 
     mkdirSync(lockPath)
     expect(() => acquireE2eRunLock(lockPath)).toThrow(/is acquiring/)
@@ -151,6 +162,95 @@ test('orchestrator lock rejects live ownership and recovers stale descriptors', 
     const reusedPidRecovered = acquireE2eRunLock(lockPath)
     reusedPidRecovered.release()
   } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('transferred run lock rejects mutations from its former owner', async () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), 'sim-e2e-transferred-run-lock-'))
+  const lockPath = path.join(directory, 'orchestrator.lock')
+  const supervisor = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1_000)'], {
+    stdio: 'ignore',
+  })
+  try {
+    await once(supervisor, 'spawn')
+    if (!supervisor.pid) throw new Error('Expected cleanup supervisor PID')
+    const lock = acquireE2eRunLock(lockPath)
+    expect(lock.transfer(supervisor.pid)).toBe(true)
+    expect(lock.transfer(process.pid)).toBe(false)
+
+    lock.setProcessGroupIds([supervisor.pid])
+    lock.retain('former owner must not retain')
+    lock.release()
+
+    const descriptor = JSON.parse(
+      readFileSync(path.join(lockPath, 'owner.json'), 'utf8')
+    ) as Record<string, unknown>
+    expect(descriptor.pid).toBe(supervisor.pid)
+    expect(descriptor.processGroupIds).toEqual([])
+    expect(descriptor.retainedFailure).toBeUndefined()
+    expect(existsSync(lockPath)).toBe(true)
+
+    supervisor.kill('SIGKILL')
+    await once(supervisor, 'exit')
+    const recovered = acquireE2eRunLock(lockPath)
+    recovered.release()
+  } finally {
+    if (supervisor.exitCode === null && supervisor.signalCode === null) {
+      supervisor.kill('SIGKILL')
+    }
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('stale orchestrator recovery terminates its persisted process groups', async () => {
+  test.skip(process.platform === 'win32', 'POSIX process-group cleanup is tested on Unix')
+  const directory = mkdtempSync(path.join(os.tmpdir(), 'sim-e2e-stale-process-group-'))
+  const lockPath = path.join(directory, 'orchestrator.lock')
+  const groupIdPath = path.join(directory, 'process-group-id')
+  const launcher = spawn(
+    process.execPath,
+    [
+      '-e',
+      `
+      const { spawn } = require('node:child_process')
+      const { writeFileSync } = require('node:fs')
+      const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1_000)'], {
+        detached: true,
+        stdio: 'ignore',
+      })
+      writeFileSync(${JSON.stringify(groupIdPath)}, String(child.pid))
+      child.unref()
+    `,
+    ],
+    {
+      stdio: 'ignore',
+    }
+  )
+  await once(launcher, 'exit')
+  const groupId = Number(readFileSync(groupIdPath, 'utf8'))
+  try {
+    expect(groupId).toBeGreaterThan(0)
+    const lock = acquireE2eRunLock(lockPath)
+    lock.setProcessGroupIds([groupId])
+    const descriptorPath = path.join(lockPath, 'owner.json')
+    const descriptor = JSON.parse(readFileSync(descriptorPath, 'utf8')) as Record<string, unknown>
+    writeFileSync(
+      descriptorPath,
+      JSON.stringify({
+        ...descriptor,
+        pid: 2_147_483_647,
+        processStartIdentity: null,
+      })
+    )
+
+    const recovered = acquireE2eRunLock(lockPath)
+    expect(() => process.kill(-groupId, 0)).toThrow()
+    recovered.release()
+  } finally {
+    try {
+      process.kill(-groupId, 'SIGKILL')
+    } catch {}
     rmSync(directory, { recursive: true, force: true })
   }
 })

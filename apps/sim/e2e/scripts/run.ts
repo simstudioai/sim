@@ -41,14 +41,12 @@ import {
   assertPortAvailable,
   getActiveManagedProcessGroupIds,
   type ManagedProcess,
+  setManagedProcessGroupObserver,
   stopAllManagedProcesses,
 } from '../support/process'
 import { acquireE2eRunLock } from '../support/run-lock'
-import {
-  createE2eRuntimeSecrets,
-  FOUNDATION_TEST_PASSWORD,
-  runtimeSecretValues,
-} from '../support/runtime-secrets'
+import { createE2eRuntimeSecrets, runtimeSecretValues } from '../support/runtime-secrets'
+import { createSingleFlightSignalCleanup } from '../support/signal-cleanup'
 import {
   buildApp,
   capturePersonaAuthStates,
@@ -102,6 +100,7 @@ async function main(): Promise<void> {
   const adminDatabaseUrl = process.env.E2E_PG_ADMIN_URL ?? DEFAULT_ADMIN_DATABASE_URL
   const runtimeSecrets = createE2eRuntimeSecrets()
   const runLock = acquireE2eRunLock()
+  setManagedProcessGroupObserver((processGroupIds) => runLock.setProcessGroupIds(processGroupIds))
 
   let runDatabase: RunDatabase | null = null
   let databaseCreationComplete = false
@@ -109,10 +108,7 @@ async function main(): Promise<void> {
   let realtime: ManagedProcess | null = null
   let app: ManagedProcess | null = null
   let cleanupPromise: Promise<void> | null = null
-  let leakCanarySecrets: string[] = [
-    FOUNDATION_TEST_PASSWORD,
-    ...runtimeSecretValues(runtimeSecrets),
-  ]
+  let leakCanarySecrets: string[] = runtimeSecretValues(runtimeSecrets)
   let canaryCoverageComplete = true
   let diagnosticsRetained = true
   let failed = false
@@ -167,61 +163,97 @@ async function main(): Promise<void> {
     return cleanupPromise
   }
 
-  const handleSignal = (signal: NodeJS.Signals): void => {
+  const signalCleanup = createSingleFlightSignalCleanup(async (signal) => {
+    const cleanupProcessGroupIds = getActiveManagedProcessGroupIds()
+    setManagedProcessGroupObserver(null)
     failed = true
     const exitCode = signal === 'SIGINT' ? 130 : 143
     process.exitCode = exitCode
     console.error(`Received ${signal}; cleaning up the E2E run`)
-    if (stripeFake) {
-      try {
-        writeFileSync(
-          path.join(logsDirectory, 'stripe-requests.json'),
-          JSON.stringify(stripeFake.requestLog, null, 2)
-        )
-      } catch {}
-    }
     let lockTransferred = false
-    if (runDatabase) {
-      const cleanupLogFd = openSync(path.join(logsDirectory, 'signal-cleanup.log'), 'a')
-      const cleanupProcess = spawn(
-        bunExecutable,
-        ['--no-env-file', path.join(SIM_APP_DIR, 'e2e/scripts/signal-cleanup.ts')],
-        {
-          cwd: SIM_APP_DIR,
-          detached: true,
-          env: {
-            NODE_ENV: 'test',
-            PATH: process.env.PATH ?? '',
-            HOME: setupHomeDirectory,
-            E2E_PG_ADMIN_URL: adminDatabaseUrl,
-            E2E_DATABASE_NAME: runDatabase.name,
-            E2E_DATABASE_CREATION_COMPLETE: String(databaseCreationComplete),
-            E2E_CLEANUP_PROCESS_GROUPS: getActiveManagedProcessGroupIds().join(','),
-            E2E_CLEANUP_DIRECTORIES: JSON.stringify([
-              storageStateDirectory,
-              privateDirectory,
-              homesDirectory,
-            ]),
-            E2E_RUN_LOCK_PATH: runLock.path,
-            E2E_RUN_LOCK_TOKEN: runLock.token,
-          },
-          stdio: ['ignore', cleanupLogFd, cleanupLogFd],
+    try {
+      if (stripeFake) {
+        try {
+          writeFileSync(
+            path.join(logsDirectory, 'stripe-requests.json'),
+            JSON.stringify(stripeFake.requestLog, null, 2)
+          )
+        } catch (error) {
+          console.error(error)
         }
-      )
-      if (cleanupProcess.pid) {
-        runLock.transfer(cleanupProcess.pid)
-        lockTransferred = true
       }
-      cleanupProcess.unref()
-      closeSync(cleanupLogFd)
-      console.error(`Detached E2E cleanup supervisor started as PID ${cleanupProcess.pid}`)
+      if (runDatabase) {
+        let cleanupLogFd: number | null = null
+        try {
+          cleanupLogFd = openSync(path.join(logsDirectory, 'signal-cleanup.log'), 'a')
+          const cleanupProcess = spawn(
+            bunExecutable,
+            ['--no-env-file', path.join(SIM_APP_DIR, 'e2e/scripts/signal-cleanup.ts')],
+            {
+              cwd: SIM_APP_DIR,
+              detached: true,
+              env: {
+                NODE_ENV: 'test',
+                PATH: process.env.PATH ?? '',
+                HOME: setupHomeDirectory,
+                E2E_PG_ADMIN_URL: adminDatabaseUrl,
+                E2E_DATABASE_NAME: runDatabase.name,
+                E2E_DATABASE_CREATION_COMPLETE: String(databaseCreationComplete),
+                E2E_CLEANUP_PROCESS_GROUPS: cleanupProcessGroupIds.join(','),
+                E2E_CLEANUP_DIRECTORIES: JSON.stringify([
+                  storageStateDirectory,
+                  privateDirectory,
+                  homesDirectory,
+                ]),
+                E2E_RUN_LOCK_PATH: runLock.path,
+                E2E_RUN_LOCK_TOKEN: runLock.token,
+              },
+              stdio: ['ignore', cleanupLogFd, cleanupLogFd],
+            }
+          )
+          await new Promise<void>((resolve, reject) => {
+            cleanupProcess.once('spawn', resolve)
+            cleanupProcess.once('error', reject)
+          })
+          if (!cleanupProcess.pid) {
+            throw new Error('Detached E2E cleanup supervisor started without a process ID')
+          }
+          if (!runLock.transfer(cleanupProcess.pid)) {
+            throw new Error('Detached E2E cleanup supervisor could not acquire run-lock ownership')
+          }
+          lockTransferred = true
+          cleanupProcess.unref()
+          console.error(`Detached E2E cleanup supervisor started as PID ${cleanupProcess.pid}`)
+        } finally {
+          if (cleanupLogFd !== null) {
+            try {
+              closeSync(cleanupLogFd)
+            } catch (error) {
+              console.error(error)
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error(error)
     }
-    if (!lockTransferred) runLock.release()
-    process.exit(exitCode)
-  }
-  // `once` is intentional: a second signal uses the OS default force termination.
-  process.once('SIGINT', handleSignal)
-  process.once('SIGTERM', handleSignal)
+    try {
+      if (!lockTransferred) {
+        if (runDatabase) runLock.retain('signal cleanup supervisor failed to start')
+        else runLock.release()
+      }
+    } catch (error) {
+      console.error('Unable to update E2E run-lock after signal cleanup startup failure', error)
+    } finally {
+      process.exit(exitCode)
+    }
+  })
+  // Persistent handlers keep repeated or opposite signals from invoking the OS default while
+  // the first handler awaits ownership transfer. The synchronous guard keeps cleanup single-flight.
+  const handleSigint = (): void => void signalCleanup.start('SIGINT')
+  const handleSigterm = (): void => void signalCleanup.start('SIGTERM')
+  process.on('SIGINT', handleSigint)
+  process.on('SIGTERM', handleSigterm)
 
   try {
     const hostAddresses = await assertE2eHostResolvesToLoopback()
@@ -338,71 +370,80 @@ async function main(): Promise<void> {
     console.error(error)
     process.exitCode = 1
   } finally {
-    if (runDatabase && existsSync(manifestPath)) {
+    if (signalCleanup.claimNormalFinalization()) {
+      process.off('SIGINT', handleSigint)
+      process.off('SIGTERM', handleSigterm)
+
+      if (runDatabase && existsSync(manifestPath)) {
+        try {
+          await assertManifestWorkspaceIdentities(runDatabase.url, manifestPath)
+        } catch (error) {
+          failed = true
+          process.exitCode = 1
+          console.error(error)
+        }
+      }
       try {
-        await assertManifestWorkspaceIdentities(runDatabase.url, manifestPath)
+        leakCanarySecrets = loadSyntheticSecretCanaryForScan(leakCanarySecrets, canarySecretsPath)
+      } catch (error) {
+        canaryCoverageComplete = false
+        failed = true
+        process.exitCode = 1
+        console.error(error)
+      } finally {
+        rmSync(credentialsPath, { force: true })
+        rmSync(canarySecretsPath, { force: true })
+      }
+      let cleanupSucceeded = false
+      try {
+        await cleanup()
+        cleanupSucceeded = true
       } catch (error) {
         failed = true
         process.exitCode = 1
         console.error(error)
       }
-    }
-    try {
-      leakCanarySecrets = loadSyntheticSecretCanaryForScan(leakCanarySecrets, canarySecretsPath)
-    } catch (error) {
-      canaryCoverageComplete = false
-      failed = true
-      process.exitCode = 1
-      console.error(error)
-    } finally {
-      rmSync(credentialsPath, { force: true })
-      rmSync(canarySecretsPath, { force: true })
-    }
-    let cleanupSucceeded = false
-    try {
-      await cleanup()
-      cleanupSucceeded = true
-    } catch (error) {
-      failed = true
-      process.exitCode = 1
-      console.error(error)
-    }
-    try {
-      assertNoForbiddenProviderTraffic(
-        [app?.logPath, realtime?.logPath].filter((value): value is string => Boolean(value))
-      )
-    } catch (error) {
-      failed = true
-      process.exitCode = 1
-      console.error(error)
-    }
-    if (canaryCoverageComplete && leakCanarySecrets.length > 0) {
       try {
-        await assertNoSyntheticSecretLeaks({
-          secrets: leakCanarySecrets,
-          roots: diagnosticRoots,
-          excludedPaths: [privateDirectory, storageStateDirectory],
-        })
+        assertNoForbiddenProviderTraffic(
+          [app?.logPath, realtime?.logPath].filter((value): value is string => Boolean(value))
+        )
       } catch (error) {
         failed = true
         process.exitCode = 1
         console.error(error)
+      }
+      if (canaryCoverageComplete && leakCanarySecrets.length > 0) {
+        try {
+          await assertNoSyntheticSecretLeaks({
+            secrets: leakCanarySecrets,
+            roots: diagnosticRoots,
+            excludedPaths: [privateDirectory, storageStateDirectory],
+          })
+          writeFileSync(
+            path.join(markerDirectory, 'leak-scan-complete.json'),
+            `${JSON.stringify({ runId, completedAt: new Date().toISOString() })}\n`,
+            { mode: 0o600 }
+          )
+        } catch (error) {
+          failed = true
+          process.exitCode = 1
+          console.error(error)
+          diagnosticsRetained = scrubDiagnostics(diagnosticRoots)
+          if (diagnosticsRetained) cleanupSucceeded = false
+        }
+      } else if (!canaryCoverageComplete) {
         diagnosticsRetained = scrubDiagnostics(diagnosticRoots)
         if (diagnosticsRetained) cleanupSucceeded = false
       }
-    } else if (!canaryCoverageComplete) {
-      diagnosticsRetained = scrubDiagnostics(diagnosticRoots)
-      if (diagnosticsRetained) cleanupSucceeded = false
+      setManagedProcessGroupObserver(null)
+      if (cleanupSucceeded) runLock.release()
+      else runLock.retain('normal cleanup failed; inspect diagnostics and clean resources manually')
+      console.info(
+        diagnosticsRetained
+          ? `E2E ${failed ? 'failed' : 'completed'}; diagnostics: ${runDirectory}`
+          : 'E2E failed; diagnostics were scrubbed because complete secret scanning was impossible'
+      )
     }
-    process.off('SIGINT', handleSignal)
-    process.off('SIGTERM', handleSignal)
-    if (cleanupSucceeded) runLock.release()
-    else runLock.retain('normal cleanup failed; inspect diagnostics and clean resources manually')
-    console.info(
-      diagnosticsRetained
-        ? `E2E ${failed ? 'failed' : 'completed'}; diagnostics: ${runDirectory}`
-        : 'E2E failed; diagnostics were scrubbed because complete secret scanning was impossible'
-    )
   }
 }
 

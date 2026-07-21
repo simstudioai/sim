@@ -9,6 +9,7 @@ import {
   scenarioManifestSchema,
   writeJsonAtomic,
 } from '../fixtures/e2e-world'
+import { installBrowserNetworkGuard } from '../support/browser-network'
 
 const baseUrl = requiredEnv('E2E_BASE_URL')
 const manifestPath = requiredEnv('E2E_MANIFEST_PATH')
@@ -34,7 +35,9 @@ async function main(): Promise<void> {
       const login = credentials.personas[personaKey]
       if (!login) throw new Error(`Missing private login for persona: ${personaKey}`)
       const context = await browser.newContext({ baseURL: baseUrl })
+      const networkGuard = await installBrowserNetworkGuard(context)
       const page = await context.newPage()
+      const failures: unknown[] = []
       try {
         await page.goto('/login')
         await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
@@ -104,9 +107,21 @@ async function main(): Promise<void> {
             fullPage: true,
           })
           .catch(() => {})
-        throw error
-      } finally {
+        failures.push(error)
+      }
+      try {
         await context.close()
+      } catch (error) {
+        failures.push(error)
+      }
+      try {
+        networkGuard.assertNoUnexpectedRequests()
+      } catch (error) {
+        failures.push(error)
+      }
+      if (failures.length === 1) throw failures[0]
+      if (failures.length > 1) {
+        throw new AggregateError(failures, `Auth capture failed for persona: ${personaKey}`)
       }
     }
 

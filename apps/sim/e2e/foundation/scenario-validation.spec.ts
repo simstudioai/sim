@@ -7,6 +7,7 @@ import {
   type ScenarioOrganizationMembership,
   type ScenarioWorkspaceGrant,
 } from '../fixtures/scenario'
+import { expectedUsageLimit } from '../fixtures/scenario-billing'
 import {
   ScenarioValidationError,
   validateScenario,
@@ -64,7 +65,10 @@ test.describe('pure scenario validation', () => {
         ({ userKey }) => userKey === 'enterprise-organization-admin'
       )
     ).toBe(false)
-    expect(workspaceExpectation(primary, 'freeOrganizationOwner').hostContext.plan).toBe('free')
+    expect(workspaceExpectation(primary, 'freeOrganizationOwner').hostContext).toMatchObject({
+      payerScope: 'user',
+      plan: 'free',
+    })
     expect(primary.subscriptionsByKey.get('lapsed-team-subscription')?.status).toBe('lapsed')
 
     const restricted = primary.personasByKey.get('permissionGroupRestricted')
@@ -211,6 +215,55 @@ test.describe('pure scenario validation', () => {
         : subscription
     )
     expectInvalid(scenario, /cannot be provisioned from a past-due subscription/)
+  })
+
+  test("requires a workspace to reference its payer's current entitled subscription", () => {
+    const scenario = validScenario()
+    const lapsed = scenario.subscriptions.find(({ key }) => key === 'lapsed-team-subscription')!
+    scenario.subscriptions = [
+      ...scenario.subscriptions,
+      { ...lapsed, key: 'replacement-team-subscription', status: 'active' },
+    ]
+    expectInvalid(scenario, /current entitled subscription "replacement-team-subscription"/)
+  })
+
+  test('allows a lapsed history while a replacement subscription retains organization coverage', () => {
+    const scenario = validScenario()
+    const lapsed = scenario.subscriptions.find(({ key }) => key === 'lapsed-team-subscription')!
+    scenario.subscriptions = [
+      ...scenario.subscriptions,
+      { ...lapsed, key: 'replacement-team-subscription', status: 'active' },
+    ]
+    scenario.workspaces = scenario.workspaces.map((workspace) =>
+      workspace.key === 'lapsed-organization-workspace'
+        ? { ...workspace, subscriptionKey: 'replacement-team-subscription' }
+        : workspace
+    )
+    scenario.personas = scenario.personas.map((persona) =>
+      persona.key === 'freeOrganizationOwner'
+        ? {
+            ...persona,
+            workspaces: persona.workspaces.map((expectation) => ({
+              ...expectation,
+              hostContext: {
+                ...expectation.hostContext,
+                payerScope: 'organization',
+                plan: 'team_6000',
+              },
+            })),
+          }
+        : persona
+    )
+
+    const resolved = validateScenario(scenario)
+    if (lapsed.billingReference.kind !== 'organization') {
+      throw new Error('Expected an organization subscription')
+    }
+    const ownerUserKey = resolved.organizationsByKey.get(
+      lapsed.billingReference.organizationKey
+    )?.ownerUserKey
+    if (!ownerUserKey) throw new Error('Expected an organization owner')
+    expect(expectedUsageLimit(resolved, ownerUserKey)).toBeNull()
   })
 
   test('rejects permission groups without active Enterprise organization/workspace scope', () => {

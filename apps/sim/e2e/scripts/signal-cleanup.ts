@@ -55,13 +55,13 @@ process.exit(failures.length > 0 ? 1 : 0)
 
 function releaseRunLock(): void {
   if (runLockPath && runLockToken) {
-    releaseE2eRunLock(runLockPath, runLockToken)
+    releaseE2eRunLock(runLockPath, runLockToken, process.pid)
   }
 }
 
 function retainRunLock(reason: string): void {
   if (runLockPath && runLockToken) {
-    retainE2eRunLock(runLockPath, runLockToken, reason)
+    retainE2eRunLock(runLockPath, runLockToken, process.pid, reason)
   }
 }
 

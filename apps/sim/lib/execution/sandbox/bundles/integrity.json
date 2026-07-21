@@ -14,7 +14,7 @@
   },
   "outputs": {
     "apps/sim/lib/execution/sandbox/bundles/pdf-lib.cjs": "936750faa220af85bf9b4edfe82bcab64ad38ee637b7f584322598f229d24036",
-    "apps/sim/lib/execution/sandbox/bundles/docx.cjs": "4c2aaf691ab633f272cd654df92be557e460874ace581e3fdbca4ae44c1c62ce",
-    "apps/sim/lib/execution/sandbox/bundles/pptxgenjs.cjs": "f83df52b4577edce2ae0808e0f6da97cd119f1cbb475374b2e4ea13571fa024b"
+    "apps/sim/lib/execution/sandbox/bundles/docx.cjs": "9fd4fd3b8b3ff55e2f1f0bd9198da85f69be8213e8fef3d22a3d6b8d4b260dfd",
+    "apps/sim/lib/execution/sandbox/bundles/pptxgenjs.cjs": "562d0785a71518fe7277330805029a3ee7485309d2f075b8c5958a2c36895b1e"
   }
 }

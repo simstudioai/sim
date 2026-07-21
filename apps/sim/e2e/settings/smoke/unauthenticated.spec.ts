@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../../fixtures/browser-test'
 
 test('protected settings redirect unauthenticated users to login', async ({ page }) => {
   await page.goto('/account/settings/general')

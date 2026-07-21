@@ -21,7 +21,11 @@ import {
 import { createE2eRuntimeSecrets } from '../support/runtime-secrets'
 import { verifySandboxBundleIntegrity } from '../support/sandbox-bundles'
 import { assertSafeSeedEnvironment } from '../support/seed-safety'
-import { isProcessGroupAlive, parseProcessGroupIds } from '../support/signal-cleanup'
+import {
+  createSingleFlightSignalCleanup,
+  isProcessGroupAlive,
+  parseProcessGroupIds,
+} from '../support/signal-cleanup'
 
 test.describe('foundation safety guards', () => {
   test('discovers env keys without leaking values and shadows unknown keys', () => {
@@ -236,6 +240,41 @@ test.describe('foundation safety guards', () => {
     expect(parseProcessGroupIds(undefined)).toEqual([])
     expect(parseProcessGroupIds('')).toEqual([])
     expect(parseProcessGroupIds(' 123, 0, -1, nope, 456 ')).toEqual([123, 456])
+  })
+
+  test('repeated and opposite signals share one cleanup flight', async () => {
+    const handledSignals: NodeJS.Signals[] = []
+    let finishCleanup!: () => void
+    const cleanupBlocked = new Promise<void>((resolve) => {
+      finishCleanup = resolve
+    })
+    const cleanup = createSingleFlightSignalCleanup(async (signal) => {
+      handledSignals.push(signal)
+      await cleanupBlocked
+    })
+
+    const first = cleanup.start('SIGINT')
+    expect(cleanup.start('SIGINT')).toBe(first)
+    expect(cleanup.start('SIGTERM')).toBe(first)
+    expect(cleanup.isStarted()).toBe(true)
+    expect(cleanup.claimNormalFinalization()).toBe(false)
+    await Promise.resolve()
+    expect(handledSignals).toEqual(['SIGINT'])
+    finishCleanup()
+    await first
+  })
+
+  test('normal finalization atomically prevents later signal cleanup', async () => {
+    let signalCleanupCalls = 0
+    const cleanup = createSingleFlightSignalCleanup(async () => {
+      signalCleanupCalls += 1
+    })
+
+    expect(cleanup.claimNormalFinalization()).toBe(true)
+    expect(cleanup.claimNormalFinalization()).toBe(false)
+    await cleanup.start('SIGTERM')
+    expect(cleanup.isStarted()).toBe(false)
+    expect(signalCleanupCalls).toBe(0)
   })
 
   test('port preflight rejects an existing listener', async () => {

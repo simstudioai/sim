@@ -318,8 +318,21 @@ jobs:
           E2E_PG_ADMIN_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/postgres'
         run: bun run test:e2e
 
-      - name: Upload E2E diagnostics
+      - name: Check E2E diagnostics eligibility
+        id: e2e_diagnostics
         if: failure()
+        shell: bash
+        run: |
+          shopt -s nullglob
+          markers=(apps/sim/e2e/.runs/*/markers/leak-scan-complete.json)
+          if (( ${#markers[@]} > 0 )); then
+            echo "safe=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "safe=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload E2E diagnostics
+        if: failure() && steps.e2e_diagnostics.outputs.safe == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: settings-e2e-${{ github.run_id }}

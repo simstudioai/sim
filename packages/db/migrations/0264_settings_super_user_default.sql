@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ALTER COLUMN "super_user_mode_enabled" SET DEFAULT false;

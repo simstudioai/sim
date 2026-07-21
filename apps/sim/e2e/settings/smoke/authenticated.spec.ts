@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../../fixtures/browser-test'
+import { installBrowserNetworkGuard } from '../../support/browser-network'
 import { FOUNDATION_TEST_PASSWORD } from '../../support/runtime-secrets'
 
 test('billing-enabled signup, login, and settings use real Sim boundaries', async ({
@@ -51,12 +52,31 @@ test('billing-enabled signup, login, and settings use real Sim boundaries', asyn
     baseURL: requiredEnv('E2E_BASE_URL'),
     storageState: storageStatePath,
   })
+  const restoredNetworkGuard = await installBrowserNetworkGuard(restoredContext)
+  const restoredContextFailures: unknown[] = []
   try {
     const restoredPage = await restoredContext.newPage()
     await restoredPage.goto(`${requiredEnv('E2E_BASE_URL')}${settingsPath}`)
     await assertGeneralSettings(restoredPage)
-  } finally {
+  } catch (error) {
+    restoredContextFailures.push(error)
+  }
+  try {
     await restoredContext.close()
+  } catch (error) {
+    restoredContextFailures.push(error)
+  }
+  try {
+    restoredNetworkGuard.assertNoUnexpectedRequests()
+  } catch (error) {
+    restoredContextFailures.push(error)
+  }
+  if (restoredContextFailures.length === 1) throw restoredContextFailures[0]
+  if (restoredContextFailures.length > 1) {
+    throw new AggregateError(
+      restoredContextFailures,
+      'Restored browser verification or network cleanup failed'
+    )
   }
   writeFileSync(
     path.join(requiredEnv('E2E_MARKER_DIR'), `foundation-authenticated-${testIdentity}.json`),

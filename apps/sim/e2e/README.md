@@ -58,14 +58,19 @@ Server telemetry currently shares the strict loopback Stripe-fake process; the
 generic modular fake-service refactor remains scoped to the roadmap's
 `e2e/06b-enterprise-integrations` phase.
 An exclusive checkout-level orchestrator lock prevents concurrent runs from
-racing on `.next`, the shared build cache, or the fixed app/realtime ports.
+racing on `.next`, the shared build cache, or the fixed app/realtime ports. The
+lock records managed process groups, so recovery from an uncatchable
+orchestrator termination kills verified stale descendants before admitting a
+new writer.
 
 On interruption, the runner launches a detached cleanup supervisor before
 exiting. It terminates managed process groups, force-drops the guarded database,
-and removes temporary auth/cloud-config directories even if another Ctrl-C
-terminates the foreground package runner.
+and removes temporary auth/cloud-config directories. Repeated or opposite
+signals remain on the same single-flight path until the supervisor owns the
+lock, after which the foreground runner exits.
 Cleanup failures retain the lock and require the reported resources to be
 inspected and cleaned before manually removing `e2e/.cache/orchestrator.lock`.
+Failure to start the detached cleanup supervisor also retains the lock.
 
 Pass Playwright arguments after `--`:
 
@@ -160,7 +165,10 @@ the in-memory canary scans the manifest, logs, report files, and trace archives
 and fails if a synthetic password, invitation token, or runtime secret escaped
 the excluded private directories. Cancelled CI runs do not upload unscanned
 diagnostics, and an unreadable canary or incomplete archive scan causes all
-potentially unscanned diagnostic roots to be scrubbed. Storage-state session cookies are intentionally not canaried
+potentially unscanned diagnostic roots to be scrubbed. CI uploads failure
+diagnostics only when the runner wrote its successful scan marker. The fixed
+foundation smoke password is public test input and is intentionally not a
+canary, so expected login traces remain useful. Storage-state session cookies are intentionally not canaried
 because authenticated Playwright traces contain them by design; they are
 synthetic and invalid once the run database is dropped.
 Fresh-session recapture is deliberately deferred. Future membership-mutation
@@ -168,13 +176,13 @@ coverage must explicitly restore a private credential handoff and re-review its
 access boundary rather than assuming credentials persist through Playwright.
 
 E2E builds verify the pinned Bun executable plus reviewed sandbox-bundle
-source, direct dependency, and output fingerprints and never regenerate
-committed `.cjs` files.
+source, direct dependency, and output fingerprints. They also regenerate the
+bundles into a temporary directory and require those fresh outputs to match the
+reviewed fingerprints without modifying committed `.cjs` files.
 `bun run build:sandbox-bundles:integrity` is the explicit maintenance command
 that regenerates bundles and their reviewed integrity manifest together.
-Unrelated monorepo lockfile changes do not invalidate the bundle fingerprint;
-the committed output hashes still detect any transitive change that alters a
-bundle.
+Unrelated monorepo lockfile changes do not invalidate the reviewed fingerprint;
+the fresh-output comparison detects transitive changes that alter a bundle.
 
 Reset/reseed cleanup remains deferred with keep-stack supervision. Ordinary
 runs own a unique guarded database and remove it wholesale rather than carrying
@@ -182,4 +190,6 @@ untested row-level deletion code.
 
 Provider log scans are diagnostic tripwires, not proof of zero egress. The
 primary boundaries are the default-deny child environment, provider disabling,
-loopback-only service bindings, and guarded Stripe transport.
+loopback-only service bindings, guarded Stripe transport, disabled hosted
+marketing tags, and a browser-context allowlist that rejects every HTTP(S)
+origin outside the app and realtime service.
