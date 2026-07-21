@@ -1,7 +1,19 @@
 import { backgroundWorkStatus, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, inArray, isNull, lt, lte, or, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  desc,
+  eq,
+  getTableColumns,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('ForkBackgroundWork')
@@ -185,7 +197,11 @@ function toMetadataRecord(value: unknown): Record<string, unknown> {
     : {}
 }
 
-/** Keyset position of the last row of a page: `updatedAt` plus the `id` tiebreaker. */
+/**
+ * Keyset position of the last row of a page: `updatedAt` plus the `id` tiebreaker.
+ * `updatedAt` carries the row's Postgres text rendering (full microsecond
+ * precision), not a JS `Date` serialization — see {@link buildCursorCondition}.
+ */
 interface BackgroundWorkCursorData {
   updatedAt: string
   id: string
@@ -205,21 +221,54 @@ function decodeCursor(cursor: string): BackgroundWorkCursorData | null {
 }
 
 /**
+ * Cursor timestamp formats this store has ever encoded: the Postgres text
+ * rendering (`YYYY-MM-DD HH:MM:SS[.ffffff]`) and the legacy `toISOString()`
+ * form (`YYYY-MM-DDTHH:MM:SS.fffZ`).
+ */
+const CURSOR_TIMESTAMP_PATTERN =
+  /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])[T ]([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d{1,6})?Z?$/
+
+/**
+ * Validates a cursor timestamp before it is bound into a `::timestamp` cast.
+ * The pattern pins format and field ranges; the calendar check rejects
+ * impossible dates (e.g. Feb 30) that JS `Date` silently normalizes but
+ * Postgres rejects with an error — an invalid cursor must degrade to the
+ * first page, never fail the query.
+ */
+function isValidCursorTimestamp(value: string): boolean {
+  if (!CURSOR_TIMESTAMP_PATTERN.test(value)) return false
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+}
+
+/**
  * Keyset condition for rows strictly after the cursor position in
  * `updatedAt DESC, id DESC` order: older `updatedAt`, or the same `updatedAt`
  * (which is not unique) with a smaller `id`. Null for an invalid cursor, which
  * degrades to the first page rather than erroring.
+ *
+ * The cursor timestamp is compared via a `::timestamp` cast of the captured
+ * text rather than a JS `Date`: Drizzle dates truncate Postgres microsecond
+ * timestamps to milliseconds, and a truncated boundary value both skips rows
+ * sharing the boundary row's millisecond and never matches the `eq` tiebreaker
+ * arm for microsecond-stamped rows. Legacy cursors that carry an ISO string
+ * (pre-text format) parse through the same cast — the zone suffix is dropped
+ * and the value is read as the same UTC wall time the app stores.
  */
 function buildCursorCondition(cursor: string): SQL<unknown> | null {
   const cursorData = decodeCursor(cursor)
   if (!cursorData?.updatedAt || !cursorData.id) return null
 
-  const cursorDate = new Date(cursorData.updatedAt)
-  if (Number.isNaN(cursorDate.getTime())) return null
+  if (!isValidCursorTimestamp(cursorData.updatedAt)) return null
+  const cursorTimestamp = sql`${cursorData.updatedAt}::timestamp`
 
   return or(
-    lt(backgroundWorkStatus.updatedAt, cursorDate),
-    and(eq(backgroundWorkStatus.updatedAt, cursorDate), lt(backgroundWorkStatus.id, cursorData.id))
+    lt(backgroundWorkStatus.updatedAt, cursorTimestamp),
+    and(
+      eq(backgroundWorkStatus.updatedAt, cursorTimestamp),
+      lt(backgroundWorkStatus.id, cursorData.id)
+    )
   )!
 }
 
@@ -286,18 +335,23 @@ export async function listSurfacedBackgroundWork(
   }
 
   // Over-fetch by one row to learn whether another page exists (audit-log pattern).
+  // `updatedAtCursor` captures the exact microsecond timestamp for the keyset
+  // cursor; the Date-typed `updatedAt` is millisecond-truncated by Drizzle.
   const rows = (await executor
-    .select()
+    .select({
+      ...getTableColumns(backgroundWorkStatus),
+      updatedAtCursor: sql<string>`${backgroundWorkStatus.updatedAt}::text`,
+    })
     .from(backgroundWorkStatus)
     .where(and(...conditions))
     .orderBy(desc(backgroundWorkStatus.updatedAt), desc(backgroundWorkStatus.id))
-    .limit(limit + 1)) as BackgroundWorkRow[]
+    .limit(limit + 1)) as Array<BackgroundWorkRow & { updatedAtCursor: string }>
 
   const hasMore = rows.length > limit
   const page = rows.slice(0, limit)
   const last = page[page.length - 1]
   const nextCursor =
-    hasMore && last ? encodeCursor({ updatedAt: last.updatedAt.toISOString(), id: last.id }) : null
+    hasMore && last ? encodeCursor({ updatedAt: last.updatedAtCursor, id: last.id }) : null
   return { rows: page, nextCursor }
 }
 

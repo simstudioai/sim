@@ -610,17 +610,35 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           eventHandlers.current.workflowDeployed?.(data)
         })
 
-        const rehydrateWorkflowStores = async (workflowId: string, workflowState: any) => {
+        /**
+         * DEGRADED-PATH fallback: replaces the workflow + subblock stores with
+         * the raw state pushed by the realtime server. The primary join path is
+         * `syncLocalDraftFromServer`, which fetches MIGRATED state over HTTP —
+         * the realtime server loads state raw, without the app's block
+         * migrations (credential remaps, subblock-id renames, canonicalModes
+         * backfill), because those need the block registry that apps/realtime
+         * cannot import. Applying raw state is acceptable only as a fallback
+         * when the HTTP fetch fails: load-time migrations persist their result
+         * back to the normalized tables (persistMigratedBlocks), so raw state
+         * converges with migrated state after the first migrated load. If that
+         * persistence ever fails repeatedly, raw state diverges from the
+         * migrated deployed snapshot and change detection reports phantom
+         * diffs that survive redeploys (see the exact text-precision
+         * updated_at guard in persistMigratedBlocks).
+         */
+        const applyRawJoinStateFallback = async (workflowId: string, workflowState: any) => {
           const [
             { useOperationQueueStore },
             { useWorkflowRegistry },
             { useWorkflowStore },
             { useSubBlockStore },
+            { useWorkflowDiffStore },
           ] = await Promise.all([
             import('@/stores/operation-queue/store'),
             import('@/stores/workflows/registry/store'),
             import('@/stores/workflows/workflow/store'),
             import('@/stores/workflows/subblock/store'),
+            import('@/stores/workflow-diff/store'),
           ])
 
           const { activeWorkflowId } = useWorkflowRegistry.getState()
@@ -634,6 +652,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             .operations.some((op: any) => op.workflowId === workflowId && op.status !== 'confirmed')
           if (hasPending) {
             logger.info('Skipping rehydration due to pending operations in queue')
+            return false
+          }
+
+          if (useWorkflowDiffStore.getState().hasActiveDiff) {
+            logger.info('Skipping rehydration - an active diff is in progress')
             return false
           }
 
@@ -734,6 +757,17 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           }
         })
 
+        /**
+         * Join-time state sync. The realtime server can only load RAW workflow
+         * state (no block migrations — see applyRawJoinStateFallback), so the raw
+         * payload is used purely as a trigger and fallback: the stores are
+         * synced from the app's MIGRATED HTTP state via
+         * syncLocalDraftFromServer, which dedupes against an in-flight registry
+         * hydration on the shared query key and refuses to clobber pending
+         * local operations, active diffs, or newer remote updates. Only when
+         * that fetch itself fails does the raw payload get applied, so a
+         * reconnect on a flaky network still recovers to near-current state.
+         */
         socketInstance.on('workflow-state', async (workflowData) => {
           logger.info('Received workflow state from server')
 
@@ -751,10 +785,52 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           }
 
           if (workflowData?.state) {
+            const { useOperationQueueStore } = await import('@/stores/operation-queue/store')
+            const versionsAtJoin = {
+              remoteApply:
+                useOperationQueueStore.getState().remoteApplyVersions[workflowData.id] ?? 0,
+              localOperation:
+                useOperationQueueStore.getState().workflowOperationVersions[workflowData.id] ?? 0,
+            }
+
             try {
-              await rehydrateWorkflowStores(workflowData.id, workflowData.state)
+              const { syncLocalDraftFromServer } = await import(
+                '@/stores/workflows/sync-local-draft'
+              )
+              const synced = await syncLocalDraftFromServer(workflowData.id)
+              if (!synced) {
+                logger.info('Join-state sync skipped; keeping local state', {
+                  workflowId: workflowData.id,
+                })
+              }
             } catch (error) {
-              logger.error('Error rehydrating workflow state:', error)
+              logger.warn('Join-state sync failed; falling back to raw socket state', { error })
+
+              /**
+               * The raw payload was captured at join time. Anything applied to
+               * the stores while the HTTP sync was failing — remote broadcasts
+               * or local edits that drained — is newer than the payload, so
+               * applying it would regress those changes. Fall back only when
+               * nothing has moved since the join.
+               */
+              const queueState = useOperationQueueStore.getState()
+              const storesMovedSinceJoin =
+                (queueState.remoteApplyVersions[workflowData.id] ?? 0) !==
+                  versionsAtJoin.remoteApply ||
+                (queueState.workflowOperationVersions[workflowData.id] ?? 0) !==
+                  versionsAtJoin.localOperation
+              if (storesMovedSinceJoin) {
+                logger.info('Skipping raw join-state fallback; stores changed since join', {
+                  workflowId: workflowData.id,
+                })
+                return
+              }
+
+              try {
+                await applyRawJoinStateFallback(workflowData.id, workflowData.state)
+              } catch (rehydrateError) {
+                logger.error('Error rehydrating workflow state:', rehydrateError)
+              }
             }
           }
         })

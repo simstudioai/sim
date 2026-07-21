@@ -2,7 +2,7 @@ import { db, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@
 import { createLogger } from '@sim/logger'
 import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
 import { SUBFLOW_TYPES } from '@sim/workflow-types/workflow'
-import { and, eq, gte, isNull, lt } from 'drizzle-orm'
+import { and, eq, getTableColumns, isNull, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { clampParallelBatchSize } from './subflow-helpers'
 import type { DbOrTx, NormalizedWorkflowData } from './types'
@@ -11,7 +11,14 @@ const logger = createLogger('WorkflowPersistenceLoad')
 
 export interface RawNormalizedWorkflow extends NormalizedWorkflowData {
   workspaceId: string
-  blockUpdatedAtById: Record<string, Date | null>
+  /**
+   * Each block row's `updated_at` rendered by Postgres as text, preserving the
+   * full microsecond precision. Kept as a string on purpose: Drizzle's `date`
+   * mode surfaces timestamps as JS `Date`s, which truncate to milliseconds, so
+   * a Date-based value can never be used for an exact compare-and-set against
+   * rows stamped by SQL `now()`/`defaultNow()`.
+   */
+  blockUpdatedAtById: Record<string, string | null>
 }
 
 /**
@@ -35,7 +42,13 @@ export async function loadWorkflowFromNormalizedTablesRaw(
   try {
     const tx = externalTx ?? db
     const [blocks, edges, subflows, [workflowRow]] = await Promise.all([
-      tx.select().from(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
+      tx
+        .select({
+          ...getTableColumns(workflowBlocks),
+          updatedAtText: sql<string | null>`${workflowBlocks.updatedAt}::text`,
+        })
+        .from(workflowBlocks)
+        .where(eq(workflowBlocks.workflowId, workflowId)),
       tx.select().from(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
       tx.select().from(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
       tx
@@ -54,7 +67,7 @@ export async function loadWorkflowFromNormalizedTablesRaw(
     }
 
     const blocksMap: Record<string, BlockState> = {}
-    const blockUpdatedAtById: Record<string, Date | null> = {}
+    const blockUpdatedAtById: Record<string, string | null> = {}
     blocks.forEach((block) => {
       const blockData = (block.data ?? {}) as BlockState['data']
 
@@ -78,7 +91,7 @@ export async function loadWorkflowFromNormalizedTablesRaw(
       }
 
       blocksMap[block.id] = assembled
-      blockUpdatedAtById[block.id] = block.updatedAt ?? null
+      blockUpdatedAtById[block.id] = block.updatedAtText ?? null
     })
 
     const edgesArray: Edge[] = edges.map((edge) => ({
@@ -181,31 +194,30 @@ export async function loadWorkflowFromNormalizedTablesRaw(
 }
 
 /**
- * Optimistic-concurrency guard matching a row's `updated_at` against the value
- * read earlier through Drizzle.
+ * Optimistic-concurrency guard: matches a row's `updated_at` exactly against
+ * the microsecond-precision text value captured at read time.
  *
- * Postgres stores `timestamp` columns with microsecond precision, but Drizzle's
- * default `date` mode surfaces them as JS `Date`s, which truncate to
- * milliseconds. A strict equality guard therefore never matches rows whose
- * `updated_at` was stamped by SQL `now()`/`defaultNow()` (non-zero
- * sub-millisecond digits are lost on read), silently turning the UPDATE into a
- * permanent no-op — migrations then re-run on every load without ever
- * persisting. Matching the enclosing millisecond restores the intended
- * semantics: any concurrent writer stamps a fresh `updated_at`, which falls
- * outside this window.
+ * The comparison deliberately round-trips through text rather than a JS
+ * `Date`. Postgres stores `timestamp` columns with microsecond precision, but
+ * Drizzle's `date` mode truncates to milliseconds on read, so a Date-based
+ * equality guard can never match rows stamped by SQL `now()`/`defaultNow()` —
+ * the UPDATE silently no-ops forever and load-time migrations never persist.
+ * Casting the captured text back to `timestamp` restores an exact
+ * compare-and-set: a concurrent write stamps a new `updated_at` and the guard
+ * fails closed (skipped, logged, retried on the next load). Residual, inherent
+ * limit: a concurrent app write whose JS `new Date()` collides with the stored
+ * value at exact precision is indistinguishable; a version column would be
+ * required to close that fully.
  */
-function updatedAtMatches(expected: Date) {
-  return and(
-    gte(workflowBlocks.updatedAt, expected),
-    lt(workflowBlocks.updatedAt, new Date(expected.getTime() + 1))
-  )
+function updatedAtMatches(expectedText: string) {
+  return eq(workflowBlocks.updatedAt, sql`${expectedText}::timestamp`)
 }
 
 export async function persistMigratedBlocks(
   workflowId: string,
   originalBlocks: Record<string, BlockState>,
   migratedBlocks: Record<string, BlockState>,
-  blockUpdatedAtById: Record<string, Date | null> = {}
+  blockUpdatedAtById: Record<string, string | null> = {}
 ): Promise<void> {
   try {
     for (const [blockId, block] of Object.entries(migratedBlocks)) {
@@ -222,7 +234,7 @@ export async function persistMigratedBlocks(
             )
           : and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId))
 
-        await db
+        const persisted = await db
           .update(workflowBlocks)
           .set({
             subBlocks: block.subBlocks,
@@ -230,6 +242,15 @@ export async function persistMigratedBlocks(
             updatedAt: new Date(),
           })
           .where(whereClause)
+          .returning({ id: workflowBlocks.id })
+
+        if (persisted.length === 0) {
+          logger.warn('Skipped persisting block migration (row changed since read or missing)', {
+            workflowId,
+            blockId,
+            expectedUpdatedAt,
+          })
+        }
       }
     }
   } catch (err) {
