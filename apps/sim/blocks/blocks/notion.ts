@@ -12,6 +12,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
   type: 'notion',
   name: 'Notion (Legacy)',
   hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'notion_v2' },
   description: 'Manage Notion pages',
   authMode: AuthMode.OAuth,
   longDescription:
@@ -1124,7 +1125,7 @@ export const NotionBlockMeta = {
   templates: [
     {
       icon: Send,
-      title: 'Customer support bot',
+      title: 'Notion customer support bot',
       prompt:
         'Create a knowledge base and connect it to my Notion or Google Docs so it stays synced with my product documentation automatically. Then build an agent that answers customer questions using it with sourced citations and deploy it as a chat endpoint.',
       modules: ['knowledge-base', 'agent', 'workflows'],

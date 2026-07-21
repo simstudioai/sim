@@ -8,6 +8,7 @@ import {
   AzureIcon,
   BoxCompanyIcon,
   CalComIcon,
+  ClaudeIcon,
   ClickUpIcon,
   ConfluenceIcon,
   DocuSignIcon,
@@ -66,6 +67,23 @@ import type { OAuthProviderConfig } from './types'
 const logger = createLogger('OAuth')
 
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
+  'claude-platform': {
+    name: 'Claude Platform',
+    icon: ClaudeIcon,
+    services: {
+      'claude-platform': {
+        name: 'Claude Platform',
+        description: 'Run Claude Platform Managed Agents from your workflows.',
+        providerId: 'claude-platform',
+        serviceAccountProviderId: 'claude-platform-service-account',
+        icon: ClaudeIcon,
+        baseProviderIcon: ClaudeIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'claude-platform',
+  },
   google: {
     name: 'Google',
     icon: GoogleIcon,
@@ -442,7 +460,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     services: {
       tiktok: {
         name: 'TikTok',
-        description: 'Read profile info and videos, and publish content to TikTok.',
+        description: 'Read profile info and videos, and upload drafts to the TikTok inbox.',
         providerId: 'tiktok',
         icon: TikTokIcon,
         baseProviderIcon: TikTokIcon,
@@ -450,7 +468,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'user.info.basic',
           'user.info.profile',
           'user.info.stats',
-          'video.publish',
           'video.upload',
           'video.list',
         ],

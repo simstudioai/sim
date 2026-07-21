@@ -1333,7 +1333,7 @@ export const GongBlockMeta = {
   templates: [
     {
       icon: GongIcon,
-      title: 'Sales call analyzer',
+      title: 'Gong sales call analyzer',
       prompt:
         'Build a workflow that pulls call transcripts from Gong after each sales call, identifies key objections raised, action items promised, and competitor mentions, updates the deal record in my CRM, and posts a call summary with next steps to the Slack deal channel.',
       modules: ['agent', 'tables', 'workflows'],

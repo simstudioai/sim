@@ -5,9 +5,30 @@ import { describe, expect, it } from 'vitest'
 import {
   getBaseModelProviders,
   getHostedModels,
+  isModelDeprecated,
   orderModelIdsByReleaseDate,
   PROVIDER_DEFINITIONS,
 } from '@/providers/models'
+
+const DYNAMIC_PROVIDERS = new Set([
+  'ollama',
+  'ollama-cloud',
+  'vllm',
+  'litellm',
+  'openrouter',
+  'fireworks',
+  'together',
+  'baseten',
+])
+
+function firstDeprecatedModelId(): string | undefined {
+  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
+    if (DYNAMIC_PROVIDERS.has(providerId)) continue
+    const dep = provider.models.find((m) => m.deprecated)
+    if (dep) return dep.id
+  }
+  return undefined
+}
 
 /** Maps a lowercased model ID to its provider's index in the catalog. */
 const PROVIDER_INDEX_BY_MODEL = new Map<string, number>()
@@ -292,5 +313,28 @@ describe('xai provider definition', () => {
 
   it('is included in getHostedModels since Sim provides the xAI key server-side', () => {
     expect(getHostedModels()).toContain('grok-4.5')
+  })
+})
+
+describe('isModelDeprecated', () => {
+  it('returns true for a catalogued deprecated model (case-insensitive)', () => {
+    const id = firstDeprecatedModelId()
+    expect(id).toBeDefined()
+    expect(isModelDeprecated(id!)).toBe(true)
+    expect(isModelDeprecated(id!.toUpperCase())).toBe(true)
+  })
+
+  it('returns false for the default model of every provider', () => {
+    for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+      if (provider.defaultModel) expect(isModelDeprecated(provider.defaultModel)).toBe(false)
+    }
+  })
+
+  it('returns false for empty, unknown, and dynamic-provider ids', () => {
+    expect(isModelDeprecated('')).toBe(false)
+    expect(isModelDeprecated(undefined)).toBe(false)
+    expect(isModelDeprecated(null)).toBe(false)
+    expect(isModelDeprecated('not-a-real-model')).toBe(false)
+    expect(isModelDeprecated('openrouter/some/model')).toBe(false)
   })
 })

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  tiktokCreatorInfoApiDataSchema,
   tiktokGetUserApiDataSchema,
   tiktokListVideosApiDataSchema,
   tiktokPostStatusApiDataSchema,
@@ -30,23 +29,6 @@ describe('TikTok documented response schemas', () => {
     expect(tiktokListVideosApiDataSchema.safeParse({ videos }).success).toBe(false)
     expect(tiktokQueryVideosApiDataSchema.safeParse({ videos }).success).toBe(true)
     expect(tiktokQueryVideosApiDataSchema.safeParse({ videos: [{}] }).success).toBe(false)
-  })
-
-  it('requires the documented creator capability fields', () => {
-    const complete = {
-      creator_avatar_url: 'https://example.com/avatar',
-      creator_username: 'creator',
-      creator_nickname: 'Creator',
-      privacy_level_options: ['SELF_ONLY'],
-      comment_disabled: false,
-      duet_disabled: false,
-      stitch_disabled: false,
-      max_video_post_duration_sec: 180,
-    }
-
-    expect(tiktokCreatorInfoApiDataSchema.safeParse(complete).success).toBe(true)
-    const { privacy_level_options: _privacyLevelOptions, ...incomplete } = complete
-    expect(tiktokCreatorInfoApiDataSchema.safeParse(incomplete).success).toBe(false)
   })
 
   it('requires publish initialization identifiers and post status', () => {

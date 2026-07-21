@@ -341,7 +341,7 @@ describe('McpService.discoverTools per-server caching', () => {
         statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
       }),
     ])
-    mockListTools.mockRejectedValueOnce(
+    mockListTools.mockRejectedValue(
       new UnauthorizedError(`Rejected Authorization: ${reflectedCredential}`)
     )
 
@@ -491,7 +491,7 @@ describe('McpService.discoverTools per-server caching', () => {
         statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
       }),
     ])
-    mockListTools.mockRejectedValueOnce(
+    mockListTools.mockRejectedValue(
       new UnauthorizedError(`Rejected Authorization: ${reflectedCredential}`)
     )
 
@@ -515,6 +515,19 @@ describe('McpService.discoverTools per-server caching', () => {
       'cooldown'
     )
     expect(mockListTools).not.toHaveBeenCalled()
+  })
+
+  it('recovers a rotated headers-auth credential via a single discovery retry', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    // Stale key 401s once, then the retry re-resolves and succeeds.
+    mockListTools
+      .mockRejectedValueOnce(new UnauthorizedError('stale key'))
+      .mockResolvedValueOnce([tool('a1', 'mcp-a')])
+
+    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
+
+    expect(tools).toHaveLength(1)
+    expect(mockListTools).toHaveBeenCalledTimes(2)
   })
 
   it('keeps per-server UnauthorizedError soft-pending for OAuth auth', async () => {

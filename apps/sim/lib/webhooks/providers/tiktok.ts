@@ -201,15 +201,6 @@ export const tiktokHandler: WebhookProviderHandler = {
       }
     }
 
-    if (event === 'video.publish.completed' || event === 'video.upload.failed') {
-      return {
-        input: {
-          ...commonInput,
-          shareId: stringField(content, 'share_id') ?? null,
-        },
-      }
-    }
-
     return { input: commonInput }
   },
 
@@ -224,7 +215,6 @@ export const tiktokHandler: WebhookProviderHandler = {
     const content = parseTikTokContent(envelope.content)
     const publishId = stringField(content, 'publish_id')
     const postId = stringField(content, 'post_id')
-    const shareId = stringField(content, 'share_id')
     const createTime =
       typeof envelope.create_time === 'number' || typeof envelope.create_time === 'string'
         ? String(envelope.create_time)
@@ -236,7 +226,7 @@ export const tiktokHandler: WebhookProviderHandler = {
     } else if (event === 'post.publish.complete' && publishId && createTime) {
       unique = `${publishId}:${createTime}`
     } else {
-      unique = publishId ?? shareId ?? createTime
+      unique = publishId ?? createTime
     }
     if (!unique) return null
 

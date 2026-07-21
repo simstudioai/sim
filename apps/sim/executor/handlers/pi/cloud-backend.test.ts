@@ -31,6 +31,7 @@ function baseParams(overrides: Partial<PiCloudRunParams> = {}): PiCloudRunParams
   return {
     mode: 'cloud',
     model: 'claude',
+    piModel: 'claude',
     providerId: 'anthropic',
     apiKey: 'sk-byok',
     isBYOK: true,

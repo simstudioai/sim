@@ -14,6 +14,7 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   name: 'AWS Textract',
   description: 'Extract text, tables, and forms from documents',
   hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'textract_v2' },
   authMode: AuthMode.ApiKey,
   longDescription: `Integrate AWS Textract into your workflow to extract text, tables, forms, and key-value pairs from documents. Single-page mode supports JPEG, PNG, and single-page PDF. Multi-page mode supports multi-page PDF and TIFF.`,
   docsLink: 'https://docs.sim.ai/integrations/textract',
@@ -238,6 +239,7 @@ function requireAwsCredentials(params: Record<string, unknown>) {
 
 export const TextractV2Block: BlockConfig<TextractParserOutput> = {
   ...TextractBlock,
+  sunset: undefined,
   type: 'textract_v2',
   name: 'AWS Textract',
   hideFromToolbar: false,
@@ -494,7 +496,7 @@ export const TextractBlockMeta = {
     },
     {
       icon: TextractIcon,
-      title: 'Receipt OCR for expense reports',
+      title: 'Textract receipt OCR',
       prompt:
         'Build a workflow that processes Gmail attachments with AWS Textract, extracts vendor, date, total, and category, logs each receipt to an expense table, and tags reimbursable items.',
       modules: ['tables', 'files', 'agent', 'workflows'],

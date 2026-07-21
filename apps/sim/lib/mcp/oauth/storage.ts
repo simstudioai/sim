@@ -192,12 +192,13 @@ export async function saveCodeVerifier(rowId: string, verifier: string): Promise
     .where(eq(mcpServerOauth.id, rowId))
 }
 
-export async function saveState(rowId: string, state: string): Promise<void> {
+export async function saveState(rowId: string, state: string, context = 'unknown'): Promise<void> {
   const now = new Date()
   await db
     .update(mcpServerOauth)
     .set({ state: hashState(state), stateCreatedAt: now, updatedAt: now })
     .where(eq(mcpServerOauth.id, rowId))
+  logger.info('MCP OAuth authorization state saved', { rowId, context })
 }
 
 export async function clearTokens(rowId: string): Promise<void> {
@@ -221,11 +222,12 @@ export async function clearVerifier(rowId: string): Promise<void> {
     .where(eq(mcpServerOauth.id, rowId))
 }
 
-export async function clearState(rowId: string): Promise<void> {
+export async function clearState(rowId: string, context = 'unknown'): Promise<void> {
   await db
     .update(mcpServerOauth)
     .set({ state: null, stateCreatedAt: null, updatedAt: new Date() })
     .where(eq(mcpServerOauth.id, rowId))
+  logger.info('MCP OAuth authorization state cleared', { rowId, context })
 }
 
 /**

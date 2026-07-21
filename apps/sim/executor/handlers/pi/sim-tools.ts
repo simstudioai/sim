@@ -1,6 +1,6 @@
 /**
  * Adapts user-selected Sim tools into backend-neutral {@link PiToolSpec}s that
- * Pi can call in local mode. Each spec carries the tool's JSON-schema parameters
+ * Pi can call in Local Dev. Each spec carries the tool's JSON-schema parameters
  * and an `execute` that runs the real Sim tool through `executeTool`, so the
  * agent's calls go through the same credential-access checks as any block.
  *

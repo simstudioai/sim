@@ -433,9 +433,40 @@ export function createPinnedLookup(resolvedIP: string): LookupFunction {
  *
  * The `Agent` is captured for the lifetime of the returned function, so repeated
  * calls (e.g. a provider tool loop) reuse its keep-alive connections.
+ *
+ * `allowH2` opts the pinned Agent into HTTP/2 (ALPN-negotiated, h1.1 fallback).
+ * It defaults to `false` to leave existing consumers unchanged. Enabling it does
+ * not weaken pinning: the pinned `connect.lookup` forces every connection on the
+ * Agent to `resolvedIP` regardless of authority, so h2 connection coalescing can
+ * never reach an address other than the validated one.
  */
-export function createPinnedFetch(resolvedIP: string): typeof fetch {
-  const dispatcher = new Agent({ connect: { lookup: createPinnedLookup(resolvedIP) } })
+export function createPinnedFetch(
+  resolvedIP: string,
+  options?: { allowH2?: boolean }
+): typeof fetch {
+  return createPinnedFetchWithDispatcher(resolvedIP, options).fetch
+}
+
+/**
+ * Same as {@link createPinnedFetch} but also returns the underlying `Agent` so a
+ * caller with a defined connection lifetime (e.g. a long-lived MCP transport) can
+ * tear the Agent down on close instead of waiting for its idle timeout. Closing
+ * the Agent is what releases any pooled keep-alive / HTTP/2 sockets it holds.
+ *
+ * `maxResponseSize` caps the (decoded) response body in bytes and makes undici reject
+ * with `UND_ERR_RES_EXCEEDED_MAX_SIZE` once exceeded — a DoS backstop for one-shot
+ * callers reading from a URL taken from untrusted metadata. Omit it (the default) to
+ * leave the response unbounded, which streaming consumers like the MCP transport need.
+ */
+export function createPinnedFetchWithDispatcher(
+  resolvedIP: string,
+  options?: { allowH2?: boolean; maxResponseSize?: number }
+): { fetch: typeof fetch; dispatcher: Agent } {
+  const dispatcher = new Agent({
+    allowH2: options?.allowH2 ?? false,
+    connect: { lookup: createPinnedLookup(resolvedIP) },
+    ...(options?.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
+  })
 
   const pinned = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     // double-cast-allowed: DOM RequestInfo/URL and undici fetch input types differ but are structurally compatible at runtime (Node's global fetch IS undici)
@@ -447,7 +478,7 @@ export function createPinnedFetch(resolvedIP: string): typeof fetch {
     return response as unknown as Response
   }
 
-  return pinned
+  return { fetch: pinned, dispatcher }
 }
 
 /**

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { tiktokPublishVideoContract } from '@/lib/api/contracts/tiktok-tools'
+import { tiktokUploadVideoDraftContract } from '@/lib/api/contracts/tiktok-tools'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -19,7 +19,7 @@ import {
   getStoredVideoSize,
   streamStoredVideoToTikTok,
   TIKTOK_MAX_VIDEO_BYTES,
-} from '@/app/api/tools/tiktok/publish-video/upload'
+} from '@/app/api/tools/tiktok/upload-video-draft/upload'
 import type { UserFile } from '@/executor/types'
 import { tiktokPublishInitApiDataSchema } from '@/tools/tiktok/api-schemas'
 import { readTikTokApiResponse } from '@/tools/tiktok/utils'
@@ -27,7 +27,7 @@ import { readTikTokApiResponse } from '@/tools/tiktok/utils'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 900
 
-const logger = createLogger('TikTokPublishVideoAPI')
+const logger = createLogger('TikTokUploadVideoDraftAPI')
 
 const TIKTOK_VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm'])
 
@@ -43,27 +43,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized TikTok publish-video attempt: ${authResult.error}`)
+      logger.warn(
+        `[${requestId}] Unauthorized TikTok upload-video-draft attempt: ${authResult.error}`
+      )
       return NextResponse.json(
         { success: false, error: authResult.error || 'Authentication required' },
         { status: 401 }
       )
     }
 
-    const parsed = await parseRequest(tiktokPublishVideoContract, request, {})
+    const parsed = await parseRequest(tiktokUploadVideoDraftContract, request, {})
     if (!parsed.success) return parsed.response
     const data = parsed.data.body
-
-    if (data.mode === 'direct') {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            'TikTok Direct Post is not available until per-post human approval is implemented. Use Upload Video Draft instead.',
-        },
-        { status: 400 }
-      )
-    }
 
     let userFile: UserFile
     try {
@@ -146,7 +137,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (initError) {
       logger.error(`[${requestId}] TikTok init failed`, { error: initError })
       return NextResponse.json(
-        { success: false, error: initError.message || 'Failed to initialize TikTok upload' },
+        {
+          success: false,
+          error: initError.message || initError.code || 'Failed to initialize TikTok upload',
+        },
         { status: initResponse.status >= 400 ? initResponse.status : 502 }
       )
     }
@@ -203,7 +197,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: 499 }
       )
     }
-    logger.error(`[${requestId}] Error publishing video to TikTok:`, error)
+    logger.error(`[${requestId}] Error uploading TikTok video draft:`, error)
     return NextResponse.json(
       { success: false, error: getErrorMessage(error, 'Internal server error') },
       { status: 500 }

@@ -94,6 +94,7 @@ export interface ToolCatalogEntry {
     | 'set_block_enabled'
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
+    | 'share_file'
     | 'table'
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
@@ -191,6 +192,7 @@ export interface ToolCatalogEntry {
     | 'set_block_enabled'
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
+    | 'share_file'
     | 'table'
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
@@ -2841,8 +2843,8 @@ export const MaterializeFile: ToolCatalogEntry = {
       operation: {
         type: 'string',
         description:
-          'What to do with the file. "save" promotes it to a permanent files/ path. "import" imports a workflow JSON as a workspace workflow. Defaults to "save".',
-        enum: ['save', 'import'],
+          'What to do with the file. "save" promotes it to a permanent files/ path. "import" imports a workflow JSON as a workspace workflow. "extract" decompresses a .zip upload into files/<archive>/. Defaults to "save".',
+        enum: ['save', 'import', 'extract'],
         default: 'save',
       },
     },
@@ -3925,6 +3927,60 @@ export const SetGlobalWorkflowVariables: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
+export const ShareFile: ToolCatalogEntry = {
+  id: 'share_file',
+  name: 'share_file',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        description: 'Whether to create/update the share link or deactivate it.',
+        enum: ['share', 'unshare'],
+        default: 'share',
+      },
+      allowedEmails: {
+        type: 'array',
+        description:
+          'Allowed emails or "@domain" patterns for authType "email" or "sso". Ignored for other auth types.',
+        items: { type: 'string' },
+      },
+      authType: {
+        type: 'string',
+        description: 'How viewers authenticate to open the link. Ignored for unshare.',
+        enum: ['public', 'password', 'email', 'sso'],
+        default: 'public',
+      },
+      password: {
+        type: 'string',
+        description:
+          'Password for authType "password". Leave empty to keep the file\'s existing password when re-sharing an already password-protected file. Ignored for other auth types.',
+      },
+      path: {
+        type: 'string',
+        description: 'Canonical workspace file VFS path to share, e.g. "files/Reports/Q4.md".',
+      },
+    },
+    required: ['path'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      data: {
+        type: 'object',
+        description:
+          'Share state. Contains url (the {baseUrl}/f/{token} link), token, authType, hasPassword, and isActive.',
+      },
+      message: { type: 'string', description: 'Human-readable outcome.' },
+      success: { type: 'boolean', description: 'Whether the share action succeeded.' },
+    },
+    required: ['success', 'message'],
+  },
+  requiredPermission: 'write',
+}
+
 export const Table: ToolCatalogEntry = {
   id: 'table',
   name: 'table',
@@ -4664,6 +4720,7 @@ export const ManageSkillOperationValues = [
 export const MaterializeFileOperation = {
   save: 'save',
   import: 'import',
+  extract: 'extract',
 } as const
 
 export type MaterializeFileOperation =
@@ -4672,6 +4729,7 @@ export type MaterializeFileOperation =
 export const MaterializeFileOperationValues = [
   MaterializeFileOperation.save,
   MaterializeFileOperation.import,
+  MaterializeFileOperation.extract,
 ] as const
 
 export const QueryUserTableOperation = {
@@ -4879,6 +4937,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SetBlockEnabled.id]: SetBlockEnabled,
   [SetEnvironmentVariables.id]: SetEnvironmentVariables,
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
+  [ShareFile.id]: ShareFile,
   [Table.id]: Table,
   [UpdateDeploymentVersion.id]: UpdateDeploymentVersion,
   [UpdateScheduledTaskHistory.id]: UpdateScheduledTaskHistory,

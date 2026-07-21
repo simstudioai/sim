@@ -53,18 +53,6 @@ export const tiktokQueryVideosApiDataSchema = z.object({
   videos: z.array(tiktokApiVideoSchema),
 })
 
-/** Data payload returned by TikTok's creator info API. */
-export const tiktokCreatorInfoApiDataSchema = z.object({
-  creator_avatar_url: z.string(),
-  creator_username: z.string(),
-  creator_nickname: z.string(),
-  privacy_level_options: z.array(z.string()),
-  comment_disabled: z.boolean(),
-  duet_disabled: z.boolean(),
-  stitch_disabled: z.boolean(),
-  max_video_post_duration_sec: z.number(),
-})
-
 /** Data payload returned by TikTok's publish initialization APIs. */
 export const tiktokPublishInitApiDataSchema = z.object({
   publish_id: z.string(),

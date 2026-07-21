@@ -104,8 +104,14 @@ export const PUT = withRouteHandler(
       // master on/off and the per-auth-type allow-list); disabling is always
       // allowed so users can still un-share after the policy is turned on.
       if (isActive) {
+        // Validate the auth type that will ACTUALLY be persisted. upsertFileShare
+        // falls back to the existing share's authType when none is passed, so a bare
+        // re-enable must be checked against that stored mode — not 'public' — or a
+        // now-disallowed password/email/sso share could be silently reactivated.
+        const existingShare = await getShareForResource('file', fileId)
+        const effectiveAuthType = authType ?? existingShare?.authType ?? 'public'
         try {
-          await validatePublicFileSharing(session.user.id, workspaceId, authType ?? 'public')
+          await validatePublicFileSharing(session.user.id, workspaceId, effectiveAuthType)
         } catch (error) {
           if (error instanceof PublicFileSharingNotAllowedError) {
             logger.warn(`[${requestId}] Public file sharing disabled for workspace ${workspaceId}`)

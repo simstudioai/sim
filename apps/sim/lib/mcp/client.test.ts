@@ -1,9 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger, mockSdkConnect, mockSdkListTools } = vi.hoisted(() => ({
+const { mockLogger, mockSdkConnect, mockSdkListTools, mockPinnedClose } = vi.hoisted(() => ({
   mockLogger: {
     debug: vi.fn(),
     error: vi.fn(),
@@ -12,10 +13,15 @@ const { mockLogger, mockSdkConnect, mockSdkListTools } = vi.hoisted(() => ({
   },
   mockSdkConnect: vi.fn().mockResolvedValue(undefined),
   mockSdkListTools: vi.fn().mockResolvedValue({ tools: [] }),
+  mockPinnedClose: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@sim/logger', () => ({
   createLogger: () => mockLogger,
+}))
+
+vi.mock('@/lib/mcp/pinned-fetch', () => ({
+  createPinnedMcpFetch: vi.fn(() => ({ fetch: vi.fn(), close: mockPinnedClose })),
 }))
 
 /**
@@ -263,6 +269,99 @@ describe('McpClient notification handler', () => {
     await expect(client.connect()).rejects.toThrow('Upstream rejected')
 
     expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(secret)
+  })
+
+  it('closes the pinned transport Agent when connect fails', async () => {
+    mockSdkConnect.mockRejectedValueOnce(new Error('connect boom'))
+    const client = new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+      resolvedIP: '203.0.113.10',
+    })
+
+    // A failed connect discards the client without a disconnect(), so the Agent
+    // must be released on the failure path or its h2 sockets leak.
+    await expect(client.connect()).rejects.toThrow()
+
+    expect(mockPinnedClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes the pinned transport Agent on disconnect', async () => {
+    const client = new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+      resolvedIP: '203.0.113.10',
+    })
+
+    await client.connect()
+    await client.disconnect()
+
+    expect(mockPinnedClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not destroy the pinned transport Agent twice when a failed connect is followed by disconnect', async () => {
+    mockSdkConnect.mockRejectedValueOnce(new Error('connect boom'))
+    const client = new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+      resolvedIP: '203.0.113.10',
+    })
+
+    await expect(client.connect()).rejects.toThrow()
+    // The caller (e.g. withConnectTimeout) may still call disconnect() afterward;
+    // teardown must be idempotent so the Agent is destroyed exactly once.
+    await client.disconnect()
+
+    expect(mockPinnedClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not misclassify rejected static headers as an OAuth authorization flow', async () => {
+    mockSdkConnect.mockRejectedValueOnce(new UnauthorizedError('Static token rejected'))
+    const client = new McpClient({
+      config: {
+        ...createConfig(),
+        authType: 'headers',
+        headers: { Authorization: 'Bearer rejected-static-token' },
+      },
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    await expect(client.connect()).rejects.toBeInstanceOf(UnauthorizedError)
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to connect'),
+      expect.objectContaining({ outcome: 'unauthorized' })
+    )
+    expect(client.getStatus().lastError).toBe('Authentication failed')
+  })
+
+  it('logs tools/list failures without echoed credentials or session identifiers', async () => {
+    const secret = 'opaque-tools-list-credential'
+    mockSdkListTools.mockRejectedValueOnce(new Error(`Upstream rejected ${secret}`))
+    const client = new McpClient({
+      config: {
+        ...createConfig(),
+        authType: 'headers',
+        headers: { 'X-Custom-Credential': secret },
+      },
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    await client.connect()
+    await expect(client.listTools()).rejects.toThrow(secret)
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to list tools'),
+      expect.objectContaining({
+        phase: 'tools/list',
+        serverId: 'server-1',
+        sessionIdPresent: true,
+        error: expect.objectContaining({ name: 'Error' }),
+      })
+    )
+    const logged = JSON.stringify(mockLogger.error.mock.calls)
+    expect(logged).not.toContain(secret)
+    expect(logged).not.toContain('test-session')
   })
 
   it('passes configured headers for OAuth transports as well as header auth transports', () => {

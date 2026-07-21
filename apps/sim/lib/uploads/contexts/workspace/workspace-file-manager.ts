@@ -970,13 +970,17 @@ export async function getWorkspaceFile(
 /**
  * Download workspace file content
  */
-export async function fetchWorkspaceFileBuffer(fileRecord: WorkspaceFileRecord): Promise<Buffer> {
+export async function fetchWorkspaceFileBuffer(
+  fileRecord: WorkspaceFileRecord,
+  options: { maxBytes?: number } = {}
+): Promise<Buffer> {
   logger.info(`Downloading workspace file: ${fileRecord.name}`)
 
   try {
     const buffer = await downloadFile({
       key: fileRecord.key,
       context: fileRecord.storageContext ?? 'workspace',
+      maxBytes: options.maxBytes,
     })
     logger.info(
       `Successfully downloaded workspace file: ${fileRecord.name} (${buffer.length} bytes)`

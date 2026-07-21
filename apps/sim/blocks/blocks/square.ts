@@ -883,7 +883,7 @@ export const SquareBlockMeta = {
   templates: [
     {
       icon: SquareIcon,
-      title: 'Daily sales summary',
+      title: 'Square daily sales summary',
       prompt:
         'Build a scheduled daily workflow that lists Square payments from the previous day across all locations, totals gross sales, refunds, and net revenue, writes the figures to a table for historical tracking, and posts a Slack summary with day-over-day trends.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -893,7 +893,7 @@ export const SquareBlockMeta = {
     },
     {
       icon: SquareIcon,
-      title: 'Refund pattern monitor',
+      title: 'Square refund pattern monitor',
       prompt:
         'Create a scheduled weekly workflow that lists Square payments and their refunds, classifies each refund by reason and location, flags any location with an unusually high refund rate, and emails finance a narrative report with recommended actions.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
@@ -903,7 +903,7 @@ export const SquareBlockMeta = {
     },
     {
       icon: SquareIcon,
-      title: 'New customer welcome',
+      title: 'Square new customer welcome',
       prompt:
         'Build a workflow that takes a new Square customer, creates a welcome email tailored to their purchase, adds them to an onboarding tracking table, and posts a notification to the customer success Slack channel.',
       modules: ['tables', 'agent', 'workflows'],
@@ -913,7 +913,7 @@ export const SquareBlockMeta = {
     },
     {
       icon: SquareIcon,
-      title: 'Invoice chase automation',
+      title: 'Square invoice chase automation',
       prompt:
         'Create a scheduled workflow that lists Square invoices for a location, finds those that are unpaid past their due date, sends a polite reminder email per customer, and logs every chase action to a collections table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -923,7 +923,7 @@ export const SquareBlockMeta = {
     },
     {
       icon: SquareIcon,
-      title: 'Catalog image enrichment',
+      title: 'Square catalog image enrichment',
       prompt:
         'Build a workflow that lists Square catalog items missing images, generates a product image for each one, uploads it as a catalog image attached to the item, and writes a report of which items were updated.',
       modules: ['agent', 'files', 'workflows'],
@@ -932,7 +932,7 @@ export const SquareBlockMeta = {
     },
     {
       icon: SquareIcon,
-      title: 'Low-stock reorder alerts',
+      title: 'Square low-stock reorder alerts',
       prompt:
         'Create a scheduled workflow that lists the Square catalog, identifies items flagged as low or out of stock, drafts a reorder summary grouped by supplier, and posts it to a Slack purchasing channel with the items and quantities to reorder.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -942,7 +942,7 @@ export const SquareBlockMeta = {
     },
     {
       icon: SquareIcon,
-      title: 'Customer purchase history lookup',
+      title: 'Square purchase history lookup',
       prompt:
         'Build a workflow that searches Square customers by email, pulls their orders and payments, summarizes lifetime spend and most-purchased items, and returns a concise profile the support team can use during a conversation.',
       modules: ['agent', 'workflows'],

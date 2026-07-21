@@ -1,5 +1,5 @@
 import { Calendar } from '@sim/emcn/icons'
-import { GithubIcon, NotionIcon } from '@/components/icons'
+import { GithubIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
@@ -20,6 +20,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
   icon: GithubIcon,
   triggerAllowed: true,
   hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'github_v2' },
   subBlocks: [
     {
       id: 'operation',
@@ -2102,6 +2103,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
 export const GitHubV2Block: BlockConfig<GitHubResponse> = {
   ...GitHubBlock,
+  sunset: undefined,
   type: 'github_v2',
   name: 'GitHub',
   hideFromToolbar: false,
@@ -2149,7 +2151,7 @@ export const GitHubBlockMeta = {
   templates: [
     {
       icon: GithubIcon,
-      title: 'PR review assistant',
+      title: 'GitHub PR review assistant',
       prompt:
         'Create a knowledge base connected to my GitHub repo so it stays synced with my style guide and coding standards. Then build a workflow that reviews new pull requests against it, checks for common issues and security vulnerabilities, and posts a review comment with specific suggestions.',
       modules: ['knowledge-base', 'agent', 'workflows'],
@@ -2158,7 +2160,7 @@ export const GitHubBlockMeta = {
     },
     {
       icon: GithubIcon,
-      title: 'Changelog generator',
+      title: 'GitHub changelog generator',
       prompt:
         'Build a scheduled workflow that runs every Friday, pulls all merged PRs from GitHub for the week, categorizes changes as features, fixes, or improvements, and generates a user-facing changelog document with clear descriptions.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
@@ -2166,8 +2168,8 @@ export const GitHubBlockMeta = {
       tags: ['engineering', 'product', 'reporting', 'content'],
     },
     {
-      icon: NotionIcon,
-      title: 'Documentation auto-updater',
+      icon: GithubIcon,
+      title: 'GitHub docs auto-updater',
       prompt:
         'Create a knowledge base connected to my GitHub repository so code and docs stay synced. Then build a scheduled weekly workflow that detects API changes, compares them against the knowledge base to find outdated documentation, and either updates Notion pages directly or creates Linear tickets for the needed changes.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -2186,7 +2188,7 @@ export const GitHubBlockMeta = {
     },
     {
       icon: GithubIcon,
-      title: 'Release notes drafter',
+      title: 'GitHub release notes drafter',
       prompt:
         'Build a workflow triggered when a GitHub release tag is created. Pull every merged pull request and commit since the previous tag, group them by feature, fix, and chore, draft customer-facing release notes, and post the draft as a comment on the release for final approval.',
       modules: ['agent', 'workflows'],
@@ -2195,7 +2197,7 @@ export const GitHubBlockMeta = {
     },
     {
       icon: Calendar,
-      title: 'Weekly team digest',
+      title: 'GitHub weekly team digest',
       prompt:
         "Build a scheduled workflow that runs every Friday, pulls the week's GitHub commits, closed Linear issues, and key Slack conversations, then emails a formatted weekly summary to the team.",
       modules: ['scheduled', 'agent', 'workflows'],

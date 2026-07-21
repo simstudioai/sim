@@ -840,7 +840,7 @@ export const DatadogBlockMeta = {
   templates: [
     {
       icon: DatadogIcon,
-      title: 'Infrastructure health report',
+      title: 'Datadog infra health report',
       prompt:
         'Create a scheduled daily workflow that queries Datadog for key infrastructure metrics — error rates, latency percentiles, CPU and memory usage — logs them to a table for trend tracking, and sends a morning Slack report highlighting any anomalies or degradations.',
       modules: ['tables', 'scheduled', 'agent', 'workflows'],
