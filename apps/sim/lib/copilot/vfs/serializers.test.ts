@@ -316,13 +316,10 @@ describe('serializeIntegrationSchema — service-account auth', () => {
     expect(schema.auth.serviceAccount).toBeUndefined()
   })
 
-  it('omits serviceAccount when the flow is gated by a preview block (slack custom bot ↔ slack_v2)', () => {
-    // slack_v2 is preview: true, so the shared schema must not leak the custom
-    // bot — parallel to how preview tools stay out of the shared aggregates.
-    const schema = JSON.parse(serializeIntegrationSchema(oauthTool('slack_send', 'slack')))
-    expect(schema.auth.type).toBe('oauth')
-    expect(schema.auth.serviceAccount).toBeUndefined()
-  })
+  // The preview-gate behavior (slack custom bot ↔ slack_v2) is covered in
+  // service-account-gate.test.ts, which mocks getBlock — the block registry is
+  // globally stubbed here, so slack_v2's real `preview: true` isn't observable
+  // through serializeIntegrationSchema.
 })
 
 describe('serializeCredentials — type distinguishes reconnect flow', () => {

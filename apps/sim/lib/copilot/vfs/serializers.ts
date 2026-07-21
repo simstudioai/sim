@@ -11,6 +11,7 @@ import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { isHiddenUnder } from '@/blocks/visibility/context'
 import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
 import type { ToolConfig, ToolHostingCondition } from '@/tools/types'
 
@@ -57,7 +58,15 @@ export function describeServiceAccountForOAuthProvider(
   const serviceAccountProviderId = getServiceAccountProviderForProviderId(oauthProvider)
   if (!serviceAccountProviderId) return undefined
   const gatingBlockType = getServiceAccountGatingBlockType(serviceAccountProviderId)
-  if (gatingBlockType && (getBlock(gatingBlockType)?.preview ?? true)) return undefined
+  if (gatingBlockType) {
+    const gatingBlock = getBlock(gatingBlockType)
+    // Omit when the gating block is missing (fail-closed) or hidden by the
+    // canonical predicate. Passing `null` vis reduces `isHiddenUnder` to the
+    // static preview check — so once the block GAs and drops `preview`, it is
+    // no longer hidden and discovery includes it again, matching the renderer.
+    // Hand-rolling `?.preview ?? true` would keep it omitted forever after GA.
+    if (!gatingBlock || isHiddenUnder(null, gatingBlock)) return undefined
+  }
   return { connectNoun: getServiceAccountConnectNoun(serviceAccountProviderId) }
 }
 
