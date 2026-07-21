@@ -292,11 +292,11 @@ export function CredentialSelector({
 
     return [
       {
-        section: `${getProviderName(provider)} accounts`,
+        section: 'Sim app',
         items: [
           ...credentials.filter((c) => c.type !== 'service_account').map(toOption),
           {
-            label: `Connect ${getProviderName(provider)} account`,
+            label: 'Connect the Sim app',
             value: '__connect_account__',
             iconElement: <ExternalLink className='size-3' />,
           },
@@ -314,7 +314,7 @@ export function CredentialSelector({
         ],
       },
     ]
-  }, [isMergedKinds, credentials, provider, getProviderIcon, getProviderName])
+  }, [isMergedKinds, credentials, provider, getProviderIcon])
 
   const selectedCredentialProvider = selectedCredential?.provider ?? provider
   const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
