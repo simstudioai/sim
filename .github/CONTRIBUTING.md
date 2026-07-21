@@ -209,7 +209,7 @@ To use local models with Sim:
    ollama pull gemma3:4b
    ```
 
-2. Start Sim with local model support:
+2. Start Sim with local model support (generate the persistent `.env` from the Quick Start above first — the Ollama Compose file requires the same secrets and refuses to start without them):
 
    ```bash
    # With NVIDIA GPU support

@@ -135,6 +135,8 @@ sudo certbot --nginx -d sim.yourdomain.com
 
 ## Ollama
 
+Effectuez d'abord le Démarrage rapide pour créer le `.env` persistant avec vos secrets : le fichier Compose d'Ollama requiert les mêmes secrets et ne démarre pas sans eux.
+
 ```bash
 # With GPU
 docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d

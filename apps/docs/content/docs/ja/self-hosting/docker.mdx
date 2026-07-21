@@ -133,6 +133,8 @@ sudo certbot --nginx -d sim.yourdomain.com
 
 ## Ollama
 
+先にクイックスタートを実行して、シークレットを含む永続的な `.env` を用意してください。Ollama の Compose ファイルは同じシークレットを必要とし、それらがないと起動しません。
+
 ```bash
 # With GPU
 docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d

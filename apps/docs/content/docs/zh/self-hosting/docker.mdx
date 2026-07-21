@@ -131,6 +131,8 @@ sudo certbot --nginx -d sim.yourdomain.com
 
 ## Ollama
 
+请先完成快速开始，以生成包含密钥的持久 `.env` 文件——Ollama 的 Compose 文件需要相同的密钥，缺少时将无法启动。
+
 ```bash
 # With GPU
 docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d
