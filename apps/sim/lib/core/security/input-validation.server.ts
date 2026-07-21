@@ -105,7 +105,12 @@ export async function validateUrlWithDNS(
   }
 
   try {
-    const { address } = await dns.lookup(cleanHostname, { verbatim: true })
+    // Prefer IPv4: the resolved address is pinned by the caller, which removes Happy
+    // Eyeballs' IPv4 fallback. On an IPv4-only egress (e.g. AWS NAT gateways) a pinned
+    // IPv6 address from a dual-stack host is unreachable and hangs until timeout, so pick
+    // an IPv4 address when the host has one; IPv6-only hosts still pin their sole address.
+    const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
+    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
 
     const resolvedIsLoopback =
       ipaddr.isValid(address) &&

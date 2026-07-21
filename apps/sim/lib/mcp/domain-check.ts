@@ -185,8 +185,13 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<st
 
   let address: string
   try {
-    const lookup = await dns.lookup(cleanHostname, { verbatim: true })
-    address = lookup.address
+    // Prefer IPv4. The caller pins the connection to this single address, which strips
+    // Happy Eyeballs' IPv4 fallback — and common deploy egresses (AWS NAT gateways) are
+    // IPv4-only, so pinning a dual-stack host's IPv6 address (which `verbatim` returns
+    // first for Cloudflare-fronted hosts) connects into a void and hangs until timeout.
+    // IPv6-only hosts still pin their sole address.
+    const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
+    address = (resolved.find((entry) => entry.family === 4) ?? resolved[0]).address
   } catch (error) {
     logger.warn('DNS lookup failed for MCP server URL', {
       hostname,
