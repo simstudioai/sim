@@ -108,6 +108,11 @@ export interface CredentialTagData {
   name?: string
   /** Where a secret_input value is persisted. Defaults to "workspace". */
   scope?: SecretInputScope
+  /**
+   * Existing credential to reconnect in place (service_account only). Present =
+   * rotate the secret on this credential; absent = create a new one.
+   */
+  credentialId?: string
 }
 
 export interface MothershipErrorTagData {
@@ -247,8 +252,10 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
   }
   // A service_account tag is a control, not a value: it names the provider
   // whose setup form to open, and the user types the secret into that form —
-  // so it never carries a `value`, but it is useless without a provider.
+  // so it never carries a `value`, but it is useless without a provider. An
+  // optional `credentialId` reconnects an existing service account in place.
   if (value.type === 'service_account') {
+    if (value.credentialId !== undefined && typeof value.credentialId !== 'string') return false
     return typeof value.provider === 'string' && value.provider.trim().length > 0
   }
   // A sim_key chip is platform-filled: the model only marks where the workspace
@@ -920,11 +927,20 @@ function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
     serviceIcon: service?.serviceIcon,
   })
 
+  // A credentialId reconnects (rotates the secret on) that existing service
+  // account in place rather than creating a new one — the modal keeps its id.
+  const reconnectCredentialId = data.credentialId
+  const { data: reconnectCredential } = useWorkspaceCredential(reconnectCredentialId)
+
   // Creating a credential mutates the workspace — hide it from read-only
   // members, and honour the provider's own preview gate (custom Slack bots
   // ride the slack_v2 flag) so chat can't surface what the integrations page
   // deliberately hides.
   if (!target || target.hidden || !canEdit || !workspaceId) return null
+
+  const label = reconnectCredentialId
+    ? `Reconnect ${reconnectCredential?.displayName ?? target.serviceName}`
+    : `${target.label} for ${target.serviceName}`
 
   return (
     <>
@@ -934,9 +950,7 @@ function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
         className='flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors hover-hover:bg-[var(--surface-5)]'
       >
         {createElement(target.serviceIcon, { className: 'size-[16px] shrink-0' })}
-        <span className='flex-1 text-[var(--text-body)] text-sm'>
-          {`${target.label} for ${target.serviceName}`}
-        </span>
+        <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
         <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
       </button>
       {open && (
@@ -948,6 +962,8 @@ function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
             serviceAccountProviderId={target.serviceAccountProviderId}
             serviceName={target.serviceName}
             serviceIcon={target.serviceIcon}
+            credentialId={reconnectCredentialId}
+            credentialDisplayName={reconnectCredential?.displayName ?? undefined}
           />
         </Suspense>
       )}

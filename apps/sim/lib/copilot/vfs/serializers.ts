@@ -630,6 +630,8 @@ export function serializeCredentials(
     displayName?: string | null
     role?: string | null
     scope: string | null
+    /** 'service_account' for a shared app credential; omitted/undefined for a personal OAuth connection. */
+    credentialType?: 'oauth' | 'service_account'
     createdAt: Date
   }>
 ): string {
@@ -640,6 +642,10 @@ export function serializeCredentials(
       displayName: a.displayName || undefined,
       role: a.role || undefined,
       scope: a.scope || undefined,
+      // 'oauth' (personal connection) vs 'service_account' (shared app
+      // credential) — they reconnect differently, so the agent must branch on
+      // this. Env-var credentials carry no type.
+      type: a.credentialType,
       connectedAt: a.createdAt.toISOString(),
     })),
     null,

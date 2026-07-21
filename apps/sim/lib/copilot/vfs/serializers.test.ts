@@ -8,6 +8,7 @@ import type { ToolConfig } from '@/tools/types'
 import {
   serializeApiKeyIntegrations,
   serializeBlockSchema,
+  serializeCredentials,
   serializeFileMeta,
   serializeIntegrationSchema,
   serializeKBMeta,
@@ -321,5 +322,43 @@ describe('serializeIntegrationSchema — service-account auth', () => {
     const schema = JSON.parse(serializeIntegrationSchema(oauthTool('slack_send', 'slack')))
     expect(schema.auth.type).toBe('oauth')
     expect(schema.auth.serviceAccount).toBeUndefined()
+  })
+})
+
+describe('serializeCredentials — type distinguishes reconnect flow', () => {
+  const now = new Date('2026-07-21T00:00:00.000Z')
+
+  it('marks a service account so the agent reconnects it via the tag, not oauth', () => {
+    const json = JSON.parse(
+      serializeCredentials([
+        {
+          id: 'c1',
+          providerId: 'notion-service-account',
+          scope: null,
+          credentialType: 'service_account',
+          createdAt: now,
+        },
+        {
+          id: 'c2',
+          providerId: 'google-email',
+          scope: null,
+          credentialType: 'oauth',
+          createdAt: now,
+        },
+      ])
+    )
+    expect(json[0]).toMatchObject({
+      id: 'c1',
+      provider: 'notion-service-account',
+      type: 'service_account',
+    })
+    expect(json[1]).toMatchObject({ id: 'c2', provider: 'google-email', type: 'oauth' })
+  })
+
+  it('leaves env-var credentials typeless', () => {
+    const json = JSON.parse(
+      serializeCredentials([{ providerId: 'OPENAI_API_KEY', scope: 'workspace', createdAt: now }])
+    )
+    expect(json[0].type).toBeUndefined()
   })
 })

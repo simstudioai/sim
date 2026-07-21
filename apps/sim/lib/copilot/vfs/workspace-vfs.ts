@@ -2571,6 +2571,7 @@ export class WorkspaceVFS {
             displayName: c.displayName,
             role: c.role,
             scope: null,
+            credentialType: c.type,
             createdAt: c.updatedAt,
           })),
         ])

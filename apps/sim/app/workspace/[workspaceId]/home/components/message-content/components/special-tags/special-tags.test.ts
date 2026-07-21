@@ -209,4 +209,24 @@ describe('service_account tag validation', () => {
     )
     expect(segments.some((segment) => segment.type === 'credential')).toBe(false)
   })
+
+  it('accepts an optional credentialId for reconnect and carries it through', () => {
+    const body = JSON.stringify({
+      type: 'service_account',
+      provider: 'notion',
+      credentialId: 'cred_abc123',
+    })
+    const { segments } = parseSpecialTags(`<credential>${body}</credential>`, false)
+    const credential = segments.find((segment) => segment.type === 'credential')
+    expect(credential).toMatchObject({
+      type: 'credential',
+      data: { type: 'service_account', provider: 'notion', credentialId: 'cred_abc123' },
+    })
+  })
+
+  it('rejects a non-string credentialId', () => {
+    const body = JSON.stringify({ type: 'service_account', provider: 'notion', credentialId: 42 })
+    const { segments } = parseSpecialTags(`<credential>${body}</credential>`, false)
+    expect(segments.some((segment) => segment.type === 'credential')).toBe(false)
+  })
 })
