@@ -29,15 +29,26 @@ export function isTruthyAck(value: unknown): boolean {
  * shape, and plain string / comma / json id lists. Drops blank ids.
  */
 export function normalizeFiles(value: unknown): Array<{ fileId: string; mountPath?: string }> {
-  if (
-    typeof value === 'string' ||
-    (Array.isArray(value) && value.every((v) => typeof v === 'string'))
-  ) {
-    return normalizeStringList(value).map((fileId) => ({ fileId }))
+  // A table subblock can arrive JSON-stringified. Parse a leading-'[' string
+  // into its array form first, so rows of objects aren't mistaken for a plain
+  // string list (which would silently drop every file attachment).
+  let normalized: unknown = value
+  if (typeof normalized === 'string' && normalized.trim().startsWith('[')) {
+    try {
+      normalized = JSON.parse(normalized.trim())
+    } catch {
+      // Not valid JSON — leave as a string; handled as a comma/single id below.
+    }
   }
-  if (!Array.isArray(value)) return []
+  if (
+    typeof normalized === 'string' ||
+    (Array.isArray(normalized) && normalized.every((v) => typeof v === 'string'))
+  ) {
+    return normalizeStringList(normalized).map((fileId) => ({ fileId }))
+  }
+  if (!Array.isArray(normalized)) return []
   const out: Array<{ fileId: string; mountPath?: string }> = []
-  for (const raw of value) {
+  for (const raw of normalized) {
     if (typeof raw === 'string') {
       if (raw.trim()) out.push({ fileId: raw.trim() })
       continue
@@ -77,6 +88,9 @@ export function normalizeStringList(value: unknown): string[] {
   const trimmed = value.trim()
   if (!trimmed) return []
   if (trimmed.startsWith('[')) {
+    // Meant to be a JSON array — parse it, but do NOT comma-split the raw JSON
+    // text on failure (that yields garbage tokens like `["x"`). An empty result
+    // is the honest outcome for a malformed/non-array JSON string.
     try {
       const parsed = JSON.parse(trimmed)
       if (Array.isArray(parsed)) {
@@ -85,8 +99,9 @@ export function normalizeStringList(value: unknown): string[] {
           .map((v) => v.trim())
       }
     } catch {
-      // fall through to comma-split
+      // fall through to []
     }
+    return []
   }
   return trimmed
     .split(',')
@@ -106,7 +121,15 @@ export function normalizeSessionParameters(value: unknown): Record<string, strin
   for (const row of rows) {
     const key = typeof row.key === 'string' ? row.key.trim() : ''
     if (!key) continue
-    out[key] = typeof row.value === 'string' ? row.value : ''
+    // Metadata is a string map. Preserve scalar values (a flat object can carry
+    // numbers/booleans) by stringifying them; drop non-scalars to empty.
+    const raw = row.value
+    out[key] =
+      typeof raw === 'string'
+        ? raw
+        : typeof raw === 'number' || typeof raw === 'boolean'
+          ? String(raw)
+          : ''
   }
   return Object.keys(out).length > 0 ? out : undefined
 }

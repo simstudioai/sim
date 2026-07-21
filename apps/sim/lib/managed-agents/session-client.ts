@@ -34,6 +34,8 @@ export interface AnthropicSessionEvent {
   stop_reason?: { type?: string }
   error?: { message?: string }
   message?: string
+  /** Server-side record time; `null`/absent means still queued (handled after processed events). */
+  processed_at?: string | null
 }
 
 /**
@@ -305,12 +307,25 @@ async function listPaginated<T>(
 export async function listSessionEvents(
   input: SessionAuth & { sessionId: string }
 ): Promise<AnthropicSessionEvent[]> {
-  return listPaginated<AnthropicSessionEvent>({
+  const events = await listPaginated<AnthropicSessionEvent>({
     apiKey: input.apiKey,
     signal: input.signal,
     path: `/v1/sessions/${input.sessionId}/events`,
     maxItems: Number.POSITIVE_INFINITY,
   })
+  // The list endpoint's page order is not guaranteed chronological, so order by
+  // the server-side `processed_at` timestamp before returning. The catch-up
+  // loop depends on ascending order both to accumulate assistant text in order
+  // and to read the latest lifecycle event. Still-queued events (null
+  // `processed_at`) are processed after everything else, so they sort last.
+  return events.sort((a, b) => parseProcessedAt(a.processed_at) - parseProcessedAt(b.processed_at))
+}
+
+/** Epoch millis for a `processed_at`, or +Infinity when absent/queued/unparseable (sorts last). */
+function parseProcessedAt(value: string | null | undefined): number {
+  if (!value) return Number.POSITIVE_INFINITY
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed
 }
 
 /**

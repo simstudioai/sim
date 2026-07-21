@@ -40,6 +40,12 @@ export const managedAgentRunSessionTool: ToolConfig<
       description:
         'Claude Platform credential (Anthropic workspace API key) to run the agent with.',
     },
+    accessToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Workspace API key injected by the executor from the selected credential.',
+    },
     agent: {
       type: 'string',
       required: true,

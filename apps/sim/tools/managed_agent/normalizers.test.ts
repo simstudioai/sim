@@ -64,6 +64,14 @@ describe('normalizeFiles', () => {
     ])
     expect(normalizeFiles('file_1, file_2')).toEqual([{ fileId: 'file_1' }, { fileId: 'file_2' }])
   })
+  it('parses a JSON-stringified table of rows instead of dropping it', () => {
+    expect(normalizeFiles('[{"cells":{"File ID":"file_1","Mount path":"/a"}}]')).toEqual([
+      { fileId: 'file_1', mountPath: '/a' },
+    ])
+    expect(normalizeFiles('[{"fileId":"file_2"}]')).toEqual([{ fileId: 'file_2' }])
+    // A JSON array of plain strings still works.
+    expect(normalizeFiles('["file_3"]')).toEqual([{ fileId: 'file_3' }])
+  })
   it('returns [] for empty input', () => {
     expect(normalizeFiles(undefined)).toEqual([])
     expect(normalizeFiles('')).toEqual([])
@@ -78,6 +86,13 @@ describe('normalizeSessionParameters', () => {
   it('accepts a flat object and a json string', () => {
     expect(normalizeSessionParameters({ A: '1' })).toEqual({ A: '1' })
     expect(normalizeSessionParameters('[{"cells":{"Key":"A","Value":"1"}}]')).toEqual({ A: '1' })
+  })
+  it('stringifies scalar values from a flat object and drops non-scalars', () => {
+    expect(normalizeSessionParameters({ N: 42, B: true, O: { x: 1 } })).toEqual({
+      N: '42',
+      B: 'true',
+      O: '',
+    })
   })
   it('drops blank keys and returns undefined when empty', () => {
     expect(normalizeSessionParameters([{ cells: { Key: ' ', Value: 'x' } }])).toBeUndefined()

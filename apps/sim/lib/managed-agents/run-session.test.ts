@@ -215,6 +215,42 @@ describe('runManagedAgentSession', () => {
     expect(mocks.sendSessionEvents).toHaveBeenCalledTimes(2)
   })
 
+  it('does not complete on a session_idle event that carries no stop_reason', async () => {
+    // An idle event with no stop_reason (e.g. pre-first-turn) must NOT be
+    // treated as complete via the event path — defer to the status gate, which
+    // honors sawActivity. Then a real end_turn on reopen completes it.
+    scriptStreamBatches([
+      [{ id: 'i1', type: 'session.status_idle' }],
+      [msg('e2', 'done'), idle('e3', 'end_turn')],
+    ])
+    mocks.getSession.mockResolvedValue({ status: 'idle' })
+
+    const result = await runManagedAgentSession({ ...BASE })
+
+    expect(result.ok).toBe(true)
+    expect(result.content).toBe('done')
+    expect(mocks.openSessionStream).toHaveBeenCalledTimes(2) // reopened, not completed on i1
+  })
+
+  it('backs off (does not hot-loop) when catch-up only surfaces a failing tool reply', async () => {
+    // Stream closes empty; catch-up surfaces an unseen custom-tool call whose
+    // reply fails to send — it stays unseen (retry), so it must NOT count as
+    // progress and reset the backoff. Session still running → we must sleep.
+    scriptStreamBatches([[], [idle('e2', 'end_turn')]])
+    mocks.listSessionEvents
+      .mockResolvedValueOnce([customToolUse('t1', 'foo')])
+      .mockResolvedValue([])
+    mocks.sendSessionEvents.mockRejectedValue(new Error('network'))
+    mocks.getSession
+      .mockResolvedValueOnce({ status: 'running' })
+      .mockResolvedValue({ status: 'idle' })
+
+    const result = await runManagedAgentSession({ ...BASE })
+
+    expect(result.ok).toBe(true)
+    expect(mocks.sleep).toHaveBeenCalled() // backed off instead of resetting on the retry event
+  })
+
   it('interrupts the session and reports aborted when the workflow is cancelled', async () => {
     const controller = new AbortController()
     // Cancel right after the session is created, before the stream loop runs.

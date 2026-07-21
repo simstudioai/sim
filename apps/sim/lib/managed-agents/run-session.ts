@@ -142,6 +142,10 @@ export async function runManagedAgentSession(
   try {
     await sendUserMessage({ apiKey, sessionId, text: userMessage, signal })
   } catch (error) {
+    // The session exists but we could not drive it. The message may still have
+    // reached the sandbox (abort/error can race the delivered request), so stop
+    // the session rather than leave it possibly running against the key.
+    await interruptQuietly(apiKey, sessionId)
     return {
       ok: false,
       content: '',
@@ -226,8 +230,13 @@ export async function runManagedAgentSession(
       let progressed = false
       for (const event of history) {
         if (!event.id || seenIds.has(event.id)) continue
-        progressed = true
-        if (await process(event)) break
+        const isTerminal = await process(event)
+        // Count as progress only when the event was actually consumed (marked
+        // seen). A custom-tool reply that failed stays unseen for retry — it
+        // must NOT reset the backoff, or a persistently-failing reply would
+        // spin the reconnect loop with no delay.
+        if (seenIds.has(event.id)) progressed = true
+        if (isTerminal) break
       }
       if (terminal || signal?.aborted) break
 
@@ -286,12 +295,23 @@ export async function runManagedAgentSession(
     await interruptQuietly(apiKey, sessionId)
     return { ok: false, content: assistantText.value, sessionId, error: 'aborted' }
   }
-  if (!terminal || terminal.status === 'error') {
+  if (!terminal) {
+    // Reconnect cap reached while the session may still be running — stop it so
+    // it does not keep consuming the workspace key after we give up.
+    await interruptQuietly(apiKey, sessionId)
     return {
       ok: false,
       content: assistantText.value,
       sessionId,
-      error: terminal?.reason ?? 'Reconnect iteration cap reached without a terminal state.',
+      error: 'Reconnect iteration cap reached without a terminal state.',
+    }
+  }
+  if (terminal.status === 'error') {
+    return {
+      ok: false,
+      content: assistantText.value,
+      sessionId,
+      error: terminal.reason ?? 'Managed Agent session failed.',
     }
   }
 
@@ -379,14 +399,16 @@ async function handleEvent(args: {
 
   if (event.type === 'session.status_idle') {
     const stop = event.stop_reason?.type
-    // `requires_action` is not terminal — the session is paused for a pending
-    // tool call and will emit a terminal event once it resolves.
-    if (stop === 'requires_action') return {}
+    if (stop === 'end_turn') return { terminal: { status: 'complete' } }
     if (stop === 'retries_exhausted') {
       return { terminal: { status: 'error', reason: 'retries_exhausted' } }
     }
-    // `end_turn` (or an unspecified idle) means the agent finished its turn.
-    return { terminal: { status: 'complete' } }
+    // `requires_action` (paused for a pending tool call) and any unspecified
+    // idle are NOT terminal here. A freshly-created session is `idle` with no
+    // stop reason before its first turn, so completing on an unspecified idle
+    // would report empty content; instead defer to the authoritative-status
+    // gate, which only completes once `sawActivity` is set.
+    return {}
   }
 
   if (event.type === 'session.error') {

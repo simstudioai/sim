@@ -1,8 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
-import { buildSessionCreatePayload } from '@/lib/managed-agents/session-client'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { buildSessionCreatePayload, listSessionEvents } from '@/lib/managed-agents/session-client'
 
 const BASE = {
   apiKey: 'sk-ant-fake',
@@ -120,5 +120,30 @@ describe('buildSessionCreatePayload — metadata', () => {
     expect(payload.resources).toEqual([
       { type: 'memory_store', memory_store_id: 'memstore_01', access: 'read_write' },
     ])
+  })
+})
+
+describe('listSessionEvents — ordering', () => {
+  const originalFetch = global.fetch
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  it('orders events by processed_at ascending, with queued (null) events last', async () => {
+    global.fetch = vi.fn(async () =>
+      Response.json({
+        data: [
+          { id: 'c', type: 'agent.message', processed_at: '2026-01-01T00:00:03Z' },
+          { id: 'a', type: 'agent.message', processed_at: '2026-01-01T00:00:01Z' },
+          { id: 'queued', type: 'agent.message', processed_at: null },
+          { id: 'b', type: 'agent.message', processed_at: '2026-01-01T00:00:02Z' },
+        ],
+        next_page: null,
+      })
+    ) as unknown as typeof fetch
+
+    const events = await listSessionEvents({ apiKey: 'sk-ant-fake', sessionId: 'sess_1' })
+
+    expect(events.map((e) => e.id)).toEqual(['a', 'b', 'c', 'queued'])
   })
 })
