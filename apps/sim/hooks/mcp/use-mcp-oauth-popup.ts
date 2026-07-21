@@ -50,9 +50,9 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
 
   // Per-server count of live authorization attempts; a row shows "Connecting…" / "Reopen
   // authorization" while its count > 0. Reference counting (not a boolean set) keeps the label
-  // deterministic across concurrent attempts: a reopen increments before the superseded flow
-  // decrements, so the count never dips to 0 mid-reopen (no flicker), and every attempt clears
-  // exactly once (never stuck).
+  // deterministic across concurrent attempts: a reopen retires the superseded flow and starts
+  // its own count within one batched update (no flicker), and every attempt clears exactly
+  // once (never stuck).
   const [connectingCounts, setConnectingCounts] = useState<Map<string, number>>(() => new Map())
   // OAuth `state` nonce -> { serverId, safety timeout }. `state` keys the BroadcastChannel
   // correlation: the callback echoes it on every result (even failures that resolve no serverId),
