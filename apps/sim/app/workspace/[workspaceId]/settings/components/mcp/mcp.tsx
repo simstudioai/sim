@@ -68,10 +68,12 @@ interface ServerListItemProps {
   server: McpServer
   tools: McpTool[]
   isDeleting: boolean
+  isConnecting: boolean
   isLoadingTools?: boolean
   isRefreshing?: boolean
   onRemove: () => void
   onViewDetails: () => void
+  onAuthorize: () => void
 }
 
 function ServerListItem({
@@ -79,10 +81,12 @@ function ServerListItem({
   server,
   tools,
   isDeleting,
+  isConnecting,
   isLoadingTools = false,
   isRefreshing = false,
   onRemove,
   onViewDetails,
+  onAuthorize,
 }: ServerListItemProps) {
   const transportLabel = formatTransportLabel(server.transport || 'http')
   const toolsLabel = getServerToolsLabel(
@@ -121,6 +125,14 @@ function ServerListItem({
           label='Server actions'
           actions={[
             { label: 'Details', onSelect: onViewDetails },
+            ...(canManage && server.authType === 'oauth' && server.connectionStatus !== 'connected'
+              ? [
+                  {
+                    label: isConnecting ? 'Reopen authorization' : 'Authorize',
+                    onSelect: onAuthorize,
+                  },
+                ]
+              : []),
             ...(canManage
               ? [
                   {
@@ -450,12 +462,13 @@ export function MCP() {
                 <div>
                   <Chip
                     variant='primary'
-                    disabled={connectingOauthServers.has(server.id)}
                     onClick={async () => {
                       await startOauthForServer(server.id)
                     }}
                   >
-                    {connectingOauthServers.has(server.id) ? 'Connecting…' : 'Connect with OAuth'}
+                    {connectingOauthServers.has(server.id)
+                      ? 'Reopen authorization window'
+                      : 'Connect with OAuth'}
                   </Chip>
                 </div>
               </div>
@@ -660,6 +673,7 @@ export function MCP() {
                   server={server}
                   tools={tools}
                   isDeleting={deletingServers.has(server.id)}
+                  isConnecting={connectingOauthServers.has(server.id)}
                   isLoadingTools={isLoadingTools}
                   isRefreshing={
                     refreshServerMutation.isPending &&
@@ -667,6 +681,7 @@ export function MCP() {
                   }
                   onRemove={() => handleRemoveServer(server.id)}
                   onViewDetails={() => handleViewDetails(server.id)}
+                  onAuthorize={() => startOauthForServer(server.id)}
                 />
               )
             })}
