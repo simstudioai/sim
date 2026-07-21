@@ -170,7 +170,13 @@ function sendSignalToPids(processIds: number[], signal: NodeJS.Signals): void {
       const code = (error as NodeJS.ErrnoException).code
       if (code === 'ESRCH') continue
       if (code === 'EPERM' && process.platform !== 'win32') {
-        process.kill(processId, signal)
+        try {
+          process.kill(processId, signal)
+        } catch (fallbackError) {
+          if ((fallbackError as NodeJS.ErrnoException).code !== 'ESRCH') {
+            throw fallbackError
+          }
+        }
         continue
       }
       throw error
