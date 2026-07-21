@@ -30,7 +30,7 @@ jobs:
       # Cache keys are scoped by event name, and fork PRs get their own
       # namespace on top: untrusted fork runs must never share a cache with
       # push runs (whose caches feed production image builds) or with trusted
-      # internal-PR runs. The scoping holds on both backends.
+      # internal-PR runs.
       - name: Mount Bun cache
         uses: ./.github/actions/cache-mount
         with:
@@ -153,11 +153,8 @@ jobs:
       - name: Type-check realtime server
         run: bunx turbo run type-check --filter=@sim/realtime
 
-      # cloud-review-tools.test.ts runs the real helper script, which shells out
-      # to `rg`. In production that script runs inside the E2B sandbox, whose
-      # template apt-installs ripgrep — but the test executes it on the runner,
-      # so the runner needs it too. Blacksmith's image ships rg and GitHub's does
-      # not, which made this an invisible dependency on the runner provider.
+      # cloud-review-tools.test.ts runs the real helper on the runner, which shells
+      # out to rg. Blacksmith's image ships it, GitHub's doesn't.
       - name: Install ripgrep
         run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
 
@@ -196,8 +193,7 @@ jobs:
   # with test-build (identical content from the same lockfile — LWW loss is
   # harmless), but the Turbo cache gets its own key: with a shared key, only
   # the last committer's new entries survive each run, so the test and build
-  # Turbo entries would evict each other nondeterministically. The same split
-  # is correct on actions/cache, which is likewise last-writer-wins per key.
+  # Turbo entries would evict each other nondeterministically.
   build:
     name: Build App
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}

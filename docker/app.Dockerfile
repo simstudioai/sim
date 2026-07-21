@@ -76,10 +76,8 @@ ENV DATABASE_URL=${DATABASE_URL}
 ARG NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
-# V8 old-space ceiling for `next build`. Turbopack's own allocations are native
-# and sit outside this budget, so the ceiling has to leave room for them plus
-# the daemon and BuildKit — on a 16 GB runner the default 8192 is enough to get
-# the process OOM-killed. Only the heap size changes; build output does not.
+# V8 old-space ceiling for next build. Turbopack allocates natively, outside this
+# budget, so the ceiling must leave room for it plus BuildKit.
 ARG NEXT_BUILD_HEAP_MB=8192
 ENV NEXT_BUILD_HEAP_MB=${NEXT_BUILD_HEAP_MB}
 
