@@ -1,12 +1,9 @@
 import * as ipaddr from 'ipaddr.js'
+import { unwrapIpv6Brackets } from './hostnames'
 
-/**
- * Strips the brackets the WHATWG URL parser puts around IPv6 authorities so the
- * result can be handed straight to {@link isPrivateIp} / {@link isIpLiteral}.
- */
-export function unwrapIpv6Brackets(host: string): string {
-  return host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
-}
+// Re-export the pure host helpers so existing `@sim/security/ssrf` consumers
+// keep one import site; client code that must avoid ipaddr imports `./hostnames`.
+export { isLoopbackHostname, unwrapIpv6Brackets } from './hostnames'
 
 /**
  * True when the (bracket-free) host is an IP literal rather than a DNS name —
@@ -27,21 +24,6 @@ export function isLoopbackIp(ip: string): boolean {
   } catch {
     return false
   }
-}
-
-/**
- * Loopback host identifiers permitted to use plain HTTP: `localhost` and the
- * canonical loopback IP literals. Compared after stripping IPv6 brackets.
- */
-const LOOPBACK_HOSTNAMES: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '::1'])
-
-/**
- * True when a host (name or IP literal, IPv6 brackets optional) is loopback by
- * exact match — `localhost`, `127.0.0.1`, or `::1`. For full-range loopback-IP
- * classification (e.g. `127.0.0.5`) use {@link isLoopbackIp}.
- */
-export function isLoopbackHostname(host: string): boolean {
-  return LOOPBACK_HOSTNAMES.has(unwrapIpv6Brackets(host))
 }
 
 /**

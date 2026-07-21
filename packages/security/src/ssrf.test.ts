@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  isLoopbackHostname,
-  isLoopbackIp,
-  isPrivateIp,
-  isPrivateIpHost,
-  unwrapIpv6Brackets,
-} from './ssrf'
+import { isLoopbackIp, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from './ssrf'
 
 describe('isPrivateIp', () => {
   describe('IPv4 private/reserved ranges', () => {
@@ -179,32 +173,5 @@ describe('isLoopbackIp', () => {
     expect(isLoopbackIp('169.254.169.254')).toBe(false)
     expect(isLoopbackIp('not-an-ip')).toBe(false)
     expect(isLoopbackIp('localhost')).toBe(false)
-  })
-})
-
-describe('isLoopbackHostname', () => {
-  it('matches localhost and the loopback literals, brackets optional', () => {
-    expect(isLoopbackHostname('localhost')).toBe(true)
-    expect(isLoopbackHostname('127.0.0.1')).toBe(true)
-    expect(isLoopbackHostname('::1')).toBe(true)
-    expect(isLoopbackHostname('[::1]')).toBe(true)
-  })
-
-  it('does not match other loopback-range IPs or public hosts (exact-set only)', () => {
-    expect(isLoopbackHostname('127.0.0.5')).toBe(false)
-    expect(isLoopbackHostname('example.com')).toBe(false)
-    expect(isLoopbackHostname('10.0.0.1')).toBe(false)
-  })
-})
-
-describe('unwrapIpv6Brackets', () => {
-  it('strips brackets from IPv6 authorities', () => {
-    expect(unwrapIpv6Brackets('[::1]')).toBe('::1')
-    expect(unwrapIpv6Brackets('[2606:4700::1111]')).toBe('2606:4700::1111')
-  })
-
-  it('leaves bare hostnames untouched', () => {
-    expect(unwrapIpv6Brackets('example.com')).toBe('example.com')
-    expect(unwrapIpv6Brackets('127.0.0.1')).toBe('127.0.0.1')
   })
 })

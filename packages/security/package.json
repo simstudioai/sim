@@ -26,6 +26,10 @@
       "types": "./src/hmac.ts",
       "default": "./src/hmac.ts"
     },
+    "./hostnames": {
+      "types": "./src/hostnames.ts",
+      "default": "./src/hostnames.ts"
+    },
     "./ssrf": {
       "types": "./src/ssrf.ts",
       "default": "./src/ssrf.ts"
