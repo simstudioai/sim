@@ -170,18 +170,22 @@ export async function saveClientInformation(
   info: OAuthClientInformationMixed
 ): Promise<void> {
   const encrypted = await encryptClientInformation(info)
+  logger.info('Persisting MCP OAuth client information', { rowId })
   await db
     .update(mcpServerOauth)
     .set({ clientInformation: encrypted, updatedAt: new Date() })
     .where(eq(mcpServerOauth.id, rowId))
+  logger.info('Persisted MCP OAuth client information', { rowId })
 }
 
 export async function saveTokens(rowId: string, tokens: OAuthTokens): Promise<void> {
   const encrypted = await encryptTokens(tokens)
+  logger.info('Persisting MCP OAuth tokens', { rowId })
   await db
     .update(mcpServerOauth)
     .set({ tokens: encrypted, lastRefreshedAt: new Date(), updatedAt: new Date() })
     .where(eq(mcpServerOauth.id, rowId))
+  logger.info('Persisted MCP OAuth tokens', { rowId })
 }
 
 export async function saveCodeVerifier(rowId: string, verifier: string): Promise<void> {
