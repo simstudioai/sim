@@ -8,25 +8,32 @@ import { McpError } from '@/lib/mcp/types'
 export interface PinnedMcpFetch {
   /** Pinned fetch to hand to the MCP transport's `fetch` option. */
   fetch: typeof fetch
-  /** Tears down the underlying HTTP/2 Agent; call when the MCP client disconnects. */
+  /** Tears down the underlying Agent's pooled sockets; call when the MCP client disconnects. */
   close: () => Promise<void>
 }
 
 /**
- * Pinned fetch for the long-lived MCP transport, which reuses one Agent across
- * a connection's requests. MCP servers are commonly behind HTTP/2 fronts (CDNs,
- * cloud LBs), and undici's Agent is h1.1-only unless opted into h2 via ALPN, so
- * the transport enables it. h2 is *not* used for one-shot flows (OAuth discovery,
- * auth-type probe), where a per-request Agent would leave idle h2 sessions with
- * no reuse benefit. Pinning is unaffected: the pinned lookup forces the socket to
- * `resolvedIP` regardless of negotiated protocol. The returned `close` binds the
- * Agent's teardown to the transport lifecycle so h2 sessions don't linger past
- * disconnect.
+ * Pinned fetch for the long-lived MCP transport, which reuses one Agent across a
+ * connection's requests.
+ *
+ * The transport speaks **HTTP/1.1** (undici's default — we do not opt into `allowH2`).
+ * Every stock MCP client does the same: the official SDK's `StreamableHTTPClientTransport`
+ * calls global `fetch` (undici on h1.1) and never touches HTTP/2. h2's only real win is
+ * multiplexing many concurrent requests over one socket, which the MCP transport — one
+ * POST per JSON-RPC message plus a single long-lived SSE stream — never does, so it buys
+ * nothing here. undici's h2 support is still marked experimental and has a documented
+ * cluster of "response headers arrive, body DATA frames never do" stalls on POST bodies
+ * over reused/coalesced sessions (nodejs/undici #2311, #3433, #4143). Behind a shared
+ * egress IP fronted by a CDN, that stall is exactly what hung the streamable-HTTP
+ * `initialize` (200 + `Mcp-Session-Id`, then an empty body until the SDK's 30s timeout).
+ * h1.1 sidesteps that whole surface, and CDN fronts serve h1.1 anyway.
+ *
+ * Pinning is unaffected: the pinned lookup forces the socket to `resolvedIP` regardless of
+ * protocol. The returned `close` binds Agent teardown to the transport lifecycle so pooled
+ * keep-alive sockets (including the SSE connection) don't linger past disconnect.
  */
 export function createPinnedMcpFetch(resolvedIP: string): PinnedMcpFetch {
-  const { fetch: pinnedFetch, dispatcher } = createPinnedFetchWithDispatcher(resolvedIP, {
-    allowH2: true,
-  })
+  const { fetch: pinnedFetch, dispatcher } = createPinnedFetchWithDispatcher(resolvedIP)
   return { fetch: pinnedFetch, close: () => dispatcher.destroy() }
 }
 

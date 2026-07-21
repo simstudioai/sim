@@ -23,10 +23,36 @@ vi.mock('@/lib/mcp/domain-check', () => ({
   validateMcpServerSsrf: mockValidateMcpServerSsrf,
 }))
 
-import { createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
+import { createPinnedMcpFetch, createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
 
 /** The per-request pinned Agent is always built with a DoS-backstop response cap. */
 const withResponseCap = expect.objectContaining({ maxResponseSize: expect.any(Number) })
+
+describe('createPinnedMcpFetch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockDestroy.mockResolvedValue(undefined)
+    mockCreatePinnedFetchWithDispatcher.mockReturnValue({
+      fetch: sentinelFetch,
+      dispatcher: { destroy: mockDestroy },
+    })
+  })
+
+  it('builds the transport on HTTP/1.1 — never opts into allowH2 (undici h2 stalls)', () => {
+    const { close } = createPinnedMcpFetch('203.0.113.10')
+
+    // Called with the IP only: no `allowH2`, so the Agent stays on undici's h1.1 default.
+    expect(mockCreatePinnedFetchWithDispatcher).toHaveBeenCalledWith('203.0.113.10')
+    const options = mockCreatePinnedFetchWithDispatcher.mock.calls[0][1] as
+      | { allowH2?: boolean }
+      | undefined
+    expect(options?.allowH2).toBeUndefined()
+
+    // close() tears down the pooled sockets (incl. the long-lived SSE) on disconnect.
+    void close()
+    expect(mockDestroy).toHaveBeenCalledTimes(1)
+  })
+})
 
 describe('createSsrfGuardedMcpFetch', () => {
   beforeEach(() => {
