@@ -1,8 +1,11 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
+import { createLogger } from '@sim/logger'
 import type { Agent } from 'undici'
 import { createPinnedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { validateMcpServerSsrf } from '@/lib/mcp/domain-check'
 import { McpError } from '@/lib/mcp/types'
+
+const logger = createLogger('McpOauthFetch')
 
 /** Pinned fetch for the live MCP transport, plus a handle to release its sockets. */
 export interface PinnedMcpFetch {
@@ -151,13 +154,17 @@ function releaseStreamOnSettle(
 export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOUT_MS): FetchLike {
   return (async (url, init) => {
     const target = typeof url === 'string' ? url : url.href
+    const host = URL.canParse(target) ? new URL(target).host : target
+    const startedAt = Date.now()
     const timeoutSignal = AbortSignal.timeout(timeoutMs)
     // Bound every phase — validation, request, body read — by the deadline + caller signal.
     const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
     // Per-request Agent must be torn down (finally): a one-shot leg never reuses its socket.
     let dispatcher: Agent | undefined
     try {
+      logger.info('OAuth guarded fetch: validating', { host })
       const resolvedIP = await withDeadline(validateMcpServerSsrf(target), signal)
+      logger.info('OAuth guarded fetch: requesting', { host, resolvedIP: resolvedIP ?? 'unpinned' })
       let response: Response
       if (resolvedIP) {
         const pinned = createPinnedFetchWithDispatcher(resolvedIP, {
@@ -175,11 +182,23 @@ export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOU
       if (contentType.includes('text/event-stream')) {
         const streamed = releaseStreamOnSettle(response, dispatcher, signal)
         dispatcher = undefined // teardown ownership moved to releaseStreamOnSettle
+        logger.info('OAuth guarded fetch: streaming response', {
+          host,
+          status: response.status,
+          ms: Date.now() - startedAt,
+        })
         return streamed
       }
-      return await bufferUnderDeadline(response, signal)
+      logger.info('OAuth guarded fetch: reading body', { host, status: response.status })
+      const buffered = await bufferUnderDeadline(response, signal)
+      logger.info('OAuth guarded fetch: done', {
+        host,
+        status: response.status,
+        ms: Date.now() - startedAt,
+      })
+      return buffered
     } catch (error) {
-      const host = URL.canParse(target) ? new URL(target).host : target
+      logger.warn('OAuth guarded fetch: failed', { host, ms: Date.now() - startedAt })
       // Relabel only our own deadline — by reason identity, not signal state (which may
       // abort independently just after the deadline).
       if (timeoutSignal.aborted && error === timeoutSignal.reason) {

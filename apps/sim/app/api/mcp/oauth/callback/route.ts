@@ -25,6 +25,46 @@ const logger = createLogger('McpOauthCallbackAPI')
 
 export const dynamic = 'force-dynamic'
 
+class OauthCallbackStepTimeout extends Error {
+  constructor(step: string, ms: number) {
+    super(`MCP OAuth callback step "${step}" did not settle within ${ms}ms`)
+    this.name = 'OauthCallbackStepTimeout'
+  }
+}
+
+/**
+ * Times and bounds one awaited step of the callback so a stalled operation
+ * surfaces as a labeled, logged error instead of hanging the request forever.
+ * The losing promise is not cancelled (a wedged DB/socket op can't be), so it
+ * settles in the background with its rejection swallowed; the point is that the
+ * request stops waiting on it and the logs name the exact step that stalled.
+ */
+async function timedStep<T>(step: string, ms: number, fn: () => Promise<T>): Promise<T> {
+  const start = Date.now()
+  logger.info(`OAuth callback step start: ${step}`)
+  const work = fn()
+  work.catch(() => {})
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const value = await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new OauthCallbackStepTimeout(step, ms)), ms)
+        timer.unref?.()
+      }),
+    ])
+    logger.info(`OAuth callback step done: ${step} (${Date.now() - start}ms)`)
+    return value
+  } catch (error) {
+    logger.error(`OAuth callback step failed: ${step} (${Date.now() - start}ms)`, {
+      error: toError(error).message,
+    })
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -145,8 +185,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         serverId
       )
     }
+    const serverUrl = server.url
     try {
-      assertSafeOauthServerUrl(server.url)
+      assertSafeOauthServerUrl(serverUrl)
     } catch {
       return respond(
         'MCP OAuth requires https (or http://localhost for development).',
@@ -157,16 +198,22 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     // Burn state before token exchange so a replayed callback cannot reuse it.
-    await clearState(row.id, 'callback:burn-before-exchange')
+    await timedStep('clearState(burn)', 10_000, () =>
+      clearState(row.id, 'callback:burn-before-exchange')
+    )
 
-    const preregistered = await loadPreregisteredClient(server.id)
+    const preregistered = await timedStep('loadPreregisteredClient', 15_000, () =>
+      loadPreregisteredClient(server.id)
+    )
     const provider = new SimMcpOauthProvider({ row, preregistered })
     let result: Awaited<ReturnType<typeof mcpAuthGuarded>>
     try {
-      result = await mcpAuthGuarded(provider, {
-        serverUrl: server.url,
-        authorizationCode: code,
-      })
+      result = await timedStep('mcpAuthGuarded', 60_000, () =>
+        mcpAuthGuarded(provider, {
+          serverUrl,
+          authorizationCode: code,
+        })
+      )
     } catch (e) {
       logger.error('Token exchange failed during MCP OAuth callback', e)
       return respond(
@@ -176,7 +223,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         server.id
       )
     } finally {
-      await clearVerifier(row.id)
+      await timedStep('clearVerifier', 10_000, () => clearVerifier(row.id)).catch((e) =>
+        logger.error('Failed to clear PKCE verifier after MCP OAuth callback', {
+          error: toError(e).message,
+        })
+      )
     }
 
     if (result !== 'AUTHORIZED') {
@@ -185,7 +236,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     try {
       // forceRefresh: skip any stale cache from before re-auth.
-      await mcpService.discoverServerTools(session.user.id, server.id, server.workspaceId, true)
+      await timedStep('discoverServerTools', 30_000, () =>
+        mcpService.discoverServerTools(session.user.id, server.id, server.workspaceId, true)
+      )
     } catch (e) {
       logger.warn('Post-auth tools refresh failed', toError(e).message)
     }
