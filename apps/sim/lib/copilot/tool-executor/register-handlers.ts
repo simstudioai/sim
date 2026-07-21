@@ -48,7 +48,6 @@ import {
   RunFromBlock,
   RunWorkflow,
   RunWorkflowUntilBlock,
-  ServiceAccountGetSetupLink,
   SetBlockEnabled,
   SetGlobalWorkflowVariables,
   UpdateDeploymentVersion,
@@ -93,7 +92,6 @@ import { executeGetPlatformActions } from '../tools/handlers/platform'
 import { executeOpenResource } from '../tools/handlers/resources'
 import { executeRestoreResource } from '../tools/handlers/restore-resource'
 import { executeRunCode } from '../tools/handlers/run-code'
-import { executeServiceAccountGetSetupLink } from '../tools/handlers/service-account'
 import { executeVfsGlob, executeVfsGrep, executeVfsRead } from '../tools/handlers/vfs'
 import { executeVfsCp, executeVfsMkdir, executeVfsMv } from '../tools/handlers/vfs-mutate'
 import {
@@ -197,7 +195,6 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [ManageCredential.id]: h(executeManageCredential),
     [OauthGetAuthLink.id]: h(executeOAuthGetAuthLink),
     [OauthRequestAccess.id]: h(executeOAuthRequestAccess),
-    [ServiceAccountGetSetupLink.id]: h(executeServiceAccountGetSetupLink),
     [OpenResource.id]: h(executeOpenResource),
     [RestoreResource.id]: h(executeRestoreResource),
     [GetPlatformActions.id]: h(executeGetPlatformActions),

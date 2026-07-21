@@ -229,7 +229,7 @@ describe('executeOAuthGetAuthLink service account rejection', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('service account')
-    expect(result.error).toContain('service_account_get_setup_link')
+    expect(result.error).toContain('service_account credential tag')
     // The failure output must not carry an authorize URL the agent could
     // surface as a Connect button anyway.
     expect((result.output as { setup_url?: string }).setup_url).toBeUndefined()
@@ -247,7 +247,7 @@ describe('executeOAuthGetAuthLink service account rejection', () => {
   ])('rejects %s', async (providerName) => {
     const result = await executeOAuthGetAuthLink({ providerName }, context)
     expect(result.success).toBe(false)
-    expect(result.error).toContain('service_account_get_setup_link')
+    expect(result.error).toContain('service_account credential tag')
   })
 
   it('still resolves ordinary OAuth providers for integrations that also offer a service account', async () => {

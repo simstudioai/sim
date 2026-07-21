@@ -115,8 +115,8 @@ async function generateOAuthLink(
   if (isServiceAccountProviderId(normalizedInput)) {
     throw new Error(
       `"${providerName}" is a service account, not an OAuth provider. ` +
-        `Call service_account_get_setup_link with this provider instead — ` +
-        `it returns a link that opens the service account setup form.`
+        `Emit a service_account credential tag with the service's OAuth provider ` +
+        `value instead (e.g. "slack") — it opens the service account setup form in chat.`
     )
   }
 

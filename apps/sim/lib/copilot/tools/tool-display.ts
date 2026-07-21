@@ -467,7 +467,6 @@ const TOOL_TITLES: Record<string, string> = {
   run_block: 'Running block',
   search_documentation: 'Searching documentation',
   search_patterns: 'Searching patterns',
-  service_account_get_setup_link: 'Getting service account setup link',
   set_block_enabled: 'Toggling block',
   set_environment_variables: 'Setting environment variables',
   set_global_workflow_variables: 'Setting workflow variables',

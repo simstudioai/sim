@@ -3618,20 +3618,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  service_account_get_setup_link: {
-    parameters: {
-      type: 'object',
-      properties: {
-        providerName: {
-          type: 'string',
-          description:
-            'The integration to set up a service account for. Pass the most specific service the user needs (e.g. `google-sheets`, `gmail`, `jira`, `slack`, `notion`); a slug, OAuth provider value, service-account provider id, or display name resolves case-insensitively.',
-        },
-      },
-      required: ['providerName'],
-    },
-    resultSchema: undefined,
-  },
   set_block_enabled: {
     parameters: {
       type: 'object',

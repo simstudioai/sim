@@ -284,3 +284,42 @@ describe('serializeKBMeta', () => {
     expect(missing).not.toHaveProperty('tagDefinitions')
   })
 })
+
+function oauthTool(id: string, provider: string): ToolConfig {
+  return {
+    id,
+    name: id,
+    description: `Run ${id}`,
+    version: '1.0.0',
+    params: {},
+    request: { url: 'https://example.com', method: 'POST', headers: () => ({}) },
+    oauth: { required: true, provider },
+  }
+}
+
+describe('serializeIntegrationSchema — service-account auth', () => {
+  it('marks an OAuth service that also offers a service account, with its secret noun', () => {
+    // Notion connects via OAuth or via an internal integration token; the agent
+    // must be able to discover the second option from the same auth field.
+    const schema = JSON.parse(serializeIntegrationSchema(oauthTool('notion_read', 'notion')))
+    expect(schema.auth).toMatchObject({
+      type: 'oauth',
+      provider: 'notion',
+      serviceAccount: { connectNoun: 'integration secret' },
+    })
+  })
+
+  it('omits serviceAccount for an OAuth service that has no service-account flow', () => {
+    const schema = JSON.parse(serializeIntegrationSchema(oauthTool('gh_read', 'github')))
+    expect(schema.auth.type).toBe('oauth')
+    expect(schema.auth.serviceAccount).toBeUndefined()
+  })
+
+  it('omits serviceAccount when the flow is gated by a preview block (slack custom bot ↔ slack_v2)', () => {
+    // slack_v2 is preview: true, so the shared schema must not leak the custom
+    // bot — parallel to how preview tools stay out of the shared aggregates.
+    const schema = JSON.parse(serializeIntegrationSchema(oauthTool('slack_send', 'slack')))
+    expect(schema.auth.type).toBe('oauth')
+    expect(schema.auth.serviceAccount).toBeUndefined()
+  })
+})
