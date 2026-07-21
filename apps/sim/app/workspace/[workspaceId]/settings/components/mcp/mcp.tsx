@@ -386,7 +386,10 @@ export function MCP() {
     return issues
   }
 
-  const error = toolsError || serversError
+  // Only a failure to load the server LIST replaces the list. A tool-discovery failure
+  // (`toolsError`) must not blank the page — the servers still render, each row surfacing its
+  // own discovery state via `toolsStateByServer`, with a non-blocking notice above the list.
+  const listError = serversError
   const hasServers = servers && servers.length > 0
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && servers.length > 0
 
@@ -646,10 +649,10 @@ export function MCP() {
             : []
         }
       >
-        {error ? (
+        {listError ? (
           <div className='flex h-full flex-col items-center justify-center gap-2'>
             <p className='text-[var(--text-error)] text-xs leading-tight'>
-              {getErrorMessage(error, 'Failed to load MCP servers')}
+              {getErrorMessage(listError, 'Failed to load MCP servers')}
             </p>
           </div>
         ) : serversLoading ? null : !hasServers ? (
@@ -658,6 +661,11 @@ export function MCP() {
           </SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
+            {toolsError && (
+              <p className='text-[var(--text-error)] text-xs leading-tight'>
+                {getErrorMessage(toolsError, 'Some tools could not be discovered')}
+              </p>
+            )}
             {filteredServers.map((server) => {
               if (!server?.id) return null
               const tools = toolsByServer[server.id] || []
