@@ -28,7 +28,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RouteC
   if (!auth.allowed || !auth.workflow?.workspaceId) {
     return NextResponse.json(
       { error: auth.message ?? 'Access denied' },
-      { status: auth.status || 403 }
+      { status: auth.allowed ? 403 : auth.status }
     )
   }
 

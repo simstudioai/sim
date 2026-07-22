@@ -63,7 +63,8 @@ export interface ReferenceBlockRow {
    * Aggregated `tool-input` sub-block values on this block (agent-style tool
    * lists). Each entry is one sub-block's raw value — an array of tool objects,
    * or that array JSON-stringified. `workflow_input` tools carry the callee id
-   * in `params.workflowId`. Null when the block has no tool-input sub-blocks.
+   * in `params.workflowId` (basic) or `params.manualWorkflowId` (advanced).
+   * Null when the block has no tool-input sub-blocks.
    */
   toolInputValues: unknown[] | null
 }
@@ -85,11 +86,12 @@ interface ReferenceGraph {
 }
 
 /**
- * Callee workflow ids referenced by a block's tool-input values: `workflow_input`
- * tools resolved to their ACTIVE canonical member — the basic `params.workflowId`
- * selector or the advanced `params.manualWorkflowId` input, per the tool's
- * index-scoped `canonicalModes` override ({@link scopeCanonicalModesForTool}) —
- * mirroring how execution picks the live value.
+ * Callee workflow ids referenced by a block's tool-input values: workflow tools
+ * (`workflow_input`, plus legacy stored entries typed `workflow`) resolved to
+ * their ACTIVE canonical member — the basic `params.workflowId` selector or the
+ * advanced `params.manualWorkflowId` input, per the tool's index-scoped
+ * `canonicalModes` override ({@link scopeCanonicalModesForTool}) — mirroring how
+ * execution picks the live value.
  */
 function toolInputCallees(
   toolInputValues: unknown[] | null,
@@ -101,14 +103,15 @@ function toolInputCallees(
     const { array } = coerceObjectArray(value)
     if (!array) continue
     array.forEach((tool, toolIndex) => {
-      if (!isRecord(tool) || tool.type !== BlockType.WORKFLOW_INPUT || !isRecord(tool.params)) {
+      if (
+        !isRecord(tool) ||
+        typeof tool.type !== 'string' ||
+        !isWorkflowBlockType(tool.type) ||
+        !isRecord(tool.params)
+      ) {
         return
       }
-      const scoped = scopeCanonicalModesForTool(
-        canonicalModes ?? undefined,
-        toolIndex,
-        BlockType.WORKFLOW_INPUT
-      )
+      const scoped = scopeCanonicalModesForTool(canonicalModes ?? undefined, toolIndex, tool.type)
       const active = resolveActiveCanonicalValue(
         WORKFLOW_ID_CANONICAL_GROUP,
         {
@@ -232,6 +235,10 @@ function buildTree(
       path.add(childId)
       nodes.push({ id: childId, name, cycle: false, children: expand(childId, depth + 1) })
       path.delete(childId)
+      // A depth-capped expansion is incomplete — allow a shallower path to retry
+      // it in full instead of collapsing to a leaf. Each retry starts strictly
+      // shallower, so this stays bounded.
+      if (depth + 1 >= MAX_REFERENCE_DEPTH) expanded.delete(childId)
     }
     return nodes
   }

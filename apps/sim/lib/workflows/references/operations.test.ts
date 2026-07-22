@@ -101,21 +101,71 @@ describe('resolveWorkflowReferences', () => {
   })
 
   it('bounds converging paths (diamond) instead of re-expanding', () => {
-    // A → B, A → C, B → D, C → D. D reconverges; it must appear under both B and C
-    // but only expand once (here D is a leaf anyway; the guard prevents blow-up).
+    // A → B, A → C, B → D, C → D, D → E. D reconverges; it must appear under both
+    // B and C but expand its subtree (E) only under the first-visited branch.
+    const workflowsWithE = [...workflows, { id: 'e', name: 'E' }]
     const blocks = [
       workflowBlock('a', 'b'),
       workflowBlock('a', 'c'),
       workflowBlock('b', 'd'),
       workflowBlock('c', 'd'),
+      workflowBlock('d', 'e'),
     ]
-    const { callees } = resolveWorkflowReferences('a', workflows, blocks, [])
+    const { callees } = resolveWorkflowReferences('a', workflowsWithE, blocks, [])
     const b = callees.find((n) => n.id === 'b')
     const c = callees.find((n) => n.id === 'c')
-    // D expands under the first-visited branch (B) and is a plain leaf under C.
-    expect(b?.children.map((n) => n.id)).toEqual(['d'])
-    expect(c?.children.map((n) => n.id)).toEqual(['d'])
-    expect(c?.children[0]).toMatchObject({ id: 'd', cycle: false, children: [] })
+    // D expands under the first-visited branch (B) and is a collapsed leaf under C.
+    expect(b?.children).toEqual([
+      {
+        id: 'd',
+        name: 'D',
+        cycle: false,
+        children: [{ id: 'e', name: 'E', cycle: false, children: [] }],
+      },
+    ])
+    expect(c?.children).toEqual([{ id: 'd', name: 'D', cycle: false, children: [] }])
+  })
+
+  it('truncates expansion at the depth ceiling', () => {
+    // A linear chain longer than MAX_REFERENCE_DEPTH (25): w0 → w1 → … → w29.
+    const chain = Array.from({ length: 30 }, (_, i) => ({ id: `w${i}`, name: `W${i}` }))
+    const blocks = Array.from({ length: 29 }, (_, i) => workflowBlock(`w${i}`, `w${i + 1}`))
+    const { callees } = resolveWorkflowReferences('w0', chain, blocks, [])
+    let depth = 0
+    let node = callees[0]
+    while (node) {
+      depth += 1
+      node = node.children[0]
+    }
+    expect(depth).toBe(25)
+  })
+
+  it('re-expands a depth-truncated node when a shallower path reaches it', () => {
+    // Root fans out to a 25-deep chain (visited first by name sort: "A…") whose
+    // tail X gets truncated at the ceiling, and a direct edge (via "Z") to X.
+    // The shallow path must still show X's child Y instead of a collapsed leaf.
+    const nodes = [
+      { id: 'root', name: 'Root' },
+      ...Array.from({ length: 24 }, (_, i) => ({
+        id: `a${i}`,
+        name: `A${String(i).padStart(2, '0')}`,
+      })),
+      { id: 'x', name: 'X' },
+      { id: 'y', name: 'Y' },
+      { id: 'z', name: 'Z' },
+    ]
+    const blocks = [
+      workflowBlock('root', 'a0'),
+      ...Array.from({ length: 23 }, (_, i) => workflowBlock(`a${i}`, `a${i + 1}`)),
+      workflowBlock('a23', 'x'),
+      workflowBlock('root', 'z'),
+      workflowBlock('z', 'x'),
+      workflowBlock('x', 'y'),
+    ]
+    const { callees } = resolveWorkflowReferences('root', nodes, blocks, [])
+    const z = callees.find((n) => n.id === 'z')
+    const xUnderZ = z?.children.find((n) => n.id === 'x')
+    expect(xUnderZ?.children.map((n) => n.id)).toEqual(['y'])
   })
 
   it('drops dangling / out-of-workspace child ids', () => {
@@ -215,6 +265,29 @@ describe('resolveWorkflowReferences', () => {
     ]
     const { callees } = resolveWorkflowReferences('a', workflows, blocks, [])
     expect(callees.map((n) => n.id)).toEqual(['c'])
+  })
+
+  it('resolves legacy workflow-typed tools and isolates index-scoped modes per tool', () => {
+    // Tool 0 is a legacy `workflow`-typed entry (still rendered/executed by the
+    // editor); tool 1 is advanced-mode via its own index-scoped key. Tool 0 must
+    // stay basic (`b`) — tool 1's override must not bleed into it.
+    const blocks: ReferenceBlockRow[] = [
+      {
+        parentId: 'a',
+        type: 'agent',
+        childFromSelector: null,
+        childFromManual: null,
+        canonicalModes: { '1:workflowId': 'advanced' },
+        toolInputValues: [
+          [
+            { type: 'workflow', params: { workflowId: 'b' } },
+            { type: 'workflow_input', params: { workflowId: 'c', manualWorkflowId: 'd' } },
+          ],
+        ],
+      },
+    ]
+    const { callees } = resolveWorkflowReferences('a', workflows, blocks, [])
+    expect(callees.map((n) => n.id)).toEqual(['b', 'd'])
   })
 
   it('resolves workflow tools from a JSON-stringified tool-input value', () => {
