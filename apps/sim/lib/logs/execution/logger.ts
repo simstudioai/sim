@@ -878,15 +878,23 @@ export class ExecutionLogger implements IExecutionLoggerService {
         // that as 'redacting' so the Logs UI doesn't show a stale 'running'.
         // Guarded on 'running' so a concurrent cancellation is never clobbered;
         // the terminal update below overwrites with the final status either way.
-        await db
-          .update(workflowExecutionLogs)
-          .set({ status: 'redacting' })
-          .where(
-            and(
-              eq(workflowExecutionLogs.executionId, executionId),
-              eq(workflowExecutionLogs.status, 'running')
+        // Purely cosmetic: a failed write must never abort masking/finalization.
+        try {
+          await db
+            .update(workflowExecutionLogs)
+            .set({ status: 'redacting' })
+            .where(
+              and(
+                eq(workflowExecutionLogs.executionId, executionId),
+                eq(workflowExecutionLogs.status, 'running')
+              )
             )
-          )
+        } catch (error) {
+          logger.warn('Failed to set redacting status on execution log', {
+            executionId,
+            error: getErrorMessage(error),
+          })
+        }
       }
     )
 
