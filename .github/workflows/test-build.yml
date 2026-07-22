@@ -236,12 +236,20 @@ jobs:
           key: ${{ github.repository }}-turbo-cache-build-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./.turbo
 
+      # Keyed per commit so EVERY run saves its refreshed cache — a key without
+      # a unique suffix is written once and then frozen (GitHub caches are
+      # immutable per key; a primary-key hit skips the save), which left builds
+      # compiling against a cache stale since the last lockfile change. The
+      # restore-keys prefix match picks the most recently saved cache for this
+      # lockfile, falling back across lockfile changes.
       - name: Restore Next.js build cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ./apps/sim/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}-${{ github.sha }}-
+            ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}-
             ${{ runner.os }}-nextjs-
 
       - name: Install dependencies
