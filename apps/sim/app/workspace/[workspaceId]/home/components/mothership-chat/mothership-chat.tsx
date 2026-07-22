@@ -301,19 +301,7 @@ export function MothershipChat({
   const messages = useDeferredValue(messagesProp)
   const [lastRowAnimating, setLastRowAnimating] = useState(false)
   const scrollElementRef = useRef<HTMLDivElement | null>(null)
-  const { ref: autoScrollRef, detach: detachAutoScroll } = useAutoScroll(
-    isStreamActive || lastRowAnimating
-  )
-  /**
-   * Stop means freeze: detach auto-scroll exactly like a user scroll-away, so
-   * every chase path — mutation kicks while the reveal drains, animation
-   * follows, the settle window — parks instead of nudging the transcript the
-   * user just halted. The next stream re-seeds stickiness from position.
-   */
-  const handleStopGeneration = useCallback(() => {
-    detachAutoScroll()
-    onStopGeneration()
-  }, [detachAutoScroll, onStopGeneration])
+  const { ref: autoScrollRef } = useAutoScroll(isStreamActive || lastRowAnimating)
   const sizerRef = useRef<HTMLDivElement | null>(null)
   const scrollerPaddingRef = useRef<{ top: number; bottom: number } | null>(null)
   const sizerFloorAppliedRef = useRef(0)
@@ -676,7 +664,7 @@ export function MothershipChat({
               ref={userInputRef}
               onSubmit={onSubmit}
               isSending={isStreamActive}
-              onStopGeneration={handleStopGeneration}
+              onStopGeneration={onStopGeneration}
               isInitialView={false}
               onSendQueuedHead={handleSendQueuedHead}
               onEditQueuedTail={handleEditQueuedTail}

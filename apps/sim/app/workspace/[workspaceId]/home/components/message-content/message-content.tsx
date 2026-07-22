@@ -860,8 +860,16 @@ function MessageContentInner({
   }, [visibleStreamActivityKey, isStreaming])
 
   const lastSegment = segments[segments.length - 1]
-  const hasTrailingTextSegment = lastSegment?.type === 'text'
-  const isRevealing = hasTrailingTextSegment && trailingRevealing
+  // The reveal tail is the last TEXT segment — a stopped block appends AFTER
+  // the text that is still visibly draining, and treating the turn as settled
+  // the moment it lands tears down the scroll machinery mid-reveal.
+  const revealTailIndex =
+    lastSegment?.type === 'stopped' && segments[segments.length - 2]?.type === 'text'
+      ? segments.length - 2
+      : lastSegment?.type === 'text'
+        ? segments.length - 1
+        : -1
+  const isRevealing = revealTailIndex >= 0 && trailingRevealing
   const phase = deriveMessagePhase({ isStreaming, isRevealing })
 
   const onPhaseChangeRef = useRef(onPhaseChange)
@@ -912,13 +920,13 @@ function MessageContentInner({
                   onQuestionDismiss={onQuestionDismiss}
                   onWorkspaceResourceSelect={onWorkspaceResourceSelect}
                   onRevealStateChange={
-                    i === segments.length - 1 ? handleTrailingRevealChange : undefined
+                    i === revealTailIndex ? handleTrailingRevealChange : undefined
                   }
                   onStreamActivityChange={
-                    i === segments.length - 1 ? handleTrailingStreamActivityChange : undefined
+                    i === revealTailIndex ? handleTrailingStreamActivityChange : undefined
                   }
                   onPendingTagChange={
-                    i === segments.length - 1 ? handleTrailingPendingTagChange : undefined
+                    i === revealTailIndex ? handleTrailingPendingTagChange : undefined
                   }
                 />
               )

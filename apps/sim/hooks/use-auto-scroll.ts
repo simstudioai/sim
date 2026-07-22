@@ -26,6 +26,12 @@ const USER_GESTURE_WINDOW = 250
  */
 const SCROLL_UP_KEYS = new Set(['ArrowUp', 'PageUp', 'Home'])
 /**
+ * How long the chase idle-follows after stream teardown. Covers content that
+ * mounts with the observers already gone — a stop's stopped-row and actions
+ * append only after the abort round-trips.
+ */
+const POST_STOP_SETTLE_WINDOW = 800
+/**
  * Manages sticky auto-scroll for a streaming chat container.
  *
  * Stays pinned to the bottom while content streams in. Detaches immediately
@@ -34,10 +40,7 @@ const SCROLL_UP_KEYS = new Set(['ArrowUp', 'PageUp', 'Home'])
  * of the bottom to re-engage. Each streaming start re-seeds stickiness from the
  * current scroll position, so a user who scrolled up beforehand stays put.
  *
- * Returns `ref` (callback ref for the scroll container) and `detach` for
- * programmatic freezes (a user stop) — it parks every chase path exactly like
- * a user scroll-away, until the user scrolls back to the bottom or the next
- * stream re-seeds stickiness.
+ * Returns `ref`, the callback ref for the scroll container.
  */
 export function useAutoScroll(isStreaming: boolean) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -58,11 +61,6 @@ export function useAutoScroll(isStreaming: boolean) {
    * so a keypress near a stream's end can't carry into the next session.
    */
   const lastUserGestureAtRef = useRef(Number.NEGATIVE_INFINITY)
-
-  const detach = useCallback(() => {
-    stickyRef.current = false
-    userDetachedRef.current = true
-  }, [])
 
   const callbackRef = useCallback((el: HTMLDivElement | null) => {
     containerRef.current = el
@@ -210,13 +208,14 @@ export function useAutoScroll(isStreaming: boolean) {
       chase.cancel()
       pointerDownRef.current = false
       lastUserGestureAtRef.current = Number.NEGATIVE_INFINITY
-      // Teardown can land mid-glide (options mounted late in the reveal, gap
-      // not yet closed) — canceling there strands the follow-ups behind the
-      // input. One plain kick runs the loop to rest and parks; a stopped turn
-      // stays frozen because the detached sticky check parks it on frame one.
-      chase.kick()
+      // Growth can land after teardown with no observer alive: options mounted
+      // late in the reveal, and a stop's stopped-row/actions appending once the
+      // abort completes. Idle-follow briefly so that content isn't stranded
+      // behind the input; a user who scrolled away stays put via the sticky
+      // check.
+      chase.kickUntil(POST_STOP_SETTLE_WINDOW)
     }
   }, [isStreaming])
 
-  return { ref: callbackRef, detach }
+  return { ref: callbackRef }
 }

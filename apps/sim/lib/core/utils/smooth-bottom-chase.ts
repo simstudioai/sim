@@ -26,6 +26,13 @@ export interface SmoothBottomChaseHandle {
   isActive: () => boolean
   /** Start the loop if parked. Call after content growth. */
   kick: () => void
+  /**
+   * Keep the loop alive for `durationMs` even while the gap is at rest,
+   * re-checking every frame. For growth that lands with no observable trigger
+   * — content mounting just after a stream's observers tear down (a stop's
+   * stopped-row/actions). Repeat calls extend the deadline; one loop only.
+   */
+  kickUntil: (durationMs: number) => void
   cancel: () => void
 }
 
@@ -47,11 +54,13 @@ export function createSmoothBottomChase(
 ): SmoothBottomChaseHandle {
   let raf: number | null = null
   let lastTop: number | null = null
+  let deadline = 0
 
   const park = () => {
     if (raf !== null) cancelAnimationFrame(raf)
     raf = null
     lastTop = null
+    deadline = 0
   }
 
   const step = () => {
@@ -71,7 +80,14 @@ export function createSmoothBottomChase(
     }
     const gap = target.getBottomTop() - top
     if (gap <= CHASE_REST_GAP) {
-      park()
+      // Within a kickUntil deadline, idle at rest instead of parking so
+      // trigger-less growth inside the window is still chased.
+      if (performance.now() >= deadline) {
+        park()
+        return
+      }
+      lastTop = top
+      raf = requestAnimationFrame(step)
       return
     }
     target.setTop(top + Math.max(1, gap * SMOOTH_CHASE_RATE))
@@ -97,6 +113,10 @@ export function createSmoothBottomChase(
   return {
     isActive: () => raf !== null,
     kick: start,
+    kickUntil: (durationMs: number) => {
+      deadline = Math.max(deadline, performance.now() + durationMs)
+      start()
+    },
     cancel: park,
   }
 }
