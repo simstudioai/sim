@@ -44,9 +44,12 @@ export interface SmoothBottomChaseHandle {
  *
  * Self-interrupting: chase writes only ever move the offset down, and content
  * growth leaves it where the last write put it — so an offset that moved UP
- * since the last write can only be a user scrolling away, and the loop parks
- * instead of fighting them. `shouldContinue` layers any caller-owned stickiness
- * on top (checked every frame).
+ * since the last write, MORE than the bottom itself moved up, can only be a
+ * user scrolling away, and the loop parks instead of fighting them. (A
+ * content-shrink clamp moves the offset and the bottom together — e.g. the
+ * transcript's floor drain — and must not read as a user scroll.)
+ * `shouldContinue` layers any caller-owned stickiness on top (checked every
+ * frame).
  */
 export function createSmoothBottomChase(
   target: SmoothBottomChaseTarget,
@@ -54,12 +57,14 @@ export function createSmoothBottomChase(
 ): SmoothBottomChaseHandle {
   let raf: number | null = null
   let lastTop: number | null = null
+  let lastBottomTop: number | null = null
   let deadline = 0
 
   const park = () => {
     if (raf !== null) cancelAnimationFrame(raf)
     raf = null
     lastTop = null
+    lastBottomTop = null
     deadline = 0
   }
 
@@ -74,11 +79,17 @@ export function createSmoothBottomChase(
       return
     }
     const top = target.getTop()
-    if (lastTop !== null && top < lastTop - 1) {
+    const bottomTop = target.getBottomTop()
+    if (
+      lastTop !== null &&
+      lastBottomTop !== null &&
+      lastTop - top > lastBottomTop - bottomTop + 1
+    ) {
       park()
       return
     }
-    const gap = target.getBottomTop() - top
+    lastBottomTop = bottomTop
+    const gap = bottomTop - top
     if (gap <= CHASE_REST_GAP) {
       // Within a kickUntil deadline, idle at rest instead of parking so
       // trigger-less growth inside the window is still chased.
@@ -107,6 +118,7 @@ export function createSmoothBottomChase(
   const start = () => {
     if (raf !== null) return
     lastTop = target.getTop()
+    lastBottomTop = target.getBottomTop()
     raf = requestAnimationFrame(step)
   }
 
