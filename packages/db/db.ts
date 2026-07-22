@@ -1,8 +1,11 @@
+import { createLogger } from '@sim/logger'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { resolveDbUrl } from './connection-url'
 import * as schema from './schema'
 import { instrumentPoolClient } from './tx-tripwire'
+
+const logger = createLogger('Db')
 
 /**
  * Per-role pool profiles. Starting numbers — validate against real per-role
@@ -81,6 +84,11 @@ export const dbReplica: typeof db = replicaUrl
 
 const subPoolClients = new Map<SubProcessDbRole, typeof db>()
 
+/** Which env var the process connection came from — named in dbFor fallback logs. */
+const processUrlEnvVar = process.env[`DATABASE_URL_${role.toUpperCase()}`]
+  ? `DATABASE_URL_${role.toUpperCase()}`
+  : 'DATABASE_URL'
+
 /**
  * Per-workload drizzle client with its own pool, built lazily on first call and
  * cached per role. Unlike the process-wide `db` (selected by `SIM_DB_ROLE`),
@@ -98,9 +106,19 @@ export function dbFor(role: SubProcessDbRole): typeof db {
   const existing = subPoolClients.get(role)
   if (existing) return existing
 
-  const url = process.env[`DATABASE_URL_${role.toUpperCase()}`] ?? connectionString
+  const keyedEnvVar = `DATABASE_URL_${role.toUpperCase()}`
+  const keyedUrl = process.env[keyedEnvVar]
+  const url = keyedUrl ?? connectionString
   if (!url) {
     throw new Error('Missing DATABASE_URL environment variable')
+  }
+
+  if (keyedUrl) {
+    logger.info(`'${role}' pool using dedicated ${keyedEnvVar}`)
+  } else {
+    logger.info(
+      `${keyedEnvVar} not set — '${role}' pool falling back to the process connection (${processUrlEnvVar})`
+    )
   }
 
   const subProfile = DB_POOL_PROFILES[role]
