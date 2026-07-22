@@ -1,11 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { auditMock, createMockRequest, createSession, loggerMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { member, organization, permissions, user, workspace } from '@sim/db/schema'
+import {
+  auditMock,
+  createMockRequest,
+  createSession,
+  dbChainMock,
+  loggerMock,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockDbState,
   mockGetSession,
   mockValidateInvitationsAllowed,
   mockValidateSeatAvailability,
@@ -14,9 +22,6 @@ const {
   mockCancelPendingInvitation,
   mockGrantWorkspaceAccessDirectly,
 } = vi.hoisted(() => ({
-  mockDbState: {
-    selectResults: [] as any[],
-  },
   mockGetSession: vi.fn(),
   mockValidateInvitationsAllowed: vi.fn(),
   mockValidateSeatAvailability: vi.fn(),
@@ -26,77 +31,7 @@ const {
   mockGrantWorkspaceAccessDirectly: vi.fn(),
 }))
 
-function createSelectChain() {
-  const chain: any = {}
-  chain.from = vi.fn().mockReturnValue(chain)
-  chain.innerJoin = vi.fn().mockReturnValue(chain)
-  chain.leftJoin = vi.fn().mockReturnValue(chain)
-  chain.where = vi.fn().mockReturnValue(chain)
-  chain.orderBy = vi.fn().mockReturnValue(chain)
-  chain.limit = vi
-    .fn()
-    .mockImplementation(() => Promise.resolve(mockDbState.selectResults.shift() ?? []))
-  chain.then = vi.fn().mockImplementation((callback: (rows: any[]) => unknown) => {
-    const rows = mockDbState.selectResults.shift() ?? []
-    return Promise.resolve(callback(rows))
-  })
-  return chain
-}
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn().mockImplementation(() => createSelectChain()),
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  invitation: {
-    id: 'invitation.id',
-    organizationId: 'invitation.organizationId',
-    status: 'invitation.status',
-    email: 'invitation.email',
-    kind: 'invitation.kind',
-    role: 'invitation.role',
-    inviterId: 'invitation.inviterId',
-    expiresAt: 'invitation.expiresAt',
-    createdAt: 'invitation.createdAt',
-  },
-  member: {
-    organizationId: 'member.organizationId',
-    userId: 'member.userId',
-    role: 'member.role',
-  },
-  organization: {
-    id: 'organization.id',
-    name: 'organization.name',
-  },
-  user: {
-    id: 'user.id',
-    name: 'user.name',
-    email: 'user.email',
-  },
-  workspace: {
-    id: 'workspace.id',
-    name: 'workspace.name',
-    organizationId: 'workspace.organizationId',
-    workspaceMode: 'workspace.workspaceMode',
-  },
-  permissions: {
-    entityId: 'permissions.entityId',
-    entityType: 'permissions.entityType',
-    userId: 'permissions.userId',
-  },
-  invitationWorkspaceGrant: {
-    invitationId: 'invitationWorkspaceGrant.invitationId',
-    workspaceId: 'invitationWorkspaceGrant.workspaceId',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
-  inArray: vi.fn((field: unknown, values: unknown[]) => ({ field, values })),
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@sim/logger', () => loggerMock)
 
@@ -140,10 +75,23 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
 
 import { POST } from '@/app/api/organizations/[id]/invitations/route'
 
+/** Queues the caller's admin-role check followed by the org-name lookup. */
+function queueOwnerAndOrg() {
+  queueTableRows(member, [{ role: 'owner' }])
+  queueTableRows(organization, [{ name: 'Org One' }])
+}
+
+/** Queues the inviter-details lookup that precedes invitation/email sends. */
+function queueInviterRow() {
+  queueTableRows(user, [{ name: 'Owner', email: 'owner@example.com' }])
+}
+
+afterAll(resetDbChainMock)
+
 describe('POST /api/organizations/[id]/invitations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbState.selectResults = []
+    resetDbChainMock()
     mockValidateInvitationsAllowed.mockResolvedValue(undefined)
     mockValidateSeatAvailability.mockResolvedValue({
       canInvite: true,
@@ -164,13 +112,11 @@ describe('POST /api/organizations/[id]/invitations', () => {
     mockGetSession.mockResolvedValue(
       createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
     )
-    mockDbState.selectResults = [
-      [{ role: 'owner' }],
-      [{ name: 'Org One' }],
-      [],
-      [],
-      [{ name: 'Owner', email: 'owner@example.com' }],
-    ]
+    queueOwnerAndOrg()
+    // Explicit empty existing-members set: the query joins `user`, so it must
+    // not fall through to the inviter row queued on the user table.
+    queueTableRows(member, [])
+    queueInviterRow()
 
     const response = await POST(
       createMockRequest(
@@ -202,17 +148,16 @@ describe('POST /api/organizations/[id]/invitations', () => {
     mockGetSession.mockResolvedValue(
       createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
     )
-    mockDbState.selectResults = [
-      [{ role: 'owner' }],
-      [{ name: 'Org One' }],
-      [{ id: 'ws-1', name: 'Workspace 1', organizationId: 'org-1', workspaceMode: 'organization' }],
-      [{ id: 'ws-2', name: 'Workspace 2', organizationId: 'org-1', workspaceMode: 'organization' }],
-      [{ userId: 'user-2', userEmail: 'member@example.com' }],
-      [],
-      [{ userId: 'user-2', workspaceId: 'ws-1' }],
-      [],
-      [{ name: 'Owner', email: 'owner@example.com' }],
-    ]
+    queueOwnerAndOrg()
+    queueTableRows(workspace, [
+      { id: 'ws-1', name: 'Workspace 1', organizationId: 'org-1', workspaceMode: 'organization' },
+    ])
+    queueTableRows(workspace, [
+      { id: 'ws-2', name: 'Workspace 2', organizationId: 'org-1', workspaceMode: 'organization' },
+    ])
+    queueTableRows(member, [{ userId: 'user-2', userEmail: 'member@example.com' }])
+    queueTableRows(permissions, [{ userId: 'user-2', workspaceId: 'ws-1' }])
+    queueInviterRow()
 
     const response = await POST(
       createMockRequest(
@@ -259,17 +204,15 @@ describe('POST /api/organizations/[id]/invitations', () => {
     mockGrantWorkspaceAccessDirectly
       .mockResolvedValueOnce({ outcome: 'added', permission: 'write' })
       .mockRejectedValueOnce(new Error('db blip'))
-    mockDbState.selectResults = [
-      [{ role: 'owner' }],
-      [{ name: 'Org One' }],
-      [{ id: 'ws-1', name: 'Workspace 1', organizationId: 'org-1', workspaceMode: 'organization' }],
-      [{ id: 'ws-2', name: 'Workspace 2', organizationId: 'org-1', workspaceMode: 'organization' }],
-      [{ userId: 'user-2', userEmail: 'member@example.com' }],
-      [],
-      [],
-      [],
-      [{ name: 'Owner', email: 'owner@example.com' }],
-    ]
+    queueOwnerAndOrg()
+    queueTableRows(workspace, [
+      { id: 'ws-1', name: 'Workspace 1', organizationId: 'org-1', workspaceMode: 'organization' },
+    ])
+    queueTableRows(workspace, [
+      { id: 'ws-2', name: 'Workspace 2', organizationId: 'org-1', workspaceMode: 'organization' },
+    ])
+    queueTableRows(member, [{ userId: 'user-2', userEmail: 'member@example.com' }])
+    queueInviterRow()
 
     const response = await POST(
       createMockRequest(
@@ -301,19 +244,15 @@ describe('POST /api/organizations/[id]/invitations', () => {
     mockGrantWorkspaceAccessDirectly
       .mockResolvedValueOnce({ outcome: 'added', permission: 'write' })
       .mockRejectedValueOnce(new Error('db blip'))
-    mockDbState.selectResults = [
-      [{ role: 'owner' }],
-      [{ name: 'Org One' }],
-      [{ id: 'ws-1', name: 'Workspace 1', organizationId: 'org-1', workspaceMode: 'organization' }],
-      [
-        { userId: 'user-a', userEmail: 'a@example.com' },
-        { userId: 'user-b', userEmail: 'b@example.com' },
-      ],
-      [],
-      [],
-      [],
-      [{ name: 'Owner', email: 'owner@example.com' }],
-    ]
+    queueOwnerAndOrg()
+    queueTableRows(workspace, [
+      { id: 'ws-1', name: 'Workspace 1', organizationId: 'org-1', workspaceMode: 'organization' },
+    ])
+    queueTableRows(member, [
+      { userId: 'user-a', userEmail: 'a@example.com' },
+      { userId: 'user-b', userEmail: 'b@example.com' },
+    ])
+    queueInviterRow()
 
     const response = await POST(
       createMockRequest(
@@ -340,15 +279,12 @@ describe('POST /api/organizations/[id]/invitations', () => {
     mockGetSession.mockResolvedValue(
       createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
     )
-    mockDbState.selectResults = [
-      [{ role: 'owner' }],
-      [{ name: 'Org One' }],
-      [{ id: 'ws-1', organizationId: 'org-1', workspaceMode: 'organization' }],
-      [{ userId: 'user-2', userEmail: 'member@example.com' }],
-      [],
-      [{ userId: 'user-2', workspaceId: 'ws-1' }],
-      [],
-    ]
+    queueOwnerAndOrg()
+    queueTableRows(workspace, [
+      { id: 'ws-1', organizationId: 'org-1', workspaceMode: 'organization' },
+    ])
+    queueTableRows(member, [{ userId: 'user-2', userEmail: 'member@example.com' }])
+    queueTableRows(permissions, [{ userId: 'user-2', workspaceId: 'ws-1' }])
 
     const response = await POST(
       createMockRequest(
@@ -373,16 +309,12 @@ describe('POST /api/organizations/[id]/invitations', () => {
     mockGetSession.mockResolvedValue(
       createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
     )
-    mockDbState.selectResults = [
-      [{ role: 'owner' }],
-      [{ name: 'Org One' }],
-      [{ id: 'ws-1', name: 'Workspace 1', organizationId: 'org-1', workspaceMode: 'organization' }],
-      [{ userId: 'user-2', userEmail: 'member@example.com' }],
-      [],
-      [],
-      [],
-      [{ name: 'Owner', email: 'owner@example.com' }],
-    ]
+    queueOwnerAndOrg()
+    queueTableRows(workspace, [
+      { id: 'ws-1', name: 'Workspace 1', organizationId: 'org-1', workspaceMode: 'organization' },
+    ])
+    queueTableRows(member, [{ userId: 'user-2', userEmail: 'member@example.com' }])
+    queueInviterRow()
 
     const response = await POST(
       createMockRequest(
@@ -427,12 +359,8 @@ describe('POST /api/organizations/[id]/invitations', () => {
     mockGetSession.mockResolvedValue(
       createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
     )
-    mockDbState.selectResults = [
-      [{ role: 'owner' }],
-      [{ name: 'Org One' }],
-      [{ userId: 'user-2', userEmail: 'member@example.com' }],
-      [],
-    ]
+    queueOwnerAndOrg()
+    queueTableRows(member, [{ userId: 'user-2', userEmail: 'member@example.com' }])
 
     const response = await POST(
       createMockRequest(
@@ -456,13 +384,11 @@ describe('POST /api/organizations/[id]/invitations', () => {
     mockGetSession.mockResolvedValue(
       createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
     )
-    mockDbState.selectResults = [
-      [{ role: 'owner' }],
-      [{ name: 'Org One' }],
-      [],
-      [],
-      [{ name: 'Owner', email: 'owner@example.com' }],
-    ]
+    queueOwnerAndOrg()
+    // Explicit empty existing-members set: the query joins `user`, so it must
+    // not fall through to the inviter row queued on the user table.
+    queueTableRows(member, [])
+    queueInviterRow()
     mockSendInvitationEmail.mockResolvedValue({ success: false, error: 'mailer unavailable' })
 
     const response = await POST(
