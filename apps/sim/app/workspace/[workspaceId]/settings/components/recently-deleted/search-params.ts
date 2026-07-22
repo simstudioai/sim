@@ -9,6 +9,7 @@ export const RECENTLY_DELETED_TABS = [
   'table',
   'knowledge',
   'file',
+  'chat',
 ] as const
 
 export type RecentlyDeletedTab = (typeof RECENTLY_DELETED_TABS)[number]

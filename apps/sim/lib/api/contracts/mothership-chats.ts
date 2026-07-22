@@ -6,8 +6,12 @@ const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(v
   message: 'Expected a valid date string',
 })
 
+export const mothershipChatScopeSchema = z.enum(['active', 'archived'])
+export type MothershipChatScope = z.output<typeof mothershipChatScopeSchema>
+
 export const listMothershipChatsQuerySchema = z.object({
   workspaceId: z.string().min(1),
+  scope: mothershipChatScopeSchema.default('active'),
 })
 
 export const mothershipChatParamsSchema = z.object({
@@ -251,6 +255,7 @@ export const mothershipChatSchema = z.object({
   activeStreamId: z.string().nullable(),
   lastSeenAt: dateStringSchema.nullable(),
   pinned: z.boolean(),
+  deletedAt: dateStringSchema.nullable(),
 })
 
 export const listMothershipChatsContract = defineRouteContract({
@@ -282,6 +287,18 @@ export const updateMothershipChatContract = defineRouteContract({
 export const deleteMothershipChatContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/mothership/chats/[chatId]',
+  params: mothershipChatParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+    }),
+  },
+})
+
+export const restoreMothershipChatContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/mothership/chats/[chatId]/restore',
   params: mothershipChatParamsSchema,
   response: {
     mode: 'json',

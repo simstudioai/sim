@@ -32,7 +32,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
       queryKey: mothershipChatKeys.detail('chat-1'),
@@ -61,7 +61,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -88,7 +88,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -115,7 +115,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -142,7 +142,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
       queryKey: mothershipChatKeys.detail('chat-1'),
@@ -172,7 +172,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
       queryKey: mothershipChatKeys.detail('chat-1'),
@@ -202,7 +202,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
       queryKey: mothershipChatKeys.detail('chat-1'),
@@ -223,7 +223,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
       queryKey: mothershipChatKeys.detail('chat-1'),
@@ -244,7 +244,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.removeQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.removeQueries).toHaveBeenCalledWith({
@@ -265,7 +265,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
       queryKey: mothershipChatKeys.detail('chat-1'),
@@ -294,7 +294,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -321,7 +321,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -348,7 +348,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -375,7 +375,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
       queryKey: mothershipChatKeys.detail('chat-1'),
@@ -396,7 +396,7 @@ describe('handleMothershipChatStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
