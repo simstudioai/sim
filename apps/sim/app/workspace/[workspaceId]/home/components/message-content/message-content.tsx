@@ -807,6 +807,24 @@ function MessageContentInner({
     setTrailingStreamActivity(active)
   }, [])
   const [isStreamIdle, setIsStreamIdle] = useState(false)
+  /**
+   * True once the slot's collapse transition has finished (seeded true so a
+   * settled mount never runs the loader). The loader must stay mounted through
+   * the collapse: with `grid-rows` transitioning 1fr→0fr, unmounting the
+   * content in the same flip zeroes the track instantly — the slot snaps
+   * instead of sliding out, clamping `scrollTop` at settle.
+   */
+  const [slotExited, setSlotExited] = useState(true)
+  const handleSlotTransitionEnd = useCallback((event: React.TransitionEvent<HTMLDivElement>) => {
+    if (
+      event.target === event.currentTarget &&
+      event.propertyName === 'grid-template-rows' &&
+      // Only the collapse's end exits the loader; the expand ends with a live track.
+      getComputedStyle(event.currentTarget).gridTemplateRows === '0px'
+    ) {
+      setSlotExited(true)
+    }
+  }, [])
 
   const segments: MessageSegment[] =
     parsed.length > 0
@@ -852,6 +870,9 @@ function MessageContentInner({
   // reveal reads as the blob winking out early while everything shifts. The
   // slot leaves only at true settle, after the reveal has finished painting.
   const thinkingExpanded = phase !== 'settled' && lastSegment?.type !== 'stopped'
+
+  // Guarded render adjust (see sim-hooks): a live turn re-arms the exit latch.
+  if (thinkingExpanded && slotExited) setSlotExited(false)
 
   // The shimmer stands in for the NEXT piece of output and yields the moment
   // output actually arrives: hidden while the trailing text is visibly
@@ -939,6 +960,7 @@ function MessageContentInner({
         // it carries no leftover sibling margin — pt-[10px] is its own gap.
         <div
           aria-hidden={!showShimmer}
+          onTransitionEnd={handleSlotTransitionEnd}
           className={cn(
             'grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none',
             thinkingExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
@@ -957,7 +979,7 @@ function MessageContentInner({
                   showShimmer ? 'opacity-100' : 'opacity-0'
                 )}
               >
-                {thinkingExpanded && <PendingTagIndicator label={thinkingLabel ?? 'Thinking…'} />}
+                {!slotExited && <PendingTagIndicator label={thinkingLabel ?? 'Thinking…'} />}
               </div>
             </div>
           </div>
