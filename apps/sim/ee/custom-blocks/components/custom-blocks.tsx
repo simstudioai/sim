@@ -27,9 +27,10 @@ export function CustomBlocks() {
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
   const workspacePermissions = useUserPermissionsContext()
   const canAdmin = canMutateWorkspaceSettingsSection('custom-blocks', workspacePermissions)
+  const permissionsLoading = workspacePermissions.isLoading
 
   const { data: canManage = false, isLoading } = useCanPublishCustomBlock(workspaceId)
-  const { data: blocks = [], isPending: blocksPending } = useCustomBlocks(workspaceId)
+  const { data: blocks = [] } = useCustomBlocks(workspaceId)
   const { data: workspaces = [] } = useWorkspacesQuery()
 
   /** Publishing requires admin on a source workspace; viewing remains workspace-scoped. */
@@ -64,11 +65,12 @@ export function CustomBlocks() {
   const selectedBlock = selectedBlockId ? blocks.find((b) => b.id === selectedBlockId) : undefined
 
   /**
-   * Hold the first paint while a deep-linked id could still resolve, so a
-   * valid link never flashes the list before jumping to the detail (a dead id
-   * falls back to the list once the blocks load).
+   * Hold the first paint while a deep-linked id could still resolve — the
+   * blocks query (`isLoading`, shared with `useCanPublishCustomBlock`) and the
+   * permissions context both gate the detail, so a valid link never flashes
+   * the list before jumping to it. A dead id still falls back to the list.
    */
-  if (isLoading || (selectedBlockId && canAdmin && blocksPending)) return null
+  if (isLoading || (selectedBlockId !== null && permissionsLoading)) return null
 
   if (!canManage) {
     return (
