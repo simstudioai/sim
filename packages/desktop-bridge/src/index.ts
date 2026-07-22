@@ -31,6 +31,11 @@ export interface SimDesktopBrowserAgentApi {
    */
   setPanelBounds(bounds: BrowserPanelBounds | null): void
   /**
+   * Report whether renderer-owned browser chrome currently owns the user's
+   * interaction context. Optional for compatibility with older desktop builds.
+   */
+  setPanelFocused?(focused: boolean): void
+  /**
    * Hide or reveal the native browser surface without detaching it. Optional
    * so newer web deployments remain compatible with older desktop builds.
    */

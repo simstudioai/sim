@@ -5,6 +5,7 @@ const {
   onPanelSnapshot,
   setPageState,
   setPanelBounds,
+  setPanelFocused,
   setPanelOccluded,
   setPanelSnapshot,
   setSessionAlive,
@@ -16,6 +17,7 @@ const {
   onPanelSnapshot: vi.fn(),
   setPageState: vi.fn(),
   setPanelBounds: vi.fn(),
+  setPanelFocused: vi.fn(),
   setPanelOccluded: vi.fn(),
   setPanelSnapshot: vi.fn(),
   setSessionAlive: vi.fn(),
@@ -36,6 +38,7 @@ vi.mock('@/lib/desktop', () => ({
       onTabsState: vi.fn(),
       panelAction: vi.fn(),
       setPanelBounds,
+      setPanelFocused,
       setPanelOccluded,
       setTheme,
     },
@@ -58,6 +61,7 @@ import {
   initBrowserAgentTransport,
   onBrowserOmniboxFocus,
   reportBrowserPanelBounds,
+  reportBrowserPanelFocused,
   reportBrowserPanelOcclusion,
   reportBrowserTheme,
   resetBrowserPanelOcclusion,
@@ -67,6 +71,7 @@ describe('browser panel transport', () => {
   beforeEach(() => {
     resetBrowserPanelOcclusion()
     setPanelBounds.mockClear()
+    setPanelFocused.mockClear()
     setPanelOccluded.mockClear()
     setTheme.mockClear()
   })
@@ -82,6 +87,13 @@ describe('browser panel transport', () => {
 
     expect(setPanelBounds.mock.calls).toEqual([[initialBounds], [updatedBounds]])
     expect(setPanelOccluded.mock.calls).toEqual([[true], [false]])
+  })
+
+  it('forwards renderer-owned browser chrome focus', () => {
+    reportBrowserPanelFocused(true)
+    reportBrowserPanelFocused(false)
+
+    expect(setPanelFocused.mock.calls).toEqual([[true], [false]])
   })
 
   it('wires captured browser frames into the browser-session store', () => {

@@ -13,6 +13,7 @@ export interface MenuDeps {
   allowHttpLocalhost: () => boolean
   openSettings: () => void
   newChat: () => void
+  closeFocusedBrowserTab: () => boolean
   toggleSidebar: () => void
   signOut: () => void
   checkForUpdates: () => void
@@ -89,7 +90,15 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
       submenu: [
         { label: 'New Chat', accelerator: 'CmdOrCtrl+N', click: deps.newChat },
         { type: 'separator' },
-        { role: 'close' },
+        {
+          label: 'Close Window',
+          accelerator: 'CmdOrCtrl+W',
+          click: (_item, focusedWindow) => {
+            if (deps.closeFocusedBrowserTab()) return
+            const win = focusedWindow ?? deps.getMainWindow()
+            if (win && !win.isDestroyed()) win.close()
+          },
+        },
       ],
     },
     { role: 'editMenu' },

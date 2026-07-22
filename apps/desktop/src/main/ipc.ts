@@ -3,7 +3,12 @@ import type { DesktopNotificationPayload, DesktopWindowState } from '@sim/deskto
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { ipcMain } from 'electron'
 import { executeTool, getTabsState, handlePanelAction } from '@/main/browser-agent/driver'
-import { setBrowserTheme, setPanelBounds, setPanelOccluded } from '@/main/browser-agent/session'
+import {
+  setBrowserTheme,
+  setPanelBounds,
+  setPanelFocused,
+  setPanelOccluded,
+} from '@/main/browser-agent/session'
 import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
@@ -279,6 +284,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         const bounds = parsePanelBounds(raw)
         if (bounds !== undefined) {
           setPanelBounds(bounds)
+        }
+      },
+    },
+    'browser-agent:set-panel-focused': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: (focused) => {
+        if (typeof focused === 'boolean') {
+          setPanelFocused(focused)
         }
       },
     },

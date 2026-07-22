@@ -134,6 +134,11 @@ export function reportBrowserPanelBounds(bounds: BrowserPanelBounds | null): voi
   agent?.setPanelBounds(bounds)
 }
 
+/** Reports whether renderer-owned browser chrome owns the interaction context. */
+export function reportBrowserPanelFocused(focused: boolean): void {
+  bridge()?.setPanelFocused?.(focused)
+}
+
 /**
  * Reports whether renderer-owned UI currently overlaps the native browser
  * surface. New desktop builds hide the still-attached view directly; older

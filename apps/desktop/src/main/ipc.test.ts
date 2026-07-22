@@ -206,6 +206,15 @@ describe('registerIpcHandlers', () => {
     expect(() => handler?.(appEvent, true)).not.toThrow()
   })
 
+  it('restricts browser-panel focus updates to boolean app-origin messages', () => {
+    const { on } = collectHandlers()
+    const handler = on.get('browser-agent:set-panel-focused')
+
+    expect(() => handler?.(evilEvent, true)).not.toThrow()
+    expect(() => handler?.(appEvent, 'yes')).not.toThrow()
+    expect(() => handler?.(appEvent, true)).not.toThrow()
+  })
+
   it('restricts browser theme updates to known app-origin preferences', () => {
     const { on } = collectHandlers()
     const handler = on.get('browser-agent:set-theme')

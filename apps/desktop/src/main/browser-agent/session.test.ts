@@ -17,6 +17,7 @@ interface MockView {
     setWindowOpenHandler: ReturnType<typeof vi.fn>
     loadURL: ReturnType<typeof vi.fn>
     focus: ReturnType<typeof vi.fn>
+    isFocused: ReturnType<typeof vi.fn>
     isDestroyed: ReturnType<typeof vi.fn>
     setBackgroundThrottling: ReturnType<typeof vi.fn>
     capturePage: ReturnType<typeof vi.fn>
@@ -147,6 +148,74 @@ describe('browser-agent session', () => {
     expect(session.listTabs()).toHaveLength(1)
     expect(session.listTabs()[0].tabId).not.toBe(first.id)
     expect(win.webContents.send).toHaveBeenLastCalledWith('browser-agent:focus-omnibox', 'clear')
+  })
+
+  it('closes only the native browser tab targeted by the application menu accelerator', () => {
+    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const first = session.requireTab()
+    const second = session.addTab()
+    const firstContents = (first.view as unknown as MockView).webContents
+    const secondContents = (second.view as unknown as MockView).webContents
+    const focusListener = secondContents.on.mock.calls.find(
+      ([eventName]) => eventName === 'focus'
+    )?.[1] as (() => void) | undefined
+    const blurListener = secondContents.on.mock.calls.find(
+      ([eventName]) => eventName === 'blur'
+    )?.[1] as (() => void) | undefined
+
+    // Menu accelerators can shift Electron's live focus flag before their
+    // click callback runs. The captured owner must survive that synchronous
+    // blur and remain routable for the current event-loop turn.
+    focusListener?.()
+    blurListener?.()
+
+    expect(session.closeFocusedTab()).toBe(true)
+    expect(session.listTabs()).toHaveLength(1)
+    expect(session.listTabs()[0].tabId).toBe(first.id)
+    expect(firstContents.focus).toHaveBeenCalledOnce()
+
+    // Focus ownership transfers with the close, so a repeated Mod+W closes
+    // the newly active tab even if Electron has not emitted its focus event.
+    expect(session.closeFocusedTab()).toBe(true)
+    expect(session.listTabs()).toHaveLength(1)
+    expect(session.listTabs()[0].tabId).not.toBe(first.id)
+
+    // The replacement is an untouched about:blank tab. It still owns the
+    // browser context, so it must not require a page load or another click.
+    const blankTabId = session.listTabs()[0].tabId
+    expect(session.closeFocusedTab()).toBe(true)
+    expect(session.listTabs()).toHaveLength(1)
+    expect(session.listTabs()[0].tabId).not.toBe(blankTabId)
+
+    session.setPanelFocused(false)
+    expect(session.closeFocusedTab()).toBe(false)
+    expect(session.listTabs()).toHaveLength(1)
+  })
+
+  it('treats renderer browser chrome as browser focus', () => {
+    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const first = session.requireTab()
+    const second = session.addTab()
+
+    session.setPanelFocused(true)
+    expect(session.closeFocusedTab()).toBe(true)
+    expect(session.listTabs()).toHaveLength(1)
+    expect(session.listTabs()[0].tabId).toBe(first.id)
+    expect(session.listTabs()[0].tabId).not.toBe(second.id)
+
+    session.setPanelFocused(false)
+    expect(session.closeFocusedTab()).toBe(false)
+  })
+
+  it('retains browser focus while a renderer overlay temporarily occludes the page', () => {
+    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    session.requireTab()
+    session.setPanelFocused(true)
+
+    // Tooltips and browser chrome overlays hide the native surface briefly;
+    // visual occlusion is not a focus change.
+    session.setPanelOccluded(true)
+    expect(session.closeFocusedTab()).toBe(true)
   })
 
   it('only disables hidden-page throttling while browser automation is active', () => {

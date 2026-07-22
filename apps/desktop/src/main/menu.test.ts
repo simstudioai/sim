@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import type { MenuItemConstructorOptions } from 'electron'
+import { BrowserWindow, type MenuItemConstructorOptions } from 'electron'
 import type { ConfigStore } from '@/main/config'
 import { buildMenuTemplate, type MenuDeps } from '@/main/menu'
 
@@ -19,6 +19,7 @@ function makeDeps(): MenuDeps {
     allowHttpLocalhost: vi.fn(() => false),
     openSettings: vi.fn(),
     newChat: vi.fn(),
+    closeFocusedBrowserTab: vi.fn(() => false),
     toggleSidebar: vi.fn(),
     signOut: vi.fn(),
     checkForUpdates: vi.fn(),
@@ -62,7 +63,7 @@ describe('buildMenuTemplate', () => {
     expect(submenu(template, 'File').map((item) => item.label ?? item.role ?? item.type)).toEqual([
       'New Chat',
       'separator',
-      'close',
+      'Close Window',
     ])
     expect(submenu(template, 'View').map((item) => item.label ?? item.role ?? item.type)).toEqual([
       'Toggle Sidebar',
@@ -85,5 +86,30 @@ describe('buildMenuTemplate', () => {
   it('never exposes developer tools in the application menu', () => {
     const view = submenu(buildMenuTemplate(makeDeps()), 'View')
     expect(view.some((item) => item.role === 'toggleDevTools')).toBe(false)
+  })
+
+  it('routes the close accelerator through the focused browser tab before closing a window', () => {
+    const closeFocusedBrowserTab = vi.fn(() => true)
+    const deps = Object.assign(makeDeps(), { closeFocusedBrowserTab })
+    const closeItem = submenu(buildMenuTemplate(deps), 'File').find(
+      (item) => item.accelerator === 'CmdOrCtrl+W'
+    )
+    const focusedWindow = new BrowserWindow()
+
+    expect(closeItem).toMatchObject({ label: 'Close Window', accelerator: 'CmdOrCtrl+W' })
+    expect(closeItem?.role).toBeUndefined()
+
+    const click = closeItem?.click as unknown as (
+      menuItem: unknown,
+      browserWindow: BrowserWindow
+    ) => void
+    click({}, focusedWindow)
+
+    expect(closeFocusedBrowserTab).toHaveBeenCalledOnce()
+    expect(focusedWindow.close).not.toHaveBeenCalled()
+
+    closeFocusedBrowserTab.mockReturnValue(false)
+    click({}, focusedWindow)
+    expect(focusedWindow.close).toHaveBeenCalledOnce()
   })
 })

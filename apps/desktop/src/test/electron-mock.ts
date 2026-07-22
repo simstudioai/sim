@@ -153,6 +153,7 @@ function createWebContentsMock() {
     loadURL: vi.fn(() => Promise.resolve()),
     reload: vi.fn(),
     focus: vi.fn(),
+    isFocused: vi.fn(() => false),
     close: vi.fn(),
     isDestroyed: vi.fn(() => false),
     isLoading: vi.fn(() => false),

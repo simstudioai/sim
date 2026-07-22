@@ -8,6 +8,7 @@ import { useTheme } from 'next-themes'
 import {
   onBrowserOmniboxFocus,
   reportBrowserPanelBounds,
+  reportBrowserPanelFocused,
   reportBrowserTheme,
   sendBrowserPanelAction,
 } from '@/lib/browser-agent/transport'
@@ -42,6 +43,30 @@ export function resolveUrlBarInput(raw: string): string {
   return `https://www.google.com/search?q=${encodeURIComponent(input)}`
 }
 
+/**
+ * Tracks interaction ownership for renderer-owned browser chrome. The native
+ * page reports its own focus from Electron; this covers the tab strip,
+ * omnibox, controls, and the initial resource selection before they are used.
+ */
+export function trackBrowserPanelFocus(
+  panel: HTMLElement,
+  reportFocus: (focused: boolean) => void
+): () => void {
+  reportFocus(true)
+  const updateFocusOwner = (target: EventTarget | null) => {
+    reportFocus(target instanceof Node && panel.contains(target))
+  }
+  const handlePointerDown = (event: PointerEvent) => updateFocusOwner(event.target)
+  const handleFocusIn = (event: FocusEvent) => updateFocusOwner(event.target)
+  document.addEventListener('pointerdown', handlePointerDown, true)
+  document.addEventListener('focusin', handleFocusIn, true)
+  return () => {
+    document.removeEventListener('pointerdown', handlePointerDown, true)
+    document.removeEventListener('focusin', handleFocusIn, true)
+    reportFocus(false)
+  }
+}
+
 /** Re-report unchanged bounds before the main-process visibility lease expires. */
 const PANEL_HEARTBEAT_INTERVAL_MS = 1_000
 
@@ -53,6 +78,7 @@ export function BrowserSession() {
   const tabsSupported = useBrowserSessionStore((state) => state.tabsSupported)
   const panelSnapshot = useBrowserSessionStore((state) => state.panelSnapshot)
   const sessionAlive = useBrowserSessionStore((state) => state.sessionAlive)
+  const panelRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
   const panelOccluded = useBrowserPanelOcclusion(hostRef)
@@ -66,6 +92,12 @@ export function BrowserSession() {
       reportBrowserTheme(theme)
     }
   }, [theme])
+
+  useEffect(() => {
+    const panel = panelRef.current
+    if (!panel) return
+    return trackBrowserPanelFocus(panel, reportBrowserPanelFocused)
+  }, [])
 
   useEffect(() => {
     let focusRaf: number | null = null
@@ -180,7 +212,7 @@ export function BrowserSession() {
   }, [])
 
   return (
-    <div className='flex h-full flex-col overflow-hidden'>
+    <div ref={panelRef} className='flex h-full flex-col overflow-hidden'>
       {tabsSupported && (
         <BrowserTabStrip
           tabs={tabs}

@@ -3,7 +3,10 @@ import { createLogger } from '@sim/logger'
 import type { BrowserWindow } from 'electron'
 import { app, crashReporter, net, session } from 'electron'
 import { initDriver as initBrowserAgentDriver } from '@/main/browser-agent/driver'
-import { setPanelBounds as setBrowserAgentPanelBounds } from '@/main/browser-agent/session'
+import {
+  closeFocusedTab as closeFocusedBrowserTab,
+  setPanelBounds as setBrowserAgentPanelBounds,
+} from '@/main/browser-agent/session'
 import { createConfigStore, partitionForOrigin } from '@/main/config'
 import { attachContextMenu } from '@/main/context-menu'
 import { attachCspFallback } from '@/main/csp'
@@ -356,6 +359,7 @@ function main(): void {
       allowHttpLocalhost,
       openSettings,
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
+      closeFocusedBrowserTab,
       toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
       signOut: () => void signOutFromMenu(),
       checkForUpdates: () => checkForUpdatesInteractive({ getWindow: getMainWindow, events }),

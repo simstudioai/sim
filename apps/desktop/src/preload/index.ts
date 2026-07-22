@@ -100,6 +100,9 @@ const api: SimDesktopApi = {
     setPanelBounds: (bounds: BrowserPanelBounds | null): void => {
       ipcRenderer.send('browser-agent:set-panel-bounds', bounds)
     },
+    setPanelFocused: (focused: boolean): void => {
+      ipcRenderer.send('browser-agent:set-panel-focused', focused)
+    },
     setPanelOccluded: (occluded: boolean): void => {
       ipcRenderer.send('browser-agent:set-panel-occluded', occluded)
     },

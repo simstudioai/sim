@@ -98,6 +98,9 @@ let events: AgentSessionEvents | null = null
 let getMainWindow: () => BrowserWindow | null = () => null
 /** Where the panel sits in the main window (CSS px); null = panel hidden. */
 let panelBounds: BrowserPanelBounds | null = null
+/** Browser-resource focus, including native pages and renderer-owned chrome. */
+let focusedBrowserTabId: string | null = null
+let focusedBrowserClearTimer: ReturnType<typeof setTimeout> | null = null
 /** True while renderer-owned UI overlaps the native browser surface. */
 let panelOccluded = false
 let panelLeaseAt = 0
@@ -189,6 +192,29 @@ function createTabView(): WebContentsView {
   registerAgentWebContents(contents)
   configureAgentPartition(contents.session)
 
+  contents.on('focus', () => {
+    if (focusedBrowserClearTimer !== null) {
+      clearTimeout(focusedBrowserClearTimer)
+      focusedBrowserClearTimer = null
+    }
+    const tab = tabs.find((entry) => entry.view.webContents === contents)
+    focusedBrowserTabId = tab?.id ?? activeTabId
+  })
+  contents.on('blur', () => {
+    const tab = tabs.find((entry) => entry.view.webContents === contents)
+    if (!tab || focusedBrowserTabId !== tab.id) return
+    if (focusedBrowserClearTimer !== null) clearTimeout(focusedBrowserClearTimer)
+    // Electron can emit blur while resolving an application-menu accelerator.
+    // Defer the clear for one event-loop turn so the synchronous menu callback
+    // can still identify which native tab owned the keystroke.
+    focusedBrowserClearTimer = setTimeout(() => {
+      focusedBrowserClearTimer = null
+      if (focusedBrowserTabId === tab.id && !contents.isFocused()) {
+        focusedBrowserTabId = null
+      }
+    }, 0)
+  })
+
   // Keep popups inside the browser resource: http(s) window.open and
   // target=_blank requests become a new internal tab, never a native window.
   contents.setWindowOpenHandler((details) => {
@@ -228,15 +254,7 @@ function createTabView(): WebContentsView {
     }
 
     const tab = tabs.find((entry) => entry.view === view)
-    if (!tab) return
-    const closingLastTab = listTabs().length === 1
-    closeTab(tab.id)
-    const active = activeTab()
-    if (closingLastTab || !active || !active.view.webContents.getURL()) {
-      focusRendererOmnibox('clear')
-    } else {
-      active.view.webContents.focus()
-    }
+    if (tab) closeTabFromUser(tab.id)
   })
 
   events?.onTabCreated(contents)
@@ -319,6 +337,8 @@ function detachAttachedView(): void {
   hostedWindow = null
   lastAppliedBounds = ''
   lastAppliedVisibility = null
+  const detachedTab = tabs.find((tab) => tab.view === view)
+  clearFocusedBrowserTab(detachedTab?.id)
 
   if (!view || !win) return
   try {
@@ -473,10 +493,13 @@ export function addTab(): AgentTab {
   if (tabs.filter((tab) => !tab.view.webContents.isDestroyed()).length >= MAX_BROWSER_TABS) {
     throw new SessionError(`The browser supports up to ${MAX_BROWSER_TABS} open tabs.`)
   }
+  const transferBrowserFocus =
+    focusedBrowserTabId !== null || tabs.some((tab) => tab.view.webContents.isFocused())
   const tab: AgentTab = { id: String(nextTabId++), view: createTabView() }
   tabs.push(tab)
   activeTabId = tab.id
   layout()
+  if (transferBrowserFocus) focusedBrowserTabId = tab.id
   events?.onActiveTabChanged(tab.view.webContents)
   events?.onTabsChanged()
   return tab
@@ -485,8 +508,11 @@ export function addTab(): AgentTab {
 export function switchTab(tabId: string): AgentTab {
   const tab = tabs.find((entry) => entry.id === tabId)
   if (!tab) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
+  const transferBrowserFocus =
+    focusedBrowserTabId !== null || tabs.some((entry) => entry.view.webContents.isFocused())
   activeTabId = tab.id
   layout()
+  if (transferBrowserFocus) focusedBrowserTabId = tab.id
   events?.onActiveTabChanged(tab.view.webContents)
   events?.onTabsChanged()
   return tab
@@ -496,6 +522,8 @@ export function closeTab(tabId: string): void {
   const index = tabs.findIndex((entry) => entry.id === tabId)
   if (index < 0) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
   const [tab] = tabs.splice(index, 1)
+  const transferBrowserFocus = focusedBrowserTabId === tab.id || tab.view.webContents.isFocused()
+  clearFocusedBrowserTab(tab.id)
   if (attachedView === tab.view) {
     detachAttachedView()
   }
@@ -512,12 +540,65 @@ export function closeTab(tabId: string): void {
   // empty strip. Replace it with a fresh New tab, matching normal browser UI.
   if (!hasSession() && panelBounds !== null) {
     addTab()
+    if (transferBrowserFocus) focusedBrowserTabId = activeTabId
     return
   }
+  if (transferBrowserFocus) focusedBrowserTabId = activeTabId
   events?.onTabsChanged()
   if (!hasSession()) {
     events?.onSessionClosed()
   }
+}
+
+/**
+ * Closes the active tab when the browser resource currently owns the user's
+ * interaction context. Application menu accelerators run before a
+ * WebContentsView's `before-input-event`, so Mod+W must route through this
+ * function instead of Electron's global close role. Returns false when focus
+ * belongs to the rest of the app.
+ */
+export function closeFocusedTab(): boolean {
+  const focusedTab = tabs.find(
+    (tab) =>
+      !tab.view.webContents.isDestroyed() &&
+      (tab.id === focusedBrowserTabId || tab.view.webContents.isFocused())
+  )
+  if (!focusedTab) return false
+  closeTabFromUser(focusedTab.id)
+  return true
+}
+
+/** Marks renderer-owned browser chrome as focused or releases browser focus. */
+export function setPanelFocused(focused: boolean): void {
+  if (!focused) {
+    clearFocusedBrowserTab()
+    return
+  }
+  if (focusedBrowserClearTimer !== null) {
+    clearTimeout(focusedBrowserClearTimer)
+    focusedBrowserClearTimer = null
+  }
+  focusedBrowserTabId = activeTab()?.id ?? null
+}
+
+function clearFocusedBrowserTab(tabId?: string): void {
+  if (tabId && focusedBrowserTabId !== tabId) return
+  if (focusedBrowserClearTimer !== null) {
+    clearTimeout(focusedBrowserClearTimer)
+    focusedBrowserClearTimer = null
+  }
+  focusedBrowserTabId = null
+}
+
+function closeTabFromUser(tabId: string): void {
+  const closingLastTab = listTabs().length === 1
+  closeTab(tabId)
+  const active = activeTab()
+  if (closingLastTab || !active || !active.view.webContents.getURL()) {
+    focusRendererOmnibox('clear')
+    return
+  }
+  active.view.webContents.focus()
 }
 
 export function listTabs(): BrowserTabState[] {
