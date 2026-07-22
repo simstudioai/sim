@@ -37,6 +37,47 @@ export interface GuardedMcpFetch {
  * (incl. the SSE connection) on disconnect.
  */
 /**
+ * Byte ceiling for a single request/response exchange on the transport (JSON-RPC
+ * results, `initialize`). A hostile server could otherwise stream an unbounded
+ * `tools/call` body and OOM the process. Applied ONLY to non-GET responses — the
+ * standalone GET SSE notification stream is deliberately long-lived and would be
+ * broken by a cumulative cap. Mirrors LibreChat's transport response-size cap.
+ */
+const MAX_TRANSPORT_RESPONSE_BYTES = 16 * 1024 * 1024
+
+/** True for the standalone server→client SSE stream (GET), which must stay uncapped. */
+function isStandaloneStream(method: string): boolean {
+  return method.toUpperCase() === 'GET'
+}
+
+/**
+ * Wraps a response so its body errors once it exceeds `maxBytes`, without buffering —
+ * bytes are counted as they stream, so an oversized body aborts the SDK's read instead
+ * of accumulating in memory. Passthrough for normal-sized responses.
+ */
+function capResponseBody(response: Response, maxBytes: number): Response {
+  if (!response.body) return response
+  let seen = 0
+  const limited = response.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        seen += chunk.byteLength
+        if (seen > maxBytes) {
+          controller.error(new McpError(`MCP response body exceeded ${maxBytes} bytes`))
+          return
+        }
+        controller.enqueue(chunk)
+      },
+    })
+  )
+  return new Response(limited, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  })
+}
+
+/**
  * Legacy single-IP pin, kept ONLY for self-hosted private/loopback resolutions
  * (a DNS alias the policy explicitly permits): the guarded lookup would filter
  * the address and strand the connect, while an unguarded fallback would reopen
@@ -45,7 +86,14 @@ export interface GuardedMcpFetch {
  */
 export function createPinnedPrivateMcpFetch(resolvedIP: string): GuardedMcpFetch {
   const { fetch: pinnedFetch, dispatcher } = createPinnedFetchWithDispatcher(resolvedIP)
-  return { fetch: pinnedFetch, close: () => dispatcher.destroy() }
+  const capped: typeof fetch = async (input, init) => {
+    const method = init?.method ?? (input instanceof Request ? input.method : 'GET')
+    const response = await pinnedFetch(input, init)
+    return isStandaloneStream(method)
+      ? response
+      : capResponseBody(response, MAX_TRANSPORT_RESPONSE_BYTES)
+  }
+  return { fetch: capped, close: () => dispatcher.destroy() }
 }
 
 export function createGuardedMcpFetch(): GuardedMcpFetch {
@@ -75,7 +123,9 @@ export function createGuardedMcpFetch(): GuardedMcpFetch {
         status: response.status,
         ttfbMs: Date.now() - startedAt,
       })
-      return response
+      return isStandaloneStream(method)
+        ? response
+        : capResponseBody(response, MAX_TRANSPORT_RESPONSE_BYTES)
     } catch (error) {
       const e = error as { name?: string; code?: string; cause?: { name?: string; code?: string } }
       transportLogger.warn('MCP transport request failed', {
