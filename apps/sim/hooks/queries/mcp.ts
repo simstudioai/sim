@@ -527,6 +527,12 @@ const sseConnections: Map<string, SseEntry> =
   ((globalThis as Record<string, unknown>)[SSE_KEY] as Map<string, SseEntry>) ??
   ((globalThis as Record<string, unknown>)[SSE_KEY] = new Map<string, SseEntry>())
 
+/** Per-workspace flag: has this session ever held a live SSE subscription for it? */
+const SSE_SUBSCRIBED_KEY = '__mcp_sse_subscribed' as const
+const sseEverSubscribed: Set<string> =
+  ((globalThis as Record<string, unknown>)[SSE_SUBSCRIBED_KEY] as Set<string>) ??
+  ((globalThis as Record<string, unknown>)[SSE_SUBSCRIBED_KEY] = new Set<string>())
+
 /** Subscribes to `tools_changed` SSE events and invalidates the affected query keys. */
 export function useMcpToolsEvents(workspaceId: string) {
   const queryClient = useQueryClient()
@@ -563,12 +569,16 @@ export function useMcpToolsEvents(workspaceId: string) {
         invalidate(serverId)
       })
 
-      // EventSource fires `onopen` on the initial connect and on every auto-reconnect. A
-      // reconnect may have missed a `tools_changed` event during the gap, so re-sync the
-      // whole workspace on reconnect (never on the first open — the query already fetched).
+      // EventSource fires `onopen` on the initial connect and on every auto-reconnect. Re-sync
+      // the workspace whenever we could have missed a `tools_changed` event: on any reconnect,
+      // and on the first open of a RE-subscription (leaving the tab tears the connection down,
+      // so events fired while unsubscribed would otherwise be missed). Skip only the very first
+      // subscription of the session — the queries fetch fresh on their own initial mount.
+      const isResubscribe = sseEverSubscribed.has(workspaceId)
+      sseEverSubscribed.add(workspaceId)
       let opened = false
       source.onopen = () => {
-        if (opened) invalidate()
+        if (opened || isResubscribe) invalidate()
         opened = true
       }
 
