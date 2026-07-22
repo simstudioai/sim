@@ -11,9 +11,10 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { isPrivateOrReservedIP } from '@/lib/core/security/input-validation.server'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
-import { createPinnedMcpFetch } from '@/lib/mcp/pinned-fetch'
+import { createGuardedMcpFetch, createPinnedPrivateMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
   type McpClientOptions,
   McpConnectionError,
@@ -73,7 +74,7 @@ export class McpClient {
   private onToolsChanged?: McpToolsChangedCallback
   private authProvider?: McpClientOptions['authProvider']
   private isConnected = false
-  private closePinnedTransport?: () => Promise<void>
+  private closeGuardedTransport?: () => Promise<void>
 
   constructor(options: McpClientOptions) {
     this.config = options.config
@@ -96,12 +97,21 @@ export class McpClient {
       throw new McpError('OAuth MCP server requires an authProvider')
     }
     const useOauth = this.config.authType === 'oauth'
-    const pinned = resolvedIP ? createPinnedMcpFetch(resolvedIP) : undefined
-    this.closePinnedTransport = pinned?.close
+    // `resolvedIP` non-null signals the SSRF policy is active for this server (it is null in
+    // allowlist mode / localhost-on-self-hosted); the guard validates addresses per-connect.
+    // A private/loopback resolvedIP only reaches here on self-hosted (where the policy
+    // permits it) — the guarded lookup would filter it, so that case keeps the legacy pin
+    // to the validated address (old behavior + its anti-rebinding property).
+    const guarded = resolvedIP
+      ? isPrivateOrReservedIP(resolvedIP)
+        ? createPinnedPrivateMcpFetch(resolvedIP)
+        : createGuardedMcpFetch()
+      : undefined
+    this.closeGuardedTransport = guarded?.close
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
       requestInit: { headers: this.config.headers },
-      ...(pinned ? { fetch: pinned.fetch } : {}),
+      ...(guarded ? { fetch: guarded.fetch } : {}),
     })
 
     this.client = new Client(
@@ -228,16 +238,16 @@ export class McpClient {
   }
 
   /**
-   * Tears down the pinned transport's HTTP/2 Agent, releasing its sockets. Must run
+   * Tears down the guarded transport's Agent, releasing its sockets. Must run
    * on every terminal path — successful disconnect, and failed or cancelled connect —
    * since a failed `connect()` discards this client without a `disconnect()` call.
    * Idempotent: the handle is cleared before use so repeat calls (a failed connect
    * followed by the caller's `disconnect()`) never destroy the same Agent twice.
    */
   private async closeTransportAgent(): Promise<void> {
-    const close = this.closePinnedTransport
+    const close = this.closeGuardedTransport
     if (!close) return
-    this.closePinnedTransport = undefined
+    this.closeGuardedTransport = undefined
     try {
       await close()
     } catch (error) {
