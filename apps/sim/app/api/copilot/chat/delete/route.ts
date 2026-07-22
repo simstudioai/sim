@@ -35,6 +35,16 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ success: true })
     }
 
+    // Mothership (sidebar) chats are soft-deleted through their own route so
+    // they land in Recently Deleted — this legacy hard-delete must not bypass
+    // that.
+    if (chat.type === 'mothership') {
+      return NextResponse.json(
+        { success: false, error: 'Use the mothership chat delete endpoint' },
+        { status: 400 }
+      )
+    }
+
     const [deleted] = await db
       .delete(copilotChats)
       .where(and(eq(copilotChats.id, parsed.chatId), eq(copilotChats.userId, session.user.id)))
