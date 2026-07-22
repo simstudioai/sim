@@ -5,8 +5,13 @@ import {
   type WorkflowReferencesResponse,
 } from '@/lib/api/contracts/workflow-references'
 
-/** Short — the graph reflects live editor state and should stay fresh on reopen. */
-export const WORKFLOW_REFERENCES_STALE_TIME = 30 * 1000
+/**
+ * Zero — the graph reflects live editor state (workflow blocks/names can change
+ * between opens). The modal stays mounted with the query disabled while closed, so
+ * a non-zero window would serve a cached graph on reopen without refetching. Zero
+ * marks the data stale immediately, forcing a refetch each time the modal reopens.
+ */
+export const WORKFLOW_REFERENCES_STALE_TIME = 0
 
 export const workflowReferenceKeys = {
   all: ['workflow-references'] as const,

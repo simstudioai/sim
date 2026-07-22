@@ -4,6 +4,11 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, like, or, sql } from 'drizzle-orm'
 import type { ReferenceNode } from '@/lib/api/contracts/workflow-references'
 import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
+import {
+  type CanonicalGroup,
+  type CanonicalModeOverrides,
+  resolveActiveCanonicalValue,
+} from '@/lib/workflows/subblocks/visibility'
 import { CUSTOM_BLOCK_TYPE_PREFIX } from '@/blocks/custom/build-config'
 import { BlockType, isWorkflowBlockType } from '@/executor/constants'
 
@@ -15,6 +20,18 @@ const logger = createLogger('WorkflowReferences')
  * this is a belt-and-suspenders bound on pathological graphs.
  */
 const MAX_REFERENCE_DEPTH = 25
+
+/**
+ * The `workflowId` canonical pair on a workflow / workflow_input block: the basic
+ * `workflowId` selector and the advanced `manualWorkflowId` input. Used with
+ * {@link resolveActiveCanonicalValue} so the reference resolves to the value of the
+ * block's ACTIVE mode — never a dormant mode's retained (stale) value.
+ */
+const WORKFLOW_ID_CANONICAL_GROUP: CanonicalGroup = {
+  canonicalId: 'workflowId',
+  basicId: 'workflowId',
+  advancedIds: ['manualWorkflowId'],
+}
 
 /** A workspace-local, non-archived workflow node. */
 export interface WorkflowNode {
@@ -30,6 +47,11 @@ export interface ReferenceBlockRow {
   childFromSelector: string | null
   /** `manualWorkflowId` sub-block value (advanced mode), if a workflow block. */
   childFromManual: string | null
+  /**
+   * The block's `data.canonicalModes` override (basic/advanced per canonical id),
+   * used to pick the active `workflowId` value. Absent for most blocks.
+   */
+  canonicalModes: CanonicalModeOverrides | null
 }
 
 /** A custom-block type slug bound to its source workflow. */
@@ -56,8 +78,11 @@ interface ReferenceGraph {
  * - **custom blocks** (`custom_block_<id>`), whose type slug maps to a bound
  *   source workflow via `customBlocks`.
  *
- * Edges are scoped to workspace-local, non-archived workflows: self-references,
- * empty values, and ids outside `workflows` are dropped.
+ * The workflow-block child is the value of the block's ACTIVE mode
+ * ({@link resolveActiveCanonicalValue}), so a dormant basic/advanced value can't
+ * mask the live one. Edges are scoped to workspace-local, non-archived workflows;
+ * empty values and ids outside `workflows` are dropped. A workflow that calls
+ * itself is kept — the tree builder renders it as a `cycle` leaf.
  */
 export function buildReferenceGraph(
   workflows: WorkflowNode[],
@@ -74,7 +99,7 @@ export function buildReferenceGraph(
   const reverse = new Map<string, Set<string>>()
 
   const addEdge = (parentId: string, childId: string) => {
-    if (!childId || childId === parentId) return
+    if (!childId) return
     if (!nameById.has(parentId) || !nameById.has(childId)) return
     if (!forward.has(parentId)) forward.set(parentId, new Set())
     forward.get(parentId)?.add(childId)
@@ -84,8 +109,12 @@ export function buildReferenceGraph(
 
   for (const block of blocks) {
     if (isWorkflowBlockType(block.type)) {
-      const childId = block.childFromSelector || block.childFromManual
-      if (childId) addEdge(block.parentId, childId)
+      const active = resolveActiveCanonicalValue(
+        WORKFLOW_ID_CANONICAL_GROUP,
+        { workflowId: block.childFromSelector, manualWorkflowId: block.childFromManual },
+        block.canonicalModes ?? undefined
+      )
+      if (typeof active === 'string' && active) addEdge(block.parentId, active)
       continue
     }
     const sourceId = sourceByCustomType.get(block.type)
@@ -97,9 +126,14 @@ export function buildReferenceGraph(
 
 /**
  * Expand a direction of the graph into a tree rooted at `rootId`. `adjacency` is
- * either the forward (callees) or reverse (callers) map. A node already on the
- * current DFS path is emitted as a `cycle: true` leaf and not re-expanded, so
- * `A → B → A` terminates. Children are sorted by name for stable rendering.
+ * either the forward (callees) or reverse (callers) map.
+ *
+ * A node already on the current DFS path is emitted as a `cycle: true` leaf and
+ * not re-expanded, so `A → B → A` (and a self-call `A → A`) terminates. A node
+ * already fully expanded elsewhere in this tree (reachable via another acyclic
+ * path — a diamond) is emitted once more as a plain leaf without re-expanding its
+ * subtree: the edge stays visible, but a densely reconverging graph can't blow up
+ * exponentially. Children are sorted by name for stable rendering.
  */
 function buildTree(
   rootId: string,
@@ -107,6 +141,7 @@ function buildTree(
   nameById: Map<string, string>
 ): ReferenceNode[] {
   const path = new Set<string>([rootId])
+  const expanded = new Set<string>()
 
   const expand = (id: string, depth: number): ReferenceNode[] => {
     if (depth >= MAX_REFERENCE_DEPTH) return []
@@ -126,6 +161,11 @@ function buildTree(
         nodes.push({ id: childId, name, cycle: true, children: [] })
         continue
       }
+      if (expanded.has(childId)) {
+        nodes.push({ id: childId, name, cycle: false, children: [] })
+        continue
+      }
+      expanded.add(childId)
       path.add(childId)
       nodes.push({ id: childId, name, cycle: false, children: expand(childId, depth + 1) })
       path.delete(childId)
@@ -185,6 +225,7 @@ export async function getWorkflowReferences(
         childFromManual: sql<
           string | null
         >`${workflowBlocks.subBlocks} -> 'manualWorkflowId' ->> 'value'`,
+        canonicalModes: sql<CanonicalModeOverrides | null>`${workflowBlocks.data} -> 'canonicalModes'`,
       })
       .from(workflowBlocks)
       .innerJoin(workflow, eq(workflow.id, workflowBlocks.workflowId))

@@ -27,6 +27,7 @@ function workflowBlock(
     type,
     childFromSelector: mode === 'basic' ? childId : null,
     childFromManual: mode === 'manual' ? childId : null,
+    canonicalModes: null,
   }
 }
 
@@ -65,6 +66,22 @@ describe('resolveWorkflowReferences', () => {
     expect(callees.map((n) => n.id)).toEqual(['b'])
   })
 
+  it('uses the active mode, not a retained inactive value', () => {
+    // Advanced mode active (canonicalModes override), but a stale basic value
+    // (`b`) lingers. Must resolve to the advanced value (`c`), not the stale basic.
+    const blocks: ReferenceBlockRow[] = [
+      {
+        parentId: 'a',
+        type: 'workflow',
+        childFromSelector: 'b',
+        childFromManual: 'c',
+        canonicalModes: { workflowId: 'advanced' },
+      },
+    ]
+    const { callees } = resolveWorkflowReferences('a', workflows, blocks, [])
+    expect(callees.map((n) => n.id)).toEqual(['c'])
+  })
+
   it('marks cycles as leaves and stops recursing', () => {
     // A → B → A
     const blocks = [workflowBlock('a', 'b'), workflowBlock('b', 'a')]
@@ -76,11 +93,30 @@ describe('resolveWorkflowReferences', () => {
     expect(callees[0].children[0]).toMatchObject({ id: 'a', cycle: true, children: [] })
   })
 
-  it('drops self-references', () => {
+  it('shows a self-reference as a cycle leaf', () => {
+    // A → A: the reference is real and belongs in the cycle-safe viewer.
     const blocks = [workflowBlock('a', 'a')]
     const { callers, callees } = resolveWorkflowReferences('a', workflows, blocks, [])
-    expect(callers).toEqual([])
-    expect(callees).toEqual([])
+    expect(callees).toEqual([{ id: 'a', name: 'A', cycle: true, children: [] }])
+    expect(callers).toEqual([{ id: 'a', name: 'A', cycle: true, children: [] }])
+  })
+
+  it('bounds converging paths (diamond) instead of re-expanding', () => {
+    // A → B, A → C, B → D, C → D. D reconverges; it must appear under both B and C
+    // but only expand once (here D is a leaf anyway; the guard prevents blow-up).
+    const blocks = [
+      workflowBlock('a', 'b'),
+      workflowBlock('a', 'c'),
+      workflowBlock('b', 'd'),
+      workflowBlock('c', 'd'),
+    ]
+    const { callees } = resolveWorkflowReferences('a', workflows, blocks, [])
+    const b = callees.find((n) => n.id === 'b')
+    const c = callees.find((n) => n.id === 'c')
+    // D expands under the first-visited branch (B) and is a plain leaf under C.
+    expect(b?.children.map((n) => n.id)).toEqual(['d'])
+    expect(c?.children.map((n) => n.id)).toEqual(['d'])
+    expect(c?.children[0]).toMatchObject({ id: 'd', cycle: false, children: [] })
   })
 
   it('drops dangling / out-of-workspace child ids', () => {
@@ -92,7 +128,13 @@ describe('resolveWorkflowReferences', () => {
   it('resolves references made through custom blocks', () => {
     // D places custom_block_x, which is bound to source workflow C.
     const blocks: ReferenceBlockRow[] = [
-      { parentId: 'd', type: 'custom_block_x', childFromSelector: null, childFromManual: null },
+      {
+        parentId: 'd',
+        type: 'custom_block_x',
+        childFromSelector: null,
+        childFromManual: null,
+        canonicalModes: null,
+      },
     ]
     const customBlocks: CustomBlockLink[] = [{ type: 'custom_block_x', workflowId: 'c' }]
 
@@ -110,6 +152,7 @@ describe('resolveWorkflowReferences', () => {
         type: 'custom_block_unknown',
         childFromSelector: null,
         childFromManual: null,
+        canonicalModes: null,
       },
     ]
     const { callees } = resolveWorkflowReferences('d', workflows, blocks, [])
