@@ -1,47 +1,22 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { user } from '@sim/db/schema'
+import { dbChainMock, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getMothershipBaseURL,
   getMothershipSourceEnvHeaders,
   MOTHERSHIP_SOURCE_ENV_HEADER,
 } from './agent-url'
 
-const { dbMock, envMock, mockRows } = vi.hoisted(() => {
-  const mockRows: any[] = []
-  const dbMock = {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        leftJoin: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(async () => mockRows),
-          })),
-        })),
-      })),
-    })),
-  }
-  const envMock = {
+const { envMock } = vi.hoisted(() => ({
+  envMock: {
     COPILOT_DEV_URL: 'https://dev.mothership.test',
     COPILOT_STAGING_URL: 'https://staging.mothership.test',
     COPILOT_PROD_URL: 'https://prod.mothership.test',
     COPILOT_SOURCE_ENV: undefined as string | undefined,
-  }
-  return { dbMock, envMock, mockRows }
-})
+  },
+}))
 
-vi.mock('@sim/db', () => ({ db: dbMock }))
-vi.mock('@sim/db/schema', () => ({
-  settings: {
-    userId: 'settings.userId',
-    superUserModeEnabled: 'settings.superUserModeEnabled',
-    mothershipEnvironment: 'settings.mothershipEnvironment',
-  },
-  user: {
-    id: 'user.id',
-    role: 'user.role',
-  },
-}))
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn(() => ({})),
-}))
+vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/api/contracts', () => ({
   mothershipEnvironmentSchema: {
     safeParse: (value: unknown) =>
@@ -60,9 +35,13 @@ vi.mock('@/lib/core/config/env', () => ({
 
 describe('getMothershipBaseURL', () => {
   beforeEach(() => {
-    mockRows.length = 0
-    dbMock.select.mockClear()
+    vi.clearAllMocks()
+    resetDbChainMock()
     envMock.COPILOT_SOURCE_ENV = undefined
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('uses the default URL when there is no user context', async () => {
@@ -73,11 +52,9 @@ describe('getMothershipBaseURL', () => {
   })
 
   it('ignores stored and explicit environments for non-admin users', async () => {
-    mockRows.push({
-      role: 'user',
-      superUserModeEnabled: true,
-      mothershipEnvironment: 'dev',
-    })
+    queueTableRows(user, [
+      { role: 'user', superUserModeEnabled: true, mothershipEnvironment: 'dev' },
+    ])
 
     await expect(getMothershipBaseURL({ userId: 'user-1', environment: 'staging' })).resolves.toBe(
       'https://default.mothership.test'
@@ -85,11 +62,9 @@ describe('getMothershipBaseURL', () => {
   })
 
   it('ignores stored and explicit environments when super user mode is off', async () => {
-    mockRows.push({
-      role: 'admin',
-      superUserModeEnabled: false,
-      mothershipEnvironment: 'dev',
-    })
+    queueTableRows(user, [
+      { role: 'admin', superUserModeEnabled: false, mothershipEnvironment: 'dev' },
+    ])
 
     await expect(getMothershipBaseURL({ userId: 'admin-1', environment: 'prod' })).resolves.toBe(
       'https://default.mothership.test'
@@ -97,11 +72,9 @@ describe('getMothershipBaseURL', () => {
   })
 
   it('uses default for super admins until they select a concrete environment', async () => {
-    mockRows.push({
-      role: 'admin',
-      superUserModeEnabled: true,
-      mothershipEnvironment: 'default',
-    })
+    queueTableRows(user, [
+      { role: 'admin', superUserModeEnabled: true, mothershipEnvironment: 'default' },
+    ])
 
     await expect(getMothershipBaseURL({ userId: 'admin-1' })).resolves.toBe(
       'https://default.mothership.test'
@@ -109,11 +82,13 @@ describe('getMothershipBaseURL', () => {
   })
 
   it('allows effective super admins to use a selected environment', async () => {
-    mockRows.push({
+    const superAdminRow = {
       role: 'admin',
       superUserModeEnabled: true,
       mothershipEnvironment: 'dev',
-    })
+    }
+    queueTableRows(user, [superAdminRow])
+    queueTableRows(user, [superAdminRow])
 
     await expect(getMothershipBaseURL({ userId: 'admin-1' })).resolves.toBe(
       'https://dev.mothership.test'

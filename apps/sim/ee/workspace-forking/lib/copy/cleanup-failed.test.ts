@@ -2,72 +2,14 @@
  * @vitest-environment node
  */
 import { knowledgeBase, workflow, workflowBlocks, workflowDeploymentVersion } from '@sim/db/schema'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const dbMock = vi.hoisted(() => {
-  const reads = new Map<unknown, unknown[][]>()
-  const updates: Array<{ table: unknown; values: Record<string, unknown> }> = []
-  const deletes: Array<{ table: unknown }> = []
-
-  const nextPage = (table: unknown): unknown[] => {
-    const pages = reads.get(table)
-    return pages && pages.length > 0 ? (pages.shift() as unknown[]) : []
-  }
-
-  // A drizzle-style read builder bound to one table: `.where`/`.orderBy`/`.limit` chain back to
-  // the same builder, and awaiting it (at `.where()` or `.limit()`) shifts that table's next page.
-  const makeReadBuilder = (table: unknown) => {
-    const builder = {
-      where: () => builder,
-      orderBy: () => builder,
-      limit: () => builder,
-      then: (onFulfilled: (rows: unknown[]) => unknown, onRejected?: (error: unknown) => unknown) =>
-        Promise.resolve(nextPage(table)).then(onFulfilled, onRejected),
-    }
-    return builder
-  }
-
-  const db = {
-    select: () => ({ from: (table: unknown) => makeReadBuilder(table) }),
-    update: (table: unknown) => ({
-      set: (values: Record<string, unknown>) => ({
-        where: () => {
-          updates.push({ table, values })
-          return Promise.resolve([])
-        },
-      }),
-    }),
-    delete: (table: unknown) => ({
-      where: () => {
-        deletes.push({ table })
-        return Promise.resolve([])
-      },
-    }),
-  }
-
-  return {
-    db,
-    updates,
-    deletes,
-    queueRead: (table: unknown, ...pages: unknown[][]) => reads.set(table, pages),
-    reset: () => {
-      reads.clear()
-      updates.length = 0
-      deletes.length = 0
-    },
-  }
-})
+import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockInvalidateDeployedStateCache } = vi.hoisted(() => ({
   mockInvalidateDeployedStateCache: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: dbMock.db,
-  dbReplica: dbMock.db,
-  runOutsideTransactionContext: <T>(fn: () => T): T => fn(),
-  instrumentPoolClient: <T>(client: T): T => client,
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   invalidateDeployedStateCache: mockInvalidateDeployedStateCache,
@@ -197,10 +139,22 @@ const kbValue = (state: unknown) =>
 const docValue = (state: unknown) =>
   (state as StateBlocks).blocks['block-1'].subBlocks.documentId.value
 
+/** Every `update(table).set(values)` pair, in call order (one `set` per `update`). */
+const updates = () =>
+  dbChainMockFns.update.mock.calls.map((call, index) => ({
+    table: call[0],
+    values: dbChainMockFns.set.mock.calls[index]?.[0] as Record<string, unknown>,
+  }))
+
+/** The table of every `delete(table)` call, in call order. */
+const deletes = () => dbChainMockFns.delete.mock.calls.map((call) => ({ table: call[0] }))
+
+afterAll(resetDbChainMock)
+
 describe('cleanup-failed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    dbMock.reset()
+    resetDbChainMock()
     vi.mocked(getBlock).mockReturnValue(kbBlockConfig())
   })
 
@@ -248,82 +202,82 @@ describe('cleanup-failed', () => {
 
   describe('clearFailedReferencesInWorkflows', () => {
     it('sweeps the draft blocks and returns the affected workflow ids', async () => {
-      dbMock.queueRead(workflow, [{ id: 'wf-1' }])
-      dbMock.queueRead(workflowBlocks, [draftBlockRow('failed-kb')])
+      queueTableRows(workflow, [{ id: 'wf-1' }])
+      queueTableRows(workflowBlocks, [draftBlockRow('failed-kb')])
 
       const affected = await clearFailedReferencesInWorkflows('child-ws', failedByKind(), 'test')
 
       expect([...affected]).toEqual(['wf-1'])
-      expect(dbMock.updates).toHaveLength(1)
-      expect(dbMock.updates[0].table).toBe(workflowBlocks)
-      const cleared = dbMock.updates[0].values.subBlocks as Record<string, { value: unknown }>
+      expect(updates()).toHaveLength(1)
+      expect(updates()[0].table).toBe(workflowBlocks)
+      const cleared = updates()[0].values.subBlocks as Record<string, { value: unknown }>
       expect(cleared.knowledgeBaseId.value).toBe('')
       expect(cleared.documentId.value).toBe('')
     })
 
     it('returns an empty set and writes nothing when no block references a failed id', async () => {
-      dbMock.queueRead(workflow, [{ id: 'wf-1' }])
-      dbMock.queueRead(workflowBlocks, [draftBlockRow('other-kb')])
+      queueTableRows(workflow, [{ id: 'wf-1' }])
+      queueTableRows(workflowBlocks, [draftBlockRow('other-kb')])
 
       const affected = await clearFailedReferencesInWorkflows('child-ws', failedByKind(), 'test')
 
       expect(affected.size).toBe(0)
-      expect(dbMock.updates).toHaveLength(0)
+      expect(updates()).toHaveLength(0)
     })
   })
 
   describe('clearFailedReferencesInDeploymentVersions', () => {
     it('rewrites a version referencing a failed id and invalidates its deployed-state cache', async () => {
-      dbMock.queueRead(workflowDeploymentVersion, [
+      queueTableRows(workflowDeploymentVersion, [
         { id: 'dv-1', version: 5, state: versionState('failed-kb') },
       ])
 
       await clearFailedReferencesInDeploymentVersions(new Set(['wf-1']), failedByKind(), 'test')
 
-      expect(dbMock.updates).toHaveLength(1)
-      expect(dbMock.updates[0].table).toBe(workflowDeploymentVersion)
-      expect(kbValue(dbMock.updates[0].values.state)).toBe('')
-      expect(docValue(dbMock.updates[0].values.state)).toBe('')
+      expect(updates()).toHaveLength(1)
+      expect(updates()[0].table).toBe(workflowDeploymentVersion)
+      expect(kbValue(updates()[0].values.state)).toBe('')
+      expect(docValue(updates()[0].values.state)).toBe('')
       expect(mockInvalidateDeployedStateCache).toHaveBeenCalledTimes(1)
       expect(mockInvalidateDeployedStateCache).toHaveBeenCalledWith('dv-1')
     })
 
     it('leaves a version that does not reference a failed id unwritten and uncached', async () => {
-      dbMock.queueRead(workflowDeploymentVersion, [
+      queueTableRows(workflowDeploymentVersion, [
         { id: 'dv-old', version: 3, state: versionState('other-kb') },
       ])
 
       await clearFailedReferencesInDeploymentVersions(new Set(['wf-1']), failedByKind(), 'test')
 
-      expect(dbMock.updates).toHaveLength(0)
+      expect(updates()).toHaveLength(0)
       expect(mockInvalidateDeployedStateCache).not.toHaveBeenCalled()
     })
 
     it('writes only the changed version when a workflow mixes referencing and non-referencing versions', async () => {
-      dbMock.queueRead(workflowDeploymentVersion, [
+      queueTableRows(workflowDeploymentVersion, [
         { id: 'dv-active', version: 5, state: versionState('failed-kb') },
         { id: 'dv-old', version: 4, state: versionState('other-kb') },
       ])
 
       await clearFailedReferencesInDeploymentVersions(new Set(['wf-1']), failedByKind(), 'test')
 
-      expect(dbMock.updates).toHaveLength(1)
+      expect(updates()).toHaveLength(1)
       expect(mockInvalidateDeployedStateCache).toHaveBeenCalledTimes(1)
       expect(mockInvalidateDeployedStateCache).toHaveBeenCalledWith('dv-active')
     })
 
     it('does nothing when no workflows were affected', async () => {
       await clearFailedReferencesInDeploymentVersions(new Set(), failedByKind(), 'test')
-      expect(dbMock.updates).toHaveLength(0)
+      expect(updates()).toHaveLength(0)
       expect(mockInvalidateDeployedStateCache).not.toHaveBeenCalled()
     })
   })
 
   describe('clearFailedForkResourceReferences', () => {
     it('threads the draft sweep into the deployed sweep, then drops the placeholder', async () => {
-      dbMock.queueRead(workflow, [{ id: 'wf-1' }])
-      dbMock.queueRead(workflowBlocks, [draftBlockRow('failed-kb')])
-      dbMock.queueRead(workflowDeploymentVersion, [
+      queueTableRows(workflow, [{ id: 'wf-1' }])
+      queueTableRows(workflowBlocks, [draftBlockRow('failed-kb')])
+      queueTableRows(workflowDeploymentVersion, [
         { id: 'dv-active', version: 5, state: versionState('failed-kb') },
         { id: 'dv-old', version: 4, state: versionState('other-kb') },
       ])
@@ -336,18 +290,18 @@ describe('cleanup-failed', () => {
 
       expect(cleaned).toEqual({ cleared: 1, clearingFailed: false })
       // One draft block update + one deployed version update (only the referencing version).
-      const updatedTables = dbMock.updates.map((u) => u.table)
+      const updatedTables = updates().map((u) => u.table)
       expect(updatedTables).toEqual([workflowBlocks, workflowDeploymentVersion])
       expect(mockInvalidateDeployedStateCache).toHaveBeenCalledTimes(1)
       expect(mockInvalidateDeployedStateCache).toHaveBeenCalledWith('dv-active')
       // The orphaned KB placeholder is dropped after both sweeps.
-      expect(dbMock.deletes).toHaveLength(1)
-      expect(dbMock.deletes[0].table).toBe(knowledgeBase)
+      expect(deletes()).toHaveLength(1)
+      expect(deletes()[0].table).toBe(knowledgeBase)
     })
 
     it('still drops the placeholder when no workflow referenced the failed resource', async () => {
-      dbMock.queueRead(workflow, [{ id: 'wf-1' }])
-      dbMock.queueRead(workflowBlocks, [draftBlockRow('other-kb')])
+      queueTableRows(workflow, [{ id: 'wf-1' }])
+      queueTableRows(workflowBlocks, [draftBlockRow('other-kb')])
 
       const cleaned = await clearFailedForkResourceReferences({
         childWorkspaceId: 'child-ws',
@@ -358,18 +312,18 @@ describe('cleanup-failed', () => {
       expect(cleaned).toEqual({ cleared: 1, clearingFailed: false })
       // No draft block referenced the failed id AND no deployed targets were threaded, so the
       // deployed sweep is skipped entirely.
-      expect(dbMock.updates).toHaveLength(0)
+      expect(updates()).toHaveLength(0)
       expect(mockInvalidateDeployedStateCache).not.toHaveBeenCalled()
-      expect(dbMock.deletes).toHaveLength(1)
-      expect(dbMock.deletes[0].table).toBe(knowledgeBase)
+      expect(deletes()).toHaveLength(1)
+      expect(deletes()[0].table).toBe(knowledgeBase)
     })
 
     it('sweeps a deployed target version even when no draft referenced the failed id', async () => {
       // Draft is clean (other-kb), but a deployed target version still points at the dropped
       // placeholder - the deployed-target scope (not draft divergence) catches it.
-      dbMock.queueRead(workflow, [{ id: 'wf-1' }])
-      dbMock.queueRead(workflowBlocks, [draftBlockRow('other-kb')])
-      dbMock.queueRead(workflowDeploymentVersion, [
+      queueTableRows(workflow, [{ id: 'wf-1' }])
+      queueTableRows(workflowBlocks, [draftBlockRow('other-kb')])
+      queueTableRows(workflowDeploymentVersion, [
         { id: 'dv-1', version: 5, state: versionState('failed-kb') },
       ])
 
@@ -381,15 +335,15 @@ describe('cleanup-failed', () => {
       })
 
       expect(cleaned).toEqual({ cleared: 1, clearingFailed: false })
-      expect(dbMock.updates.map((u) => u.table)).toContain(workflowDeploymentVersion)
+      expect(updates().map((u) => u.table)).toContain(workflowDeploymentVersion)
       expect(mockInvalidateDeployedStateCache).toHaveBeenCalledWith('dv-1')
       // Clearing succeeded, so the placeholder is dropped.
-      expect(dbMock.deletes[0].table).toBe(knowledgeBase)
+      expect(deletes()[0].table).toBe(knowledgeBase)
     })
 
     it('clears a file-upload reference to a failed copied blob and drops no row', async () => {
-      dbMock.queueRead(workflow, [{ id: 'wf-1' }])
-      dbMock.queueRead(workflowBlocks, [fileBlockRow('workspace/child/failed.png')])
+      queueTableRows(workflow, [{ id: 'wf-1' }])
+      queueTableRows(workflowBlocks, [fileBlockRow('workspace/child/failed.png')])
 
       const cleaned = await clearFailedForkResourceReferences({
         childWorkspaceId: 'child-ws',
@@ -398,36 +352,31 @@ describe('cleanup-failed', () => {
       })
 
       expect(cleaned).toEqual({ cleared: 1, clearingFailed: false })
-      expect(dbMock.updates).toHaveLength(1)
-      expect(dbMock.updates[0].table).toBe(workflowBlocks)
-      const cleared = dbMock.updates[0].values.subBlocks as Record<string, { value: unknown }>
+      expect(updates()).toHaveLength(1)
+      expect(updates()[0].table).toBe(workflowBlocks)
+      const cleared = updates()[0].values.subBlocks as Record<string, { value: unknown }>
       expect(cleared.file.value).toBe('')
       // A failed file has no placeholder row to drop (the metadata row stays re-uploadable).
-      expect(dbMock.deletes).toHaveLength(0)
+      expect(deletes()).toHaveLength(0)
     })
 
     it('reports cleared:0 + clearingFailed and skips the placeholder drop when a clear phase throws', async () => {
       // A clear-phase failure must not drop the placeholder: that would turn an empty placeholder
       // into a dangling reference to a deleted row. Make the draft block UPDATE throw.
-      dbMock.queueRead(workflow, [{ id: 'wf-1' }])
-      dbMock.queueRead(workflowBlocks, [draftBlockRow('failed-kb')])
-      const originalUpdate = dbMock.db.update
-      dbMock.db.update = () => {
+      queueTableRows(workflow, [{ id: 'wf-1' }])
+      queueTableRows(workflowBlocks, [draftBlockRow('failed-kb')])
+      dbChainMockFns.update.mockImplementation(() => {
         throw new Error('update failed')
-      }
-      try {
-        const cleaned = await clearFailedForkResourceReferences({
-          childWorkspaceId: 'child-ws',
-          failures: [{ kind: 'knowledge-base', childId: 'failed-kb', documentChildIds: [] }],
-          requestId: 'test',
-        })
-        // The count must NOT overstate: nothing was cleared and the flag marks cleanup incomplete.
-        expect(cleaned).toEqual({ cleared: 0, clearingFailed: true })
-      } finally {
-        dbMock.db.update = originalUpdate
-      }
+      })
+      const cleaned = await clearFailedForkResourceReferences({
+        childWorkspaceId: 'child-ws',
+        failures: [{ kind: 'knowledge-base', childId: 'failed-kb', documentChildIds: [] }],
+        requestId: 'test',
+      })
+      // The count must NOT overstate: nothing was cleared and the flag marks cleanup incomplete.
+      expect(cleaned).toEqual({ cleared: 0, clearingFailed: true })
       // The drop is skipped, so the placeholder row survives (no delete issued).
-      expect(dbMock.deletes).toHaveLength(0)
+      expect(dbChainMockFns.delete).not.toHaveBeenCalled()
     })
   })
 })

@@ -5,21 +5,21 @@
  * never the connected account's OAuth access/refresh token.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { account, user } from '@sim/db/schema'
+import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const SECRET_ACCESS_TOKEN = 'ya29.a0SECRET_GOOGLE_BEARER_TOKEN_DO_NOT_LEAK'
 
-const { selectMock, getAllOAuthServicesMock, getPersonalAndWorkspaceEnvMock, decodeJwtMock } =
-  vi.hoisted(() => ({
-    selectMock: vi.fn(),
+const { getAllOAuthServicesMock, getPersonalAndWorkspaceEnvMock, decodeJwtMock } = vi.hoisted(
+  () => ({
     getAllOAuthServicesMock: vi.fn(),
     getPersonalAndWorkspaceEnvMock: vi.fn(),
     decodeJwtMock: vi.fn(),
-  }))
+  })
+)
 
-vi.mock('@sim/db', () => ({
-  db: { select: selectMock },
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/oauth', () => ({
   getAllOAuthServices: getAllOAuthServicesMock,
@@ -41,17 +41,18 @@ import { getCredentialsServerTool } from './get-credentials'
  * 2. `select({...}).from(user).where().limit(1)` → user row
  */
 function wireDb(accountRows: unknown[], userRows: Array<{ email: string }>) {
-  const whereThenable = {
-    then: (resolve: (rows: unknown[]) => unknown) => resolve(accountRows),
-    limit: () => Promise.resolve(userRows),
-  }
-  const builder = { from: () => builder, where: () => whereThenable }
-  selectMock.mockReturnValue(builder)
+  queueTableRows(account, accountRows)
+  queueTableRows(user, userRows)
 }
 
 describe('getCredentialsServerTool', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
 
     wireDb(
       [
@@ -129,6 +130,6 @@ describe('getCredentialsServerTool', () => {
     await expect(getCredentialsServerTool.execute({}, undefined)).rejects.toThrow(
       'Authentication required'
     )
-    expect(selectMock).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 })

@@ -1,7 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { permissionGroup } from '@sim/db/schema'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   DEFAULT_PERMISSION_GROUP_CONFIG,
@@ -10,8 +12,6 @@ const {
   mockGetWorkspaceWithOwner,
   mockGetProviderFromModel,
   mockGetBlock,
-  mockWorkspaceGroups,
-  mockDefaultGroup,
 } = vi.hoisted(() => ({
   DEFAULT_PERMISSION_GROUP_CONFIG: {
     allowedIntegrations: null,
@@ -44,59 +44,6 @@ const {
   mockGetWorkspaceWithOwner: vi.fn<() => Promise<{ organizationId: string | null } | null>>(),
   mockGetProviderFromModel: vi.fn<(model: string) => string>(),
   mockGetBlock: vi.fn<(type: string) => { hideFromToolbar?: boolean } | undefined>(),
-  // resolveWorkspaceGroup selects non-default groups targeting the workspace
-  // (FROM permissionGroup INNER JOIN permissionGroupWorkspace), awaiting the
-  // builder directly; each row carries `isMember`/`hasMembers` booleans. A row
-  // with neither flag set reads as an all-members group (hasMembers falsy).
-  // resolveDefaultGroup selects the org default directly with limit(1), no join.
-  // The db mock branches on whether an inner join was used.
-  mockWorkspaceGroups: {
-    value: [] as Array<{
-      id?: string
-      name?: string
-      config: Record<string, unknown>
-      isMember?: boolean
-      hasMembers?: boolean
-    }>,
-  },
-  mockDefaultGroup: { value: [] as Array<{ config: Record<string, unknown> }> },
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn().mockImplementation(() => {
-      let usedInnerJoin = false
-      const resolveRows = () => (usedInnerJoin ? mockWorkspaceGroups.value : mockDefaultGroup.value)
-      const chain: Record<string, unknown> = {}
-      chain.from = vi.fn().mockReturnValue(chain)
-      chain.innerJoin = vi.fn().mockImplementation(() => {
-        usedInnerJoin = true
-        return chain
-      })
-      chain.leftJoin = vi.fn().mockReturnValue(chain)
-      chain.where = vi.fn().mockReturnValue(chain)
-      chain.orderBy = vi.fn().mockReturnValue(chain)
-      chain.limit = vi.fn().mockImplementation(() => Promise.resolve(resolveRows()))
-      // resolveWorkspaceGroup awaits the builder directly after `orderBy` (no
-      // limit), so the chain must be thenable.
-      chain.then = (onFulfilled: (rows: unknown) => unknown) =>
-        Promise.resolve(resolveRows()).then(onFulfilled)
-      return chain
-    }),
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  permissionGroup: {},
-  permissionGroupMember: {},
-  permissionGroupWorkspace: {},
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  eq: vi.fn(),
-  asc: vi.fn(),
-  sql: vi.fn(),
 }))
 
 vi.mock('@/lib/billing', () => ({
@@ -157,6 +104,34 @@ function setEnterpriseOrgWorkspace() {
   mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
 }
 
+interface WorkspaceGroupRow {
+  id?: string
+  name?: string
+  config: Record<string, unknown>
+  isMember?: boolean
+  hasMembers?: boolean
+}
+
+/**
+ * Queue one group-resolution pass. resolveWorkspaceGroup selects non-default
+ * groups targeting the workspace first (FROM permissionGroup INNER JOIN
+ * permissionGroupWorkspace, awaited at `orderBy`); each row carries
+ * `isMember`/`hasMembers` booleans, and a row with neither flag set reads as
+ * an all-members group. Only when no workspace group wins does
+ * resolveDefaultGroup select the org default (also FROM permissionGroup, with
+ * `limit(1)`). Both selects read the same table, so the queue holds the
+ * workspace-group set first and the default-group set second.
+ */
+function queueGroupResolution(
+  workspaceGroups: WorkspaceGroupRow[] = [],
+  defaultGroup: Array<{ config: Record<string, unknown> }> = []
+) {
+  queueTableRows(permissionGroup, workspaceGroups)
+  queueTableRows(permissionGroup, defaultGroup)
+}
+
+afterAll(resetDbChainMock)
+
 /**
  * Default every block to non-legacy. `vi.clearAllMocks()` (used by the
  * describe-level hooks) keeps implementations, so reset here to stop a legacy
@@ -185,8 +160,7 @@ describe('IntegrationNotAllowedError', () => {
 describe('getUserPermissionConfig (org + entitlement gating)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockWorkspaceGroups.value = []
-    mockDefaultGroup.value = []
+    resetDbChainMock()
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
   })
 
@@ -219,8 +193,7 @@ describe('getUserPermissionConfig (org + entitlement gating)', () => {
 
   it('falls back to the org default group when no workspace group governs the user', async () => {
     setEnterpriseOrgWorkspace()
-    mockWorkspaceGroups.value = []
-    mockDefaultGroup.value = [{ config: { disableSkills: true } }]
+    queueGroupResolution([], [{ config: { disableSkills: true } }])
 
     const config = await getUserPermissionConfig('user-123', 'workspace-1')
 
@@ -229,8 +202,7 @@ describe('getUserPermissionConfig (org + entitlement gating)', () => {
 
   it('governs an external member via the org default group', async () => {
     setEnterpriseOrgWorkspace()
-    mockWorkspaceGroups.value = []
-    mockDefaultGroup.value = [{ config: { disableCustomTools: true } }]
+    queueGroupResolution([], [{ config: { disableCustomTools: true } }])
 
     const config = await getUserPermissionConfig('external-user', 'workspace-1')
 
@@ -239,9 +211,6 @@ describe('getUserPermissionConfig (org + entitlement gating)', () => {
 
   it('returns null when no workspace group and no default group apply', async () => {
     setEnterpriseOrgWorkspace()
-    mockWorkspaceGroups.value = []
-    mockDefaultGroup.value = []
-
     const config = await getUserPermissionConfig('user-123', 'workspace-1')
 
     expect(config).toBeNull()
@@ -251,16 +220,15 @@ describe('getUserPermissionConfig (org + entitlement gating)', () => {
 describe('getUserPermissionConfig (workspace-group precedence)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockWorkspaceGroups.value = []
-    mockDefaultGroup.value = []
+    resetDbChainMock()
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
     setEnterpriseOrgWorkspace()
   })
 
   it('governs an explicit member via their workspace group', async () => {
-    mockWorkspaceGroups.value = [
+    queueGroupResolution([
       { id: 'g', config: { disableMcpTools: true }, isMember: true, hasMembers: true },
-    ]
+    ])
 
     const config = await getUserPermissionConfig('user-123', 'workspace-1')
 
@@ -268,9 +236,9 @@ describe('getUserPermissionConfig (workspace-group precedence)', () => {
   })
 
   it('governs all members (including non-listed) via an all-members group', async () => {
-    mockWorkspaceGroups.value = [
+    queueGroupResolution([
       { id: 'g', config: { disableSkills: true }, isMember: false, hasMembers: false },
-    ]
+    ])
 
     const config = await getUserPermissionConfig('user-123', 'workspace-1')
 
@@ -278,9 +246,9 @@ describe('getUserPermissionConfig (workspace-group precedence)', () => {
   })
 
   it('governs an external member via an all-members group', async () => {
-    mockWorkspaceGroups.value = [
+    queueGroupResolution([
       { id: 'g', config: { disableCustomTools: true }, isMember: false, hasMembers: false },
-    ]
+    ])
 
     const config = await getUserPermissionConfig('external-user', 'workspace-1')
 
@@ -288,10 +256,10 @@ describe('getUserPermissionConfig (workspace-group precedence)', () => {
   })
 
   it('prefers an explicit-member group over an all-members group on the same workspace', async () => {
-    mockWorkspaceGroups.value = [
+    queueGroupResolution([
       { id: 'all', config: { disableMcpTools: true }, isMember: false, hasMembers: false },
       { id: 'explicit', config: { disableSkills: true }, isMember: true, hasMembers: true },
-    ]
+    ])
 
     const config = await getUserPermissionConfig('user-123', 'workspace-1')
 
@@ -300,10 +268,10 @@ describe('getUserPermissionConfig (workspace-group precedence)', () => {
   })
 
   it('a narrowed group (has members) does not govern a non-member; falls back to default', async () => {
-    mockWorkspaceGroups.value = [
-      { id: 'narrowed', config: { disableSkills: true }, isMember: false, hasMembers: true },
-    ]
-    mockDefaultGroup.value = [{ config: { disableCustomTools: true } }]
+    queueGroupResolution(
+      [{ id: 'narrowed', config: { disableSkills: true }, isMember: false, hasMembers: true }],
+      [{ config: { disableCustomTools: true } }]
+    )
 
     const config = await getUserPermissionConfig('user-123', 'workspace-1')
 
@@ -312,10 +280,9 @@ describe('getUserPermissionConfig (workspace-group precedence)', () => {
   })
 
   it('a narrowed group does not govern a non-member; unrestricted when no default', async () => {
-    mockWorkspaceGroups.value = [
+    queueGroupResolution([
       { id: 'narrowed', config: { disableSkills: true }, isMember: false, hasMembers: true },
-    ]
-    mockDefaultGroup.value = []
+    ])
 
     const config = await getUserPermissionConfig('user-123', 'workspace-1')
 
@@ -326,8 +293,7 @@ describe('getUserPermissionConfig (workspace-group precedence)', () => {
 describe('validateBlockType', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockWorkspaceGroups.value = []
-    mockDefaultGroup.value = []
+    resetDbChainMock()
   })
 
   describe('when no env allowlist is configured', () => {
@@ -416,8 +382,7 @@ describe('validateBlockType', () => {
 describe('validateModelProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockWorkspaceGroups.value = []
-    mockDefaultGroup.value = []
+    resetDbChainMock()
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
     setEnterpriseOrgWorkspace()
   })
@@ -428,7 +393,7 @@ describe('validateModelProvider', () => {
   })
 
   it('throws ProviderNotAllowedError when provider is not in allowlist', async () => {
-    mockWorkspaceGroups.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
+    queueGroupResolution([{ config: { allowedModelProviders: ['anthropic'] } }])
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(validateModelProvider('user-123', 'workspace-1', 'gpt-4')).rejects.toBeInstanceOf(
@@ -437,14 +402,14 @@ describe('validateModelProvider', () => {
   })
 
   it('allows when provider is on the allowlist', async () => {
-    mockWorkspaceGroups.value = [{ config: { allowedModelProviders: ['anthropic', 'openai'] } }]
+    queueGroupResolution([{ config: { allowedModelProviders: ['anthropic', 'openai'] } }])
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await validateModelProvider('user-123', 'workspace-1', 'gpt-4')
   })
 
   it('throws ModelNotAllowedError when the model is on the denylist', async () => {
-    mockWorkspaceGroups.value = [{ config: { deniedModels: ['gpt-4'] } }]
+    queueGroupResolution([{ config: { deniedModels: ['gpt-4'] } }])
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(validateModelProvider('user-123', 'workspace-1', 'gpt-4')).rejects.toBeInstanceOf(
@@ -453,7 +418,7 @@ describe('validateModelProvider', () => {
   })
 
   it('denylist match is case-insensitive', async () => {
-    mockWorkspaceGroups.value = [{ config: { deniedModels: ['Ollama/Llama3'] } }]
+    queueGroupResolution([{ config: { deniedModels: ['Ollama/Llama3'] } }])
     mockGetProviderFromModel.mockReturnValue('ollama')
 
     await expect(
@@ -462,9 +427,7 @@ describe('validateModelProvider', () => {
   })
 
   it('enforces the denylist even when no provider allowlist is set', async () => {
-    mockWorkspaceGroups.value = [
-      { config: { allowedModelProviders: null, deniedModels: ['gpt-4'] } },
-    ]
+    queueGroupResolution([{ config: { allowedModelProviders: null, deniedModels: ['gpt-4'] } }])
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(validateModelProvider('user-123', 'workspace-1', 'gpt-4')).rejects.toBeInstanceOf(
@@ -473,15 +436,14 @@ describe('validateModelProvider', () => {
   })
 
   it('allows a model that is not on the denylist', async () => {
-    mockWorkspaceGroups.value = [{ config: { deniedModels: ['gpt-4'] } }]
+    queueGroupResolution([{ config: { deniedModels: ['gpt-4'] } }])
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await validateModelProvider('user-123', 'workspace-1', 'gpt-4o')
   })
 
   it('applies the org default group when no workspace group governs the user', async () => {
-    mockWorkspaceGroups.value = []
-    mockDefaultGroup.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
+    queueGroupResolution([], [{ config: { allowedModelProviders: ['anthropic'] } }])
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(validateModelProvider('user-123', 'workspace-1', 'gpt-4')).rejects.toBeInstanceOf(
@@ -493,14 +455,13 @@ describe('validateModelProvider', () => {
 describe('validateMcpToolsAllowed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockWorkspaceGroups.value = []
-    mockDefaultGroup.value = []
+    resetDbChainMock()
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
     setEnterpriseOrgWorkspace()
   })
 
   it('throws McpToolsNotAllowedError when disableMcpTools is set', async () => {
-    mockWorkspaceGroups.value = [{ config: { disableMcpTools: true } }]
+    queueGroupResolution([{ config: { disableMcpTools: true } }])
 
     await expect(validateMcpToolsAllowed('user-123', 'workspace-1')).rejects.toBeInstanceOf(
       McpToolsNotAllowedError
@@ -508,7 +469,7 @@ describe('validateMcpToolsAllowed', () => {
   })
 
   it('no-ops when disableMcpTools is false', async () => {
-    mockWorkspaceGroups.value = [{ config: {} }]
+    queueGroupResolution([{ config: {} }])
 
     await validateMcpToolsAllowed('user-123', 'workspace-1')
   })
@@ -517,38 +478,37 @@ describe('validateMcpToolsAllowed', () => {
 describe('validatePublicFileSharing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockWorkspaceGroups.value = []
-    mockDefaultGroup.value = []
+    resetDbChainMock()
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
     setEnterpriseOrgWorkspace()
   })
 
   it('throws when public file sharing is fully disabled', async () => {
-    mockWorkspaceGroups.value = [{ config: { disablePublicFileSharing: true } }]
+    queueGroupResolution([{ config: { disablePublicFileSharing: true } }])
     await expect(
       validatePublicFileSharing('user-123', 'workspace-1', 'password')
     ).rejects.toBeInstanceOf(PublicFileSharingNotAllowedError)
   })
 
   it('throws when the auth type is not in the allow-list', async () => {
-    mockWorkspaceGroups.value = [{ config: { allowedFileShareAuthTypes: ['password', 'sso'] } }]
+    queueGroupResolution([{ config: { allowedFileShareAuthTypes: ['password', 'sso'] } }])
     await expect(
       validatePublicFileSharing('user-123', 'workspace-1', 'public')
     ).rejects.toBeInstanceOf(PublicFileSharingNotAllowedError)
   })
 
   it('allows an auth type that is in the allow-list', async () => {
-    mockWorkspaceGroups.value = [{ config: { allowedFileShareAuthTypes: ['password', 'sso'] } }]
+    queueGroupResolution([{ config: { allowedFileShareAuthTypes: ['password', 'sso'] } }])
     await validatePublicFileSharing('user-123', 'workspace-1', 'password')
   })
 
   it('allows any auth type when the allow-list is null', async () => {
-    mockWorkspaceGroups.value = [{ config: { allowedFileShareAuthTypes: null } }]
+    queueGroupResolution([{ config: { allowedFileShareAuthTypes: null } }])
     await validatePublicFileSharing('user-123', 'workspace-1', 'email')
   })
 
   it('no-ops when no auth type is provided (master switch only)', async () => {
-    mockWorkspaceGroups.value = [{ config: { allowedFileShareAuthTypes: ['password'] } }]
+    queueGroupResolution([{ config: { allowedFileShareAuthTypes: ['password'] } }])
     await validatePublicFileSharing('user-123', 'workspace-1')
   })
 })
@@ -556,26 +516,25 @@ describe('validatePublicFileSharing', () => {
 describe('validateChatDeployAuth', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockWorkspaceGroups.value = []
-    mockDefaultGroup.value = []
+    resetDbChainMock()
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
     setEnterpriseOrgWorkspace()
   })
 
   it('throws when the auth type is not in the allow-list', async () => {
-    mockWorkspaceGroups.value = [{ config: { allowedChatDeployAuthTypes: ['password', 'sso'] } }]
+    queueGroupResolution([{ config: { allowedChatDeployAuthTypes: ['password', 'sso'] } }])
     await expect(
       validateChatDeployAuth('user-123', 'workspace-1', 'public')
     ).rejects.toBeInstanceOf(ChatDeployAuthNotAllowedError)
   })
 
   it('allows an auth type that is in the allow-list', async () => {
-    mockWorkspaceGroups.value = [{ config: { allowedChatDeployAuthTypes: ['password', 'sso'] } }]
+    queueGroupResolution([{ config: { allowedChatDeployAuthTypes: ['password', 'sso'] } }])
     await validateChatDeployAuth('user-123', 'workspace-1', 'password')
   })
 
   it('allows any auth type when the allow-list is null', async () => {
-    mockWorkspaceGroups.value = [{ config: { allowedChatDeployAuthTypes: null } }]
+    queueGroupResolution([{ config: { allowedChatDeployAuthTypes: null } }])
     await validateChatDeployAuth('user-123', 'workspace-1', 'email')
   })
 
@@ -588,14 +547,13 @@ describe('validateChatDeployAuth', () => {
 describe('assertPermissionsAllowed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockWorkspaceGroups.value = []
-    mockDefaultGroup.value = []
+    resetDbChainMock()
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
     setEnterpriseOrgWorkspace()
   })
 
   it('throws ProviderNotAllowedError when model provider is blocked', async () => {
-    mockWorkspaceGroups.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
+    queueGroupResolution([{ config: { allowedModelProviders: ['anthropic'] } }])
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(
@@ -608,7 +566,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('throws ModelNotAllowedError when the model is on the denylist', async () => {
-    mockWorkspaceGroups.value = [{ config: { deniedModels: ['gpt-4'] } }]
+    queueGroupResolution([{ config: { deniedModels: ['gpt-4'] } }])
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(
@@ -621,7 +579,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('throws IntegrationNotAllowedError when block type is blocked', async () => {
-    mockWorkspaceGroups.value = [{ config: { allowedIntegrations: ['slack'] } }]
+    queueGroupResolution([{ config: { allowedIntegrations: ['slack'] } }])
 
     await expect(
       assertPermissionsAllowed({
@@ -633,7 +591,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('exempts legacy blocks from the integration allowlist', async () => {
-    mockWorkspaceGroups.value = [{ config: { allowedIntegrations: ['slack'] } }]
+    queueGroupResolution([{ config: { allowedIntegrations: ['slack'] } }])
     mockGetBlock.mockImplementation((type) =>
       type === 'notion' ? { hideFromToolbar: true } : undefined
     )
@@ -646,7 +604,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('throws ToolNotAllowedError when the tool is on the denylist', async () => {
-    mockWorkspaceGroups.value = [{ config: { deniedTools: ['slack_canvas'] } }]
+    queueGroupResolution([{ config: { deniedTools: ['slack_canvas'] } }])
 
     await expect(
       assertPermissionsAllowed({
@@ -658,7 +616,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('allows a tool that is not on the denylist', async () => {
-    mockWorkspaceGroups.value = [{ config: { deniedTools: ['slack_canvas'] } }]
+    queueGroupResolution([{ config: { deniedTools: ['slack_canvas'] } }])
 
     await assertPermissionsAllowed({
       userId: 'user-123',
@@ -668,7 +626,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('allows every tool when the denylist is empty', async () => {
-    mockWorkspaceGroups.value = [{ config: { deniedTools: [] } }]
+    queueGroupResolution([{ config: { deniedTools: [] } }])
 
     await assertPermissionsAllowed({
       userId: 'user-123',
@@ -678,9 +636,9 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('denies a tool even when its block is allowed by the integration allowlist', async () => {
-    mockWorkspaceGroups.value = [
+    queueGroupResolution([
       { config: { allowedIntegrations: ['slack'], deniedTools: ['slack_canvas'] } },
-    ]
+    ])
 
     await expect(
       assertPermissionsAllowed({
@@ -693,7 +651,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('still enforces the tool denylist for an exempt block type', async () => {
-    mockWorkspaceGroups.value = [{ config: { deniedTools: ['slack_canvas'] } }]
+    queueGroupResolution([{ config: { deniedTools: ['slack_canvas'] } }])
     mockGetBlock.mockImplementation((type) =>
       type === 'slack' ? { hideFromToolbar: true } : undefined
     )
@@ -709,7 +667,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('throws CustomToolsNotAllowedError when custom tools are disabled', async () => {
-    mockWorkspaceGroups.value = [{ config: { disableCustomTools: true } }]
+    queueGroupResolution([{ config: { disableCustomTools: true } }])
 
     await expect(
       assertPermissionsAllowed({
@@ -721,7 +679,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('throws SkillsNotAllowedError when skills are disabled', async () => {
-    mockWorkspaceGroups.value = [{ config: { disableSkills: true } }]
+    queueGroupResolution([{ config: { disableSkills: true } }])
 
     await expect(
       assertPermissionsAllowed({
@@ -733,9 +691,6 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('passes when the workspace has no blocking config', async () => {
-    mockWorkspaceGroups.value = []
-    mockDefaultGroup.value = []
-
     await assertPermissionsAllowed({
       userId: 'user-123',
       workspaceId: 'workspace-1',

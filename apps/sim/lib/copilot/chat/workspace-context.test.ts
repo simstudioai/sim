@@ -2,20 +2,7 @@
  * @vitest-environment node
  */
 
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => ({ db: {} }))
-vi.mock('@sim/db/schema', () => ({
-  knowledgeBase: {},
-  knowledgeConnector: {},
-  mcpServers: {},
-  userTableDefinitions: {},
-  userTableRows: {},
-  workflow: {},
-  workflowFolder: {},
-  workflowSchedule: {},
-}))
-
+import { describe, expect, it } from 'vitest'
 import { canonicalWorkflowVfsDir } from '@/lib/copilot/vfs/path-utils'
 import { buildVfsSnapshot, buildWorkspaceMd, type WorkspaceMdData } from './workspace-context'
 
