@@ -768,6 +768,13 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
+    /**
+     * Same flag that hides the email/password signup form (DISABLE_EMAIL_SIGNUP).
+     * Blocks /sign-up/email at the better-auth layer so ripping out the frontend
+     * form cannot be bypassed by calling the endpoint directly. Existing users
+     * can still sign in.
+     */
+    disableSignUp: isEmailSignupDisabled,
     requireEmailVerification: isEmailVerificationEnabled,
     /**
      * When someone signs up with an already-registered email, better-auth returns a
@@ -890,11 +897,6 @@ export const auth = betterAuth({
             message: 'Email/password authentication is disabled. Please use SSO to sign in.',
           })
       }
-
-      if (isEmailSignupDisabled && ctx.path.startsWith('/sign-up/email'))
-        throw new APIError('FORBIDDEN', {
-          message: 'Email sign-up is disabled. Please use Google, Microsoft, or GitHub.',
-        })
 
       const isSignIn = ctx.path.startsWith('/sign-in')
       const isSignUp = ctx.path.startsWith('/sign-up')
@@ -1039,6 +1041,14 @@ export const auth = betterAuth({
           throw error
         }
       },
+      /**
+       * Without this, /sign-in/email-otp auto-registers any unknown email —
+       * bypassing the signup gate entirely (no captcha, no /sign-up path).
+       * Gated by the same DISABLE_EMAIL_SIGNUP flag as the signup form; when
+       * set, better-auth also silently skips sending OTPs to unknown emails
+       * (enumeration-safe) while existing users keep OTP sign-in.
+       */
+      disableSignUp: isEmailSignupDisabled,
       sendVerificationOnSignUp: false,
       otpLength: 6, // Explicitly set the OTP length
       expiresIn: 15 * 60, // 15 minutes in seconds
