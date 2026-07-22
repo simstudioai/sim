@@ -1024,7 +1024,14 @@ export function WorkflowMcpServers() {
                       <RowActionsMenu
                         label='Server actions'
                         actions={[
-                          { label: 'Details', onSelect: () => setSelectedServerId(server.id) },
+                          {
+                            label: 'Details',
+                            onSelect: () => {
+                              // A lingering ?server-tab= (dead deep link) must not re-target the next open — reset it in the same batched push.
+                              void setServerTab(null)
+                              void setSelectedServerId(server.id)
+                            },
+                          },
                           ...(canAdmin
                             ? [
                                 {

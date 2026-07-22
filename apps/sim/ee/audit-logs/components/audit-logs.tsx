@@ -251,10 +251,6 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
       ? DEFAULT_AUDIT_TIME_RANGE
       : urlFilters.timeRange
   const [datePickerOpen, setDatePickerOpen] = useState(false)
-  /** Cancel target for the date picker — never 'Custom range' itself, so a deep link straight to an empty custom range still cancels back to a preset. */
-  const previousTimeRangeRef = useRef<TimeRange>(
-    timeRange === 'Custom range' ? DEFAULT_AUDIT_TIME_RANGE : timeRange
-  )
   const dateRangeAppliedRef = useRef(false)
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS).trim()
@@ -307,7 +303,6 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
 
   const handleTimeRangeChange = (value: string) => {
     if (value === 'Custom range') {
-      previousTimeRangeRef.current = timeRange
       setDatePickerOpen(true)
     } else {
       void setUrlFilters({ timeRange: value as TimeRange, startDate: null, endDate: null })
@@ -320,10 +315,11 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
     setDatePickerOpen(false)
   }
 
+  /**
+   * Cancel is a pure close: the URL only ever holds 'Custom range' after Apply
+   * wrote both bounds atomically, so there is never a pending state to revert.
+   */
   const handleDatePickerCancel = () => {
-    if (timeRange === 'Custom range' && !customStartDate) {
-      void setUrlFilters({ timeRange: previousTimeRangeRef.current })
-    }
     setDatePickerOpen(false)
   }
 

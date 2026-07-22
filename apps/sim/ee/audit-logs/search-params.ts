@@ -1,5 +1,8 @@
 import { parseAsArrayOf, parseAsString } from 'nuqs/server'
-import { parseAsTimeRange } from '@/app/workspace/[workspaceId]/logs/search-params'
+import {
+  parseAsDateString,
+  parseAsTimeRange,
+} from '@/app/workspace/[workspaceId]/logs/search-params'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
 export const DEFAULT_AUDIT_TIME_RANGE: TimeRange = 'Past 30 days'
@@ -18,8 +21,8 @@ export const DEFAULT_AUDIT_TIME_RANGE: TimeRange = 'Past 30 days'
 export const auditLogFilterParsers = {
   types: parseAsArrayOf(parseAsString).withDefault([]),
   timeRange: parseAsTimeRange.withDefault(DEFAULT_AUDIT_TIME_RANGE),
-  startDate: parseAsString,
-  endDate: parseAsString,
+  startDate: parseAsDateString,
+  endDate: parseAsDateString,
 } as const
 
 /** Filter view-state: clean URLs, no back-stack churn, kebab-case URL keys. */

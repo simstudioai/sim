@@ -3,6 +3,8 @@ paths:
   - "apps/sim/app/**/*.tsx"
   - "apps/sim/app/**/*.ts"
   - "apps/sim/app/**/search-params.ts"
+  - "apps/sim/ee/**/*.tsx"
+  - "apps/sim/ee/**/*.ts"
 ---
 
 # URL / Query-Param State (nuqs)
@@ -51,7 +53,7 @@ Co-locate a `search-params.ts` next to the feature. Export the parser map (and s
 Conventions:
 
 - `.withDefault(...)` on every parser so reads are non-null. A deliberately **nullable** parser (dynamic default, custom-range-only dates, nullable sort) must carry a comment saying why.
-- Filter / search / toggle / pagination options: `{ history: 'replace', clearOnDefault: true }` — clean URLs, no back-stack churn. `shallow` defaults to `true` in nuqs; writing `shallow: true` explicitly is fine but not required.
+- Filter / search / toggle / pagination options: `{ history: 'replace', clearOnDefault: true }` — clean URLs, no back-stack churn. Note all three of `history: 'replace'`, `clearOnDefault: true`, and `shallow: true` are already the nuqs v2 defaults — writing the first two explicitly is documentation (and guards the groups whose options differ, e.g. `history: 'push'`), and `shallow: true` may be omitted entirely.
 - Navigations that belong in browser history (changing folder, opening a deep-linked entity): `{ history: 'push' }`.
 - `shallow: false` **only** when a Server Component / loader must re-read the param. For loading states during the server re-render, pass React's `startTransition` via `.withOptions({ startTransition, shallow: false })`.
 - Short, stable, **kebab-case** URL keys. Renaming a key is a breaking change to shared links — treat it as one. When the parser-map key is camelCase (for clean destructuring), remap the wire key via the `urlKeys` option in the shared options object (see `files/search-params.ts` `uploadedBy: 'uploaded-by'`, `ee/audit-logs/search-params.ts` `timeRange: 'time-range'`); nuqs also exports a `UrlKeys<typeof parsers>` type helper for standalone mappings.
@@ -77,10 +79,11 @@ export const thingsParsers = {
 /** Clean URLs, no back-stack churn for filter changes. */
 export const thingsUrlKeys = {
   history: 'replace',
-  shallow: true,
   clearOnDefault: true,
 } as const
 ```
+
+(The `*UrlKeys` suffix is the repo's naming convention for a feature's shared **options** object — which may itself contain a nuqs `urlKeys` key-remapping entry; the two are different things.)
 
 ### Client — `useQueryStates` (grouped) / `useQueryState` (single)
 
@@ -184,7 +187,7 @@ Sort params live alongside — not inside — the feature's grouped filter parse
 
 A date-only param (a calendar anchor, a date filter) is stored as `yyyy-MM-dd` — never serialize a full `Date`/timestamp when only the day matters.
 
-**Local vs UTC — pick the parser that matches your date math.** nuqs's built-in `parseAsIsoDate` is **UTC-based** (`serialize` via `toISOString()`, `parse` to UTC midnight). If your `Date` is local-time (e.g. produced by local-time helpers and read by `date-fns` `startOfWeek`/`isSameDay`, which are all local), `parseAsIsoDate` will shift the day by ±1 in any non-UTC timezone on reload/deep-link/back-forward. For local-time date math, use a small local-date `createParser` that serializes/parses on local calendar fields (`getFullYear`/`getMonth`/`getDate` ↔ `new Date(y, m-1, d)`) with an `eq` comparing y/m/d. Only use `parseAsIsoDate` when the value is genuinely UTC/midnight-UTC. See `scheduled-tasks/search-params.ts` (`parseAsLocalDate`).
+**Local vs UTC — pick the parser that matches your date math.** nuqs's built-in `parseAsIsoDate` is **UTC-based** (`serialize` via `toISOString().slice(0, 10)`, `parse` to UTC midnight). If your `Date` is local-time (e.g. produced by local-time helpers and read by `date-fns` `startOfWeek`/`isSameDay`, which are all local), `parseAsIsoDate` will shift the day by ±1 in any non-UTC timezone on reload/deep-link/back-forward. For local-time date math, use a small local-date `createParser` that serializes/parses on local calendar fields (`getFullYear`/`getMonth`/`getDate` ↔ `new Date(y, m-1, d)`) with an `eq` comparing y/m/d. Only use `parseAsIsoDate` when the value is genuinely UTC/midnight-UTC. See `scheduled-tasks/search-params.ts` (`parseAsLocalDate`).
 
 When the default is **dynamic** (e.g. "today"), make the param **nullable** (omit `.withDefault`) and derive the fallback in the hook (`const anchor = param ?? today`), so a clean URL means the dynamic default and navigating back to it writes `null` (clears the param). See `scheduled-tasks/hooks/use-calendar.ts`.
 
@@ -202,7 +205,7 @@ const [skillId, setSkillId] = useQueryState(skillIdParam.key, {
 const editingSkill = skillId ? (skills.find((s) => s.id === skillId) ?? null) : null
 ```
 
-Open the panel/modal only when the id **resolves to a loaded entity** — never gate on the raw param alone, or a dead/stale id (deleted entity, old bookmark) renders a broken detail view and a still-loading list flashes one. A dead id simply falls back to the list; the lingering param is harmless. Because this reads `useSearchParams` it needs a **Suspense** boundary on the page (see below). A separate "create new" flow has no id and stays in local `useState`.
+Open the panel/modal only when the id **resolves to a loaded entity** — never gate on the raw param alone, or a dead/stale id (deleted entity, old bookmark) renders a broken detail view and a still-loading list flashes one. A dead id simply falls back to the list; the lingering param is harmless. Because this reads `useSearchParams` it needs a **Suspense** boundary on the page (see "Suspense boundary" above). A separate "create new" flow has no id and stays in local `useState`.
 
 **Close with `replace`, open with `push`.** Opening pushed a history entry; closing must not push another. Close via the setter's per-call options — `setSkillId(null, { history: 'replace' })` — so Back from the list leaves the page instead of reopening the detail (see `mcp.tsx`, `workflow-mcp-servers.tsx`, access-control, custom-blocks, forks). Secondary params scoped to the detail view (e.g. its active tab, `server-tab`) are cleared in the same close handler with their own setter — nuqs batches same-tick writes into one URL update.
 
@@ -223,8 +226,8 @@ The workflow editor (`apps/sim/app/workspace/[workspaceId]/w/**`) is realtime/so
 
 Borderline candidates that *look* shareable but currently stay in Zustand because moving them fights existing machinery:
 
-- **Panel `activeTab`** and **`canvasMode`** — persisted local *preferences* wired into an SSR flash-prevention path (`data-panel-active-tab` + `_hasHydrated`). They are layout prefs, not destinations; moving them would unwind the SSR machinery and risk tab-flash on load.
-- **`focusedBlockId`** ("look at this block") — the only genuinely shareable candidate, but it is entangled with the persisted editor store and panel-open orchestration. Adding it is a *new feature*, not a migration; ship it deliberately (with runtime verification against a live socket), not as part of a sweep.
+- **Panel `activeTab`** — a persisted local *preference* wired into an SSR flash-prevention path (`data-panel-active-tab` + `_hasHydrated`); moving it would unwind that machinery and risk tab-flash on load. **Canvas mode** (`mode` on `useCanvasModeStore`) is likewise a persisted layout preference, not a destination.
+- **The panel editor's `currentBlockId`** (`stores/panel/editor/store.ts` — a would-be "look at this block" deep link) — the only genuinely shareable candidate, but it is persisted and entangled with panel-open orchestration. Adding a URL param for it is a *new feature*, not a migration; ship it deliberately (with runtime verification against a live socket), not as part of a sweep.
 
 Rule of thumb for the editor: if state is socket-coupled, high-frequency, viewport-related, or a persisted resize/preference, it stays in Zustand. When in doubt, leave it and flag it — do not force fragile URL state into the canvas.
 

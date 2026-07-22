@@ -639,8 +639,7 @@ export function Document({
 
   const enabledDisplayLabel = useMemo(() => {
     if (enabledFilter.length === 0) return 'All'
-    if (enabledFilter.length === 1) return enabledFilter[0] === 'enabled' ? 'Enabled' : 'Disabled'
-    return `${enabledFilter.length} selected`
+    return enabledFilter[0] === 'enabled' ? 'Enabled' : 'Disabled'
   }, [enabledFilter])
 
   const filterContent = useMemo(
