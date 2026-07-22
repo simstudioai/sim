@@ -411,7 +411,7 @@ export function Forks() {
         <ForkActivityDetailView
           workspaceId={workspaceId}
           workspaceNames={lineagePartnerNames(parent, forks)}
-          onBack={() => setForkView(null)}
+          onBack={() => void setForkView(null, { history: 'replace' })}
           actions={
             undoableRun
               ? [
