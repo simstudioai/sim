@@ -9,28 +9,64 @@ import { Callout } from 'fumadocs-ui/components/callout'
 ## Inicio rápido
 
 ```bash
-# Clone and start
+# Clone the repository
 git clone https://github.com/simstudioai/sim.git && cd sim
+
+# Generate persistent secrets once (.env is ignored by Git)
+(
+  set -euC
+  if [ -e .env ]; then
+    echo 'Refusing to overwrite existing .env' >&2
+    exit 1
+  fi
+  umask 077
+  better_auth_secret=$(openssl rand -hex 32)
+  encryption_key=$(openssl rand -hex 32)
+  api_encryption_key=$(openssl rand -hex 32)
+  internal_api_secret=$(openssl rand -hex 32)
+  cat > .env << EOF
+BETTER_AUTH_SECRET=$better_auth_secret
+ENCRYPTION_KEY=$encryption_key
+API_ENCRYPTION_KEY=$api_encryption_key
+INTERNAL_API_SECRET=$internal_api_secret
+EOF
+)
+
+# Start Sim
 docker compose -f docker-compose.prod.yml up -d
 ```
 
 Abre [http://localhost:3000](http://localhost:3000)
 
+<Callout type="warning">
+  Guarda el archivo `.env` generado por separado en un almacén seguro de secretos; no lo incluyas
+  con las copias de seguridad de la base de datos. No vuelvas a generar estos valores al reiniciar
+  una instalación existente. Cambiar las claves de cifrado puede hacer ilegibles los secretos
+  guardados, y cambiar `BETTER_AUTH_SECRET` invalida las sesiones existentes.
+</Callout>
+
+¿Ya tienes un `.env` (por ejemplo, de una instalación anterior a estos secretos obligatorios)? El bloque anterior no lo sobrescribe. Añade solo los secretos que falten; así se conservan todos los valores existentes:
+
+```bash
+for key in BETTER_AUTH_SECRET ENCRYPTION_KEY API_ENCRYPTION_KEY INTERNAL_API_SECRET; do
+  grep -q "^${key}=" .env || printf '%s=%s\n' "$key" "$(openssl rand -hex 32)" >> .env
+done
+```
+
 ## Configuración de producción
 
 ### 1. Configurar entorno
 
-```bash
-# Generate secrets
-cat > .env << EOF
-DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
-BETTER_AUTH_SECRET=$(openssl rand -hex 32)
-ENCRYPTION_KEY=$(openssl rand -hex 32)
-INTERNAL_API_SECRET=$(openssl rand -hex 32)
+Conserva los secretos generados durante el Inicio rápido y añade la URL pública al mismo archivo
+`.env`:
+
+```dotenv
 NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
 BETTER_AUTH_URL=https://sim.yourdomain.com
-EOF
 ```
+
+Si omitiste el Inicio rápido, ejecuta primero su paso de generación de secretos. No reemplaces las
+claves de cifrado de una instalación que ya tenga datos.
 
 ### 2. Iniciar servicios
 
@@ -107,6 +143,8 @@ sudo certbot --nginx -d sim.yourdomain.com
 
 ## Ollama
 
+Completa primero el Inicio rápido para crear el `.env` persistente con tus secretos: el archivo Compose de Ollama requiere los mismos secretos y no se inicia sin ellos.
+
 ```bash
 # With GPU
 docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d
@@ -124,6 +162,9 @@ docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
 ### Ollama externo
 
 Si Ollama se ejecuta en tu máquina host (no en Docker):
+
+Completa primero el Inicio rápido para crear el `.env` persistente y después usa la URL de host
+adecuada:
 
 ```bash
 # macOS/Windows

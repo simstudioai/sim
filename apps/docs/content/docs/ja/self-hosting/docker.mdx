@@ -9,28 +9,62 @@ import { Callout } from 'fumadocs-ui/components/callout'
 ## クイックスタート
 
 ```bash
-# Clone and start
+# Clone the repository
 git clone https://github.com/simstudioai/sim.git && cd sim
+
+# Generate persistent secrets once (.env is ignored by Git)
+(
+  set -euC
+  if [ -e .env ]; then
+    echo 'Refusing to overwrite existing .env' >&2
+    exit 1
+  fi
+  umask 077
+  better_auth_secret=$(openssl rand -hex 32)
+  encryption_key=$(openssl rand -hex 32)
+  api_encryption_key=$(openssl rand -hex 32)
+  internal_api_secret=$(openssl rand -hex 32)
+  cat > .env << EOF
+BETTER_AUTH_SECRET=$better_auth_secret
+ENCRYPTION_KEY=$encryption_key
+API_ENCRYPTION_KEY=$api_encryption_key
+INTERNAL_API_SECRET=$internal_api_secret
+EOF
+)
+
+# Start Sim
 docker compose -f docker-compose.prod.yml up -d
 ```
 
 [http://localhost:3000](http://localhost:3000)を開く
 
+<Callout type="warning">
+  生成した `.env` はデータベースのバックアップに含めず、安全なシークレットストアに別途保管してください。
+  既存のインストールを再起動するときにこれらの値を再生成しないでください。暗号化キーを変更すると保存済みの
+  シークレットを読み取れなくなる可能性があり、`BETTER_AUTH_SECRET` を変更すると既存のセッションが無効になります。
+</Callout>
+
+すでに `.env` がある場合（これらの必須シークレット導入前のインストールなど）、上記のブロックは上書きしません。代わりに不足しているシークレットのみを追加してください。既存の値はすべて保持されます。
+
+```bash
+for key in BETTER_AUTH_SECRET ENCRYPTION_KEY API_ENCRYPTION_KEY INTERNAL_API_SECRET; do
+  grep -q "^${key}=" .env || printf '%s=%s\n' "$key" "$(openssl rand -hex 32)" >> .env
+done
+```
+
 ## 本番環境のセットアップ
 
 ### 1. 環境の設定
 
-```bash
-# Generate secrets
-cat > .env << EOF
-DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
-BETTER_AUTH_SECRET=$(openssl rand -hex 32)
-ENCRYPTION_KEY=$(openssl rand -hex 32)
-INTERNAL_API_SECRET=$(openssl rand -hex 32)
+クイックスタートで生成したシークレットを維持し、同じ `.env` ファイルに公開 URL を追加します：
+
+```dotenv
 NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
 BETTER_AUTH_URL=https://sim.yourdomain.com
-EOF
 ```
+
+クイックスタートを省略した場合は、先にシークレット生成手順を実行してください。すでにデータがあるインストールの
+暗号化キーは決して置き換えないでください。
 
 ### 2. サービスの起動
 
@@ -107,6 +141,8 @@ sudo certbot --nginx -d sim.yourdomain.com
 
 ## Ollama
 
+先にクイックスタートを実行して、シークレットを含む永続的な `.env` を用意してください。Ollama の Compose ファイルは同じシークレットを必要とし、それらがないと起動しません。
+
 ```bash
 # With GPU
 docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d
@@ -124,6 +160,8 @@ docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
 ### 外部Ollama
 
 Ollamaがホストマシン上で実行されている場合（Dockerではない）：
+
+最初にクイックスタートを完了して永続的な `.env` を作成し、その後で適切なホスト URL を使用してください：
 
 ```bash
 # macOS/Windows

@@ -79,10 +79,43 @@ Docker must be installed and running. Use `-p, --port <port>` to run Sim on a di
 
 ```bash
 git clone https://github.com/simstudioai/sim.git && cd sim
+
+# Generate persistent secrets once (the file is ignored by Git)
+(
+  set -euC
+  if [ -e .env ]; then
+    echo 'Refusing to overwrite existing .env' >&2
+    exit 1
+  fi
+  umask 077
+  better_auth_secret=$(openssl rand -hex 32)
+  encryption_key=$(openssl rand -hex 32)
+  api_encryption_key=$(openssl rand -hex 32)
+  internal_api_secret=$(openssl rand -hex 32)
+  cat > .env << EOF
+BETTER_AUTH_SECRET=$better_auth_secret
+ENCRYPTION_KEY=$encryption_key
+API_ENCRYPTION_KEY=$api_encryption_key
+INTERNAL_API_SECRET=$internal_api_secret
+EOF
+)
+
 docker compose -f docker-compose.prod.yml up -d
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
+
+Back up the generated `.env` file separately in a secured secret store; do not bundle it with
+database backups. Replacing its encryption keys can make stored secrets unreadable, while replacing
+`BETTER_AUTH_SECRET` invalidates existing sessions.
+
+Already have a `.env` (for example from an earlier install that predates these required secrets)? The block above refuses to overwrite it. Add only the missing secrets instead — this preserves every existing value:
+
+```bash
+for key in BETTER_AUTH_SECRET ENCRYPTION_KEY API_ENCRYPTION_KEY INTERNAL_API_SECRET; do
+  grep -q "^${key}=" .env || printf '%s=%s\n' "$key" "$(openssl rand -hex 32)" >> .env
+done
+```
 
 Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https://docs.vllm.ai/). See the [Docker self-hosting docs](https://docs.sim.ai/self-hosting/docker) for setup details.
 
