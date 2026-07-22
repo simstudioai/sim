@@ -79,10 +79,20 @@ Docker must be installed and running. Use `-p, --port <port>` to run Sim on a di
 
 ```bash
 git clone https://github.com/simstudioai/sim.git && cd sim
+
+# Generate the required secrets. Docker Compose reads them from this .env file.
+cat > .env <<EOF
+BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+INTERNAL_API_SECRET=$(openssl rand -hex 32)
+EOF
+
 docker compose -f docker-compose.prod.yml up -d
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
+
+> **`BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, and `INTERNAL_API_SECRET` are mandatory.** Without them the containers start but creating the first account fails silently. Compose now refuses to start and names the missing variable if you skip this step.
 
 Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https://docs.vllm.ai/). See the [Docker self-hosting docs](https://docs.sim.ai/self-hosting/docker) for setup details.
 
