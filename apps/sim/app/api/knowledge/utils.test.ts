@@ -309,7 +309,7 @@ describe('Knowledge Utils', () => {
   })
 
   describe('processDocumentAsync', () => {
-    it.concurrent('should insert embeddings before updating document counters', async () => {
+    it('should insert embeddings before updating document counters', async () => {
       kbRows.push({
         id: 'kb1',
         userId: 'user1',
@@ -360,7 +360,7 @@ describe('Knowledge Utils', () => {
   })
 
   describe('checkKnowledgeBaseAccess', () => {
-    it.concurrent('should return success for owner', async () => {
+    it('should return success for owner', async () => {
       kbRows.push({ id: 'kb1', userId: 'user1' })
       const result = await checkKnowledgeBaseAccess('kb1', 'user1')
 
@@ -376,7 +376,7 @@ describe('Knowledge Utils', () => {
   })
 
   describe('checkDocumentAccess', () => {
-    it.concurrent('should return unauthorized when user mismatch', async () => {
+    it('should return unauthorized when user mismatch', async () => {
       kbRows.push({ id: 'kb1', userId: 'owner' })
       const result = await checkDocumentAccess('kb1', 'doc1', 'intruder')
 
@@ -388,7 +388,7 @@ describe('Knowledge Utils', () => {
   })
 
   describe('checkChunkAccess', () => {
-    it.concurrent('should fail when document is not completed', async () => {
+    it('should fail when document is not completed', async () => {
       kbRows.push({ id: 'kb1', userId: 'user1' })
       docRows.push({ id: 'doc1', knowledgeBaseId: 'kb1', processingStatus: 'processing' })
 
@@ -415,7 +415,7 @@ describe('Knowledge Utils', () => {
   })
 
   describe('generateEmbeddings', () => {
-    it.concurrent('should return same length as input', async () => {
+    it('should return same length as input', async () => {
       const result = await generateEmbeddings(['a', 'b'])
 
       expect(result.embeddings.length).toBe(2)
