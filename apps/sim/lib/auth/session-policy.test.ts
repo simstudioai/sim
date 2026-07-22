@@ -47,7 +47,7 @@ describe('clampSessionExpiry', () => {
     expect(result.getTime()).toBe(now.getTime() + 48 * HOUR_MS)
   })
 
-  it('floors idleTimeoutHours at the cookie-cache window', () => {
+  it('floors idleTimeoutHours at twice the cookie-cache window', () => {
     const result = clampSessionExpiry(policy({ idleTimeoutHours: 1 }), createdAt, proposed, now)
     expect(result.getTime()).toBe(now.getTime() + MIN_IDLE_TIMEOUT_HOURS * HOUR_MS)
   })

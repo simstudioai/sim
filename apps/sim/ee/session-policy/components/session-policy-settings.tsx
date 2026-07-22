@@ -213,5 +213,3 @@ export function SessionPolicySettings({ organizationId }: SessionPolicySettingsP
     </>
   )
 }
-
-export default SessionPolicySettings

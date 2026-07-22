@@ -197,13 +197,9 @@ export const organizationSessionPolicyResponseSchema = z.object({
 export const revokeOrganizationSessionsResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
-    revokedSessions: z.number().int(),
+    revokedSessions: z.number().int().min(0),
   }),
 })
-
-export type RevokeOrganizationSessionsResult = z.output<
-  typeof revokeOrganizationSessionsResponseSchema
->['data']
 
 export const updateOrganizationWhitelabelBodySchema = z.object({
   brandName: z
