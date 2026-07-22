@@ -188,40 +188,71 @@ const transaction: ReturnType<typeof vi.fn> = vi.fn(
   async (cb: (tx: any) => unknown): Promise<unknown> => cb(dbChainMock.db)
 )
 
-const rowsPromise = (rows: unknown[] | null) => Promise.resolve((rows ?? []) as unknown[])
+/**
+ * Lazy per-chain rows supplier: dequeues once, at the moment the FIRST default
+ * thenable actually resolves. A chain whose result comes from a per-test
+ * override never reaches a default resolution, so its queued set stays
+ * available for the next chain on that table.
+ */
+type RowsSupplier = () => unknown[] | null
+
+const chainRowsSupplier = (tables: unknown[]): RowsSupplier => {
+  let consumed = false
+  let rows: unknown[] | null = null
+  return () => {
+    if (!consumed) {
+      consumed = true
+      rows = dequeueChainRows(tables)
+    }
+    return rows
+  }
+}
+
+const noRows: RowsSupplier = () => null
+
+/** An awaitable chain step that resolves `getRows()` only when actually awaited. */
+const lazyRowsThenable = (getRows: RowsSupplier): any => ({
+  then: (onFulfilled?: (rows: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
+    Promise.resolve((getRows() ?? []) as unknown[]).then(onFulfilled, onRejected),
+  catch: (onRejected?: (reason: unknown) => unknown) =>
+    Promise.resolve((getRows() ?? []) as unknown[]).catch(onRejected),
+  finally: (onFinally?: () => void) =>
+    Promise.resolve((getRows() ?? []) as unknown[]).finally(onFinally),
+})
 
 // `.limit()` returns a builder that is awaitable and also exposes `.offset()`
 // for keyset/OFFSET paging (`.limit(n).offset(m)`).
-const limitBuilder = (rows: unknown[] | null) => {
-  const thenable: any = rowsPromise(rows)
-  thenable.offset = spyOrDefault(offset, () => rowsPromise(rows))
+const limitBuilder = (getRows: RowsSupplier) => {
+  const thenable = lazyRowsThenable(getRows)
+  thenable.offset = spyOrDefault(offset, () => lazyRowsThenable(getRows))
   return thenable
 }
 
-const terminalBuilder = (rows: unknown[] | null): any => {
-  const thenable: any = rowsPromise(rows)
-  thenable.limit = spyOrDefault(limit, () => limitBuilder(rows))
-  thenable.orderBy = spyOrDefault(orderBy, () => terminalBuilder(rows))
+const terminalBuilder = (getRows: RowsSupplier): any => {
+  const thenable = lazyRowsThenable(getRows)
+  thenable.limit = spyOrDefault(limit, () => limitBuilder(getRows))
+  thenable.orderBy = spyOrDefault(orderBy, () => terminalBuilder(getRows))
   thenable.returning = returning
   thenable.groupBy = spyOrDefault(groupBy, () => {
-    const builder = terminalBuilder(rows)
-    builder.having = spyOrDefault(having, () => terminalBuilder(rows))
+    const builder = terminalBuilder(getRows)
+    builder.having = spyOrDefault(having, () => terminalBuilder(getRows))
     return builder
   })
-  thenable.for = spyOrDefault(forClause, () => terminalBuilder(rows))
+  thenable.for = spyOrDefault(forClause, () => terminalBuilder(getRows))
   return thenable
 }
 
 // The from/join builder is itself a thenable so `await db.select().from(t)`
-// (no where clause) also resolves table-routed rows; dequeue happens lazily at
-// await (or where()) time, so a chain never double-consumes.
-const joinBuilder = (tables: unknown[]): any => ({
-  where: spyOrDefault(where, () => terminalBuilder(dequeueChainRows(tables))),
-  innerJoin: spyOrDefault(innerJoin, (table: unknown) => joinBuilder([...tables, table])),
-  leftJoin: spyOrDefault(leftJoin, (table: unknown) => joinBuilder([...tables, table])),
-  then: (onFulfilled?: (rows: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
-    rowsPromise(dequeueChainRows(tables)).then(onFulfilled, onRejected),
-})
+// (no where clause) also resolves table-routed rows; the chain's single lazy
+// supplier means it never double-consumes no matter which step is awaited.
+const joinBuilder = (tables: unknown[]): any => {
+  const getRows = chainRowsSupplier(tables)
+  const builder = lazyRowsThenable(getRows)
+  builder.where = spyOrDefault(where, () => terminalBuilder(getRows))
+  builder.innerJoin = spyOrDefault(innerJoin, (table: unknown) => joinBuilder([...tables, table]))
+  builder.leftJoin = spyOrDefault(leftJoin, (table: unknown) => joinBuilder([...tables, table]))
+  return builder
+}
 
 const selectBuilder = () => ({
   from: spyOrDefault(from, (table: unknown) => joinBuilder([table])),
@@ -230,7 +261,7 @@ const selectBuilder = () => ({
 // Mutation chains route nothing: their where() resolves the plain default so a
 // mutation can never consume rows queued for a select.
 const mutationWhere = () => ({
-  where: spyOrDefault(where, () => terminalBuilder(null)),
+  where: spyOrDefault(where, () => terminalBuilder(noRows)),
 })
 
 export const dbChainMockFns = {
@@ -301,6 +332,19 @@ export function resetDbChainMock(): void {
   transaction.mockImplementation(async (cb: (tx: typeof dbChainMock.db) => unknown) =>
     cb(dbChainMock.db)
   )
+  // The stable db-instance entry points are wrappers around the spies above; a
+  // suite may have overridden them directly, so restore their original
+  // implementations too (mockReset restores the fn passed to vi.fn()).
+  for (const key of [
+    'select',
+    'selectDistinct',
+    'selectDistinctOn',
+    'insert',
+    'update',
+    'delete',
+  ] as const) {
+    ;(dbInstance[key] as ChainSpy).mockReset()
+  }
 }
 
 /**

@@ -120,6 +120,24 @@ describe('database mock', () => {
     ])
   })
 
+  it('preserves a queued set when a terminal override resolves the chain', async () => {
+    queueTableRows(workflowTable, [{ id: 'queued' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'override' }])
+    await expect(db.select().from(workflowTable).where({}).limit(1)).resolves.toEqual([
+      { id: 'override' },
+    ])
+    await expect(db.select().from(workflowTable).where({})).resolves.toEqual([{ id: 'queued' }])
+  })
+
+  it('restores directly-overridden db entry points on resetDbChainMock', async () => {
+    ;(db.select as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error('broken')
+    })
+    expect(() => db.select()).toThrow('broken')
+    resetDbChainMock()
+    await expect(db.select().from(workflowTable).where({})).resolves.toEqual([])
+  })
+
   it('clears queues and rewires defaults on resetDbChainMock', async () => {
     queueTableRows(workflowTable, [{ id: 'stale' }])
     dbChainMockFns.where.mockReturnValue('broken' as never)
