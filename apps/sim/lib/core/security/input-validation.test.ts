@@ -904,7 +904,6 @@ describe('validateAndPinProxyUrl', () => {
     const result = await validateAndPinProxyUrl('http://user:pass@[2606:4700:4700::1111]:8080')
     expect(result.isValid).toBe(true)
     const pinned = new URL(result.pinnedProxyUrl!)
-    // Must be pinned to the bracketed IPv6 literal, never left as a DNS name.
     expect(pinned.hostname).toBe('[2606:4700:4700::1111]')
     expect(pinned.username).toBe('user')
     expect(pinned.password).toBe('pass')

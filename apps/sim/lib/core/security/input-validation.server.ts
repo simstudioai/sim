@@ -203,17 +203,14 @@ export async function validateAndPinProxyUrl(
 
   const resolvedIP = validation.resolvedIP!
 
-  // validateUrlWithDNS carves out loopback for self-hosted dev targets, but a proxy
-  // must be publicly reachable unconditionally: once it governs egress, a loopback
-  // forward proxy plus a rebinding target could reach internal addresses that
-  // target-IP pinning otherwise blocks.
+  // validateUrlWithDNS permits loopback for self-hosted dev targets; a proxy governs
+  // egress, so loopback/private proxy hosts stay blocked unconditionally.
   if (isPrivateOrReservedIP(resolvedIP)) {
     return { isValid: false, error: 'proxyUrl resolves to a blocked IP address' }
   }
 
-  // Bracket IPv6 literals: assigning an unbracketed IPv6 address to
-  // URL.hostname is a no-op (the WHATWG parser rejects it), which would leave
-  // the original DNS hostname in place and reopen the rebinding window.
+  // Bracket IPv6 literals: assigning an unbracketed IPv6 address to URL.hostname
+  // is a no-op, which would leave the DNS hostname in place and reopen rebinding.
   parsed.hostname = resolvedIP.includes(':') ? `[${resolvedIP}]` : resolvedIP
   return { isValid: true, pinnedProxyUrl: parsed.toString() }
 }
@@ -756,11 +753,9 @@ export async function secureFetchWithPinnedIP(
 
     let agent: http.Agent
     if (options.proxyUrl) {
-      // The proxy connection is already IP-pinned by validateAndPinProxyUrl; routing
-      // through the proxy intentionally bypasses target-IP pinning (the proxy
-      // resolves the target). Agent choice keys off the target protocol: an
-      // https target tunnels via CONNECT, an http target uses absolute-URI
-      // forwarding - both over the plain-http proxy connection.
+      // Proxy connection is already IP-pinned by validateAndPinProxyUrl; target-IP
+      // pinning is intentionally bypassed (the proxy resolves the target). https
+      // targets tunnel via CONNECT, http targets use absolute-URI forwarding.
       agent = isHttps ? new HttpsProxyAgent(options.proxyUrl) : new HttpProxyAgent(options.proxyUrl)
     } else {
       const lookup = createPinnedLookup(resolvedIP)
