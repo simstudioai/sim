@@ -68,23 +68,13 @@ export function createMockSqlOperators() {
  * `leftJoin`) references that table. Each chain consumes at most one queued
  * set (FIFO per table, `.from()` table checked before join tables); chains
  * against tables with no queued sets resolve the chain-fn defaults (empty
- * array). Queues are cleared by `resetDbChainMock()`.
+ * array). Mutation chains (`update`/`delete`/`insert`) never consume select
+ * queues. Queues are cleared by `resetDbChainMock()`.
  *
  * The queue is keyed by table object identity, so pass the same schema-mock
  * table object the code under test passes to `.from()` / the join.
- *
- * Routing assumes each select chain is built left-to-right before the next
- * chain starts — the norm for code under test (`Promise.all` over fully-built
- * chains is fine; interleaving *construction* of two chains is not). Mutation
- * chains (`update`/`delete`/`insert`) never consume select queues.
  */
 const tableRowQueues = new Map<unknown, unknown[][]>()
-
-/** Tables of the select chain currently being built: `.from()` first, then joins. */
-let activeTables: unknown[] = []
-
-/** Rows dequeued for the current chain, shared by every downstream terminal. */
-let activeRows: unknown[] | null = null
 
 /**
  * Enqueues one result set for the next select chain reading `table`.
@@ -107,9 +97,9 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
 /**
  * Pre-wired chain of vi.fn()s for drizzle-style DB queries.
  *
- * Each builder step is a stable, module-level `vi.fn()` — safe to reference
- * inside hoisted `vi.mock()` factories (same pattern as `authMockFns`). Chains
- * are wired at module load time:
+ * Each chain step is recorded on a stable, module-level `vi.fn()` spy
+ * (`dbChainMockFns.*`) — safe to reference inside hoisted `vi.mock()`
+ * factories (same pattern as `authMockFns`):
  *
  * - `select().from().where()` → returns a builder with `.limit` / `.orderBy` /
  *   `.returning` / `.groupBy` / `.for` terminals
@@ -118,8 +108,15 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
  *
  * Results resolve, in priority order:
  * 1. a per-test override (`dbChainMockFns.limit.mockResolvedValueOnce([...])`)
- * 2. rows queued for the chain's `.from()` table via `queueTableRows`
+ * 2. rows queued for one of the chain's tables via `queueTableRows`
  * 3. the default empty array
+ *
+ * Routing state lives in per-chain closures: each `select().from(t)` captures
+ * its own table list, so partially-built chains for different tables can be
+ * interleaved or awaited in any order without cross-talk. The shared spies
+ * carry only call history and per-test overrides — a spy's default
+ * implementation returns a sentinel that the chain replaces with the
+ * chain-local builder, while any `mock*` override on the spy wins verbatim.
  *
  * `for` mirrors drizzle's `.for('update')` — it returns a Promise with
  * `.limit` / `.orderBy` / `.returning` / `.groupBy` attached, so both
@@ -132,8 +129,7 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
  *
  * @example
  * ```ts
- * import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
- * import { schemaMock } from '@sim/testing'
+ * import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
  *
  * beforeEach(() => {
  *   vi.clearAllMocks()
@@ -147,104 +143,95 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
  * })
  * ```
  */
-const chainRows = () => Promise.resolve((activeRows ?? []) as unknown[])
+const CHAIN_DEFAULT = Symbol('db-chain-default')
 
-const offset = vi.fn(chainRows)
-// `.limit()` returns a builder that is awaitable and also exposes `.offset()`
-// for keyset/OFFSET paging (`.limit(n).offset(m)`).
-const limitBuilder = () => {
-  const thenable: any = chainRows()
-  thenable.offset = offset
-  return thenable
-}
-const limit = vi.fn(limitBuilder)
+type ChainSpy = ReturnType<typeof vi.fn<(...args: any[]) => any>>
+
+const chainSpy = (): ChainSpy => vi.fn((..._args: any[]) => CHAIN_DEFAULT as any)
+
+/**
+ * Records the call on the shared spy, honoring any per-test override; when the
+ * spy still has its default implementation, builds the chain-local default.
+ */
+const spyOrDefault = (spy: ChainSpy, buildDefault: (...args: any[]) => unknown) =>
+  vi.fn((...args: any[]) => {
+    const result = spy(...args)
+    return result === CHAIN_DEFAULT ? buildDefault(...args) : result
+  })
+
+// Shared spies: structural steps default to the sentinel (chain-local builders
+// take over); value terminals keep real defaults.
+const select = chainSpy()
+const selectDistinct = chainSpy()
+const selectDistinctOn = chainSpy()
+const from = chainSpy()
+const where = chainSpy()
+const limit = chainSpy()
+const offset = chainSpy()
+const orderBy = chainSpy()
+const groupBy = chainSpy()
+const having = chainSpy()
+const forClause = chainSpy()
+const innerJoin = chainSpy()
+const leftJoin = chainSpy()
+const insert = chainSpy()
+const update = chainSpy()
+const set = chainSpy()
+const del = chainSpy()
 const returning = vi.fn(() => Promise.resolve([] as unknown[]))
 const execute = vi.fn(() => Promise.resolve([] as unknown[]))
-
-const terminalBuilder = () => {
-  const thenable: any = chainRows()
-  thenable.limit = limit
-  thenable.orderBy = orderBy
-  thenable.returning = returning
-  thenable.groupBy = groupBy
-  thenable.for = forClause
-  return thenable
-}
-
-const orderBy = vi.fn(terminalBuilder)
-const having = vi.fn(terminalBuilder)
-const groupBy = vi.fn(() => {
-  const builder = terminalBuilder()
-  builder.having = having
-  return builder
-})
-const forBuilder = terminalBuilder
-const forClause = vi.fn(forBuilder)
-
+const query = vi.fn(() => Promise.resolve([] as unknown[]))
 const onConflictDoUpdate = vi.fn(() => ({ returning }) as unknown as Promise<void>)
 const onConflictDoNothing = vi.fn(() => ({ returning }) as unknown as Promise<void>)
-
-const whereBuilder = () => {
-  // Dequeue table-routed rows when the where clause materializes; every
-  // downstream terminal (limit/orderBy/...) then resolves the same rows.
-  activeRows = dequeueChainRows(activeTables)
-  // Some call sites await the where directly (no limit/orderBy), so the
-  // builder is itself a thenable.
-  const thenable: any = chainRows()
-  thenable.limit = limit
-  thenable.orderBy = orderBy
-  thenable.returning = returning
-  thenable.groupBy = groupBy
-  thenable.for = forClause
-  return thenable
-}
-const where = vi.fn(whereBuilder)
-
-// The from/join builder is itself a thenable so `await db.select().from(t)`
-// (no where clause) also resolves table-routed rows. Each builder closes over
-// ITS chain's tables array, so builders constructed before an earlier one is
-// awaited still route to their own chain. Dequeue happens lazily at await
-// time, so a chain that continues into `.where()` never double-consumes.
-const joinBuilder = (
-  tables: unknown[]
-): { where: typeof where; innerJoin: any; leftJoin: any; then: any } => ({
-  where,
-  innerJoin,
-  leftJoin,
-  then: (onFulfilled?: (rows: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
-    Promise.resolve((dequeueChainRows(tables) ?? []) as unknown[]).then(onFulfilled, onRejected),
-})
-const joinStep = (table?: unknown) => {
-  activeTables.push(table)
-  return joinBuilder(activeTables)
-}
-const innerJoin: ReturnType<typeof vi.fn> = vi.fn(joinStep)
-const leftJoin: ReturnType<typeof vi.fn> = vi.fn(joinStep)
-const from = vi.fn((table?: unknown) => {
-  activeTables = [table]
-  activeRows = null
-  return joinBuilder(activeTables)
-})
-
-const select = vi.fn(() => ({ from }))
-const selectDistinct = vi.fn(() => ({ from }))
-const selectDistinctOn = vi.fn(() => ({ from }))
 const values = vi.fn(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
-const insert = vi.fn(() => ({ values }))
-// Mutation chains clear the routing context so their `where()` never consumes
-// rows queued for a select.
-const mutationStep = <T>(next: T): T => {
-  activeTables = []
-  activeRows = null
-  return next
-}
-const set = vi.fn(() => mutationStep({ where }))
-const update = vi.fn(() => mutationStep({ set }))
-const del = vi.fn(() => mutationStep({ where }))
-const query = vi.fn(() => Promise.resolve([] as unknown[]))
 const transaction: ReturnType<typeof vi.fn> = vi.fn(
   async (cb: (tx: any) => unknown): Promise<unknown> => cb(dbChainMock.db)
 )
+
+const rowsPromise = (rows: unknown[] | null) => Promise.resolve((rows ?? []) as unknown[])
+
+// `.limit()` returns a builder that is awaitable and also exposes `.offset()`
+// for keyset/OFFSET paging (`.limit(n).offset(m)`).
+const limitBuilder = (rows: unknown[] | null) => {
+  const thenable: any = rowsPromise(rows)
+  thenable.offset = spyOrDefault(offset, () => rowsPromise(rows))
+  return thenable
+}
+
+const terminalBuilder = (rows: unknown[] | null): any => {
+  const thenable: any = rowsPromise(rows)
+  thenable.limit = spyOrDefault(limit, () => limitBuilder(rows))
+  thenable.orderBy = spyOrDefault(orderBy, () => terminalBuilder(rows))
+  thenable.returning = returning
+  thenable.groupBy = spyOrDefault(groupBy, () => {
+    const builder = terminalBuilder(rows)
+    builder.having = spyOrDefault(having, () => terminalBuilder(rows))
+    return builder
+  })
+  thenable.for = spyOrDefault(forClause, () => terminalBuilder(rows))
+  return thenable
+}
+
+// The from/join builder is itself a thenable so `await db.select().from(t)`
+// (no where clause) also resolves table-routed rows; dequeue happens lazily at
+// await (or where()) time, so a chain never double-consumes.
+const joinBuilder = (tables: unknown[]): any => ({
+  where: spyOrDefault(where, () => terminalBuilder(dequeueChainRows(tables))),
+  innerJoin: spyOrDefault(innerJoin, (table: unknown) => joinBuilder([...tables, table])),
+  leftJoin: spyOrDefault(leftJoin, (table: unknown) => joinBuilder([...tables, table])),
+  then: (onFulfilled?: (rows: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
+    rowsPromise(dequeueChainRows(tables)).then(onFulfilled, onRejected),
+})
+
+const selectBuilder = () => ({
+  from: spyOrDefault(from, (table: unknown) => joinBuilder([table])),
+})
+
+// Mutation chains route nothing: their where() resolves the plain default so a
+// mutation can never consume rows queued for a select.
+const mutationWhere = () => ({
+  where: spyOrDefault(where, () => terminalBuilder(null)),
+})
 
 export const dbChainMockFns = {
   select,
@@ -273,8 +260,8 @@ export const dbChainMockFns = {
 }
 
 /**
- * Re-applies the default chain wiring to every `dbChainMockFns` entry and
- * clears all table-routed row queues. Call this in `beforeEach` (after
+ * Restores every `dbChainMockFns` entry to its default wiring and clears all
+ * table-routed row queues. Call this in `beforeEach` (after
  * `vi.clearAllMocks()`) if any test uses `mockReturnValue` /
  * `mockResolvedValue` (permanent overrides) or `queueTableRows` — this
  * guarantees the next test starts with fresh defaults.
@@ -284,39 +271,33 @@ export const dbChainMockFns = {
  */
 export function resetDbChainMock(): void {
   tableRowQueues.clear()
-  activeTables = []
-  activeRows = null
-  select.mockImplementation(() => ({ from }))
-  selectDistinct.mockImplementation(() => ({ from }))
-  selectDistinctOn.mockImplementation(() => ({ from }))
-  from.mockImplementation((table?: unknown) => {
-    activeTables = [table]
-    activeRows = null
-    return joinBuilder(activeTables)
-  })
-  innerJoin.mockImplementation(joinStep)
-  leftJoin.mockImplementation(joinStep)
-  where.mockImplementation(whereBuilder)
-  insert.mockImplementation(() => ({ values }))
-  values.mockImplementation(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
-  onConflictDoUpdate.mockImplementation(() => ({ returning }) as unknown as Promise<void>)
-  onConflictDoNothing.mockImplementation(() => ({ returning }) as unknown as Promise<void>)
-  update.mockImplementation(() => mutationStep({ set }))
-  set.mockImplementation(() => mutationStep({ where }))
-  del.mockImplementation(() => mutationStep({ where }))
-  limit.mockImplementation(limitBuilder)
-  offset.mockImplementation(chainRows)
-  orderBy.mockImplementation(terminalBuilder)
+  for (const spy of [
+    select,
+    selectDistinct,
+    selectDistinctOn,
+    from,
+    where,
+    limit,
+    offset,
+    orderBy,
+    groupBy,
+    having,
+    forClause,
+    innerJoin,
+    leftJoin,
+    insert,
+    update,
+    set,
+    del,
+  ]) {
+    spy.mockImplementation(() => CHAIN_DEFAULT)
+  }
   returning.mockImplementation(() => Promise.resolve([] as unknown[]))
-  having.mockImplementation(terminalBuilder)
-  groupBy.mockImplementation(() => {
-    const builder = terminalBuilder()
-    builder.having = having
-    return builder
-  })
   execute.mockImplementation(() => Promise.resolve([] as unknown[]))
   query.mockImplementation(() => Promise.resolve([] as unknown[]))
-  forClause.mockImplementation(forBuilder)
+  onConflictDoUpdate.mockImplementation(() => ({ returning }) as unknown as Promise<void>)
+  onConflictDoNothing.mockImplementation(() => ({ returning }) as unknown as Promise<void>)
+  values.mockImplementation(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
   transaction.mockImplementation(async (cb: (tx: typeof dbChainMock.db) => unknown) =>
     cb(dbChainMock.db)
   )
@@ -324,17 +305,17 @@ export function resetDbChainMock(): void {
 
 /**
  * The single shared `@sim/db` mock instance backing BOTH `dbChainMock` and
- * `databaseMock`. Because every binding resolves to the same chain fns, a
+ * `databaseMock`. Because every binding resolves to the same chain spies, a
  * module bound to either export behaves identically — there is exactly one
  * db-mock state to configure and reset.
  */
 const dbInstance = {
-  select,
-  selectDistinct,
-  selectDistinctOn,
-  insert,
-  update,
-  delete: del,
+  select: spyOrDefault(select, selectBuilder),
+  selectDistinct: spyOrDefault(selectDistinct, selectBuilder),
+  selectDistinctOn: spyOrDefault(selectDistinctOn, selectBuilder),
+  insert: spyOrDefault(insert, () => ({ values })),
+  update: spyOrDefault(update, () => ({ set: spyOrDefault(set, mutationWhere) })),
+  delete: spyOrDefault(del, mutationWhere),
   execute,
   query,
   transaction,
@@ -360,7 +341,7 @@ export const dbChainMock = {
 
 /**
  * Mock module for `@sim/db` installed globally in vitest.setup.ts. Shares its
- * `db` instance (and therefore all chain fns and table queues) with
+ * `db` instance (and therefore all chain spies and table queues) with
  * `dbChainMock`; additionally exposes the `sql` template tag and operator
  * exports the real module provides.
  *
