@@ -423,6 +423,7 @@ export function RecentlyDeleted() {
             return (
               <SettingsResourceRow
                 key={resource.id}
+                ariaLabel={resource.name}
                 icon={<ResourceIcon resource={resource} />}
                 title={resource.name}
                 description={

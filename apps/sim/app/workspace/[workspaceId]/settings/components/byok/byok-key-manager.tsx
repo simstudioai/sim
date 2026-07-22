@@ -287,6 +287,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
     return (
       <SettingsResourceRow
         key={provider.id}
+        ariaLabel={provider.name}
         icon={<Icon />}
         title={provider.name}
         description={provider.description}

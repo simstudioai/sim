@@ -80,9 +80,9 @@ bun run test:e2e -- --grep "unauthenticated"
 ```
 
 Projects form a dependency chain to keep shared boundaries serialized. Selecting
-the personas project therefore also runs navigation and workflows by default,
-and an upstream failure skips its dependents. For focused local iteration,
-`--no-deps` is explicitly supported:
+the personas project therefore also runs navigation, authorization, and
+workflows by default, and an upstream failure skips its dependents. For focused
+local iteration, `--no-deps` is explicitly supported:
 
 ```bash
 bun run test:e2e -- --project=hosted-billing-chromium-personas --no-deps
@@ -131,6 +131,40 @@ That override fails closed unless the exact hosted E2E profile, E2E auth origin,
 and loopback `sim_e2e_*` database are all present; normal deployments retain
 Better Auth's defaults.
 
+## Settings authorization contracts
+
+Step 4 owns literal direct-route access, entitlement, and mutation-control
+datasets in `e2e/settings/authorization/contracts.ts`. Existing Step 3
+navigation positives are referenced by stable contract IDs instead of rerun.
+The browser specs cover the remaining account, organization, and workspace
+denials, paid Billing readiness, role-scoped mutation chrome, and shared
+unsaved-change behavior.
+
+Run only these contracts during local iteration:
+
+```bash
+bun run test:e2e -- --reuse-build \
+  --project=hosted-billing-chromium-authorization --no-deps \
+  e2e/settings/authorization
+```
+
+The hosted profile enables Custom blocks with `DEPLOY_AS_BLOCK=true` only for
+the Next.js build and app processes; migration, seed, auth capture, Playwright,
+and realtime never receive the flag. The strict Stripe fake implements only the
+invoice-list shape used by paid settings pages: an existing fake customer,
+`limit=20`, `expand[0]=data.lines`, and an optional cursor. It returns an empty
+Stripe list and rejects all extra or malformed request shapes.
+
+Unsaved-change coverage intentionally stops at settings sidebar navigation,
+the app's Settings Back action, and native `beforeunload`. Toolbar history and
+credential, fork, or custom-block detail guards belong to later roadmap steps.
+On the Step 4 reference run, two workers completed all 84 retry-free
+authorization tests in 1.2 minutes and the cache-hit orchestrator in 4 minutes
+42 seconds. The final dependency chain passed all 223 navigation,
+authorization, workflow, persona, and isolation tests in 2.4 minutes of
+Playwright time; the clean-build orchestrator completed in 8 minutes 25
+seconds.
+
 The cache lives under ignored `e2e/.cache/builds/`. A hit requires matching
 source contents (including uncommitted/untracked files), build/public profile,
 Node/Bun/Next versions, platform, `BUILD_ID`, and the cached artifact checksum.
@@ -153,10 +187,10 @@ were not launched by the orchestrator. Report and trace viewer commands remain
 safe because they do not execute tests.
 
 Sharding is supported only for the navigation project. The runner rejects
-`--shard` for workflows, persona contracts, and the dedicated two-worker
-cross-world isolation project. Project dependencies serialize navigation,
-workflows, and persona contracts before the isolation project opens its
-two-worker pool.
+`--shard` for authorization, workflows, persona contracts, and the dedicated
+two-worker cross-world isolation project. Project dependencies serialize
+navigation, authorization, workflows, and persona contracts before the
+isolation project opens its two-worker pool.
 
 ## Diagnostics
 

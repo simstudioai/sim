@@ -49,9 +49,15 @@ export default defineConfig({
       workers: 2,
     },
     {
+      name: 'hosted-billing-chromium-authorization',
+      testMatch: '**/settings/authorization/**/*.spec.ts',
+      dependencies: ['hosted-billing-chromium-navigation'],
+      workers: 2,
+    },
+    {
       name: 'hosted-billing-chromium-workflows',
       testMatch: ['**/settings/smoke/authenticated.spec.ts', '**/settings/workflows/**/*.spec.ts'],
-      dependencies: ['hosted-billing-chromium-navigation'],
+      dependencies: ['hosted-billing-chromium-authorization'],
       fullyParallel: false,
       workers: 1,
     },

@@ -23,7 +23,8 @@ test('Stripe fake records allowlisted calls and rejects unknown routes', async (
       }),
     })
     expect(customer.status).toBe(200)
-    expect((await customer.json()) as { id: string }).toMatchObject({
+    const customerPayload = (await customer.json()) as { id: string }
+    expect(customerPayload).toMatchObject({
       id: expect.stringMatching(/^cus_e2e_/),
     })
 
@@ -35,6 +36,22 @@ test('Stripe fake records allowlisted calls and rejects unknown routes', async (
       { headers: { authorization: `Bearer ${apiKey}` } }
     )
     expect(search.status).toBe(200)
+
+    const invoices = await fetch(
+      `${baseUrl}/v1/invoices?${new URLSearchParams({
+        customer: customerPayload.id,
+        limit: '20',
+        'expand[0]': 'data.lines',
+      })}`,
+      { headers: { authorization: `Bearer ${apiKey}` } }
+    )
+    expect(invoices.status).toBe(200)
+    expect(await invoices.json()).toEqual({
+      object: 'list',
+      data: [],
+      has_more: false,
+      url: '/v1/invoices',
+    })
 
     const telemetry = await fetch(`${baseUrl}/v1/traces`, {
       method: 'POST',
@@ -56,11 +73,31 @@ test('Stripe fake records allowlisted calls and rejects unknown routes', async (
     )
     expect(unsupportedSearch.status).toBe(501)
 
-    const unknown = await fetch(`${baseUrl}/v1/invoices`, {
+    const unsupportedInvoices = await fetch(
+      `${baseUrl}/v1/invoices?${new URLSearchParams({
+        customer: customerPayload.id,
+        limit: '10',
+        'expand[0]': 'data.lines',
+      })}`,
+      { headers: { authorization: `Bearer ${apiKey}` } }
+    )
+    expect(unsupportedInvoices.status).toBe(501)
+    expect(
+      fake.requestLog.some(
+        ({ method, path, unexpected }) => method === 'GET' && path === '/v1/invoices' && unexpected
+      )
+    ).toBe(true)
+
+    const unknown = await fetch(`${baseUrl}/v1/payment_intents`, {
       headers: { authorization: `Bearer ${apiKey}` },
     })
     expect(unknown.status).toBe(501)
-    expect(fake.requestLog.some(({ unexpected }) => unexpected)).toBe(true)
+    expect(
+      fake.requestLog.some(
+        ({ method, path, unexpected }) =>
+          method === 'GET' && path === '/v1/payment_intents' && unexpected
+      )
+    ).toBe(true)
   } finally {
     await fake.stop()
   }

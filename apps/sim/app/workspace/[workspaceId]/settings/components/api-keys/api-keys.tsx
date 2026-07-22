@@ -318,7 +318,12 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
             <SettingsSection label='Permissions'>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
-                  <span className='text-[var(--text-body)] text-sm'>Allow personal API keys</span>
+                  <label
+                    htmlFor='allow-personal-api-keys'
+                    className='text-[var(--text-body)] text-sm'
+                  >
+                    Allow personal API keys
+                  </label>
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <button
@@ -337,6 +342,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                 </div>
                 {isLoadingSettings ? null : (
                   <Switch
+                    id='allow-personal-api-keys'
                     checked={allowPersonalApiKeys}
                     disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
                     onCheckedChange={async (checked) => {

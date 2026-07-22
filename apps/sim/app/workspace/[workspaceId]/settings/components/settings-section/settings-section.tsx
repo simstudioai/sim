@@ -20,7 +20,7 @@ export function SettingsSection({
   children,
 }: SettingsSectionProps) {
   return (
-    <section className='flex flex-col'>
+    <section aria-label={label} className='flex flex-col'>
       <div className='flex items-center gap-1.5 pl-0.5'>
         <span className='text-[var(--text-muted)] text-small'>{label}</span>
         {headerAccessory}
