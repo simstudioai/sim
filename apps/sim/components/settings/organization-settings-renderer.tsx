@@ -68,7 +68,9 @@ export function OrganizationSettingsRenderer({
   }
   if (section === 'audit-logs') return <AuditLogs organizationId={organizationId} />
   if (section === 'sso') return <SSO organizationId={organizationId} />
-  if (section === 'sessions') return <SessionPolicySettings organizationId={organizationId} />
+  if (section === 'sessions') {
+    return <SessionPolicySettings key={organizationId} organizationId={organizationId} />
+  }
   if (section === 'data-retention') {
     return <DataRetentionSettings organizationId={organizationId} />
   }

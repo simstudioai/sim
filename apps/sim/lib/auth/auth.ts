@@ -231,7 +231,9 @@ export const auth = betterAuth({
        * revocation latency becomes the policy cache TTL, not 24h.
        */
       version: async (session) =>
-        getSessionCookieCacheVersion(session as { activeOrganizationId?: string | null }),
+        getSessionCookieCacheVersion(
+          session as { userId?: string | null; activeOrganizationId?: string | null }
+        ),
     },
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)

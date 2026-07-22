@@ -4,6 +4,7 @@ import { organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
+import { getMemberOrganizationId } from '@/lib/auth/security-policy'
 
 const logger = createLogger('SessionPolicy')
 
@@ -103,24 +104,36 @@ export function clampSessionExpiry(
  * the fields the clamp guards need.
  */
 interface ClampableSession {
+  userId?: string | null
   activeOrganizationId?: string | null
   impersonatedBy?: string | null
-  createdAt?: Date | null
+  createdAt?: Date | string | null
   expiresAt?: Date | null
 }
 
 /**
  * Applies the org session policy to a session's proposed `expiresAt` from a
- * Better Auth database hook. Returns the original date (or undefined/null as
- * given) when no clamp applies: impersonation sessions are platform-admin
- * tooling with their own short expiry, and org-less sessions have no policy.
+ * Better Auth database hook. The governing org is the session's
+ * `activeOrganizationId` when present, else the user's membership — the same
+ * resolution the cookie-cache version uses, so every member session
+ * (including ones created before the user joined) is governed consistently.
+ * Returns the original date when no clamp applies: impersonation sessions
+ * are platform-admin tooling with their own short expiry, and non-member
+ * sessions have no policy.
  */
 export async function clampExpiryForSession(session: ClampableSession): Promise<Date | undefined> {
-  if (!session.expiresAt || session.impersonatedBy || !session.activeOrganizationId) {
+  if (!session.expiresAt || session.impersonatedBy) {
     return session.expiresAt ?? undefined
   }
-  const policy = await getSessionPolicy(session.activeOrganizationId)
-  return clampSessionExpiry(policy, session.createdAt ?? new Date(), session.expiresAt)
+  const organizationId =
+    session.activeOrganizationId ?? (await getMemberOrganizationId(session.userId))
+  if (!organizationId) return session.expiresAt
+
+  const policy = await getSessionPolicy(organizationId)
+  // Better Auth context values can cross a serialization boundary — normalize
+  // createdAt in case it arrives as an ISO string rather than a Date.
+  const createdAt = session.createdAt ? new Date(session.createdAt) : new Date()
+  return clampSessionExpiry(policy, createdAt, session.expiresAt)
 }
 
 /**
@@ -129,7 +142,9 @@ export async function clampExpiryForSession(session: ClampableSession): Promise<
  * this module so the two encodings of the clamp cannot drift. Runs when a
  * policy is saved so tightening applies without waiting for each session's
  * next refresh; `LEAST` never extends an already-shorter expiry, and
- * impersonation sessions are exempt. No-ops when the policy sets no bounds.
+ * impersonation sessions are exempt. Targets sessions by org MEMBERSHIP (not
+ * `active_organization_id`) — the same scope the hooks govern via the
+ * membership fallback. No-ops when the policy sets no bounds.
  */
 export async function eagerClampOrgSessions(
   organizationId: string,

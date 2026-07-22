@@ -164,7 +164,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       )}
       {effectiveSection === 'sso' && organizationId && <SSO organizationId={organizationId} />}
       {effectiveSection === 'sessions' && organizationId && (
-        <SessionPolicySettings organizationId={organizationId} />
+        <SessionPolicySettings key={organizationId} organizationId={organizationId} />
       )}
       {effectiveSection === 'data-retention' && organizationId && (
         <DataRetentionSettings organizationId={organizationId} />

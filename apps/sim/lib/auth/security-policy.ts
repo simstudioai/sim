@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { organization } from '@sim/db/schema'
+import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 
@@ -64,6 +64,50 @@ export function invalidateSecurityPolicyVersionCache(organizationId: string): vo
   versionCache.delete(organizationId)
 }
 
+interface MembershipCacheEntry {
+  organizationId: string | null
+  fetchedAt: number
+}
+
+const membershipCache = new Map<string, MembershipCacheEntry>()
+
+/**
+ * Resolves the org a user belongs to (users belong to at most one org),
+ * served from a short TTL cache. Org security policies govern MEMBERS, not
+ * just sessions that happen to carry an `activeOrganizationId` — a session
+ * created before the user joined an org has none, and without this fallback
+ * such sessions would dodge cookie-cache invalidation (and therefore
+ * org-wide revocation) for up to the 24h cookie lifetime.
+ */
+export async function getMemberOrganizationId(
+  userId: string | null | undefined
+): Promise<string | null> {
+  if (!userId) return null
+
+  const cached = membershipCache.get(userId)
+  if (cached && Date.now() - cached.fetchedAt < SECURITY_POLICY_VERSION_CACHE_TTL_MS) {
+    return cached.organizationId
+  }
+
+  try {
+    const [row] = await db
+      .select({ organizationId: member.organizationId })
+      .from(member)
+      .where(eq(member.userId, userId))
+      .limit(1)
+
+    const organizationId = row?.organizationId ?? null
+    membershipCache.set(userId, { organizationId, fetchedAt: Date.now() })
+    return organizationId
+  } catch (error) {
+    logger.error('Failed to resolve org membership; treating session as org-less', {
+      userId,
+      error,
+    })
+    return null
+  }
+}
+
 /**
  * Atomically bumps the org's security-policy version and drops the local
  * cache entry. Every member's cached session cookie is invalidated on its
@@ -86,11 +130,16 @@ export async function bumpSecurityPolicyVersion(organizationId: string): Promise
 /**
  * Cookie-cache version for a session, consumed by Better Auth's
  * `session.cookieCache.version`. Embeds the member org's security-policy
- * version so bumps propagate to cached cookies; org-less sessions use the
- * static default.
+ * version so bumps propagate to cached cookies. The org is the session's
+ * `activeOrganizationId` when present, else the user's membership — so
+ * sessions created before the user joined the org are still invalidated by a
+ * version bump. Sessions of non-members use the static default.
  */
 export async function getSessionCookieCacheVersion(session: {
+  userId?: string | null
   activeOrganizationId?: string | null
 }): Promise<string> {
-  return String(await getSecurityPolicyVersion(session.activeOrganizationId))
+  const organizationId =
+    session.activeOrganizationId ?? (await getMemberOrganizationId(session.userId))
+  return String(await getSecurityPolicyVersion(organizationId))
 }
