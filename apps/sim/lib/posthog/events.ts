@@ -547,6 +547,10 @@ export interface PostHogEventMap {
     block_type?: string
   }
 
+  slack_community_opened: {
+    source: 'help_menu'
+  }
+
   search_result_selected: {
     result_type:
       | 'block'
