@@ -6,8 +6,27 @@
  * This file contains unit tests for the knowledge base utility functions,
  * including access checks, document processing, and embedding generation.
  */
-import { createEnvMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { defaultMockEnv } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as billingAttributionModule from '@/lib/billing/core/billing-attribution'
+import { env } from '@/lib/core/config/env'
+import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
+import * as workspacesUtilsModule from '@/lib/workspaces/utils'
+
+const envSnapshot = { ...env }
+
+afterAll(() => {
+  for (const key of Object.keys(env)) {
+    delete (env as Record<string, unknown>)[key]
+  }
+  Object.assign(env, envSnapshot)
+  retrySpy.mockRestore()
+  vi.mocked(workspacesUtilsModule.getWorkspaceBilledAccountUserId).mockRestore()
+  vi.mocked(billingAttributionModule.assertBillingAttributionSnapshot).mockRestore()
+  vi.mocked(billingAttributionModule.checkAttributedUsageLimits).mockRestore()
+  vi.mocked(billingAttributionModule.resolveBillingAttribution).mockRestore()
+  vi.mocked(billingAttributionModule.toBillingContext).mockRestore()
+})
 
 vi.mock('drizzle-orm', () => ({
   and: (...args: any[]) => args,
@@ -16,42 +35,54 @@ vi.mock('drizzle-orm', () => ({
   sql: (strings: TemplateStringsArray, ...expr: any[]) => ({ strings, expr }),
 }))
 
-vi.mock('@/lib/core/config/env', () => createEnvMock({ OPENAI_API_KEY: 'test-key' }))
+/**
+ * Spy on the real documents/utils namespace instead of vi.mock: the shared
+ * `@/lib/knowledge/embeddings` module may be cached bound to the real module,
+ * so patching the namespace is the only wiring that always applies.
+ */
+const retrySpy = vi
+  .spyOn(documentsUtilsModule, 'retryWithExponentialBackoff')
+  .mockImplementation(((fn: () => unknown) => fn()) as never)
 
-vi.mock('@/lib/knowledge/documents/utils', () => ({
-  retryWithExponentialBackoff: (fn: any) => fn(),
-}))
+const BILLING_ATTRIBUTION_FIXTURE = {
+  actorUserId: 'billing-user-1',
+  billedAccountUserId: 'billing-user-1',
+  billingEntity: { type: 'user', id: 'billing-user-1' },
+  billingPeriod: {
+    start: '2026-07-01T00:00:00.000Z',
+    end: '2026-08-01T00:00:00.000Z',
+  },
+  organizationId: null,
+  payerSubscription: null,
+  workspaceId: 'workspace1',
+} as never
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBilledAccountUserId: vi.fn().mockResolvedValue('user1'),
-}))
-
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: vi.fn((value) => value),
-  checkAttributedUsageLimits: vi.fn().mockResolvedValue({
+function applyBillingSpies() {
+  vi.spyOn(workspacesUtilsModule, 'getWorkspaceBilledAccountUserId').mockResolvedValue('user1')
+  vi.spyOn(billingAttributionModule, 'assertBillingAttributionSnapshot').mockImplementation(
+    ((value: unknown) => value) as never
+  )
+  vi.spyOn(billingAttributionModule, 'checkAttributedUsageLimits').mockResolvedValue({
     isExceeded: false,
     payerUsage: { currentUsage: 0, limit: 100 },
-  }),
-  resolveBillingAttribution: vi.fn().mockResolvedValue({
-    actorUserId: 'billing-user-1',
-    billedAccountUserId: 'billing-user-1',
-    billingEntity: { type: 'user', id: 'billing-user-1' },
-    billingPeriod: {
-      start: '2026-07-01T00:00:00.000Z',
-      end: '2026-08-01T00:00:00.000Z',
-    },
-    organizationId: null,
-    payerSubscription: null,
-    workspaceId: 'workspace1',
-  }),
-  toBillingContext: vi.fn(() => ({
+  } as never)
+  vi.spyOn(billingAttributionModule, 'resolveBillingAttribution').mockResolvedValue(
+    BILLING_ATTRIBUTION_FIXTURE
+  )
+  vi.spyOn(billingAttributionModule, 'toBillingContext').mockImplementation((() => ({
     billingEntity: { type: 'user', id: 'billing-user-1' },
     billingPeriod: {
       start: new Date('2026-07-01T00:00:00.000Z'),
       end: new Date('2026-08-01T00:00:00.000Z'),
     },
-  })),
-}))
+  })) as never)
+}
+
+/**
+ * Billing helpers are spied on the real namespaces (not vi.mock'd) for the
+ * same shared-consumer reason as the retry spy above.
+ */
+applyBillingSpies()
 
 vi.mock('@/lib/knowledge/documents/document-processor', () => ({
   processDocument: vi.fn().mockResolvedValue({
@@ -99,9 +130,8 @@ function resetDatasets() {
   chunkRows = []
 }
 
-vi.stubGlobal(
-  'fetch',
-  vi.fn().mockResolvedValue({
+function createEmbeddingFetchMock() {
+  return vi.fn().mockResolvedValue({
     ok: true,
     json: async () => ({
       data: [
@@ -111,7 +141,9 @@ vi.stubGlobal(
       usage: { prompt_tokens: 2, total_tokens: 2 },
     }),
   })
-)
+}
+
+vi.stubGlobal('fetch', createEmbeddingFetchMock())
 
 vi.mock('@sim/db', async () => {
   const { schemaMock } = (await import('@sim/testing')) as typeof import('@sim/testing')
@@ -261,6 +293,19 @@ describe('Knowledge Utils', () => {
     dbOps.updatePayloads.length = 0
     resetDatasets()
     vi.clearAllMocks()
+    // `unstubGlobals: true` removes the module-scope fetch stub after the
+    // first test in the worker; re-stub it per test.
+    vi.stubGlobal('fetch', createEmbeddingFetchMock())
+    // Under `isolate: false` the shared `@/lib/knowledge/embeddings` module may
+    // be cached bound to the REAL env module, so reset the real `env` object
+    // per test instead of vi.mock'ing a file-local replacement that a cached
+    // consumer would never see.
+    for (const key of Object.keys(env)) {
+      delete (env as Record<string, unknown>)[key]
+    }
+    Object.assign(env, { ...defaultMockEnv, OPENAI_API_KEY: 'test-key' })
+    retrySpy.mockImplementation(((fn: () => unknown) => fn()) as never)
+    applyBillingSpies()
   })
 
   describe('processDocumentAsync', () => {

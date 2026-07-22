@@ -23,7 +23,25 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   },
 }))
 
-import { createTimeoutAbortController, getExecutionTimeout } from '@/lib/core/execution-limits'
+/**
+ * Query-suffixed import gives this file a private instance of the module under
+ * test (the barrel's `./types` source, so the fresh evaluation bakes the mocked
+ * env into EXECUTION_TIMEOUTS). Under `isolate: false` the worker's module
+ * graph is shared across test files, so the plain specifier may already be
+ * cached with the real env/env-flags bindings (mocks never reach an
+ * already-evaluated module) — and evaluating it here under this file's mocks
+ * would poison it for later files. The suffixed id is unique to this file, so
+ * it always evaluates fresh with the mocks above.
+ */
+declare module '@/lib/core/execution-limits/types?execution-limits-test' {
+  // biome-ignore lint/suspicious/noExportsInTest: ambient type re-declaration for the query-suffixed specifier, not a runtime export
+  export * from '@/lib/core/execution-limits/types'
+}
+
+import {
+  createTimeoutAbortController,
+  getExecutionTimeout,
+} from '@/lib/core/execution-limits/types?execution-limits-test'
 
 describe('getExecutionTimeout', () => {
   beforeEach(() => {

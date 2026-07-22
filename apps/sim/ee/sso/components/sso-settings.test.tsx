@@ -132,6 +132,10 @@ function renderSso(organizationId: string) {
 
 describe('SSO organization transitions', () => {
   beforeEach(() => {
+    // The component reads getBaseUrl() during render; make sure the env var is
+    // present even when the suite runs without a local .env or after another
+    // test file mutated the environment (auto-restored via unstubEnvs).
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'http://localhost:3000')
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     container = document.createElement('div')
     document.body.appendChild(container)

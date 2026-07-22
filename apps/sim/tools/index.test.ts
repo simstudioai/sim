@@ -16,7 +16,7 @@ import {
   type MockFetchResponse,
 } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
 // Hoisted mock state - these are available to vi.mock factories
@@ -119,247 +119,214 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
-vi.mock('@/tools/registry', () => {
-  const mockTools: Record<string, any> = {
-    http_request: {
-      id: 'http_request',
-      name: 'HTTP Request',
-      description: 'Make HTTP requests',
-      version: '1.0.0',
-      params: {
-        url: { type: 'string', required: true },
-        method: { type: 'string', default: 'GET' },
-        headers: { type: 'object' },
-        body: { type: 'object' },
-        params: { type: 'object' },
-        pathParams: { type: 'object' },
-        formData: { type: 'object' },
-        timeout: { type: 'number' },
-        retries: { type: 'number' },
-        retryDelayMs: { type: 'number' },
-        retryMaxDelayMs: { type: 'number' },
-        retryNonIdempotent: { type: 'boolean' },
-      },
-      request: {
-        url: (p: any) => p.url || '/api/test',
-        method: (p: any) => p.method || 'GET',
-        headers: (p: any) => p.headers || { 'Content-Type': 'application/json' },
-        body: (p: any) => p.body,
-        retry: {
-          enabled: true,
-          maxRetries: 0,
-          initialDelayMs: 500,
-          maxDelayMs: 30000,
-          retryIdempotentOnly: true,
-        },
-      },
-      transformResponse: async (response: any) => {
-        const contentType = response.headers?.get?.('content-type') || ''
-        const headers: Record<string, string> = {}
-        if (response.headers?.forEach) {
-          response.headers.forEach((value: string, key: string) => {
-            headers[key] = value
-          })
-        }
-        const data = await (contentType.includes('application/json')
-          ? response.json()
-          : response.text())
-        return {
-          success: response.ok,
-          output: { data, status: response.status, headers },
-        }
-      },
-      outputs: {
-        data: { type: 'json', description: 'Response data' },
-        status: { type: 'number', description: 'HTTP status code' },
-        headers: { type: 'object', description: 'Response headers' },
+const mockRegistryTools: Record<string, any> = {
+  http_request: {
+    id: 'http_request',
+    name: 'HTTP Request',
+    description: 'Make HTTP requests',
+    version: '1.0.0',
+    params: {
+      url: { type: 'string', required: true },
+      method: { type: 'string', default: 'GET' },
+      headers: { type: 'object' },
+      body: { type: 'object' },
+      params: { type: 'object' },
+      pathParams: { type: 'object' },
+      formData: { type: 'object' },
+      timeout: { type: 'number' },
+      retries: { type: 'number' },
+      retryDelayMs: { type: 'number' },
+      retryMaxDelayMs: { type: 'number' },
+      retryNonIdempotent: { type: 'boolean' },
+    },
+    request: {
+      url: (p: any) => p.url || '/api/test',
+      method: (p: any) => p.method || 'GET',
+      headers: (p: any) => p.headers || { 'Content-Type': 'application/json' },
+      body: (p: any) => p.body,
+      retry: {
+        enabled: true,
+        maxRetries: 0,
+        initialDelayMs: 500,
+        maxDelayMs: 30000,
+        retryIdempotentOnly: true,
       },
     },
-    function_execute: {
-      id: 'function_execute',
-      name: 'Function Execute',
-      description: 'Execute JavaScript code',
-      version: '1.0.0',
-      params: {
-        code: { type: 'string', required: true },
-        language: { type: 'string', required: false },
-        timeout: { type: 'number', required: false },
-      },
-      request: {
-        url: '/api/function/execute',
-        method: 'POST',
-        headers: () => ({ 'Content-Type': 'application/json' }),
-        body: (p: any) => ({
-          code: Array.isArray(p.code) ? p.code.map((c: any) => c.content).join('\n') : p.code,
-          language: p.language || 'javascript',
-          timeout: p.timeout || 30000,
-        }),
-      },
-      transformResponse: async (response: any) => {
-        const data = await response.json()
-        return { success: true, output: data }
-      },
-      outputs: {
-        result: { type: 'json', description: 'Execution result' },
-      },
+    transformResponse: async (response: any) => {
+      const contentType = response.headers?.get?.('content-type') || ''
+      const headers: Record<string, string> = {}
+      if (response.headers?.forEach) {
+        response.headers.forEach((value: string, key: string) => {
+          headers[key] = value
+        })
+      }
+      const data = await (contentType.includes('application/json')
+        ? response.json()
+        : response.text())
+      return {
+        success: response.ok,
+        output: { data, status: response.status, headers },
+      }
     },
-    gmail_read: {
-      id: 'gmail_read',
-      name: 'Gmail Read',
-      description: 'Read Gmail messages',
-      version: '1.0.0',
-      oauth: { required: true, provider: 'google-email' },
-      params: {},
-      request: { url: '/api/tools/gmail/read', method: 'GET' },
+    outputs: {
+      data: { type: 'json', description: 'Response data' },
+      status: { type: 'number', description: 'HTTP status code' },
+      headers: { type: 'object', description: 'Response headers' },
     },
-    gmail_send: {
-      id: 'gmail_send',
-      name: 'Gmail Send',
-      description: 'Send Gmail messages',
-      version: '1.0.0',
-      oauth: { required: true, provider: 'google-email' },
-      params: {},
-      request: { url: '/api/tools/gmail/send', method: 'POST' },
+  },
+  function_execute: {
+    id: 'function_execute',
+    name: 'Function Execute',
+    description: 'Execute JavaScript code',
+    version: '1.0.0',
+    params: {
+      code: { type: 'string', required: true },
+      language: { type: 'string', required: false },
+      timeout: { type: 'number', required: false },
     },
-    test_single_file_tool: {
-      id: 'test_single_file_tool',
-      name: 'Test Single File Tool',
-      description: 'Accepts a single file parameter',
-      version: '1.0.0',
-      params: {
-        attachment: { type: 'file', required: true },
-      },
-      request: {
-        url: '/api/tools/test/single-file',
-        method: 'POST',
-        headers: () => ({ 'Content-Type': 'application/json' }),
-        body: (p: any) => ({ attachment: p.attachment }),
-      },
-      transformResponse: async (response: any) => {
-        const data = await response.json()
-        return { success: true, output: data }
-      },
+    request: {
+      url: '/api/function/execute',
+      method: 'POST',
+      headers: () => ({ 'Content-Type': 'application/json' }),
+      body: (p: any) => ({
+        code: Array.isArray(p.code) ? p.code.map((c: any) => c.content).join('\n') : p.code,
+        language: p.language || 'javascript',
+        timeout: p.timeout || 30000,
+      }),
     },
-    test_env_ref_tool: {
-      id: 'test_env_ref_tool',
-      name: 'Test Env Reference Tool',
-      description: 'Accepts a user-only API key and an llm-writable note',
-      version: '1.0.0',
-      params: {
-        apiKey: { type: 'string', required: true, visibility: 'user-only' },
-        note: { type: 'string', required: false, visibility: 'user-or-llm' },
-      },
-      request: {
-        url: '/api/tools/test/env-ref',
-        method: 'POST',
-        headers: () => ({ 'Content-Type': 'application/json' }),
-        body: (p: any) => ({ apiKey: p.apiKey, note: p.note }),
-      },
-      transformResponse: async (response: any) => {
-        const data = await response.json()
-        return { success: true, output: data }
-      },
+    transformResponse: async (response: any) => {
+      const data = await response.json()
+      return { success: true, output: data }
     },
-    test_file_array_tool: {
-      id: 'test_file_array_tool',
-      name: 'Test File Array Tool',
-      description: 'Accepts an array of file parameters',
-      version: '1.0.0',
-      params: {
-        attachments: { type: 'file[]', required: true },
-      },
-      request: {
-        url: '/api/tools/test/file-array',
-        method: 'POST',
-        headers: () => ({ 'Content-Type': 'application/json' }),
-        body: (p: any) => ({ attachments: p.attachments }),
-      },
-      transformResponse: async (response: any) => {
-        const data = await response.json()
-        return { success: true, output: data }
-      },
+    outputs: {
+      result: { type: 'json', description: 'Execution result' },
     },
-    google_drive_list: {
-      id: 'google_drive_list',
-      name: 'Google Drive List',
-      description: 'List Google Drive files',
-      version: '1.0.0',
-      params: {},
-      request: { url: '/api/tools/google-drive/list', method: 'GET' },
+  },
+  gmail_read: {
+    id: 'gmail_read',
+    name: 'Gmail Read',
+    description: 'Read Gmail messages',
+    version: '1.0.0',
+    oauth: { required: true, provider: 'google-email' },
+    params: {},
+    request: { url: '/api/tools/gmail/read', method: 'GET' },
+  },
+  gmail_send: {
+    id: 'gmail_send',
+    name: 'Gmail Send',
+    description: 'Send Gmail messages',
+    version: '1.0.0',
+    oauth: { required: true, provider: 'google-email' },
+    params: {},
+    request: { url: '/api/tools/gmail/send', method: 'POST' },
+  },
+  test_single_file_tool: {
+    id: 'test_single_file_tool',
+    name: 'Test Single File Tool',
+    description: 'Accepts a single file parameter',
+    version: '1.0.0',
+    params: {
+      attachment: { type: 'file', required: true },
     },
-    serper_search: {
-      id: 'serper_search',
-      name: 'Serper Search',
-      description: 'Search via Serper',
-      version: '1.0.0',
-      params: {},
-      request: { url: '/api/tools/serper/search', method: 'GET' },
+    request: {
+      url: '/api/tools/test/single-file',
+      method: 'POST',
+      headers: () => ({ 'Content-Type': 'application/json' }),
+      body: (p: any) => ({ attachment: p.attachment }),
     },
-    notion_add_database_row: {
-      id: 'notion_add_database_row',
-      name: 'Add Notion Database Row',
-      description: 'Add a new row to a Notion database with specified properties',
-      version: '1.0.0',
-      params: {},
-      request: { url: 'https://api.notion.com/v1/pages', method: 'POST' },
+    transformResponse: async (response: any) => {
+      const data = await response.json()
+      return { success: true, output: data }
     },
-    notion_add_database_row_v2: {
-      id: 'notion_add_database_row_v2',
-      name: 'Add Notion Database Row',
-      description: 'Add a new row to a Notion database with specified properties',
-      version: '2.0.0',
-      params: {},
-      request: { url: 'https://api.notion.com/v1/pages', method: 'POST' },
+  },
+  test_env_ref_tool: {
+    id: 'test_env_ref_tool',
+    name: 'Test Env Reference Tool',
+    description: 'Accepts a user-only API key and an llm-writable note',
+    version: '1.0.0',
+    params: {
+      apiKey: { type: 'string', required: true, visibility: 'user-only' },
+      note: { type: 'string', required: false, visibility: 'user-or-llm' },
     },
-    notion_update_page: {
-      id: 'notion_update_page',
-      name: 'Notion Page Updater',
-      description: 'Update properties of a Notion page',
-      version: '1.0.0',
-      params: {},
-      request: { url: 'https://api.notion.com/v1/pages/x', method: 'PATCH' },
+    request: {
+      url: '/api/tools/test/env-ref',
+      method: 'POST',
+      headers: () => ({ 'Content-Type': 'application/json' }),
+      body: (p: any) => ({ apiKey: p.apiKey, note: p.note }),
     },
-    notion_update_page_v2: {
-      id: 'notion_update_page_v2',
-      name: 'Notion Page Updater',
-      description: 'Update properties of a Notion page',
-      version: '2.0.0',
-      params: {},
-      request: { url: 'https://api.notion.com/v1/pages/x', method: 'PATCH' },
+    transformResponse: async (response: any) => {
+      const data = await response.json()
+      return { success: true, output: data }
     },
-  }
-  return { tools: mockTools }
-})
-
-// Mock query client for custom tool cache reads
-vi.mock('@/app/_shell/providers/get-query-client', () => {
-  const mockCustomTool = {
-    id: 'custom-tool-123',
-    title: 'Custom Weather Tool',
-    code: 'return { result: "Weather data" }',
-    schema: {
-      function: {
-        description: 'Get weather information',
-        parameters: {
-          type: 'object',
-          properties: {
-            location: { type: 'string', description: 'City name' },
-            unit: { type: 'string', description: 'Unit (metric/imperial)' },
-          },
-          required: ['location'],
-        },
-      },
+  },
+  test_file_array_tool: {
+    id: 'test_file_array_tool',
+    name: 'Test File Array Tool',
+    description: 'Accepts an array of file parameters',
+    version: '1.0.0',
+    params: {
+      attachments: { type: 'file[]', required: true },
     },
-  }
-  return {
-    getQueryClient: () => ({
-      getQueryData: (key: string[]) => {
-        if (key[0] === 'customTools') return [mockCustomTool]
-        return undefined
-      },
-    }),
-  }
-})
+    request: {
+      url: '/api/tools/test/file-array',
+      method: 'POST',
+      headers: () => ({ 'Content-Type': 'application/json' }),
+      body: (p: any) => ({ attachments: p.attachments }),
+    },
+    transformResponse: async (response: any) => {
+      const data = await response.json()
+      return { success: true, output: data }
+    },
+  },
+  google_drive_list: {
+    id: 'google_drive_list',
+    name: 'Google Drive List',
+    description: 'List Google Drive files',
+    version: '1.0.0',
+    params: {},
+    request: { url: '/api/tools/google-drive/list', method: 'GET' },
+  },
+  serper_search: {
+    id: 'serper_search',
+    name: 'Serper Search',
+    description: 'Search via Serper',
+    version: '1.0.0',
+    params: {},
+    request: { url: '/api/tools/serper/search', method: 'GET' },
+  },
+  notion_add_database_row: {
+    id: 'notion_add_database_row',
+    name: 'Add Notion Database Row',
+    description: 'Add a new row to a Notion database with specified properties',
+    version: '1.0.0',
+    params: {},
+    request: { url: 'https://api.notion.com/v1/pages', method: 'POST' },
+  },
+  notion_add_database_row_v2: {
+    id: 'notion_add_database_row_v2',
+    name: 'Add Notion Database Row',
+    description: 'Add a new row to a Notion database with specified properties',
+    version: '2.0.0',
+    params: {},
+    request: { url: 'https://api.notion.com/v1/pages', method: 'POST' },
+  },
+  notion_update_page: {
+    id: 'notion_update_page',
+    name: 'Notion Page Updater',
+    description: 'Update properties of a Notion page',
+    version: '1.0.0',
+    params: {},
+    request: { url: 'https://api.notion.com/v1/pages/x', method: 'PATCH' },
+  },
+  notion_update_page_v2: {
+    id: 'notion_update_page_v2',
+    name: 'Notion Page Updater',
+    description: 'Update properties of a Notion page',
+    version: '2.0.0',
+    params: {},
+    request: { url: 'https://api.notion.com/v1/pages/x', method: 'PATCH' },
+  },
+}
 
 vi.mock('@/lib/workflows/custom-tools/operations', () => ({
   getCustomToolById: mockGetCustomToolById,
@@ -376,10 +343,80 @@ vi.mock('@/tools/utils.server', async (importOriginal) => {
   }
 })
 
+import type { QueryClient } from '@tanstack/react-query'
+import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
 import { executeTool, postProcessToolOutput } from '@/tools'
 import { tools } from '@/tools/registry'
 import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
+
+/**
+ * Overlay the mock tools onto the REAL registry object instead of vi.mock:
+ * under `isolate: false` shared consumers (`@/tools/utils`, `@/tools`) may be
+ * cached across test files bound to the real registry namespace, so mutating
+ * the one real `tools` object (and restoring it afterAll) is the only wiring
+ * that applies in every ordering.
+ */
+const replacedRegistryEntries = new Map<string, unknown>()
+for (const [id, tool] of Object.entries(mockRegistryTools)) {
+  replacedRegistryEntries.set(id, (tools as Record<string, unknown>)[id])
+  ;(tools as Record<string, any>)[id] = tool
+}
+
+afterAll(() => {
+  for (const [id, original] of replacedRegistryEntries) {
+    if (original === undefined) {
+      delete (tools as Record<string, unknown>)[id]
+    } else {
+      ;(tools as Record<string, any>)[id] = original
+    }
+  }
+})
+
+const mockCustomTool = {
+  id: 'custom-tool-123',
+  title: 'Custom Weather Tool',
+  code: 'return { result: "Weather data" }',
+  schema: {
+    function: {
+      description: 'Get weather information',
+      parameters: {
+        type: 'object',
+        properties: {
+          location: { type: 'string', description: 'City name' },
+          unit: { type: 'string', description: 'Unit (metric/imperial)' },
+        },
+        required: ['location'],
+      },
+    },
+  },
+}
+
+function createMockQueryClient(): QueryClient {
+  return {
+    getQueryData: (key: readonly unknown[]) => {
+      if (key[0] === 'customTools') return [mockCustomTool]
+      return undefined
+    },
+  } as unknown as QueryClient
+}
+
+/**
+ * Spy on the real get-query-client namespace instead of vi.mock: under
+ * `isolate: false` the shared `@/tools/utils` module may be cached across test
+ * files, so patching the real namespace is the only wiring that composes.
+ * Re-applied in beforeEach because suites below call vi.resetAllMocks() /
+ * vi.restoreAllMocks().
+ */
+vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
+
+beforeEach(() => {
+  vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
+})
+
+afterAll(() => {
+  vi.mocked(getQueryClientModule.getQueryClient).mockRestore()
+})
 
 /**
  * Sets up global fetch mock with Next.js preconnect support.

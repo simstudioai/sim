@@ -37,7 +37,24 @@ vi.mock('@/lib/permissions/super-user', () => ({
   isPlatformAdmin: mockIsPlatformAdmin,
 }))
 
-import { getFeatureFlags, isFeatureEnabled } from '@/lib/core/config/feature-flags'
+/**
+ * Query-suffixed import gives this file a private instance of the module under
+ * test. Under `isolate: false` the worker's module graph is shared across test
+ * files, so the plain specifier may already be cached with the real
+ * appconfig/env/env-flags bindings (mocks never reach an already-evaluated
+ * module) — and evaluating it here under this file's mocks would poison it for
+ * later files. The suffixed id is unique to this file, so it always evaluates
+ * fresh with the mocks above.
+ */
+declare module '@/lib/core/config/feature-flags?feature-flags-test' {
+  // biome-ignore lint/suspicious/noExportsInTest: ambient type re-declaration for the query-suffixed specifier, not a runtime export
+  export * from '@/lib/core/config/feature-flags'
+}
+
+import {
+  getFeatureFlags,
+  isFeatureEnabled,
+} from '@/lib/core/config/feature-flags?feature-flags-test'
 
 /** Make `getFeatureFlags` resolve to `doc` via the AppConfig path (also exercises parseConfig). */
 function withAppConfig(doc: unknown) {

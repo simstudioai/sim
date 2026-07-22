@@ -1,7 +1,28 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { member, organization, subscription } from '@sim/db/schema'
+import { databaseMock, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import type { Mock } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@sim/db', () => dbChainMock)
+
+/**
+ * Realistic plan-check predicates so `pickHighestPrioritySubscription` exercises
+ * the real Enterprise > Team > Pro priority ordering over the rows we feed it.
+ */
+vi.mock('@/lib/billing/subscriptions/utils', () => ({
+  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'past_due'],
+  checkEnterprisePlan: (s: { plan?: string; status?: string } | null) =>
+    s?.plan === 'enterprise' && ['active', 'past_due'].includes(s?.status ?? ''),
+  checkTeamPlan: (s: { plan?: string; status?: string } | null) =>
+    s?.plan === 'team' && ['active', 'past_due'].includes(s?.status ?? ''),
+  checkProPlan: (s: { plan?: string; status?: string } | null) =>
+    s?.plan === 'pro' && ['active', 'past_due'].includes(s?.status ?? ''),
+}))
+
+import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 
 /**
  * Drizzle mock for `getHighestPrioritySubscription`. It issues up to four
@@ -16,67 +37,76 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * second = org). It records which tables were queried so we can assert the
  * parallelized pair both run and that follow-ups are skipped when appropriate.
  *
- * Table sentinels and shared mock state live inside `vi.hoisted` so the
- * `vi.mock` factories (hoisted to the top of the file) can reference them.
+ * The routing implementation is installed in `beforeEach` onto the SHARED
+ * `dbChainMockFns.select` (this file mocks `@sim/db` with `dbChainMock`) AND
+ * mirrored onto the setup-level `databaseMock` entry points. Under
+ * `isolate: false` the module under test may have been loaded by an earlier
+ * suite in this worker with `@sim/db` bound to `databaseMock` — pointing both
+ * shared instances at the same routing keeps either binding correct. Table
+ * identity likewise relies on the setup-level `@sim/db/schema` mock (no local
+ * schema factory), which is stable across suites in the shared worker.
  */
-const { SUBSCRIPTION_TABLE, MEMBER_TABLE, ORGANIZATION_TABLE, resultsByTable, fromCalls, select } =
-  vi.hoisted(() => {
-    const SUBSCRIPTION_TABLE = { __table: 'subscription' }
-    const MEMBER_TABLE = { __table: 'member' }
-    const ORGANIZATION_TABLE = { __table: 'organization' }
+type TableName = 'subscription' | 'member' | 'organization'
 
-    const resultsByTable: Record<string, unknown[][]> = {
-      subscription: [],
-      member: [],
-      organization: [],
-    }
-    const fromCalls: string[] = []
+const TABLE_NAMES = new Map<unknown, TableName>([
+  [subscription, 'subscription'],
+  [member, 'member'],
+  [organization, 'organization'],
+])
 
-    const select = vi.fn(() => ({
-      from: (table: { __table: string }) => {
-        fromCalls.push(table.__table)
-        const where = () => {
-          const queue = resultsByTable[table.__table]
-          const next = queue.length > 0 ? queue.shift() : []
-          return Promise.resolve(next ?? [])
-        }
-        return { where }
-      },
-    }))
+const resultsByTable: Record<TableName, unknown[][]> = {
+  subscription: [],
+  member: [],
+  organization: [],
+}
+const fromCalls: string[] = []
 
-    return {
-      SUBSCRIPTION_TABLE,
-      MEMBER_TABLE,
-      ORGANIZATION_TABLE,
-      resultsByTable,
-      fromCalls,
-      select,
-    }
-  })
+function routedSelect() {
+  return {
+    from: (table: unknown) => {
+      const name = TABLE_NAMES.get(table)
+      if (name) fromCalls.push(name)
+      const where = () => {
+        const queue = name ? resultsByTable[name] : undefined
+        const next = queue && queue.length > 0 ? queue.shift() : []
+        return Promise.resolve(next ?? [])
+      }
+      return { where }
+    },
+  }
+}
 
-vi.mock('@sim/db', () => ({
-  db: { select },
-}))
+const GLOBAL_DB_KEYS = [
+  'select',
+  'selectDistinct',
+  'insert',
+  'update',
+  'delete',
+  'transaction',
+] as const
 
-vi.mock('@sim/db/schema', () => ({
-  subscription: SUBSCRIPTION_TABLE,
-  member: MEMBER_TABLE,
-  organization: ORGANIZATION_TABLE,
-}))
+const globalDb = databaseMock.db as unknown as Record<(typeof GLOBAL_DB_KEYS)[number], Mock>
+const savedGlobalDbImpls = new Map<
+  (typeof GLOBAL_DB_KEYS)[number],
+  ((...args: unknown[]) => unknown) | undefined
+>()
 
-/**
- * Realistic plan-check predicates so `pickHighestPrioritySubscription` exercises
- * the real Enterprise > Team > Pro priority ordering over the rows we feed it.
- */
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'past_due'],
-  checkEnterprisePlan: (s: any) =>
-    s?.plan === 'enterprise' && ['active', 'past_due'].includes(s?.status),
-  checkTeamPlan: (s: any) => s?.plan === 'team' && ['active', 'past_due'].includes(s?.status),
-  checkProPlan: (s: any) => s?.plan === 'pro' && ['active', 'past_due'].includes(s?.status),
-}))
+/** Mirrors the setup-level databaseMock entry points onto the shared chain fns. */
+function delegateGlobalDbToChainMocks(): void {
+  for (const key of GLOBAL_DB_KEYS) {
+    const fn = globalDb[key]
+    if (typeof fn?.mockImplementation !== 'function') continue
+    if (!savedGlobalDbImpls.has(key)) savedGlobalDbImpls.set(key, fn.getMockImplementation())
+    fn.mockImplementation((...args: unknown[]) => (dbChainMockFns[key] as Mock)(...args))
+  }
+}
 
-import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+/** Restores the databaseMock entry points captured before this suite ran. */
+function restoreGlobalDb(): void {
+  for (const [key, impl] of savedGlobalDbImpls) {
+    if (impl) globalDb[key].mockImplementation(impl)
+  }
+}
 
 interface SubRow {
   id: string
@@ -93,17 +123,25 @@ function orgEnterprise(orgId: string): SubRow {
   return { id: 'sub-org-enterprise', referenceId: orgId, plan: 'enterprise', status: 'active' }
 }
 
-function queue(table: 'subscription' | 'member' | 'organization', rows: unknown[]) {
+function queue(table: TableName, rows: unknown[]) {
   resultsByTable[table].push(rows)
 }
 
 describe('getHighestPrioritySubscription', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     resultsByTable.subscription = []
     resultsByTable.member = []
     resultsByTable.organization = []
     fromCalls.length = 0
+    dbChainMockFns.select.mockImplementation(routedSelect)
+    delegateGlobalDbToChainMocks()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
+    restoreGlobalDb()
   })
 
   it('picks the org Enterprise sub over a personal Pro sub (priority order)', async () => {

@@ -1,4 +1,3 @@
-import { setupGlobalFetchMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import {
@@ -109,9 +108,6 @@ vi.mock('@/executor/utils/http', () => ({
   }),
 }))
 
-// Mock fetch globally
-setupGlobalFetchMock()
-
 describe('WorkflowBlockHandler', () => {
   let handler: WorkflowBlockHandler
   let mockBlock: SerializedBlock
@@ -119,14 +115,17 @@ describe('WorkflowBlockHandler', () => {
   let mockFetch: Mock
 
   beforeEach(() => {
-    // Mock window.location.origin for getBaseUrl()
-    ;(global as any).window = {
+    // Mock window.location.origin for getBaseUrl(); stubGlobal so unstubGlobals cleans it up
+    vi.stubGlobal('window', {
       location: {
         origin: 'http://localhost:3000',
       },
-    }
+    })
     handler = new WorkflowBlockHandler()
-    mockFetch = global.fetch as Mock
+
+    // unstubGlobals removes any module-scope fetch stub before each test, so stub fresh here
+    mockFetch = vi.fn()
+    vi.stubGlobal('fetch', mockFetch)
 
     mockBlock = {
       id: 'workflow-block-1',
