@@ -138,16 +138,23 @@ export const PUT = withRouteHandler(
       idleTimeoutHours: body.idleTimeoutHours,
     }
 
-    // The version bump rides the settings UPDATE (same row, one round trip).
-    const [updated] = await db
-      .update(organization)
-      .set({
-        sessionPolicySettings: merged,
-        securityPolicyVersion: sql`${organization.securityPolicyVersion} + 1`,
-        updatedAt: new Date(),
-      })
-      .where(eq(organization.id, organizationId))
-      .returning({ id: organization.id })
+    // Settings write (with the version bump riding the same row) and the
+    // eager clamp of existing sessions commit atomically — a stored policy is
+    // never left unenforced by a partial failure.
+    const updated = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(organization)
+        .set({
+          sessionPolicySettings: merged,
+          securityPolicyVersion: sql`${organization.securityPolicyVersion} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(organization.id, organizationId))
+        .returning({ id: organization.id })
+      if (!row) return null
+      await eagerClampOrgSessions(organizationId, merged, tx)
+      return row
+    })
 
     if (!updated) {
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
@@ -155,8 +162,6 @@ export const PUT = withRouteHandler(
 
     invalidateSessionPolicyCache(organizationId)
     invalidateSecurityPolicyVersionCache(organizationId)
-
-    await eagerClampOrgSessions(organizationId, merged)
 
     logger.info('Updated organization session policy', { organizationId })
 

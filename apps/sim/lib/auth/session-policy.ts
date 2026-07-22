@@ -156,12 +156,13 @@ export async function clampExpiryForSession(
  */
 export async function eagerClampOrgSessions(
   organizationId: string,
-  policy: ResolvedSessionPolicy
+  policy: ResolvedSessionPolicy,
+  executor: Pick<typeof db, 'execute'> = db
 ): Promise<void> {
   const bounds = clampBoundsSql(policy)
   if (!bounds) return
 
-  await db.execute(sql`
+  await executor.execute(sql`
     UPDATE "session" SET expires_at = LEAST(${bounds})
     WHERE impersonated_by IS NULL
       AND user_id IN (

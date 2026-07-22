@@ -71,6 +71,15 @@ interface MembershipCacheEntry {
 
 const membershipCache = new Map<string, MembershipCacheEntry>()
 
+/**
+ * Negative (non-member) membership results use a much shorter TTL than
+ * positive ones: a user's cached `null` would otherwise let them dodge a new
+ * org's policy for the full TTL after joining through ANY path — including
+ * ones outside this codebase (Better Auth SSO JIT provisioning). Positive
+ * results change only through leave/transfer, which invalidate explicitly.
+ */
+const NEGATIVE_MEMBERSHIP_CACHE_TTL_MS = 15 * 1000
+
 /** Drops the cached membership for a user (call when they join/leave an org). */
 export function invalidateMembershipCache(userId: string): void {
   membershipCache.delete(userId)
@@ -90,8 +99,11 @@ export async function getMemberOrganizationId(
   if (!userId) return null
 
   const cached = membershipCache.get(userId)
-  if (cached && Date.now() - cached.fetchedAt < SECURITY_POLICY_VERSION_CACHE_TTL_MS) {
-    return cached.organizationId
+  if (cached) {
+    const ttl = cached.organizationId
+      ? SECURITY_POLICY_VERSION_CACHE_TTL_MS
+      : NEGATIVE_MEMBERSHIP_CACHE_TTL_MS
+    if (Date.now() - cached.fetchedAt < ttl) return cached.organizationId
   }
 
   try {

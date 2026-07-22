@@ -631,6 +631,10 @@ export async function ensureUserInOrganization(
 
   const result = await addUserToOrganization(params)
 
+  if (result.success) {
+    invalidateMembershipCache(params.userId)
+  }
+
   return {
     ...result,
     alreadyMember: false,

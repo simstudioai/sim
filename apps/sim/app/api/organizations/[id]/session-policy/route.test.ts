@@ -138,10 +138,11 @@ describe('session policy route', () => {
       expect(response.status).toBe(200)
       const body = await response.json()
       expect(body.data.configured).toEqual({ maxSessionHours: 72, idleTimeoutHours: 48 })
-      expect(mockEagerClamp).toHaveBeenCalledWith(ORG_ID, {
-        maxSessionHours: 72,
-        idleTimeoutHours: 48,
-      })
+      expect(mockEagerClamp).toHaveBeenCalledWith(
+        ORG_ID,
+        { maxSessionHours: 72, idleTimeoutHours: 48 },
+        expect.anything()
+      )
       // The version bump rides the settings UPDATE (single round trip).
       expect(dbChainMockFns.set).toHaveBeenCalledWith(
         expect.objectContaining({ securityPolicyVersion: expect.anything() })
@@ -161,10 +162,11 @@ describe('session policy route', () => {
         routeContext
       )
       expect(response.status).toBe(200)
-      expect(mockEagerClamp).toHaveBeenCalledWith(ORG_ID, {
-        maxSessionHours: null,
-        idleTimeoutHours: null,
-      })
+      expect(mockEagerClamp).toHaveBeenCalledWith(
+        ORG_ID,
+        { maxSessionHours: null, idleTimeoutHours: null },
+        expect.anything()
+      )
     })
   })
 })
