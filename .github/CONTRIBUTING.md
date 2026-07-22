@@ -165,6 +165,15 @@ After running this command, open [http://localhost:3000/](http://localhost:3000/
 git clone https://github.com/<your-username>/sim.git
 cd sim
 
+# Generate the required secrets. Docker Compose reads them from this .env file.
+# BETTER_AUTH_SECRET, ENCRYPTION_KEY, and INTERNAL_API_SECRET are mandatory —
+# without them the containers start but creating the first account fails.
+cat > .env <<EOF
+BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+INTERNAL_API_SECRET=$(openssl rand -hex 32)
+EOF
+
 # Start Sim
 docker compose -f docker-compose.prod.yml up -d
 ```
