@@ -645,7 +645,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
   private async applyPiiRedaction(
     workspaceId: string | null,
     payload: RedactablePayload,
-    storeContext: { workflowId?: string | null; executionId: string; userId?: string | null }
+    storeContext: { workflowId?: string | null; executionId: string; userId?: string | null },
+    onRedactionStart?: () => Promise<void>
   ): Promise<RedactablePayload> {
     if (!workspaceId) return payload
 
@@ -665,6 +666,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
     // yields the disabled default, so non-PII orgs incur only the lookup.
     const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId }).logs
     if (!config.enabled) return payload
+
+    // Masking large payloads can take a while; let the caller surface the phase
+    // (e.g. flip the log row to 'redacting') before the slow work starts.
+    await onRedactionStart?.()
 
     // The string redactor can't reach values already offloaded to large-value
     // storage (>8MB refs). Always hydrate → mask → re-store them under the LOGS
@@ -867,6 +872,29 @@ export class ExecutionLogger implements IExecutionLoggerService {
         workflowId: existingLog?.workflowId ?? null,
         executionId,
         userId: actorUserId,
+      },
+      async () => {
+        // Execution is done but the log payload is still being masked — surface
+        // that as 'redacting' so the Logs UI doesn't show a stale 'running'.
+        // Guarded on 'running' so a concurrent cancellation is never clobbered;
+        // the terminal update below overwrites with the final status either way.
+        // Purely cosmetic: a failed write must never abort masking/finalization.
+        try {
+          await db
+            .update(workflowExecutionLogs)
+            .set({ status: 'redacting' })
+            .where(
+              and(
+                eq(workflowExecutionLogs.executionId, executionId),
+                eq(workflowExecutionLogs.status, 'running')
+              )
+            )
+        } catch (error) {
+          logger.warn('Failed to set redacting status on execution log', {
+            executionId,
+            error: getErrorMessage(error),
+          })
+        }
       }
     )
 
