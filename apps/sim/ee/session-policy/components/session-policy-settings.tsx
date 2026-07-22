@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChipConfirmModal, ChipInput, Label, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
@@ -34,14 +34,18 @@ interface HourFieldProps {
 function HourField({ id, title, hint, value, onChange }: HourFieldProps) {
   return (
     <div className='flex flex-col gap-[9px]'>
-      <Label htmlFor={id}>{title}</Label>
+      <Label htmlFor={id} className='font-normal text-[var(--text-muted)]'>
+        {title}
+      </Label>
       <ChipInput
         id={id}
         type='number'
+        inputMode='numeric'
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder='No limit'
         className='w-[220px]'
+        inputClassName='[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
       />
       <p className='text-[var(--text-muted)] text-caption'>{hint}</p>
     </div>
@@ -64,21 +68,21 @@ export function SessionPolicySettings({ organizationId }: SessionPolicySettingsP
   const [savedMaxSessionHours, setSavedMaxSessionHours] = useState('')
   const [savedIdleTimeoutHours, setSavedIdleTimeoutHours] = useState('')
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false)
-  const formInitializedRef = useRef(false)
+  const [formInitialized, setFormInitialized] = useState(false)
 
   useEffect(() => {
-    if (!data || formInitializedRef.current) return
+    if (!data || formInitialized) return
     const max = data.configured.maxSessionHours?.toString() ?? ''
     const idle = data.configured.idleTimeoutHours?.toString() ?? ''
     setMaxSessionHours(max)
     setIdleTimeoutHours(idle)
     setSavedMaxSessionHours(max)
     setSavedIdleTimeoutHours(idle)
-    formInitializedRef.current = true
-  }, [data])
+    setFormInitialized(true)
+  }, [data, formInitialized])
 
   const hasChanges =
-    formInitializedRef.current &&
+    formInitialized &&
     (maxSessionHours !== savedMaxSessionHours || idleTimeoutHours !== savedIdleTimeoutHours)
 
   useSettingsUnsavedGuard({ isDirty: hasChanges })
@@ -125,12 +129,16 @@ export function SessionPolicySettings({ organizationId }: SessionPolicySettingsP
     }
 
     try {
-      await updatePolicy.mutateAsync({
+      const result = await updatePolicy.mutateAsync({
         orgId: organizationId,
         settings: { maxSessionHours: max, idleTimeoutHours: idle },
       })
-      setSavedMaxSessionHours(maxSessionHours)
-      setSavedIdleTimeoutHours(idleTimeoutHours)
+      const savedMax = result.data.configured.maxSessionHours?.toString() ?? ''
+      const savedIdle = result.data.configured.idleTimeoutHours?.toString() ?? ''
+      setMaxSessionHours(savedMax)
+      setIdleTimeoutHours(savedIdle)
+      setSavedMaxSessionHours(savedMax)
+      setSavedIdleTimeoutHours(savedIdle)
       toast.success('Session policy updated')
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to update session policy'))
@@ -191,7 +199,6 @@ export function SessionPolicySettings({ organizationId }: SessionPolicySettingsP
       <ChipConfirmModal
         open={showRevokeConfirm}
         onOpenChange={setShowRevokeConfirm}
-        srTitle='Sign out all members'
         title='Sign out all members'
         text={[
           'Every member of this organization will be signed out on their next request, except your current session. Members will need to sign in again.',

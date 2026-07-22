@@ -138,10 +138,7 @@ export const PUT = withRouteHandler(
       idleTimeoutHours: body.idleTimeoutHours,
     }
 
-    // The version bump rides the settings UPDATE (same row, one round trip);
-    // it invalidates every member's cached session cookie so the changed
-    // policy re-evaluates on the next request instead of after the 24h
-    // cookie-cache lifetime.
+    // The version bump rides the settings UPDATE (same row, one round trip).
     const [updated] = await db
       .update(organization)
       .set({
@@ -159,9 +156,6 @@ export const PUT = withRouteHandler(
     invalidateSessionPolicyCache(organizationId)
     invalidateSecurityPolicyVersionCache(organizationId)
 
-    // Eagerly clamp existing member sessions so a tightened policy applies to
-    // sessions that never hit a refresh (the lazy hook clamp only runs on
-    // refresh, up to 24h away).
     await eagerClampOrgSessions(organizationId, merged)
 
     logger.info('Updated organization session policy', { organizationId })

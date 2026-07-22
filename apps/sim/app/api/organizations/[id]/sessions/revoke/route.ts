@@ -90,9 +90,6 @@ export const POST = withRouteHandler(
       )
       .returning({ id: sessionTable.id })
 
-    // Cached session cookies outlive the DB rows for up to 24h — the version
-    // bump forces every cached cookie in the org to re-validate against the
-    // DB (and fail) on its next request.
     await bumpSecurityPolicyVersion(organizationId)
 
     logger.info('Revoked organization sessions', {

@@ -547,7 +547,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     docsLink: 'https://docs.sim.ai/platform/enterprise/session-policies',
     unified: {
       id: 'sessions',
-      description: 'Set session lifetime limits and sign out members org-wide.',
+      description: 'Limit session lifetimes and sign out members org-wide.',
       group: 'enterprise',
       requiresHosted: true,
       requiresEnterprise: true,
