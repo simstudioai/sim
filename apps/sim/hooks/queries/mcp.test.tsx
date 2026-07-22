@@ -120,8 +120,12 @@ describe('useMcpToolsQuery', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    ;(globalThis as unknown as Record<string, unknown>).__mcp_sse_connections = undefined
-    ;(globalThis as unknown as Record<string, unknown>).__mcp_sse_subscribed = undefined
+    // mcp.ts captured these Map/Set instances in module consts at import, so reassigning the
+    // globalThis property wouldn't reset what the module uses — clear the shared instances.
+    ;(
+      globalThis as unknown as { __mcp_sse_connections?: Map<string, unknown> }
+    ).__mcp_sse_connections?.clear()
+    ;(globalThis as unknown as { __mcp_sse_subscribed?: Set<string> }).__mcp_sse_subscribed?.clear()
   })
 
   it('does not auto-discover disconnected or errored OAuth servers', async () => {
