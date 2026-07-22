@@ -219,8 +219,11 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   const handleQuestionDismiss = () => {
     if (questionTag) setDismissedQuestionTag(questionTag)
   }
-  const showActions = shouldShowAssistantMessageActions({
-    phase,
+  // Settle timing lives in MessageContent (the actions take the thinking
+  // slot's place in the same render), so eligibility here is phase-free:
+  // `phase: 'settled'` asks the helper "would a settled turn show them?".
+  const actionsEligible = shouldShowAssistantMessageActions({
+    phase: 'settled',
     hasContent: Boolean(message.content) || hasAnyBlocks,
     endsWithQuestion,
     questionDismissed,
@@ -237,17 +240,17 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
         onOptionSelect={onOptionSelect}
         onQuestionDismiss={handleQuestionDismiss}
         onPhaseChange={setPhase}
+        actions={
+          actionsEligible ? (
+            <MessageActions
+              content={message.content}
+              userQuery={precedingUserContent}
+              requestId={message.requestId}
+              messageId={message.id}
+            />
+          ) : undefined
+        }
       />
-      {showActions && (
-        <div className='mt-2.5'>
-          <MessageActions
-            content={message.content}
-            userQuery={precedingUserContent}
-            requestId={message.requestId}
-            messageId={message.id}
-          />
-        </div>
-      )}
     </div>
   )
 })

@@ -30,9 +30,10 @@ const ANIMATION_FOLLOW_WINDOW = 500
 /**
  * How long to keep chasing the bottom after streaming stops. End-of-turn content
  * mounts just after `isStreaming` flips false — the suggested-follow-up options,
- * the actions row (gated on `!isStreaming`), and the virtualizer's re-measure of
- * the grown row — so a single final scroll fires before it lays out and leaves it
- * clipped behind the input. Following for a short window pulls it into view.
+ * the actions row (swapped into the thinking slot's place), and the
+ * virtualizer's re-measure of the grown row — so a single final scroll fires
+ * before it lays out and leaves it clipped behind the input. Following for a
+ * short window pulls it into view.
  */
 const POST_STREAM_SETTLE_WINDOW = 300
 

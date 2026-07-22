@@ -1,6 +1,15 @@
 'use client'
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { cn } from '@sim/emcn'
 import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
@@ -21,8 +30,6 @@ import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 const FILE_SUBAGENT_ID = 'file'
 /** Quiet period before the shimmer takes the slot back from streamed output. */
 const STREAM_IDLE_DELAY_MS = 1_500
-/** Unmount the loader after the slot's 300ms collapse, with margin. */
-const SLOT_EXIT_DELAY_MS = 400
 
 interface TextSegment {
   type: 'text'
@@ -785,6 +792,14 @@ interface MessageContentProps {
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
   onPhaseChange?: (phase: MessagePhase) => void
+  /**
+   * The message's actions row (copy/thumbs). Rendered here, in the thinking
+   * slot's position, so at settle the shimmer and the actions trade places in
+   * one render — a single tiny reflow instead of a collapse the buttons ride
+   * or a late mount the chase visibly scrolls to. The caller gates it on
+   * content/question eligibility only; the settle timing is owned here.
+   */
+  actions?: ReactNode
 }
 
 function MessageContentInner({
@@ -796,6 +811,7 @@ function MessageContentInner({
   onOptionSelect,
   onQuestionDismiss,
   onPhaseChange,
+  actions,
 }: MessageContentProps) {
   const { onWorkspaceResourceSelect } = useChatSurface()
   const parsed = useMemo(() => (blocks.length > 0 ? parseBlocks(blocks) : []), [blocks])
@@ -813,16 +829,6 @@ function MessageContentInner({
     setTrailingPendingTag(pending)
   }, [])
   const [isStreamIdle, setIsStreamIdle] = useState(false)
-  /**
-   * True once the slot's collapse has finished (seeded true so a settled mount
-   * never runs the loader). The loader must stay mounted through the collapse:
-   * with `grid-rows` transitioning 1fr→0fr, unmounting the content in the same
-   * flip zeroes the track instantly — the slot snaps instead of sliding out,
-   * clamping `scrollTop` at settle. Timed rather than transitionend-latched:
-   * motion-reduce (`transition-none`) and browsers that can't animate
-   * `grid-template-rows` never fire the event.
-   */
-  const [slotExited, setSlotExited] = useState(true)
 
   const segments: MessageSegment[] =
     parsed.length > 0
@@ -863,15 +869,6 @@ function MessageContentInner({
   // closes, and collapsing under a still-growing reveal reads as the blob
   // winking out early while everything shifts.
   const thinkingExpanded = phase !== 'settled' && lastSegment?.type !== 'stopped'
-
-  useEffect(() => {
-    if (thinkingExpanded) return
-    const timeout = setTimeout(() => setSlotExited(true), SLOT_EXIT_DELAY_MS)
-    return () => clearTimeout(timeout)
-  }, [thinkingExpanded])
-
-  // Guarded render adjust (see sim-hooks): a live turn re-arms the exit latch.
-  if (thinkingExpanded && slotExited) setSlotExited(false)
 
   if (segments.length === 0 && !isLast) return null
 
@@ -956,37 +953,26 @@ function MessageContentInner({
           }
         })}
       </div>
-      {isLast && (
+      {thinkingExpanded && isLast ? (
         // Fixed-height placeholder for the NEXT piece of output: the shimmer
         // and arriving output trade places via opacity only, so mid-turn swaps
-        // can't move layout; the grid-rows collapse slides it out once, at
-        // settle. A sibling of the space-y stack (not a child), so collapsed
-        // it carries no leftover sibling margin — pt-[10px] is its own gap.
-        <div
-          aria-hidden={!showShimmer}
-          className={cn(
-            'grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none',
-            thinkingExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-          )}
-        >
-          <div className='overflow-hidden'>
-            <div
-              className={cn(
-                'pt-[10px] transition-transform duration-300 ease-out motion-reduce:transition-none',
-                thinkingExpanded ? 'translate-y-0' : 'translate-y-[8px]'
-              )}
-            >
-              <div
-                className={cn(
-                  'transition-opacity duration-200 ease-out',
-                  showShimmer ? 'opacity-100' : 'opacity-0'
-                )}
-              >
-                {!slotExited && <PendingTagIndicator label={thinkingLabel ?? 'Thinking…'} />}
-              </div>
-            </div>
+        // can't move layout. A sibling of the space-y stack (not a child), so
+        // it carries no stray sibling margin — pt-[10px] is its own gap.
+        <div aria-hidden={!showShimmer} className='pt-[10px]'>
+          <div
+            className={cn(
+              'transition-opacity duration-200 ease-out',
+              showShimmer ? 'opacity-100' : 'opacity-0'
+            )}
+          >
+            <PendingTagIndicator label={thinkingLabel ?? 'Thinking…'} />
           </div>
         </div>
+      ) : (
+        // The actions row takes the slot's place in the SAME render — a single
+        // ~10px reflow instead of a collapse the buttons would ride upward or a
+        // late mount the chase would visibly scroll to.
+        actions && <div className='mt-2.5'>{actions}</div>
       )}
     </div>
   )

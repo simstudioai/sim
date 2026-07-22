@@ -2,12 +2,12 @@
  * Fraction of the remaining gap to close per frame while chasing the bottom —
  * an exponential glide (originating in the subagent viewport's stick-to-bottom,
  * see BoundedViewport in agent-group.tsx) instead of snapping `scrollTop` to
- * `scrollHeight` on every content append. Closes ~90% of any gap within ~18
- * frames (~300ms) — deliberately lazier than the subagent viewport's 0.18 so a
- * large content burst reads as a calm upward drift of the transcript rather
+ * `scrollHeight` on every content append. Closes ~90% of any gap within ~13
+ * frames (~220ms) — slightly lazier than the subagent viewport's 0.18 so a
+ * large content burst reads as a brisk upward drift of the transcript rather
  * than a lurch.
  */
-export const SMOOTH_CHASE_RATE = 0.12
+export const SMOOTH_CHASE_RATE = 0.16
 
 /** Gap (px) below which the chase parks until new growth reopens it. */
 export const CHASE_REST_GAP = 0.5
