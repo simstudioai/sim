@@ -60,9 +60,12 @@ export const POST = withRouteHandler(
         await assertActiveWorkspaceAccess(chat.workspaceId, userId)
       }
 
+      // Bump `updatedAt` (like workflow/table/KB restores) so the restored chat
+      // surfaces at the top of the sidebar, and mark it seen for the restorer.
+      const now = new Date()
       const [restoredChat] = await db
         .update(copilotChats)
-        .set({ deletedAt: null })
+        .set({ deletedAt: null, updatedAt: now, lastSeenAt: now })
         .where(
           and(
             eq(copilotChats.id, chatId),
