@@ -14,6 +14,7 @@ import {
   storageToDisplay,
   todayLocalCalendarDate,
 } from '../../../utils'
+import { SelectValueEditor, toSelectedIds } from '../../select-field'
 
 interface InlineEditorProps {
   value: unknown
@@ -323,10 +324,50 @@ function InlineTextEditor({
   )
 }
 
+/**
+ * Inline editor for `select`/`multiselect` columns — opens the option dropdown
+ * immediately and commits the chosen ids when the menu closes.
+ */
+function InlineSelectEditor({ value, column, onSave }: InlineEditorProps) {
+  const initial: string | string[] | null =
+    column.type === 'multiselect' ? toSelectedIds(value) : (toSelectedIds(value)[0] ?? null)
+  const [draft, setDraft] = useState<string | string[] | null>(initial)
+  const latestRef = useRef(draft)
+  const doneRef = useRef(false)
+
+  const handleChange = useCallback((next: string | string[] | null) => {
+    setDraft(next)
+    latestRef.current = next
+  }, [])
+
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (open || doneRef.current) return
+      doneRef.current = true
+      onSave(latestRef.current, 'enter')
+    },
+    [onSave]
+  )
+
+  return (
+    <SelectValueEditor
+      column={column}
+      value={draft}
+      onChange={handleChange}
+      defaultOpen
+      onOpenChange={handleOpenChange}
+      fullWidth
+    />
+  )
+}
+
 /** Dispatches to the right editor variant based on the column type. */
 export function InlineEditor(props: InlineEditorProps) {
   if (props.column.type === 'date') {
     return <InlineDateEditor {...props} />
+  }
+  if (props.column.type === 'select' || props.column.type === 'multiselect') {
+    return <InlineSelectEditor {...props} />
   }
   return <InlineTextEditor {...props} />
 }

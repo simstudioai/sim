@@ -5,9 +5,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Badge, Checkbox, cn, Tooltip } from '@sim/emcn'
 import { parse } from 'tldts'
 import { faviconUrl } from '@/lib/core/utils/favicon'
-import type { RowExecutionMetadata } from '@/lib/table'
+import type { RowExecutionMetadata, SelectOption } from '@/lib/table'
 import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import { storageToDisplay } from '../../../utils'
+import { resolveSelectOptions, SelectPill } from '../../select-field'
 import type { DisplayColumn } from '../types'
 import { SimResourceCell, type SimResourceType } from './sim-resource-cell'
 
@@ -25,6 +26,7 @@ export type CellRenderKind =
   | { kind: 'no-output' }
   // Plain typed cells
   | { kind: 'boolean'; checked: boolean }
+  | { kind: 'select'; options: SelectOption[] }
   | { kind: 'json'; text: string }
   | { kind: 'date'; text: string }
   | { kind: 'url'; text: string; href: string; domain: string }
@@ -120,6 +122,11 @@ export function resolveCellRender({
   }
 
   if (column.type === 'boolean') return { kind: 'boolean', checked: Boolean(value) }
+  // Always render select cells as the `select` kind — an empty one shows a muted
+  // "None" so every select cell reads as a clickable dropdown.
+  if (column.type === 'select' || column.type === 'multiselect') {
+    return { kind: 'select', options: resolveSelectOptions(column, value) }
+  }
   if (isNull) return { kind: 'empty' }
   if (column.type === 'json') return { kind: 'json', text: JSON.stringify(value) }
   if (column.type === 'date') return { kind: 'date', text: String(value) }
@@ -344,6 +351,22 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
         >
           <Checkbox size='sm' checked={kind.checked} className='pointer-events-none' />
         </div>
+      )
+
+    case 'select':
+      return (
+        <span
+          className={cn(
+            'flex min-w-0 items-center gap-1 overflow-hidden',
+            isEditing && 'invisible'
+          )}
+        >
+          {kind.options.length > 0 ? (
+            kind.options.map((option) => <SelectPill key={option.id} option={option} />)
+          ) : (
+            <span className='text-[var(--text-muted)] text-small'>None</span>
+          )}
+        </span>
       )
 
     case 'json':
