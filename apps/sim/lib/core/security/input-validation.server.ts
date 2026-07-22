@@ -201,10 +201,19 @@ export async function validateAndPinProxyUrl(
     return { isValid: false, error: validation.error }
   }
 
+  const resolvedIP = validation.resolvedIP!
+
+  // validateUrlWithDNS carves out loopback for self-hosted dev targets, but a proxy
+  // must be publicly reachable unconditionally: once it governs egress, a loopback
+  // forward proxy plus a rebinding target could reach internal addresses that
+  // target-IP pinning otherwise blocks.
+  if (isPrivateOrReservedIP(resolvedIP)) {
+    return { isValid: false, error: 'proxyUrl resolves to a blocked IP address' }
+  }
+
   // Bracket IPv6 literals: assigning an unbracketed IPv6 address to
   // URL.hostname is a no-op (the WHATWG parser rejects it), which would leave
   // the original DNS hostname in place and reopen the rebinding window.
-  const resolvedIP = validation.resolvedIP!
   parsed.hostname = resolvedIP.includes(':') ? `[${resolvedIP}]` : resolvedIP
   return { isValid: true, pinnedProxyUrl: parsed.toString() }
 }

@@ -874,6 +874,15 @@ describe('validateAndPinProxyUrl', () => {
     expect(result.error).toMatch(/private IP|blocked IP/)
   })
 
+  it('should reject a loopback proxy host even off the hosted platform', async () => {
+    const localhost = await validateAndPinProxyUrl('http://localhost:3128')
+    expect(localhost.isValid).toBe(false)
+    expect(localhost.error).toContain('blocked IP')
+    const loopback = await validateAndPinProxyUrl('http://127.0.0.1:3128')
+    expect(loopback.isValid).toBe(false)
+    expect(loopback.error).toContain('blocked IP')
+  })
+
   it('should reject a proxy host that is the metadata IP', async () => {
     const result = await validateAndPinProxyUrl('http://169.254.169.254:80')
     expect(result.isValid).toBe(false)
