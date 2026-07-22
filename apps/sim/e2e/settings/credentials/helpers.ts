@@ -380,14 +380,11 @@ export async function attemptWorkspaceApiKeyCreate(
   return page.evaluate(
     async ({ workspaceId, name }) => {
       // boundary-raw-fetch: E2E browser-resident credential operation prevents plaintext crossing into Playwright
-      const response = await fetch(
-        `/api/workspaces/${encodeURIComponent(workspaceId)}/api-keys`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ name, source: 'settings' }),
-        }
-      )
+      const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/api-keys`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, source: 'settings' }),
+      })
       return response.status
     },
     { workspaceId: targetWorkspaceId, name }
