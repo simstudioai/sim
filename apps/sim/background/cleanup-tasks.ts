@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import {
   copilotAsyncToolCalls,
   copilotChats,
-  copilotFeedback,
   copilotRunCheckpoints,
   copilotRuns,
   mothershipInboxTask,
@@ -103,14 +102,6 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
     if (r.deleted > 0) logger.info(`[${r.table}] ${r.deleted} deleted`)
   }
 
-  // Delete feedback — no direct workspaceId, reuse chat IDs collected above
-  const feedbackResult = await deleteRowsById(
-    copilotFeedback,
-    copilotFeedback.chatId,
-    doomedChatIds,
-    `${label}/copilotFeedback`
-  )
-
   // Delete copilot runs (has workspaceId directly, cascades checkpoints)
   const runsResult = await batchDeleteByWorkspaceAndTimestamp({
     tableDef: copilotRuns,
@@ -126,6 +117,8 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
   // Re-check the retention cutoff in the DELETE: a chat restored from Recently
   // Deleted mid-run gets a fresh `updatedAt`, so it survives here (and
   // chatCleanup.execute() re-checks row existence before purging its data).
+  // Chat-scoped children (copilot_messages, copilot_feedback) go with the row
+  // via FK cascade, so they are removed only for chats actually deleted.
   const chatsResult = { deleted: 0, failed: 0 }
   for (const batch of chunkArray(doomedChatIds, DEFAULT_DELETE_CHUNK_SIZE)) {
     try {
@@ -152,7 +145,6 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
 
   const totalDeleted =
     runChildResults.reduce((s, r) => s + r.deleted, 0) +
-    feedbackResult.deleted +
     runsResult.deleted +
     chatsResult.deleted +
     inboxResult.deleted
