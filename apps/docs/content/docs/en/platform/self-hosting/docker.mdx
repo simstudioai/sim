@@ -10,28 +10,55 @@ import { FAQ } from '@/components/ui/faq'
 ## Quick Start
 
 ```bash
-# Clone and start
+# Clone the repository
 git clone https://github.com/simstudioai/sim.git && cd sim
+
+# Generate persistent secrets once (the file is ignored by Git)
+(
+  set -euC
+  if [ -e .env ]; then
+    echo 'Refusing to overwrite existing .env' >&2
+    exit 1
+  fi
+  umask 077
+  better_auth_secret=$(openssl rand -hex 32)
+  encryption_key=$(openssl rand -hex 32)
+  api_encryption_key=$(openssl rand -hex 32)
+  internal_api_secret=$(openssl rand -hex 32)
+  cat > .env << EOF
+BETTER_AUTH_SECRET=$better_auth_secret
+ENCRYPTION_KEY=$encryption_key
+API_ENCRYPTION_KEY=$api_encryption_key
+INTERNAL_API_SECRET=$internal_api_secret
+EOF
+)
+
+# Start Sim
 docker compose -f docker-compose.prod.yml up -d
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
 
+<Callout type="warning">
+  Back up the generated `.env` file separately in a secured secret store; do not bundle it with
+  database backups. Do not regenerate these values when restarting an existing installation.
+  Changing encryption keys can make stored secrets unreadable, while changing `BETTER_AUTH_SECRET`
+  invalidates existing sessions.
+</Callout>
+
 ## Production Setup
 
 ### 1. Configure Environment
 
-```bash
-# Generate secrets
-cat > .env << EOF
-DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
-BETTER_AUTH_SECRET=$(openssl rand -hex 32)
-ENCRYPTION_KEY=$(openssl rand -hex 32)
-INTERNAL_API_SECRET=$(openssl rand -hex 32)
+Keep the secrets generated during Quick Start and add your public URL to the same `.env` file:
+
+```dotenv
 NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
 BETTER_AUTH_URL=https://sim.yourdomain.com
-EOF
 ```
+
+If you skipped Quick Start, run its secret-generation step first. Never replace encryption keys for
+an installation that already has database data.
 
 ### 2. Start Services
 
@@ -121,6 +148,8 @@ docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
 
 If Ollama runs on your host machine (not in Docker):
 
+Complete Quick Start first so the persistent `.env` exists, then use the appropriate host URL:
+
 ```bash
 # macOS/Windows
 OLLAMA_URL=http://host.docker.internal:11434 docker compose -f docker-compose.prod.yml up -d
@@ -158,4 +187,3 @@ docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres simstudio 
   { question: "How do I back up and restore the database?", answer: "Back up with: docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres simstudio > backup.sql. Restore with: docker compose -f docker-compose.prod.yml exec -T db psql -U postgres simstudio < backup.sql. The database data is persisted in a Docker volume named postgres_data." },
   { question: "Can I customize the PostgreSQL credentials?", answer: "Yes. The docker-compose.prod.yml uses environment variable defaults: POSTGRES_USER (default: postgres), POSTGRES_PASSWORD (default: postgres), POSTGRES_DB (default: simstudio), and POSTGRES_PORT (default: 5432). Set these in your .env file to override them." },
 ]} />
-
