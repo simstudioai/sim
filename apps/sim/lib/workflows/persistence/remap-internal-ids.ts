@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { remapConditionBlockIds } from '@/lib/workflows/condition-ids'
+import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
 import {
   type CanonicalModeOverrides,
   resolveCanonicalMode,
@@ -321,9 +322,16 @@ function remapWorkflowInputTools(
 /**
  * Remap condition/router block IDs within subBlocks when a block is copied with
  * a new ID. Returns a new object without mutating the input.
+ *
+ * Gated on the BLOCK type + canonical subblock key (`conditions`/`routes`), not
+ * the stored subblock `type`: edge handles are remapped by string prefix with no
+ * type gate, so keying this side on mutable stored metadata lets a drifted type
+ * (e.g. a `conditions` entry stamped `short-input` by a fallback writer) skip the
+ * id remap while the handles still move — orphaning every edge out of the block.
  */
 export function remapConditionIdsInSubBlocks(
   subBlocks: SubBlockRecord,
+  blockType: string | undefined,
   oldBlockId: string,
   newBlockId: string
 ): SubBlockRecord {
@@ -332,7 +340,7 @@ export function remapConditionIdsInSubBlocks(
     if (
       subBlock &&
       typeof subBlock === 'object' &&
-      (subBlock.type === 'condition-input' || subBlock.type === 'router-input') &&
+      isDynamicHandleSubblock(blockType, key) &&
       typeof subBlock.value === 'string'
     ) {
       try {

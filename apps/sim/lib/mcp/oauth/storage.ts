@@ -170,18 +170,22 @@ export async function saveClientInformation(
   info: OAuthClientInformationMixed
 ): Promise<void> {
   const encrypted = await encryptClientInformation(info)
+  logger.info('Persisting MCP OAuth client information', { rowId })
   await db
     .update(mcpServerOauth)
     .set({ clientInformation: encrypted, updatedAt: new Date() })
     .where(eq(mcpServerOauth.id, rowId))
+  logger.info('Persisted MCP OAuth client information', { rowId })
 }
 
 export async function saveTokens(rowId: string, tokens: OAuthTokens): Promise<void> {
   const encrypted = await encryptTokens(tokens)
+  logger.info('Persisting MCP OAuth tokens', { rowId })
   await db
     .update(mcpServerOauth)
     .set({ tokens: encrypted, lastRefreshedAt: new Date(), updatedAt: new Date() })
     .where(eq(mcpServerOauth.id, rowId))
+  logger.info('Persisted MCP OAuth tokens', { rowId })
 }
 
 export async function saveCodeVerifier(rowId: string, verifier: string): Promise<void> {
@@ -192,12 +196,13 @@ export async function saveCodeVerifier(rowId: string, verifier: string): Promise
     .where(eq(mcpServerOauth.id, rowId))
 }
 
-export async function saveState(rowId: string, state: string): Promise<void> {
+export async function saveState(rowId: string, state: string, context = 'unknown'): Promise<void> {
   const now = new Date()
   await db
     .update(mcpServerOauth)
     .set({ state: hashState(state), stateCreatedAt: now, updatedAt: now })
     .where(eq(mcpServerOauth.id, rowId))
+  logger.info('MCP OAuth authorization state saved', { rowId, context })
 }
 
 export async function clearTokens(rowId: string): Promise<void> {
@@ -221,11 +226,12 @@ export async function clearVerifier(rowId: string): Promise<void> {
     .where(eq(mcpServerOauth.id, rowId))
 }
 
-export async function clearState(rowId: string): Promise<void> {
+export async function clearState(rowId: string, context = 'unknown'): Promise<void> {
   await db
     .update(mcpServerOauth)
     .set({ state: null, stateCreatedAt: null, updatedAt: new Date() })
     .where(eq(mcpServerOauth.id, rowId))
+  logger.info('MCP OAuth authorization state cleared', { rowId, context })
 }
 
 /**

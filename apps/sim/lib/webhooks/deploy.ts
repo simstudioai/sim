@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
-import { account, credential, webhook, workflowDeploymentVersion } from '@sim/db/schema'
+import { credential, webhook, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { WebhookPathClaimConflictError } from '@/lib/webhooks/path-claims'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
@@ -14,7 +15,6 @@ import {
   projectDesiredWebhookProviderConfig,
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
-import { fetchSlackTeamId } from '@/lib/webhooks/providers/slack'
 import {
   prepareStableWebhookRegistrations,
   type StableDesiredWebhookRegistration,
@@ -26,17 +26,12 @@ import {
   isCanonicalPair,
   resolveActiveCanonicalValue,
 } from '@/lib/workflows/subblocks/visibility'
-import {
-  getSlackBotCredential,
-  refreshAccessTokenIfNeeded,
-  resolveOAuthAccountId,
-} from '@/app/api/auth/oauth/utils'
+import { getSlackBotCredential } from '@/app/api/auth/oauth/utils'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
-import { SIM_SUBSCRIBED_EVENTS } from '@/triggers/slack/shared'
 
 const logger = createLogger('DeployWebhookSync')
 
@@ -334,13 +329,16 @@ export function buildProviderConfig(
 
 /**
  * Resolves a trigger credential reference to its canonical platform credential ID while enforcing
- * that the credential belongs to the deployed workflow's workspace and OAuth service.
+ * that the credential belongs to the deployed workflow's workspace and OAuth provider.
+ *
+ * Exported for unit testing the service-to-provider boundary; not part of the public deploy API.
  */
-async function resolveTriggerCredentialId(
+export async function resolveTriggerCredentialId(
   credentialReference: string,
   workspaceId: string,
   serviceId: string
 ): Promise<string | null> {
+  const providerId = getProviderIdFromServiceId(serviceId)
   const [resolvedCredential] = await db
     .select({ id: credential.id })
     .from(credential)
@@ -348,7 +346,7 @@ async function resolveTriggerCredentialId(
       and(
         eq(credential.workspaceId, workspaceId),
         eq(credential.type, 'oauth'),
-        eq(credential.providerId, serviceId),
+        eq(credential.providerId, providerId),
         or(eq(credential.id, credentialReference), eq(credential.accountId, credentialReference))
       )
     )
@@ -427,106 +425,43 @@ async function resolveWebhookConfigForBlock(input: {
   let effectivePath: string | null = triggerPath
   let routingKey: string | null = null
   if (triggerId === 'slack_oauth') {
-    const appType = typeof providerConfig.appType === 'string' ? providerConfig.appType : 'custom'
-    if (appType === 'sim') {
-      const eventType =
-        typeof providerConfig.eventType === 'string' ? providerConfig.eventType : null
-      if (eventType && !SIM_SUBSCRIBED_EVENTS.includes(eventType)) {
-        return {
-          success: false,
-          error: {
-            message:
-              'This event is not available on the Sim Slack app. Use a custom app or choose a supported event.',
-            status: 400,
-          },
-        }
+    // Custom-bot only: events route by the bot credential to one shared ingest
+    // URL verified with the bot's own signing secret. The native Sim-app path
+    // (team_id routing via the official app) is intentionally not supported yet.
+    const botCredentialId =
+      typeof providerConfig.botCredential === 'string' ? providerConfig.botCredential : undefined
+    if (!botCredentialId) {
+      return {
+        success: false,
+        error: { message: 'Select a Slack bot credential for the trigger.', status: 400 },
       }
-      if (!credentialId) {
-        return {
-          success: false,
-          error: { message: 'Select a Slack account for the trigger.', status: 400 },
-        }
-      }
-
-      let tokenOwnerUserId = input.userId
-      const resolvedAccount = await resolveOAuthAccountId(credentialId)
-      if (resolvedAccount?.accountId) {
-        const [owner] = await db
-          .select({ userId: account.userId })
-          .from(account)
-          .where(eq(account.id, resolvedAccount.accountId))
-          .limit(1)
-        if (owner?.userId) tokenOwnerUserId = owner.userId
-      }
-      const botToken = await refreshAccessTokenIfNeeded(
-        credentialId,
-        tokenOwnerUserId,
-        input.requestId
-      )
-      if (!botToken) {
-        return {
-          success: false,
-          error: {
-            message: 'Could not access the connected Slack account. Reconnect it and try again.',
-            status: 400,
-          },
-        }
-      }
-      try {
-        const { teamId, userId: botUserId } = await fetchSlackTeamId(botToken)
-        routingKey = teamId
-        if (botUserId) providerConfig.bot_user_id = botUserId
-      } catch (error: unknown) {
-        logger.error(
-          `[${input.requestId}] Slack team_id resolution failed for ${input.block.id}`,
-          error
-        )
-        return {
-          success: false,
-          error: {
-            message: 'Could not verify the connected Slack workspace. Reconnect it and try again.',
-            status: 400,
-          },
-        }
-      }
-      effectiveProvider = 'slack_app'
-      effectivePath = null
-    } else {
-      const botCredentialId =
-        typeof providerConfig.botCredential === 'string' ? providerConfig.botCredential : undefined
-      if (!botCredentialId) {
-        return {
-          success: false,
-          error: { message: 'Select a Slack bot credential for the trigger.', status: 400 },
-        }
-      }
-      const botCredential = await getSlackBotCredential(botCredentialId)
-      if (!botCredential) {
-        return {
-          success: false,
-          error: {
-            message: 'The selected Slack bot credential is missing or invalid. Reconnect it.',
-            status: 400,
-          },
-        }
-      }
-      const workflowWorkspace =
-        typeof input.workflow.workspaceId === 'string' ? input.workflow.workspaceId : undefined
-      if (!workflowWorkspace || botCredential.workspaceId !== workflowWorkspace) {
-        return {
-          success: false,
-          error: {
-            message: 'The selected Slack bot credential is not available in this workspace.',
-            status: 400,
-          },
-        }
-      }
-      effectiveProvider = 'slack'
-      effectivePath = null
-      routingKey = botCredentialId
-      providerConfig.credentialId = botCredentialId
-      if (botCredential.botUserId) providerConfig.bot_user_id = botCredential.botUserId
     }
+    const botCredential = await getSlackBotCredential(botCredentialId)
+    if (!botCredential) {
+      return {
+        success: false,
+        error: {
+          message: 'The selected Slack bot credential is missing or invalid. Reconnect it.',
+          status: 400,
+        },
+      }
+    }
+    const workflowWorkspace =
+      typeof input.workflow.workspaceId === 'string' ? input.workflow.workspaceId : undefined
+    if (!workflowWorkspace || botCredential.workspaceId !== workflowWorkspace) {
+      return {
+        success: false,
+        error: {
+          message: 'The selected Slack bot credential is not available in this workspace.',
+          status: 400,
+        },
+      }
+    }
+    effectiveProvider = 'slack'
+    effectivePath = null
+    routingKey = botCredentialId
+    providerConfig.credentialId = botCredentialId
+    if (botCredential.botUserId) providerConfig.bot_user_id = botCredential.botUserId
   }
 
   return {

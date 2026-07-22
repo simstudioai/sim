@@ -2466,6 +2466,7 @@ import {
   mailgunListMessagesTool,
   mailgunSendMessageTool,
 } from '@/tools/mailgun'
+import { managedAgentRunSessionTool } from '@/tools/managed_agent'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from '@/tools/mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from '@/tools/memory'
 import {
@@ -4266,11 +4267,9 @@ import {
   thriveUpdateUserTool,
 } from '@/tools/thrive'
 import {
-  tiktokDirectPostVideoTool,
   tiktokGetPostStatusTool,
   tiktokGetUserTool,
   tiktokListVideosTool,
-  tiktokQueryCreatorInfoTool,
   tiktokQueryVideosTool,
   tiktokUploadVideoDraftTool,
 } from '@/tools/tiktok'
@@ -4596,7 +4595,7 @@ import {
   workdayTerminateWorkerTool,
   workdayUpdateWorkerTool,
 } from '@/tools/workday'
-import { workflowExecutorTool } from '@/tools/workflow'
+import { customBlockExecutorTool, workflowExecutorTool } from '@/tools/workflow'
 import {
   xCreateBookmarkTool,
   xCreateTweetTool,
@@ -5488,6 +5487,7 @@ export const tools: Record<string, ToolConfig> = {
   mailgun_add_list_member: mailgunAddListMemberTool,
   mailgun_list_domains: mailgunListDomainsTool,
   mailgun_get_domain: mailgunGetDomainTool,
+  managed_agent_run_session: managedAgentRunSessionTool,
   sms_send: smsSendTool,
   jira_retrieve: jiraRetrieveTool,
   jira_update: jiraUpdateTool,
@@ -7524,11 +7524,9 @@ export const tools: Record<string, ToolConfig> = {
   thrive_remove_user_tags: thriveRemoveUserTagsTool,
   thrive_update_user_skills: thriveUpdateUserSkillsTool,
   thrive_get_skill_levels: thriveGetSkillLevelsTool,
-  tiktok_direct_post_video: tiktokDirectPostVideoTool,
   tiktok_get_post_status: tiktokGetPostStatusTool,
   tiktok_get_user: tiktokGetUserTool,
   tiktok_list_videos: tiktokListVideosTool,
-  tiktok_query_creator_info: tiktokQueryCreatorInfoTool,
   tiktok_query_videos: tiktokQueryVideosTool,
   tiktok_upload_video_draft: tiktokUploadVideoDraftTool,
   tinybird_events: tinybirdEventsTool,
@@ -8189,6 +8187,7 @@ export const tools: Record<string, ToolConfig> = {
   google_forms_delete_watch: googleFormsDeleteWatchTool,
   google_forms_renew_watch: googleFormsRenewWatchTool,
   workflow_executor: workflowExecutorTool,
+  deployed_block_executor: customBlockExecutorTool,
   wealthbox_read_contact: wealthboxReadContactTool,
   wealthbox_write_contact: wealthboxWriteContactTool,
   wealthbox_read_task: wealthboxReadTaskTool,

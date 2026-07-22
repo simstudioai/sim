@@ -28,7 +28,7 @@ export const permissionGroupFullConfigSchema = z.object({
   hideDeployApi: z.boolean(),
   hideDeployMcp: z.boolean(),
   hideDeployChatbot: z.boolean(),
-  hideDeployTemplate: z.boolean(),
+  allowedChatDeployAuthTypes: z.array(shareAuthTypeSchema).nullable(),
 })
 
 export const addPermissionGroupMemberBodySchema = z.object({

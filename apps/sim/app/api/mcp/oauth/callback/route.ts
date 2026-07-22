@@ -25,6 +25,46 @@ const logger = createLogger('McpOauthCallbackAPI')
 
 export const dynamic = 'force-dynamic'
 
+class OauthCallbackStepTimeout extends Error {
+  constructor(step: string, ms: number) {
+    super(`MCP OAuth callback step "${step}" did not settle within ${ms}ms`)
+    this.name = 'OauthCallbackStepTimeout'
+  }
+}
+
+/**
+ * Times and bounds one awaited step of the callback so a stalled operation
+ * surfaces as a labeled, logged error instead of hanging the request forever.
+ * The losing promise is not cancelled (a wedged DB/socket op can't be), so it
+ * settles in the background with its rejection swallowed; the point is that the
+ * request stops waiting on it and the logs name the exact step that stalled.
+ */
+async function timedStep<T>(step: string, ms: number, fn: () => Promise<T>): Promise<T> {
+  const start = Date.now()
+  logger.info(`OAuth callback step start: ${step}`)
+  const work = Promise.resolve(fn())
+  work.catch(() => {})
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const value = await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new OauthCallbackStepTimeout(step, ms)), ms)
+        timer.unref?.()
+      }),
+    ])
+    logger.info(`OAuth callback step done: ${step} (${Date.now() - start}ms)`)
+    return value
+  } catch (error) {
+    logger.error(`OAuth callback step failed: ${step} (${Date.now() - start}ms)`, {
+      error: toError(error).message,
+    })
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -43,12 +83,24 @@ function htmlClose(
   message: string,
   ok: boolean,
   reason: McpOauthCallbackReason,
-  serverId?: string
+  serverId?: string,
+  state?: string
 ): NextResponse {
+  if (!ok) {
+    logger.warn(
+      `MCP OAuth callback did not complete: ${reason}${serverId ? ` (server ${serverId})` : ''}`
+    )
+  }
   const safeMessage = escapeHtml(message)
   const title = ok ? 'Connected' : 'Connection failed'
+  // Signal the opener over a same-origin BroadcastChannel rather than
+  // `window.opener.postMessage`: a provider whose authorize page sets COOP
+  // `same-origin` severs `window.opener`, which would silently drop the result and
+  // leave the parent stuck on "Connecting…". A BroadcastChannel is origin-scoped and
+  // unaffected by opener severance; the hook correlates on `state` and ignores flows it
+  // did not start.
   const body = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body style="font-family: system-ui; padding: 24px"><p>${safeMessage}</p><script>
-    try { window.opener && window.opener.postMessage({ type: 'mcp-oauth', ok: ${ok ? 'true' : 'false'}, serverId: ${jsonLiteral(serverId)}, reason: ${jsonLiteral(reason)} }, window.location.origin) } catch (e) {}
+    try { var ch = new BroadcastChannel('mcp-oauth'); ch.postMessage({ type: 'mcp-oauth', ok: ${ok ? 'true' : 'false'}, serverId: ${jsonLiteral(serverId)}, state: ${jsonLiteral(state)}, reason: ${jsonLiteral(reason)} }); ch.close() } catch (e) {}
     setTimeout(function () { window.close() }, 800)
   </script></body></html>`
   return new NextResponse(body, {
@@ -63,21 +115,33 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
   const { state, code, error: errorParam } = parsed.data.query
 
-  const initialRow = state ? await loadOauthRowByState(state).catch(() => null) : null
+  // Echo the flow's `state` on every result so the opener can correlate a broadcast back to
+  // the exact flow it started — including failures (e.g. `invalid_state`) that never resolve
+  // a serverId. Without it those results would strand the initiating tab on "Connecting…".
+  const respond = (
+    message: string,
+    ok: boolean,
+    reason: McpOauthCallbackReason,
+    serverId?: string
+  ) => htmlClose(message, ok, reason, serverId, state)
+
+  const initialRow = state
+    ? await timedStep('loadOauthRowByState', 15_000, () => loadOauthRowByState(state)).catch(
+        () => null
+      )
+    : null
   const stateRowServerId = initialRow?.mcpServerId
 
   if (errorParam) {
     logger.warn(`MCP OAuth callback received error: ${errorParam}`)
-    if (initialRow) await clearState(initialRow.id).catch(() => {})
-    return htmlClose(
-      `Authorization failed: ${errorParam}`,
-      false,
-      'provider_error',
-      stateRowServerId
-    )
+    if (initialRow)
+      await timedStep('clearState(provider_error)', 10_000, () =>
+        clearState(initialRow.id, 'callback:provider_error')
+      ).catch(() => {})
+    return respond(`Authorization failed: ${errorParam}`, false, 'provider_error', stateRowServerId)
   }
   if (!state || !code) {
-    return htmlClose(
+    return respond(
       'Missing state or code in callback URL.',
       false,
       'missing_params',
@@ -87,9 +151,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   let serverId: string | undefined
   try {
-    const session = await getSession()
+    const session = await timedStep('getSession', 15_000, () => getSession())
     if (!session?.user?.id) {
-      return htmlClose(
+      return respond(
         'You must be signed in to complete authorization.',
         false,
         'unauthenticated',
@@ -99,12 +163,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const row = initialRow
     if (!row) {
-      return htmlClose('Invalid or expired authorization state.', false, 'invalid_state')
+      return respond('Invalid or expired authorization state.', false, 'invalid_state')
     }
     serverId = row.mcpServerId
 
     if (session.user.id !== row.userId) {
-      return htmlClose(
+      return respond(
         'You must be signed in as the same user that initiated the flow.',
         false,
         'user_mismatch',
@@ -112,26 +176,29 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const [server] = await db
-      .select({ id: mcpServers.id, url: mcpServers.url, workspaceId: mcpServers.workspaceId })
-      .from(mcpServers)
-      .where(and(eq(mcpServers.id, row.mcpServerId), isNull(mcpServers.deletedAt)))
-      .limit(1)
+    const [server] = await timedStep('loadServer', 15_000, () =>
+      db
+        .select({ id: mcpServers.id, url: mcpServers.url, workspaceId: mcpServers.workspaceId })
+        .from(mcpServers)
+        .where(and(eq(mcpServers.id, row.mcpServerId), isNull(mcpServers.deletedAt)))
+        .limit(1)
+    )
     if (!server || !server.url) {
-      return htmlClose('Server no longer exists.', false, 'server_gone', serverId)
+      return respond('Server no longer exists.', false, 'server_gone', serverId)
     }
     if (server.workspaceId !== row.workspaceId) {
-      return htmlClose(
+      return respond(
         'Workspace mismatch on authorization callback.',
         false,
         'invalid_state',
         serverId
       )
     }
+    const serverUrl = server.url
     try {
-      assertSafeOauthServerUrl(server.url)
+      assertSafeOauthServerUrl(serverUrl)
     } catch {
-      return htmlClose(
+      return respond(
         'MCP OAuth requires https (or http://localhost for development).',
         false,
         'insecure_url',
@@ -140,42 +207,54 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     // Burn state before token exchange so a replayed callback cannot reuse it.
-    await clearState(row.id)
+    await timedStep('clearState(burn)', 10_000, () =>
+      clearState(row.id, 'callback:burn-before-exchange')
+    )
 
-    const preregistered = await loadPreregisteredClient(server.id)
+    const preregistered = await timedStep('loadPreregisteredClient', 15_000, () =>
+      loadPreregisteredClient(server.id)
+    )
     const provider = new SimMcpOauthProvider({ row, preregistered })
     let result: Awaited<ReturnType<typeof mcpAuthGuarded>>
     try {
-      result = await mcpAuthGuarded(provider, {
-        serverUrl: server.url,
-        authorizationCode: code,
-      })
+      result = await timedStep('mcpAuthGuarded', 120_000, () =>
+        mcpAuthGuarded(provider, {
+          serverUrl,
+          authorizationCode: code,
+        })
+      )
     } catch (e) {
       logger.error('Token exchange failed during MCP OAuth callback', e)
-      return htmlClose(
+      return respond(
         'Token exchange failed. Please try again.',
         false,
         'token_exchange_failed',
         server.id
       )
     } finally {
-      await clearVerifier(row.id)
+      await timedStep('clearVerifier', 10_000, () => clearVerifier(row.id)).catch((e) =>
+        logger.error('Failed to clear PKCE verifier after MCP OAuth callback', {
+          error: toError(e).message,
+        })
+      )
     }
 
     if (result !== 'AUTHORIZED') {
-      return htmlClose('Authorization did not complete.', false, 'token_exchange_failed', server.id)
+      return respond('Authorization did not complete.', false, 'token_exchange_failed', server.id)
     }
 
     try {
       // forceRefresh: skip any stale cache from before re-auth.
-      await mcpService.discoverServerTools(session.user.id, server.id, server.workspaceId, true)
+      await timedStep('discoverServerTools', 60_000, () =>
+        mcpService.discoverServerTools(session.user.id, server.id, server.workspaceId, true)
+      )
     } catch (e) {
       logger.warn('Post-auth tools refresh failed', toError(e).message)
     }
 
-    return htmlClose('Connected. You can close this window.', true, 'authorized', server.id)
+    return respond('Connected. You can close this window.', true, 'authorized', server.id)
   } catch (error) {
     logger.error('MCP OAuth callback failed', error)
-    return htmlClose('Authorization failed. Please try again.', false, 'unknown', serverId)
+    return respond('Authorization failed. Please try again.', false, 'unknown', serverId)
   }
 })

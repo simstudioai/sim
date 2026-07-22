@@ -7,14 +7,17 @@ interface NamedTool {
 export function getServerToolsLabel(
   tools: NamedTool[],
   connectionStatus?: McpServer['connectionStatus'],
-  lastError?: McpServer['lastError']
+  lastError?: McpServer['lastError'],
+  authType?: McpServer['authType']
 ): string {
   if (connectionStatus === 'error') {
     return lastError?.trim() || 'Unable to connect'
   }
 
   if (connectionStatus === 'disconnected') {
-    return lastError?.trim() || 'Not Connected'
+    return (
+      lastError?.trim() || (authType === 'oauth' ? 'OAuth authorization required' : 'Not connected')
+    )
   }
 
   const count = tools.length

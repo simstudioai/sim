@@ -83,6 +83,7 @@ export function ContentPostPage({
                   month: 'short',
                   day: 'numeric',
                   year: 'numeric',
+                  timeZone: 'UTC',
                 })}
               </time>
               <meta itemProp='dateModified' content={post.updated ?? post.date} />
@@ -152,7 +153,9 @@ export function ContentPostPage({
                       <span className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em]'>
                         {new Date(p.date).toLocaleDateString('en-US', {
                           month: 'short',
-                          year: '2-digit',
+                          day: 'numeric',
+                          year: 'numeric',
+                          timeZone: 'UTC',
                         })}
                       </span>
                       <h3 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>

@@ -21,10 +21,7 @@ import {
   type MessagePhase,
 } from '@/app/workspace/[workspaceId]/home/components/message-content'
 import { parseQuestionAnswerMessage } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
-import {
-  PendingTagIndicator,
-  parseLastQuestionTag,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { parseLastQuestionTag } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import {
   UserInput,
@@ -101,7 +98,6 @@ const OVERSCAN = 6
  * scrolled up.
  */
 const PIN_THRESHOLD = 2
-
 /**
  * Initial-scroll sentinel. Distinct from every real `chatId` value — including
  * `undefined` (a not-yet-persisted chat) — so the first scroll-to-bottom fires
@@ -113,7 +109,7 @@ const UNSCROLLED = Symbol('unscrolled')
 const LAYOUT_STYLES = {
   'mothership-view': {
     scrollContainer:
-      'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-8 [scrollbar-gutter:stable_both-edges]',
+      'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-2 [scrollbar-gutter:stable_both-edges]',
     sizer: 'relative mx-auto w-full max-w-[48rem]',
     rowGap: 'pb-6',
     userRow: 'flex flex-col items-end gap-[6px] pt-3',
@@ -175,6 +171,7 @@ const UserMessageRow = memo(function UserMessageRow({
 interface AssistantMessageRowProps {
   message: ChatMessage
   isStreaming: boolean
+  isLast: boolean
   precedingUserContent?: string
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
@@ -186,6 +183,7 @@ interface AssistantMessageRowProps {
 const AssistantMessageRow = memo(function AssistantMessageRow({
   message,
   isStreaming,
+  isLast,
   precedingUserContent,
   questionAnswers,
   rowClassName,
@@ -205,10 +203,6 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     onAnimatingChangeRef.current?.(phase !== 'settled')
   }, [phase])
 
-  if (!hasAnyBlocks && !trimmedContent && isStreaming) {
-    return <PendingTagIndicator />
-  }
-
   const hasRenderableAssistant = assistantMessageHasRenderableContent(blocks, message.content ?? '')
   if (!hasRenderableAssistant && !trimmedContent && !isStreaming) {
     return null
@@ -225,34 +219,45 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   const handleQuestionDismiss = () => {
     if (questionTag) setDismissedQuestionTag(questionTag)
   }
-  const showActions = shouldShowAssistantMessageActions({
-    phase,
+  // Settle timing lives in MessageContent (the actions take the thinking
+  // slot's place in the same render), so eligibility here is phase-free:
+  // `phase: 'settled'` asks the helper "would a settled turn show them?".
+  const actionsEligible = shouldShowAssistantMessageActions({
+    phase: 'settled',
     hasContent: Boolean(message.content) || hasAnyBlocks,
     endsWithQuestion,
     questionDismissed,
   })
 
+  // A visible question card (active or answered recap) sits 12px below the
+  // preceding prose (chat-content's `space-y-3`). The row's default `pb-6`
+  // would leave 24px underneath — asymmetric. Shrink the trailing gap to match
+  // so the card breathes equally top and bottom. Dismissed cards fall back to
+  // the normal message rhythm (they render the standard actions row instead).
+  const showsQuestionCard = endsWithQuestion && !questionDismissed
+
   return (
-    <div className={rowClassName}>
+    <div className={cn(rowClassName, showsQuestionCard && 'pb-3')}>
       <MessageContent
         blocks={blocks}
         fallbackContent={message.content}
         isStreaming={isStreaming}
+        isLast={isLast}
         questionAnswers={questionAnswers}
         onOptionSelect={onOptionSelect}
         onQuestionDismiss={handleQuestionDismiss}
         onPhaseChange={setPhase}
+        actions={
+          actionsEligible ? (
+            <MessageActions
+              content={message.content}
+              userQuery={precedingUserContent}
+              requestId={message.requestId}
+              messageId={message.id}
+            />
+          ) : undefined
+        }
       />
-      {showActions && (
-        <div className='mt-2.5'>
-          <MessageActions
-            content={message.content}
-            userQuery={precedingUserContent}
-            requestId={message.requestId}
-            messageId={message.id}
-          />
-        </div>
-      )}
     </div>
   )
 })
@@ -295,6 +300,45 @@ export function MothershipChat({
   const [lastRowAnimating, setLastRowAnimating] = useState(false)
   const scrollElementRef = useRef<HTMLDivElement | null>(null)
   const { ref: autoScrollRef } = useAutoScroll(isStreamActive || lastRowAnimating)
+  const sizerRef = useRef<HTMLDivElement | null>(null)
+  const scrollerPaddingRef = useRef<{ top: number; bottom: number } | null>(null)
+
+  /**
+   * Sizer floor while streaming: `scrollHeight` must never dip below the
+   * current viewport bottom. Streaming markdown re-parse emits transient
+   * row-height shrinks; when they pull scrollHeight under
+   * `scrollTop + clientHeight`, the browser clamps `scrollTop` and the pinned
+   * transcript visibly drops, then the chase glides it back. Flooring the
+   * sizer at exactly the scrolled-to extent prevents that clamp while never
+   * ADDING space — the floor cannot exceed what is already on screen. So an
+   * estimate correction (a fresh row measuring smaller than
+   * ROW_HEIGHT_ESTIMATE) releases immediately instead of holding phantom space
+   * the chase would scroll into and bounce back out of.
+   *
+   * Active on the same signal as auto-scroll: the reveal keeps re-parsing
+   * markdown (and shrinking) after the network stream closes, so the floor
+   * must hold through `lastRowAnimating` too.
+   */
+  const floorActive = isStreamActive || lastRowAnimating
+  useLayoutEffect(() => {
+    const sizer = sizerRef.current
+    const el = scrollElementRef.current
+    if (!sizer || !el) return
+    if (!floorActive) {
+      sizer.style.minHeight = ''
+      return
+    }
+    if (!scrollerPaddingRef.current) {
+      const style = getComputedStyle(el)
+      scrollerPaddingRef.current = {
+        top: Number.parseFloat(style.paddingTop),
+        bottom: Number.parseFloat(style.paddingBottom),
+      }
+    }
+    const padding = scrollerPaddingRef.current
+    const floor = Math.max(0, el.scrollTop + el.clientHeight - padding.top - padding.bottom)
+    sizer.style.minHeight = `${floor}px`
+  })
   const setScrollElement = useCallback(
     (el: HTMLDivElement | null) => {
       scrollElementRef.current = el
@@ -509,7 +553,11 @@ export function MothershipChat({
           {isLoading && !hasMessages ? (
             <MothershipChatSkeleton layout={layout} />
           ) : (
-            <div className={styles.sizer} style={{ height: virtualizer.getTotalSize() }}>
+            <div
+              ref={sizerRef}
+              className={styles.sizer}
+              style={{ height: virtualizer.getTotalSize() }}
+            >
               {virtualItems.map((virtualItem) => {
                 const index = virtualItem.index
                 const msg = messages[index]
@@ -537,6 +585,7 @@ export function MothershipChat({
                       <AssistantMessageRow
                         message={msg}
                         isStreaming={isStreamActive && isLast}
+                        isLast={isLast}
                         precedingUserContent={precedingUserContentByIndex[index]}
                         questionAnswers={questionPairing.answersByIndex[index]}
                         rowClassName={cn(styles.assistantRow, styles.rowGap)}

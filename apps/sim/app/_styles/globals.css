@@ -22,13 +22,16 @@
   --auth-primary-btn-hover-border: #e0e0e0;
   --auth-primary-btn-hover-text: #000000;
 
-  /* z-index scale. Transient poppers (menus, selects, popovers, tooltips, toasts)
-     sit above --z-modal so they stay clickable over the semi-transparent overlay. */
+  /* z-index scale. The toast/notification stack is ambient: it sits above page
+     content but BELOW the modal and the transient poppers (menus, selects,
+     popovers, tooltips), so an open modal or dropdown menu is never occluded by
+     a background notification. Poppers sit above --z-modal so they stay
+     clickable over the modal's semi-transparent overlay. */
   --z-dropdown: 100;
+  --z-toast: 150;
   --z-modal: 200;
   --z-popover: 300;
   --z-tooltip: 400;
-  --z-toast: 500;
 
   /* Shadow scale */
   --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);

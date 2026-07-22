@@ -448,6 +448,9 @@ export async function copyForkResourceContainers(
         createdBy: userId,
         url: typeof row.url === 'string' ? rewriteEnv(row.url) : row.url,
         headers,
+        // Normalize legacy `http`/`sse` transports to the only supported value so a
+        // forked row never carries a transport the API contract would reject.
+        transport: 'streamable-http',
         connectionStatus: 'disconnected',
         lastConnected: null,
         lastError: null,

@@ -1220,7 +1220,7 @@ export const WordPressBlockMeta = {
   templates: [
     {
       icon: WordpressIcon,
-      title: 'Blog auto-publisher',
+      title: 'WordPress blog auto-publisher',
       prompt:
         'Build a workflow that takes a draft document, optimizes it for SEO by researching target keywords, formats it for WordPress with proper headings and meta description, and publishes it as a draft post for final review.',
       modules: ['agent', 'files', 'workflows'],

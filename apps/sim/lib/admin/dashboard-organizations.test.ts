@@ -67,7 +67,37 @@ vi.mock('@/lib/core/idempotency/transaction', () => ({
 }))
 vi.mock('@/lib/core/outbox/service', () => ({ enqueueOutboxEvent: vi.fn() }))
 
-import { listDashboardOrganizations } from '@/lib/admin/dashboard'
+import { listDashboardOrganizations, toDashboardConfigurationUpdate } from '@/lib/admin/dashboard'
+
+describe('toDashboardConfigurationUpdate', () => {
+  it('converts the pending Stripe metadata intent without replacing applied values', () => {
+    expect(
+      toDashboardConfigurationUpdate({
+        latestRevision: 2,
+        desiredMetadata: {},
+        hasUnappliedIntent: true,
+        effectiveSeatCapacity: 20,
+        configurationUpdate: {
+          id: 'config-2',
+          status: 'pending',
+          requestedMetadata: {
+            usageLimitCredits: 10_000_000,
+            seats: 20,
+            concurrencyLimit: 50,
+          },
+          error: null,
+        },
+      })
+    ).toEqual({
+      id: 'config-2',
+      status: 'pending',
+      requestedUsageLimitDollars: 50_000,
+      requestedSeats: 20,
+      requestedConcurrencyLimit: 50,
+      error: null,
+    })
+  })
+})
 
 describe('listDashboardOrganizations', () => {
   beforeEach(() => {

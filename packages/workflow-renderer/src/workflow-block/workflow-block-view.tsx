@@ -70,6 +70,13 @@ export interface WorkflowBlockViewProps {
   /** Connection-cycle guard; reads fresh edge state on every call. */
   wouldCreateConnectionCycle: (source: string, target: string) => boolean
 
+  /** Sunset badge — editor-only. `legacy` shows an amber "legacy" badge, `deprecated`
+   * a red "deprecated" badge; clicking (gated on `canFixSunset`) invokes `onFixSunset`. */
+  sunsetStatus?: 'legacy' | 'deprecated'
+  sunsetTooltip?: string
+  canFixSunset?: boolean
+  onFixSunset?: () => void
+
   /** Child-workflow deploy badge state — editor-only; omit in read-only contexts. */
   isWorkflowSelector?: boolean
   childWorkflowId?: string
@@ -132,6 +139,10 @@ export function WorkflowBlockView({
   routerRows,
   routerContextValue,
   wouldCreateConnectionCycle,
+  sunsetStatus,
+  sunsetTooltip,
+  canFixSunset,
+  onFixSunset,
   isWorkflowSelector,
   childWorkflowId,
   childIsDeployed,
@@ -222,6 +233,38 @@ export function WorkflowBlockView({
             />
           </div>
           <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
+            {sunsetStatus && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Badge
+                    variant={sunsetStatus === 'deprecated' ? 'red' : 'amber'}
+                    className={canFixSunset ? 'cursor-pointer' : 'cursor-not-allowed'}
+                    dot
+                    role={canFixSunset ? 'button' : undefined}
+                    tabIndex={canFixSunset ? 0 : undefined}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (canFixSunset) onFixSunset?.()
+                    }}
+                    onKeyDown={
+                      canFixSunset
+                        ? (e) => {
+                            e.stopPropagation()
+                            handleKeyboardActivation(e, () => onFixSunset?.())
+                          }
+                        : undefined
+                    }
+                  >
+                    {sunsetStatus}
+                  </Badge>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span className='text-sm'>
+                    {canFixSunset ? sunsetTooltip : 'Edit access required to fix'}
+                  </span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
             {isWorkflowSelector &&
               childWorkflowId &&
               typeof childIsDeployed === 'boolean' &&

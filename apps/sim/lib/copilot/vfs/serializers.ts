@@ -1,3 +1,4 @@
+import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
@@ -366,6 +367,12 @@ export function serializeFileMeta(file: {
   size: number
   uploadedAt: Date
   updatedAt: Date
+  /** Whether the file has an active public share link. */
+  shared?: boolean
+  /** Auth mode of the active share; only meaningful when `shared` is true. */
+  shareAuthType?: ShareAuthType
+  /** Public share link (`{baseUrl}/f/{token}`); only meaningful when `shared` is true. */
+  shareUrl?: string
 }): string {
   return JSON.stringify(
     {
@@ -379,6 +386,9 @@ export function serializeFileMeta(file: {
       uploadedAt: file.uploadedAt.toISOString(),
       updatedAt: file.updatedAt.toISOString(),
       readContentWith: file.vfsPath ? `${file.vfsPath}/content` : undefined,
+      shared: Boolean(file.shared),
+      shareAuthType: file.shared ? file.shareAuthType : undefined,
+      shareUrl: file.shared ? file.shareUrl : undefined,
       note: 'This is file metadata only. To read the file text/bytes, read the readContentWith path (i.e. append /content).',
     },
     null,
@@ -443,6 +453,9 @@ function getStaticModelOptionsForVFS(): StaticModelOption[] {
   for (const [providerId, def] of Object.entries(PROVIDER_DEFINITIONS)) {
     if (dynamicProviders.has(providerId)) continue
     for (const model of def.models) {
+      // Retired models are hidden from the agent's menu (mirrors the user picker)
+      // so it never suggests a model whose API calls fail; legacy stays available.
+      if (model.sunset?.status === 'deprecated') continue
       const option: StaticModelOption = {
         id: model.id,
         provider: providerId,
@@ -450,7 +463,7 @@ function getStaticModelOptionsForVFS(): StaticModelOption[] {
       }
       if (model.recommended) option.recommended = true
       if (model.speedOptimized) option.speedOptimized = true
-      if (model.deprecated) option.deprecated = true
+      if (model.sunset) option.deprecated = true
       models.push(option)
     }
   }

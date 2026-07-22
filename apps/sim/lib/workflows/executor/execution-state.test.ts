@@ -148,7 +148,10 @@ describe('execution state lookup', () => {
     )
     mockMaterializeExecutionData
       .mockResolvedValueOnce({})
-      .mockResolvedValueOnce({ executionState: EXECUTION_STATE })
+      .mockImplementationOnce(async (executionData: Record<string, unknown>) => {
+        const { traceStoreRef: _traceStoreRef, ...inlineValues } = executionData
+        return { executionState: EXECUTION_STATE, ...inlineValues }
+      })
 
     const result = await getLatestExecutionStateWithExecutionId('workflow-1')
 
@@ -160,7 +163,6 @@ describe('execution state lookup', () => {
     expect(mockMaterializeExecutionData).toHaveBeenNthCalledWith(
       1,
       {
-        executionState: null,
         traceStoreRef: { id: 'value-2' },
       },
       {

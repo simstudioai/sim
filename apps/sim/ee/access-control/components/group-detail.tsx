@@ -79,6 +79,17 @@ const FILE_SHARE_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] = 
 ]
 const ALL_FILE_SHARE_AUTH_TYPES: ShareAuthType[] = FILE_SHARE_AUTH_TYPE_OPTIONS.map((o) => o.value)
 
+/** Chat-deployment auth modes an admin can allow/disallow. `null` config = all allowed. */
+const CHAT_DEPLOY_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] = [
+  { value: 'public', label: 'Public' },
+  { value: 'password', label: 'Password' },
+  { value: 'email', label: 'Email' },
+  { value: 'sso', label: 'SSO' },
+]
+const ALL_CHAT_DEPLOY_AUTH_TYPES: ShareAuthType[] = CHAT_DEPLOY_AUTH_TYPE_OPTIONS.map(
+  (o) => o.value
+)
+
 interface OrganizationMemberOption {
   userId: string
   user: {
@@ -503,7 +514,7 @@ function BlockToolRow({
           className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
           style={{ background: block.bgColor }}
         >
-          {BlockIcon && <BlockIcon className='!h-[10px] !w-[10px] text-white' />}
+          {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
         </div>
         <button
           type='button'
@@ -736,13 +747,6 @@ export function GroupDetail({
         category: 'Deploy Tabs',
         configKey: 'hideDeployChatbot' as const,
         hint: 'Hide the chatbot deployment option.',
-      },
-      {
-        id: 'hide-deploy-template',
-        label: 'Template',
-        category: 'Deploy Tabs',
-        configKey: 'hideDeployTemplate' as const,
-        hint: 'Hide the template publishing option.',
       },
       {
         id: 'disable-mcp',
@@ -1107,10 +1111,31 @@ export function GroupDetail({
   )
 
   const setFileShareAuthTypes = useCallback((values: string[]) => {
+    // At least one mode must stay allowed while public sharing is enabled — an
+    // empty allow-list would silently block every share. To turn public sharing
+    // off entirely, uncheck Public Sharing instead.
+    if (values.length === 0) return
     setEditingConfig((prev) => ({
       ...prev,
       allowedFileShareAuthTypes:
         values.length === ALL_FILE_SHARE_AUTH_TYPES.length ? null : (values as ShareAuthType[]),
+    }))
+  }, [])
+
+  const chatDeployAuthValue = useMemo(
+    () => editingConfig.allowedChatDeployAuthTypes ?? ALL_CHAT_DEPLOY_AUTH_TYPES,
+    [editingConfig.allowedChatDeployAuthTypes]
+  )
+
+  const setChatDeployAuthTypes = useCallback((values: string[]) => {
+    // At least one mode must stay allowed while chat deploy is enabled — an empty
+    // allow-list would silently block every chat deployment. To turn chat deploy
+    // off entirely, use the Hide Chat toggle instead.
+    if (values.length === 0) return
+    setEditingConfig((prev) => ({
+      ...prev,
+      allowedChatDeployAuthTypes:
+        values.length === ALL_CHAT_DEPLOY_AUTH_TYPES.length ? null : (values as ShareAuthType[]),
     }))
   }, [])
 
@@ -1495,10 +1520,10 @@ export function GroupDetail({
                           onCheckedChange={() => toggleIntegration(block.type)}
                         />
                         <div
-                          className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                          className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
                           style={{ background: block.bgColor }}
                         >
-                          {BlockIcon && <BlockIcon className='!h-[10px] !w-[10px] text-white' />}
+                          {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
                         </div>
                         <span className='truncate font-medium text-sm'>{block.name}</span>
                       </label>
@@ -1594,6 +1619,29 @@ export function GroupDetail({
                 </div>
               </SettingsSection>
             ))}
+            <SettingsSection label='Chat'>
+              <div
+                className={cn(
+                  'flex flex-col gap-1.5 px-2 pt-1',
+                  editingConfig.hideDeployChatbot && 'opacity-50'
+                )}
+              >
+                <span className='text-[var(--text-secondary)] text-xs'>
+                  Auth modes chat deployments may use
+                </span>
+                <ChipDropdown
+                  multiple
+                  showAllOption={false}
+                  allLabel='None'
+                  value={chatDeployAuthValue}
+                  onChange={setChatDeployAuthTypes}
+                  options={CHAT_DEPLOY_AUTH_TYPE_OPTIONS}
+                  disabled={editingConfig.hideDeployChatbot}
+                  matchTriggerWidth={false}
+                  className='w-[200px]'
+                />
+              </div>
+            </SettingsSection>
             <SettingsSection label='Files'>
               <div className='flex flex-col gap-1.5'>
                 <label

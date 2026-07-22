@@ -69,6 +69,8 @@ export const TRELLO_SERVICE_ACCOUNT_PROVIDER_ID = 'trello-service-account' as co
 export const CALCOM_SERVICE_ACCOUNT_PROVIDER_ID = 'calcom-service-account' as const
 export const WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID = 'wealthbox-service-account' as const
 export const PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID = 'pipedrive-service-account' as const
+export const CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID =
+  'claude-platform-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -87,6 +89,7 @@ export type TokenServiceAccountProviderId =
   | typeof CALCOM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
   TokenServiceAccountProviderId,
@@ -349,6 +352,23 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     helpText:
       'Each Pipedrive user has one API token per company — regenerating it breaks every integration using the old value, and API-token traffic gets lower rate limits than OAuth.',
     authStyle: 'x-api-token',
+  },
+  [CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Claude Platform',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'sk-ant-...',
+        secret: true,
+        hintPattern: /^sk-ant-/,
+        hintMessage: 'Claude Platform API keys usually start with sk-ant-.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/managed-agent',
   },
 }
 

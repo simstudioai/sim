@@ -1255,10 +1255,35 @@ export async function executeTool(
       }
     }
 
+    // Custom blocks (deploy-as-block) run in-process through WorkflowBlockHandler.
+    // The runner is dynamic-imported from a server-only module so the client-bundled
+    // tool registry never pulls in the executor/db dependency graph (a static or
+    // dynamic executor import in the tool descriptor itself would break the client
+    // build — and with it `getTool('workflow_executor')`).
+    if (normalizedToolId === 'deployed_block_executor') {
+      logger.info(`[${requestId}] Running custom block tool ${toolId}`)
+      const { runCustomBlockTool } = await import(
+        '@/executor/handlers/workflow/custom-block-tool-runner'
+      )
+      const result = await runCustomBlockTool(contextParams)
+      const endTime = new Date()
+      return {
+        ...result,
+        // Strip internal `__`-prefixed fields the same way every other tool path does,
+        // so child-workflow internals never reach the agent's tool result.
+        output: postProcessToolOutput(normalizedToolId, result.output ?? {}),
+        timing: {
+          startTime: startTimeISO,
+          endTime: endTime.toISOString(),
+          duration: endTime.getTime() - startTime.getTime(),
+        },
+      }
+    }
+
     // Check for direct execution (no HTTP request needed)
     if (tool.directExecution) {
       logger.info(`[${requestId}] Using directExecution for ${toolId}`)
-      const result = await tool.directExecution(contextParams)
+      const result = await tool.directExecution(contextParams, effectiveSignal)
 
       // Apply post-processing if available and not skipped
       let finalResult = result
@@ -1980,13 +2005,16 @@ async function executeToolRequest(
     // Success case: use transformResponse if available
     if (tool.transformResponse) {
       try {
-        // Create a mock response object that provides the methods transformResponse needs
+        // Forward the real body stream. Some transformResponse helpers (e.g. TikTok)
+        // read via readResponseTextWithLimit, which requires `.body` (or Content-Length)
+        // and otherwise mis-reports a false "response exceeded maximum size" error.
         const mockResponse = {
           ok: response.ok,
           status: response.status,
           statusText: response.statusText,
           headers: response.headers,
           url: fullUrl,
+          body: response.body,
           json: () => response.json(),
           text: () => response.text(),
           arrayBuffer: () => response.arrayBuffer(),

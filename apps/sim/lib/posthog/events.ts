@@ -245,6 +245,12 @@ export interface PostHogEventMap {
     workflow_id: string
   }
 
+  deprecated_block_fix_clicked: {
+    block_type: string
+    workflow_id: string
+    kind: 'block' | 'model'
+  }
+
   knowledge_base_created: {
     knowledge_base_id: string
     workspace_id: string
@@ -502,6 +508,10 @@ export interface PostHogEventMap {
   }
 
   task_deleted: {
+    workspace_id: string
+  }
+
+  task_restored: {
     workspace_id: string
   }
 

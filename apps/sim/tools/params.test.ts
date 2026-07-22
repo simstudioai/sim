@@ -5,6 +5,7 @@ import {
   createUserToolSchema,
   filterSchemaForLLM,
   formatParameterLabel,
+  getSubBlocksForToolInput,
   getToolParametersConfig,
   isPasswordParameter,
   mergeToolParameters,
@@ -58,6 +59,15 @@ vi.mock('@/tools/utils', () => ({
   getTool: vi.fn((toolId: string) => {
     if (toolId === 'test_tool') {
       return mockToolConfig
+    }
+    if (toolId === 'workflow_executor') {
+      return {
+        id: 'workflow_executor',
+        name: 'Workflow Executor',
+        description: '',
+        version: '1.0.0',
+        params: {},
+      }
     }
     return null
   }),
@@ -812,6 +822,52 @@ describe('Tool Parameters Utils', () => {
           }
         })
       }
+    })
+  })
+})
+
+describe('custom block agent-tool rendering', () => {
+  // Mirrors buildCustomBlockConfig: hidden workflowId/inputMapping wiring + per-field
+  // sub-blocks keyed by the source field's stable id.
+  const customBlockConfig = {
+    subBlocks: [
+      { id: 'workflowId', type: 'short-input', hidden: true },
+      { id: 'inputMapping', type: 'code', language: 'json', hidden: true },
+      { id: 'field-question', title: 'Question', type: 'short-input', required: true },
+      { id: 'field-files', title: 'Attachments', type: 'file-upload', multiple: true },
+    ],
+  } as any
+
+  describe('getToolParametersConfig', () => {
+    it('surfaces the field sub-blocks, never workflowId/inputMapping', () => {
+      const result = getToolParametersConfig(
+        'workflow_executor',
+        'custom_block_abc',
+        undefined,
+        customBlockConfig
+      )
+      expect(result).not.toBeNull()
+      const ids = result!.userInputParameters.map((p) => p.id)
+      expect(ids).toEqual(['field-question', 'field-files'])
+      expect(ids).not.toContain('workflowId')
+      expect(ids).not.toContain('inputMapping')
+      expect(result!.userInputParameters.every((p) => p.visibility === 'user-or-llm')).toBe(true)
+      expect(result!.requiredParameters.map((p) => p.id)).toEqual(['field-question'])
+    })
+  })
+
+  describe('getSubBlocksForToolInput', () => {
+    it('returns field sub-blocks as user-or-llm and drops reserved/hidden wiring', () => {
+      const result = getSubBlocksForToolInput(
+        'workflow_executor',
+        'custom_block_abc',
+        undefined,
+        undefined,
+        customBlockConfig
+      )
+      expect(result).not.toBeNull()
+      expect(result!.subBlocks.map((sb) => sb.id)).toEqual(['field-question', 'field-files'])
+      expect(result!.subBlocks.every((sb) => sb.paramVisibility === 'user-or-llm')).toBe(true)
     })
   })
 })

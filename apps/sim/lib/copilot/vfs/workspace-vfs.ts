@@ -104,6 +104,7 @@ import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/executi
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
+import { getSharesForResources } from '@/lib/public-shares/share-manager'
 import { canUseSkill, getSkillAccessForUser } from '@/lib/skills/access'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -1739,6 +1740,23 @@ export class WorkspaceVFS {
         includeReservedSystemFiles: true,
         throwOnError: true,
       })
+      // Batch-load public share state so each file's metadata carries an ambient
+      // `shared` flag (mirrors how the files-list UI enriches rows) — no N+1.
+      // Fail soft: share state is only metadata enrichment, so a lookup failure
+      // must not drop the whole file tree (the outer catch returns []) — fall back
+      // to no shares, and files still materialize with `shared: false`.
+      let shareByFileId: Awaited<ReturnType<typeof getSharesForResources>> = new Map()
+      try {
+        shareByFileId = await getSharesForResources(
+          'file',
+          files.map((file) => file.id)
+        )
+      } catch (error) {
+        logger.warn('Failed to load file share state; file metadata will show shared: false', {
+          workspaceId,
+          error: toError(error).message,
+        })
+      }
       for (const folder of folders) {
         if (
           !workflowArtifactsEnabled &&
@@ -1757,6 +1775,8 @@ export class WorkspaceVFS {
         if (!workflowArtifactsEnabled && isWorkflowAliasBackingPath(filePath)) {
           continue
         }
+        const share = shareByFileId.get(file.id)
+        const shared = share?.isActive ?? false
         this.files.set(
           filePath,
           serializeFileMeta({
@@ -1769,6 +1789,9 @@ export class WorkspaceVFS {
             size: file.size,
             uploadedAt: file.uploadedAt,
             updatedAt: file.updatedAt,
+            shared,
+            shareAuthType: shared ? share?.authType : undefined,
+            shareUrl: shared ? share?.url : undefined,
           })
         )
       }
@@ -2219,7 +2242,8 @@ export class WorkspaceVFS {
           and(
             eq(copilotChats.workspaceId, workspaceId),
             eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership')
+            eq(copilotChats.type, 'mothership'),
+            isNull(copilotChats.deletedAt)
           )
         )
         .orderBy(desc(copilotChats.updatedAt))

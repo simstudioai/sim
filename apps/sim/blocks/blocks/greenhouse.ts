@@ -427,7 +427,7 @@ export const GreenhouseBlockMeta = {
   templates: [
     {
       icon: GreenhouseIcon,
-      title: 'Recruiting pipeline automator',
+      title: 'Greenhouse pipeline monitor',
       prompt:
         'Build a scheduled workflow that syncs open jobs and candidates from Greenhouse to a tracking table daily, flags candidates who have been in the same stage for more than 5 days, and sends a Slack summary to hiring managers with pipeline stats and bottlenecks.',
       modules: ['tables', 'scheduled', 'agent', 'workflows'],

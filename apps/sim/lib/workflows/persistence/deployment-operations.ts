@@ -3,7 +3,7 @@ import { generateId } from '@sim/utils/id'
 import type { DbOrTx } from '@sim/workflow-persistence/types'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import type { InferSelectModel } from 'drizzle-orm'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
 import {
   canTransitionDeploymentOperation,
   createDeploymentReadiness,
@@ -113,6 +113,28 @@ type ResolveOperationTarget = (context: PrepareOperationContext) =>
   | { success: false; reason: PrepareFailureReason; error: string }
 
 const IN_FLIGHT_STATUSES: DeploymentOperationStatus[] = ['preparing', 'activating']
+
+const DEPLOYMENT_TX_STATEMENT_TIMEOUT_MS = 30_000
+const DEPLOYMENT_TX_LOCK_TIMEOUT_MS = 5_000
+const DEPLOYMENT_TX_IDLE_TIMEOUT_MS = 30_000
+
+/**
+ * Applies transaction-scoped Postgres safety timeouts in one round trip.
+ *
+ * Deployment transactions hold the workflow-row lock plus webhook and
+ * operation row locks across several statements; the idle timeout is the
+ * backstop that stops a wedged client from pinning those locks indefinitely,
+ * and `lock_timeout` keeps a waiter from inheriting the full statement clock.
+ * `set_config(..., true)` is `SET LOCAL`-scoped, so it clears at
+ * COMMIT/ROLLBACK and is safe under PgBouncer transaction pooling.
+ */
+export async function setDeploymentTxTimeouts(tx: DbOrTx): Promise<void> {
+  await tx.execute(
+    sql`SELECT set_config('statement_timeout', ${`${DEPLOYMENT_TX_STATEMENT_TIMEOUT_MS}ms`}, true),
+        set_config('lock_timeout', ${`${DEPLOYMENT_TX_LOCK_TIMEOUT_MS}ms`}, true),
+        set_config('idle_in_transaction_session_timeout', ${`${DEPLOYMENT_TX_IDLE_TIMEOUT_MS}ms`}, true)`
+  )
+}
 
 /**
  * Creates an inactive immutable snapshot and a preparing deployment attempt.
@@ -326,6 +348,7 @@ export async function beginDeploymentOperationActivation(
   params: DeploymentOperationGeneration
 ): Promise<DeploymentOperationMutationResult> {
   return db.transaction(async (tx) => {
+    await setDeploymentTxTimeouts(tx)
     const operation = await lockCurrentOperation(tx, params)
     if (!operation.success) return operation
 
@@ -438,6 +461,7 @@ export async function activateDeploymentOperation(
   params: ActivateDeploymentOperationParams
 ): Promise<DeploymentOperationMutationResult> {
   return db.transaction(async (tx) => {
+    await setDeploymentTxTimeouts(tx)
     const operationResult = await lockCurrentOperation(tx, params)
     if (!operationResult.success) return operationResult
 
@@ -539,18 +563,25 @@ export async function activateDeploymentOperation(
       }
     }
 
+    /**
+     * Single-statement cutover: only rows whose isActive value actually
+     * changes are touched (the previously active row and the target), instead
+     * of rewriting every version row of the workflow on each deploy. There is
+     * no unique index on (workflowId, isActive), so the one-statement flip has
+     * no constraint-ordering hazard.
+     */
     await tx
       .update(workflowDeploymentVersion)
-      .set({ isActive: false })
-      .where(eq(workflowDeploymentVersion.workflowId, operation.workflowId))
-
-    await tx
-      .update(workflowDeploymentVersion)
-      .set({ isActive: true })
+      .set({
+        isActive: sql<boolean>`${workflowDeploymentVersion.id} = ${operation.deploymentVersionId}`,
+      })
       .where(
         and(
           eq(workflowDeploymentVersion.workflowId, operation.workflowId),
-          eq(workflowDeploymentVersion.id, operation.deploymentVersionId)
+          or(
+            eq(workflowDeploymentVersion.isActive, true),
+            eq(workflowDeploymentVersion.id, operation.deploymentVersionId)
+          )
         )
       )
 
@@ -818,7 +849,11 @@ async function prepareOperation(
     return { success: true, operation, reused: false }
   }
 
-  return params.tx ? executePrepare(params.tx) : db.transaction(executePrepare)
+  if (params.tx) return executePrepare(params.tx)
+  return db.transaction(async (tx) => {
+    await setDeploymentTxTimeouts(tx)
+    return executePrepare(tx)
+  })
 }
 
 async function lockCurrentOperation(

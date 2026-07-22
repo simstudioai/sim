@@ -146,7 +146,7 @@ const SubBlockRow = memo(function SubBlockRow({
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (
-    <div className='flex items-center gap-2'>
+    <div className='flex h-5 items-center gap-2'>
       <span
         className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
         title={title}

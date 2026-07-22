@@ -317,7 +317,10 @@ export async function validateConnectServerUrl(serverUrl: string): Promise<strin
 
   let address: string
   try {
-    ;({ address } = await dns.lookup(clean, { verbatim: true }))
+    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
+    // on IPv4-only egress (e.g. AWS NAT gateways).
+    const resolved = await dns.lookup(clean, { all: true, verbatim: true })
+    address = (resolved.find((entry) => entry.family === 4) ?? resolved[0]).address
   } catch (error) {
     connectLogger.warn('DNS lookup failed for 1Password Connect server URL', {
       hostname: clean,

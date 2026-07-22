@@ -14,6 +14,7 @@ export const KalshiBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'kalshi_v2' },
   bgColor: '#09C285',
   iconColor: '#09C285',
   icon: KalshiIcon,
@@ -762,6 +763,7 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
 
 export const KalshiV2Block: BlockConfig = {
   ...KalshiBlock,
+  sunset: undefined,
   type: 'kalshi_v2',
   name: 'Kalshi',
   description: 'Access prediction markets and trade on Kalshi',
