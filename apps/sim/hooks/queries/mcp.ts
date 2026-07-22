@@ -167,7 +167,19 @@ export function useMcpToolsQuery(workspaceId: string) {
       queryKey: mcpKeys.serverToolsList(workspaceId, serverId),
       queryFn: async ({ signal }: { signal?: AbortSignal }) => {
         try {
-          return await fetchMcpTools(workspaceId, false, signal, serverId)
+          const tools = await fetchMcpTools(workspaceId, false, signal, serverId)
+          // A successful probe flips the stored status to `connected` server-side; if the
+          // cached list still shows this server failed, refresh it so the row clears its red
+          // state (and its tools stop being dropped) instead of waiting out the list stale-time.
+          const cached = queryClient.getQueryData<McpServer[]>(mcpKeys.serversList(workspaceId))
+          const status = cached?.find((s) => s.id === serverId)?.connectionStatus
+          if (status && status !== 'connected') {
+            queryClient.invalidateQueries(
+              { queryKey: mcpKeys.serversList(workspaceId) },
+              { cancelRefetch: false }
+            )
+          }
+          return tools
         } catch (error) {
           await queryClient.invalidateQueries(
             { queryKey: mcpKeys.serversList(workspaceId) },
@@ -198,10 +210,10 @@ export function useMcpToolsQuery(workspaceId: string) {
       const serverId = serverIds[index]
       const status = serverId ? statusById.get(serverId) : undefined
       const persistentlyFailed = status === 'error' || status === 'disconnected'
-      // Keep last-known-good tools through a transient failure (React Query retains `data`, the
-      // stored status is still healthy) so a populated server doesn't blank — but drop them once
-      // the stored status crosses its failure threshold, so the workflow editor stops offering a
-      // dead server's stale tools. Matches how reference MCP clients treat transient vs. closed.
+      // Keep last-known-good tools while the stored status is still `connected` (React Query
+      // retains `data` across a failed refetch, so a populated server doesn't blank on a
+      // transient probe error) — but drop them once the stored status leaves `connected`
+      // (disconnected/error), so the workflow editor stops offering a dead server's stale tools.
       if (result.data && (!result.isError || !persistentlyFailed)) {
         tools.push(...result.data)
         hasData = true

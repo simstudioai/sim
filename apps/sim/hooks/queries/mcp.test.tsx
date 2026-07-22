@@ -139,7 +139,11 @@ describe('useMcpToolsQuery', () => {
     const { unmount } = renderHookWithClient(() => useMcpToolsQuery(WORKSPACE_ID))
     await flush()
 
-    expect(mockRequestJson).toHaveBeenCalledTimes(3)
+    // Both eligible servers get discovered.
+    const discoveryCalls = mockRequestJson.mock.calls.filter(
+      ([contract]) => contract === discoverMcpToolsContract
+    )
+    expect(discoveryCalls).toHaveLength(2)
     expect(mockRequestJson).toHaveBeenCalledWith(
       discoverMcpToolsContract,
       expect.objectContaining({
@@ -152,6 +156,34 @@ describe('useMcpToolsQuery', () => {
         query: { workspaceId: WORKSPACE_ID, serverId: 'headers-disconnected' },
       })
     )
+
+    unmount()
+  })
+
+  it('refreshes the server list when a previously-failed server discovers successfully', async () => {
+    let listCalls = 0
+    mockRequestJson.mockImplementation(async (contract) => {
+      if (contract === listMcpServersContract) {
+        listCalls++
+        return {
+          success: true,
+          data: {
+            servers: [server('s1', { authType: 'headers', connectionStatus: 'disconnected' })],
+          },
+        }
+      }
+      if (contract === discoverMcpToolsContract) {
+        return { success: true, data: { tools: [{ name: 'tool-a', serverId: 's1' }] } }
+      }
+      throw new Error('Unexpected MCP request')
+    })
+
+    const { unmount } = renderHookWithClient(() => useMcpToolsQuery(WORKSPACE_ID))
+    await flush()
+
+    // A successful probe against a server the cache still shows 'disconnected' refreshes the
+    // list (server-side the status is now 'connected') so the row clears its red state.
+    expect(listCalls).toBeGreaterThanOrEqual(2)
 
     unmount()
   })
