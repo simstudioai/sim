@@ -75,7 +75,11 @@ export function SettingsSidebar({
   const forkingAvailable = useForkingAvailable(workspaceId)
   const { userPermissions } = useWorkspacePermissionsContext()
   const { canAdmin: canAdminWorkspace } = userPermissions
-  const permissionsReadinessBusy = userPermissions.isLoading || !userPermissions.canRead
+  const authorizationState = userPermissions.isLoading
+    ? 'loading'
+    : userPermissions.canRead
+      ? 'granted'
+      : 'denied'
 
   const userId = session?.user?.id
 
@@ -290,7 +294,8 @@ export function SettingsSidebar({
       <div
         role='navigation'
         aria-label='Workspace settings sections'
-        aria-busy={permissionsReadinessBusy}
+        aria-busy={authorizationState === 'loading'}
+        data-authorization-state={authorizationState}
         ref={isCollapsed ? undefined : scrollContainerRef}
         className={cn(
           'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-1.5 transition-colors duration-150',

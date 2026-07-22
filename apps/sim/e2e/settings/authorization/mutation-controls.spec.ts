@@ -143,12 +143,14 @@ async function expectAuthorizationReadiness(
 async function expectMutationPermissionsReady(page: Page, pathTemplate: string): Promise<void> {
   if (pathTemplate.startsWith('/workspace/')) {
     const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar' })
-    await expect(
-      sidebar.getByRole('navigation', { name: 'Workspace settings sections' })
-    ).toHaveAttribute('aria-busy', 'false')
+    const navigation = sidebar.getByRole('navigation', { name: 'Workspace settings sections' })
+    await expect(navigation).toHaveAttribute('aria-busy', 'false')
+    await expect(navigation).toHaveAttribute('data-authorization-state', 'granted')
     return
   }
 
+  // Members is the only organization route with an absent-control probe; the
+  // integrity spec requires any future organization absence case to add a barrier.
   if (pathTemplate.endsWith('/settings/members')) {
     await expect(page.getByRole('region', { name: 'Organization members' })).toHaveAttribute(
       'aria-busy',

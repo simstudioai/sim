@@ -227,6 +227,17 @@ test('mutation contracts declare every required section and role boundary', () =
         pathTemplate.endsWith('/settings/access-control')
     )
   ).toBe(true)
+
+  expect(
+    mutationControlCases
+      .filter(
+        ({ pathTemplate, controls }) =>
+          pathTemplate.startsWith('/organization/') &&
+          controls.some(({ expectation }) => expectation === 'absent')
+      )
+      .map(({ caseId }) => caseId),
+    'organization absence probes must use the Members readiness barrier'
+  ).toEqual(['organization-member-members-controls'])
 })
 
 test('Step 4 paths stay canonical and separate from Step 3 special paths', () => {
