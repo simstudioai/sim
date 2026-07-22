@@ -2,8 +2,7 @@
  * @vitest-environment node
  */
 import { usageLog } from '@sim/db/schema'
-import { databaseMock, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import type { Mock } from 'vitest'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -49,59 +48,17 @@ import {
 } from '@/lib/billing/core/usage-log'
 
 /**
- * `@sim/db` behavior is driven through the SHARED mock instances rather than a
- * file-local factory object. This file mocks `@sim/db` with `dbChainMock` and
- * wires its `insert` / `transaction` entry points to this file's `mockInsert`
- * / `mockTransaction` in `beforeEach`; the setup-level `databaseMock` entry
- * points are mirrored onto the same chain fns. Under `isolate: false` the
- * module under test may have been loaded by an earlier suite in this worker
- * with `@sim/db` bound to `databaseMock` — configuring both shared instances
- * keeps either binding correct.
+ * Re-wires the shared db mocks (`dbChainMockFns`, backing the single shared
+ * `@sim/db` mock instance) to this file's insert/transaction chain.
  */
-const GLOBAL_DB_KEYS = [
-  'select',
-  'selectDistinct',
-  'insert',
-  'update',
-  'delete',
-  'transaction',
-] as const
-
-const globalDb = databaseMock.db as unknown as Record<(typeof GLOBAL_DB_KEYS)[number], Mock>
-const savedGlobalDbImpls = new Map<
-  (typeof GLOBAL_DB_KEYS)[number],
-  ((...args: unknown[]) => unknown) | undefined
->()
-
-/** Mirrors the setup-level databaseMock entry points onto the shared chain fns. */
-function delegateGlobalDbToChainMocks(): void {
-  for (const key of GLOBAL_DB_KEYS) {
-    const fn = globalDb[key]
-    if (typeof fn?.mockImplementation !== 'function') continue
-    if (!savedGlobalDbImpls.has(key)) savedGlobalDbImpls.set(key, fn.getMockImplementation())
-    fn.mockImplementation((...args: unknown[]) => (dbChainMockFns[key] as Mock)(...args))
-  }
-}
-
-/** Restores the databaseMock entry points captured before this suite ran. */
-function restoreGlobalDb(): void {
-  for (const [key, impl] of savedGlobalDbImpls) {
-    if (impl) globalDb[key].mockImplementation(impl)
-    else globalDb[key].mockReset()
-  }
-}
-
-/** Re-wires the shared db mocks to this file's insert/transaction chain. */
 function installSharedDbMocks(): void {
   resetDbChainMock()
   dbChainMockFns.insert.mockImplementation((...args: unknown[]) => mockInsert(...args))
   dbChainMockFns.transaction.mockImplementation((...args: unknown[]) => mockTransaction(...args))
-  delegateGlobalDbToChainMocks()
 }
 
 afterAll(() => {
   resetDbChainMock()
-  restoreGlobalDb()
 })
 
 describe('recordUsage', () => {
