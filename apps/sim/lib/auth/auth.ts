@@ -34,6 +34,11 @@ import {
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { getRequestedSignInProviderId, isSignInProviderAllowed } from '@/lib/auth/constants'
+import {
+  clampSessionExpiry,
+  getSessionCookieCacheVersion,
+  getSessionPolicy,
+} from '@/lib/auth/session-policy'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
@@ -222,6 +227,14 @@ export const auth = betterAuth({
     cookieCache: {
       enabled: true,
       maxAge: 24 * 60 * 60, // 24 hours in seconds
+      /**
+       * Embeds the member org's security-policy version. Bumping the version
+       * (policy change, org-wide revocation) invalidates every cached session
+       * cookie in the org on its next request, forcing a DB session read —
+       * revocation latency becomes the policy cache TTL, not 24h.
+       */
+      version: async (session) =>
+        getSessionCookieCacheVersion(session as { activeOrganizationId?: string | null }),
     },
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
@@ -665,9 +678,21 @@ export const auth = betterAuth({
                 organizationId: members[0].organizationId,
               })
 
+              // Impersonation sessions are platform-admin tooling with their
+              // own short expiry — org session policies do not apply.
+              const expiresAt =
+                session.impersonatedBy || !session.expiresAt
+                  ? session.expiresAt
+                  : clampSessionExpiry(
+                      await getSessionPolicy(members[0].organizationId),
+                      session.createdAt ?? new Date(),
+                      session.expiresAt
+                    )
+
               return {
                 data: {
                   ...session,
+                  expiresAt,
                   activeOrganizationId: members[0].organizationId,
                 },
               }
@@ -683,6 +708,28 @@ export const auth = betterAuth({
             })
             return { data: session }
           }
+        },
+      },
+      update: {
+        /**
+         * Better Auth's sliding refresh rewrites `expiresAt` to
+         * `now + expiresIn` (30 days), which would silently stretch a
+         * policy-shortened session back out — re-clamp on every refresh.
+         * The current session row is read from the endpoint context; when
+         * it is unavailable (non-refresh update paths) the update passes
+         * through untouched and the next refresh re-clamps.
+         */
+        before: async (data, ctx) => {
+          if (!data.expiresAt) return { data }
+          const current = ctx?.context?.session?.session
+          if (!current?.activeOrganizationId || current.impersonatedBy) return { data }
+          const policy = await getSessionPolicy(current.activeOrganizationId)
+          const expiresAt = clampSessionExpiry(
+            policy,
+            current.createdAt ?? new Date(),
+            new Date(data.expiresAt)
+          )
+          return { data: { ...data, expiresAt } }
         },
       },
     },

@@ -142,6 +142,58 @@ export const organizationDataRetentionResponseSchema = z.object({
   data: organizationDataRetentionDataSchema,
 })
 
+export const updateOrganizationSessionPolicyBodySchema = z.object({
+  maxSessionHours: z
+    .number()
+    .int()
+    .min(1, 'Max session lifetime must be at least 1 hour')
+    .max(8760, 'Max session lifetime cannot exceed 8760 hours (1 year)')
+    .nullable()
+    .optional(),
+  idleTimeoutHours: z
+    .number()
+    .int()
+    .min(
+      24,
+      'Idle timeout must be at least 24 hours — session activity is only recorded once per cookie-cache window'
+    )
+    .max(8760, 'Idle timeout cannot exceed 8760 hours (1 year)')
+    .nullable()
+    .optional(),
+})
+
+export type UpdateOrganizationSessionPolicyBody = z.input<
+  typeof updateOrganizationSessionPolicyBodySchema
+>
+
+const organizationSessionPolicyValuesSchema = z.object({
+  maxSessionHours: z.number().int().nullable(),
+  idleTimeoutHours: z.number().int().nullable(),
+})
+
+const organizationSessionPolicyDataSchema = z.object({
+  isEnterprise: z.boolean(),
+  configured: organizationSessionPolicyValuesSchema,
+})
+
+export type OrganizationSessionPolicy = z.output<typeof organizationSessionPolicyDataSchema>
+
+export const organizationSessionPolicyResponseSchema = z.object({
+  success: z.boolean(),
+  data: organizationSessionPolicyDataSchema,
+})
+
+export const revokeOrganizationSessionsResponseSchema = z.object({
+  success: z.boolean(),
+  data: z.object({
+    revokedSessions: z.number().int(),
+  }),
+})
+
+export type RevokeOrganizationSessionsResult = z.output<
+  typeof revokeOrganizationSessionsResponseSchema
+>['data']
+
 export const updateOrganizationWhitelabelBodySchema = z.object({
   brandName: z
     .string()
@@ -488,6 +540,37 @@ export const updateOrganizationDataRetentionContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: organizationDataRetentionResponseSchema,
+  },
+})
+
+export const getOrganizationSessionPolicyContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/session-policy',
+  params: organizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: organizationSessionPolicyResponseSchema,
+  },
+})
+
+export const updateOrganizationSessionPolicyContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/organizations/[id]/session-policy',
+  params: organizationParamsSchema,
+  body: updateOrganizationSessionPolicyBodySchema,
+  response: {
+    mode: 'json',
+    schema: organizationSessionPolicyResponseSchema,
+  },
+})
+
+export const revokeOrganizationSessionsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/organizations/[id]/sessions/revoke',
+  params: organizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: revokeOrganizationSessionsResponseSchema,
   },
 })
 
