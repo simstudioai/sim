@@ -8,19 +8,25 @@ import { parseRequest } from '@/lib/api/server'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
+  createForbiddenResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import {
+  assertActiveWorkspaceAccess,
+  isWorkspaceAccessDeniedError,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('RestoreMothershipChatAPI')
 
 /**
  * POST /api/mothership/chats/[chatId]/restore
  * Restores a soft-deleted mothership chat back into the sidebar. Ownership is
- * enforced by scoping the update to the authenticated user's rows, matching
- * the delete path.
+ * enforced by scoping the update to the authenticated user's rows, and the
+ * caller must still have access to the chat's workspace, matching the delete
+ * path.
  */
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
@@ -33,6 +39,26 @@ export const POST = withRouteHandler(
       const parsed = await parseRequest(restoreMothershipChatContract, request, context)
       if (!parsed.success) return parsed.response
       const { chatId } = parsed.data.params
+
+      const [chat] = await db
+        .select({ workspaceId: copilotChats.workspaceId })
+        .from(copilotChats)
+        .where(
+          and(
+            eq(copilotChats.id, chatId),
+            eq(copilotChats.userId, userId),
+            eq(copilotChats.type, 'mothership'),
+            isNotNull(copilotChats.deletedAt)
+          )
+        )
+        .limit(1)
+
+      if (!chat) {
+        return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
+      }
+      if (chat.workspaceId) {
+        await assertActiveWorkspaceAccess(chat.workspaceId, userId)
+      }
 
       const [restoredChat] = await db
         .update(copilotChats)
@@ -71,6 +97,9 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ success: true })
     } catch (error) {
+      if (isWorkspaceAccessDeniedError(error)) {
+        return createForbiddenResponse('Workspace access denied')
+      }
       logger.error('Error restoring mothership chat:', error)
       return createInternalServerErrorResponse('Failed to restore chat')
     }

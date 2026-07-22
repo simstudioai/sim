@@ -600,13 +600,26 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
 
   // Workflow-scoped chats above are removed by the workflow FK cascade;
   // soft-deleted mothership chats have no workflow and need their own delete.
-  const chatResult = await deleteRowsById(
-    copilotChats,
-    copilotChats.id,
-    softDeletedChatIds,
-    `${label}/copilotChats`
-  )
-  totalDeleted += chatResult.deleted
+  // Re-check the soft-delete cutoff in the DELETE itself so a chat restored
+  // between selection and this point survives (chatCleanup.execute() below
+  // also re-checks row existence before purging external data).
+  for (const batch of chunkArray(softDeletedChatIds, DEFAULT_DELETE_CHUNK_SIZE)) {
+    try {
+      const deleted = await db
+        .delete(copilotChats)
+        .where(
+          and(
+            inArray(copilotChats.id, batch),
+            isNotNull(copilotChats.deletedAt),
+            lt(copilotChats.deletedAt, retentionDate)
+          )
+        )
+        .returning({ id: copilotChats.id })
+      totalDeleted += deleted.length
+    } catch (error) {
+      logger.error(`[${label}/copilotChats] Soft-deleted chat delete failed`, { error })
+    }
+  }
 
   const legacyFileResult = await deleteExpiredLegacyWorkspaceFileRows(
     fileCleanup.legacyRows,
