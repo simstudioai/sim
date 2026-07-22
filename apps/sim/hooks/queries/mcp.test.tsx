@@ -103,13 +103,29 @@ function mockServers(servers: McpServer[]) {
   })
 }
 
+// jsdom has no EventSource; useMcpToolsQuery mounts the shared SSE subscription.
+class FakeEventSource {
+  onopen: (() => void) | null = null
+  onerror: (() => void) | null = null
+  constructor(public url: string) {}
+  addEventListener(): void {}
+  close(): void {}
+}
+
 describe('useMcpToolsQuery', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ;(globalThis as unknown as { EventSource: unknown }).EventSource = FakeEventSource
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    // mcp.ts captured these Map/Set instances in module consts at import, so reassigning the
+    // globalThis property wouldn't reset what the module uses — clear the shared instances.
+    ;(
+      globalThis as unknown as { __mcp_sse_connections?: Map<string, unknown> }
+    ).__mcp_sse_connections?.clear()
+    ;(globalThis as unknown as { __mcp_sse_subscribed?: Set<string> }).__mcp_sse_subscribed?.clear()
   })
 
   it('does not auto-discover disconnected or errored OAuth servers', async () => {
@@ -139,7 +155,11 @@ describe('useMcpToolsQuery', () => {
     const { unmount } = renderHookWithClient(() => useMcpToolsQuery(WORKSPACE_ID))
     await flush()
 
-    expect(mockRequestJson).toHaveBeenCalledTimes(3)
+    // Both eligible servers get discovered.
+    const discoveryCalls = mockRequestJson.mock.calls.filter(
+      ([contract]) => contract === discoverMcpToolsContract
+    )
+    expect(discoveryCalls).toHaveLength(2)
     expect(mockRequestJson).toHaveBeenCalledWith(
       discoverMcpToolsContract,
       expect.objectContaining({
