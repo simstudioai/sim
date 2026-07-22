@@ -5,7 +5,6 @@ import {
   LATEST_PROTOCOL_VERSION,
   type ListToolsResult,
   SUPPORTED_PROTOCOL_VERSIONS,
-  type Tool,
   ToolListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
@@ -275,33 +274,98 @@ export class McpClient {
     const maxTotalTimeoutMs = MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_TOTAL_TIMEOUT_MS
     const startedAt = Date.now()
 
-    try {
-      const result: ListToolsResult = await this.client.listTools(undefined, {
-        // resetTimeoutOnProgress only takes effect when onprogress is supplied.
-        timeout: idleTimeoutMs,
-        maxTotalTimeout: maxTotalTimeoutMs,
-        resetTimeoutOnProgress: true,
-        onprogress: (progress) => {
-          logger.debug(`Tool discovery progress from ${this.config.name}`, {
-            serverId: this.config.id,
-            progress: progress.progress,
-            total: progress.total,
-          })
-        },
-      })
+    // The SDK's `listTools()` returns a single page; a server that paginates via
+    // `nextCursor` would otherwise be silently truncated to page one. Follow the
+    // cursor, bounded by four independent budgets — pages, tool count, byte size,
+    // and aggregate wall-clock — plus a repeated-cursor guard, since a page cap
+    // alone can't stop a server that returns a fresh cursor with no new tools.
+    const deadline = startedAt + maxTotalTimeoutMs
+    const maxPages = MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_PAGES
+    const tools: McpTool[] = []
+    const seenCursors = new Set<string>()
+    let cursor: string | undefined
+    let bytes = 0
+    let pagesFetched = 0
+    let truncated: string | undefined
+    let reachedEnd = false
 
-      if (!result.tools || !Array.isArray(result.tools)) {
-        logger.warn(`Invalid tools response from server ${this.config.name}:`, result)
-        return []
+    try {
+      for (let page = 0; page < maxPages; page++) {
+        const remainingMs = deadline - Date.now()
+        if (remainingMs <= 0) {
+          truncated = 'aggregate timeout'
+          break
+        }
+        const result: ListToolsResult = await this.client.listTools(
+          cursor ? { cursor } : undefined,
+          {
+            // resetTimeoutOnProgress only takes effect when onprogress is supplied.
+            timeout: Math.min(idleTimeoutMs, remainingMs),
+            maxTotalTimeout: remainingMs,
+            resetTimeoutOnProgress: true,
+            onprogress: (progress) => {
+              logger.debug(`Tool discovery progress from ${this.config.name}`, {
+                serverId: this.config.id,
+                progress: progress.progress,
+                total: progress.total,
+              })
+            },
+          }
+        )
+        pagesFetched++
+
+        if (!result.tools || !Array.isArray(result.tools)) {
+          logger.warn(`Invalid tools response from server ${this.config.name}:`, result)
+          reachedEnd = true
+          break
+        }
+
+        for (const tool of result.tools) {
+          if (tools.length >= MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_TOOLS) {
+            truncated = 'tool count'
+            break
+          }
+          bytes += Buffer.byteLength(JSON.stringify(tool), 'utf8')
+          if (bytes > MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_BYTES) {
+            truncated = 'byte size'
+            break
+          }
+          tools.push({
+            name: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema as McpTool['inputSchema'],
+            serverId: this.config.id,
+            serverName: this.config.name,
+          })
+        }
+        if (truncated) break
+
+        const next = result.nextCursor
+        if (!next) {
+          reachedEnd = true
+          break // missing/empty cursor = end of results (spec)
+        }
+        if (seenCursors.has(next)) {
+          truncated = 'repeated cursor'
+          break
+        }
+        seenCursors.add(next)
+        cursor = next
       }
 
-      return result.tools.map((tool: Tool) => ({
-        name: tool.name,
-        description: tool.description,
-        inputSchema: tool.inputSchema as McpTool['inputSchema'],
-        serverId: this.config.id,
-        serverName: this.config.name,
-      }))
+      // The loop can exhaust `maxPages` with a cursor still pending — that's a page-cap
+      // truncation, distinct from a natural end (`reachedEnd`) or an explicit budget hit.
+      if (!truncated && !reachedEnd) truncated = 'page cap'
+      if (truncated) {
+        logger.warn(`Tool discovery truncated for server ${this.config.name}`, {
+          serverId: this.config.id,
+          reason: truncated,
+          toolsCollected: tools.length,
+          pagesFetched,
+        })
+      }
+
+      return tools
     } catch (error) {
       logger.error(`Failed to list tools from server ${this.config.name}`, {
         serverId: this.config.id,
@@ -309,9 +373,14 @@ export class McpClient {
         durationMs: Date.now() - startedAt,
         idleTimeoutMs,
         maxTotalTimeoutMs,
+        pagesFetched,
+        toolsCollected: tools.length,
         sessionIdPresent: Boolean(this.transport.sessionId),
         error: getMcpSafeErrorDiagnostics(error),
       })
+      // At least one page succeeded → keep its (possibly empty) partial result rather than
+      // failing discovery and marking the server unhealthy; only a page-one failure throws.
+      if (pagesFetched > 0) return tools
       throw error
     }
   }
