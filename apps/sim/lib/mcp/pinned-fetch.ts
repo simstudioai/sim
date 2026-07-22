@@ -70,11 +70,16 @@ function capResponseBody(response: Response, maxBytes: number): Response {
       },
     })
   )
-  return new Response(limited, {
+  const wrapped = new Response(limited, {
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,
   })
+  // `new Response()` resets `url`/`redirected` (empty/false); the SDK resolves relative
+  // auth-metadata URLs (e.g. `resource_metadata`) against `response.url`, so carry them over.
+  Object.defineProperty(wrapped, 'url', { value: response.url, configurable: true })
+  Object.defineProperty(wrapped, 'redirected', { value: response.redirected, configurable: true })
+  return wrapped
 }
 
 /**

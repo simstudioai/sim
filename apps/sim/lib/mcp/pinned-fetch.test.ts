@@ -75,6 +75,18 @@ describe('createGuardedMcpFetch', () => {
     const get = await guarded('https://mcp.example/mcp', { method: 'GET' })
     await expect(new Response(get.body).arrayBuffer()).resolves.toBeInstanceOf(ArrayBuffer)
   })
+
+  it('preserves url and redirected on a capped response (SDK auth-metadata resolution)', async () => {
+    const small = new Response('{"ok":true}', { status: 200 })
+    Object.defineProperty(small, 'url', { value: 'https://mcp.example/mcp' })
+    Object.defineProperty(small, 'redirected', { value: true })
+    sentinelFetch.mockImplementation(async () => small)
+    const { fetch: guarded } = createGuardedMcpFetch()
+
+    const res = await guarded('https://mcp.example/mcp', { method: 'POST' })
+    expect(res.url).toBe('https://mcp.example/mcp')
+    expect(res.redirected).toBe(true)
+  })
 })
 
 describe('createSsrfGuardedMcpFetch', () => {
