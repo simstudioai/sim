@@ -21,10 +21,7 @@ import {
   type MessagePhase,
 } from '@/app/workspace/[workspaceId]/home/components/message-content'
 import { parseQuestionAnswerMessage } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
-import {
-  PendingTagIndicator,
-  parseLastQuestionTag,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { parseLastQuestionTag } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import {
   UserInput,
@@ -101,7 +98,6 @@ const OVERSCAN = 6
  * scrolled up.
  */
 const PIN_THRESHOLD = 2
-
 /**
  * Initial-scroll sentinel. Distinct from every real `chatId` value — including
  * `undefined` (a not-yet-persisted chat) — so the first scroll-to-bottom fires
@@ -175,6 +171,7 @@ const UserMessageRow = memo(function UserMessageRow({
 interface AssistantMessageRowProps {
   message: ChatMessage
   isStreaming: boolean
+  isLast: boolean
   precedingUserContent?: string
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
@@ -186,6 +183,7 @@ interface AssistantMessageRowProps {
 const AssistantMessageRow = memo(function AssistantMessageRow({
   message,
   isStreaming,
+  isLast,
   precedingUserContent,
   questionAnswers,
   rowClassName,
@@ -204,10 +202,6 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   useEffect(() => {
     onAnimatingChangeRef.current?.(phase !== 'settled')
   }, [phase])
-
-  if (!hasAnyBlocks && !trimmedContent && isStreaming) {
-    return <PendingTagIndicator />
-  }
 
   const hasRenderableAssistant = assistantMessageHasRenderableContent(blocks, message.content ?? '')
   if (!hasRenderableAssistant && !trimmedContent && !isStreaming) {
@@ -238,6 +232,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
         blocks={blocks}
         fallbackContent={message.content}
         isStreaming={isStreaming}
+        isLast={isLast}
         questionAnswers={questionAnswers}
         onOptionSelect={onOptionSelect}
         onQuestionDismiss={handleQuestionDismiss}
@@ -295,6 +290,40 @@ export function MothershipChat({
   const [lastRowAnimating, setLastRowAnimating] = useState(false)
   const scrollElementRef = useRef<HTMLDivElement | null>(null)
   const { ref: autoScrollRef } = useAutoScroll(isStreamActive || lastRowAnimating)
+  const sizerRef = useRef<HTMLDivElement | null>(null)
+  const scrollerPaddingRef = useRef<{ top: number; bottom: number } | null>(null)
+
+  /**
+   * Sizer floor while streaming: `scrollHeight` must never dip below the
+   * current viewport bottom. Streaming markdown re-parse emits transient
+   * row-height shrinks; when they pull scrollHeight under
+   * `scrollTop + clientHeight`, the browser clamps `scrollTop` and the pinned
+   * transcript visibly drops, then the chase glides it back. Flooring the
+   * sizer at exactly the scrolled-to extent prevents that clamp while never
+   * ADDING space — the floor cannot exceed what is already on screen. So an
+   * estimate correction (a fresh row measuring smaller than
+   * ROW_HEIGHT_ESTIMATE) releases immediately instead of holding phantom space
+   * the chase would scroll into and bounce back out of.
+   */
+  useLayoutEffect(() => {
+    const sizer = sizerRef.current
+    const el = scrollElementRef.current
+    if (!sizer || !el) return
+    if (!isStreamActive) {
+      sizer.style.minHeight = ''
+      return
+    }
+    if (!scrollerPaddingRef.current) {
+      const style = getComputedStyle(el)
+      scrollerPaddingRef.current = {
+        top: Number.parseFloat(style.paddingTop),
+        bottom: Number.parseFloat(style.paddingBottom),
+      }
+    }
+    const padding = scrollerPaddingRef.current
+    const floor = Math.max(0, el.scrollTop + el.clientHeight - padding.top - padding.bottom)
+    sizer.style.minHeight = `${floor}px`
+  })
   const setScrollElement = useCallback(
     (el: HTMLDivElement | null) => {
       scrollElementRef.current = el
@@ -509,7 +538,11 @@ export function MothershipChat({
           {isLoading && !hasMessages ? (
             <MothershipChatSkeleton layout={layout} />
           ) : (
-            <div className={styles.sizer} style={{ height: virtualizer.getTotalSize() }}>
+            <div
+              ref={sizerRef}
+              className={styles.sizer}
+              style={{ height: virtualizer.getTotalSize() }}
+            >
               {virtualItems.map((virtualItem) => {
                 const index = virtualItem.index
                 const msg = messages[index]
@@ -537,6 +570,7 @@ export function MothershipChat({
                       <AssistantMessageRow
                         message={msg}
                         isStreaming={isStreamActive && isLast}
+                        isLast={isLast}
                         precedingUserContent={precedingUserContentByIndex[index]}
                         questionAnswers={questionPairing.answersByIndex[index]}
                         rowClassName={cn(styles.assistantRow, styles.rowGap)}

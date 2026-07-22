@@ -17,7 +17,6 @@ import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
   type ContentSegment,
-  PendingTagIndicator,
   parseSpecialTags,
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
@@ -396,7 +395,7 @@ interface ChatContentProps {
   onQuestionDismiss?: () => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
   onRevealStateChange?: (isRevealing: boolean) => void
-  /** Reports whether this segment is actively painting text or its own pending-tag indicator. */
+  /** Reports whether this segment is actively painting text or streaming a special tag. */
   onStreamActivityChange?: (active: boolean) => void
 }
 
@@ -530,12 +529,11 @@ function ChatContentInner({
     () => parseSpecialTags(streamedContent, isRevealing),
     [streamedContent, isRevealing]
   )
-  const hasPendingIndicator = parsed.hasPendingTag && isRevealing
 
   useEffect(() => {
-    onStreamActivityChange?.(hasRevealBacklog || hasPendingIndicator)
+    onStreamActivityChange?.(hasRevealBacklog)
     return () => onStreamActivityChange?.(false)
-  }, [hasPendingIndicator, hasRevealBacklog, onStreamActivityChange])
+  }, [hasRevealBacklog, onStreamActivityChange])
 
   type BlockSegment = Exclude<
     ContentSegment,
@@ -624,7 +622,6 @@ function ChatContentInner({
           />
         )
       })}
-      {hasPendingIndicator && <PendingTagIndicator />}
     </div>
   )
 }
