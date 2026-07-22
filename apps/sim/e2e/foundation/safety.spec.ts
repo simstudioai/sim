@@ -190,6 +190,14 @@ test.describe('foundation safety guards', () => {
       parseRunOptions(['--project=hosted-billing-chromium-authorization', '--shard=1/2'])
     ).toThrow(/coupled E2E projects must remain unsharded/)
     expect(() =>
+      parseRunOptions(['--project=hosted-billing-chromium-credentials', '--no-deps'], {
+        ci: false,
+      })
+    ).not.toThrow()
+    expect(() =>
+      parseRunOptions(['--project=hosted-billing-chromium-credentials', '--shard=1/2'])
+    ).toThrow(/coupled E2E projects must remain unsharded/)
+    expect(() =>
       parseRunOptions(['--project=hosted-billing-chromium-workflows', '--shard=1/2'])
     ).toThrow(/coupled E2E projects must remain unsharded/)
     expect(() => parseRunOptions(['--project=hosted-billing-chromium-personas'])).not.toThrow()

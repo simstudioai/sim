@@ -1,11 +1,13 @@
 const NAVIGATION_PROJECT = 'hosted-billing-chromium-navigation'
 const AUTHORIZATION_PROJECT = 'hosted-billing-chromium-authorization'
+const CREDENTIALS_PROJECT = 'hosted-billing-chromium-credentials'
 const WORKFLOWS_PROJECT = 'hosted-billing-chromium-workflows'
 const PERSONAS_PROJECT = 'hosted-billing-chromium-personas'
 const PERSONA_ISOLATION_PROJECT = 'hosted-billing-chromium-persona-isolation'
 const E2E_PROJECTS = new Set([
   NAVIGATION_PROJECT,
   AUTHORIZATION_PROJECT,
+  CREDENTIALS_PROJECT,
   WORKFLOWS_PROJECT,
   PERSONAS_PROJECT,
   PERSONA_ISOLATION_PROJECT,

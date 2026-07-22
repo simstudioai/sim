@@ -88,17 +88,29 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const {
     data: apiKeysData,
     isLoading: isLoadingKeys,
+    isError: isKeysError,
+    isPlaceholderData: isKeysPlaceholderData,
     refetch: refetchApiKeys,
   } = useApiKeys(workspaceId, scope)
-  const { data: workspaceSettingsData, isLoading: isLoadingSettings } =
-    useWorkspaceSettings(workspaceId)
+  const {
+    data: workspaceSettingsData,
+    isLoading: isLoadingSettings,
+    isError: isSettingsError,
+    isPlaceholderData: isSettingsPlaceholderData,
+  } = useWorkspaceSettings(workspaceId)
   const deleteApiKeyMutation = useDeleteApiKey()
   const updateSettingsMutation = useUpdateWorkspaceApiKeySettings()
 
   const workspaceKeys = apiKeysData?.workspaceKeys ?? EMPTY_KEYS
   const personalKeys = apiKeysData?.personalKeys ?? EMPTY_KEYS
   const conflicts = apiKeysData?.conflicts ?? EMPTY_KEY_NAMES
-  const isLoading = isLoadingKeys || (showsWorkspaceKeys && isLoadingSettings)
+  const hasLoadError = isKeysError || (showsWorkspaceKeys && isSettingsError)
+  const isLoading =
+    !hasLoadError &&
+    (isLoadingKeys ||
+      isKeysPlaceholderData ||
+      (showsWorkspaceKeys && (isLoadingSettings || isSettingsPlaceholderData)))
+  const dataState = hasLoadError ? 'error' : isLoading ? 'loading' : 'ready'
 
   const allowPersonalApiKeys =
     workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true
@@ -115,6 +127,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
       : 'workspace'
   const createButtonDisabled =
     isLoading ||
+    hasLoadError ||
     (isWorkspaceScope && !canManageWorkspaceKeys) ||
     (isCombinedScope && !allowPersonalApiKeys && !canManageWorkspaceKeys)
 
@@ -190,18 +203,69 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
         }}
         actions={actions}
       >
-        {isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
-          <SettingsEmptyState>Click "Create API key" above to get started</SettingsEmptyState>
-        ) : (
-          <div className='flex flex-col gap-6'>
-            {showsWorkspaceKeys && !searchTerm.trim() ? (
-              <SettingsSection label='Workspace'>
-                {workspaceKeys.length === 0 ? (
-                  <div className='text-[var(--text-muted)] text-sm'>No workspace API keys yet</div>
-                ) : (
+        <section
+          aria-label='API keys data'
+          aria-busy={isLoading}
+          data-api-keys-state={dataState}
+          className='contents'
+        >
+          {isLoading ? null : hasLoadError ? (
+            <SettingsEmptyState>Unable to load API keys</SettingsEmptyState>
+          ) : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
+            <SettingsEmptyState>Click "Create API key" above to get started</SettingsEmptyState>
+          ) : (
+            <div className='flex flex-col gap-6'>
+              {showsWorkspaceKeys && !searchTerm.trim() ? (
+                <SettingsSection label='Workspace'>
+                  {workspaceKeys.length === 0 ? (
+                    <div className='text-[var(--text-muted)] text-sm'>
+                      No workspace API keys yet
+                    </div>
+                  ) : (
+                    <div className='flex flex-col gap-2'>
+                      {workspaceKeys.map((key) => (
+                        <div
+                          key={key.id}
+                          role='group'
+                          aria-label={key.name}
+                          className='flex items-center justify-between gap-3'
+                        >
+                          <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                            <div className='flex items-center gap-1.5'>
+                              <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
+                                {key.name}
+                              </span>
+                              <span className='text-[var(--text-secondary)] text-sm'>
+                                (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
+                              </span>
+                            </div>
+                            <p className='truncate text-[var(--text-muted)] text-caption'>
+                              {key.displayKey}
+                            </p>
+                          </div>
+                          <ApiKeyRowMenu
+                            keyName={key.name}
+                            onDelete={() => {
+                              setDeleteKey(key)
+                              setShowDeleteDialog(true)
+                            }}
+                            canDelete={canManageWorkspaceKeys}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </SettingsSection>
+              ) : showsWorkspaceKeys && filteredWorkspaceKeys.length > 0 ? (
+                <SettingsSection label='Workspace'>
                   <div className='flex flex-col gap-2'>
-                    {workspaceKeys.map((key) => (
-                      <div key={key.id} className='flex items-center justify-between gap-3'>
+                    {filteredWorkspaceKeys.map(({ key }) => (
+                      <div
+                        key={key.id}
+                        role='group'
+                        aria-label={key.name}
+                        className='flex items-center justify-between gap-3'
+                      >
                         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                           <div className='flex items-center gap-1.5'>
                             <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
@@ -226,141 +290,115 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                       </div>
                     ))}
                   </div>
-                )}
-              </SettingsSection>
-            ) : showsWorkspaceKeys && filteredWorkspaceKeys.length > 0 ? (
-              <SettingsSection label='Workspace'>
-                <div className='flex flex-col gap-2'>
-                  {filteredWorkspaceKeys.map(({ key }) => (
-                    <div key={key.id} className='flex items-center justify-between gap-3'>
-                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                        <div className='flex items-center gap-1.5'>
-                          <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
-                            {key.name}
-                          </span>
-                          <span className='text-[var(--text-secondary)] text-sm'>
-                            (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
-                          </span>
-                        </div>
-                        <p className='truncate text-[var(--text-muted)] text-caption'>
-                          {key.displayKey}
-                        </p>
-                      </div>
-                      <ApiKeyRowMenu
-                        keyName={key.name}
-                        onDelete={() => {
-                          setDeleteKey(key)
-                          setShowDeleteDialog(true)
-                        }}
-                        canDelete={canManageWorkspaceKeys}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </SettingsSection>
-            ) : null}
+                </SettingsSection>
+              ) : null}
 
-            {showsPersonalKeys && (!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
-              <SettingsSection label='Personal'>
-                <div className='flex flex-col gap-2'>
-                  {filteredPersonalKeys.map(({ key }) => {
-                    const isConflict = conflicts.includes(key.name)
-                    return (
-                      <div key={key.id} className='flex flex-col gap-2'>
-                        <div className='flex items-center justify-between gap-3'>
-                          <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                            <div className='flex items-center gap-1.5'>
-                              <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
-                                {key.name}
-                              </span>
-                              <span className='text-[var(--text-secondary)] text-sm'>
-                                (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
-                              </span>
+              {showsPersonalKeys && (!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
+                <SettingsSection label='Personal'>
+                  <div className='flex flex-col gap-2'>
+                    {filteredPersonalKeys.map(({ key }) => {
+                      const isConflict = conflicts.includes(key.name)
+                      return (
+                        <div key={key.id} className='flex flex-col gap-2'>
+                          <div
+                            role='group'
+                            aria-label={key.name}
+                            className='flex items-center justify-between gap-3'
+                          >
+                            <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                              <div className='flex items-center gap-1.5'>
+                                <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
+                                  {key.name}
+                                </span>
+                                <span className='text-[var(--text-secondary)] text-sm'>
+                                  (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
+                                </span>
+                              </div>
+                              <p className='truncate text-[var(--text-muted)] text-caption'>
+                                {key.displayKey}
+                              </p>
                             </div>
-                            <p className='truncate text-[var(--text-muted)] text-caption'>
-                              {key.displayKey}
-                            </p>
+                            <ApiKeyRowMenu
+                              keyName={key.name}
+                              onDelete={() => {
+                                setDeleteKey(key)
+                                setShowDeleteDialog(true)
+                              }}
+                            />
                           </div>
-                          <ApiKeyRowMenu
-                            keyName={key.name}
-                            onDelete={() => {
-                              setDeleteKey(key)
-                              setShowDeleteDialog(true)
-                            }}
-                          />
+                          {isConflict && (
+                            <div className='text-[var(--text-error)] text-small leading-tight'>
+                              Workspace API key with the same name overrides this. Rename your
+                              personal key to use it.
+                            </div>
+                          )}
                         </div>
-                        {isConflict && (
-                          <div className='text-[var(--text-error)] text-small leading-tight'>
-                            Workspace API key with the same name overrides this. Rename your
-                            personal key to use it.
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
+                </SettingsSection>
+              )}
+
+              {searchTerm.trim() &&
+                filteredPersonalKeys.length === 0 &&
+                filteredWorkspaceKeys.length === 0 &&
+                (personalKeys.length > 0 || workspaceKeys.length > 0) && (
+                  <SettingsEmptyState variant='inline'>
+                    No API keys found matching "{searchTerm}"
+                  </SettingsEmptyState>
+                )}
+            </div>
+          )}
+
+          {showsWorkspaceKeys && !isLoading && !hasLoadError && canManageWorkspaceKeys && (
+            <Tooltip.Provider delayDuration={150}>
+              <SettingsSection label='Permissions'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <label
+                      htmlFor='allow-personal-api-keys'
+                      className='text-[var(--text-body)] text-sm'
+                    >
+                      Allow personal API keys
+                    </label>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <button
+                          type='button'
+                          className='rounded-full p-1 text-[var(--text-muted)] transition hover-hover:text-[var(--text-primary)]'
+                        >
+                          <Info className='size-[12px]' strokeWidth={2} />
+                        </button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side='top' className='max-w-xs text-small'>
+                        Allow collaborators to authenticate with their own keys. Hosted usage is
+                        billed to this workspace, attributed to the key owner, and counted toward
+                        their member cap.
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  </div>
+                  {isLoadingSettings ? null : (
+                    <Switch
+                      id='allow-personal-api-keys'
+                      checked={allowPersonalApiKeys}
+                      disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
+                      onCheckedChange={async (checked) => {
+                        try {
+                          await updateSettingsMutation.mutateAsync({
+                            workspaceId,
+                            allowPersonalApiKeys: checked,
+                          })
+                        } catch (error) {
+                          logger.error('Error updating workspace settings:', { error })
+                        }
+                      }}
+                    />
+                  )}
                 </div>
               </SettingsSection>
-            )}
-
-            {searchTerm.trim() &&
-              filteredPersonalKeys.length === 0 &&
-              filteredWorkspaceKeys.length === 0 &&
-              (personalKeys.length > 0 || workspaceKeys.length > 0) && (
-                <SettingsEmptyState variant='inline'>
-                  No API keys found matching "{searchTerm}"
-                </SettingsEmptyState>
-              )}
-          </div>
-        )}
-
-        {showsWorkspaceKeys && !isLoading && canManageWorkspaceKeys && (
-          <Tooltip.Provider delayDuration={150}>
-            <SettingsSection label='Permissions'>
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-2'>
-                  <label
-                    htmlFor='allow-personal-api-keys'
-                    className='text-[var(--text-body)] text-sm'
-                  >
-                    Allow personal API keys
-                  </label>
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <button
-                        type='button'
-                        className='rounded-full p-1 text-[var(--text-muted)] transition hover-hover:text-[var(--text-primary)]'
-                      >
-                        <Info className='size-[12px]' strokeWidth={2} />
-                      </button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top' className='max-w-xs text-small'>
-                      Allow collaborators to authenticate with their own keys. Hosted usage is
-                      billed to this workspace, attributed to the key owner, and counted toward
-                      their member cap.
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                </div>
-                {isLoadingSettings ? null : (
-                  <Switch
-                    id='allow-personal-api-keys'
-                    checked={allowPersonalApiKeys}
-                    disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
-                    onCheckedChange={async (checked) => {
-                      try {
-                        await updateSettingsMutation.mutateAsync({
-                          workspaceId,
-                          allowPersonalApiKeys: checked,
-                        })
-                      } catch (error) {
-                        logger.error('Error updating workspace settings:', { error })
-                      }
-                    }}
-                  />
-                )}
-              </div>
-            </SettingsSection>
-          </Tooltip.Provider>
-        )}
+            </Tooltip.Provider>
+          )}
+        </section>
       </SettingsPanel>
 
       <CreateApiKeyModal

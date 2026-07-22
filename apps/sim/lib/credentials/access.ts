@@ -91,11 +91,16 @@ export async function getCredentialActorContext(
     )
     .limit(1)
 
-  const isAdmin = deriveCredentialAdmin({
-    credentialType: credentialRow.type,
-    memberRole: memberRow?.role,
-    workspaceCanAdmin: workspaceAccess.canAdmin,
-  })
+  // Ownership remains authoritative if a personal credential's membership row is missing.
+  const isPersonalOwner =
+    credentialRow.type === 'env_personal' && credentialRow.envOwnerUserId === userId
+  const isAdmin =
+    isPersonalOwner ||
+    deriveCredentialAdmin({
+      credentialType: credentialRow.type,
+      memberRole: memberRow?.role,
+      workspaceCanAdmin: workspaceAccess.canAdmin,
+    })
 
   return {
     credential: credentialRow,
