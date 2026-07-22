@@ -808,6 +808,10 @@ function MessageContentInner({
   const handleTrailingStreamActivityChange = useCallback((active: boolean) => {
     setTrailingStreamActivity(active)
   }, [])
+  const [trailingPendingTag, setTrailingPendingTag] = useState(false)
+  const handleTrailingPendingTagChange = useCallback((pending: boolean) => {
+    setTrailingPendingTag(pending)
+  }, [])
   const [isStreamIdle, setIsStreamIdle] = useState(false)
   /**
    * True once the slot's collapse has finished (seeded true so a settled mount
@@ -873,12 +877,16 @@ function MessageContentInner({
 
   // A visible executing tool row already spins — the turn-level shimmer would
   // double it. (A null label means a just-opened lane's shimmer owns the state.)
+  // A mid-stream special tag renders nothing until complete, so its bytes are a
+  // wait, not output — the shimmer bridges it without the quiet-period delay.
   const thinkingLabel = deriveThinkingLabel(blocks)
   const hasExecutingTool = assistantMessageHasVisibleExecutingTool(blocks)
   const showShimmer =
     thinkingExpanded &&
     thinkingLabel !== null &&
-    (segments.length === 0 || (isStreamIdle && !trailingStreamActivity && !hasExecutingTool))
+    (segments.length === 0 ||
+      trailingPendingTag ||
+      (isStreamIdle && !trailingStreamActivity && !hasExecutingTool))
 
   return (
     <div>
@@ -904,6 +912,9 @@ function MessageContentInner({
                   }
                   onStreamActivityChange={
                     i === segments.length - 1 ? handleTrailingStreamActivityChange : undefined
+                  }
+                  onPendingTagChange={
+                    i === segments.length - 1 ? handleTrailingPendingTagChange : undefined
                   }
                 />
               )

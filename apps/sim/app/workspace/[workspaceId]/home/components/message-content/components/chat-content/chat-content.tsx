@@ -395,8 +395,13 @@ interface ChatContentProps {
   onQuestionDismiss?: () => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
   onRevealStateChange?: (isRevealing: boolean) => void
-  /** Reports whether this segment is actively painting text or streaming a special tag. */
+  /** Reports whether this segment is actively painting text. */
   onStreamActivityChange?: (active: boolean) => void
+  /**
+   * Reports whether a special tag is mid-stream — bytes arriving but rendering
+   * nothing (tags are suppressed until complete). A wait from the user's POV.
+   */
+  onPendingTagChange?: (pending: boolean) => void
 }
 
 function ChatContentInner({
@@ -408,6 +413,7 @@ function ChatContentInner({
   onWorkspaceResourceSelect,
   onRevealStateChange,
   onStreamActivityChange,
+  onPendingTagChange,
 }: ChatContentProps) {
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
@@ -534,6 +540,12 @@ function ChatContentInner({
     onStreamActivityChange?.(hasRevealBacklog)
     return () => onStreamActivityChange?.(false)
   }, [hasRevealBacklog, onStreamActivityChange])
+
+  const hasPendingTag = parsed.hasPendingTag && isRevealing
+  useEffect(() => {
+    onPendingTagChange?.(hasPendingTag)
+    return () => onPendingTagChange?.(false)
+  }, [hasPendingTag, onPendingTagChange])
 
   type BlockSegment = Exclude<
     ContentSegment,
