@@ -3,12 +3,12 @@ import { db } from '@sim/db'
 import { member, organization, session as sessionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { revokeOrganizationSessionsContract } from '@/lib/api/contracts/organization'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { bumpSecurityPolicyVersion } from '@/lib/auth/security-policy'
+import { invalidateSecurityPolicyVersionCache } from '@/lib/auth/security-policy'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -78,25 +78,34 @@ export const POST = withRouteHandler(
     // real sessions so ending impersonation doesn't leave them signed out.
     const impersonatorId =
       (session.session as { impersonatedBy?: string | null }).impersonatedBy ?? null
-    const revoked = await db
-      .delete(sessionTable)
-      .where(
-        and(
-          inArray(
-            sessionTable.userId,
-            db
-              .select({ userId: member.userId })
-              .from(member)
-              .where(eq(member.organizationId, organizationId))
-          ),
-          isNull(sessionTable.impersonatedBy),
-          ne(sessionTable.token, session.session.token),
-          ...(impersonatorId ? [ne(sessionTable.userId, impersonatorId)] : [])
+    // Delete and version bump commit atomically: a bump failure must roll the
+    // delete back, or members would stay authenticated from the cookie cache
+    // for up to 24h with their DB sessions already gone.
+    const revoked = await db.transaction(async (tx) => {
+      const deleted = await tx
+        .delete(sessionTable)
+        .where(
+          and(
+            inArray(
+              sessionTable.userId,
+              tx
+                .select({ userId: member.userId })
+                .from(member)
+                .where(eq(member.organizationId, organizationId))
+            ),
+            isNull(sessionTable.impersonatedBy),
+            ne(sessionTable.token, session.session.token),
+            ...(impersonatorId ? [ne(sessionTable.userId, impersonatorId)] : [])
+          )
         )
-      )
-      .returning({ id: sessionTable.id })
-
-    await bumpSecurityPolicyVersion(organizationId)
+        .returning({ id: sessionTable.id })
+      await tx
+        .update(organization)
+        .set({ securityPolicyVersion: sql`${organization.securityPolicyVersion} + 1` })
+        .where(eq(organization.id, organizationId))
+      return deleted
+    })
+    invalidateSecurityPolicyVersionCache(organizationId)
 
     logger.info('Revoked organization sessions', {
       organizationId,

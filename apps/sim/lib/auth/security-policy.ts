@@ -158,5 +158,9 @@ export async function getSessionCookieCacheVersion(session: {
   userId?: string | null
 }): Promise<string> {
   const organizationId = await getMemberOrganizationId(session.userId)
-  return String(await getSecurityPolicyVersion(organizationId))
+  if (!organizationId) return 'none'
+  // The org id is part of the version so moving between orgs always changes
+  // the string — two orgs whose counters happen to hold the same number must
+  // not produce interchangeable cookie versions.
+  return `${organizationId}:${await getSecurityPolicyVersion(organizationId)}`
 }
