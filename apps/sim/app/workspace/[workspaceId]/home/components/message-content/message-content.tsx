@@ -857,12 +857,14 @@ function MessageContentInner({
   // output actually arrives: hidden while the trailing text is visibly
   // revealing or any lane streamed within the quiet period, shown otherwise.
   // Immediately on an empty turn — nothing has arrived yet. A null label means
-  // a just-opened lane's delegating shimmer owns the state.
+  // a just-opened lane's delegating shimmer owns the state, and a visible
+  // executing tool row already spins — the turn-level shimmer would double it.
   const thinkingLabel = deriveThinkingLabel(blocks)
+  const hasExecutingTool = assistantMessageHasVisibleExecutingTool(blocks)
   const showShimmer =
     thinkingExpanded &&
     thinkingLabel !== null &&
-    (segments.length === 0 || (isStreamIdle && !trailingStreamActivity))
+    (segments.length === 0 || (isStreamIdle && !trailingStreamActivity && !hasExecutingTool))
 
   return (
     <div>

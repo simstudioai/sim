@@ -98,14 +98,23 @@ export function createSmoothBottomChase(
     raf = requestAnimationFrame(step)
   }
 
+  // Seed the upward-move interrupt baseline at (re)start so a user scroll-up
+  // between the kick and the first frame parks the loop immediately — without
+  // it the first step has no baseline and writes one downward frame against
+  // the user (relevant on the teardown kickUntil, where the gesture listeners
+  // are already gone).
+  const start = () => {
+    if (raf !== null) return
+    lastTop = target.getTop()
+    raf = requestAnimationFrame(step)
+  }
+
   return {
     isActive: () => raf !== null,
-    kick: () => {
-      if (raf === null) raf = requestAnimationFrame(step)
-    },
+    kick: start,
     kickUntil: (durationMs: number) => {
       deadline = Math.max(deadline, performance.now() + durationMs)
-      if (raf === null) raf = requestAnimationFrame(step)
+      start()
     },
     cancel: park,
   }
