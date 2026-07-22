@@ -39,6 +39,12 @@ const POST_STREAM_SETTLE_WINDOW = 300
 
 interface UseAutoScrollOptions {
   scrollOnMount?: boolean
+  /**
+   * Consulted at stream teardown; return false to skip the post-stream settle
+   * follow. A user-initiated stop means "freeze" — chasing the stopped-row and
+   * actions mount would visibly nudge the transcript the user just halted.
+   */
+  shouldFollowSettle?: () => boolean
 }
 
 /**
@@ -55,10 +61,12 @@ interface UseAutoScrollOptions {
  */
 export function useAutoScroll(
   isStreaming: boolean,
-  { scrollOnMount = false }: UseAutoScrollOptions = {}
+  { scrollOnMount = false, shouldFollowSettle }: UseAutoScrollOptions = {}
 ) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(true)
+  const shouldFollowSettleRef = useRef(shouldFollowSettle)
+  shouldFollowSettleRef.current = shouldFollowSettle
   const userDetachedRef = useRef(false)
   const prevScrollTopRef = useRef(0)
   const prevScrollHeightRef = useRef(0)
@@ -237,7 +245,9 @@ export function useAutoScroll(
       // End-of-turn content mounts just after teardown; follow it briefly. The
       // chase's own upward-move interrupt still protects a real user scroll
       // even with the gesture listeners gone.
-      chase.kickUntil(POST_STREAM_SETTLE_WINDOW)
+      if (shouldFollowSettleRef.current?.() !== false) {
+        chase.kickUntil(POST_STREAM_SETTLE_WINDOW)
+      }
     }
   }, [isStreaming, scrollToBottom])
 

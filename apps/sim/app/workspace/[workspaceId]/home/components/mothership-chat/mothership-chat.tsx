@@ -299,7 +299,22 @@ export function MothershipChat({
   const messages = useDeferredValue(messagesProp)
   const [lastRowAnimating, setLastRowAnimating] = useState(false)
   const scrollElementRef = useRef<HTMLDivElement | null>(null)
-  const { ref: autoScrollRef } = useAutoScroll(isStreamActive || lastRowAnimating)
+  /**
+   * True from the stop button until the next stream: a stopped turn must not
+   * settle-scroll — the user asked everything to freeze, and following the
+   * stopped-row/actions mount nudges the transcript up right after they did.
+   */
+  const stopRequestedRef = useRef(false)
+  const handleStopGeneration = useCallback(() => {
+    stopRequestedRef.current = true
+    onStopGeneration()
+  }, [onStopGeneration])
+  useEffect(() => {
+    if (isStreamActive) stopRequestedRef.current = false
+  }, [isStreamActive])
+  const { ref: autoScrollRef } = useAutoScroll(isStreamActive || lastRowAnimating, {
+    shouldFollowSettle: () => !stopRequestedRef.current,
+  })
   const sizerRef = useRef<HTMLDivElement | null>(null)
   const scrollerPaddingRef = useRef<{ top: number; bottom: number } | null>(null)
 
@@ -618,7 +633,7 @@ export function MothershipChat({
               ref={userInputRef}
               onSubmit={onSubmit}
               isSending={isStreamActive}
-              onStopGeneration={onStopGeneration}
+              onStopGeneration={handleStopGeneration}
               isInitialView={false}
               onSendQueuedHead={handleSendQueuedHead}
               onEditQueuedTail={handleEditQueuedTail}
