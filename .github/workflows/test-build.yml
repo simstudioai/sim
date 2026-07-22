@@ -194,9 +194,11 @@ jobs:
   # harmless), but the Turbo cache gets its own key: with a shared key, only
   # the last committer's new entries survive each run, so the test and build
   # Turbo entries would evict each other nondeterministically.
+  # Same next build as the app image, so it needs the same larger runner in
+  # GitHub mode: it peaks ~21.9 GB and SIGKILLs on the free 16 GB ones.
   build:
     name: Build App
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
     timeout-minutes: 15
 
     steps:
