@@ -226,6 +226,49 @@ describe('useMcpToolsQuery', () => {
     unmount()
   })
 
+  it('drops stale tools once a non-OAuth server is persistently failed', async () => {
+    let discoverCalls = 0
+    let listCalls = 0
+    mockRequestJson.mockImplementation(async (contract) => {
+      if (contract === listMcpServersContract) {
+        listCalls++
+        // Healthy on first read, error state after the failed refetch invalidates the list.
+        const connectionStatus = listCalls === 1 ? 'connected' : 'error'
+        return {
+          success: true,
+          data: { servers: [server('s1', { authType: 'headers', connectionStatus })] },
+        }
+      }
+      if (contract === discoverMcpToolsContract) {
+        discoverCalls++
+        if (discoverCalls === 1) {
+          return { success: true, data: { tools: [{ name: 'tool-a', serverId: 's1' }] } }
+        }
+        throw new Error('persistent failure')
+      }
+      throw new Error('Unexpected MCP request')
+    })
+
+    const { getResult, unmount } = renderHookWithClient(() => ({
+      tools: useMcpToolsQuery(WORKSPACE_ID),
+      queryClient: useQueryClient(),
+    }))
+    await flush()
+    expect(getResult().tools.data).toHaveLength(1)
+
+    await act(async () => {
+      await getResult().queryClient.invalidateQueries({
+        queryKey: mcpKeys.serverToolsList(WORKSPACE_ID, 's1'),
+      })
+    })
+    await flush()
+
+    // Stored status is now 'error' → the dead server's stale tools are dropped from the aggregate.
+    expect(getResult().tools.data).toHaveLength(0)
+
+    unmount()
+  })
+
   it('does not force-refresh disconnected OAuth servers', async () => {
     mockServers([
       server('oauth-disconnected', { authType: 'oauth', connectionStatus: 'disconnected' }),

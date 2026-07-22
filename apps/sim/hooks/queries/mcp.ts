@@ -182,23 +182,27 @@ export function useMcpToolsQuery(workspaceId: string) {
     let hasData = false
     let anyServerLoading = false
     let firstError: Error | null = null
+    const statusById = new Map(servers?.map((s) => [s.id, s.connectionStatus]))
     const toolsStateByServer = new Map<
       string,
       { isLoading: boolean; isFetching: boolean; error: Error | null }
     >()
     for (let index = 0; index < results.length; index++) {
       const result = results[index]
-      // Keep last-known-good tools when the latest refetch errored (React Query retains `data`);
-      // the per-server error rides in `toolsStateByServer`. Blanking a populated server on a
-      // transient discovery failure is what every reference MCP client avoids.
-      if (result.data) {
+      const serverId = serverIds[index]
+      const status = serverId ? statusById.get(serverId) : undefined
+      const persistentlyFailed = status === 'error' || status === 'disconnected'
+      // Keep last-known-good tools through a transient failure (React Query retains `data`, the
+      // stored status is still healthy) so a populated server doesn't blank — but drop them once
+      // the stored status crosses its failure threshold, so the workflow editor stops offering a
+      // dead server's stale tools. Matches how reference MCP clients treat transient vs. closed.
+      if (result.data && (!result.isError || !persistentlyFailed)) {
         tools.push(...result.data)
         hasData = true
       }
       if (result.isLoading) anyServerLoading = true
       if (!firstError && result.error instanceof Error) firstError = result.error
 
-      const serverId = serverIds[index]
       if (serverId) {
         toolsStateByServer.set(serverId, {
           isLoading: result.isLoading,
@@ -215,7 +219,7 @@ export function useMcpToolsQuery(workspaceId: string) {
       error: hasData ? null : firstError,
       toolsStateByServer,
     }
-  }, [results, serversLoading, serverIds])
+  }, [results, serversLoading, serverIds, servers])
 }
 
 export function useForceRefreshMcpTools() {
