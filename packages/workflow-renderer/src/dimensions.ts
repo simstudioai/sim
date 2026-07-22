@@ -31,17 +31,21 @@ export const CONTAINER_DIMENSIONS = {
 } as const
 
 /**
- * Handle position constants - must match CSS in workflow-block.tsx and subflow-node.tsx
+ * Handle position constants - must match CSS in workflow-block-view.tsx,
+ * sub-block-row-view.tsx, and subflow-node.tsx
  */
 export const HANDLE_POSITIONS = {
   /** Default Y offset from block top for source/target handles */
   DEFAULT_Y_OFFSET: 20,
   /** Error handle offset from block bottom */
   ERROR_BOTTOM_OFFSET: 17,
-  /** Condition handle starting Y offset */
-  CONDITION_START_Y: 60,
-  /** Height per condition row */
-  CONDITION_ROW_HEIGHT: 29,
+  /**
+   * Y of the first condition-row handle: 40px header + 1px divider +
+   * 8px content padding + half of the 20px row
+   */
+  CONDITION_START_Y: 59,
+  /** Row pitch: 20px row height (h-5) + 8px flex gap (gap-2) */
+  CONDITION_ROW_HEIGHT: 28,
   /** Subflow start handle Y offset (header 50px + pill offset 16px + pill center 14px) */
   SUBFLOW_START_Y_OFFSET: 80,
 } as const

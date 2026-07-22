@@ -19,10 +19,15 @@ export interface SubBlockRowViewProps {
 /**
  * Pure renderer for a collapsed block's subblock summary row: a capitalized
  * title and its resolved display value.
+ *
+ * The fixed `h-5` row height is part of the handle-position contract —
+ * `HANDLE_POSITIONS.CONDITION_ROW_HEIGHT` in dimensions.ts assumes a 20px row
+ * plus the container's 8px gap, so condition/router source handles align with
+ * their rows.
  */
 export function SubBlockRowView({ title, displayValue, isMonospace }: SubBlockRowViewProps) {
   return (
-    <div className='flex items-center gap-2'>
+    <div className='flex h-5 items-center gap-2'>
       <OverflowSpan
         value={title}
         className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
