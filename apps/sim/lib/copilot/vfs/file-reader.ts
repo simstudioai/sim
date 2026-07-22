@@ -1,7 +1,7 @@
 import { type Span, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
-import type { SharpConstructor } from 'sharp'
 import { toError } from '@sim/utils/errors'
+import type { SharpConstructor } from 'sharp'
 import {
   CopilotVfsOutcome,
   CopilotVfsReadOutcome,
