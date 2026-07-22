@@ -25,11 +25,18 @@ vi.mock('@sim/db', () => ({
 vi.mock('drizzle-orm', () => ({
   and: (...conditions: Condition[]) => ({ kind: 'and', conditions }),
   eq: (column: unknown, value: unknown) => ({ kind: 'eq', column, value }),
+  exists: (subquery: unknown) => ({ kind: 'exists', subquery }),
   gt: (column: unknown, value: unknown) => ({ kind: 'gt', column, value }),
   inArray: (column: unknown, value: unknown) => ({ kind: 'inArray', column, value }),
   isNull: (column: unknown) => ({ kind: 'isNull', column }),
   lt: (column: unknown, value: unknown) => ({ kind: 'lt', column, value }),
   lte: (column: unknown, value: unknown) => ({ kind: 'lte', column, value }),
+  notExists: (subquery: unknown) => ({ kind: 'notExists', subquery }),
+  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
+    kind: 'sql',
+    strings: [...strings],
+    values,
+  }),
 }))
 
 vi.mock('@/lib/webhooks/provider-subscriptions', () => ({
@@ -42,6 +49,7 @@ vi.mock('@/lib/webhooks/path-claims', () => ({
 
 vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
   isDeploymentOperationCurrent: mockIsDeploymentOperationCurrent,
+  setDeploymentTxTimeouts: vi.fn(),
 }))
 
 import type { DbOrTx } from '@sim/workflow-persistence/types'
@@ -182,22 +190,22 @@ describe('activateWebhookRegistrations', () => {
 
     await activateWebhookRegistrations(tx, FENCE)
 
-    expect(updates).toHaveLength(3)
-    expect(updates[0].payload).toEqual(
-      expect.objectContaining({ registrationStatus: 'retired', isActive: false })
+    expect(updates).toHaveLength(2)
+    /**
+     * Retire + repoint fold into one generation-conditional statement over
+     * the active rows: every mutated column is a CASE keyed on the fence
+     * generation, and the WHERE covers both phases via lte.
+     */
+    expect(updates[0].payload.registrationStatus).toEqual(expect.objectContaining({ kind: 'sql' }))
+    expect(updates[0].payload.deploymentVersionId).toEqual(
+      expect.objectContaining({ kind: 'sql', values: expect.arrayContaining(['version-3']) })
     )
-    expect(updates[0].payload.archivedAt).toBeInstanceOf(Date)
-    expect(JSON.stringify(updates[0].condition)).toContain('"lt"')
+    expect(updates[0].payload.isActive).toEqual(expect.objectContaining({ kind: 'sql' }))
+    expect(updates[0].payload.archivedAt).toEqual(expect.objectContaining({ kind: 'sql' }))
+    expect(updates[0].payload.updatedAt).toBeInstanceOf(Date)
+    expect(JSON.stringify(updates[0].condition)).toContain('"lte"')
 
     expect(updates[1].payload).toEqual(
-      expect.objectContaining({
-        deploymentVersionId: 'version-3',
-        isActive: true,
-        archivedAt: null,
-      })
-    )
-
-    expect(updates[2].payload).toEqual(
       expect.objectContaining({
         registrationStatus: 'active',
         deploymentVersionId: 'version-3',

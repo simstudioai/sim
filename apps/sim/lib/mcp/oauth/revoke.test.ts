@@ -31,7 +31,9 @@ const {
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createPinnedFetchWithDispatcher: vi.fn(() => ({
+  isPrivateOrReservedIP: (ip: string) =>
+    ip.startsWith('127.') || ip.startsWith('10.') || ip === '::1',
+  createSsrfGuardedFetchWithDispatcher: vi.fn(() => ({
     fetch: mockUndiciFetch,
     dispatcher: { destroy: vi.fn(() => Promise.resolve()) },
   })),

@@ -66,7 +66,7 @@ import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
-import { isModelDeprecated } from '@/providers/models'
+import { getModelSunsetStatus } from '@/providers/models'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -132,12 +132,23 @@ function getBlockSunset(
     }
   }
 
-  if (typeof model === 'string' && isModelDeprecated(model)) {
-    return {
-      status: 'legacy',
-      kind: 'model',
-      tooltip: `${model} is deprecated. Click to upgrade`,
-      prompt: `The "${name}" block uses the deprecated model "${model}". Switch it to the latest equivalent model.`,
+  if (typeof model === 'string') {
+    const modelStatus = getModelSunsetStatus(model)
+    if (modelStatus === 'deprecated') {
+      return {
+        status: 'deprecated',
+        kind: 'model',
+        tooltip: `${model} is no longer available. Click to switch models`,
+        prompt: `The "${name}" block uses "${model}", which the provider has retired — calls to it now fail. Switch it to the latest equivalent model.`,
+      }
+    }
+    if (modelStatus === 'legacy') {
+      return {
+        status: 'legacy',
+        kind: 'model',
+        tooltip: `${model} is a legacy model. Click to upgrade`,
+        prompt: `The "${name}" block uses the legacy model "${model}". Switch it to the latest equivalent model.`,
+      }
     }
   }
 

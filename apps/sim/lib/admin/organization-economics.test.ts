@@ -8,7 +8,7 @@ describe('getTeamOrganizationEconomics', () => {
   it('derives the pooled Pro allowance and invoice from internal seats', () => {
     expect(getTeamOrganizationEconomics('team_6000', 3)).toEqual({
       seats: 3,
-      includedMonthlyDollars: 90,
+      planAllowanceDollars: 90,
       monthlyInvoiceAmountUsd: 75,
     })
   })
@@ -16,7 +16,7 @@ describe('getTeamOrganizationEconomics', () => {
   it('derives the pooled Max allowance and invoice from internal seats', () => {
     expect(getTeamOrganizationEconomics('team_25000', 2)).toEqual({
       seats: 2,
-      includedMonthlyDollars: 250,
+      planAllowanceDollars: 250,
       monthlyInvoiceAmountUsd: 200,
     })
   })
@@ -31,7 +31,7 @@ describe('getOrganizationUsageLimitFallbackDollars', () => {
     expect(
       getOrganizationUsageLimitFallbackDollars({
         creditBalanceDollarsBeforeGrant: '0.001',
-        includedDollars: 0,
+        planAllowanceDollars: 0,
         configuredUsageLimitDollars: 0,
       })
     ).toBe('0.001')
@@ -41,7 +41,7 @@ describe('getOrganizationUsageLimitFallbackDollars', () => {
     expect(
       getOrganizationUsageLimitFallbackDollars({
         creditBalanceDollarsBeforeGrant: '1.259567',
-        includedDollars: 5,
+        planAllowanceDollars: 5,
         configuredUsageLimitDollars: 100,
       })
     ).toBe('101.259567')

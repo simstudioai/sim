@@ -349,5 +349,7 @@ export const databaseMock = {
  */
 export const drizzleOrmMock = {
   sql: createMockSql(),
+  /** Mirrors drizzle's getTableColumns for schema-mock tables (column-name maps). */
+  getTableColumns: vi.fn((table: Record<string, unknown>) => ({ ...table })),
   ...createMockSqlOperators(),
 }

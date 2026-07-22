@@ -24,7 +24,7 @@ const DYNAMIC_PROVIDERS = new Set([
 function firstDeprecatedModelId(): string | undefined {
   for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
     if (DYNAMIC_PROVIDERS.has(providerId)) continue
-    const dep = provider.models.find((m) => m.deprecated)
+    const dep = provider.models.find((m) => m.sunset)
     if (dep) return dep.id
   }
   return undefined

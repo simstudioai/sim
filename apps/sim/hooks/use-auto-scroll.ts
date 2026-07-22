@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import {
-  CHASE_REST_GAP,
-  createSmoothBottomChase,
-  SMOOTH_CHASE_RATE,
-} from '@/lib/core/utils/smooth-bottom-chase'
+import { createSmoothBottomChase } from '@/lib/core/utils/smooth-bottom-chase'
 
 /** Tolerance for keeping stickiness during programmatic auto-scroll. */
 const STICK_THRESHOLD = 30
@@ -34,9 +30,10 @@ const ANIMATION_FOLLOW_WINDOW = 500
 /**
  * How long to keep chasing the bottom after streaming stops. End-of-turn content
  * mounts just after `isStreaming` flips false — the suggested-follow-up options,
- * the actions row (gated on `!isStreaming`), and the virtualizer's re-measure of
- * the grown row — so a single final scroll fires before it lays out and leaves it
- * clipped behind the input. Following for a short window pulls it into view.
+ * the actions row (swapped into the thinking slot's place), and the
+ * virtualizer's re-measure of the grown row — so a single final scroll fires
+ * before it lays out and leaves it clipped behind the input. Following for a
+ * short window pulls it into view.
  */
 const POST_STREAM_SETTLE_WINDOW = 300
 
@@ -200,40 +197,15 @@ export function useAutoScroll(
     }
 
     /**
-     * Chase the bottom every frame for `durationMs` with the same eased step.
-     * Catches height growth that arrives over several frames with no observed
-     * DOM mutation — a CSS height animation, or end-of-turn content and the
-     * virtualizer's re-measure settling after streaming stops.
-     *
-     * Self-interrupting: our eased writes leave `scrollTop` exactly where we
-     * last put it, whereas a user scroll moves it up from there — so the moment
-     * `scrollTop` drops below our last write, we stop and never fight a real
-     * scroll, even with the gesture listeners already torn down.
-     */
-    const followToBottom = (durationMs: number) => {
-      if (!stickyRef.current) return
-      const until = performance.now() + durationMs
-      let lastTop = -1
-      const follow = () => {
-        if (performance.now() > until || !stickyRef.current) return
-        if (lastTop >= 0 && el.scrollTop < lastTop - 1) return
-        const gap = el.scrollHeight - el.clientHeight - el.scrollTop
-        if (gap > CHASE_REST_GAP) {
-          el.scrollTop = el.scrollTop + Math.max(1, gap * SMOOTH_CHASE_RATE)
-        }
-        lastTop = el.scrollTop
-        requestAnimationFrame(follow)
-      }
-      requestAnimationFrame(follow)
-    }
-
-    /**
      * CSS-driven height animations (e.g. Radix Collapsible expanding mid-stream)
      * grow scrollHeight without triggering MutationObserver, so auto-scroll stops
-     * following. Follow for a short window so the container stays pinned while the
-     * animation runs.
+     * following. Keep the one chase loop alive for a short window so the
+     * container stays pinned while the animation runs. `animationstart` fires
+     * for every child animation in the transcript (segment fade-ins, loader
+     * keyframes, label crossfades) — kickUntil coalesces them into a single
+     * extended deadline on the single loop; anything more snaps the glide.
      */
-    const onAnimationStart = () => followToBottom(ANIMATION_FOLLOW_WINDOW)
+    const onAnimationStart = () => chase.kickUntil(ANIMATION_FOLLOW_WINDOW)
 
     el.addEventListener('wheel', onWheel, { passive: true })
     el.addEventListener('touchstart', onTouchStart, { passive: true })
@@ -262,7 +234,10 @@ export function useAutoScroll(
       chase.cancel()
       pointerDownRef.current = false
       lastUserGestureAtRef.current = Number.NEGATIVE_INFINITY
-      followToBottom(POST_STREAM_SETTLE_WINDOW)
+      // End-of-turn content mounts just after teardown; follow it briefly. The
+      // chase's own upward-move interrupt still protects a real user scroll
+      // even with the gesture listeners gone.
+      chase.kickUntil(POST_STREAM_SETTLE_WINDOW)
     }
   }, [isStreaming, scrollToBottom])
 

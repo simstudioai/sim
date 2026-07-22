@@ -54,16 +54,33 @@ describe('validateConnectServerUrl', () => {
     })
 
     it('blocks a hostname that resolves to a private IP', async () => {
-      mockDnsLookup.mockResolvedValue({ address: '10.1.2.3', family: 4 })
+      mockDnsLookup.mockResolvedValue([{ address: '10.1.2.3', family: 4 }])
       await expect(validateConnectServerUrl('https://connect.internal')).rejects.toThrow(
         'cannot point to a private or reserved IP address'
       )
     })
 
     it('allows a hostname that resolves to a public IP', async () => {
-      mockDnsLookup.mockResolvedValue({ address: '93.184.216.34', family: 4 })
+      mockDnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
       await expect(validateConnectServerUrl('https://connect.example.com')).resolves.toBe(
         '93.184.216.34'
+      )
+    })
+
+    it('prefers the IPv4 address for a dual-stack host (avoids unreachable IPv6 pin)', async () => {
+      mockDnsLookup.mockResolvedValue([
+        { address: '2606:4700::6810:85e5', family: 6 },
+        { address: '93.184.216.34', family: 4 },
+      ])
+      await expect(validateConnectServerUrl('https://connect.example.com')).resolves.toBe(
+        '93.184.216.34'
+      )
+    })
+
+    it('pins the sole IPv6 address for an IPv6-only host', async () => {
+      mockDnsLookup.mockResolvedValue([{ address: '2606:4700::6810:85e5', family: 6 }])
+      await expect(validateConnectServerUrl('https://connect.example.com')).resolves.toBe(
+        '2606:4700::6810:85e5'
       )
     })
   })
@@ -94,7 +111,7 @@ describe('validateConnectServerUrl', () => {
     })
 
     it('allows a hostname that resolves to a private IP', async () => {
-      mockDnsLookup.mockResolvedValue({ address: '10.1.2.3', family: 4 })
+      mockDnsLookup.mockResolvedValue([{ address: '10.1.2.3', family: 4 }])
       await expect(validateConnectServerUrl('https://connect.internal')).resolves.toBe('10.1.2.3')
     })
   })

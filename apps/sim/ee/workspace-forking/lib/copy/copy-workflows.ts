@@ -451,7 +451,12 @@ export async function copyWorkflowStateIntoTarget(
       clearUnmapped: true,
       canonicalModes: activeCanonicalModes,
     })
-    subBlocks = remapConditionIdsInSubBlocks(subBlocks, oldBlockId, newBlockId) as SubBlockRecord
+    subBlocks = remapConditionIdsInSubBlocks(
+      subBlocks,
+      block.type,
+      oldBlockId,
+      newBlockId
+    ) as SubBlockRecord
 
     // Apply the stored dependent values for this block (the modal's mapping). The reference
     // transform already cleared the source's dependent values when their parent was remapped,

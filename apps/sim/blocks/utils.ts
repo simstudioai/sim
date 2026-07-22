@@ -11,6 +11,7 @@ import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/block
 import {
   getBaseModelProviders,
   getHostedModels,
+  getModelSunsetStatus,
   getProviderIcon,
   getProviderModels,
   orderModelIdsByReleaseDate,
@@ -74,10 +75,12 @@ export function getModelOptions() {
     ])
   )
 
-  return allModels.map((model) => {
-    const icon = getProviderIcon(model)
-    return { label: model, id: model, ...(icon && { icon }) }
-  })
+  return allModels
+    .filter((model) => getModelSunsetStatus(model) !== 'deprecated')
+    .map((model) => {
+      const icon = getProviderIcon(model)
+      return { label: model, id: model, ...(icon && { icon }) }
+    })
 }
 
 /**

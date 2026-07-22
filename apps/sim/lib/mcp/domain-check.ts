@@ -185,8 +185,10 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<st
 
   let address: string
   try {
-    const lookup = await dns.lookup(cleanHostname, { verbatim: true })
-    address = lookup.address
+    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address
+    // (which `verbatim` returns first for dual-stack hosts) hangs on IPv4-only egress.
+    const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
+    address = (resolved.find((entry) => entry.family === 4) ?? resolved[0]).address
   } catch (error) {
     logger.warn('DNS lookup failed for MCP server URL', {
       hostname,

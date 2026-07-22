@@ -132,13 +132,12 @@ function operationPayload(overrides: Record<string, unknown> = {}) {
   return {
     version: 1 as const,
     request: {
-      requestKey: 'enterprise-v2:owner-1:org-1:12500:20000:24000:12:1250',
+      requestKey: 'enterprise-v3:owner-1:org-1:12500:24000:12:1250',
       ownerUserId: 'owner-1',
       organizationId: 'org-1',
       requestedByEmail: 'admin@sim.ai',
       requestedByUserId: 'admin-1',
       invoiceAmountCents: 12500,
-      includedMonthlyCredits: 20000,
       usageLimitCredits: 24000,
       seats: 12,
       concurrencyLimit: 1250,
@@ -160,7 +159,7 @@ function context() {
 }
 
 describe('Enterprise issuance serialization decisions', () => {
-  it('derives included usage from invoice amount in the request key', () => {
+  it('includes the configured or invoice-defaulted usage limit in the request key', () => {
     const input = {
       ownerUserId: 'owner-1',
       monthlyInvoiceAmountUsd: 125,
@@ -171,17 +170,17 @@ describe('Enterprise issuance serialization decisions', () => {
     }
 
     expect(buildEnterpriseProvisioningRequestKey(input, 'org-1')).toBe(
-      'enterprise-v2:owner-1:org-1:12500:25000:24000:12'
+      'enterprise-v3:owner-1:org-1:12500:24000:12'
     )
     expect(
       buildEnterpriseProvisioningRequestKey({ ...input, concurrencyLimit: 1250 }, 'org-1')
-    ).toBe('enterprise-v2:owner-1:org-1:12500:25000:24000:12:1250')
+    ).toBe('enterprise-v3:owner-1:org-1:12500:24000:12:1250')
     expect(
       buildEnterpriseProvisioningRequestKey({ ...input, pausePaymentCollection: true }, 'org-1')
-    ).toBe('enterprise-v2:owner-1:org-1:12500:25000:24000:12:draft-collection')
+    ).toBe('enterprise-v3:owner-1:org-1:12500:24000:12:draft-collection')
     expect(
       buildEnterpriseProvisioningRequestKey({ ...input, usageLimitCredits: undefined }, 'org-1')
-    ).toBe('enterprise-v2:owner-1:org-1:12500:25000:25000:12')
+    ).toBe('enterprise-v3:owner-1:org-1:12500:25000:12')
   })
 
   it('deduplicates an identical unresolved request to the existing outbox operation', () => {
@@ -197,7 +196,7 @@ describe('Enterprise issuance serialization decisions', () => {
   it('rejects a different request while the existing operation is unresolved', () => {
     expect(() =>
       decideEnterpriseProvisioningIssue(
-        'enterprise-v2:different-request',
+        'enterprise-v3:different-request',
         [{ id: 'operation-1', payload: operationPayload() }],
         []
       )
@@ -324,7 +323,6 @@ describe('Enterprise issuance outbox handler', () => {
         metadata: expect.objectContaining({
           enterpriseOperationId: 'operation-1',
           referenceId: 'org-1',
-          includedMonthlyCredits: '20000',
           usageLimitCredits: '24000',
           seats: '12',
           concurrencyLimit: '1250',
@@ -379,7 +377,7 @@ describe('Enterprise issuance outbox handler', () => {
     const pausedPayload = operationPayload({
       request: {
         ...operationPayload().request,
-        requestKey: 'enterprise-v2:owner-1:org-1:12500:20000:24000:12:1250:draft-collection',
+        requestKey: 'enterprise-v3:owner-1:org-1:12500:24000:12:1250:draft-collection',
         pausePaymentCollection: true,
       },
     })
@@ -407,7 +405,7 @@ describe('Enterprise issuance outbox handler', () => {
     const pausedPayload = operationPayload({
       request: {
         ...operationPayload().request,
-        requestKey: 'enterprise-v2:owner-1:org-1:12500:20000:24000:12:1250:draft-collection',
+        requestKey: 'enterprise-v3:owner-1:org-1:12500:24000:12:1250:draft-collection',
         pausePaymentCollection: true,
       },
     })
@@ -496,7 +494,6 @@ describe('Enterprise metadata outbox handler', () => {
         plan: 'enterprise',
         referenceId: 'org-1',
         seats: 15,
-        includedMonthlyCredits: 30000,
         usageLimitCredits: 35000,
         concurrencyLimit: 1250,
       },
@@ -524,7 +521,6 @@ describe('Enterprise metadata outbox handler', () => {
       {
         metadata: expect.objectContaining({
           seats: '15',
-          includedMonthlyCredits: '30000',
           concurrencyLimit: '1250',
           simConfigRevision: '4',
           simConfigOperationId: 'metadata-event-1',

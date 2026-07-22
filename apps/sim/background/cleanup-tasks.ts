@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import {
   copilotAsyncToolCalls,
   copilotChats,
-  copilotFeedback,
   copilotRunCheckpoints,
   copilotRuns,
   mothershipInboxTask,
@@ -13,6 +12,8 @@ import { and, inArray, lt } from 'drizzle-orm'
 import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
 import {
   batchDeleteByWorkspaceAndTimestamp,
+  chunkArray,
+  DEFAULT_DELETE_CHUNK_SIZE,
   deleteRowsById,
   selectRowsByIdChunks,
   type TableCleanupResult,
@@ -101,14 +102,6 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
     if (r.deleted > 0) logger.info(`[${r.table}] ${r.deleted} deleted`)
   }
 
-  // Delete feedback — no direct workspaceId, reuse chat IDs collected above
-  const feedbackResult = await deleteRowsById(
-    copilotFeedback,
-    copilotFeedback.chatId,
-    doomedChatIds,
-    `${label}/copilotFeedback`
-  )
-
   // Delete copilot runs (has workspaceId directly, cascades checkpoints)
   const runsResult = await batchDeleteByWorkspaceAndTimestamp({
     tableDef: copilotRuns,
@@ -121,12 +114,24 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
 
   // Delete copilot chats using the exact IDs collected above so the chat
   // cleanup (S3 + copilot backend) and the DB delete can never disagree.
-  const chatsResult = await deleteRowsById(
-    copilotChats,
-    copilotChats.id,
-    doomedChatIds,
-    `${label}/copilotChats`
-  )
+  // Re-check the retention cutoff in the DELETE: a chat restored from Recently
+  // Deleted mid-run gets a fresh `updatedAt`, so it survives here (and
+  // chatCleanup.execute() re-checks row existence before purging its data).
+  // Chat-scoped children (copilot_messages, copilot_feedback) go with the row
+  // via FK cascade, so they are removed only for chats actually deleted.
+  const chatsResult = { deleted: 0, failed: 0 }
+  for (const batch of chunkArray(doomedChatIds, DEFAULT_DELETE_CHUNK_SIZE)) {
+    try {
+      const deleted = await db
+        .delete(copilotChats)
+        .where(and(inArray(copilotChats.id, batch), lt(copilotChats.updatedAt, retentionDate)))
+        .returning({ id: copilotChats.id })
+      chatsResult.deleted += deleted.length
+    } catch (error) {
+      chatsResult.failed += batch.length
+      logger.error(`[${label}/copilotChats] Chat retention delete failed`, { error })
+    }
+  }
 
   // Delete mothership inbox tasks (has workspaceId directly)
   const inboxResult = await batchDeleteByWorkspaceAndTimestamp({
@@ -140,7 +145,6 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
 
   const totalDeleted =
     runChildResults.reduce((s, r) => s + r.deleted, 0) +
-    feedbackResult.deleted +
     runsResult.deleted +
     chatsResult.deleted +
     inboxResult.deleted

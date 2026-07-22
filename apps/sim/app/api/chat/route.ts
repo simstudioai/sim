@@ -11,6 +11,10 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performChatDeploy } from '@/lib/workflows/orchestration'
 import { checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import {
+  ChatDeployAuthNotAllowedError,
+  validateChatDeployAuth,
+} from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('ChatAPI')
 
@@ -99,6 +103,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     if (!hasAccess || !workflowRecord) {
       return createErrorResponse('Workflow not found or access denied', 404)
+    }
+
+    if (workflowRecord.workspaceId) {
+      try {
+        await validateChatDeployAuth(session.user.id, workflowRecord.workspaceId, authType)
+      } catch (error) {
+        if (error instanceof ChatDeployAuthNotAllowedError) {
+          return createErrorResponse(error.message, 403)
+        }
+        throw error
+      }
     }
 
     const result = await performChatDeploy({

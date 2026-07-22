@@ -101,7 +101,9 @@ export function handleMothershipChatStatusEvent(
     return
   }
 
-  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
+  // workspaceLists covers both the active and archived (Recently Deleted)
+  // lists: delete/restore events move chats between the two scopes.
+  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
   if (!payload.chatId) return
   if (payload.type === 'deleted') {
     queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })

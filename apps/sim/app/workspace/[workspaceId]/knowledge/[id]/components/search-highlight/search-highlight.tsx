@@ -4,6 +4,11 @@ interface SearchHighlightProps {
   className?: string
 }
 
+/**
+ * Renders `text` with substrings matching any whitespace-separated term of
+ * `searchQuery` wrapped in the highlight-match colors. Falls back to plain
+ * text when the query is empty.
+ */
 export function SearchHighlight({ text, searchQuery, className = '' }: SearchHighlightProps) {
   if (!searchQuery.trim()) {
     return <span className={className}>{text}</span>

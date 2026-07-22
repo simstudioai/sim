@@ -712,105 +712,53 @@ export function SearchModal({
               </Command.Empty>
 
               {showSection('actions') && (
-                <ActionsGroup
-                  items={filteredActions}
-                  onSelect={handleActionSelect}
-                  query={deferredSearch}
-                />
+                <ActionsGroup items={filteredActions} onSelect={handleActionSelect} />
               )}
               {showSection('connectedAccounts') && (
                 <ConnectedAccountsGroup
                   items={filteredConnectedAccounts}
                   onSelect={handleConnectedAccountSelect}
-                  query={deferredSearch}
                 />
               )}
               {showSection('integrations') && (
                 <IntegrationsGroup
                   items={filteredIntegrations}
                   onSelect={handleIntegrationSelect}
-                  query={deferredSearch}
                 />
               )}
               {showSection('blocks') && (
-                <BlocksGroup
-                  items={filteredBlocks}
-                  onSelect={handleBlockSelectAsBlock}
-                  query={deferredSearch}
-                />
+                <BlocksGroup items={filteredBlocks} onSelect={handleBlockSelectAsBlock} />
               )}
               {showSection('tools') && (
-                <ToolsGroup
-                  items={filteredTools}
-                  onSelect={handleBlockSelectAsTool}
-                  query={deferredSearch}
-                />
+                <ToolsGroup items={filteredTools} onSelect={handleBlockSelectAsTool} />
               )}
               {showSection('triggers') && (
-                <TriggersGroup
-                  items={filteredTriggers}
-                  onSelect={handleBlockSelectAsTrigger}
-                  query={deferredSearch}
-                />
+                <TriggersGroup items={filteredTriggers} onSelect={handleBlockSelectAsTrigger} />
               )}
               {showSection('chats') && (
-                <ChatsGroup
-                  items={filteredChats}
-                  onSelect={handleChatSelect}
-                  query={deferredSearch}
-                />
+                <ChatsGroup items={filteredChats} onSelect={handleChatSelect} />
               )}
               {showSection('workflows') && (
-                <WorkflowsGroup
-                  items={filteredWorkflows}
-                  onSelect={handleWorkflowSelect}
-                  query={deferredSearch}
-                />
+                <WorkflowsGroup items={filteredWorkflows} onSelect={handleWorkflowSelect} />
               )}
               {showSection('tables') && (
-                <TablesGroup
-                  items={filteredTables}
-                  onSelect={handleTableSelect}
-                  query={deferredSearch}
-                />
+                <TablesGroup items={filteredTables} onSelect={handleTableSelect} />
               )}
               {showSection('files') && (
-                <FilesGroup
-                  items={filteredFiles}
-                  onSelect={handleFileSelect}
-                  query={deferredSearch}
-                />
+                <FilesGroup items={filteredFiles} onSelect={handleFileSelect} />
               )}
               {showSection('knowledgeBases') && (
-                <KnowledgeBasesGroup
-                  items={filteredKnowledgeBases}
-                  onSelect={handleKbSelect}
-                  query={deferredSearch}
-                />
+                <KnowledgeBasesGroup items={filteredKnowledgeBases} onSelect={handleKbSelect} />
               )}
               {showSection('toolOperations') && (
-                <ToolOpsGroup
-                  items={filteredToolOps}
-                  onSelect={handleToolOperationSelect}
-                  query={deferredSearch}
-                />
+                <ToolOpsGroup items={filteredToolOps} onSelect={handleToolOperationSelect} />
               )}
               {showSection('workspaces') && (
-                <WorkspacesGroup
-                  items={filteredWorkspaces}
-                  onSelect={handleWorkspaceSelect}
-                  query={deferredSearch}
-                />
+                <WorkspacesGroup items={filteredWorkspaces} onSelect={handleWorkspaceSelect} />
               )}
-              {showSection('docs') && (
-                <DocsGroup items={filteredDocs} onSelect={handleDocSelect} query={deferredSearch} />
-              )}
+              {showSection('docs') && <DocsGroup items={filteredDocs} onSelect={handleDocSelect} />}
               {showSection('pages') && (
-                <PagesGroup
-                  items={filteredPages}
-                  onSelect={handlePageSelect}
-                  query={deferredSearch}
-                />
+                <PagesGroup items={filteredPages} onSelect={handlePageSelect} />
               )}
             </Command.List>
           </Command>

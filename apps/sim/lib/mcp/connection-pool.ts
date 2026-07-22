@@ -32,6 +32,14 @@ const logger = createLogger('McpConnectionPool')
 const MAX_POOL_SIZE = 100
 /** Max lifetime; on expiry the pinned SSRF `resolvedIP` re-resolves. */
 const MAX_CONNECTION_AGE_MS = 10 * 60 * 1000
+/**
+ * Circuit breaker: retire a connection after this many CONSECUTIVE request
+ * timeouts. One timeout is a slow request and keeps the session (retiring on
+ * every timeout causes connect/stall/reconnect churn); repeated timeouts with
+ * no success in between indicate a half-open transport the liveness ping
+ * hasn't caught yet. A healthy release resets the count.
+ */
+const MAX_CONSECUTIVE_TIMEOUTS = 2
 const LIVENESS_TTL_MS = 60 * 1000
 const LIVENESS_PING_TIMEOUT_MS = 5 * 1000
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000
@@ -46,10 +54,14 @@ export interface AcquireParams {
   create: () => Promise<McpClient>
 }
 
-/** A borrowed connection. `release(poison)` must be called exactly once; pass `poison: true` to retire on failure. */
+/**
+ * A borrowed connection. `release(poison, sawTimeout)` must be called exactly once:
+ * `poison: true` retires immediately (dead-connection error); `sawTimeout: true`
+ * counts toward the consecutive-timeout circuit breaker without retiring on its own.
+ */
 export interface ConnectionLease {
   client: McpClient
-  release: (poison?: boolean) => Promise<void>
+  release: (poison?: boolean, sawTimeout?: boolean) => Promise<void>
 }
 
 interface PoolEntry {
@@ -60,6 +72,7 @@ interface PoolEntry {
   lastActivityAt: number
   lastLivenessCheckAt: number
   borrowers: number
+  consecutiveTimeouts: number
   retired: boolean
   closing: boolean
 }
@@ -95,7 +108,10 @@ export class McpConnectionPool {
     while (entry.closing) entry = await this.resolveEntry(params)
     entry.borrowers++
     entry.lastActivityAt = Date.now()
-    return { client: entry.client, release: (poison) => this.release(entry, poison ?? false) }
+    return {
+      client: entry.client,
+      release: (poison, sawTimeout) => this.release(entry, poison ?? false, sawTimeout ?? false),
+    }
   }
 
   private async resolveEntry(params: AcquireParams): Promise<PoolEntry> {
@@ -162,6 +178,7 @@ export class McpConnectionPool {
         lastActivityAt: now,
         lastLivenessCheckAt: now,
         borrowers: 0,
+        consecutiveTimeouts: 0,
         retired: false,
         closing: false,
       }
@@ -194,9 +211,17 @@ export class McpConnectionPool {
     return record.promise
   }
 
-  private async release(entry: PoolEntry, poison: boolean): Promise<void> {
+  private async release(entry: PoolEntry, poison: boolean, sawTimeout: boolean): Promise<void> {
     entry.borrowers = Math.max(0, entry.borrowers - 1)
     entry.lastActivityAt = Date.now()
+    if (sawTimeout) {
+      entry.consecutiveTimeouts++
+      if (entry.consecutiveTimeouts >= MAX_CONSECUTIVE_TIMEOUTS) {
+        this.retire(entry, `${entry.consecutiveTimeouts} consecutive request timeouts`)
+      }
+    } else if (!poison) {
+      entry.consecutiveTimeouts = 0
+    }
     if (poison) this.retire(entry, 'poisoned by failed operation')
     await this.closeIfIdle(entry)
   }

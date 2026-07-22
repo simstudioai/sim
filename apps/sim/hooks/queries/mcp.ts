@@ -182,21 +182,27 @@ export function useMcpToolsQuery(workspaceId: string) {
     let hasData = false
     let anyServerLoading = false
     let firstError: Error | null = null
+    const statusById = new Map(servers?.map((s) => [s.id, s.connectionStatus]))
     const toolsStateByServer = new Map<
       string,
       { isLoading: boolean; isFetching: boolean; error: Error | null }
     >()
     for (let index = 0; index < results.length; index++) {
       const result = results[index]
-      // Drop stale data from servers whose latest refetch errored.
-      if (result.data && !result.isError) {
+      const serverId = serverIds[index]
+      const status = serverId ? statusById.get(serverId) : undefined
+      const persistentlyFailed = status === 'error' || status === 'disconnected'
+      // Keep last-known-good tools through a transient failure (React Query retains `data`, the
+      // stored status is still healthy) so a populated server doesn't blank — but drop them once
+      // the stored status crosses its failure threshold, so the workflow editor stops offering a
+      // dead server's stale tools. Matches how reference MCP clients treat transient vs. closed.
+      if (result.data && (!result.isError || !persistentlyFailed)) {
         tools.push(...result.data)
         hasData = true
       }
       if (result.isLoading) anyServerLoading = true
       if (!firstError && result.error instanceof Error) firstError = result.error
 
-      const serverId = serverIds[index]
       if (serverId) {
         toolsStateByServer.set(serverId, {
           isLoading: result.isLoading,
@@ -213,7 +219,7 @@ export function useMcpToolsQuery(workspaceId: string) {
       error: hasData ? null : firstError,
       toolsStateByServer,
     }
-  }, [results, serversLoading, serverIds])
+  }, [results, serversLoading, serverIds, servers])
 }
 
 export function useForceRefreshMcpTools() {
@@ -310,16 +316,35 @@ export function useCreateMcpServer() {
  * correlate the eventual result back to this exact flow.
  */
 export type StartMcpOauthMutationResult =
-  | { status: 'redirect'; popup: Window; state: string }
+  | { status: 'redirect'; authorizationUrl: string; state: string }
   | { status: 'already_authorized' }
 
 export function useStartMcpOauth() {
   return useMutation<StartMcpOauthMutationResult, Error, { serverId: string; workspaceId: string }>(
     {
       mutationFn: async ({ serverId, workspaceId }) => {
-        const result = await requestJson(startMcpOauthContract, {
-          query: { serverId, workspaceId },
-        })
+        // A stalled /oauth/start must settle so the caller can reset the connecting
+        // state and close its pre-opened popup instead of appearing bricked.
+        // Feature-detect AbortSignal.timeout (Safari <16 lacks it) with a plain
+        // controller fallback.
+        let timeoutSignal: AbortSignal | undefined
+        let timeoutId: ReturnType<typeof setTimeout> | undefined
+        if (typeof AbortSignal.timeout === 'function') {
+          timeoutSignal = AbortSignal.timeout(30_000)
+        } else {
+          const controller = new AbortController()
+          timeoutId = setTimeout(() => controller.abort(new Error('Request timed out')), 30_000)
+          timeoutSignal = controller.signal
+        }
+        let result: Awaited<ReturnType<typeof requestJson<typeof startMcpOauthContract>>>
+        try {
+          result = await requestJson(startMcpOauthContract, {
+            query: { serverId, workspaceId },
+            signal: timeoutSignal,
+          })
+        } finally {
+          if (timeoutId !== undefined) clearTimeout(timeoutId)
+        }
         if (result.status === 'already_authorized') return { status: 'already_authorized' }
 
         const parsedUrl = new URL(result.authorizationUrl)
@@ -332,15 +357,10 @@ export function useStartMcpOauth() {
         if (!state) {
           throw new Error('Authorization URL is missing the OAuth state parameter')
         }
-        const popup = window.open(
-          result.authorizationUrl,
-          `mcp-oauth-${serverId}`,
-          'width=560,height=720,resizable=yes,scrollbars=yes'
-        )
-        if (!popup) {
-          throw new Error('Popup blocked. Please allow popups for this site and retry.')
-        }
-        return { status: 'redirect', popup, state }
+        // The popup itself is opened SYNCHRONOUSLY by the caller inside the user's
+        // click (popup-first) — opening it here, after the network await, loses the
+        // user activation and gets silently popup-blocked.
+        return { status: 'redirect', authorizationUrl: result.authorizationUrl, state }
       },
     }
   )

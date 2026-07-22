@@ -3,6 +3,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import {
+  applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
   normalizeSubblockValue,
 } from '@/lib/copilot/tools/server/workflow/edit-workflow/builders'
@@ -33,14 +34,27 @@ const knowledgeBlockConfig = {
   ],
 }
 
+const slackBlockConfig = {
+  type: 'slack',
+  name: 'Slack',
+  outputs: {},
+  subBlocks: [{ id: 'channel', type: 'channel-selector' }],
+}
+
 const blocksByType: Record<string, unknown> = {
   agent: agentBlockConfig,
   condition: conditionBlockConfig,
   knowledge: knowledgeBlockConfig,
+  slack: slackBlockConfig,
 }
 
 vi.mock('@/blocks/registry', () => ({
-  getAllBlocks: () => [agentBlockConfig, conditionBlockConfig, knowledgeBlockConfig],
+  getAllBlocks: () => [
+    agentBlockConfig,
+    conditionBlockConfig,
+    knowledgeBlockConfig,
+    slackBlockConfig,
+  ],
   getBlock: (type: string) => blocksByType[type],
 }))
 
@@ -166,5 +180,42 @@ describe('normalizeSubblockValue', () => {
     const result = normalizeSubblockValue('tagFilters', [{ id: 'filter-1', tagName: 'Department' }])
 
     expect(JSON.parse(result as string)[0].id).not.toBe('filter-1')
+  })
+})
+
+describe('applyTriggerConfigToBlockSubblocks', () => {
+  it('uses the registry type for declared keys and short-input only for undeclared keys', () => {
+    const block = { id: 'b1', type: 'slack', subBlocks: {} as Record<string, unknown> }
+
+    applyTriggerConfigToBlockSubblocks(block, { channel: 'C123', customField: 'x' })
+
+    expect(block.subBlocks.channel).toEqual({
+      id: 'channel',
+      type: 'channel-selector',
+      value: 'C123',
+    })
+    expect(block.subBlocks.customField).toEqual({
+      id: 'customField',
+      type: 'short-input',
+      value: 'x',
+    })
+  })
+
+  it('keeps the existing entry metadata when the key already exists', () => {
+    const block = {
+      id: 'b1',
+      type: 'slack',
+      subBlocks: {
+        channel: { id: 'channel', type: 'channel-selector', value: 'C-old' },
+      } as Record<string, { id: string; type: string; value: unknown }>,
+    }
+
+    applyTriggerConfigToBlockSubblocks(block, { channel: 'C-new' })
+
+    expect(block.subBlocks.channel).toEqual({
+      id: 'channel',
+      type: 'channel-selector',
+      value: 'C-new',
+    })
   })
 })

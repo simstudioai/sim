@@ -2627,48 +2627,51 @@ export const SlackBlockMeta = {
   ],
 } as const satisfies BlockMeta
 
-/**
- * Custom Bot picker used by slack_v2 in place of v1's raw bot-token field — a
- * canonical basic/advanced pair (dropdown + manual credential-ID paste),
- * mirroring the OAuth `credential`/`manualCredential` pair.
- */
-const SLACK_CUSTOM_BOT_SUBBLOCKS: SubBlockConfig[] = [
-  {
-    id: 'customBotCredential',
-    title: 'Slack Bot',
-    type: 'oauth-input',
-    canonicalParamId: 'botCredential',
-    mode: 'basic',
-    serviceId: 'slack',
-    credentialKind: 'custom-bot',
-    requiredScopes: getScopesForService('slack'),
-    placeholder: 'Select a connected bot',
-    dependsOn: ['authMethod'],
-    condition: { field: 'authMethod', value: 'bot_token' },
-    required: true,
-  },
-  {
-    id: 'manualCustomBotCredential',
-    title: 'Bot Credential ID',
-    type: 'short-input',
-    canonicalParamId: 'botCredential',
-    mode: 'advanced',
-    placeholder: 'Enter bot credential ID',
-    dependsOn: ['authMethod'],
-    condition: { field: 'authMethod', value: 'bot_token' },
-    required: true,
-  },
-]
-
 const SLACK_WEBHOOK_TRIGGER_SUBBLOCK_IDS = new Set(
   getTrigger('slack_webhook').subBlocks.map((sb) => sb.id)
 )
 
 /**
+ * Adapts a v1 subblock for slack_v2's merged credential picker: fields gated on
+ * the removed `authMethod` dropdown now depend on the single `credential` field.
+ */
+function adaptSubBlockForV2(sb: SubBlockConfig): SubBlockConfig {
+  const { dependsOn, condition, ...rest } = sb
+  if (sb.id === 'credential') {
+    return {
+      ...rest,
+      credentialKind: 'any',
+      placeholder: 'Select Slack account or bot',
+      credentialLabels: {
+        oauthGroup: 'Sim app',
+        oauthConnect: 'Connect the Sim app',
+        serviceAccountGroup: 'Custom bots',
+        serviceAccountConnect: 'Set up a custom bot',
+      },
+    }
+  }
+  if (sb.id === 'manualCredential') {
+    return { ...rest, placeholder: 'Enter credential ID' }
+  }
+  if (dependsOn && !Array.isArray(dependsOn) && dependsOn.all?.includes('authMethod')) {
+    return { ...sb, dependsOn: ['credential'] }
+  }
+  return sb
+}
+
+const {
+  authMethod: _authMethod,
+  botToken: _botToken,
+  botCredential: _botCredential,
+  ...slackV2Inputs
+} = SlackBlock.inputs
+
+/**
  * slack_v2 — the go-forward Slack action block. Identical operations, tools, and
- * outputs to v1 (shared by reference), but the "Custom Bot" auth method selects
- * a reusable bot credential set up once, instead of pasting a raw token. Also
- * hosts the redesigned slack_oauth trigger (v1 keeps the legacy slack_webhook).
+ * outputs to v1 (shared by reference), but auth is a single credential picker
+ * listing Sim OAuth accounts and reusable custom bots together — the credential's
+ * kind is resolved server-side, so no auth-method choice is needed. Also hosts
+ * the redesigned slack_oauth trigger (v1 keeps the legacy slack_webhook).
  */
 export const SlackV2Block: BlockConfig<SlackResponse> = {
   ...SlackBlock,
@@ -2683,13 +2686,18 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
     ...SlackBlock.subBlocks.flatMap((sb) => {
       // Drop the legacy paste-secret trigger config (v1 hosts slack_webhook)
       // and v1's raw bot-token auth field — the trigger set includes an
-      // id-colliding 'botToken', so the set check covers both.
+      // id-colliding 'botToken', so the set check covers both. The authMethod
+      // dropdown is gone: the merged credential picker covers both auth kinds.
       if (SLACK_WEBHOOK_TRIGGER_SUBBLOCK_IDS.has(sb.id)) return []
-      if (sb.id === 'authMethod') return [sb, ...SLACK_CUSTOM_BOT_SUBBLOCKS]
-      return [sb]
+      if (sb.id === 'authMethod') return []
+      return [adaptSubBlockForV2(sb)]
     }),
     ...getTrigger('slack_oauth').subBlocks,
   ],
+  inputs: {
+    ...slackV2Inputs,
+    oauthCredential: { type: 'string', description: 'Slack credential (OAuth account or bot)' },
+  },
   triggers: {
     enabled: true,
     available: ['slack_oauth'],

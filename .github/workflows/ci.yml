@@ -1,5 +1,20 @@
 name: CI
 
+# Runner provider toggle, read from the CI_PROVIDER repo variable:
+#
+#   gh variable set CI_PROVIDER --body github   # fall back to GitHub-hosted
+#   gh variable delete CI_PROVIDER              # back to Blacksmith (default)
+#
+# A repo variable, not a committed value: during a Blacksmith outage there is no
+# working CI to merge a switchover through. Only unset/'blacksmith' selects
+# Blacksmith; anything unrecognized selects GitHub so a typo can't queue jobs
+# against the provider you're escaping. Every runs-on and both composite actions
+# share this predicate and must change together.
+#
+# GitHub mode is break-glass, not a peer — cold layers, slower runs. The app image
+# is the one job on a paid larger runner: next build needs ~32 GB and OOM-kills
+# (exit 137) on the free 16 GB runners at any heap ceiling.
+
 on:
   push:
     branches: [main, staging, dev]
@@ -28,7 +43,7 @@ jobs:
   # Detect if this is a version release commit (e.g., "v0.5.24: ...")
   detect-version:
     name: Detect Version
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     outputs:
@@ -81,7 +96,7 @@ jobs:
     name: Build Dev ECR
     needs: [detect-version, migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || matrix.gh_runner }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -90,14 +105,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Only the app image needs the paid 8-core/32 GB runner: next build
+          # exhausts the free 16 GB one (exit 137). The others build in <5 min.
           - dockerfile: ./docker/app.Dockerfile
             ecr_repo_secret: ECR_APP
+            gh_runner: linux-x64-8-core
           - dockerfile: ./docker/db.Dockerfile
             ecr_repo_secret: ECR_MIGRATIONS
+            gh_runner: ubuntu-latest
           - dockerfile: ./docker/realtime.Dockerfile
             ecr_repo_secret: ECR_REALTIME
+            gh_runner: ubuntu-latest
           - dockerfile: ./docker/pii.Dockerfile
             ecr_repo_secret: ECR_PII
+            gh_runner: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -118,9 +139,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
-
       - name: Resolve ECR repo name
         id: ecr-repo
         run: echo "name=$ECR_REPO" >> $GITHUB_OUTPUT
@@ -128,15 +146,12 @@ jobs:
           ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || matrix.ecr_repo_secret == 'ECR_PII' && secrets.ECR_PII || '' }}
 
       - name: Build and push
-        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+        uses: ./.github/actions/docker-build
         with:
-          context: .
+          provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          push: true
           tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:dev
-          provenance: false
-          sbom: false
 
   # Dev: deploy Trigger.dev background tasks to the preview "dev-sim" branch.
   # Gated after migrate-dev for the same reason as build-dev — the new task
@@ -145,7 +160,7 @@ jobs:
     name: Deploy Trigger.dev (Dev)
     needs: [migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - name: Checkout code
@@ -192,7 +207,7 @@ jobs:
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || matrix.gh_runner }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -205,15 +220,19 @@ jobs:
           - dockerfile: ./docker/app.Dockerfile
             ghcr_image: ghcr.io/simstudioai/simstudio
             ecr_repo_secret: ECR_APP
+            gh_runner: linux-x64-8-core
           - dockerfile: ./docker/db.Dockerfile
             ghcr_image: ghcr.io/simstudioai/migrations
             ecr_repo_secret: ECR_MIGRATIONS
+            gh_runner: ubuntu-latest
           - dockerfile: ./docker/realtime.Dockerfile
             ghcr_image: ghcr.io/simstudioai/realtime
             ecr_repo_secret: ECR_REALTIME
+            gh_runner: ubuntu-latest
           - dockerfile: ./docker/pii.Dockerfile
             ghcr_image: ghcr.io/simstudioai/pii
             ecr_repo_secret: ECR_PII
+            gh_runner: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -242,9 +261,6 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
-
       - name: Resolve ECR repo name
         id: ecr-repo
         run: echo "name=$ECR_REPO" >> $GITHUB_OUTPUT
@@ -270,15 +286,12 @@ jobs:
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
       - name: Build and push images
-        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+        uses: ./.github/actions/docker-build
         with:
-          context: .
+          provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          push: true
           tags: ${{ steps.meta.outputs.tags }}
-          provenance: false
-          sbom: false
 
   # Promote the sha-tagged ECR images to the deploy tags once tests and
   # migrations pass. Pushing the ECR latest/staging tag is what triggers
@@ -292,7 +305,7 @@ jobs:
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -362,7 +375,7 @@ jobs:
   # never moves a documented tag.
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
-    runs-on: blacksmith-8vcpu-ubuntu-2404-arm
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404-arm' || matrix.gh_runner }}
     timeout-minutes: 30
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -374,12 +387,16 @@ jobs:
         include:
           - dockerfile: ./docker/app.Dockerfile
             image: ghcr.io/simstudioai/simstudio
+            gh_runner: linux-arm64-8-core
           - dockerfile: ./docker/db.Dockerfile
             image: ghcr.io/simstudioai/migrations
+            gh_runner: ubuntu-24.04-arm
           - dockerfile: ./docker/realtime.Dockerfile
             image: ghcr.io/simstudioai/realtime
+            gh_runner: ubuntu-24.04-arm
           - dockerfile: ./docker/pii.Dockerfile
             image: ghcr.io/simstudioai/pii
+            gh_runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout code
@@ -392,26 +409,20 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
-
       - name: Build and push ARM64 to GHCR
-        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+        uses: ./.github/actions/docker-build
         with:
-          context: .
+          provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/arm64
-          push: true
           tags: ${{ matrix.image }}:${{ github.sha }}-arm64
-          provenance: false
-          sbom: false
 
   # Publish all mutable GHCR tags (latest, latest-amd64/arm64, version tags)
   # and the multi-arch manifests from the immutable sha tags — only on main,
   # after the deploy gate (promote-images) and the ARM64 build both pass.
   create-ghcr-manifests:
     name: Create GHCR Manifests
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
     needs: [promote-images, build-ghcr-arm64, detect-version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -477,7 +488,7 @@ jobs:
   # Check if docs changed
   check-docs-changes:
     name: Check Docs Changes
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     outputs:
@@ -506,7 +517,7 @@ jobs:
   # Create GitHub Release (only for version commits on main, after all builds complete)
   create-release:
     name: Create GitHub Release
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
     needs: [create-ghcr-manifests, detect-version]
     if: needs.detect-version.outputs.is_release == 'true'
