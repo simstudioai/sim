@@ -80,11 +80,12 @@ export function createSmoothBottomChase(
     }
     const top = target.getTop()
     const bottomTop = target.getBottomTop()
-    if (
-      lastTop !== null &&
-      lastBottomTop !== null &&
-      lastTop - top > lastBottomTop - bottomTop + 1
-    ) {
+    // A user scroll is an ACTUAL upward top move (first clause — growth alone
+    // must not trip this) that exceeds any upward move of the bottom itself
+    // (second clause — a shrink clamp moves both together).
+    const topDrop = lastTop === null ? 0 : lastTop - top
+    const bottomDrop = lastBottomTop === null ? 0 : lastBottomTop - bottomTop
+    if (topDrop > 1 && topDrop > bottomDrop + 1) {
       park()
       return
     }
