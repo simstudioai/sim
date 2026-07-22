@@ -19,7 +19,7 @@ describe('getServerToolsLabel', () => {
   })
 
   it('keeps the generic disconnected state for non-OAuth servers', () => {
-    expect(getServerToolsLabel([], 'disconnected', null, 'headers')).toBe('Not Connected')
+    expect(getServerToolsLabel([], 'disconnected', null, 'headers')).toBe('Not connected')
   })
 
   it('shows the persisted error for disconnected connections', () => {
