@@ -71,6 +71,11 @@ interface MembershipCacheEntry {
 
 const membershipCache = new Map<string, MembershipCacheEntry>()
 
+/** Drops the cached membership for a user (call when they join/leave an org). */
+export function invalidateMembershipCache(userId: string): void {
+  membershipCache.delete(userId)
+}
+
 /**
  * Resolves the org a user belongs to (users belong to at most one org),
  * served from a short TTL cache. Org security policies govern MEMBERS, not

@@ -4,7 +4,7 @@ import { organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
-import { getMemberOrganizationId } from '@/lib/auth/security-policy'
+import { getMemberOrganizationId, invalidateMembershipCache } from '@/lib/auth/security-policy'
 
 const logger = createLogger('SessionPolicy')
 
@@ -108,7 +108,7 @@ interface ClampableSession {
   activeOrganizationId?: string | null
   impersonatedBy?: string | null
   createdAt?: Date | string | null
-  expiresAt?: Date | null
+  expiresAt?: Date | string | null
 }
 
 /**
@@ -122,18 +122,19 @@ interface ClampableSession {
  * sessions have no policy.
  */
 export async function clampExpiryForSession(session: ClampableSession): Promise<Date | undefined> {
-  if (!session.expiresAt || session.impersonatedBy) {
-    return session.expiresAt ?? undefined
+  // Better Auth context values can cross a serialization boundary — normalize
+  // date fields in case they arrive as ISO strings rather than Dates.
+  const expiresAt = session.expiresAt ? new Date(session.expiresAt) : undefined
+  if (!expiresAt || session.impersonatedBy) {
+    return expiresAt
   }
   const organizationId =
     session.activeOrganizationId ?? (await getMemberOrganizationId(session.userId))
-  if (!organizationId) return session.expiresAt
+  if (!organizationId) return expiresAt
 
   const policy = await getSessionPolicy(organizationId)
-  // Better Auth context values can cross a serialization boundary — normalize
-  // createdAt in case it arrives as an ISO string rather than a Date.
   const createdAt = session.createdAt ? new Date(session.createdAt) : new Date()
-  return clampSessionExpiry(policy, createdAt, session.expiresAt)
+  return clampSessionExpiry(policy, createdAt, expiresAt)
 }
 
 /**
@@ -150,6 +151,51 @@ export async function eagerClampOrgSessions(
   organizationId: string,
   policy: ResolvedSessionPolicy
 ): Promise<void> {
+  const bounds = clampBoundsSql(policy)
+  if (!bounds) return
+
+  await db.execute(sql`
+    UPDATE "session" SET expires_at = LEAST(${bounds})
+    WHERE impersonated_by IS NULL
+      AND user_id IN (
+        SELECT user_id FROM member WHERE organization_id = ${organizationId}
+      )
+  `)
+}
+
+/**
+ * Applies the org's session policy to a user who just JOINED the org:
+ * invalidates their cached membership (so the cookie-version and hook-clamp
+ * fallbacks see the new org immediately) and clamps their pre-join sessions,
+ * which otherwise keep their old expiry until the next sliding refresh.
+ * Best-effort by design — a failure here must never fail the join; the
+ * update-hook clamp self-heals within one refresh cycle.
+ */
+export async function applySessionPolicyToNewMember(
+  userId: string,
+  organizationId: string
+): Promise<void> {
+  try {
+    invalidateMembershipCache(userId)
+    const policy = await getSessionPolicy(organizationId)
+    const bounds = clampBoundsSql(policy)
+    if (!bounds) return
+
+    await db.execute(sql`
+      UPDATE "session" SET expires_at = LEAST(${bounds})
+      WHERE user_id = ${userId} AND impersonated_by IS NULL
+    `)
+  } catch (error) {
+    logger.error('Failed to apply session policy to new member; next refresh re-clamps', {
+      userId,
+      organizationId,
+      error,
+    })
+  }
+}
+
+/** SQL argument list for the LEAST() clamp, or null when the policy is empty. */
+function clampBoundsSql(policy: ResolvedSessionPolicy) {
   const bounds = [sql`expires_at`]
   if (policy.maxSessionHours) {
     const maxSecs = policy.maxSessionHours * 3600
@@ -159,13 +205,6 @@ export async function eagerClampOrgSessions(
     const idleSecs = Math.max(policy.idleTimeoutHours, MIN_IDLE_TIMEOUT_HOURS) * 3600
     bounds.push(sql`now() + make_interval(secs => ${idleSecs})`)
   }
-  if (bounds.length === 1) return
-
-  await db.execute(sql`
-    UPDATE "session" SET expires_at = LEAST(${sql.join(bounds, sql`, `)})
-    WHERE impersonated_by IS NULL
-      AND user_id IN (
-        SELECT user_id FROM member WHERE organization_id = ${organizationId}
-      )
-  `)
+  if (bounds.length === 1) return null
+  return sql.join(bounds, sql`, `)
 }
