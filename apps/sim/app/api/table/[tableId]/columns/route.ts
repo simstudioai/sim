@@ -15,6 +15,7 @@ import {
   deleteColumn,
   renameColumn,
   updateColumnConstraints,
+  updateColumnOptions,
   updateColumnType,
 } from '@/lib/table'
 import { accessError, checkAccess, normalizeColumn, rootErrorMessage } from '@/app/api/table/utils'
@@ -68,7 +69,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
       msg.includes('already exists') ||
       msg.includes('maximum column') ||
       msg.includes('Invalid column') ||
-      msg.includes('exceeds maximum')
+      msg.includes('exceeds maximum') ||
+      msg.includes('option')
     ) {
       return NextResponse.json({ error: msg }, { status: 400 })
     }
@@ -118,7 +120,17 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
 
     if (updates.type) {
       updatedTable = await updateColumnType(
-        { tableId, columnName: updates.name ?? validated.columnName, newType: updates.type },
+        {
+          tableId,
+          columnName: updates.name ?? validated.columnName,
+          newType: updates.type,
+          ...(updates.options !== undefined ? { options: updates.options } : {}),
+        },
+        requestId
+      )
+    } else if (updates.options !== undefined) {
+      updatedTable = await updateColumnOptions(
+        { tableId, columnName: updates.name ?? validated.columnName, options: updates.options },
         requestId
       )
     }
@@ -162,7 +174,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       msg.includes('Invalid column') ||
       msg.includes('exceeds maximum') ||
       msg.includes('incompatible') ||
-      msg.includes('duplicate')
+      msg.includes('duplicate') ||
+      msg.includes('option')
     ) {
       return NextResponse.json({ error: msg }, { status: 400 })
     }

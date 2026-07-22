@@ -22,12 +22,15 @@ import type {
   DeleteColumnData,
   RenameColumnData,
   RowData,
+  SelectOption,
   TableDefinition,
   TableMetadata,
   TableSchema,
   UpdateColumnConstraintsData,
+  UpdateColumnOptionsData,
   UpdateColumnTypeData,
 } from '@/lib/table/types'
+import { validateColumnDefinition } from '@/lib/table/validation'
 import { assertValidSchema, stripGroupDeps } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableColumnService')
@@ -50,6 +53,7 @@ export async function addTableColumn(
     required?: boolean
     unique?: boolean
     position?: number
+    options?: SelectOption[]
   },
   requestId: string
 ): Promise<TableDefinition> {
@@ -91,7 +95,14 @@ export async function addTableColumn(
       type: column.type as TableSchema['columns'][number]['type'],
       required: column.required ?? false,
       unique: column.unique ?? false,
+      ...(column.options ? { options: column.options } : {}),
     }
+
+    const columnValidation = validateColumnDefinition(newColumn)
+    if (!columnValidation.valid) {
+      throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
+    }
+
     const newColumnId = getColumnId(newColumn)
 
     const columns = [...schema.columns]
@@ -519,9 +530,21 @@ export async function updateColumnType(
       )
     }
 
-    const updatedColumns = schema.columns.map((c, i) =>
-      i === columnIndex ? { ...c, type: data.newType } : c
-    )
+    const isSelectType = data.newType === 'select' || data.newType === 'multiselect'
+    const updatedColumns = schema.columns.map((c, i) => {
+      if (i !== columnIndex) return c
+      // Drop any prior options, then re-add when the target type uses them.
+      const { options: _prevOptions, ...rest } = c
+      return isSelectType
+        ? { ...rest, type: data.newType, options: data.options ?? c.options }
+        : { ...rest, type: data.newType }
+    })
+
+    const columnValidation = validateColumnDefinition(updatedColumns[columnIndex])
+    if (!columnValidation.valid) {
+      throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
+    }
+
     const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
     const now = new Date()
 
@@ -629,6 +652,50 @@ export async function updateColumnConstraints(
 }
 
 /**
+ * Updates the option set of a `select`/`multiselect` column without changing its
+ * type. Existing cell values are left untouched — ids that no longer match an
+ * option render as a neutral fallback pill until reassigned.
+ */
+export async function updateColumnOptions(
+  data: UpdateColumnOptionsData,
+  requestId: string
+): Promise<TableDefinition> {
+  return withLockedTable(data.tableId, async (table, trx) => {
+    const schema = table.schema
+    const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.columnName))
+    if (columnIndex === -1) {
+      throw new Error(`Column "${data.columnName}" not found`)
+    }
+
+    const column = schema.columns[columnIndex]
+    if (column.type !== 'select' && column.type !== 'multiselect') {
+      throw new Error(`Cannot set options on column "${column.name}" of type "${column.type}"`)
+    }
+
+    const updatedColumn = { ...column, options: data.options }
+    const columnValidation = validateColumnDefinition(updatedColumn)
+    if (!columnValidation.valid) {
+      throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
+    }
+
+    const updatedColumns = schema.columns.map((c, i) => (i === columnIndex ? updatedColumn : c))
+    const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
+    const now = new Date()
+
+    await trx
+      .update(userTableDefinitions)
+      .set({ schema: updatedSchema, updatedAt: now })
+      .where(eq(userTableDefinitions.id, data.tableId))
+
+    logger.info(
+      `[${requestId}] Updated options for column "${column.name}" in table ${data.tableId}`
+    )
+
+    return { ...table, schema: updatedSchema, updatedAt: now }
+  })
+}
+
+/**
  * Checks if a value is compatible with a target column type.
  */
 function isValueCompatibleWithType(
@@ -639,6 +706,11 @@ function isValueCompatibleWithType(
 
   switch (targetType) {
     case 'string':
+      return true
+    case 'select':
+    case 'multiselect':
+      // Stored values are option-id strings (or arrays of them). Existing data
+      // is preserved on conversion; unmatched ids render as a fallback pill.
       return true
     case 'number': {
       if (typeof value === 'number') return Number.isFinite(value)

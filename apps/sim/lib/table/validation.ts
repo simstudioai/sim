@@ -7,7 +7,15 @@ import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getColumnId } from '@/lib/table/column-keys'
-import { COLUMN_TYPES, getMaxRowSizeBytes, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import {
+  COLUMN_TYPES,
+  getMaxRowSizeBytes,
+  MAX_SELECT_OPTIONS,
+  NAME_PATTERN,
+  SELECT_COLORS,
+  type SelectColor,
+  TABLE_LIMITS,
+} from '@/lib/table/constants'
 import { normalizeDateCellValue } from '@/lib/table/dates'
 import { withSeqscanOff } from '@/lib/table/planner'
 import type {
@@ -256,10 +264,49 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
           errors.push(`${column.name} must be valid JSON`)
         }
         break
+      case 'select':
+        if (typeof value !== 'string' || !optionIds(column).has(value)) {
+          errors.push(`${column.name} must be one of the defined options`)
+        }
+        break
+      case 'multiselect': {
+        if (!Array.isArray(value)) {
+          errors.push(`${column.name} must be a list of options`)
+        } else {
+          const ids = optionIds(column)
+          if (!value.every((v) => typeof v === 'string' && ids.has(v))) {
+            errors.push(`${column.name} must only contain defined options`)
+          } else if (column.required && value.length === 0) {
+            errors.push(`Missing required field: ${column.name}`)
+          }
+        }
+        break
+      }
     }
   }
 
   return { valid: errors.length === 0, errors }
+}
+
+/** Set of valid option ids for a `select`/`multiselect` column. */
+function optionIds(column: ColumnDefinition): Set<string> {
+  return new Set((column.options ?? []).map((o) => o.id))
+}
+
+/**
+ * Resolves a raw cell value to a declared option id, accepting either the
+ * stable id or (tolerant for tool/import writes) the option's display name.
+ * Returns null when no option matches.
+ */
+function resolveOptionId(value: JsonValue, column: ColumnDefinition): string | null {
+  if (typeof value !== 'string') return null
+  const options = column.options ?? []
+  const byId = options.find((o) => o.id === value)
+  if (byId) return byId.id
+  const byName =
+    options.find((o) => o.name === value) ??
+    options.find((o) => o.name.toLowerCase() === value.toLowerCase())
+  return byName ? byName.id : null
 }
 
 /**
@@ -270,9 +317,9 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
  */
 function coerceValueToColumnType(
   value: JsonValue,
-  type: ColumnDefinition['type']
+  column: ColumnDefinition
 ): { ok: true; value: JsonValue } | { ok: false } {
-  switch (type) {
+  switch (column.type) {
     case 'string':
       if (typeof value === 'string') return { ok: true, value }
       if (typeof value === 'number' || typeof value === 'boolean') {
@@ -310,6 +357,19 @@ function coerceValueToColumnType(
       if (date && !Number.isNaN(date.getTime())) return { ok: true, value: date.toISOString() }
       return { ok: false }
     }
+    case 'select': {
+      const id = resolveOptionId(value, column)
+      return id !== null ? { ok: true, value: id } : { ok: false }
+    }
+    case 'multiselect': {
+      const raw = Array.isArray(value) ? value : [value]
+      const ids: string[] = []
+      for (const entry of raw) {
+        const id = resolveOptionId(entry, column)
+        if (id !== null && !ids.includes(id)) ids.push(id)
+      }
+      return { ok: true, value: ids }
+    }
     default:
       return { ok: true, value }
   }
@@ -331,7 +391,7 @@ export function coerceRowValues(data: RowData, schema: TableSchema): void {
     const value = data[key]
     if (value === null || value === undefined) continue
 
-    const coerced = coerceValueToColumnType(value, column.type)
+    const coerced = coerceValueToColumnType(value, column)
     if (coerced.ok) {
       data[key] = coerced.value
     } else if (!column.required) {
@@ -689,5 +749,50 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
     )
   }
 
+  if (column.type === 'select' || column.type === 'multiselect') {
+    errors.push(...validateSelectOptions(column))
+  } else if (column.options !== undefined) {
+    errors.push(`Column "${column.name}" cannot define options for type "${column.type}"`)
+  }
+
   return { valid: errors.length === 0, errors }
+}
+
+/** Validates the option set declared on a `select`/`multiselect` column. */
+function validateSelectOptions(column: ColumnDefinition): string[] {
+  const errors: string[] = []
+  const options = column.options
+  if (!Array.isArray(options) || options.length === 0) {
+    errors.push(`Column "${column.name}" of type "${column.type}" must define at least one option`)
+    return errors
+  }
+  if (options.length > MAX_SELECT_OPTIONS) {
+    errors.push(`Column "${column.name}" cannot have more than ${MAX_SELECT_OPTIONS} options`)
+  }
+  const ids = new Set<string>()
+  const names = new Set<string>()
+  const validColors = new Set<SelectColor>(SELECT_COLORS)
+  for (const opt of options) {
+    if (!opt.id || typeof opt.id !== 'string') {
+      errors.push(`Column "${column.name}" has an option missing an id`)
+    } else if (ids.has(opt.id)) {
+      errors.push(`Column "${column.name}" has duplicate option id "${opt.id}"`)
+    } else {
+      ids.add(opt.id)
+    }
+    if (!opt.name || typeof opt.name !== 'string') {
+      errors.push(`Column "${column.name}" has an option missing a name`)
+    } else {
+      const key = opt.name.toLowerCase()
+      if (names.has(key)) {
+        errors.push(`Column "${column.name}" has duplicate option name "${opt.name}"`)
+      } else {
+        names.add(key)
+      }
+    }
+    if (!validColors.has(opt.color)) {
+      errors.push(`Column "${column.name}" has an option with invalid color "${opt.color}"`)
+    }
+  }
+  return errors
 }
