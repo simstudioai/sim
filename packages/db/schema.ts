@@ -2390,6 +2390,7 @@ export const copilotChats = pgTable(
     resources: jsonb('resources').notNull().default('[]'),
     lastSeenAt: timestamp('last_seen_at'),
     pinned: boolean('pinned').notNull().default(false),
+    deletedAt: timestamp('deleted_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -2413,6 +2414,11 @@ export const copilotChats = pgTable(
       sql`date_trunc('milliseconds', ${table.createdAt})`,
       table.id
     ),
+
+    // Soft-deleted chats surfaced in Recently Deleted (listed per user + workspace)
+    userWorkspaceDeletedPartialIdx: index('copilot_chats_user_workspace_deleted_partial_idx')
+      .on(table.userId, table.workspaceId)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
   })
 )
 

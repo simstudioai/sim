@@ -31,6 +31,8 @@ vi.mock('@sim/db/schema', () => ({
     updatedAt: 'copilotChats.updatedAt',
     conversationId: 'copilotChats.conversationId',
     lastSeenAt: 'copilotChats.lastSeenAt',
+    pinned: 'copilotChats.pinned',
+    deletedAt: 'copilotChats.deletedAt',
   },
 }))
 
@@ -38,6 +40,8 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
   desc: vi.fn((field: unknown) => ({ type: 'desc', field })),
   eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
+  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
+  isNotNull: vi.fn((field: unknown) => ({ type: 'isNotNull', field })),
 }))
 
 vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)

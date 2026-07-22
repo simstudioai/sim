@@ -2230,7 +2230,8 @@ export class WorkspaceVFS {
           and(
             eq(copilotChats.workspaceId, workspaceId),
             eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership')
+            eq(copilotChats.type, 'mothership'),
+            isNull(copilotChats.deletedAt)
           )
         )
         .orderBy(desc(copilotChats.updatedAt))

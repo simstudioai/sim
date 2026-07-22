@@ -70,6 +70,7 @@ vi.mock('@sim/db/schema', () => ({
     previewYaml: 'copilotChats.previewYaml',
     planArtifact: 'copilotChats.planArtifact',
     config: 'copilotChats.config',
+    deletedAt: 'copilotChats.deletedAt',
   },
   workspaceFiles: {
     id: 'workspaceFiles.id',
@@ -77,8 +78,10 @@ vi.mock('@sim/db/schema', () => ({
 }))
 
 vi.mock('drizzle-orm', () => ({
+  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
   eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
   inArray: vi.fn((field: unknown, values: unknown) => ({ type: 'inArray', field, values })),
+  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
 }))
 
 vi.mock('@/lib/copilot/resources/persistence', () => ({

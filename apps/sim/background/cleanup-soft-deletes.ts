@@ -530,10 +530,11 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
     `[${label}] Processing ${workspaceIds.length} workspaces, cutoff: ${retentionDate.toISOString()}`
   )
 
-  // Select workflows + files once. These sets drive BOTH external cleanup
-  // (chats + S3) AND the DB deletes below — selecting twice could return
-  // different subsets above the LIMIT cap and orphan or prematurely purge data.
-  const [doomedWorkflows, fileScope] = await Promise.all([
+  // Select workflows + files + soft-deleted chats once. These sets drive BOTH
+  // external cleanup (chats + S3) AND the DB deletes below — selecting twice
+  // could return different subsets above the LIMIT cap and orphan or
+  // prematurely purge data.
+  const [doomedWorkflows, fileScope, expiredSoftDeletedChats] = await Promise.all([
     selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
       db
         .select({ id: workflow.id })
@@ -548,24 +549,40 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
         .limit(chunkLimit)
     ),
     selectExpiredWorkspaceFiles(workspaceIds, retentionDate),
+    selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
+      db
+        .select({ id: copilotChats.id })
+        .from(copilotChats)
+        .where(
+          and(
+            inArray(copilotChats.workspaceId, chunkIds),
+            isNotNull(copilotChats.deletedAt),
+            lt(copilotChats.deletedAt, retentionDate)
+          )
+        )
+        .limit(chunkLimit)
+    ),
   ])
 
   const doomedWorkflowIds = doomedWorkflows.map((w) => w.id)
+  const softDeletedChatIds = expiredSoftDeletedChats.map((c) => c.id)
   let chatCleanup: { execute: () => Promise<void> } | null = null
 
+  const doomedChatIds = new Set(softDeletedChatIds)
   if (doomedWorkflowIds.length > 0) {
-    const doomedChats = await selectRowsByIdChunks(doomedWorkflowIds, (chunkIds, chunkLimit) =>
+    const workflowChats = await selectRowsByIdChunks(doomedWorkflowIds, (chunkIds, chunkLimit) =>
       db
         .select({ id: copilotChats.id })
         .from(copilotChats)
         .where(inArray(copilotChats.workflowId, chunkIds))
         .limit(chunkLimit)
     )
-
-    const doomedChatIds = doomedChats.map((c) => c.id)
-    if (doomedChatIds.length > 0) {
-      chatCleanup = await prepareChatCleanup(doomedChatIds, label)
+    for (const chat of workflowChats) {
+      doomedChatIds.add(chat.id)
     }
+  }
+  if (doomedChatIds.size > 0) {
+    chatCleanup = await prepareChatCleanup([...doomedChatIds], label)
   }
 
   const fileCleanup = await cleanupWorkspaceFileStorage(fileScope)
@@ -580,6 +597,16 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
     `${label}/workflow`
   )
   totalDeleted += workflowResult.deleted
+
+  // Workflow-scoped chats above are removed by the workflow FK cascade;
+  // soft-deleted mothership chats have no workflow and need their own delete.
+  const chatResult = await deleteRowsById(
+    copilotChats,
+    copilotChats.id,
+    softDeletedChatIds,
+    `${label}/copilotChats`
+  )
+  totalDeleted += chatResult.deleted
 
   const legacyFileResult = await deleteExpiredLegacyWorkspaceFileRows(
     fileCleanup.legacyRows,

@@ -36,6 +36,7 @@ const chatColumns = {
   resources: copilotChats.resources,
   lastSeenAt: copilotChats.lastSeenAt,
   pinned: copilotChats.pinned,
+  deletedAt: copilotChats.deletedAt,
   createdAt: copilotChats.createdAt,
   updatedAt: copilotChats.updatedAt,
 } as const

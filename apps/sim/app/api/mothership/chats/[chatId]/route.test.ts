@@ -6,7 +6,8 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockDbDelete,
+  mockDbUpdate,
+  mockDbSet,
   mockDbReturning,
   mockDbWhere,
   mockDecrementStorageUsageForBillingContext,
@@ -17,7 +18,8 @@ const {
   mockReadFilePreviewSessions,
   mockGetLatestRunForStream,
 } = vi.hoisted(() => ({
-  mockDbDelete: vi.fn(),
+  mockDbUpdate: vi.fn(),
+  mockDbSet: vi.fn(),
   mockDbReturning: vi.fn(),
   mockDbWhere: vi.fn(),
   mockDecrementStorageUsageForBillingContext: vi.fn(),
@@ -31,7 +33,7 @@ const {
 
 vi.mock('@sim/db', () => ({
   db: {
-    delete: mockDbDelete,
+    update: mockDbUpdate,
   },
 }))
 
@@ -43,12 +45,14 @@ vi.mock('@sim/db/schema', () => ({
     updatedAt: 'copilotChats.updatedAt',
     lastSeenAt: 'copilotChats.lastSeenAt',
     workspaceId: 'copilotChats.workspaceId',
+    deletedAt: 'copilotChats.deletedAt',
   },
 }))
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
   eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
+  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
   sql: Object.assign(
     vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
       type: 'sql',
@@ -319,12 +323,13 @@ describe('DELETE /api/mothership/chats/[chatId]', () => {
       type: 'mothership',
       workspaceId: 'workspace-1',
     })
-    mockDbDelete.mockReturnValue({ where: mockDbWhere })
+    mockDbUpdate.mockReturnValue({ set: mockDbSet })
+    mockDbSet.mockReturnValue({ where: mockDbWhere })
     mockDbWhere.mockReturnValue({ returning: mockDbReturning })
     mockDbReturning.mockResolvedValue([{ workspaceId: 'workspace-1' }])
   })
 
-  it('deletes an unbilled chat without decrementing workspace or payer storage', async () => {
+  it('soft-deletes an unbilled chat without decrementing workspace or payer storage', async () => {
     const response = await DELETE(
       new NextRequest('http://localhost:3000/api/mothership/chats/chat-delete', {
         method: 'DELETE',
@@ -333,7 +338,8 @@ describe('DELETE /api/mothership/chats/[chatId]', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockDbDelete).toHaveBeenCalled()
+    expect(mockDbUpdate).toHaveBeenCalled()
+    expect(mockDbSet).toHaveBeenCalledWith({ deletedAt: expect.any(Date) })
     expect(mockDecrementStorageUsageForBillingContext).not.toHaveBeenCalled()
     expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
   })
