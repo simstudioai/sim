@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildStripeClientConfig,
+  isGuardedE2eDatabaseUrl,
   STRIPE_API_VERSION,
   STRIPE_E2E_PROFILE,
   type StripeClientConfigEnvironment,
@@ -14,6 +15,17 @@ const guardedEnvironment: StripeClientConfigEnvironment = {
   STRIPE_API_BASE_URL: 'http://127.0.0.1:12111',
   STRIPE_SECRET_KEY: 'sk_test_e2e_config',
 }
+
+describe('isGuardedE2eDatabaseUrl', () => {
+  it('accepts only loopback sim_e2e databases', () => {
+    expect(isGuardedE2eDatabaseUrl(guardedEnvironment.DATABASE_URL)).toBe(true)
+    expect(isGuardedE2eDatabaseUrl('postgresql://sim:sim@[::1]:5432/sim_e2e_config_test')).toBe(
+      true
+    )
+    expect(isGuardedE2eDatabaseUrl('postgresql://db.example.com/sim_e2e_config_test')).toBe(false)
+    expect(isGuardedE2eDatabaseUrl('postgresql://127.0.0.1/sim')).toBe(false)
+  })
+})
 
 describe('buildStripeClientConfig', () => {
   it('preserves the normal Stripe configuration without an override', () => {
