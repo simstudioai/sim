@@ -1,0 +1,1 @@
+ALTER TABLE "organization" ADD COLUMN "network_policy_settings" json;

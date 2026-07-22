@@ -21,6 +21,10 @@
     "./workflow": {
       "types": "./src/workflow.ts",
       "default": "./src/workflow.ts"
+    },
+    "./network": {
+      "types": "./src/network.ts",
+      "default": "./src/network.ts"
     }
   },
   "scripts": {

@@ -4,6 +4,7 @@
     "index",
     "sso",
     "session-policies",
+    "ip-access",
     "access-control",
     "custom-blocks",
     "whitelabeling",

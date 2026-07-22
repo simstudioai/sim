@@ -1856,6 +1856,13 @@
       "when": 1784756534601,
       "tag": "0265_org_session_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 266,
+      "version": "7",
+      "when": 1784763922017,
+      "tag": "0266_org_network_policy",
+      "breakpoints": true
     }
   ]
 }

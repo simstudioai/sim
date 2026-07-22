@@ -34,6 +34,7 @@ import {
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { getRequestedSignInProviderId, isSignInProviderAllowed } from '@/lib/auth/constants'
+import { enforceOrgNetworkPolicy } from '@/lib/auth/network-policy'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
@@ -657,6 +658,22 @@ export const auth = betterAuth({
               })
               throw new APIError('FORBIDDEN', {
                 message: 'Access restricted. Please contact your administrator.',
+              })
+            }
+          }
+
+          // Org IP allowlists must block session establishment, not just
+          // later requests. `session.ipAddress` is Better Auth's
+          // trusted-proxy-resolved client address. Thrown APIErrors must
+          // propagate — deliberately outside the try below.
+          if (!session.impersonatedBy) {
+            const network = await enforceOrgNetworkPolicy(session.userId, session.ipAddress)
+            if (!network.allowed) {
+              logger.warn('Blocking session creation by org network policy', {
+                userId: session.userId,
+              })
+              throw new APIError('FORBIDDEN', {
+                message: network.reason ?? 'Access restricted. Please contact your administrator.',
               })
             }
           }

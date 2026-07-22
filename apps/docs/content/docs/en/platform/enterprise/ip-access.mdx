@@ -1,0 +1,58 @@
+---
+title: IP Access
+description: Restrict sign-in and API access to your organization's allowed IP ranges
+---
+
+import { FAQ } from '@/components/ui/faq'
+
+IP Access lets organization owners and admins on Enterprise plans restrict where members can use Sim from. When the allowlist is enabled, sign-in, session use, API-key requests, and live collaboration connections are only accepted from the listed addresses.
+
+---
+
+## Setup
+
+Go to **Settings → Security → IP access** in your organization settings.
+
+Add one entry per line — individual IPv4/IPv6 addresses or CIDR ranges (for example `203.0.113.7`, `10.0.0.0/16`, `2001:db8::/48`), up to 200 entries — then turn on **Restrict access by IP** and save.
+
+The settings page shows your current IP. Saving a list that would exclude your own address is rejected, so you cannot lock yourself (and your organization) out in one step.
+
+---
+
+## What is enforced
+
+- **Sign-in** — members outside the allowed ranges cannot establish a session.
+- **Existing sessions** — every request re-checks the policy; members who move outside the allowed ranges lose access within about a minute of the policy changing.
+- **API keys** — personal and workspace API keys belonging to organization members are only accepted from allowed addresses.
+- **Live collaboration** — realtime canvas connections are checked at connect time.
+
+Deployed chats, public form shares, webhooks, and scheduled executions are **not** restricted — they are your organization's outward-facing product surfaces and server-side automations, not member access.
+
+---
+
+## FAQ
+
+<FAQ
+  items={[
+    {
+      question: 'What happens to a member who is signed in when the policy is enabled?',
+      answer:
+        'Their next request from a non-allowed address is rejected and they are effectively signed out. Changes propagate within about a minute.',
+    },
+    {
+      question: 'Can I lock myself out?',
+      answer:
+        'Not in a single save — the settings page rejects any list that excludes your current IP. If your network changes afterwards, another admin on an allowed network (or Sim support) can update the list.',
+    },
+    {
+      question: 'Does this affect deployed chats and webhooks?',
+      answer:
+        'No. The allowlist governs member access — sign-in, sessions, API keys, and collaboration. Deployed product surfaces and server-side automations keep working from anywhere.',
+    },
+    {
+      question: 'How are client addresses determined behind proxies?',
+      answer:
+        'Sim resolves the client address through its configured trusted proxy chain, so forwarded headers cannot be forged. Self-hosted deployments set AUTH_TRUSTED_PROXIES to their proxy addresses; if no trustworthy address can be derived while a policy is active, access is denied rather than guessed.',
+    },
+  ]}
+/>

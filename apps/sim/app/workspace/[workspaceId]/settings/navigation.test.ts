@@ -40,6 +40,7 @@ describe('unified settings navigation', () => {
       { id: 'recently-deleted', label: 'Recently deleted', section: 'system' },
       { id: 'sso', label: 'Single sign-on', section: 'enterprise' },
       { id: 'sessions', label: 'Session policies', section: 'enterprise' },
+      { id: 'network', label: 'IP access', section: 'enterprise' },
       { id: 'data-retention', label: 'Data retention', section: 'enterprise' },
       { id: 'data-drains', label: 'Data drains', section: 'enterprise' },
       { id: 'whitelabeling', label: 'Whitelabeling', section: 'enterprise' },

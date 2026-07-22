@@ -28,6 +28,11 @@ const SessionPolicySettings = dynamic(() =>
     (module) => module.SessionPolicySettings
   )
 )
+const NetworkPolicySettings = dynamic(() =>
+  import('@/ee/network-policy/components/network-policy-settings').then(
+    (module) => module.NetworkPolicySettings
+  )
+)
 const DataRetentionSettings = dynamic(() =>
   import('@/ee/data-retention/components/data-retention-settings').then(
     (module) => module.DataRetentionSettings
@@ -70,6 +75,9 @@ export function OrganizationSettingsRenderer({
   if (section === 'sso') return <SSO organizationId={organizationId} />
   if (section === 'sessions') {
     return <SessionPolicySettings key={organizationId} organizationId={organizationId} />
+  }
+  if (section === 'network') {
+    return <NetworkPolicySettings key={organizationId} organizationId={organizationId} />
   }
   if (section === 'data-retention') {
     return <DataRetentionSettings organizationId={organizationId} />
