@@ -299,24 +299,22 @@ export function MothershipChat({
   const messages = useDeferredValue(messagesProp)
   const [lastRowAnimating, setLastRowAnimating] = useState(false)
   const scrollElementRef = useRef<HTMLDivElement | null>(null)
+  const { ref: autoScrollRef, detach: detachAutoScroll } = useAutoScroll(
+    isStreamActive || lastRowAnimating
+  )
   /**
-   * True from the stop button until the next stream: a stopped turn must not
-   * settle-scroll — the user asked everything to freeze, and following the
-   * stopped-row/actions mount nudges the transcript up right after they did.
+   * Stop means freeze: detach auto-scroll exactly like a user scroll-away, so
+   * every chase path — mutation kicks while the reveal drains, animation
+   * follows, the settle window — parks instead of nudging the transcript the
+   * user just halted. The next stream re-seeds stickiness from position.
    */
-  const stopRequestedRef = useRef(false)
   const handleStopGeneration = useCallback(() => {
-    stopRequestedRef.current = true
+    detachAutoScroll()
     onStopGeneration()
-  }, [onStopGeneration])
-  useEffect(() => {
-    if (isStreamActive) stopRequestedRef.current = false
-  }, [isStreamActive])
-  const { ref: autoScrollRef } = useAutoScroll(isStreamActive || lastRowAnimating, {
-    shouldFollowSettle: () => !stopRequestedRef.current,
-  })
+  }, [detachAutoScroll, onStopGeneration])
   const sizerRef = useRef<HTMLDivElement | null>(null)
   const scrollerPaddingRef = useRef<{ top: number; bottom: number } | null>(null)
+  const sizerFloorAppliedRef = useRef(0)
 
   /**
    * Sizer floor while streaming: `scrollHeight` must never dip below the
@@ -340,6 +338,7 @@ export function MothershipChat({
     const el = scrollElementRef.current
     if (!sizer || !el) return
     if (!floorActive) {
+      sizerFloorAppliedRef.current = 0
       sizer.style.minHeight = ''
       return
     }
@@ -359,6 +358,13 @@ export function MothershipChat({
       0,
       Math.floor(el.scrollTop + el.clientHeight - padding.top - padding.bottom)
     )
+    // Dead-band: the floor feeds back into its own inputs (a floored value can
+    // land a fraction BELOW the extent, the browser clamps scrollTop, and the
+    // next commit re-derives from the clamped position — a visible ~1px×N
+    // downward cascade on fractional-scrollTop displays). Sub-pixel deltas are
+    // rounding noise from that loop, never real growth; only apply real moves.
+    if (Math.abs(floor - sizerFloorAppliedRef.current) <= 1) return
+    sizerFloorAppliedRef.current = floor
     sizer.style.minHeight = `${floor}px`
   })
   const setScrollElement = useCallback(

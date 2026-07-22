@@ -39,12 +39,6 @@ const POST_STREAM_SETTLE_WINDOW = 300
 
 interface UseAutoScrollOptions {
   scrollOnMount?: boolean
-  /**
-   * Consulted at stream teardown; return false to skip the post-stream settle
-   * follow. A user-initiated stop means "freeze" — chasing the stopped-row and
-   * actions mount would visibly nudge the transcript the user just halted.
-   */
-  shouldFollowSettle?: () => boolean
 }
 
 /**
@@ -56,17 +50,18 @@ interface UseAutoScrollOptions {
  * of the bottom to re-engage. Each streaming start re-seeds stickiness from the
  * current scroll position, so a user who scrolled up beforehand stays put.
  *
- * Returns `ref` (callback ref for the scroll container) and `scrollToBottom`
- * for imperative use after layout-changing events like panel expansion.
+ * Returns `ref` (callback ref for the scroll container), `scrollToBottom` for
+ * imperative use after layout-changing events like panel expansion, and
+ * `detach` for programmatic freezes (a user stop) — it parks every chase path
+ * exactly like a user scroll-away, until the user scrolls back to the bottom
+ * or the next stream re-seeds stickiness.
  */
 export function useAutoScroll(
   isStreaming: boolean,
-  { scrollOnMount = false, shouldFollowSettle }: UseAutoScrollOptions = {}
+  { scrollOnMount = false }: UseAutoScrollOptions = {}
 ) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(true)
-  const shouldFollowSettleRef = useRef(shouldFollowSettle)
-  shouldFollowSettleRef.current = shouldFollowSettle
   const userDetachedRef = useRef(false)
   const prevScrollTopRef = useRef(0)
   const prevScrollHeightRef = useRef(0)
@@ -89,6 +84,11 @@ export function useAutoScroll(
     const el = containerRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight
+  }, [])
+
+  const detach = useCallback(() => {
+    stickyRef.current = false
+    userDetachedRef.current = true
   }, [])
 
   const callbackRef = useCallback((el: HTMLDivElement | null) => {
@@ -244,12 +244,11 @@ export function useAutoScroll(
       lastUserGestureAtRef.current = Number.NEGATIVE_INFINITY
       // End-of-turn content mounts just after teardown; follow it briefly. The
       // chase's own upward-move interrupt still protects a real user scroll
-      // even with the gesture listeners gone.
-      if (shouldFollowSettleRef.current?.() !== false) {
-        chase.kickUntil(POST_STREAM_SETTLE_WINDOW)
-      }
+      // even with the gesture listeners gone, and the per-frame sticky check
+      // makes this a no-op after a detach().
+      chase.kickUntil(POST_STREAM_SETTLE_WINDOW)
     }
   }, [isStreaming, scrollToBottom])
 
-  return { ref: callbackRef, scrollToBottom }
+  return { ref: callbackRef, scrollToBottom, detach }
 }
