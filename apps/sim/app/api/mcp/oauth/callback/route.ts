@@ -125,12 +125,19 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     serverId?: string
   ) => htmlClose(message, ok, reason, serverId, state)
 
-  const initialRow = state ? await loadOauthRowByState(state).catch(() => null) : null
+  const initialRow = state
+    ? await timedStep('loadOauthRowByState', 15_000, () => loadOauthRowByState(state)).catch(
+        () => null
+      )
+    : null
   const stateRowServerId = initialRow?.mcpServerId
 
   if (errorParam) {
     logger.warn(`MCP OAuth callback received error: ${errorParam}`)
-    if (initialRow) await clearState(initialRow.id, 'callback:provider_error').catch(() => {})
+    if (initialRow)
+      await timedStep('clearState(provider_error)', 10_000, () =>
+        clearState(initialRow.id, 'callback:provider_error')
+      ).catch(() => {})
     return respond(`Authorization failed: ${errorParam}`, false, 'provider_error', stateRowServerId)
   }
   if (!state || !code) {
@@ -144,7 +151,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   let serverId: string | undefined
   try {
-    const session = await getSession()
+    const session = await timedStep('getSession', 15_000, () => getSession())
     if (!session?.user?.id) {
       return respond(
         'You must be signed in to complete authorization.',
@@ -169,11 +176,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const [server] = await db
-      .select({ id: mcpServers.id, url: mcpServers.url, workspaceId: mcpServers.workspaceId })
-      .from(mcpServers)
-      .where(and(eq(mcpServers.id, row.mcpServerId), isNull(mcpServers.deletedAt)))
-      .limit(1)
+    const [server] = await timedStep('loadServer', 15_000, () =>
+      db
+        .select({ id: mcpServers.id, url: mcpServers.url, workspaceId: mcpServers.workspaceId })
+        .from(mcpServers)
+        .where(and(eq(mcpServers.id, row.mcpServerId), isNull(mcpServers.deletedAt)))
+        .limit(1)
+    )
     if (!server || !server.url) {
       return respond('Server no longer exists.', false, 'server_gone', serverId)
     }
