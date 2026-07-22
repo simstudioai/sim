@@ -64,18 +64,24 @@ export function createMockSqlOperators() {
  * Table-routed result queues.
  *
  * `queueTableRows(schemaMock.member, [rowA, rowB])` enqueues one result set for
- * the next select chain whose `.from()` (or subsequent join) references that
- * table. Each chain consumes at most one queued set (FIFO per table); chains
+ * the next select chain whose `.from()` (or a subsequent `innerJoin`/
+ * `leftJoin`) references that table. Each chain consumes at most one queued
+ * set (FIFO per table, `.from()` table checked before join tables); chains
  * against tables with no queued sets resolve the chain-fn defaults (empty
  * array). Queues are cleared by `resetDbChainMock()`.
  *
  * The queue is keyed by table object identity, so pass the same schema-mock
- * table object the code under test passes to `.from()`.
+ * table object the code under test passes to `.from()` / the join.
+ *
+ * Routing assumes each select chain is built left-to-right before the next
+ * chain starts — the norm for code under test (`Promise.all` over fully-built
+ * chains is fine; interleaving *construction* of two chains is not). Mutation
+ * chains (`update`/`delete`/`insert`) never consume select queues.
  */
 const tableRowQueues = new Map<unknown, unknown[][]>()
 
-/** The `.from()` table of the select chain currently being built. */
-let activeTable: unknown
+/** Tables of the select chain currently being built: `.from()` first, then joins. */
+let activeTables: unknown[] = []
 
 /** Rows dequeued for the current chain, shared by every downstream terminal. */
 let activeRows: unknown[] | null = null
@@ -89,10 +95,13 @@ export function queueTableRows(table: unknown, rows: unknown[]): void {
   else tableRowQueues.set(table, [rows])
 }
 
-function dequeueRows(table: unknown): unknown[] | null {
-  const queue = tableRowQueues.get(table)
-  if (!queue || queue.length === 0) return null
-  return queue.shift() ?? null
+/** Dequeues the first queued set among the chain's tables (from before joins). */
+function dequeueActiveRows(): unknown[] | null {
+  for (const table of activeTables) {
+    const queue = tableRowQueues.get(table)
+    if (queue && queue.length > 0) return queue.shift() ?? null
+  }
+  return null
 }
 
 /**
@@ -178,7 +187,7 @@ const onConflictDoNothing = vi.fn(() => ({ returning }) as unknown as Promise<vo
 const whereBuilder = () => {
   // Dequeue table-routed rows when the where clause materializes; every
   // downstream terminal (limit/orderBy/...) then resolves the same rows.
-  activeRows = dequeueRows(activeTable)
+  activeRows = dequeueActiveRows()
   // Some call sites await the where directly (no limit/orderBy), so the
   // builder is itself a thenable.
   const thenable: any = chainRows()
@@ -191,15 +200,24 @@ const whereBuilder = () => {
 }
 const where = vi.fn(whereBuilder)
 
-const joinBuilder = (): { where: typeof where; innerJoin: any; leftJoin: any } => ({
+// The from/join builder is itself a thenable so `await db.select().from(t)`
+// (no where clause) also resolves table-routed rows. Dequeue happens lazily at
+// await time, so a chain that continues into `.where()` never double-consumes.
+const joinBuilder = (): { where: typeof where; innerJoin: any; leftJoin: any; then: any } => ({
   where,
   innerJoin,
   leftJoin,
+  then: (onFulfilled?: (rows: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
+    Promise.resolve((dequeueActiveRows() ?? []) as unknown[]).then(onFulfilled, onRejected),
 })
-const innerJoin: ReturnType<typeof vi.fn> = vi.fn(joinBuilder)
-const leftJoin: ReturnType<typeof vi.fn> = vi.fn(joinBuilder)
+const joinStep = (table?: unknown) => {
+  activeTables.push(table)
+  return joinBuilder()
+}
+const innerJoin: ReturnType<typeof vi.fn> = vi.fn(joinStep)
+const leftJoin: ReturnType<typeof vi.fn> = vi.fn(joinStep)
 const from = vi.fn((table?: unknown) => {
-  activeTable = table
+  activeTables = [table]
   activeRows = null
   return joinBuilder()
 })
@@ -209,9 +227,16 @@ const selectDistinct = vi.fn(() => ({ from }))
 const selectDistinctOn = vi.fn(() => ({ from }))
 const values = vi.fn(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
 const insert = vi.fn(() => ({ values }))
-const set = vi.fn(() => ({ where }))
-const update = vi.fn(() => ({ set }))
-const del = vi.fn(() => ({ where }))
+// Mutation chains clear the routing context so their `where()` never consumes
+// rows queued for a select.
+const mutationStep = <T>(next: T): T => {
+  activeTables = []
+  activeRows = null
+  return next
+}
+const set = vi.fn(() => mutationStep({ where }))
+const update = vi.fn(() => mutationStep({ set }))
+const del = vi.fn(() => mutationStep({ where }))
 const query = vi.fn(() => Promise.resolve([] as unknown[]))
 const transaction: ReturnType<typeof vi.fn> = vi.fn(
   async (cb: (tx: any) => unknown): Promise<unknown> => cb(dbChainMock.db)
@@ -255,26 +280,26 @@ export const dbChainMockFns = {
  */
 export function resetDbChainMock(): void {
   tableRowQueues.clear()
-  activeTable = undefined
+  activeTables = []
   activeRows = null
   select.mockImplementation(() => ({ from }))
   selectDistinct.mockImplementation(() => ({ from }))
   selectDistinctOn.mockImplementation(() => ({ from }))
   from.mockImplementation((table?: unknown) => {
-    activeTable = table
+    activeTables = [table]
     activeRows = null
     return joinBuilder()
   })
-  innerJoin.mockImplementation(joinBuilder)
-  leftJoin.mockImplementation(joinBuilder)
+  innerJoin.mockImplementation(joinStep)
+  leftJoin.mockImplementation(joinStep)
   where.mockImplementation(whereBuilder)
   insert.mockImplementation(() => ({ values }))
   values.mockImplementation(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
   onConflictDoUpdate.mockImplementation(() => ({ returning }) as unknown as Promise<void>)
   onConflictDoNothing.mockImplementation(() => ({ returning }) as unknown as Promise<void>)
-  update.mockImplementation(() => ({ set }))
-  set.mockImplementation(() => ({ where }))
-  del.mockImplementation(() => ({ where }))
+  update.mockImplementation(() => mutationStep({ set }))
+  set.mockImplementation(() => mutationStep({ where }))
+  del.mockImplementation(() => mutationStep({ where }))
   limit.mockImplementation(limitBuilder)
   offset.mockImplementation(chainRows)
   orderBy.mockImplementation(terminalBuilder)

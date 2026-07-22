@@ -67,6 +67,34 @@ describe('database mock', () => {
     ).resolves.toEqual([{ id: 'w-2' }])
   })
 
+  it('resolves queued rows when a from-chain is awaited directly (no where)', async () => {
+    queueTableRows(workflowTable, [{ id: 'direct' }])
+    await expect(db.select().from(workflowTable)).resolves.toEqual([{ id: 'direct' }])
+    await expect(db.select().from(workflowTable)).resolves.toEqual([])
+  })
+
+  it('routes rows queued for a table referenced only by a join', async () => {
+    queueTableRows(memberTable, [{ id: 'joined' }])
+    await expect(
+      db.select().from(workflowTable).leftJoin(memberTable, {}).where({})
+    ).resolves.toEqual([{ id: 'joined' }])
+  })
+
+  it('prefers the from-table queue over a join-table queue', async () => {
+    queueTableRows(workflowTable, [{ id: 'from-row' }])
+    queueTableRows(memberTable, [{ id: 'join-row' }])
+    await expect(
+      db.select().from(workflowTable).innerJoin(memberTable, {}).where({})
+    ).resolves.toEqual([{ id: 'from-row' }])
+  })
+
+  it('never lets mutation chains consume select queues', async () => {
+    queueTableRows(workflowTable, [{ id: 'kept' }])
+    await expect(db.update(workflowTable).set({}).where({})).resolves.toEqual([])
+    await expect(db.delete(workflowTable).where({})).resolves.toEqual([])
+    await expect(db.select().from(workflowTable).where({})).resolves.toEqual([{ id: 'kept' }])
+  })
+
   it('routes selectDistinctOn chains through the same table queues', async () => {
     queueTableRows(memberTable, [{ id: 'm-1' }])
     await expect(db.selectDistinctOn(['id']).from(memberTable).where({})).resolves.toEqual([
