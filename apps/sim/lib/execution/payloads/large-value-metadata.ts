@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, dbFor } from '@sim/db'
 import {
   executionLargeValueDependencies,
   executionLargeValueReferences,
@@ -188,7 +188,7 @@ export async function registerLargeValueOwner(
     return false
   }
 
-  await db.transaction(async (tx) => {
+  await dbFor('exec').transaction(async (tx) => {
     await tx
       .insert(executionLargeValues)
       .values({
@@ -311,7 +311,8 @@ export async function addLargeValueReference(
     return
   }
 
-  const [existingRef] = await db
+  const execDb = dbFor('exec')
+  const [existingRef] = await execDb
     .select({ key: executionLargeValueReferences.key })
     .from(executionLargeValueReferences)
     .where(
@@ -328,7 +329,7 @@ export async function addLargeValueReference(
     return
   }
 
-  const existingRefs = await db
+  const existingRefs = await execDb
     .select({ key: executionLargeValueReferences.key })
     .from(executionLargeValueReferences)
     .where(
@@ -346,7 +347,7 @@ export async function addLargeValueReference(
     )
   }
 
-  await db
+  await execDb
     .insert(executionLargeValueReferences)
     .values({
       key: boundedKey,
@@ -365,7 +366,7 @@ export async function replaceLargeValueReferences(
   const referenceKeys = scope.workspaceId
     ? collectLargeValueReferenceKeys(value, scope.workspaceId)
     : []
-  await db.transaction(async (tx) => {
+  await dbFor('exec').transaction(async (tx) => {
     await replaceLargeValueReferenceKeysWithClient(tx, scope, referenceKeys)
   })
 }
