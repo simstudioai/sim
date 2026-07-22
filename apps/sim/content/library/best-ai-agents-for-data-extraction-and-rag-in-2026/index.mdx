@@ -30,7 +30,7 @@ Sim leads across all four data and RAG use cases because it treats document pars
 
 - **PDF and document extraction:** Sim's [Files](https://docs.sim.ai/files) parsing into structured output is the default, with OCR for scanned pages and support for 10 file types up to 100 MB each. Choose Gumloop when you want pre-built scraping and enrichment nodes.
 - **SQL in plain English:** Sim's [Tables](https://docs.sim.ai/tables) ground natural-language queries against schema. Choose n8n when you already run self-hosted database workflows.
-- **Spreadsheet analysis:** Sim's Tables ingest CSVs with auto-detected delimiters and inferred column types, batch-inserting up to 1,000 rows. Choose Make when you need granular, visible transformation steps.
+- **Spreadsheet analysis:** Sim's Tables ingest CSV and TSV files with inferred column types, batch-inserting rows 5,000 at a time. Choose Make when you need granular, visible transformation steps.
 - **RAG over internal documents:** Sim's [Knowledge Bases](https://docs.sim.ai/knowledgebase) with connector sync across 15+ sources keep retrieval fresh. Choose Zapier when RAG is a light task beside hundreds of app connections.
 
 ## What makes an AI agent good at data extraction and RAG?
@@ -69,7 +69,7 @@ The practical divide is where the plain-English experience ends. Sim keeps it en
 
 ## Which AI agent platform best analyzes spreadsheet data automatically?
 
-Sim analyzes spreadsheet data with the least manual wrangling because its Tables feature gives you a structured store that agents read and write directly. Import a CSV and Sim auto-detects the delimiter, infers column types from the data, and batch-inserts up to 1,000 rows as typed columns rather than a flat array of strings. From there the agent can filter, aggregate, or summarize without you writing a single formula. The data lands in a shape the agent already understands, so analysis starts on the same step the import finishes.
+Sim analyzes spreadsheet data with the least manual wrangling because its Tables feature gives you a structured store that agents read and write directly. Import a CSV or TSV and Sim infers column types from the data and batch-inserts rows 5,000 at a time as typed columns rather than a flat array of strings. From there the agent can filter, aggregate, or summarize without you writing a single formula. The data lands in a shape the agent already understands, so analysis starts on the same step the import finishes.
 
 The four integration-first platforms treat a spreadsheet as a file or an array, and that choice pushes the real work onto you. Zapier reads Google Sheets row by row through its Sheets connector, which fits a trigger-and-append pattern but chokes on anything that needs the whole dataset in view at once. Make and n8n both parse the file into arrays of objects, and any analysis beyond a simple map means you write JavaScript or chain a dozen aggregation modules by hand. Gumloop passes spreadsheet data into AI nodes as text or arrays, so an agent can reason over it, but the structure disappears and large sheets blow past the context window.
 
@@ -115,7 +115,7 @@ Pick n8n when you want to run the whole thing on your own infrastructure and you
 
 The second reason is the Code node. n8n lets you drop JavaScript or Python into any step, which means you can assemble a RAG pipeline exactly the way you want it by wiring a vector database, an embedding call, and a retrieval query together by hand. You give up the native Knowledge Base that Sim provides, but you gain full control over chunking, indexing, and which model touches your data.
 
-The third reason is momentum. If your team has already built dozens of n8n workflows and your operations run through them, adding light document extraction or a database query to an existing flow costs less than migrating to an agent-native platform. Stay with n8n when self-hosting, custom code, and prior investment matter more than having retrieval built in. See the [full OpenAI AgentKit vs n8n vs Sim comparison](https://www.sim.ai/blog/openai-vs-n8n-vs-sim) for a deeper breakdown.
+The third reason is momentum. If your team has already built dozens of n8n workflows and your operations run through them, adding light document extraction or a database query to an existing flow costs less than migrating to an agent-native platform. Stay with n8n when self-hosting, custom code, and prior investment matter more than having retrieval built in. See the [full OpenAI AgentKit vs n8n vs Sim comparison](https://www.sim.ai/library/openai-vs-n8n-vs-sim) for a deeper breakdown.
 
 ## Choose Zapier when
 
@@ -148,25 +148,3 @@ Sim's Knowledge Bases handle semantic retrieval with connector sync across 15+ s
 Sim is Apache 2.0 licensed and self-hostable through Docker or Kubernetes, and the cloud platform is [SOC 2 and GDPR compliant](https://www.sim.ai/blog/enterprise), so regulated teams can keep documents inside their own infrastructure without giving up the native primitives.
 
 Pick Sim when you'd otherwise spend more time assembling a vector database, a parsing service, and a data store than building the actual agent logic. Teams shipping RAG-heavy agents feel this most, since every external dependency adds a failure point and a sync problem to debug. If retrieval and extraction are the product, start at [Sim](https://sim.ai) and add integrations only where its native pieces fall short.
-
-## FAQs
-
-**Do AI agents need a separate vector database for RAG?**
-
-Not always. Sim includes native Knowledge Bases that handle chunking, embedding, storage, and semantic retrieval, so you skip standing up a separate vector database like Pinecone or Weaviate. You need an external vector store only when a platform lacks native retrieval and forces you to wire one in yourself.
-
-**Can I use AI agents to extract tables from PDFs into a database?**
-
-Yes. Sim parses documents through its Files handling, including OCR for scanned pages, and lands the results in Tables as structured rows you can push to a database. Platforms without native parsing require a third-party OCR step, and those steps often break on inconsistent table layouts.
-
-**What's the difference between an AI agent and a RAG pipeline?**
-
-A RAG pipeline retrieves relevant documents and feeds them to a model to ground its answers. An AI agent wraps that retrieval inside a larger workflow, calling tools, querying data, and taking actions across steps. In Sim, the Knowledge Base supplies the retrieval, and the agent decides when to use it.
-
-**What file types and sizes can Sim process?**
-
-Sim accepts PDF, Word, TXT, Markdown, HTML, Excel, PowerPoint, CSV, JSON, and YAML at up to 100 MB per file, with best performance under 50 MB. Scanned PDFs are supported through Azure or Mistral OCR.
-
-**Do these platforms support self-hosted or on-prem data for compliance?**
-
-n8n and Sim both offer self-hosting, which keeps sensitive documents inside your own infrastructure for regulatory requirements. Sim self-hosts under Apache 2.0 via Docker or Kubernetes, while n8n uses a fair-code license with commercial-use restrictions. Zapier, Make, and Gumloop run as managed cloud services, so your data passes through their systems. Check each vendor's current deployment options before committing to a compliance-sensitive workflow.
