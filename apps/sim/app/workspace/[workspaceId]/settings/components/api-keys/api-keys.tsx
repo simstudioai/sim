@@ -104,12 +104,13 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const workspaceKeys = apiKeysData?.workspaceKeys ?? EMPTY_KEYS
   const personalKeys = apiKeysData?.personalKeys ?? EMPTY_KEYS
   const conflicts = apiKeysData?.conflicts ?? EMPTY_KEY_NAMES
-  const isLoading =
-    isLoadingKeys ||
-    isKeysPlaceholderData ||
-    (showsWorkspaceKeys && (isLoadingSettings || isSettingsPlaceholderData))
   const hasLoadError = isKeysError || (showsWorkspaceKeys && isSettingsError)
-  const dataState = isLoading ? 'loading' : hasLoadError ? 'error' : 'ready'
+  const isLoading =
+    !hasLoadError &&
+    (isLoadingKeys ||
+      isKeysPlaceholderData ||
+      (showsWorkspaceKeys && (isLoadingSettings || isSettingsPlaceholderData)))
+  const dataState = hasLoadError ? 'error' : isLoading ? 'loading' : 'ready'
 
   const allowPersonalApiKeys =
     workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true
