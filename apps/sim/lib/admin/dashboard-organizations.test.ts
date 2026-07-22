@@ -103,6 +103,7 @@ function queuedSelectDistinctOn() {
 const GLOBAL_DB_KEYS = [
   'select',
   'selectDistinct',
+  'selectDistinctOn',
   'insert',
   'update',
   'delete',
@@ -129,6 +130,7 @@ function delegateGlobalDbToChainMocks(): void {
 function restoreGlobalDb(): void {
   for (const [key, impl] of savedGlobalDbImpls) {
     if (impl) globalDb[key].mockImplementation(impl)
+    else globalDb[key].mockReset()
   }
 }
 

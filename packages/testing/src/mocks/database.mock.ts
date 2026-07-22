@@ -290,6 +290,9 @@ export function createMockDb() {
     selectDistinct: vi.fn(() => ({
       from: vi.fn(fromBuilder),
     })),
+    selectDistinctOn: vi.fn(() => ({
+      from: vi.fn(fromBuilder),
+    })),
     insert: vi.fn(() => ({
       values: vi.fn(() => ({
         returning: vi.fn(() => Promise.resolve([])),
