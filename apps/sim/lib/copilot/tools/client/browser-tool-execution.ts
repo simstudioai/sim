@@ -15,12 +15,31 @@ import { executeBrowserTool } from '@/lib/browser-agent/transport'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { reportClientToolCompletion } from '@/lib/copilot/tools/client/completion'
+import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 const logger = createLogger('CopilotBrowserToolExecution')
 
 const DEFAULT_TOOL_TIMEOUT_MS = 30_000
 const NAVIGATION_TOOL_TIMEOUT_MS = 45_000
 const WAIT_FOR_TIMEOUT_GRACE_MS = 15_000
+
+/**
+ * Tools that can revive a closed browser session by opening a fresh tab.
+ * Everything else requires a live page and is rejected up front when the
+ * session is closed, instead of burning the full IPC timeout per call — a
+ * dead session used to answer every tool with an indistinguishable generic
+ * ~30s timeout, which the agent retried indefinitely.
+ */
+const SESSION_REVIVAL_TOOLS: ReadonlySet<BrowserToolName> = new Set<BrowserToolName>([
+  'browser_navigate',
+  'browser_open_tab',
+  'browser_list_tabs',
+])
+
+const SESSION_CLOSED_MESSAGE =
+  'The agent browser session is closed, so this browser tool cannot run. ' +
+  'Call browser_navigate or browser_open_tab to start a new session, or report the situation to the user. ' +
+  'Do not retry other browser tools until a new session is open.'
 /** Tool events older than this are replays, not live instructions — never act on them. */
 const MAX_EVENT_AGE_MS = 120_000
 const EXECUTED_STORAGE_PREFIX = 'sim:copilot:browser-tool-executed:'
@@ -131,11 +150,34 @@ export function executeBrowserToolOnClient(
   })
 }
 
+/** True when the desktop app has reported the agent browser session closed. */
+function isSessionClosed(): boolean {
+  return !useBrowserSessionStore.getState().sessionAlive
+}
+
 async function doExecuteBrowserTool(
   toolCallId: string,
   toolName: BrowserToolName,
   params: Record<string, unknown>
 ): Promise<void> {
+  if (isSessionClosed() && !SESSION_REVIVAL_TOOLS.has(toolName)) {
+    logger.warn('Rejecting browser tool: agent browser session is closed', {
+      toolCallId,
+      toolName,
+    })
+    await reportClientToolCompletion(
+      toolCallId,
+      ASYNC_TOOL_CONFIRMATION_STATUS.error,
+      SESSION_CLOSED_MESSAGE,
+      { error: SESSION_CLOSED_MESSAGE, sessionClosed: true }
+    ).catch((reportErr) => {
+      logger.error('Failed to report browser session-closed error', {
+        toolCallId,
+        error: toError(reportErr).message,
+      })
+    })
+    return
+  }
   // If the user leaves the page mid-action the awaited result is lost; tell
   // the waiter so the turn fails fast instead of hanging until its timeout.
   const onPageHide = () => {
@@ -169,10 +211,17 @@ async function doExecuteBrowserTool(
       sanitizeResultForModel(toolName, result)
     )
   } catch (err) {
-    const message = toError(err).message
-    logger.warn('Browser tool failed', { toolCallId, toolName, error: message })
+    // The session dying mid-call (e.g. during a takeover) surfaces as a
+    // generic timeout; tag it so the model learns the real, terminal cause
+    // instead of retrying against a dead session.
+    const sessionClosed = isSessionClosed()
+    const message = sessionClosed
+      ? `${toError(err).message} ${SESSION_CLOSED_MESSAGE}`
+      : toError(err).message
+    logger.warn('Browser tool failed', { toolCallId, toolName, error: message, sessionClosed })
     await reportClientToolCompletion(toolCallId, ASYNC_TOOL_CONFIRMATION_STATUS.error, message, {
       error: message,
+      ...(sessionClosed ? { sessionClosed: true } : {}),
     }).catch((reportErr) => {
       logger.error('Failed to report browser tool error', {
         toolCallId,
