@@ -434,18 +434,18 @@ describe('deployment operation persistence', () => {
     expect(result.success).toBe(true)
     expect(dbChainMockFns.update.mock.calls.map(([table]) => table)).toEqual([
       schemaMock.workflowDeploymentVersion,
-      schemaMock.workflowDeploymentVersion,
       schemaMock.workflow,
       schemaMock.workflowDeploymentOperation,
     ])
-    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, { isActive: false })
-    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, { isActive: true })
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
+      isActive: expect.objectContaining({ values: expect.arrayContaining(['version-2']) }),
+    })
     expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
-      3,
+      2,
       expect.objectContaining({ isDeployed: true, deployedAt: expect.any(Date) })
     )
     expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
-      4,
+      3,
       expect.objectContaining({
         status: 'active',
         completedAt: expect.any(Date),

@@ -150,6 +150,7 @@ vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
   markDeploymentComponentReadiness: mockMarkDeploymentComponentReadiness,
   markDeploymentOperationFailed: mockMarkDeploymentOperationFailed,
   recordDeploymentOperationRetry: mockRecordDeploymentOperationRetry,
+  setDeploymentTxTimeouts: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/schedules', () => ({
