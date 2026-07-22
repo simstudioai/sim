@@ -23,6 +23,7 @@ import { LRUCache } from 'lru-cache'
 import type { Edge } from 'reactflow'
 import { releaseWebhookPathClaims } from '@/lib/webhooks/path-claims'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
+import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
 import {
   backfillCanonicalModes,
   migrateSubblockIds,
@@ -717,7 +718,7 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
         }
 
         if (
-          (updatedSubBlock.type === 'condition-input' || updatedSubBlock.type === 'router-input') &&
+          isDynamicHandleSubblock(block.type, subId) &&
           typeof updatedSubBlock.value === 'string'
         ) {
           try {

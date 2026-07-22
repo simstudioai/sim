@@ -130,4 +130,22 @@ describe('createPRReviewV2Tool response', () => {
       createPRReviewV2Tool.transformResponse!(Response.json(reviewPayload({ html_url: '' })))
     ).rejects.toThrow('GitHub review response.html_url must be a non-empty string')
   })
+
+  it('surfaces the GitHub error message on a non-ok response', async () => {
+    const result = await createPRReviewV2Tool.transformResponse!(
+      Response.json({ message: 'Validation Failed' }, { status: 422 })
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Validation Failed')
+  })
+
+  it('falls back to a status-based error when the error body has no message', async () => {
+    const result = await createPRReviewV2Tool.transformResponse!(
+      new Response('not json', { status: 500 })
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Failed to submit PR review (HTTP 500)')
+  })
 })

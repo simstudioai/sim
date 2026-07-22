@@ -258,10 +258,9 @@ export const createPRReviewV2Tool: ToolConfig<CreatePRReviewParams, CreatePRRevi
     if (!response.ok) {
       return {
         success: false,
-        error: await responseErrorMessage(
-          response,
-          `Failed to submit PR review (HTTP ${response.status})`
-        ),
+        error:
+          (await readGitHubErrorMessage(response)) ??
+          `Failed to submit PR review (HTTP ${response.status})`,
         output: {
           id: 0,
           user: null,

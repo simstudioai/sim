@@ -5,6 +5,7 @@ import type { Edge } from 'reactflow'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
+import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
 import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
 import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
@@ -276,7 +277,7 @@ export function regenerateWorkflowIds(
     const oldNormalizedName = normalizeName(block.name)
     nameMap.set(oldNormalizedName, oldNormalizedName)
     const newBlock = { ...block, id: newId, subBlocks: structuredClone(block.subBlocks) }
-    remapConditionIds(newBlock.subBlocks, {}, oldId, newId)
+    remapConditionIds(newBlock.subBlocks, {}, block.type, oldId, newId)
     newBlocks[newId] = newBlock
   })
 
@@ -350,6 +351,11 @@ export function regenerateWorkflowIds(
  * Remaps condition/router block IDs within subBlock values when a block is duplicated.
  * Mutates both `subBlocks` and `subBlockValues` in place (callers must pass cloned data).
  *
+ * Gated on the BLOCK type + canonical subblock key (`conditions`/`routes`), not the
+ * stored subblock `type`: edge handles remap by string prefix with no type gate, so a
+ * drifted stored type would skip the id remap here while the handles still move,
+ * orphaning every edge out of the block.
+ *
  * The `subBlockValues[id] ?? subBlock.value` fallback is safe here despite the
  * structure copy being generally stale: condition/router subblocks are
  * dynamic-handle types, which dual-write the structure on every edit
@@ -358,11 +364,12 @@ export function regenerateWorkflowIds(
 export function remapConditionIds(
   subBlocks: Record<string, SubBlockState>,
   subBlockValues: Record<string, unknown>,
+  blockType: string | undefined,
   oldBlockId: string,
   newBlockId: string
 ): void {
   for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
-    if (subBlock.type !== 'condition-input' && subBlock.type !== 'router-input') continue
+    if (!isDynamicHandleSubblock(blockType, subBlockId)) continue
 
     const value = subBlockValues[subBlockId] ?? subBlock.value
     if (typeof value !== 'string') continue
@@ -466,7 +473,7 @@ export function regenerateBlockIds(
     }
 
     // Remap condition/router IDs in the duplicated block
-    remapConditionIds(newBlock.subBlocks, newSubBlockValues[newId] || {}, oldId, newId)
+    remapConditionIds(newBlock.subBlocks, newSubBlockValues[newId] || {}, block.type, oldId, newId)
   })
 
   // Second pass: update parentId references for nested blocks
