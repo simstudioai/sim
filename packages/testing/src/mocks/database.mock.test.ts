@@ -146,6 +146,12 @@ describe('database mock', () => {
     await expect(db.select().from(workflowTable).where({})).resolves.toEqual([])
   })
 
+  it('drains unconsumed ...Once overrides on resetDbChainMock', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'leftover' }])
+    resetDbChainMock()
+    await expect(db.select().from(workflowTable).where({}).limit(1)).resolves.toEqual([])
+  })
+
   it('clears queues and rewires defaults on resetDbChainMock', async () => {
     queueTableRows(workflowTable, [{ id: 'stale' }])
     dbChainMockFns.where.mockReturnValue('broken' as never)

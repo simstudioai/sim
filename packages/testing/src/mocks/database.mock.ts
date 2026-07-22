@@ -54,7 +54,9 @@ export function createMockSqlOperators() {
     exists: vi.fn((subquery) => ({ type: 'exists', subquery })),
     notExists: vi.fn((subquery) => ({ type: 'notExists', subquery })),
     like: vi.fn((column, pattern) => ({ type: 'like', column, pattern })),
+    notLike: vi.fn((column, pattern) => ({ type: 'notLike', column, pattern })),
     ilike: vi.fn((column, pattern) => ({ type: 'ilike', column, pattern })),
+    notIlike: vi.fn((column, pattern) => ({ type: 'notIlike', column, pattern })),
     desc: vi.fn((column) => ({ type: 'desc', column })),
     asc: vi.fn((column) => ({ type: 'asc', column })),
   }
@@ -299,50 +301,23 @@ export const dbChainMockFns = {
 }
 
 /**
- * Restores every `dbChainMockFns` entry to its default wiring and clears all
- * table-routed row queues. Call this in `beforeEach` (after
- * `vi.clearAllMocks()`) if any test uses `mockReturnValue` /
- * `mockResolvedValue` (permanent overrides) or `queueTableRows` — this
- * guarantees the next test starts with fresh defaults.
- *
- * Not needed if tests exclusively use the `...Once` variants, since those
- * auto-expire after one call.
+ * Restores every `dbChainMockFns` entry to its default wiring, drains any
+ * unconsumed `...Once` overrides, and clears all table-routed row queues.
+ * Call this in `beforeEach` (after `vi.clearAllMocks()`) so each test starts
+ * from fresh defaults — a `...Once` override queued by a previous test but
+ * never consumed would otherwise leak into the next test (`vi.clearAllMocks`
+ * clears call history only, not once-queues).
  */
 export function resetDbChainMock(): void {
   tableRowQueues.clear()
-  for (const spy of [
-    select,
-    selectDistinct,
-    selectDistinctOn,
-    from,
-    where,
-    limit,
-    offset,
-    orderBy,
-    groupBy,
-    having,
-    forClause,
-    innerJoin,
-    leftJoin,
-    insert,
-    update,
-    set,
-    del,
-  ]) {
-    spy.mockImplementation(() => CHAIN_DEFAULT)
+  // mockReset restores the implementation passed to vi.fn() (the sentinel for
+  // structural spies, the real defaults for value terminals) AND drains any
+  // unconsumed ...Once overrides — covering the shared spies and the stable
+  // db-instance wrappers alike.
+  for (const spy of Object.values(dbChainMockFns)) {
+    ;(spy as ChainSpy).mockReset()
   }
-  returning.mockImplementation(() => Promise.resolve([] as unknown[]))
-  execute.mockImplementation(() => Promise.resolve([] as unknown[]))
-  query.mockImplementation(() => Promise.resolve([] as unknown[]))
-  onConflictDoUpdate.mockImplementation(() => ({ returning }) as unknown as Promise<void>)
-  onConflictDoNothing.mockImplementation(() => ({ returning }) as unknown as Promise<void>)
-  values.mockImplementation(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
-  transaction.mockImplementation(async (cb: (tx: typeof dbChainMock.db) => unknown) =>
-    cb(dbChainMock.db)
-  )
-  // The stable db-instance entry points are wrappers around the spies above; a
-  // suite may have overridden them directly, so restore their original
-  // implementations too (mockReset restores the fn passed to vi.fn()).
+  query.mockReset()
   for (const key of [
     'select',
     'selectDistinct',

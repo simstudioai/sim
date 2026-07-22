@@ -1,13 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
+import { copilotHttpMock, copilotHttpMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockTransaction,
-  mockSelectRows,
   mockFilterForkableChatFiles,
   mockListForkableChatFiles,
   mockPlanChatFileCopies,
@@ -18,11 +16,8 @@ const {
   mockFetchGo,
   mockPublishStatusChanged,
   mockCaptureServerEvent,
-  mockDeleteWhere,
   mockRemoveChatResources,
 } = vi.hoisted(() => ({
-  mockTransaction: vi.fn(),
-  mockSelectRows: vi.fn(),
   // Real (pure) cut semantics so tests drive selection through row.messageId:
   // rows with a NULL/undefined messageId are kept in every fork.
   mockFilterForkableChatFiles: vi.fn(
@@ -38,50 +33,7 @@ const {
   mockFetchGo: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
-  mockDeleteWhere: vi.fn(),
   mockRemoveChatResources: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          limit: () => mockSelectRows(),
-        }),
-      }),
-    }),
-    delete: () => ({
-      where: mockDeleteWhere,
-    }),
-    transaction: mockTransaction,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  copilotChats: {
-    id: 'copilotChats.id',
-    userId: 'copilotChats.userId',
-    type: 'copilotChats.type',
-    workspaceId: 'copilotChats.workspaceId',
-    title: 'copilotChats.title',
-    model: 'copilotChats.model',
-    resources: 'copilotChats.resources',
-    previewYaml: 'copilotChats.previewYaml',
-    planArtifact: 'copilotChats.planArtifact',
-    config: 'copilotChats.config',
-    deletedAt: 'copilotChats.deletedAt',
-  },
-  workspaceFiles: {
-    id: 'workspaceFiles.id',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
-  inArray: vi.fn((field: unknown, values: unknown) => ({ type: 'inArray', field, values })),
-  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
 }))
 
 vi.mock('@/lib/copilot/resources/persistence', () => ({
@@ -168,30 +120,6 @@ const threeMessages = [
   },
 ]
 
-/** Chat rows inserted through the mock transaction, captured for title assertions. */
-let insertedChatRows: Array<Record<string, unknown>> = []
-/** tx.update(...).set(...) payloads, captured for resource-rewrite assertions. */
-let updatedChatRows: Array<Record<string, unknown>> = []
-
-function makeTx() {
-  return {
-    insert: () => ({
-      values: (v: Record<string, unknown>) => {
-        insertedChatRows.push(v)
-        return {
-          returning: async () => [{ id: 'row-id', workspaceId: 'ws-1' }],
-        }
-      },
-    }),
-    update: () => ({
-      set: (v: Record<string, unknown>) => {
-        updatedChatRows.push(v)
-        return { where: async () => undefined }
-      },
-    }),
-  }
-}
-
 function createRequest(chatId: string, body?: unknown) {
   return new NextRequest(`http://localhost:3000/api/mothership/chats/${chatId}/fork`, {
     method: 'POST',
@@ -207,13 +135,13 @@ function makeContext(chatId: string) {
 describe('POST /api/mothership/chats/[chatId]/fork', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    insertedChatRows = []
-    updatedChatRows = []
+    resetDbChainMock()
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
     })
-    mockSelectRows.mockResolvedValue([parentRow])
+    dbChainMockFns.limit.mockResolvedValue([parentRow])
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'row-id', workspaceId: 'ws-1' }])
     mockListForkableChatFiles.mockResolvedValue([])
     mockLoadCopilotChatMessages.mockResolvedValue(threeMessages)
     mockPlanChatFileCopies.mockResolvedValue({
@@ -223,13 +151,13 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     })
     mockExecuteChatFileBlobCopies.mockResolvedValue({ copied: 0, failed: 0, failedCopyIds: [] })
     mockAppendCopilotChatMessages.mockResolvedValue(undefined)
-    mockDeleteWhere.mockResolvedValue(undefined)
     mockRemoveChatResources.mockResolvedValue(undefined)
     mockAssertActiveWorkspaceAccess.mockResolvedValue(undefined)
     mockFetchGo.mockResolvedValue({ ok: true })
-    mockTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) =>
-      cb(makeTx())
-    )
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('rejects unauthenticated callers', async () => {
@@ -242,14 +170,14 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
   })
 
   it('404s when the chat belongs to another user', async () => {
-    mockSelectRows.mockResolvedValue([{ ...parentRow, userId: 'someone-else' }])
+    dbChainMockFns.limit.mockResolvedValue([{ ...parentRow, userId: 'someone-else' }])
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
     expect(res.status).toBe(404)
-    expect(mockTransaction).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
   it('404s for non-mothership chats', async () => {
-    mockSelectRows.mockResolvedValue([{ ...parentRow, type: 'copilot' }])
+    dbChainMockFns.limit.mockResolvedValue([{ ...parentRow, type: 'copilot' }])
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
     expect(res.status).toBe(404)
   })
@@ -257,13 +185,13 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
   it('400s when upToMessageId is missing', async () => {
     const res = await POST(createRequest('chat-1', {}), makeContext('chat-1'))
     expect(res.status).toBe(400)
-    expect(mockTransaction).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
   it('400s when upToMessageId is an empty string', async () => {
     const res = await POST(createRequest('chat-1', { upToMessageId: '' }), makeContext('chat-1'))
     expect(res.status).toBe(400)
-    expect(mockTransaction).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
   it('400s when the message is not in the chat', async () => {
@@ -272,7 +200,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       makeContext('chat-1')
     )
     expect(res.status).toBe(400)
-    expect(mockTransaction).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
   it('applies the timeline cut: kept message ids drive the file selection', async () => {
@@ -370,7 +298,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     )
 
     // Forks are titled "Fork | <name>".
-    expect(insertedChatRows[0].title).toBe('Fork | Generate Logs')
+    expect(dbChainMockFns.values.mock.calls[0][0].title).toBe('Fork | Generate Logs')
   })
 
   it('still succeeds when the copilot-service clone fails (best-effort)', async () => {
@@ -393,9 +321,9 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
 
     // The dead rows (committed, but no bytes behind them) are hard-deleted so
     // they vanish from VFS listings and name resolution…
-    expect(mockDeleteWhere).toHaveBeenCalledWith({
+    expect(dbChainMockFns.where).toHaveBeenCalledWith({
       type: 'inArray',
-      field: 'workspaceFiles.id',
+      column: 'id',
       values: ['wf_dead1', 'wf_dead2'],
     })
     // …and their resource chips are dropped from the new chat.
@@ -411,7 +339,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     const cleanRes = await POST(createRequest('chat-1'), makeContext('chat-1'))
 
     expect('failedFileCopies' in (await cleanRes.json())).toBe(false)
-    expect(mockDeleteWhere).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
     expect(mockRemoveChatResources).not.toHaveBeenCalled()
   })
 
@@ -421,7 +349,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     // copies the kept upload AND the pre-cut apple; only the post-cut banana
     // stays behind, so only its resource is dropped — not left pointing at
     // the source chat.
-    mockSelectRows.mockResolvedValue([
+    dbChainMockFns.limit.mockResolvedValue([
       {
         ...parentRow,
         resources: [
@@ -457,8 +385,8 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       OLD_FILE_ID,
       'wf_apple',
     ])
-    expect(updatedChatRows).toHaveLength(1)
-    expect(updatedChatRows[0].resources).toEqual([
+    expect(dbChainMockFns.set).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set.mock.calls[0][0].resources).toEqual([
       { type: 'file', id: NEW_FILE_ID, title: 'cat.png' },
       { type: 'file', id: 'wf_apple_copy', title: 'apple.png' },
       { type: 'file', id: 'wf_shared', title: 'shared.pdf' },
@@ -469,7 +397,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
   it('drops ghosts even when the fork copies no files at all', async () => {
     // Fork cut before the chat's only upload arrived: a guard that skips the
     // resources update when idMap is empty would leave the ghost in place.
-    mockSelectRows.mockResolvedValue([
+    dbChainMockFns.limit.mockResolvedValue([
       {
         ...parentRow,
         resources: [{ type: 'file', id: 'wf_banana', title: 'banana.png' }],
@@ -482,7 +410,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
 
     expect(res.status).toBe(200)
-    expect(updatedChatRows).toHaveLength(1)
-    expect(updatedChatRows[0].resources).toEqual([])
+    expect(dbChainMockFns.set).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set.mock.calls[0][0].resources).toEqual([])
   })
 })

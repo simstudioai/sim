@@ -9,9 +9,11 @@ import {
   permissionsMock,
   permissionsMockFns,
   posthogServerMock,
+  queueTableRows,
+  resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetWorkspaceInvitePolicy,
@@ -22,7 +24,6 @@ const {
   mockSendInvitationEmail,
   mockCancelPendingInvitation,
   mockFindPendingGrantForWorkspaceEmail,
-  mockDbResults,
 } = vi.hoisted(() => ({
   mockGetWorkspaceInvitePolicy: vi.fn(),
   mockValidateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
@@ -32,29 +33,7 @@ const {
   mockSendInvitationEmail: vi.fn(),
   mockCancelPendingInvitation: vi.fn(),
   mockFindPendingGrantForWorkspaceEmail: vi.fn(),
-  mockDbResults: { value: [] as any[] },
 }))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn().mockImplementation(() => {
-      const chain: any = {}
-      chain.from = vi.fn().mockReturnValue(chain)
-      chain.innerJoin = vi.fn().mockReturnValue(chain)
-      chain.where = vi.fn().mockReturnValue(chain)
-      chain.limit = vi
-        .fn()
-        .mockImplementation(() => Promise.resolve(mockDbResults.value.shift() || []))
-      chain.then = vi.fn().mockImplementation((callback: (rows: any[]) => unknown) => {
-        const result = mockDbResults.value.shift() || []
-        return Promise.resolve(callback ? callback(result) : result)
-      })
-      return chain
-    }),
-  },
-}))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('@/lib/auth', () => authMock)
 
@@ -112,7 +91,7 @@ import { POST } from '@/app/api/workspaces/invitations/batch/route'
 describe('POST /api/workspaces/invitations/batch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbResults.value = []
+    resetDbChainMock()
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', email: 'owner@test.com', name: 'Owner User' },
     })
@@ -149,6 +128,10 @@ describe('POST /api/workspaces/invitations/batch', () => {
     mockFindPendingGrantForWorkspaceEmail.mockResolvedValue(null)
   })
 
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   it('blocks invites for personal workspaces with an upgrade prompt', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValueOnce({
       id: 'workspace-1',
@@ -165,7 +148,6 @@ describe('POST /api/workspaces/invitations/batch', () => {
       organizationId: null,
       upgradeRequired: true,
     })
-    mockDbResults.value = []
 
     const request = createMockRequest('POST', {
       workspaceId: 'workspace-1',
@@ -196,7 +178,6 @@ describe('POST /api/workspaces/invitations/batch', () => {
       organizationId: null,
       upgradeRequired: true,
     })
-    mockDbResults.value = []
 
     const request = createMockRequest('POST', {
       workspaceId: 'workspace-1',
@@ -234,7 +215,6 @@ describe('POST /api/workspaces/invitations/batch', () => {
       maxSeats: 5,
       availableSeats: 0,
     })
-    mockDbResults.value = [[]]
 
     const request = createMockRequest('POST', {
       workspaceId: 'workspace-1',
@@ -277,7 +257,7 @@ describe('POST /api/workspaces/invitations/batch', () => {
       role: 'member',
       memberId: 'member-1',
     })
-    mockDbResults.value = [[{ id: 'existing-user', email: 'new@example.com' }]]
+    queueTableRows(schemaMock.user, [{ id: 'existing-user', email: 'new@example.com' }])
 
     const request = createMockRequest('POST', {
       workspaceId: 'workspace-1',
@@ -311,7 +291,6 @@ describe('POST /api/workspaces/invitations/batch', () => {
       workspaceMode: 'grandfathered_shared',
       billedAccountUserId: 'user-1',
     })
-    mockDbResults.value = [[]]
 
     const request = createMockRequest('POST', {
       workspaceId: 'workspace-1',
@@ -336,7 +315,6 @@ describe('POST /api/workspaces/invitations/batch', () => {
   })
 
   it('creates multiple workspace invitations in one batch request', async () => {
-    mockDbResults.value = [[], []]
     mockCreatePendingInvitation
       .mockResolvedValueOnce({
         invitationId: 'inv-1',
@@ -382,7 +360,6 @@ describe('POST /api/workspaces/invitations/batch', () => {
       success: false,
       error: 'mailer unavailable',
     })
-    mockDbResults.value = [[]]
 
     const request = createMockRequest('POST', {
       workspaceId: 'workspace-1',

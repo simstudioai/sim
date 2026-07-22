@@ -1,33 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockRequest, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetApiKeyDisplayFormat,
   mockGetSession,
   mockGetUserEntityPermissions,
   mockGetWorkspaceById,
-  mockOrderBy,
 } = vi.hoisted(() => ({
   mockGetApiKeyDisplayFormat: vi.fn(),
   mockGetSession: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
   mockGetWorkspaceById: vi.fn(),
-  mockOrderBy: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          orderBy: mockOrderBy,
-        })),
-      })),
-    })),
-  },
 }))
 
 vi.mock('@/lib/api-key/auth', () => ({
@@ -53,11 +39,12 @@ import { GET } from '@/app/api/workspaces/[id]/api-keys/route'
 describe('GET /api/workspaces/[id]/api-keys', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockGetSession.mockResolvedValue({ user: { id: 'reader-1' } })
     mockGetWorkspaceById.mockResolvedValue({ id: 'workspace-1' })
     mockGetUserEntityPermissions.mockResolvedValue('read')
     mockGetApiKeyDisplayFormat.mockResolvedValue('sim_••••legacy')
-    mockOrderBy.mockResolvedValue([
+    queueTableRows(schemaMock.apiKey, [
       {
         id: 'key-1',
         name: 'Legacy key',
@@ -68,6 +55,10 @@ describe('GET /api/workspaces/[id]/api-keys', () => {
         createdBy: 'owner-1',
       },
     ])
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('returns metadata without exposing the stored key value', async () => {

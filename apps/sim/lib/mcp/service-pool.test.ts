@@ -9,8 +9,8 @@
  */
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { loggerMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, dbChainMockFns, loggerMock, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   MockMcpClient,
@@ -71,32 +71,24 @@ vi.mock('@/lib/mcp/client', () => ({ McpClient: MockMcpClient }))
 const WORKSPACE_ID = 'ws-1'
 const USER_ID = 'user-1'
 
-vi.mock('@sim/db', () => {
-  const where = () => {
-    const rows = Promise.resolve([
-      {
-        id: 'server-1',
-        name: 'Server 1',
-        description: null,
-        transport: 'streamable-http',
-        url: 'https://server-1.example.com/mcp',
-        authType: 'headers',
-        workspaceId: WORKSPACE_ID,
-        headers: {},
-        timeout: 30000,
-        retries: 3,
-        enabled: true,
-        deletedAt: null,
-        createdAt: new Date('2026-01-01T00:00:00Z'),
-        updatedAt: new Date('2026-01-01T00:00:00Z'),
-      },
-    ])
-    return Object.assign(rows, { limit: (n: number) => rows.then((r) => r.slice(0, n)) })
-  }
-  return {
-    db: { select: vi.fn().mockReturnValue({ from: vi.fn().mockReturnValue({ where }) }) },
-  }
-})
+const SERVER_ROW = {
+  id: 'server-1',
+  name: 'Server 1',
+  description: null,
+  transport: 'streamable-http',
+  url: 'https://server-1.example.com/mcp',
+  authType: 'headers',
+  workspaceId: WORKSPACE_ID,
+  headers: {},
+  timeout: 30000,
+  retries: 3,
+  enabled: true,
+  deletedAt: null,
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
+}
+
+vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/mcp/domain-check', () => ({
   isMcpDomainAllowed: () => true,
   validateMcpDomain: () => {},
@@ -121,9 +113,17 @@ import { mcpService } from '@/lib/mcp/service'
 describe('McpService connection reuse wiring', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    // Every select here is getServerConfig's `.where(...).limit(1)`; the
+    // persistent override keeps the row available across retries.
+    dbChainMockFns.limit.mockResolvedValue([SERVER_ROW])
     mockResolveEnvVars.mockImplementation(async (config: unknown) => ({ config }))
     mockAcquire.mockResolvedValue({ client: poolClient, release: mockRelease })
     mockCallTool.mockResolvedValue({ content: [] })
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('leases from the pool (keyed by server+workspace+user) and never disconnects on a hit', async () => {

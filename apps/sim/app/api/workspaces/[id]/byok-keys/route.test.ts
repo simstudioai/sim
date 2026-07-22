@@ -1,63 +1,29 @@
 /**
  * @vitest-environment node
  */
-import { auditMock, createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  auditMock,
+  createMockRequest,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockDbState,
   mockGetSession,
   mockGetUserEntityPermissions,
   mockGetWorkspaceById,
   mockEncryptSecret,
   mockDecryptSecret,
-  mockUpdateSet,
-  mockInsertValues,
-  mockDeleteWhere,
-} = vi.hoisted(() => {
-  const state = {
-    selectResults: [] as unknown[][],
-    insertReturning: [] as unknown[],
-    deleteReturning: [] as unknown[],
-  }
-  return {
-    mockDbState: state,
-    mockGetSession: vi.fn(),
-    mockGetUserEntityPermissions: vi.fn(),
-    mockGetWorkspaceById: vi.fn(),
-    mockEncryptSecret: vi.fn(),
-    mockDecryptSecret: vi.fn(),
-    mockUpdateSet: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })),
-    mockInsertValues: vi.fn(() => ({
-      returning: vi.fn(() => Promise.resolve(state.insertReturning)),
-    })),
-    mockDeleteWhere: vi.fn(() => ({
-      returning: vi.fn(() => Promise.resolve(state.deleteReturning)),
-    })),
-  }
-})
-
-vi.mock('@sim/db', () => {
-  const dbMock: Record<string, unknown> = {
-    select: vi.fn(() => {
-      const chain: Record<string, unknown> = {}
-      chain.from = vi.fn().mockReturnValue(chain)
-      chain.where = vi.fn().mockImplementation(() => {
-        const result: any = Promise.resolve(mockDbState.selectResults.shift() ?? [])
-        result.limit = vi.fn(() => result)
-        result.orderBy = vi.fn(() => result)
-        return result
-      })
-      return chain
-    }),
-    update: vi.fn(() => ({ set: mockUpdateSet })),
-    insert: vi.fn(() => ({ values: mockInsertValues })),
-    delete: vi.fn(() => ({ where: mockDeleteWhere })),
-    execute: vi.fn(() => Promise.resolve([])),
-  }
-  dbMock.transaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback(dbMock))
-  return { db: dbMock }
-})
+} = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+  mockGetUserEntityPermissions: vi.fn(),
+  mockGetWorkspaceById: vi.fn(),
+  mockEncryptSecret: vi.fn(),
+  mockDecryptSecret: vi.fn(),
+}))
 
 vi.mock('@sim/audit', () => auditMock)
 
@@ -97,9 +63,7 @@ const storedKeyRow = (id: string, name: string | null = null) => ({
 describe('workspace BYOK keys route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbState.selectResults = []
-    mockDbState.insertReturning = []
-    mockDbState.deleteReturning = []
+    resetDbChainMock()
 
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockGetUserEntityPermissions.mockResolvedValue('admin')
@@ -110,9 +74,16 @@ describe('workspace BYOK keys route', () => {
     }))
   })
 
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   describe('GET', () => {
     it('lists every stored key with name and masked value', async () => {
-      mockDbState.selectResults = [[storedKeyRow('key-1', 'Production'), storedKeyRow('key-2')]]
+      queueTableRows(schemaMock.workspaceBYOKKeys, [
+        storedKeyRow('key-1', 'Production'),
+        storedKeyRow('key-2'),
+      ])
 
       const res = await GET(createMockRequest('GET'), routeContext)
 
@@ -143,14 +114,14 @@ describe('workspace BYOK keys route', () => {
       )
 
       expect(res.status).toBe(403)
-      expect(mockInsertValues).not.toHaveBeenCalled()
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
     })
 
     it('adds a new key even when the provider already has keys', async () => {
-      mockDbState.selectResults = [[{ keyCount: 2 }]]
-      mockDbState.insertReturning = [
+      queueTableRows(schemaMock.workspaceBYOKKeys, [{ keyCount: 2 }])
+      dbChainMockFns.returning.mockResolvedValueOnce([
         { id: 'key-3', providerId: 'openai', name: 'Backup', createdAt: new Date() },
-      ]
+      ])
 
       const res = await POST(
         createMockRequest('POST', { providerId: 'openai', apiKey: 'sk-new-key', name: 'Backup' }),
@@ -161,7 +132,7 @@ describe('workspace BYOK keys route', () => {
       const body = await res.json()
       expect(body.success).toBe(true)
       expect(body.key).toMatchObject({ id: 'key-3', name: 'Backup' })
-      expect(mockInsertValues).toHaveBeenCalledWith(
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
         expect.objectContaining({
           workspaceId: WORKSPACE_ID,
           providerId: 'openai',
@@ -172,10 +143,10 @@ describe('workspace BYOK keys route', () => {
     })
 
     it('stores a null name when none is provided', async () => {
-      mockDbState.selectResults = [[{ keyCount: 0 }]]
-      mockDbState.insertReturning = [
+      queueTableRows(schemaMock.workspaceBYOKKeys, [{ keyCount: 0 }])
+      dbChainMockFns.returning.mockResolvedValueOnce([
         { id: 'key-1', providerId: 'openai', name: null, createdAt: new Date() },
-      ]
+      ])
 
       const res = await POST(
         createMockRequest('POST', { providerId: 'openai', apiKey: 'sk-new-key' }),
@@ -183,11 +154,11 @@ describe('workspace BYOK keys route', () => {
       )
 
       expect(res.status).toBe(200)
-      expect(mockInsertValues).toHaveBeenCalledWith(expect.objectContaining({ name: null }))
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ name: null }))
     })
 
     it('rejects adding a key beyond the per-provider cap', async () => {
-      mockDbState.selectResults = [[{ keyCount: 10 }]]
+      queueTableRows(schemaMock.workspaceBYOKKeys, [{ keyCount: 10 }])
 
       const res = await POST(
         createMockRequest('POST', { providerId: 'openai', apiKey: 'sk-new-key' }),
@@ -197,12 +168,12 @@ describe('workspace BYOK keys route', () => {
       expect(res.status).toBe(400)
       const body = await res.json()
       expect(body.error).toContain('at most 10 keys')
-      expect(mockInsertValues).not.toHaveBeenCalled()
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
       expect(mockEncryptSecret).not.toHaveBeenCalled()
     })
 
     it('updates the targeted key in place when keyId is provided', async () => {
-      mockDbState.selectResults = [[{ id: 'key-2', name: 'Old name' }]]
+      queueTableRows(schemaMock.workspaceBYOKKeys, [{ id: 'key-2', name: 'Old name' }])
 
       const res = await POST(
         createMockRequest('POST', { providerId: 'openai', apiKey: 'sk-rotated', keyId: 'key-2' }),
@@ -212,14 +183,14 @@ describe('workspace BYOK keys route', () => {
       expect(res.status).toBe(200)
       const body = await res.json()
       expect(body.key).toMatchObject({ id: 'key-2', name: 'Old name' })
-      expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
         expect.objectContaining({ encryptedApiKey: 'encrypted-value', name: 'Old name' })
       )
-      expect(mockInsertValues).not.toHaveBeenCalled()
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
     })
 
     it('clears the name when updating with an empty name', async () => {
-      mockDbState.selectResults = [[{ id: 'key-2', name: 'Old name' }]]
+      queueTableRows(schemaMock.workspaceBYOKKeys, [{ id: 'key-2', name: 'Old name' }])
 
       const res = await POST(
         createMockRequest('POST', {
@@ -232,11 +203,11 @@ describe('workspace BYOK keys route', () => {
       )
 
       expect(res.status).toBe(200)
-      expect(mockUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ name: null }))
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ name: null }))
     })
 
     it('returns 404 when the keyId does not exist in the workspace', async () => {
-      mockDbState.selectResults = [[]]
+      queueTableRows(schemaMock.workspaceBYOKKeys, [])
 
       const res = await POST(
         createMockRequest('POST', { providerId: 'openai', apiKey: 'sk-rotated', keyId: 'missing' }),
@@ -244,7 +215,7 @@ describe('workspace BYOK keys route', () => {
       )
 
       expect(res.status).toBe(404)
-      expect(mockUpdateSet).not.toHaveBeenCalled()
+      expect(dbChainMockFns.set).not.toHaveBeenCalled()
       expect(mockEncryptSecret).not.toHaveBeenCalled()
     })
 
@@ -260,7 +231,7 @@ describe('workspace BYOK keys route', () => {
 
   describe('DELETE', () => {
     it('deletes a single key when keyId is provided', async () => {
-      mockDbState.deleteReturning = [{ id: 'key-2' }]
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'key-2' }])
 
       const res = await DELETE(
         createMockRequest('DELETE', { providerId: 'openai', keyId: 'key-2' }),
@@ -272,7 +243,7 @@ describe('workspace BYOK keys route', () => {
     })
 
     it('returns 404 when keyId is provided but no key matches', async () => {
-      mockDbState.deleteReturning = []
+      dbChainMockFns.returning.mockResolvedValueOnce([])
 
       const res = await DELETE(
         createMockRequest('DELETE', { providerId: 'openai', keyId: 'missing' }),
@@ -283,7 +254,7 @@ describe('workspace BYOK keys route', () => {
     })
 
     it('deletes all provider keys when keyId is omitted', async () => {
-      mockDbState.deleteReturning = [{ id: 'key-1' }, { id: 'key-2' }]
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'key-1' }, { id: 'key-2' }])
 
       const res = await DELETE(createMockRequest('DELETE', { providerId: 'openai' }), routeContext)
 
@@ -292,7 +263,7 @@ describe('workspace BYOK keys route', () => {
     })
 
     it('succeeds when keyId is omitted and the provider has no keys', async () => {
-      mockDbState.deleteReturning = []
+      dbChainMockFns.returning.mockResolvedValueOnce([])
 
       const res = await DELETE(createMockRequest('DELETE', { providerId: 'openai' }), routeContext)
 
@@ -306,7 +277,7 @@ describe('workspace BYOK keys route', () => {
       const res = await DELETE(createMockRequest('DELETE', { providerId: 'openai' }), routeContext)
 
       expect(res.status).toBe(403)
-      expect(mockDeleteWhere).not.toHaveBeenCalled()
+      expect(dbChainMockFns.delete).not.toHaveBeenCalled()
     })
   })
 })
