@@ -563,6 +563,15 @@ export function useMcpToolsEvents(workspaceId: string) {
         invalidate(serverId)
       })
 
+      // EventSource fires `onopen` on the initial connect and on every auto-reconnect. A
+      // reconnect may have missed a `tools_changed` event during the gap, so re-sync the
+      // whole workspace on reconnect (never on the first open — the query already fetched).
+      let opened = false
+      source.onopen = () => {
+        if (opened) invalidate()
+        opened = true
+      }
+
       source.onerror = () => {
         logger.warn(`SSE connection error for workspace ${workspaceId}`)
       }
