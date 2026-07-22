@@ -47,13 +47,18 @@ const {
   releaseExecutionSlotMock: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
+vi.mock('@sim/db', () => {
+  const db = {
     select: dbMocks.select,
     update: dbMocks.update,
     execute: dbMocks.execute,
-  },
-}))
+  }
+  return {
+    db,
+    // Exec-pool client shares the instance so the seeded chains still apply.
+    dbFor: () => db,
+  }
+})
 
 vi.mock('drizzle-orm', () => ({
   eq: dbMocks.eq,

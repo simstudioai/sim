@@ -260,6 +260,8 @@ export const dbChainMock = {
   db: dbChainInstance,
   /** Same instance as `db` so per-test chain overrides cover both clients. */
   dbReplica: dbChainInstance,
+  /** Sub-pool clients (`dbFor('cleanup' | 'exec')`) share the same instance too. */
+  dbFor: () => dbChainInstance,
   runOutsideTransactionContext: <T>(fn: () => T): T => fn(),
   instrumentPoolClient: <T>(client: T): T => client,
 }
@@ -333,6 +335,8 @@ export const databaseMock = {
   db: mockDbInstance,
   /** Same instance as `db` so per-test overrides cover both clients. */
   dbReplica: mockDbInstance,
+  /** Sub-pool clients (`dbFor('cleanup' | 'exec')`) share the same instance too. */
+  dbFor: () => mockDbInstance,
   sql: createMockSql(),
   runOutsideTransactionContext: <T>(fn: () => T): T => fn(),
   instrumentPoolClient: <T>(client: T): T => client,

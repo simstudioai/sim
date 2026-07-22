@@ -83,15 +83,20 @@ const {
   }
 })
 
-vi.mock('@sim/db', () => ({
-  db: {
+vi.mock('@sim/db', () => {
+  const db = {
     delete: mockDelete,
     execute: mockExecute,
     insert: mockInsert,
     select: mockSelect,
     transaction: mockTransaction,
-  },
-}))
+  }
+  return {
+    db,
+    // Exec-pool client shares the instance so the seeded chains still apply.
+    dbFor: () => db,
+  }
+})
 
 vi.mock('@sim/db/schema', () => ({
   executionLargeValueDependencies: {
