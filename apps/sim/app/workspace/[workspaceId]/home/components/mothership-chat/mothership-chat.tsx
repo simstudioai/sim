@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { cn } from '@sim/emcn'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
+import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -109,7 +110,7 @@ const UNSCROLLED = Symbol('unscrolled')
 const LAYOUT_STYLES = {
   'mothership-view': {
     scrollContainer:
-      'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-2 [scrollbar-gutter:stable_both-edges]',
+      'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-2 [overflow-anchor:none] [scrollbar-gutter:stable_both-edges]',
     sizer: 'relative mx-auto w-full max-w-[48rem]',
     rowGap: 'pb-6',
     userRow: 'flex flex-col items-end gap-[6px] pt-3',
@@ -120,7 +121,8 @@ const LAYOUT_STYLES = {
     footerInner: 'mx-auto max-w-[48rem]',
   },
   'copilot-view': {
-    scrollContainer: 'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pt-2 pb-4',
+    scrollContainer:
+      'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pt-2 pb-4 [overflow-anchor:none]',
     sizer: 'relative w-full',
     rowGap: 'pb-4',
     userRow: 'flex flex-col items-end gap-[6px] pt-2',
@@ -315,6 +317,7 @@ export function MothershipChat({
   const sizerRef = useRef<HTMLDivElement | null>(null)
   const scrollerPaddingRef = useRef<{ top: number; bottom: number } | null>(null)
   const sizerFloorAppliedRef = useRef(0)
+  const floorDrainRafRef = useRef(0)
 
   /**
    * Sizer floor while streaming: `scrollHeight` must never dip below the
@@ -331,6 +334,15 @@ export function MothershipChat({
    * Active on the same signal as auto-scroll: the reveal keeps re-parsing
    * markdown (and shrinking) after the network stream closes, so the floor
    * must hold through `lastRowAnimating` too.
+   *
+   * Release is DRAINED, not cliffed: while active the floor forbids
+   * scrollHeight from dropping, so permanent shrinks over the turn accrue as
+   * phantom space (debt). Clearing min-height in one commit released that
+   * whole debt as a single clamp — the end-of-turn downward jump. Instead the
+   * floor glides down to the natural size at the chase's rate; the browser's
+   * clamp follows a few px per frame, which reads as the same eased settle as
+   * the rest of the stream. Instant-clears when the debt is sub-pixel or the
+   * user isn't pinned (shrinking below-viewport space is invisible then).
    */
   const floorActive = isStreamActive || lastRowAnimating
   useLayoutEffect(() => {
@@ -338,10 +350,28 @@ export function MothershipChat({
     const el = scrollElementRef.current
     if (!sizer || !el) return
     if (!floorActive) {
-      sizerFloorAppliedRef.current = 0
-      sizer.style.minHeight = ''
+      if (sizerFloorAppliedRef.current === 0) return
+      scrollerPaddingRef.current = null
+      const pinned = el.scrollHeight - el.scrollTop - el.clientHeight <= 2
+      cancelAnimationFrame(floorDrainRafRef.current)
+      const drain = () => {
+        const target = virtualizer.getTotalSize()
+        const current = sizerFloorAppliedRef.current
+        if (current === 0) return
+        const next = Math.floor(current - Math.max(1, (current - target) * SMOOTH_CHASE_RATE))
+        if (!pinned || next - target <= 1) {
+          sizerFloorAppliedRef.current = 0
+          sizer.style.minHeight = ''
+          return
+        }
+        sizerFloorAppliedRef.current = next
+        sizer.style.minHeight = `${next}px`
+        floorDrainRafRef.current = requestAnimationFrame(drain)
+      }
+      drain()
       return
     }
+    cancelAnimationFrame(floorDrainRafRef.current)
     if (!scrollerPaddingRef.current) {
       const style = getComputedStyle(el)
       scrollerPaddingRef.current = {

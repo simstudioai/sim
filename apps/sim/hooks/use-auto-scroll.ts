@@ -25,22 +25,6 @@ const USER_GESTURE_WINDOW = 250
  * in the listener) is the other upward shortcut; plain `Space` pages down.
  */
 const SCROLL_UP_KEYS = new Set(['ArrowUp', 'PageUp', 'Home'])
-/** How long to keep chasing the bottom while a CSS height animation plays. */
-const ANIMATION_FOLLOW_WINDOW = 500
-/**
- * How long to keep chasing the bottom after streaming stops. End-of-turn content
- * mounts just after `isStreaming` flips false — the suggested-follow-up options,
- * the actions row (swapped into the thinking slot's place), and the
- * virtualizer's re-measure of the grown row — so a single final scroll fires
- * before it lays out and leaves it clipped behind the input. Following for a
- * short window pulls it into view.
- */
-const POST_STREAM_SETTLE_WINDOW = 300
-
-interface UseAutoScrollOptions {
-  scrollOnMount?: boolean
-}
-
 /**
  * Manages sticky auto-scroll for a streaming chat container.
  *
@@ -50,23 +34,18 @@ interface UseAutoScrollOptions {
  * of the bottom to re-engage. Each streaming start re-seeds stickiness from the
  * current scroll position, so a user who scrolled up beforehand stays put.
  *
- * Returns `ref` (callback ref for the scroll container), `scrollToBottom` for
- * imperative use after layout-changing events like panel expansion, and
- * `detach` for programmatic freezes (a user stop) — it parks every chase path
- * exactly like a user scroll-away, until the user scrolls back to the bottom
- * or the next stream re-seeds stickiness.
+ * Returns `ref` (callback ref for the scroll container) and `detach` for
+ * programmatic freezes (a user stop) — it parks every chase path exactly like
+ * a user scroll-away, until the user scrolls back to the bottom or the next
+ * stream re-seeds stickiness.
  */
-export function useAutoScroll(
-  isStreaming: boolean,
-  { scrollOnMount = false }: UseAutoScrollOptions = {}
-) {
+export function useAutoScroll(isStreaming: boolean) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(true)
   const userDetachedRef = useRef(false)
   const prevScrollTopRef = useRef(0)
   const prevScrollHeightRef = useRef(0)
   const touchStartYRef = useRef(0)
-  const scrollOnMountRef = useRef(scrollOnMount)
   /**
    * Whether the user is actively dragging the scrollbar — a pointer press on the
    * container itself rather than its content. Reset on teardown so a pointer held
@@ -80,12 +59,6 @@ export function useAutoScroll(
    */
   const lastUserGestureAtRef = useRef(Number.NEGATIVE_INFINITY)
 
-  const scrollToBottom = useCallback(() => {
-    const el = containerRef.current
-    if (!el) return
-    el.scrollTop = el.scrollHeight
-  }, [])
-
   const detach = useCallback(() => {
     stickyRef.current = false
     userDetachedRef.current = true
@@ -93,7 +66,6 @@ export function useAutoScroll(
 
   const callbackRef = useCallback((el: HTMLDivElement | null) => {
     containerRef.current = el
-    if (el && scrollOnMountRef.current) el.scrollTop = el.scrollHeight
   }, [])
 
   useEffect(() => {
@@ -198,42 +170,38 @@ export function useAutoScroll(
       prevScrollHeightRef.current = scrollHeight
     }
 
-    const onMutation = () => {
+    /**
+     * The single growth signal: the transcript sizer's height. Every source of
+     * scrollHeight growth flows through it — virtualizer re-measures per
+     * streamed token, CSS height animations (each frame re-measures the row),
+     * the sizer min-height floor — so one ResizeObserver replaces a subtree
+     * MutationObserver plus an `animationstart` deadline machine, and there is
+     * exactly one reason the chase ever runs.
+     */
+    const sizer = el.firstElementChild
+    const onSizerResize = () => {
       prevScrollHeightRef.current = el.scrollHeight
       if (!stickyRef.current) return
       chase.kick()
     }
 
-    /**
-     * CSS-driven height animations (e.g. Radix Collapsible expanding mid-stream)
-     * grow scrollHeight without triggering MutationObserver, so auto-scroll stops
-     * following. Keep the one chase loop alive for a short window so the
-     * container stays pinned while the animation runs. `animationstart` fires
-     * for every child animation in the transcript (segment fade-ins, loader
-     * keyframes, label crossfades) — kickUntil coalesces them into a single
-     * extended deadline on the single loop; anything more snaps the glide.
-     */
-    const onAnimationStart = () => chase.kickUntil(ANIMATION_FOLLOW_WINDOW)
-
     el.addEventListener('wheel', onWheel, { passive: true })
     el.addEventListener('touchstart', onTouchStart, { passive: true })
     el.addEventListener('touchmove', onTouchMove, { passive: true })
     el.addEventListener('scroll', onScroll, { passive: true })
-    el.addEventListener('animationstart', onAnimationStart)
     el.addEventListener('pointerdown', onPointerDown, { passive: true })
     el.addEventListener('keydown', onKeyDown, { passive: true })
     window.addEventListener('pointerup', onPointerUp, { passive: true })
     window.addEventListener('pointercancel', onPointerUp, { passive: true })
 
-    const observer = new MutationObserver(onMutation)
-    observer.observe(el, { childList: true, subtree: true, characterData: true })
+    const observer = new ResizeObserver(onSizerResize)
+    if (sizer) observer.observe(sizer)
 
     return () => {
       el.removeEventListener('wheel', onWheel)
       el.removeEventListener('touchstart', onTouchStart)
       el.removeEventListener('touchmove', onTouchMove)
       el.removeEventListener('scroll', onScroll)
-      el.removeEventListener('animationstart', onAnimationStart)
       el.removeEventListener('pointerdown', onPointerDown)
       el.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('pointerup', onPointerUp)
@@ -242,13 +210,13 @@ export function useAutoScroll(
       chase.cancel()
       pointerDownRef.current = false
       lastUserGestureAtRef.current = Number.NEGATIVE_INFINITY
-      // End-of-turn content mounts just after teardown; follow it briefly. The
-      // chase's own upward-move interrupt still protects a real user scroll
-      // even with the gesture listeners gone, and the per-frame sticky check
-      // makes this a no-op after a detach().
-      chase.kickUntil(POST_STREAM_SETTLE_WINDOW)
+      // Teardown can land mid-glide (options mounted late in the reveal, gap
+      // not yet closed) — canceling there strands the follow-ups behind the
+      // input. One plain kick runs the loop to rest and parks; a stopped turn
+      // stays frozen because the detached sticky check parks it on frame one.
+      chase.kick()
     }
-  }, [isStreaming, scrollToBottom])
+  }, [isStreaming])
 
-  return { ref: callbackRef, scrollToBottom, detach }
+  return { ref: callbackRef, detach }
 }

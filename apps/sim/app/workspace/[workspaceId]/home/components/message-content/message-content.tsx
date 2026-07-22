@@ -30,6 +30,13 @@ import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 const FILE_SUBAGENT_ID = 'file'
 /** Quiet period before the shimmer takes the slot back from streamed output. */
 const STREAM_IDLE_DELAY_MS = 1_500
+/**
+ * The one vertical extent (10px gap + 36px row) every tail-region occupant —
+ * shimmer slot, actions row, stopped row — must share. The settle swap is only
+ * jump-free because these are equal; changing one side without the others
+ * reintroduces a scroll clamp at end of turn.
+ */
+const TAIL_REGION_CLASSES = 'mt-[10px] flex h-[36px] items-center'
 
 interface TextSegment {
   type: 'text'
@@ -956,8 +963,8 @@ function MessageContentInner({
         // Fixed-height placeholder for the NEXT piece of output: the shimmer
         // and arriving output trade places via opacity only, so mid-turn swaps
         // can't move layout. A sibling of the space-y stack (not a child), so
-        // it carries no stray sibling margin — pt-[10px] is its own gap.
-        <div aria-hidden={!showShimmer} className='pt-[10px]'>
+        // it carries no stray sibling margin.
+        <div aria-hidden={!showShimmer} className={TAIL_REGION_CLASSES}>
           <div
             className={cn(
               'transition-opacity duration-200 ease-out',
@@ -968,17 +975,17 @@ function MessageContentInner({
           </div>
         </div>
       ) : (
-        // Stopped row and actions take the slot's place in the SAME render — a
-        // single small reflow instead of a collapse the buttons would ride
-        // upward or a late mount the chase would visibly scroll to.
+        // Stopped row and actions take the slot's place in the SAME render and
+        // at the SAME extent (TAIL_REGION_CLASSES), so the swap is height-
+        // neutral by construction — no reflow for the pinned scroller to absorb.
         <>
           {lastSegment?.type === 'stopped' && (
-            <div className='flex items-center gap-[8px] pt-[10px]'>
+            <div className={cn(TAIL_REGION_CLASSES, 'gap-[8px]')}>
               <CircleStop className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
               <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
             </div>
           )}
-          {actions && <div className='mt-[10px]'>{actions}</div>}
+          {actions && <div className={TAIL_REGION_CLASSES}>{actions}</div>}
         </>
       )}
     </div>
