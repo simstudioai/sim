@@ -341,14 +341,11 @@ export const sectionContracts = [
       'enterprise',
       'Custom blocks',
       'Publish workflows as reusable blocks for your organization.',
-      {
-        kind: 'text',
-        value: 'Custom blocks require an Enterprise plan. Contact your admin to enable them.',
-      },
+      { kind: 'textbox', name: 'Search custom blocks...' },
       enterpriseWorkspace,
       {
         path: '/api/custom-blocks',
-        expectedJson: { enabled: false, customBlocks: [] },
+        expectedJson: { enabled: true, customBlocks: [] },
       },
     ],
     [

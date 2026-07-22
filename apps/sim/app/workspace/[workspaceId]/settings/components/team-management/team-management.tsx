@@ -38,7 +38,7 @@ export function TeamManagement({
   organizationId,
   billingHref = `/organization/${organizationId}/settings/billing`,
 }: TeamManagementProps) {
-  const { data: session } = useSession()
+  const { data: session, isPending: isSessionPending } = useSession()
   const { isInvitationsDisabled } = usePermissionConfig()
 
   const { data: userSubscriptionData } = useSubscriptionData()
@@ -306,43 +306,49 @@ export function TeamManagement({
 
   return (
     <>
-      <SettingsPanel
-        actions={
-          adminOrOwner
-            ? [
-                {
-                  text: 'Invite',
-                  icon: Plus,
-                  variant: 'primary',
-                  onSelect: () => setInviteModalOpen(true),
-                  disabled: isInvitationsDisabled,
-                  tooltip: isInvitationsDisabled ? 'Invitations are disabled' : undefined,
-                },
-              ]
-            : []
-        }
+      <section
+        aria-label='Organization members'
+        aria-busy={isSessionPending || isLoading || isLoadingRoster}
+        className='flex flex-col gap-7'
       >
-        {adminOrOwner && (
-          <TeamSeatsOverview
-            billingHref={billingHref}
-            subscriptionData={orgSubscription}
-            isLoadingSubscription={isOrgBillingLoading}
-            totalSeats={totalSeats}
-            usedSeats={usedSeats}
-            pendingSeats={pendingSeats}
-          />
-        )}
+        <SettingsPanel
+          actions={
+            adminOrOwner
+              ? [
+                  {
+                    text: 'Invite',
+                    icon: Plus,
+                    variant: 'primary',
+                    onSelect: () => setInviteModalOpen(true),
+                    disabled: isInvitationsDisabled,
+                    tooltip: isInvitationsDisabled ? 'Invitations are disabled' : undefined,
+                  },
+                ]
+              : []
+          }
+        >
+          {adminOrOwner && (
+            <TeamSeatsOverview
+              billingHref={billingHref}
+              subscriptionData={orgSubscription}
+              isLoadingSubscription={isOrgBillingLoading}
+              totalSeats={totalSeats}
+              usedSeats={usedSeats}
+              pendingSeats={pendingSeats}
+            />
+          )}
 
-        <OrganizationMemberLists
-          canManage={adminOrOwner}
-          organizationId={displayOrganization.id}
-          roster={roster ?? null}
-          isLoadingRoster={isLoadingRoster}
-          currentUserId={session?.user?.id ?? ''}
-          onRemoveMember={handleRemoveMember}
-          onTransferOwnership={handleOpenTransferDialog}
-        />
-      </SettingsPanel>
+          <OrganizationMemberLists
+            canManage={adminOrOwner}
+            organizationId={displayOrganization.id}
+            roster={roster ?? null}
+            isLoadingRoster={isLoadingRoster}
+            currentUserId={session?.user?.id ?? ''}
+            onRemoveMember={handleRemoveMember}
+            onTransferOwnership={handleOpenTransferDialog}
+          />
+        </SettingsPanel>
+      </section>
 
       {adminOrOwner && (
         <OrganizationInviteModal

@@ -12,6 +12,8 @@ import { cn } from '@sim/emcn'
  * contains to 20px, so callers pass their raw icon node without pre-sizing it.
  */
 interface SettingsResourceRowProps {
+  /** Optional accessible name for consumers that need to scope actions to this row. */
+  ariaLabel?: string
   /** Icon node centered in the tile; a `<svg>` is normalized to 20px, an `<img>` to 20px (or the full tile when `iconFill`). */
   icon: ReactNode
   /**
@@ -32,6 +34,7 @@ const TILE_BASE =
   'flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] [&_svg]:size-5'
 
 export function SettingsResourceRow({
+  ariaLabel,
   icon,
   iconFill = false,
   title,
@@ -39,7 +42,11 @@ export function SettingsResourceRow({
   trailing,
 }: SettingsResourceRowProps) {
   return (
-    <div className='flex items-center justify-between gap-2.5'>
+    <div
+      role={ariaLabel ? 'group' : undefined}
+      aria-label={ariaLabel}
+      className='flex items-center justify-between gap-2.5'
+    >
       <div className='flex min-w-0 items-center gap-2.5'>
         <div className={cn(TILE_BASE, iconFill ? '[&_img]:size-full' : '[&_img]:size-5')}>
           {icon}

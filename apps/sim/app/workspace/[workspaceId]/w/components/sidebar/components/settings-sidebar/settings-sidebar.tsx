@@ -10,7 +10,7 @@ import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   allNavigationItems,
@@ -73,7 +73,9 @@ export function SettingsSidebar({
 
   const { config: permissionConfig } = usePermissionConfig()
   const forkingAvailable = useForkingAvailable(workspaceId)
-  const { canAdmin: canAdminWorkspace } = useUserPermissionsContext()
+  const { userPermissions } = useWorkspacePermissionsContext()
+  const { canAdmin: canAdminWorkspace } = userPermissions
+  const permissionsReadinessBusy = userPermissions.isLoading || !userPermissions.canRead
 
   const userId = session?.user?.id
 
@@ -288,6 +290,7 @@ export function SettingsSidebar({
       <div
         role='navigation'
         aria-label='Workspace settings sections'
+        aria-busy={permissionsReadinessBusy}
         ref={isCollapsed ? undefined : scrollContainerRef}
         className={cn(
           'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-1.5 transition-colors duration-150',

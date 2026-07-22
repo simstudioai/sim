@@ -91,6 +91,8 @@ test.describe('foundation safety guards', () => {
     expect(build.env.TELEMETRY_ENDPOINT).toBe('http://127.0.0.1:1/v1/traces')
     expect(app.env.TELEMETRY_ENDPOINT).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1\/traces$/)
     expect(build.env.E2E_RUN_ID).toBe('build_sentinel')
+    expect(build.env.DEPLOY_AS_BLOCK).toBe('true')
+    expect(app.env.DEPLOY_AS_BLOCK).toBe('true')
     for (const key of [
       'BETTER_AUTH_SECRET',
       'ENCRYPTION_KEY',
@@ -117,6 +119,9 @@ test.describe('foundation safety guards', () => {
     expect(realtime.env.STRIPE_SECRET_KEY).toBeUndefined()
     expect(migration.env.ADMIN_API_KEY).toBeUndefined()
     expect(migration.env.MIGRATION_DATABASE_URL).toBe(app.env.DATABASE_URL)
+    for (const environment of [realtime, migration, seed, authCapture, playwright]) {
+      expect(environment.env.DEPLOY_AS_BLOCK).toBeUndefined()
+    }
     expect(app.env.HOME).not.toBe(seed.env.HOME)
     expect(seed.env.HOME).not.toBe(authCapture.env.HOME)
     expect(authCapture.env.HOME).not.toBe(playwright.env.HOME)
@@ -176,6 +181,14 @@ test.describe('foundation safety guards', () => {
     expect(() =>
       parseRunOptions(['--project=hosted-billing-chromium-navigation', '--shard=1/2'])
     ).not.toThrow()
+    expect(() =>
+      parseRunOptions(['--project=hosted-billing-chromium-authorization', '--no-deps'], {
+        ci: false,
+      })
+    ).not.toThrow()
+    expect(() =>
+      parseRunOptions(['--project=hosted-billing-chromium-authorization', '--shard=1/2'])
+    ).toThrow(/coupled E2E projects must remain unsharded/)
     expect(() =>
       parseRunOptions(['--project=hosted-billing-chromium-workflows', '--shard=1/2'])
     ).toThrow(/coupled E2E projects must remain unsharded/)

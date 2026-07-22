@@ -65,6 +65,7 @@ function isExpectedStripeRequest(method: string, path: string): boolean {
     ((method === 'GET' || method === 'POST') && path === '/v1/customers/search') ||
     (method === 'GET' && path === '/v1/customers') ||
     (method === 'POST' && path === '/v1/customers') ||
+    (method === 'GET' && path === '/v1/invoices') ||
     (method === 'POST' && path === STRIPE_FAKE_ENDPOINTS.telemetry) ||
     (method === 'GET' && /^\/v1\/customers\/cus_e2e_[a-f0-9]+$/.test(path))
   )
@@ -194,6 +195,42 @@ function parseLimit(parameters: URLSearchParams): number {
     throw new RequestBodyError('Stripe fake requires limit to be an integer from 1 to 100', 400)
   }
   return limit
+}
+
+function assertSupportedInvoiceList(
+  parameters: URLSearchParams,
+  customers: ReadonlyMap<string, FakeCustomer>
+): void {
+  const allowedKeys = new Set(['customer', 'limit', 'expand[0]', 'starting_after'])
+  for (const key of new Set(parameters.keys())) {
+    if (!allowedKeys.has(key)) {
+      throw new RequestBodyError(`Stripe fake does not implement invoice parameter: ${key}`, 501)
+    }
+  }
+
+  const customerValues = parameters.getAll('customer')
+  const limitValues = parameters.getAll('limit')
+  const expandValues = parameters.getAll('expand[0]')
+  const cursorValues = parameters.getAll('starting_after')
+  if (
+    customerValues.length !== 1 ||
+    limitValues.length !== 1 ||
+    expandValues.length !== 1 ||
+    cursorValues.length > 1
+  ) {
+    throw new RequestBodyError('Stripe fake requires one value for each invoice parameter', 501)
+  }
+
+  const customerId = customerValues[0]
+  if (!customerId || !customers.has(customerId)) {
+    throw new RequestBodyError(`Stripe fake does not know invoice customer: ${customerId}`, 501)
+  }
+  if (limitValues[0] !== '20' || expandValues[0] !== 'data.lines') {
+    throw new RequestBodyError('Stripe fake received an unsupported invoice list shape', 501)
+  }
+  if (cursorValues.length === 1 && !cursorValues[0]) {
+    throw new RequestBodyError('Stripe fake requires a non-empty invoice cursor', 501)
+  }
 }
 
 function validateTestApiKey(apiKey: string): void {
@@ -404,6 +441,22 @@ export function createStripeFakeServer(options: StripeFakeServerOptions): Stripe
             data,
             has_more: false,
             url: '/v1/customers',
+          },
+          requestId
+        )
+        return
+      }
+
+      if (method === 'GET' && url.pathname === '/v1/invoices') {
+        assertSupportedInvoiceList(url.searchParams, customers)
+        sendJson(
+          response,
+          200,
+          {
+            object: 'list',
+            data: [],
+            has_more: false,
+            url: '/v1/invoices',
           },
           requestId
         )

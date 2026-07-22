@@ -3,17 +3,26 @@ import { Info } from 'lucide-react'
 
 interface SettingRowProps {
   label: string
+  htmlFor?: string
   description?: string
   /** Optional supplementary guidance shown in a tooltip on an info icon beside the label. */
   labelTooltip?: string
   children: React.ReactNode
 }
 
-export function SettingRow({ label, description, labelTooltip, children }: SettingRowProps) {
+export function SettingRow({
+  label,
+  htmlFor,
+  description,
+  labelTooltip,
+  children,
+}: SettingRowProps) {
   return (
     <div className='flex flex-col gap-1.5'>
       <div className='flex items-center gap-1.5'>
-        <Label className='text-[var(--text-primary)] text-small'>{label}</Label>
+        <Label htmlFor={htmlFor} className='text-[var(--text-primary)] text-small'>
+          {label}
+        </Label>
         {labelTooltip && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>

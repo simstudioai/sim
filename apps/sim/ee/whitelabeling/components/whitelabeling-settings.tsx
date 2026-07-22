@@ -315,9 +315,11 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
         <div className='flex flex-col gap-5'>
           <SettingRow
             label='Brand name'
+            htmlFor='whitelabel-brand-name'
             description='Replaces "Sim" in the sidebar and select UI elements.'
           >
             <ChipInput
+              id='whitelabel-brand-name'
               value={brandName}
               onChange={(e) => setBrandName(e.target.value)}
               placeholder='Your Company'

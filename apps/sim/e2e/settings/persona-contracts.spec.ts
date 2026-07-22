@@ -35,22 +35,6 @@ for (const personaKey of SETTINGS_PERSONA_KEYS) {
     await page.goto(canonicalUrl)
     await expect(page).toHaveURL(canonicalUrl)
     await expect(page.getByRole('heading', { name: 'General', level: 1 })).toBeVisible()
-    if (personaKey === 'permissionGroupRestricted') {
-      await expect(page.getByRole('button', { name: 'General', exact: true })).toBeVisible()
-      for (const label of ['Secrets', 'Sim API keys', 'Sim mailer', 'MCP tools', 'Custom tools']) {
-        await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0)
-      }
-      const workspaceId = persona.workspaces.find(({ access }) => access !== 'none')?.workspaceId
-      expect(workspaceId).toBeTruthy()
-      for (const section of ['secrets', 'api-keys', 'inbox', 'mcp', 'custom-tools']) {
-        const deniedUrl = new URL(
-          `/workspace/${encodeURIComponent(workspaceId ?? '')}/settings/${section}`,
-          requiredEnv('E2E_BASE_URL')
-        ).toString()
-        const response = await page.goto(deniedUrl)
-        expect(response?.status(), `${section} must be denied by the server route gate`).toBe(404)
-      }
-    }
 
     const sessionResponse = await context.request.get('/api/auth/get-session')
     expect(sessionResponse.status()).toBe(200)

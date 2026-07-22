@@ -271,6 +271,7 @@ function NewWorkspaceVariableRow({
   return (
     <div className='contents'>
       <ChipInput
+        aria-label='New workspace secret name'
         data-input-type='key'
         error={Boolean(keyError)}
         value={envVar.key}
@@ -286,6 +287,7 @@ function NewWorkspaceVariableRow({
       />
       <div />
       <SecretValueField
+        aria-label='New workspace secret value'
         data-input-type='value'
         value={envVar.value}
         onChange={(next) => onUpdate(index, 'value', next)}
@@ -982,8 +984,13 @@ export function SecretsManager() {
             {(!searchTerm.trim() ||
               filteredWorkspaceEntries.length > 0 ||
               filteredNewWorkspaceRows.length > 0) && (
-              <section className='flex flex-col'>
-                <span className='pl-0.5 text-[var(--text-muted)] text-small'>Workspace</span>
+              <section aria-labelledby='workspace-secrets-section' className='flex flex-col'>
+                <span
+                  id='workspace-secrets-section'
+                  className='pl-0.5 text-[var(--text-muted)] text-small'
+                >
+                  Workspace
+                </span>
                 <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
                 <div className={`${GRID_COLS} gap-y-2`}>
                   {(searchTerm.trim()
