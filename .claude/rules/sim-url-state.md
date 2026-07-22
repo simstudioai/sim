@@ -50,11 +50,13 @@ Co-locate a `search-params.ts` next to the feature. Export the parser map (and s
 
 Conventions:
 
-- `.withDefault(...)` on every parser so reads are non-null.
-- Filter / search / toggle / pagination options: `{ history: 'replace', shallow: true, clearOnDefault: true }` — clean URLs, no back-stack churn.
+- `.withDefault(...)` on every parser so reads are non-null. A deliberately **nullable** parser (dynamic default, custom-range-only dates, nullable sort) must carry a comment saying why.
+- Filter / search / toggle / pagination options: `{ history: 'replace', clearOnDefault: true }` — clean URLs, no back-stack churn. `shallow` defaults to `true` in nuqs; writing `shallow: true` explicitly is fine but not required.
 - Navigations that belong in browser history (changing folder, opening a deep-linked entity): `{ history: 'push' }`.
-- `shallow: false` **only** when a Server Component / loader must re-read the param.
-- Short, stable, **kebab-case** URL keys. Renaming a key is a breaking change to shared links — treat it as one.
+- `shallow: false` **only** when a Server Component / loader must re-read the param. For loading states during the server re-render, pass React's `startTransition` via `.withOptions({ startTransition, shallow: false })`.
+- Short, stable, **kebab-case** URL keys. Renaming a key is a breaking change to shared links — treat it as one. When the parser-map key is camelCase (for clean destructuring), remap the wire key via the `urlKeys` option in the shared options object (see `files/search-params.ts` `uploadedBy: 'uploaded-by'`, `ee/audit-logs/search-params.ts` `timeRange: 'time-range'`); nuqs also exports a `UrlKeys<typeof parsers>` type helper for standalone mappings.
+- `throttleMs` is deprecated in nuqs — rate-limit URL writes with `limitUrlUpdates: throttle(ms)` / `debounce(ms)` (the debounced-search hook below already does this).
+- A parser **shared across surfaces with different defaults** (e.g. `parseAsTimeRange`) must `parse` unknown tokens to `null` — never to one surface's default — so each consumer's `.withDefault(...)` decides the fallback.
 - For an opaque/literal value use `parseAsStringLiteral([...] as const)`; for a custom wire format use [`createParser`](https://nuqs.dev/docs/parsers).
 - A `createParser` for a value **not** comparable with `===` (arrays, objects, `Date`) **must** define an `eq` — `clearOnDefault` uses it to detect the default, so without it an empty-array/object default never strips from the URL. Built-in `parseAsArrayOf(...)` already ships its own `eq`; only string/number/boolean custom parsers can omit it. Example (array): `eq: (a, b) => a.length === b.length && a.every((v, i) => v === b[i])`.
 
@@ -200,7 +202,11 @@ const [skillId, setSkillId] = useQueryState(skillIdParam.key, {
 const editingSkill = skillId ? (skills.find((s) => s.id === skillId) ?? null) : null
 ```
 
-Open the panel/modal when the id resolves to a loaded entity; closing it calls `setSkillId(null)`. Because this reads `useSearchParams` it needs a **Suspense** boundary on the page (see below). A separate "create new" flow has no id and stays in local `useState`.
+Open the panel/modal only when the id **resolves to a loaded entity** — never gate on the raw param alone, or a dead/stale id (deleted entity, old bookmark) renders a broken detail view and a still-loading list flashes one. A dead id simply falls back to the list; the lingering param is harmless. Because this reads `useSearchParams` it needs a **Suspense** boundary on the page (see below). A separate "create new" flow has no id and stays in local `useState`.
+
+**Close with `replace`, open with `push`.** Opening pushed a history entry; closing must not push another. Close via the setter's per-call options — `setSkillId(null, { history: 'replace' })` — so Back from the list leaves the page instead of reopening the detail (see `mcp.tsx`, `workflow-mcp-servers.tsx`, access-control, custom-blocks, forks). Secondary params scoped to the detail view (e.g. its active tab, `server-tab`) are cleared in the same close handler with their own setter — nuqs batches same-tick writes into one URL update.
+
+**Reusable components** rendered both as a settings/list page and inside a modal (e.g. `BYOKKeyManager`) expose an optional controlled `searchTerm`/`onSearchTermChange` prop pair: the page consumer binds the URL (`useSettingsSearch()`), modal consumers omit the props and keep local state. Never bind URL state from inside a component that can mount in a non-destination context.
 
 ## Read-then-strip deep links
 

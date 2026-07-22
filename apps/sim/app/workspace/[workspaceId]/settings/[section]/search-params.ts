@@ -50,6 +50,22 @@ export const forkViewUrlKeys = {
 } as const
 
 /**
+ * `server-tab` is the active tab (Details / Workflows) inside the deep-linked
+ * workflow MCP server detail view, so a shared `mcpServerId` link can land on
+ * either tab.
+ */
+export const serverTabParam = {
+  key: 'server-tab',
+  parser: parseAsStringLiteral(['details', 'workflows'] as const).withDefault('details'),
+} as const
+
+/** Tab view-state: clean URLs, no back-stack churn. */
+export const serverTabUrlKeys = {
+  history: 'replace',
+  clearOnDefault: true,
+} as const
+
+/**
  * `group-id` deep-links the Access Control settings tab to a specific
  * permission group's detail sub-view (mirrors `mcpServerId` on the MCP tab).
  */

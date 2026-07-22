@@ -137,7 +137,12 @@ export function Document({
   const { workspaceId } = useParams()
   const router = useRouter()
   const [
-    { page: currentPageFromURL, chunk: chunkFromURL, search: searchQuery },
+    {
+      page: currentPageFromURL,
+      chunk: chunkFromURL,
+      search: searchQuery,
+      enabled: enabledFilterParam,
+    },
     setDocumentParams,
   ] = useQueryStates(documentParsers, documentUrlKeys)
   const userPermissions = useUserPermissionsContext()
@@ -160,16 +165,31 @@ export function Document({
   )
   /** Raw URL value drives the input; the chunk search query always sees it trimmed. */
   const debouncedSearchQuery = useDebounce(searchQuery, CHUNK_SEARCH_DEBOUNCE_MS).trim()
-  const [enabledFilter, setEnabledFilter] = useState<string[]>([])
   const {
     activeSort,
     onSort: onSortColumn,
     onClear: onClearSort,
   } = useUrlSort(documentChunkSortParams, documentUrlKeys)
 
-  const enabledFilterParam = useMemo(
-    () => (enabledFilter.length === 1 ? (enabledFilter[0] as 'enabled' | 'disabled') : 'all'),
-    [enabledFilter]
+  /** Multi-select UI view of the scalar `enabled` param (`all` ↔ nothing selected). */
+  const enabledFilter = useMemo<string[]>(
+    () => (enabledFilterParam === 'all' ? [] : [enabledFilterParam]),
+    [enabledFilterParam]
+  )
+
+  /**
+   * Collapses the dropdown's multi-select values to the scalar param (one value
+   * filters; none or both mean `all`) and resets `page` in the same write so a
+   * filter change always lands on the first page.
+   */
+  const setEnabledFilter = useCallback(
+    (values: string[]) => {
+      void setDocumentParams({
+        enabled: values.length === 1 ? (values[0] as 'enabled' | 'disabled') : null,
+        page: null,
+      })
+    },
+    [setDocumentParams]
   )
 
   const {
@@ -638,7 +658,6 @@ export function Document({
             onMultiSelectChange={(values) => {
               setEnabledFilter(values)
               setSelectedChunks(new Set())
-              void goToPage(1)
             }}
             overlayContent={
               <span className='truncate text-[var(--text-primary)]'>{enabledDisplayLabel}</span>
@@ -654,7 +673,6 @@ export function Document({
             onClick={() => {
               setEnabledFilter([])
               setSelectedChunks(new Set())
-              void goToPage(1)
             }}
             className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
           >
@@ -663,7 +681,7 @@ export function Document({
         )}
       </div>
     ),
-    [enabledFilter, enabledDisplayLabel, goToPage]
+    [enabledFilter, enabledDisplayLabel, setEnabledFilter]
   )
 
   const filterTags: FilterTag[] = useMemo(
@@ -671,12 +689,11 @@ export function Document({
       enabledFilter.map((value) => ({
         label: `Status: ${value === 'enabled' ? 'Enabled' : 'Disabled'}`,
         onRemove: () => {
-          setEnabledFilter((prev) => prev.filter((v) => v !== value))
+          setEnabledFilter(enabledFilter.filter((v) => v !== value))
           setSelectedChunks(new Set())
-          void goToPage(1)
         },
       })),
-    [enabledFilter, goToPage]
+    [enabledFilter, setEnabledFilter]
   )
 
   const handleChunkClick = useCallback(
