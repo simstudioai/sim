@@ -7,8 +7,11 @@
 
 import {
   auditMock,
+  dbChainMock,
+  dbChainMockFns,
   envMock,
   hybridAuthMockFns,
+  resetDbChainMock,
   telemetryMock,
   workflowAuthzMockFns,
   workflowsOrchestrationMock,
@@ -19,7 +22,7 @@ import {
   workflowsUtilsMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getWorkflowResponseDataSchema } from '@/lib/api/contracts/workflows'
 
 const mockLoadWorkflowFromNormalizedTables =
@@ -29,12 +32,6 @@ const mockAuthorizeWorkflowByWorkspacePermission =
   workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 const mockPerformDeleteWorkflow = workflowsOrchestrationMockFns.mockPerformDeleteWorkflow
 const mockPerformUpdateWorkflow = workflowsOrchestrationMockFns.mockPerformUpdateWorkflow
-
-const { mockDbUpdate, mockDbSelect, mockDbTransaction } = vi.hoisted(() => ({
-  mockDbUpdate: vi.fn(),
-  mockDbSelect: vi.fn(),
-  mockDbTransaction: vi.fn(),
-}))
 
 /**
  * Helper to set mock auth state consistently across getSession and hybrid auth.
@@ -67,20 +64,18 @@ vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
-vi.mock('@sim/db', () => ({
-  db: {
-    update: () => mockDbUpdate(),
-    select: () => mockDbSelect(),
-    transaction: mockDbTransaction,
-  },
-  workflow: {},
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 import { DELETE, GET, PUT } from './route'
 
 describe('Workflow By ID API Route', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('mock-request-id-12345678'),
@@ -103,18 +98,6 @@ describe('Workflow By ID API Route', () => {
         archivedAt: null,
       },
     }))
-    mockDbTransaction.mockImplementation(async (callback) =>
-      callback({
-        execute: vi.fn().mockResolvedValue(undefined),
-        select: vi.fn().mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([]),
-            }),
-          }),
-        }),
-      })
-    )
   })
 
   describe('GET /api/workflows/[id]', () => {
@@ -515,16 +498,6 @@ describe('Workflow By ID API Route', () => {
   })
 
   describe('PUT /api/workflows/[id]', () => {
-    function mockDuplicateCheck(results: Array<{ id: string }> = []) {
-      mockDbSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue(results),
-          }),
-        }),
-      })
-    }
-
     it('should allow user with write permission to update workflow', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
@@ -534,8 +507,6 @@ describe('Workflow By ID API Route', () => {
       }
 
       const updateData = { name: 'Updated Workflow' }
-      const updatedWorkflow = { ...mockWorkflow, ...updateData, updatedAt: new Date() }
-
       mockGetSession({ user: { id: 'user-123' } })
 
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
@@ -544,16 +515,6 @@ describe('Workflow By ID API Route', () => {
         status: 200,
         workflow: mockWorkflow,
         workspacePermission: 'write',
-      })
-
-      mockDuplicateCheck([])
-
-      mockDbUpdate.mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([updatedWorkflow]),
-          }),
-        }),
       })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
@@ -578,8 +539,6 @@ describe('Workflow By ID API Route', () => {
       }
 
       const updateData = { name: 'Updated Workflow' }
-      const updatedWorkflow = { ...mockWorkflow, ...updateData, updatedAt: new Date() }
-
       mockGetSession({ user: { id: 'user-123' } })
 
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
@@ -588,16 +547,6 @@ describe('Workflow By ID API Route', () => {
         status: 200,
         workflow: mockWorkflow,
         workspacePermission: 'write',
-      })
-
-      mockDuplicateCheck([])
-
-      mockDbUpdate.mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([updatedWorkflow]),
-          }),
-        }),
       })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
@@ -761,8 +710,6 @@ describe('Workflow By ID API Route', () => {
         workspaceId: 'workspace-456',
       }
 
-      const updatedWorkflow = { ...mockWorkflow, name: 'Unique Name', updatedAt: new Date() }
-
       mockGetSession({ user: { id: 'user-123' } })
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
       mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
@@ -770,16 +717,6 @@ describe('Workflow By ID API Route', () => {
         status: 200,
         workflow: mockWorkflow,
         workspacePermission: 'write',
-      })
-
-      mockDuplicateCheck([])
-
-      mockDbUpdate.mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([updatedWorkflow]),
-          }),
-        }),
       })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
@@ -804,8 +741,6 @@ describe('Workflow By ID API Route', () => {
         workspaceId: 'workspace-456',
       }
 
-      const updatedWorkflow = { ...mockWorkflow, folderId: 'folder-2', updatedAt: new Date() }
-
       mockGetSession({ user: { id: 'user-123' } })
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
       mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
@@ -813,17 +748,6 @@ describe('Workflow By ID API Route', () => {
         status: 200,
         workflow: mockWorkflow,
         workspacePermission: 'write',
-      })
-
-      // No duplicate in target folder
-      mockDuplicateCheck([])
-
-      mockDbUpdate.mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([updatedWorkflow]),
-          }),
-        }),
       })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
@@ -883,12 +807,6 @@ describe('Workflow By ID API Route', () => {
         workspaceId: 'workspace-456',
       }
 
-      const updatedWorkflow = {
-        ...mockWorkflow,
-        description: 'Updated description',
-        updatedAt: new Date(),
-      }
-
       mockGetSession({ user: { id: 'user-123' } })
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
       mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
@@ -896,14 +814,6 @@ describe('Workflow By ID API Route', () => {
         status: 200,
         workflow: mockWorkflow,
         workspacePermission: 'write',
-      })
-
-      mockDbUpdate.mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([updatedWorkflow]),
-          }),
-        }),
       })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
@@ -915,8 +825,7 @@ describe('Workflow By ID API Route', () => {
       const response = await PUT(req, { params })
 
       expect(response.status).toBe(200)
-      // db.select should NOT have been called since no name/folder change
-      expect(mockDbSelect).not.toHaveBeenCalled()
+      expect(dbChainMockFns.select).not.toHaveBeenCalled()
     })
 
     it('should deny forkSyncExcluded update for non-admin users', async () => {

@@ -73,6 +73,12 @@ export function createMockSqlOperators() {
  *
  * The queue is keyed by table object identity, so pass the same schema-mock
  * table object the code under test passes to `.from()` / the join.
+ *
+ * Footgun: because a chain falls back to its JOIN tables when the `.from()`
+ * table has nothing queued, a `from(A).innerJoin(B)` chain you expect to
+ * resolve empty will consume a set queued for a LATER select on `B`. When a
+ * suite queues `B` for a subsequent query, queue an explicit empty set on `A`
+ * first (`queueTableRows(A, [])`) so the joined chain consumes that instead.
  */
 const tableRowQueues = new Map<unknown, unknown[][]>()
 
@@ -221,10 +227,12 @@ const lazyRowsThenable = (getRows: RowsSupplier): any => ({
 })
 
 // `.limit()` returns a builder that is awaitable and also exposes `.offset()`
-// for keyset/OFFSET paging (`.limit(n).offset(m)`).
+// for keyset/OFFSET paging (`.limit(n).offset(m)`) and `.for()` for drizzle's
+// `.limit(1).for('update')` row-lock form.
 const limitBuilder = (getRows: RowsSupplier) => {
   const thenable = lazyRowsThenable(getRows)
   thenable.offset = spyOrDefault(offset, () => lazyRowsThenable(getRows))
+  thenable.for = spyOrDefault(forClause, () => limitBuilder(getRows))
   return thenable
 }
 

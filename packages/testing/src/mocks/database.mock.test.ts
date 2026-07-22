@@ -97,6 +97,14 @@ describe('database mock', () => {
     ).resolves.toEqual([{ id: 'from-row' }])
   })
 
+  it('supports the .limit(n).for(mode) row-lock chain', async () => {
+    queueTableRows(workflowTable, [{ id: 'locked' }])
+    await expect(db.select().from(workflowTable).where({}).limit(1).for('update')).resolves.toEqual(
+      [{ id: 'locked' }]
+    )
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+  })
+
   it('never lets mutation chains consume select queues', async () => {
     queueTableRows(workflowTable, [{ id: 'kept' }])
     await expect(db.update(workflowTable).set({}).where({})).resolves.toEqual([])

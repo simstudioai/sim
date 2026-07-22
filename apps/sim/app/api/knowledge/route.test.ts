@@ -7,29 +7,15 @@ import {
   auditMock,
   authMockFns,
   createMockRequest,
+  dbChainMock,
+  dbChainMockFns,
   permissionsMock,
   permissionsMockFns,
+  resetDbChainMock,
 } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDbChain } = vi.hoisted(() => {
-  const mockDbChain = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    leftJoin: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    groupBy: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockResolvedValue([]),
-    limit: vi.fn().mockResolvedValue([]),
-    insert: vi.fn().mockReturnThis(),
-    values: vi.fn().mockResolvedValue(undefined),
-  }
-  return { mockDbChain }
-})
-
-vi.mock('@sim/db', () => ({
-  db: mockDbChain,
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@sim/audit', () => auditMock)
 
@@ -40,15 +26,7 @@ import { GET, POST } from '@/app/api/knowledge/route'
 describe('Knowledge Base API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    Object.values(mockDbChain).forEach((fn) => {
-      if (typeof fn === 'function') {
-        fn.mockClear()
-        if (fn !== mockDbChain.orderBy && fn !== mockDbChain.values && fn !== mockDbChain.limit) {
-          fn.mockReturnThis()
-        }
-      }
-    })
+    resetDbChainMock()
 
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
 
@@ -59,6 +37,10 @@ describe('Knowledge Base API Route', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   describe('GET /api/knowledge', () => {
@@ -77,7 +59,7 @@ describe('Knowledge Base API Route', () => {
       authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-123', email: 'test@example.com' },
       })
-      mockDbChain.orderBy.mockRejectedValue(new Error('Database error'))
+      dbChainMockFns.orderBy.mockRejectedValueOnce(new Error('Database error'))
 
       const req = createMockRequest('GET')
       const response = await GET(req)
@@ -113,7 +95,7 @@ describe('Knowledge Base API Route', () => {
       expect(data.success).toBe(true)
       expect(data.data.name).toBe(validKnowledgeBaseData.name)
       expect(data.data.description).toBe(validKnowledgeBaseData.description)
-      expect(mockDbChain.insert).toHaveBeenCalled()
+      expect(dbChainMockFns.insert).toHaveBeenCalled()
     })
 
     it('should return unauthorized for unauthenticated user', async () => {
@@ -169,7 +151,7 @@ describe('Knowledge Base API Route', () => {
       expect(data.error).toBe(
         'User does not have permission to create knowledge bases in this workspace'
       )
-      expect(mockDbChain.insert).not.toHaveBeenCalled()
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     })
 
     it('should validate chunking config constraints', async () => {
@@ -219,7 +201,7 @@ describe('Knowledge Base API Route', () => {
       authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-123', email: 'test@example.com' },
       })
-      mockDbChain.values.mockRejectedValue(new Error('Database error'))
+      dbChainMockFns.values.mockRejectedValueOnce(new Error('Database error'))
 
       const req = createMockRequest('POST', validKnowledgeBaseData)
       const response = await POST(req)
