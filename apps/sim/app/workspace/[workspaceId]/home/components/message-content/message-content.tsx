@@ -943,13 +943,12 @@ function MessageContentInner({
                   <Options items={segment.items} onSelect={onOptionSelect} />
                 </div>
               )
+            // The stopped row renders in the tail region below, in the
+            // shimmer's place — a stop while the shimmer is visible must read
+            // as an in-place replacement, not the shimmer vanishing from the
+            // tail while a row mounts up here.
             case 'stopped':
-              return (
-                <div key={`stopped-${i}`} className='flex items-center gap-[8px]'>
-                  <CircleStop className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                  <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
-                </div>
-              )
+              return null
           }
         })}
       </div>
@@ -969,10 +968,18 @@ function MessageContentInner({
           </div>
         </div>
       ) : (
-        // The actions row takes the slot's place in the SAME render — a single
-        // ~10px reflow instead of a collapse the buttons would ride upward or a
-        // late mount the chase would visibly scroll to.
-        actions && <div className='mt-2.5'>{actions}</div>
+        // Stopped row and actions take the slot's place in the SAME render — a
+        // single small reflow instead of a collapse the buttons would ride
+        // upward or a late mount the chase would visibly scroll to.
+        <>
+          {lastSegment?.type === 'stopped' && (
+            <div className='flex items-center gap-[8px] pt-[10px]'>
+              <CircleStop className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+              <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
+            </div>
+          )}
+          {actions && <div className='mt-[10px]'>{actions}</div>}
+        </>
       )}
     </div>
   )

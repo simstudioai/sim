@@ -351,7 +351,14 @@ export function MothershipChat({
       }
     }
     const padding = scrollerPaddingRef.current
-    const floor = Math.max(0, el.scrollTop + el.clientHeight - padding.top - padding.bottom)
+    // Math.floor, not the raw float: a fractional min-height can round
+    // scrollHeight 1px ABOVE the scrolled-to extent, and that phantom 1px gap
+    // re-derives 1px higher after every chase step — a visible 1px/frame
+    // upward creep whenever the floor is what's holding scrollHeight.
+    const floor = Math.max(
+      0,
+      Math.floor(el.scrollTop + el.clientHeight - padding.top - padding.bottom)
+    )
     sizer.style.minHeight = `${floor}px`
   })
   const setScrollElement = useCallback(
