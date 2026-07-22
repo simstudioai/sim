@@ -19,6 +19,9 @@ const guardedEnvironment: StripeClientConfigEnvironment = {
 describe('isGuardedE2eDatabaseUrl', () => {
   it('accepts only loopback sim_e2e databases', () => {
     expect(isGuardedE2eDatabaseUrl(guardedEnvironment.DATABASE_URL)).toBe(true)
+    expect(isGuardedE2eDatabaseUrl('postgresql://sim:sim@[::1]:5432/sim_e2e_config_test')).toBe(
+      true
+    )
     expect(isGuardedE2eDatabaseUrl('postgresql://db.example.com/sim_e2e_config_test')).toBe(false)
     expect(isGuardedE2eDatabaseUrl('postgresql://127.0.0.1/sim')).toBe(false)
   })

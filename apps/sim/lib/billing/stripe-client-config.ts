@@ -52,7 +52,7 @@ export function isGuardedE2eDatabaseUrl(databaseUrl: string | undefined): boolea
 
 function isLoopbackHostname(hostname: string): boolean {
   const normalized = hostname.toLowerCase()
-  if (normalized === 'localhost') return true
+  if (normalized === 'localhost' || normalized === '::1' || normalized === '[::1]') return true
 
   const octets = normalized.split('.')
   return (
