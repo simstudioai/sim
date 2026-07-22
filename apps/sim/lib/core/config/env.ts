@@ -477,6 +477,9 @@ export const env = createEnv({
     REACT_GRAB_ENABLED:                    z.boolean().optional(),                 // Enable React Grab for UI element debugging in Cursor/AI agents (dev only)
     REACT_SCAN_ENABLED:                    z.boolean().optional(),                 // Enable React Scan for performance debugging (dev only)
 
+    // Network / proxy trust
+    AUTH_TRUSTED_PROXIES:                  z.string().optional(),                  // Comma-separated reverse-proxy IPs or CIDR ranges. When set, Better Auth walks the forwarded-IP chain right to left, skips these trusted hops, and uses the first untrusted address as the client IP. Leave unset to trust only single-value IP headers.
+
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
     SSO_PROVIDER_TYPE:                     z.enum(['oidc', 'saml']).optional(),    // [REQUIRED] SSO provider type

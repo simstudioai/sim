@@ -17,6 +17,12 @@ services:
       # addition to NEXT_PUBLIC_APP_URL. Use when serving from multiple domains
       # (apex + www, alias hostnames, reverse-proxy IPs). Empty by default.
       - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      # AUTH_TRUSTED_PROXIES: comma-separated reverse-proxy IPs or CIDR ranges in
+      # front of the app (ingress, load balancer). Better Auth walks
+      # x-forwarded-for right to left, skips these hops, and uses the first
+      # untrusted address as the client IP. Required for correct session IPs and
+      # rate-limit keying behind a multi-hop proxy chain. Empty by default.
+      - AUTH_TRUSTED_PROXIES=${AUTH_TRUSTED_PROXIES:-}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - API_ENCRYPTION_KEY=${API_ENCRYPTION_KEY:-}

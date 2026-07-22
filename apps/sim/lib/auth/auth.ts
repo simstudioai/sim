@@ -193,6 +193,17 @@ if (validStripeKey) {
   })
 }
 
+/**
+ * Reverse-proxy hops trusted for forwarded-IP resolution. When configured,
+ * Better Auth walks the x-forwarded-for chain right to left, skips these
+ * hops, and records the first untrusted address as the session client IP —
+ * preventing header spoofing behind multi-hop proxies.
+ */
+const trustedProxies = (env.AUTH_TRUSTED_PROXIES ?? '')
+  .split(',')
+  .map((entry) => entry.trim())
+  .filter(Boolean)
+
 export const auth = betterAuth({
   baseURL: getBaseUrl(),
   trustedOrigins: [
@@ -215,6 +226,11 @@ export const auth = betterAuth({
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
     freshAge: 0,
+  },
+  advanced: {
+    ipAddress: {
+      ...(trustedProxies.length > 0 ? { trustedProxies } : {}),
+    },
   },
   user: {
     deleteUser: {
