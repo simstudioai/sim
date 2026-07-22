@@ -105,7 +105,6 @@ export function clampSessionExpiry(
  */
 interface ClampableSession {
   userId?: string | null
-  activeOrganizationId?: string | null
   impersonatedBy?: string | null
   createdAt?: Date | string | null
   expiresAt?: Date | string | null
@@ -113,15 +112,21 @@ interface ClampableSession {
 
 /**
  * Applies the org session policy to a session's proposed `expiresAt` from a
- * Better Auth database hook. The governing org is the session's
- * `activeOrganizationId` when present, else the user's membership — the same
- * resolution the cookie-cache version uses, so every member session
- * (including ones created before the user joined) is governed consistently.
- * Returns the original date when no clamp applies: impersonation sessions
- * are platform-admin tooling with their own short expiry, and non-member
+ * Better Auth database hook. The governing org is the user's MEMBERSHIP —
+ * never the session row's `activeOrganizationId`, which goes stale on
+ * join/leave/transfer — matching the cookie-cache version resolution, so
+ * every member session (including ones created before the user joined or
+ * carried across a transfer) is governed consistently. Callers that have
+ * JUST resolved the membership themselves (the session create hook) pass it
+ * as `freshMembershipOrgId` to skip the duplicate lookup. Returns the
+ * original date when no clamp applies: impersonation sessions are
+ * platform-admin tooling with their own short expiry, and non-member
  * sessions have no policy.
  */
-export async function clampExpiryForSession(session: ClampableSession): Promise<Date | undefined> {
+export async function clampExpiryForSession(
+  session: ClampableSession,
+  freshMembershipOrgId?: string | null
+): Promise<Date | undefined> {
   // Better Auth context values can cross a serialization boundary — normalize
   // date fields in case they arrive as ISO strings rather than Dates.
   const expiresAt = session.expiresAt ? new Date(session.expiresAt) : undefined
@@ -129,7 +134,9 @@ export async function clampExpiryForSession(session: ClampableSession): Promise<
     return expiresAt
   }
   const organizationId =
-    session.activeOrganizationId ?? (await getMemberOrganizationId(session.userId))
+    freshMembershipOrgId !== undefined
+      ? freshMembershipOrgId
+      : await getMemberOrganizationId(session.userId)
   if (!organizationId) return expiresAt
 
   const policy = await getSessionPolicy(organizationId)

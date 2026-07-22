@@ -135,16 +135,16 @@ export async function bumpSecurityPolicyVersion(organizationId: string): Promise
 /**
  * Cookie-cache version for a session, consumed by Better Auth's
  * `session.cookieCache.version`. Embeds the member org's security-policy
- * version so bumps propagate to cached cookies. The org is the session's
- * `activeOrganizationId` when present, else the user's membership — so
- * sessions created before the user joined the org are still invalidated by a
- * version bump. Sessions of non-members use the static default.
+ * version so bumps propagate to cached cookies. Resolved from the user's
+ * MEMBERSHIP, never the session's `activeOrganizationId` — that field goes
+ * stale on join/leave/transfer (it is only written at session creation), and
+ * a stale org here would let cookies dodge the destination org's version
+ * bumps for up to the 24h cookie lifetime. Sessions of non-members use the
+ * static default.
  */
 export async function getSessionCookieCacheVersion(session: {
   userId?: string | null
-  activeOrganizationId?: string | null
 }): Promise<string> {
-  const organizationId =
-    session.activeOrganizationId ?? (await getMemberOrganizationId(session.userId))
+  const organizationId = await getMemberOrganizationId(session.userId)
   return String(await getSecurityPolicyVersion(organizationId))
 }

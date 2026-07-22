@@ -231,9 +231,7 @@ export const auth = betterAuth({
        * revocation latency becomes the policy cache TTL, not 24h.
        */
       version: async (session) =>
-        getSessionCookieCacheVersion(
-          session as { userId?: string | null; activeOrganizationId?: string | null }
-        ),
+        getSessionCookieCacheVersion(session as { userId?: string | null }),
     },
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
@@ -677,10 +675,7 @@ export const auth = betterAuth({
                 organizationId: members[0].organizationId,
               })
 
-              const expiresAt = await clampExpiryForSession({
-                ...session,
-                activeOrganizationId: members[0].organizationId,
-              })
+              const expiresAt = await clampExpiryForSession(session, members[0].organizationId)
 
               return {
                 data: {
