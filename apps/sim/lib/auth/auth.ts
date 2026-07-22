@@ -54,7 +54,11 @@ import {
 import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
 import { isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
-import { buildStripeClientConfig } from '@/lib/billing/stripe-client-config'
+import {
+  buildStripeClientConfig,
+  isGuardedE2eDatabaseUrl,
+  STRIPE_E2E_PROFILE,
+} from '@/lib/billing/stripe-client-config'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -192,8 +196,16 @@ if (validStripeKey) {
   stripeClient = new Stripe(validStripeKey, buildStripeClientConfig(env))
 }
 
+const usesGuardedE2eAuthRateLimit =
+  env.E2E_PROFILE === STRIPE_E2E_PROFILE &&
+  env.BETTER_AUTH_URL === 'http://e2e.sim.ai:3000' &&
+  isGuardedE2eDatabaseUrl(env.DATABASE_URL)
+
 export const auth = betterAuth({
   baseURL: getBaseUrl(),
+  // Full browser contracts intentionally exercise many isolated sessions from loopback.
+  // Keep Better Auth's limiter enabled while raising only the hermetic profile's ceiling.
+  ...(usesGuardedE2eAuthRateLimit ? { rateLimit: { max: 10_000 } } : {}),
   trustedOrigins: [
     getBaseUrl(),
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),

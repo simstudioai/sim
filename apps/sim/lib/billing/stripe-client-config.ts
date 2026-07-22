@@ -41,6 +41,15 @@ function hasLoopbackDatabaseHostname(databaseUrl: string | undefined): boolean {
   }
 }
 
+export function isGuardedE2eDatabaseUrl(databaseUrl: string | undefined): boolean {
+  const databaseName = getDatabaseName(databaseUrl)
+  return (
+    databaseName !== null &&
+    E2E_DATABASE_NAME_PATTERN.test(databaseName) &&
+    hasLoopbackDatabaseHostname(databaseUrl)
+  )
+}
+
 function isLoopbackHostname(hostname: string): boolean {
   const normalized = hostname.toLowerCase()
   if (normalized === 'localhost') return true

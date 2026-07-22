@@ -63,6 +63,11 @@ export function SettingsSidebar<Section extends SettingsSection>({
   const cancelLeave = useSettingsDirtyStore((state) => state.cancelLeave)
   const pendingLeave = useSettingsDirtyStore((state) => state.pendingLeave)
   const [hasOverflowTop, setHasOverflowTop] = useState(false)
+  const [isHydrated, setIsHydrated] = useState(false)
+
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
 
   useEffect(() => {
     const container = scrollContainerRef.current
@@ -85,6 +90,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
         <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
           <button
             type='button'
+            disabled={!isHydrated}
             onClick={() => requestLeave(() => router.push(backHref))}
             className={chipVariants({ fullWidth: true })}
           >
@@ -130,6 +136,9 @@ export function SettingsSidebar<Section extends SettingsSection>({
                       >
                         <button
                           type='button'
+                          disabled={!isHydrated}
+                          aria-label={item.label}
+                          aria-current={active ? 'page' : undefined}
                           className={chipVariants({ active, fullWidth: true })}
                           onClick={() => {
                             if (active) return

@@ -99,6 +99,38 @@ new database, Stripe fake, app, realtime process, and browser run:
 bun run test:e2e -- --reuse-build --project=hosted-billing-chromium-navigation
 ```
 
+## Settings navigation contracts
+
+Step 3 owns three literal acceptance datasets in
+`e2e/settings/navigation/contracts.ts`: canonical sidebar sections, special
+route outcomes, and representative persona visibility. They are intentionally
+independent of production navigation metadata. When product copy, routes, or
+visibility change, update the product and these expectations together rather
+than generating expectations from the implementation.
+
+Run only the navigation contracts during local iteration:
+
+```bash
+bun run test:e2e -- --reuse-build \
+  --project=hosted-billing-chromium-navigation --no-deps \
+  e2e/settings/navigation
+```
+
+The complete navigation project includes foundation safety and unauthenticated
+smoke coverage. On the Step 3 reference run, one worker completed its 123 tests
+in 1.7 minutes and the cache-hit orchestrator in 5 minutes 10 seconds. Two
+workers completed the same retry-free project in 55.3 seconds and the
+cache-hit orchestrator in 4 minutes 25 seconds, so the project retains two
+workers. Foundation coverage passed in both measurements. The final
+post-review dependency chain passed all 139 navigation, workflow, persona, and
+isolation tests in 1.3 minutes of Playwright time.
+
+The full chain's isolated browser contexts share a loopback address, so the E2E
+app raises Better Auth's generic request ceiling without disabling its limiter.
+That override fails closed unless the exact hosted E2E profile, E2E auth origin,
+and loopback `sim_e2e_*` database are all present; normal deployments retain
+Better Auth's defaults.
+
 The cache lives under ignored `e2e/.cache/builds/`. A hit requires matching
 source contents (including uncommitted/untracked files), build/public profile,
 Node/Bun/Next versions, platform, `BUILD_ID`, and the cached artifact checksum.

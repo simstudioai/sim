@@ -46,7 +46,7 @@ export default defineConfig({
         '**/settings/smoke/unauthenticated.spec.ts',
         '**/settings/navigation/**/*.spec.ts',
       ],
-      workers: 1,
+      workers: 2,
     },
     {
       name: 'hosted-billing-chromium-workflows',

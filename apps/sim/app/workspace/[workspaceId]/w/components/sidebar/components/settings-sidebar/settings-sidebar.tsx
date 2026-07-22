@@ -57,6 +57,11 @@ export function SettingsSidebar({
   const showDiscardDialog = pendingLeave !== null
 
   const [hasOverflowTop, setHasOverflowTop] = useState(false)
+  const [isHydrated, setIsHydrated] = useState(false)
+
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
 
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
@@ -265,7 +270,12 @@ export function SettingsSidebar({
         )}
       >
         <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
-          <button type='button' onClick={handleBack} className={chipVariants({ fullWidth: true })}>
+          <button
+            type='button'
+            disabled={!isHydrated}
+            onClick={handleBack}
+            className={chipVariants({ fullWidth: true })}
+          >
             <div className='flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
               <ChevronDown className='size-[10px] rotate-90' />
             </div>
@@ -276,6 +286,8 @@ export function SettingsSidebar({
 
       {/* Settings sections */}
       <div
+        role='navigation'
+        aria-label='Workspace settings sections'
         ref={isCollapsed ? undefined : scrollContainerRef}
         className={cn(
           'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-1.5 transition-colors duration-150',
@@ -337,6 +349,9 @@ export function SettingsSidebar({
                     ) : (
                       <button
                         type='button'
+                        disabled={!isHydrated}
+                        aria-label={item.label}
+                        aria-current={active ? 'page' : undefined}
                         className={itemClassName}
                         onMouseEnter={() => handlePrefetch(item.id)}
                         onFocus={() => handlePrefetch(item.id)}
