@@ -3,6 +3,7 @@ import Script from 'next/script'
 import { PublicEnvScript as RuntimePublicEnvScript } from 'next-runtime-env'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { BrandedLayout } from '@/components/branded-layout'
+import { DesktopTitleBarController } from '@/app/_shell/desktop-title-bar'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
 import '@/app/_styles/globals.css'
@@ -67,18 +68,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: `
               (function () {
                 // The macOS desktop shell overlays native traffic lights on the
-                // workspace. Mark it before first paint so the sidebar reserves
-                // its inset title-bar lane without a post-hydration layout shift.
+                // page. Mark it before first paint so every route-level shell can
+                // reserve its inset title-bar lane without a hydration shift.
                 var collapsedSidebarWidth = 51;
+                var path = '';
                 try {
-                  if (window.simDesktop && /Mac/i.test(navigator.userAgent)) {
+                  path = window.location.pathname;
+                  if (
+                    window.simDesktop &&
+                    /Mac/i.test(navigator.userAgent) &&
+                    path !== '/desktop/launcher'
+                  ) {
                     document.documentElement.setAttribute('data-sim-desktop-title-bar', 'inset');
                     collapsedSidebarWidth = 0;
                   }
                 } catch (e) {}
 
                 try {
-                  var path = window.location.pathname;
                   if (path.indexOf('/workspace/') === -1) {
                     return;
                   }
@@ -258,6 +264,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           </noscript>
         )}
         <HydrationErrorHandler />
+        <DesktopTitleBarController />
         <NuqsAdapter>
           <PostHogProvider>
             <ThemeProvider>

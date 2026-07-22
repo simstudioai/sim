@@ -16,7 +16,7 @@ interface ConnectCompletePageProps {
 
 function InvalidRequest() {
   return (
-    <main className='flex min-h-screen items-center justify-center px-6'>
+    <main className='desktop-title-bar-page flex items-center justify-center px-6'>
       <div className='max-w-sm text-center'>
         <h1 className='font-semibold text-foreground text-lg'>Nothing to return to</h1>
         <p className='mt-2 text-muted-foreground text-sm'>

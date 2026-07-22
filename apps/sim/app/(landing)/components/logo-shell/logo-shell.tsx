@@ -26,7 +26,7 @@ interface LogoShellProps {
 
 export function LogoShell({ children, center = false, footer }: LogoShellProps) {
   return (
-    <div className='light relative flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
+    <div className='desktop-title-bar-page light relative flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
       <header>
         <nav className='mx-auto flex w-full max-w-[1460px] items-center px-20 py-4 max-sm:px-5 max-lg:px-8'>
           <Link href='/' aria-label='Sim home' className='flex h-[30px] items-center'>

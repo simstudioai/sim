@@ -166,7 +166,7 @@ export default function PlaygroundPage() {
   return (
     <ToastProvider>
       <Tooltip.Provider>
-        <div className='relative min-h-screen bg-[var(--bg)] p-8'>
+        <div className='desktop-title-bar-page relative bg-[var(--bg)] p-8'>
           <div className='absolute top-8 left-8 flex items-center gap-2'>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>

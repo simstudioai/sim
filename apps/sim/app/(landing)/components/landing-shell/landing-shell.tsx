@@ -15,7 +15,8 @@ import { SiteStructuredData } from '@/app/(landing)/components/site-structured-d
  *   light-mode value regardless of the visitor's theme - the landing family is
  *   always light, and uses the platform's own light-mode tokens (from
  *   `globals.css`) with no separate palette.
- * - The page's scroll port (`h-screen` + `overflow-y-auto` +
+ * - The page's traffic-light-safe scroll port (`desktop-title-bar-page-height`
+ *   + `overflow-y-auto` +
  *   `overscroll-y-none`): the document body no longer overflows, so the viewport
  *   can't rubber-band, and the container's own overscroll bounce is disabled -
  *   without this the sticky navbar gets dragged past the top/bottom edges.
@@ -36,7 +37,7 @@ export async function LandingShell({ children }: LandingShellProps) {
   const stars = await getGitHubStars()
 
   return (
-    <div className='light h-screen overflow-y-auto overscroll-y-none bg-[var(--bg)] text-[var(--text-primary)]'>
+    <div className='desktop-title-bar-page-height light overflow-y-auto overscroll-y-none bg-[var(--bg)] text-[var(--text-primary)]'>
       <SiteStructuredData />
       <a
         href='#main-content'
