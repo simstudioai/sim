@@ -122,6 +122,7 @@ export const copilotChatsSource: DrainSource<CopilotChatRow> = {
       config: row.config,
       resources: row.resources,
       lastSeenAt: row.lastSeenAt ? row.lastSeenAt.toISOString() : null,
+      deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     }

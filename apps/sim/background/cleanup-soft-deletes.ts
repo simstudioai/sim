@@ -26,7 +26,6 @@ import {
   chunkArray,
   chunkedBatchDelete,
   DEFAULT_DELETE_CHUNK_SIZE,
-  deleteRowsById,
   selectRowsByIdChunks,
 } from '@/lib/cleanup/batch-delete'
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
@@ -590,13 +589,27 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
   let totalDeleted = 0
 
   // Delete the workflow + file rows using the exact IDs we already selected.
-  const workflowResult = await deleteRowsById(
-    workflow,
-    workflow.id,
-    doomedWorkflowIds,
-    `${label}/workflow`
-  )
-  totalDeleted += workflowResult.deleted
+  // Re-check the archive cutoff in the DELETE so a workflow restored between
+  // selection and this point survives — and with it, its chats: their rows are
+  // never cascaded, so chatCleanup.execute()'s row-existence re-check also
+  // spares their backend data and files.
+  for (const batch of chunkArray(doomedWorkflowIds, DEFAULT_DELETE_CHUNK_SIZE)) {
+    try {
+      const deleted = await db
+        .delete(workflow)
+        .where(
+          and(
+            inArray(workflow.id, batch),
+            isNotNull(workflow.archivedAt),
+            lt(workflow.archivedAt, retentionDate)
+          )
+        )
+        .returning({ id: workflow.id })
+      totalDeleted += deleted.length
+    } catch (error) {
+      logger.error(`[${label}/workflow] Archived workflow delete failed`, { error })
+    }
+  }
 
   // Workflow-scoped chats above are removed by the workflow FK cascade;
   // soft-deleted mothership chats have no workflow and need their own delete.
