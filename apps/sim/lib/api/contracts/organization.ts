@@ -145,12 +145,14 @@ export const organizationDataRetentionResponseSchema = z.object({
 /**
  * Session-policy bounds — the single source for the contract validation, the
  * server-side clamp (`@/lib/auth/session-policy`), and the settings UI.
- * `MIN_IDLE_TIMEOUT_HOURS` matches the session cookie-cache window: activity
- * is only recorded on DB-path refreshes, so a shorter idle timeout would sign
- * out demonstrably active users.
+ * `MIN_IDLE_TIMEOUT_HOURS` is twice the session cookie-cache window (24h):
+ * cached reads never record activity, so a continuously active user only
+ * refreshes their session when the cookie cache expires. A floor of one
+ * window would sign out active users exactly at the cache boundary; two
+ * windows guarantees a DB-path refresh lands before the idle limit can.
  */
 export const MIN_SESSION_LIFETIME_HOURS = 1
-export const MIN_IDLE_TIMEOUT_HOURS = 24
+export const MIN_IDLE_TIMEOUT_HOURS = 48
 export const MAX_SESSION_POLICY_HOURS = 8760
 
 export const updateOrganizationSessionPolicyBodySchema = z.object({
@@ -165,7 +167,7 @@ export const updateOrganizationSessionPolicyBodySchema = z.object({
     .int()
     .min(
       MIN_IDLE_TIMEOUT_HOURS,
-      'Idle timeout must be at least 24 hours — session activity is only recorded once per cookie-cache window'
+      'Idle timeout must be at least 48 hours — session activity is recorded at most once per 24h cookie-cache window'
     )
     .max(MAX_SESSION_POLICY_HOURS, 'Idle timeout cannot exceed 8760 hours (1 year)')
     .nullable(),

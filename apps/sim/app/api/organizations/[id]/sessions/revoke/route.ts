@@ -73,6 +73,11 @@ export const POST = withRouteHandler(
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
+    // When the caller is a platform admin impersonating an org member, the
+    // current token is the impersonation session — also spare the admin's own
+    // real sessions so ending impersonation doesn't leave them signed out.
+    const impersonatorId =
+      (session.session as { impersonatedBy?: string | null }).impersonatedBy ?? null
     const revoked = await db
       .delete(sessionTable)
       .where(
@@ -85,7 +90,8 @@ export const POST = withRouteHandler(
               .where(eq(member.organizationId, organizationId))
           ),
           isNull(sessionTable.impersonatedBy),
-          ne(sessionTable.token, session.session.token)
+          ne(sessionTable.token, session.session.token),
+          ...(impersonatorId ? [ne(sessionTable.userId, impersonatorId)] : [])
         )
       )
       .returning({ id: sessionTable.id })

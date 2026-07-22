@@ -29,7 +29,7 @@ Use this to enforce periodic re-authentication — for example, a value of `168`
 
 Signs a member out after this many hours without activity. Activity extends the session, so members who use Sim regularly stay signed in; dormant sessions expire.
 
-Accepts 24 to 8760 hours. The 24-hour minimum exists because session activity is recorded at most once per day — a shorter window would sign out members who are actively working.
+Accepts 48 to 8760 hours. The 48-hour minimum exists because session activity is recorded at most once per day — a shorter window could sign out members who are actively working.
 
 ### Sign out all members
 
@@ -68,9 +68,9 @@ Use this after a security incident, an offboarding wave, or before tightening a 
         'No. It revokes browser sign-in sessions only. API keys, deployed workflows, webhooks, and schedules keep working — manage those separately from the API keys settings.',
     },
     {
-      question: 'Why is the minimum idle timeout 24 hours?',
+      question: 'Why is the minimum idle timeout 48 hours?',
       answer:
-        'Session activity is recorded at most once per 24 hours for performance. An idle timeout below that window could sign out members who are actively using Sim, so shorter values are not accepted.',
+        'Session activity is recorded at most once per 24 hours for performance. The minimum is twice that window so a member who stays active always registers activity before the idle limit can expire their session.',
     },
   ]}
 />
