@@ -28,6 +28,7 @@ import {
 } from '@/lib/core/security/input-validation'
 import {
   isPrivateOrReservedIP,
+  validateAndPinProxyUrl,
   validateDatabaseHost,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
@@ -840,6 +841,65 @@ describe('validateDatabaseHost', () => {
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('could not be resolved')
     })
+  })
+})
+
+describe('validateAndPinProxyUrl', () => {
+  it('should reject a null/empty proxy URL', async () => {
+    expect((await validateAndPinProxyUrl(null)).isValid).toBe(false)
+    expect((await validateAndPinProxyUrl('')).isValid).toBe(false)
+  })
+
+  it('should reject a malformed URL', async () => {
+    const result = await validateAndPinProxyUrl('not a url')
+    expect(result.isValid).toBe(false)
+    expect(result.error).toContain('valid URL')
+  })
+
+  it('should reject an https:// proxy scheme', async () => {
+    const result = await validateAndPinProxyUrl('https://proxy.example.com:8080')
+    expect(result.isValid).toBe(false)
+    expect(result.error).toContain('http://')
+  })
+
+  it('should reject a socks5:// proxy scheme', async () => {
+    const result = await validateAndPinProxyUrl('socks5://proxy.example.com:1080')
+    expect(result.isValid).toBe(false)
+    expect(result.error).toContain('http://')
+  })
+
+  it('should reject a proxy host that is a private IP', async () => {
+    const result = await validateAndPinProxyUrl('http://user:pass@192.168.1.1:8080')
+    expect(result.isValid).toBe(false)
+    expect(result.error).toMatch(/private IP|blocked IP/)
+  })
+
+  it('should reject a proxy host that is the metadata IP', async () => {
+    const result = await validateAndPinProxyUrl('http://169.254.169.254:80')
+    expect(result.isValid).toBe(false)
+    expect(result.error).toMatch(/private IP|blocked IP/)
+  })
+
+  it('should accept a public proxy host and pin the hostname to the resolved IP, preserving creds/port', async () => {
+    const result = await validateAndPinProxyUrl('http://user:pass@8.8.8.8:8080')
+    expect(result.isValid).toBe(true)
+    const pinned = new URL(result.pinnedProxyUrl!)
+    expect(pinned.protocol).toBe('http:')
+    expect(pinned.hostname).toBe('8.8.8.8')
+    expect(pinned.username).toBe('user')
+    expect(pinned.password).toBe('pass')
+    expect(pinned.port).toBe('8080')
+  })
+
+  it('should bracket an IPv6 resolved address so the pinned host is the IP, not the original name', async () => {
+    const result = await validateAndPinProxyUrl('http://user:pass@[2606:4700:4700::1111]:8080')
+    expect(result.isValid).toBe(true)
+    const pinned = new URL(result.pinnedProxyUrl!)
+    // Must be pinned to the bracketed IPv6 literal, never left as a DNS name.
+    expect(pinned.hostname).toBe('[2606:4700:4700::1111]')
+    expect(pinned.username).toBe('user')
+    expect(pinned.password).toBe('pass')
+    expect(pinned.port).toBe('8080')
   })
 })
 

@@ -958,6 +958,77 @@ describe('Automatic Internal Route Detection', () => {
     Object.assign(tools, originalTools)
   })
 
+  it('should validate + pin a proxyUrl param and pass it to secureFetchWithPinnedIP', async () => {
+    inputValidationMockFns.mockValidateAndPinProxyUrl.mockResolvedValue({
+      isValid: true,
+      pinnedProxyUrl: 'http://user:pass@1.2.3.4:8080/',
+    })
+
+    const mockTool = {
+      id: 'test_external_proxy',
+      name: 'Test External Proxy Tool',
+      description: 'A test tool that routes through a proxy',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: 'https://api.example.com/endpoint',
+        method: 'GET',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_external_proxy = mockTool
+
+    await executeTool('test_external_proxy', { proxyUrl: 'http://user:pass@proxy.host:8080' })
+
+    expect(inputValidationMockFns.mockValidateAndPinProxyUrl).toHaveBeenCalledWith(
+      'http://user:pass@proxy.host:8080'
+    )
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'https://api.example.com/endpoint',
+      '93.184.216.34',
+      expect.objectContaining({ proxyUrl: 'http://user:pass@1.2.3.4:8080/' })
+    )
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('should throw when the proxyUrl param fails validation', async () => {
+    inputValidationMockFns.mockValidateAndPinProxyUrl.mockResolvedValue({
+      isValid: false,
+      error: 'proxyUrl must use http:// (https/socks proxies are not supported)',
+    })
+
+    const mockTool = {
+      id: 'test_external_bad_proxy',
+      name: 'Test External Bad Proxy Tool',
+      description: 'A test tool with an invalid proxy',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: 'https://api.example.com/endpoint',
+        method: 'GET',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_external_bad_proxy = mockTool
+
+    const result = await executeTool('test_external_bad_proxy', {
+      proxyUrl: 'https://proxy.host:8080',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Invalid proxy URL')
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+
+    Object.assign(tools, originalTools)
+  })
+
   it('should handle dynamic URLs that resolve to internal routes', async () => {
     const mockTool = {
       id: 'test_dynamic_internal',

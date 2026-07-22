@@ -5,6 +5,8 @@ import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
+import { HttpProxyAgent } from 'http-proxy-agent'
+import { HttpsProxyAgent } from 'https-proxy-agent'
 import * as ipaddr from 'ipaddr.js'
 import { Agent, type RequestInit as UndiciRequestInit, fetch as undiciFetch } from 'undici'
 import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
@@ -146,6 +148,65 @@ export async function validateUrlWithDNS(
       error: `${paramName} hostname could not be resolved`,
     }
   }
+}
+
+/**
+ * Result of validating a user-supplied HTTP proxy URL.
+ */
+export interface ProxyValidationResult {
+  isValid: boolean
+  /** Proxy URL with hostname rewritten to the resolved IP (creds/port preserved) to pin the proxy connection. */
+  pinnedProxyUrl?: string
+  error?: string
+}
+
+/**
+ * Validates a user-supplied HTTP proxy URL and returns an IP-pinned form.
+ *
+ * When a request routes through a proxy, the TCP connection targets the proxy
+ * host (the proxy resolves the destination), so target-IP pinning no longer
+ * governs egress and the proxy URL becomes the SSRF surface. This function:
+ * 1. Enforces the `http:` scheme (raw TCP to the proxy, no TLS-to-proxy SNI to
+ *    reconcile, so the host can be safely rewritten to an IP).
+ * 2. Resolves the proxy host's DNS and blocks private/reserved/loopback IPs via
+ *    {@link validateUrlWithDNS}.
+ * 3. Pins the connection by rewriting the hostname to the resolved IP while
+ *    preserving credentials/port, closing the DNS-rebinding (TOCTOU) window.
+ *
+ * @param proxyUrl - The proxy URL (e.g. `http://user:pass@host:port`)
+ */
+export async function validateAndPinProxyUrl(
+  proxyUrl: string | null | undefined
+): Promise<ProxyValidationResult> {
+  if (!proxyUrl || typeof proxyUrl !== 'string') {
+    return { isValid: false, error: 'proxyUrl must be a string' }
+  }
+
+  let parsed: URL
+  try {
+    parsed = new URL(proxyUrl)
+  } catch {
+    return { isValid: false, error: 'proxyUrl must be a valid URL' }
+  }
+
+  if (parsed.protocol !== 'http:') {
+    return {
+      isValid: false,
+      error: 'proxyUrl must use http:// (https/socks proxies are not supported)',
+    }
+  }
+
+  const validation = await validateUrlWithDNS(proxyUrl, 'proxyUrl', { allowHttp: true })
+  if (!validation.isValid) {
+    return { isValid: false, error: validation.error }
+  }
+
+  // Bracket IPv6 literals: assigning an unbracketed IPv6 address to
+  // URL.hostname is a no-op (the WHATWG parser rejects it), which would leave
+  // the original DNS hostname in place and reopen the rebinding window.
+  const resolvedIP = validation.resolvedIP!
+  parsed.hostname = resolvedIP.includes(':') ? `[${resolvedIP}]` : resolvedIP
+  return { isValid: true, pinnedProxyUrl: parsed.toString() }
 }
 
 /**
@@ -343,6 +404,12 @@ export interface SecureFetchOptions {
   signal?: AbortSignal
   /** Drop the Authorization header when following a redirect, so it is not sent to the redirect target's origin. */
   stripAuthOnRedirect?: boolean
+  /**
+   * Pre-validated, IP-pinned `http://` proxy URL (see {@link validateAndPinProxyUrl}).
+   * When set, the connection routes through this proxy and target-IP pinning is
+   * bypassed (the proxy resolves the target).
+   */
+  proxyUrl?: string
 }
 
 export class SecureFetchHeaders {
@@ -678,11 +745,19 @@ export async function secureFetchWithPinnedIP(
     const defaultPort = isHttps ? 443 : 80
     const port = parsed.port ? Number.parseInt(parsed.port, 10) : defaultPort
 
-    const lookup = createPinnedLookup(resolvedIP)
-
-    const agentOptions: http.AgentOptions = { lookup }
-
-    const agent = isHttps ? new https.Agent(agentOptions) : new http.Agent(agentOptions)
+    let agent: http.Agent
+    if (options.proxyUrl) {
+      // The proxy connection is already IP-pinned by validateAndPinProxyUrl; routing
+      // through the proxy intentionally bypasses target-IP pinning (the proxy
+      // resolves the target). Agent choice keys off the target protocol: an
+      // https target tunnels via CONNECT, an http target uses absolute-URI
+      // forwarding - both over the plain-http proxy connection.
+      agent = isHttps ? new HttpsProxyAgent(options.proxyUrl) : new HttpProxyAgent(options.proxyUrl)
+    } else {
+      const lookup = createPinnedLookup(resolvedIP)
+      const agentOptions: http.AgentOptions = { lookup }
+      agent = isHttps ? new https.Agent(agentOptions) : new http.Agent(agentOptions)
+    }
 
     const { 'accept-encoding': _, ...sanitizedHeaders } = options.headers ?? {}
 
