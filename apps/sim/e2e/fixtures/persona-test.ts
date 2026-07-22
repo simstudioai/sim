@@ -7,9 +7,12 @@ import {
   type ScenarioManifest,
 } from './e2e-world'
 
+export type PersonaCleanup = () => Promise<void> | void
+
 interface PersonaFixtures {
   personaManifest: ScenarioManifest
   contextForPersona: (personaKey: string) => Promise<import('@playwright/test').BrowserContext>
+  registerCleanup: (label: string, cleanup: PersonaCleanup) => void
 }
 
 export const test = base.extend<PersonaFixtures>({
@@ -53,6 +56,22 @@ export const test = base.extend<PersonaFixtures>({
     }
     if (failures.length > 0) {
       throw new AggregateError(failures, 'Persona browser cleanup or network isolation failed')
+    }
+  },
+  registerCleanup: async ({ contextForPersona: _contextForPersona }, use) => {
+    const cleanups: Array<{ label: string; cleanup: PersonaCleanup }> = []
+    await use((label, cleanup) => cleanups.push({ label, cleanup }))
+
+    const failures: unknown[] = []
+    for (const { label, cleanup } of cleanups.reverse()) {
+      try {
+        await cleanup()
+      } catch (error) {
+        failures.push(new Error(`Cleanup failed: ${label}`, { cause: error }))
+      }
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'Persona cleanup registry failed')
     }
   },
 })

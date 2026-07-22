@@ -163,6 +163,7 @@ export function useCancelWorkspaceInvitation() {
 interface ResendInvitationParams {
   invitationId: string
   workspaceId: string
+  organizationId?: string | null
 }
 
 /**
@@ -182,6 +183,11 @@ export function useResendWorkspaceInvitation() {
       queryClient.invalidateQueries({
         queryKey: invitationKeys.list(variables.workspaceId),
       })
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.roster(variables.organizationId),
+        })
+      }
     },
   })
 }
@@ -218,6 +224,9 @@ export function useRemoveWorkspaceMember() {
       if (variables.organizationId) {
         queryClient.invalidateQueries({
           queryKey: organizationKeys.roster(variables.organizationId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.billing(variables.organizationId),
         })
       }
     },

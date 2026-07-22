@@ -48,29 +48,49 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
    * id and the caller's admin status server-side from the workspace so gating is
    * never keyed off the session's active org.
    */
-  const { data: userPermissionConfig, isPending: entitlementLoading } =
-    useUserPermissionConfig(workspaceId)
-  const { data: organizationBillingData, isPending: organizationBillingLoading } =
-    useOrganizationBilling(organizationId)
+  const {
+    data: userPermissionConfig,
+    isPending: entitlementLoading,
+    isError: entitlementError,
+  } = useUserPermissionConfig(workspaceId)
+  const {
+    data: organizationBillingData,
+    isPending: organizationBillingLoading,
+    isError: organizationBillingError,
+  } = useOrganizationBilling(organizationId)
   const currentUserIsOrgAdmin = isOrganizationAdmin
 
-  const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
-    organizationId,
-    !!organizationId && currentUserIsOrgAdmin
-  )
-  const { data: organizationWorkspaces = [], isPending: workspacesLoading } =
-    useOrganizationWorkspaces(organizationId, !!organizationId && currentUserIsOrgAdmin)
+  const {
+    data: permissionGroups = [],
+    isPending: groupsLoading,
+    isError: groupsError,
+  } = usePermissionGroups(organizationId, !!organizationId && currentUserIsOrgAdmin)
+  const {
+    data: organizationWorkspaces = [],
+    isPending: workspacesLoading,
+    isError: workspacesError,
+  } = useOrganizationWorkspaces(organizationId, !!organizationId && currentUserIsOrgAdmin)
 
   const accessControlEnabledLocally = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
   const isEntitled =
     accessControlEnabledLocally ||
     !!userPermissionConfig?.entitled ||
     isEnterprise(organizationBillingData?.data?.subscriptionPlan)
-  const canManage = isEntitled && currentUserIsOrgAdmin && !!organizationId
-
+  const hasLoadError =
+    (workspaceId ? entitlementError : organizationBillingError) ||
+    (!!organizationId && currentUserIsOrgAdmin && (groupsError || workspacesError))
   const isLoading =
-    (workspaceId ? entitlementLoading : organizationBillingLoading) ||
-    (!!organizationId && currentUserIsOrgAdmin && groupsLoading)
+    !hasLoadError &&
+    ((workspaceId ? entitlementLoading : organizationBillingLoading) ||
+      (!!organizationId && currentUserIsOrgAdmin && (groupsLoading || workspacesLoading)))
+  const dataState = hasLoadError
+    ? 'error'
+    : isLoading
+      ? 'loading'
+      : isEntitled && currentUserIsOrgAdmin && !!organizationId
+        ? 'ready'
+        : 'denied'
+  const canManage = dataState === 'ready'
 
   const createPermissionGroup = useCreatePermissionGroup()
 
@@ -138,36 +158,48 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
   }, [])
 
   if (isLoading) {
-    return null
+    return <section aria-label='Access control' aria-busy data-access-control-state='loading' />
+  }
+
+  if (hasLoadError) {
+    return (
+      <section aria-label='Access control' aria-busy={false} data-access-control-state='error'>
+        <SettingsEmptyState>Unable to load Access Control settings.</SettingsEmptyState>
+      </section>
+    )
   }
 
   if (!canManage) {
     return (
-      <SettingsEmptyState>
-        {!organizationId
-          ? "Access Control applies to organization workspaces. This workspace isn't part of an organization."
-          : 'Only organization admins on Enterprise plans can manage Access Control settings.'}
-      </SettingsEmptyState>
+      <section aria-label='Access control' aria-busy={false} data-access-control-state='denied'>
+        <SettingsEmptyState>
+          {!organizationId
+            ? "Access Control applies to organization workspaces. This workspace isn't part of an organization."
+            : 'Only organization admins on Enterprise plans can manage Access Control settings.'}
+        </SettingsEmptyState>
+      </section>
     )
   }
 
   if (selectedGroup && organizationId) {
     return (
-      <GroupDetail
-        group={selectedGroup}
-        organizationId={organizationId}
-        workspaceId={workspaceId}
-        workspaceOptions={workspaceOptions}
-        organizationWorkspaces={organizationWorkspaces}
-        workspacesLoading={workspacesLoading}
-        onBack={() => setSelectedGroupId(null)}
-        onDeleted={() => setSelectedGroupId(null)}
-      />
+      <section aria-label='Access control' aria-busy={false} data-access-control-state='ready'>
+        <GroupDetail
+          group={selectedGroup}
+          organizationId={organizationId}
+          workspaceId={workspaceId}
+          workspaceOptions={workspaceOptions}
+          organizationWorkspaces={organizationWorkspaces}
+          workspacesLoading={workspacesLoading}
+          onBack={() => setSelectedGroupId(null)}
+          onDeleted={() => setSelectedGroupId(null)}
+        />
+      </section>
     )
   }
 
   return (
-    <>
+    <section aria-label='Access control' aria-busy={false} data-access-control-state='ready'>
       <SettingsPanel
         search={{
           value: searchTerm,
@@ -183,7 +215,10 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
           },
         ]}
       >
-        <SettingsSection label={`Permission groups (${permissionGroups.length})`}>
+        <SettingsSection
+          label={`Permission groups (${permissionGroups.length})`}
+          ariaLabel='Permission groups'
+        >
           {permissionGroups.length === 0 ? (
             <SettingsEmptyState variant='inline'>
               No permission groups yet. Click "Create group" to get started.
@@ -198,6 +233,7 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
                 <button
                   key={group.id}
                   type='button'
+                  aria-label={`Open permission group ${group.name}`}
                   onClick={() => setSelectedGroupId(group.id)}
                   className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                 >
@@ -304,6 +340,6 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
           }}
         />
       </ChipModal>
-    </>
+    </section>
   )
 }

@@ -21,7 +21,9 @@ export const SETTINGS_PERSONA_KEYS = [
   'workspaceWriteMember',
   'workspaceAdminMember',
   'externalWorkspaceAdmin',
+  'teamWorkflowMember',
   'enterpriseOrganizationAdmin',
+  'enterpriseWorkflowMember',
   'freeOrganizationOwner',
   'permissionGroupRestricted',
   'platformAdmin',
@@ -53,8 +55,10 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
     'workspace-write-member',
     'workspace-admin-member',
     'external-workspace-admin',
+    'team-workflow-member',
     'enterprise-organization-owner',
     'enterprise-organization-admin',
+    'enterprise-workflow-member',
     'free-organization-owner',
     'permission-group-restricted',
     'platform-admin',
@@ -94,8 +98,10 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
     membership('team-organization', 'workspace-read-member', 'member'),
     membership('team-organization', 'workspace-write-member', 'member'),
     membership('team-organization', 'workspace-admin-member', 'member'),
+    membership('team-organization', 'team-workflow-member', 'member'),
     membership('enterprise-organization', 'enterprise-organization-owner', 'owner'),
     membership('enterprise-organization', 'enterprise-organization-admin', 'admin'),
+    membership('enterprise-organization', 'enterprise-workflow-member', 'member'),
     membership('enterprise-organization', 'permission-group-restricted', 'member'),
     membership('lapsed-organization', 'free-organization-owner', 'owner'),
   ] as const
@@ -120,7 +126,7 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
       plan: 'team_6000',
       status: 'active',
       billingReference: { kind: 'organization', organizationKey: 'team-organization' },
-      seats: 4,
+      seats: 5,
       ...HOSTED_BILLING,
     },
     {
@@ -131,11 +137,11 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
         kind: 'organization',
         organizationKey: 'enterprise-organization',
       },
-      seats: 3,
+      seats: 4,
       enterprise: {
         plan: 'enterprise',
         monthlyPrice: 12_000,
-        seats: 3,
+        seats: 4,
       },
       ...HOSTED_BILLING,
     },
@@ -207,7 +213,9 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
     grant('team-workspace', 'workspace-write-member', 'write'),
     grant('team-workspace', 'workspace-admin-member', 'admin'),
     grant('team-workspace', 'external-workspace-admin', 'admin'),
+    grant('team-workspace', 'team-workflow-member', 'read'),
     grant('enterprise-workspace', 'permission-group-restricted', 'read'),
+    grant('enterprise-workspace', 'enterprise-workflow-member', 'read'),
   ] as const
 
   const permissionGroups = [
@@ -282,11 +290,25 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
         false
       ),
     ]),
+    persona(namespace, 'teamWorkflowMember', 'team-workflow-member', [
+      expected('team-workspace', 'read', 'explicit', 'member', 'organization', 'team_6000', false),
+    ]),
     persona(namespace, 'enterpriseOrganizationAdmin', 'enterprise-organization-admin', [
       expected(
         'enterprise-workspace',
         'admin',
         'org-admin',
+        'member',
+        'organization',
+        'enterprise',
+        false
+      ),
+    ]),
+    persona(namespace, 'enterpriseWorkflowMember', 'enterprise-workflow-member', [
+      expected(
+        'enterprise-workspace',
+        'read',
+        'explicit',
         'member',
         'organization',
         'enterprise',

@@ -425,6 +425,7 @@ export function OrganizationMemberLists({
       {showMembersSection && (
         <MemberSection
           label={`Members (${orgRowCount})`}
+          ariaLabel='Members'
           isEmpty={!isLoadingRoster && filteredOrgMembers.length + filteredOrgPending.length === 0}
           emptyText={isActiveSearch ? `No members matching “${query}”` : 'No members yet'}
         >
@@ -449,6 +450,7 @@ export function OrganizationMemberLists({
           <MemberSection
             key={`workspace-${workspace.id}`}
             label={`${workspace.name} (${totalCount})`}
+            ariaLabel={workspace.name}
             isEmpty={visibleMembers.length + visibleInvites.length === 0}
             emptyText={
               isActiveSearch ? `No members matching “${query}”` : 'No members in this workspace'

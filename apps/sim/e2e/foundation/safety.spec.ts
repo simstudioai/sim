@@ -94,6 +94,17 @@ test.describe('foundation safety guards', () => {
     expect(build.env.DEPLOY_AS_BLOCK).toBe('true')
     expect(app.env.DEPLOY_AS_BLOCK).toBe('true')
     for (const key of [
+      'RESEND_API_KEY',
+      'AWS_SES_REGION',
+      'SMTP_HOST',
+      'AZURE_ACS_CONNECTION_STRING',
+      'GMAIL_SENDER',
+      'GMAIL_CREDENTIALS_JSON',
+    ]) {
+      expect(build.env[key], `${key} must be absent from the build environment`).toBeUndefined()
+      expect(app.env[key], `${key} must be absent from the app environment`).toBeUndefined()
+    }
+    for (const key of [
       'BETTER_AUTH_SECRET',
       'ENCRYPTION_KEY',
       'API_ENCRYPTION_KEY',

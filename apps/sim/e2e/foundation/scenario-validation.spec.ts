@@ -65,6 +65,22 @@ test.describe('pure scenario validation', () => {
         ({ userKey }) => userKey === 'enterprise-organization-admin'
       )
     ).toBe(false)
+    expect(workspaceExpectation(primary, 'teamWorkflowMember')).toMatchObject({
+      access: 'read',
+      roleSource: 'explicit',
+      hostContext: { hostMembership: 'member', plan: 'team_6000' },
+    })
+    expect(workspaceExpectation(primary, 'enterpriseWorkflowMember')).toMatchObject({
+      access: 'read',
+      roleSource: 'explicit',
+      hostContext: { hostMembership: 'member', plan: 'enterprise' },
+    })
+    expect(primary.personasByKey.get('enterpriseWorkflowMember')?.permissionGroups).toEqual([])
+    expect(primary.subscriptionsByKey.get('team-subscription')).toMatchObject({ seats: 5 })
+    expect(primary.subscriptionsByKey.get('enterprise-subscription')).toMatchObject({
+      seats: 4,
+      enterprise: { seats: 4 },
+    })
     expect(workspaceExpectation(primary, 'freeOrganizationOwner').hostContext).toMatchObject({
       payerScope: 'user',
       plan: 'free',

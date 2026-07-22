@@ -209,6 +209,50 @@ retry-free tests in 29.4 seconds. The final cache-hit dependency chain completed
 all 237 tests in 2.9 minutes of Playwright time and the orchestrator in 6 minutes
 26 seconds.
 
+## People and access-control workflows
+
+Step 6 owns real workspace-invitation, organization-invitation, member-role,
+member-removal, and Enterprise permission-group lifecycles under
+`e2e/settings/workflows`. SSO, retention, and MCP integration CRUD remain in
+Step 6b.
+
+Run only these workflows during local iteration:
+
+```bash
+bun run test:e2e -- --reuse-build \
+  --project=hosted-billing-chromium-workflows --no-deps \
+  e2e/settings/workflows
+```
+
+The project is serial and uses unique invitation emails and group names. Every
+mutation registers LIFO cleanup before the first click. The real-member case
+also restores its organization membership, explicit Read anchor, absent
+secondary grant, active organization, and seat baseline, so repeat runs do not
+depend on test order.
+
+Member rows are accessible groups named by email, nested under count-free
+`Teammates`, `Members`, or workspace regions. Teammates, organization members,
+and Access Control expose fail-closed loading/error/ready states; tests do not
+locate mutable count text.
+
+Traces and video are disabled for the workflows project because the Teammates
+API necessarily returns pending invitation tokens to the application. Tests
+never parse that token-bearing response, invoke Copy invite link, or issue an
+extra workspace-invitation list request. Token-free organization rosters are
+used for safe invitation IDs, kinds, roles, and grants. Failure-only screenshots
+remain enabled because invitation tokens are never rendered.
+
+Invitations exercise the real mail-rendering path. The hermetic app and build
+environments expose none of the Resend, SES, SMTP, Azure ACS, or Gmail provider
+credentials, so the mailer uses its documented mock-success behavior without
+external delivery.
+
+Permission-group enforcement is verified in fresh browser contexts because the
+config is database-resolved and cached by client queries rather than stored in
+Better Auth claims. The workflow adds its target member before enabling any
+restrictions, deletes the group atomically, and then proves unrestricted
+Read-authority readiness again.
+
 The cache lives under ignored `e2e/.cache/builds/`. A hit requires matching
 source contents (including uncommitted/untracked files), build/public profile,
 Node/Bun/Next versions, platform, `BUILD_ID`, and the cached artifact checksum.
