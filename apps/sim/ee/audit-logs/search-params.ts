@@ -2,7 +2,7 @@ import { parseAsArrayOf, parseAsString } from 'nuqs/server'
 import { parseAsTimeRange } from '@/app/workspace/[workspaceId]/logs/search-params'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
-const DEFAULT_AUDIT_TIME_RANGE: TimeRange = 'Past 30 days'
+export const DEFAULT_AUDIT_TIME_RANGE: TimeRange = 'Past 30 days'
 
 /**
  * Co-located, typed URL query-param definitions for the enterprise audit-logs

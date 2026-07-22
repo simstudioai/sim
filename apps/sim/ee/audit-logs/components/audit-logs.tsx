@@ -34,7 +34,11 @@ import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
-import { auditLogFilterParsers, auditLogFilterUrlKeys } from '@/ee/audit-logs/search-params'
+import {
+  auditLogFilterParsers,
+  auditLogFilterUrlKeys,
+  DEFAULT_AUDIT_TIME_RANGE,
+} from '@/ee/audit-logs/search-params'
 import { useDebounce } from '@/hooks/use-debounce'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
@@ -234,13 +238,22 @@ interface AuditLogsProps {
 
 export function AuditLogs({ organizationId }: AuditLogsProps) {
   const [urlFilters, setUrlFilters] = useQueryStates(auditLogFilterParsers, auditLogFilterUrlKeys)
-  const { types: selectedTypes, timeRange } = urlFilters
+  const { types: selectedTypes } = urlFilters
   const customStartDate = urlFilters.startDate ?? ''
   const customEndDate = urlFilters.endDate ?? ''
+  /**
+   * 'Custom range' is only honored with both bounds present — a partial deep
+   * link (`?time-range=custom` with a missing date) falls back to the default
+   * preset window instead of silently querying unbounded.
+   */
+  const timeRange: TimeRange =
+    urlFilters.timeRange === 'Custom range' && (!customStartDate || !customEndDate)
+      ? DEFAULT_AUDIT_TIME_RANGE
+      : urlFilters.timeRange
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   /** Cancel target for the date picker — never 'Custom range' itself, so a deep link straight to an empty custom range still cancels back to a preset. */
   const previousTimeRangeRef = useRef<TimeRange>(
-    timeRange === 'Custom range' ? 'Past 30 days' : timeRange
+    timeRange === 'Custom range' ? DEFAULT_AUDIT_TIME_RANGE : timeRange
   )
   const dateRangeAppliedRef = useRef(false)
   const [searchTerm, setSearchTerm] = useSettingsSearch()
