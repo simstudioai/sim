@@ -61,6 +61,22 @@ BEGIN
 	) THEN
 		RAISE EXCEPTION 'SSO migration blocked: organizations with multiple providers require manual remediation';
 	END IF;
+
+	IF EXISTS (
+		SELECT 1
+		FROM pg_catalog.pg_class AS index_class
+		JOIN pg_catalog.pg_index AS index_state ON index_state.indexrelid = index_class.oid
+		JOIN pg_catalog.pg_namespace AS index_namespace ON index_namespace.oid = index_class.relnamespace
+		WHERE index_namespace.nspname = current_schema()
+			AND index_class.relname IN (
+				'sso_provider_provider_id_unique',
+				'sso_provider_domain_lower_unique',
+				'sso_provider_organization_id_unique'
+			)
+			AND NOT index_state.indisvalid
+	) THEN
+		RAISE EXCEPTION 'SSO migration blocked: an invalid partial unique index must be removed before replay';
+	END IF;
 END $$;--> statement-breakpoint
 ALTER TABLE "sso_provider" ADD COLUMN IF NOT EXISTS "domain_verified" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 DO $$ BEGIN
@@ -85,11 +101,8 @@ ALTER TABLE "sso_provider" VALIDATE CONSTRAINT "sso_provider_domain_format_check
 ALTER TABLE "sso_provider" VALIDATE CONSTRAINT "sso_provider_organization_required_check";--> statement-breakpoint
 COMMIT;--> statement-breakpoint
 SET lock_timeout = 0;--> statement-breakpoint
-DROP INDEX CONCURRENTLY IF EXISTS "sso_provider_provider_id_unique";--> statement-breakpoint
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "sso_provider_provider_id_unique" ON "sso_provider" USING btree ("provider_id");--> statement-breakpoint
-DROP INDEX CONCURRENTLY IF EXISTS "sso_provider_domain_lower_unique";--> statement-breakpoint
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "sso_provider_domain_lower_unique" ON "sso_provider" USING btree (lower("domain"));--> statement-breakpoint
-DROP INDEX CONCURRENTLY IF EXISTS "sso_provider_organization_id_unique";--> statement-breakpoint
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "sso_provider_organization_id_unique" ON "sso_provider" USING btree ("organization_id") WHERE "organization_id" IS NOT NULL;--> statement-breakpoint
 DROP INDEX CONCURRENTLY IF EXISTS "sso_provider_provider_id_idx";--> statement-breakpoint
 DROP INDEX CONCURRENTLY IF EXISTS "sso_provider_domain_idx";--> statement-breakpoint

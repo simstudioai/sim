@@ -228,6 +228,27 @@ describe('POST /api/auth/sso/register', () => {
     )
   })
 
+  it.each([
+    { body: OIDC_BODY, configKey: 'oidcConfig' },
+    { body: SAML_BODY, configKey: 'samlConfig' },
+  ])(
+    'forwards $body.providerType claim mapping in the protocol config',
+    async ({ body, configKey }) => {
+      const mapping = {
+        id: 'custom-subject',
+        email: 'custom-email',
+        name: 'custom-name',
+        image: 'custom-picture',
+      }
+      const response = await POST(request({ ...body, mapping }))
+      expect(response.status).toBe(200)
+
+      const forwardedBody = mockRegisterSSOProvider.mock.calls[0][0].body
+      expect(forwardedBody).not.toHaveProperty('mapping')
+      expect(forwardedBody[configKey]).toMatchObject({ mapping })
+    }
+  )
+
   it('maps adapter uniqueness races to 409', async () => {
     mockRegisterSSOProvider.mockRejectedValue({ code: '23505' })
     const response = await POST(request(OIDC_BODY))
