@@ -29,6 +29,7 @@ import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drain
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { DESTINATION_FORM_REGISTRY } from '@/ee/data-drains/destinations/registry'
 import {
   useCreateDataDrain,
@@ -86,7 +87,7 @@ export function DataDrainsSettings({ organizationId }: DataDrainsSettingsProps) 
 
   const [createOpen, setCreateOpen] = useState(false)
   const [expandedDrainId, setExpandedDrainId] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
 
   const query = searchTerm.trim().toLowerCase()
   const filteredDrains = !query

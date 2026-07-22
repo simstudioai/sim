@@ -32,6 +32,8 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import {
   mcpServerIdParam,
   mcpServerIdUrlKeys,
+  serverTabParam,
+  serverTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
@@ -108,7 +110,10 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
   const [editServerName, setEditServerName] = useState('')
   const [editServerDescription, setEditServerDescription] = useState('')
   const [editServerIsPublic, setEditServerIsPublic] = useState(false)
-  const [activeServerTab, setActiveServerTab] = useState<'workflows' | 'details'>('details')
+  const [activeServerTab, setActiveServerTab] = useQueryState(serverTabParam.key, {
+    ...serverTabParam.parser,
+    ...serverTabUrlKeys,
+  })
 
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null)
 
@@ -401,7 +406,7 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
               { value: 'workflows', label: 'Workflows' },
             ]}
             value={activeServerTab}
-            onChange={(value) => setActiveServerTab(value as 'workflows' | 'details')}
+            onChange={(value) => void setActiveServerTab(value as 'workflows' | 'details')}
           />
 
           <div className='min-h-[300px] pt-4'>
@@ -892,6 +897,11 @@ export function WorkflowMcpServers() {
   })
   const [serverToDelete, setServerToDelete] = useState<WorkflowMcpServer | null>(null)
   const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
+  /** Cleared alongside the server id on close so the tab never lingers on the list URL. */
+  const [, setServerTab] = useQueryState(serverTabParam.key, {
+    ...serverTabParam.parser,
+    ...serverTabUrlKeys,
+  })
 
   const filteredServers = useMemo(() => {
     if (!searchTerm.trim()) return servers
@@ -948,7 +958,10 @@ export function WorkflowMcpServers() {
         canManage={canAdmin}
         workspaceId={workspaceId}
         serverId={selectedServerId}
-        onBack={() => setSelectedServerId(null, { history: 'replace' })}
+        onBack={() => {
+          void setServerTab(null, { history: 'replace' })
+          void setSelectedServerId(null, { history: 'replace' })
+        }}
       />
     )
   }
@@ -1011,7 +1024,14 @@ export function WorkflowMcpServers() {
                       <RowActionsMenu
                         label='Server actions'
                         actions={[
-                          { label: 'Details', onSelect: () => setSelectedServerId(server.id) },
+                          {
+                            label: 'Details',
+                            onSelect: () => {
+                              // A lingering ?server-tab= (dead deep link) must not re-target the next open — reset it in the same batched push.
+                              void setServerTab(null)
+                              void setSelectedServerId(server.id)
+                            },
+                          },
                           ...(canAdmin
                             ? [
                                 {
