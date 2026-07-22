@@ -3,9 +3,9 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/execution/e2b', () => ({
-  executeInE2B: vi.fn(),
-  executeShellInE2B: vi.fn(),
+vi.mock('@/lib/execution/remote-sandbox', () => ({
+  executeInSandbox: vi.fn(),
+  executeShellInSandbox: vi.fn(),
 }))
 vi.mock('@/lib/execution/languages', () => ({
   CodeLanguage: { javascript: 'javascript', python: 'python' },

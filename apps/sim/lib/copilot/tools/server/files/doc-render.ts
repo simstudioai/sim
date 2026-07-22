@@ -1,5 +1,5 @@
-import { executeInE2B } from '@/lib/execution/e2b'
 import { CodeLanguage } from '@/lib/execution/languages'
+import { executeInSandbox } from '@/lib/execution/remote-sandbox'
 
 const RENDER_TIMEOUT_MS = 150_000
 // Bound the visual-QA cost: cap pages and rasterization DPI so the JPEGs the
@@ -84,7 +84,7 @@ else:
         print("__SIM_RESULT__=" + json.dumps({"grid": base64.b64encode(f.read()).decode(), "pageCount": n}))
 `.trim()
 
-  const result = await executeInE2B({
+  const result = await executeInSandbox({
     code: script,
     language: CodeLanguage.Python,
     timeoutMs: RENDER_TIMEOUT_MS,

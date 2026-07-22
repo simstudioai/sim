@@ -19,7 +19,6 @@ import {
 import { isE2bEnabled } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { executeInE2B, executeShellInE2B, SIM_RESULT_PREFIX } from '@/lib/execution/e2b'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
@@ -36,6 +35,11 @@ import {
 } from '@/lib/execution/payloads/materialization.server'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
+import {
+  executeInSandbox,
+  executeShellInSandbox,
+  SIM_RESULT_PREFIX,
+} from '@/lib/execution/remote-sandbox'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import {
   fetchWorkspaceFileBuffer,
@@ -1537,7 +1541,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         error: shellError,
         exportedFileContent,
         exportedFiles,
-      } = await executeShellInE2B({
+      } = await executeShellInSandbox({
         code: resolvedCode,
         envs: shellEnvs,
         timeoutMs: timeout,
@@ -1693,7 +1697,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           error: e2bError,
           exportedFileContent,
           exportedFiles,
-        } = await executeInE2B({
+        } = await executeInSandbox({
           code: codeForE2B,
           language: CodeLanguage.JavaScript,
           timeoutMs: timeout,
@@ -1781,7 +1785,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         error: e2bError,
         exportedFileContent,
         exportedFiles,
-      } = await executeInE2B({
+      } = await executeInSandbox({
         code: codeForE2B,
         language: CodeLanguage.Python,
         timeoutMs: timeout,

@@ -14,7 +14,7 @@ import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockExecuteInE2B,
+  mockExecuteInSandbox,
   mockExecuteInIsolatedVM,
   mockFetchWorkspaceFileBuffer,
   mockGetWorkspaceFile,
@@ -24,7 +24,7 @@ const {
   mockValidateWorkspaceFileWriteTarget,
   mockWriteWorkspaceFileByPath,
 } = vi.hoisted(() => ({
-  mockExecuteInE2B: vi.fn(),
+  mockExecuteInSandbox: vi.fn(),
   mockExecuteInIsolatedVM: vi.fn(),
   mockFetchWorkspaceFileBuffer: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
@@ -39,9 +39,9 @@ vi.mock('@/lib/execution/isolated-vm', () => ({
   executeInIsolatedVM: mockExecuteInIsolatedVM,
 }))
 
-vi.mock('@/lib/execution/e2b', () => ({
-  executeInE2B: mockExecuteInE2B,
-  executeShellInE2B: vi.fn(),
+vi.mock('@/lib/execution/remote-sandbox', () => ({
+  executeInSandbox: mockExecuteInSandbox,
+  executeShellInSandbox: vi.fn(),
   SIM_RESULT_PREFIX: '__SIM_RESULT__=',
 }))
 
@@ -125,7 +125,7 @@ describe('Function Execute API Route', () => {
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
     clearLargeValueCacheForTests()
 
-    mockExecuteInE2B.mockResolvedValue({
+    mockExecuteInSandbox.mockResolvedValue({
       result: 'e2b success',
       stdout: 'e2b output',
       sandboxId: 'test-sandbox-id',
@@ -352,7 +352,7 @@ describe('Function Execute API Route', () => {
 
     it('exports multiple declared sandbox output files', async () => {
       envFlagsMock.isE2bEnabled = true
-      mockExecuteInE2B.mockResolvedValueOnce({
+      mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
         stdout: 'ok',
         sandboxId: 'sandbox-123',
@@ -389,7 +389,7 @@ describe('Function Execute API Route', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(mockExecuteInE2B).toHaveBeenCalledWith(
+      expect(mockExecuteInSandbox).toHaveBeenCalledWith(
         expect.objectContaining({
           outputSandboxPaths: ['/home/user/chart.png', '/home/user/summary.json'],
         })
@@ -420,7 +420,7 @@ describe('Function Execute API Route', () => {
 
     it('prevalidates all sandbox output destinations before writing any files', async () => {
       envFlagsMock.isE2bEnabled = true
-      mockExecuteInE2B.mockResolvedValueOnce({
+      mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
         stdout: 'ok',
         sandboxId: 'sandbox-123',
@@ -464,7 +464,7 @@ describe('Function Execute API Route', () => {
 
     it('rejects duplicate sandbox output destinations before writing files', async () => {
       envFlagsMock.isE2bEnabled = true
-      mockExecuteInE2B.mockResolvedValueOnce({
+      mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
         stdout: 'ok',
         sandboxId: 'sandbox-123',
@@ -509,7 +509,7 @@ describe('Function Execute API Route', () => {
 
     it('returns a targeted error when a declared sandbox output is missing', async () => {
       envFlagsMock.isE2bEnabled = true
-      mockExecuteInE2B.mockResolvedValueOnce({
+      mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
         stdout: 'ok',
         sandboxId: 'sandbox-123',
@@ -565,7 +565,7 @@ describe('Function Execute API Route', () => {
       expect(data.success).toBe(false)
       expect(data.error).toContain('no sandbox filesystem')
       expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
-      expect(mockExecuteInE2B).not.toHaveBeenCalled()
+      expect(mockExecuteInSandbox).not.toHaveBeenCalled()
       expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
     })
 
@@ -591,7 +591,7 @@ describe('Function Execute API Route', () => {
     it('flags an overwrite export whose bytes are identical to the current file content as unchanged', async () => {
       envFlagsMock.isE2bEnabled = true
       const staleContent = '# doc\nunchanged mounted content\n'
-      mockExecuteInE2B.mockResolvedValueOnce({
+      mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
         stdout: 'ok',
         sandboxId: 'sandbox-123',
@@ -638,7 +638,7 @@ describe('Function Execute API Route', () => {
     it('reports size, previousSize, and sha256 receipts on a successful overwrite export', async () => {
       envFlagsMock.isE2bEnabled = true
       const newContent = '# doc\nnew content\n'
-      mockExecuteInE2B.mockResolvedValueOnce({
+      mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
         stdout: 'ok',
         sandboxId: 'sandbox-123',
@@ -682,7 +682,7 @@ describe('Function Execute API Route', () => {
       expect(data.output.result.message).toContain('sha256:')
       // The python wrapper prints the marker with a leading \n so it always
       // starts a fresh line even after non-newline-terminated user output.
-      const e2bCode = mockExecuteInE2B.mock.calls[0][0].code as string
+      const e2bCode = mockExecuteInSandbox.mock.calls[0][0].code as string
       expect(e2bCode).toContain("print('\\n__SIM_RESULT__=' + json.dumps(__sim_result__))")
     })
 
