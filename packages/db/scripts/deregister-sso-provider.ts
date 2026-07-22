@@ -3,21 +3,23 @@
 /**
  * Deregister SSO Provider Script
  *
- * This script removes an SSO provider from the database for a specific user.
+ * This script removes one audited organization SSO provider when it has no
+ * Better Auth account links.
  *
  * Usage: bun run packages/db/scripts/deregister-sso-provider.ts
  *
  * Required Environment Variables:
  *   DATABASE_URL=your-database-url
- *   SSO_USER_EMAIL=user@domain.com (user whose SSO provider to remove)
- *   SSO_PROVIDER_ID=provider-id (optional, if not provided will remove all providers for user)
+ *   SSO_USER_EMAIL=user@domain.com (must be an organization owner/admin)
+ *   SSO_ORGANIZATION_ID=organization-id
+ *   SSO_PROVIDER_ID=provider-id
  */
 
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { ssoProvider, user } from '../schema'
+import { account, member, ssoProvider, user } from '../schema'
 
 const logger = {
   info: (message: string, meta?: any) => {
@@ -75,15 +77,15 @@ async function getUser(email: string): Promise<{ id: string; email: string } | n
 async function deregisterSSOProvider(): Promise<boolean> {
   try {
     const userEmail = process.env.SSO_USER_EMAIL
-    if (!userEmail) {
-      logger.error('❌ SSO_USER_EMAIL environment variable is required')
+    const organizationId = process.env.SSO_ORGANIZATION_ID?.trim()
+    const specificProviderId = process.env.SSO_PROVIDER_ID?.trim()
+    if (!userEmail || !organizationId || !specificProviderId) {
+      logger.error('❌ SSO_USER_EMAIL, SSO_ORGANIZATION_ID, and SSO_PROVIDER_ID are all required')
       logger.error('')
       logger.error('Example usage:')
       logger.error(
-        '  SSO_USER_EMAIL=admin@company.com bun run packages/db/scripts/deregister-sso-provider.ts'
+        '  SSO_USER_EMAIL=admin@company.com SSO_ORGANIZATION_ID=org-id SSO_PROVIDER_ID=provider-id bun run packages/db/scripts/deregister-sso-provider.ts'
       )
-      logger.error('')
-      logger.error('Optional: SSO_PROVIDER_ID=provider-id (to remove specific provider)')
       return false
     }
 
@@ -94,46 +96,48 @@ async function deregisterSSOProvider(): Promise<boolean> {
 
     logger.info(`Found user: ${targetUser.email} (ID: ${targetUser.id})`)
 
-    const providers = await db
-      .select()
-      .from(ssoProvider)
-      .where(eq(ssoProvider.userId, targetUser.id))
-
-    if (providers.length === 0) {
-      logger.warn(`No SSO providers found for user: ${targetUser.email}`)
+    const memberships = await db
+      .select({ role: member.role })
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, targetUser.id)))
+    if (!memberships.some(({ role }) => role === 'owner' || role === 'admin')) {
+      logger.error('SSO_USER_EMAIL must be an owner or admin of SSO_ORGANIZATION_ID')
       return false
     }
 
-    logger.info(`Found ${providers.length} SSO provider(s) for user ${targetUser.email}`)
-    for (const provider of providers) {
-      logger.info(`  - Provider ID: ${provider.providerId}, Domain: ${provider.domain}`)
-    }
-
-    const specificProviderId = process.env.SSO_PROVIDER_ID
-
-    if (specificProviderId) {
-      const providerToDelete = providers.find((p) => p.providerId === specificProviderId)
-      if (!providerToDelete) {
-        logger.error(`Provider '${specificProviderId}' not found for user ${targetUser.email}`)
-        return false
-      }
-
-      await db
-        .delete(ssoProvider)
-        .where(
-          and(eq(ssoProvider.userId, targetUser.id), eq(ssoProvider.providerId, specificProviderId))
+    const providers = await db
+      .select()
+      .from(ssoProvider)
+      .where(
+        and(
+          eq(ssoProvider.organizationId, organizationId),
+          eq(ssoProvider.providerId, specificProviderId)
         )
-
-      logger.info(
-        `✅ Successfully deleted SSO provider '${specificProviderId}' for user ${targetUser.email}`
       )
-    } else {
-      await db.delete(ssoProvider).where(eq(ssoProvider.userId, targetUser.id))
 
-      logger.info(
-        `✅ Successfully deleted all ${providers.length} SSO provider(s) for user ${targetUser.email}`
+    if (providers.length === 0) {
+      logger.warn(
+        `Provider '${specificProviderId}' was not found in organization '${organizationId}'`
       )
+      return false
     }
+
+    const linkedAccounts = await db
+      .select({ id: account.id })
+      .from(account)
+      .where(eq(account.providerId, specificProviderId))
+      .limit(1)
+    if (linkedAccounts.length > 0) {
+      logger.error(
+        'Refusing to delete a provider with Better Auth account links; migrate links and sessions first'
+      )
+      return false
+    }
+
+    await db.delete(ssoProvider).where(eq(ssoProvider.id, providers[0].id))
+    logger.info(
+      `✅ Successfully deleted SSO provider '${specificProviderId}' from organization '${organizationId}'`
+    )
 
     return true
   } catch (error) {

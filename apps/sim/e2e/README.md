@@ -13,7 +13,7 @@ per-run pgvector database.
 1. Map the hosted E2E origin to loopback:
 
    ```bash
-   echo "127.0.0.1 e2e.sim.ai" | sudo tee -a /etc/hosts
+   echo "127.0.0.1 e2e.sim.ai mcp.e2e.sim.ai" | sudo tee -a /etc/hosts
    ```
 
    The runner refuses to start unless every resolved address is loopback and an
@@ -252,6 +252,104 @@ config is database-resolved and cached by client queries rather than stored in
 Better Auth claims. The workflow adds its target member before enabling any
 restrictions, deletes the group atomically, and then proves unrestricted
 Read-authority readiness again.
+
+## Enterprise integration workflows
+
+Step 6b adds independent SAML, data-retention, and MCP lifecycles to the same
+single-worker workflows project. Each case uses `enterpriseOrganizationAdmin`
+in `settings-primary`, registers LIFO cleanup before its first mutation, and
+uses the authenticated persona request context for same-origin discovery and
+restoration.
+
+The SAML case creates a pending provider with `.invalid` issuer and entry-point
+URLs and a public certificate from Node's reviewed public root store. No private
+key is committed or generated. The test never attempts SSO login, provider
+egress, or DNS resolution. It proves only the pending state and the presence of
+TXT instructions; it never parses or logs the verification response body.
+Traces and video remain off, and the test reloads immediately after checking the
+instruction region so the verification value cannot remain in a failure
+screenshot. Certificates, verification tokens, and token-bearing response
+bodies must never be attached to reports or copied into logs.
+
+Better Auth native domain verification is controlled independently by
+`SSO_DOMAIN_VERIFICATION_ENABLED` and defaults off for upgrades and self-hosted
+deployments. It must not be enabled in a hosted environment until the SSO schema
+migration has landed separately and
+`SSO_AUDIT_APPROVED_PROVIDER_IDS=reviewed-provider-ids bun run --cwd packages/db db:audit-sso-providers`
+passes. The command validates every provider row and reports linked-user and
+active-session counts; the approval list records each operator decision to
+retain those links/sessions. Unapproved links must be migrated or removed and
+their sessions revoked before the provider is approved. Only explicitly approved existing providers
+may be backfilled as verified; unknown rows remain inactive, with link/session
+disposition documented before enabling the flag. SSO writes must be quiesced
+across that interval and the audit rerun immediately before the flag changes.
+The hermetic profile sets it to true. Legacy user-scoped
+provider rows must be assigned to an audited organization or removed before the
+migration; its check constraints and preflight reject them. Providers with
+linked Better Auth accounts cannot change issuer/domain or be deleted until an
+operator completes the documented account-link and session migration.
+Better Auth 1.6.13 does not honor explicit `requestSignUp`
+for SAML callbacks, so implicit signup remains enabled only behind the
+verified-domain gate to preserve intended JIT organization provisioning;
+`trustEmailVerified` changes from its compatibility value to false only when
+verified-domain enforcement is active. Verification requests retain Better Auth's
+creator identity requirement in addition to organization owner/admin
+authorization. If the creator leaves, recovery is an authorized delete and
+recreate by the next configuring admin after any linked accounts and sessions
+have been explicitly migrated. Successful live TXT
+verification is a manual release check; hermetic browser coverage never
+performs it.
+
+The MCP fake binds an ephemeral listener to numeric `127.0.0.1` and advertises
+`http://mcp.e2e.sim.ai:<port>/mcp`. The production app receives only the
+`mcp.e2e.sim.ai` allowlist; `E2E_MCP_SERVER_URL` is a non-secret Playwright-only
+value and is absent from build, app, realtime, migration, seed, and auth-capture
+environments. The browser first proves local denial of a non-allowlisted
+`.invalid` URL without test/create traffic, then performs real connection
+tests, create-or-soft-delete revival, deterministic `e2e_lookup` discovery,
+edit/reprobe, and delete. Cleanup lists active run-prefixed rows and deletes
+them through the scoped production API. The fake log records only sequence,
+method/path, JSON-RPC method, status, and a session-safe label—never headers,
+bodies, credentials, or raw session IDs—and is included in normal leak scanning.
+
+The retention case captures the complete configured snapshot before mutation.
+Every browser and cleanup PUT omits `piiRedaction`, preserves unrelated
+configured values, and carries the complete concrete retention override array.
+It restores the exact seeded 30-day log, 90-day soft-delete, 30-day task, null
+PII, and empty-override baseline. The orchestrator's trusted post-run database
+probe independently requires that baseline after Playwright finishes.
+
+Run the three workflows together or focus one file:
+
+```bash
+bun run test:e2e -- --reuse-build \
+  --project=hosted-billing-chromium-workflows --no-deps \
+  e2e/settings/workflows/{sso,data-retention,mcp}.spec.ts
+
+bun run test:e2e -- --reuse-build \
+  --project=hosted-billing-chromium-workflows --no-deps \
+  e2e/settings/workflows/sso.spec.ts
+
+bun run test:e2e -- --reuse-build \
+  --project=hosted-billing-chromium-workflows --no-deps \
+  e2e/settings/workflows/data-retention.spec.ts
+
+bun run test:e2e -- --reuse-build \
+  --project=hosted-billing-chromium-workflows --no-deps \
+  e2e/settings/workflows/mcp.spec.ts
+```
+
+For the Step 6b repeatability gate, run all three twice in one orchestrated
+single-worker stack. Retries are already fixed to zero by the runner:
+
+```bash
+bun run test:e2e -- --reuse-build \
+  --project=hosted-billing-chromium-workflows --no-deps --repeat-each=2 \
+  e2e/settings/workflows/{sso,data-retention,mcp}.spec.ts
+```
+
+The one-shot run still owns and drops its unique guarded database; do not invoke
+raw `playwright test`.
 
 The cache lives under ignored `e2e/.cache/builds/`. A hit requires matching
 source contents (including uncommitted/untracked files), build/public profile,

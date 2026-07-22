@@ -194,6 +194,19 @@ describe('MCP server test-connection route', () => {
     expect(mockClientOptions).not.toHaveBeenCalled()
   })
 
+  it('classifies a successful headerless connection as unauthenticated', async () => {
+    mockDetectMcpAuthType.mockResolvedValue('headers')
+    const response = await POST(createTestRequest())
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data).toEqual(
+      expect.objectContaining({ success: true, authType: 'none', toolCount: 0 })
+    )
+    expect(mockConnect).toHaveBeenCalledTimes(1)
+    expect(mockListTools).toHaveBeenCalledTimes(1)
+  })
+
   it('blocks an env-resolved private URL before forwarding configured credentials', async () => {
     const token = 'private-static-token'
     mockResolveMcpConfigEnvVars.mockResolvedValueOnce({

@@ -479,6 +479,7 @@ export const env = createEnv({
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
+    SSO_DOMAIN_VERIFICATION_ENABLED:       z.boolean().optional(),                 // Enable verified-domain enforcement after the schema migration and provider audit
     SSO_PROVIDER_TYPE:                     z.enum(['oidc', 'saml']).optional(),    // [REQUIRED] SSO provider type
     SSO_PROVIDER_ID:                       z.string().optional(),                  // [REQUIRED] SSO provider ID
     SSO_ISSUER:                            z.string().optional(),                  // [REQUIRED] SSO issuer URL

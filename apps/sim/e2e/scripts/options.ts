@@ -30,7 +30,7 @@ const FORBIDDEN_OPTIONS = [
   '--ui',
 ] as const
 const SAFE_BOOLEAN_OPTIONS = new Set(['--no-deps', '--headed', '--quiet'])
-const SAFE_VALUE_OPTIONS = new Set(['--grep', '--grep-invert', '-g'])
+const SAFE_VALUE_OPTIONS = new Set(['--grep', '--grep-invert', '--repeat-each', '-g'])
 
 export interface E2eRunOptions {
   playwrightArgs: string[]

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
@@ -10,9 +10,14 @@ import {
   assertSafeDatabaseName,
   buildRunDatabaseUrl,
 } from '../support/database'
-import { createHostedBillingProfile } from '../support/deployment-profile'
+import {
+  createHostedBillingProfile,
+  E2E_HOST,
+  E2E_MCP_HOST,
+  isHostedProfileSensitiveKey,
+} from '../support/deployment-profile'
 import { buildChildEnvironment, discoverEnvFileKeys } from '../support/env'
-import { areValidE2eHostAddresses, isLoopbackAddress } from '../support/hosts'
+import { areValidE2eHostAddresses, E2E_HOSTS, isLoopbackAddress } from '../support/hosts'
 import {
   assertPortAvailable,
   spawnManagedProcess,
@@ -75,6 +80,7 @@ test.describe('foundation safety guards', () => {
       runId: 'projection_test',
       databaseUrl: 'postgresql://127.0.0.1:5432/sim_e2e_projection_test',
       stripeApiBaseUrl: 'http://127.0.0.1:40123',
+      mcpServerUrl: 'http://mcp.e2e.sim.ai:40124/mcp',
       runtimeHomeDirectory: path.join(os.tmpdir(), 'sim-e2e-projection-runtime'),
       setupHomeDirectory: path.join(os.tmpdir(), 'sim-e2e-projection-setup'),
       authCaptureHomeDirectory: path.join(os.tmpdir(), 'sim-e2e-projection-auth'),
@@ -93,6 +99,14 @@ test.describe('foundation safety guards', () => {
     expect(build.env.E2E_RUN_ID).toBe('build_sentinel')
     expect(build.env.DEPLOY_AS_BLOCK).toBe('true')
     expect(app.env.DEPLOY_AS_BLOCK).toBe('true')
+    expect(build.env.SSO_ENABLED).toBe('true')
+    expect(app.env.SSO_ENABLED).toBe('true')
+    expect(build.env.SSO_DOMAIN_VERIFICATION_ENABLED).toBe('true')
+    expect(app.env.SSO_DOMAIN_VERIFICATION_ENABLED).toBe('true')
+    expect(build.env.NEXT_PUBLIC_SSO_ENABLED).toBe('true')
+    expect(app.env.NEXT_PUBLIC_SSO_ENABLED).toBe('true')
+    expect(build.env.ALLOWED_MCP_DOMAINS).toBe(E2E_MCP_HOST)
+    expect(app.env.ALLOWED_MCP_DOMAINS).toBe(E2E_MCP_HOST)
     for (const key of [
       'RESEND_API_KEY',
       'AWS_SES_REGION',
@@ -126,16 +140,54 @@ test.describe('foundation safety guards', () => {
     expect(authCapture.env.DATABASE_URL).toBeUndefined()
     expect(playwright.env.ADMIN_API_KEY).toBeUndefined()
     expect(playwright.env.DATABASE_URL).toBeUndefined()
+    expect(playwright.env.E2E_MCP_SERVER_URL).toBe('http://mcp.e2e.sim.ai:40124/mcp')
+    expect(isHostedProfileSensitiveKey('E2E_MCP_SERVER_URL')).toBe(false)
     expect(realtime.env.ADMIN_API_KEY).toBeUndefined()
     expect(realtime.env.STRIPE_SECRET_KEY).toBeUndefined()
     expect(migration.env.ADMIN_API_KEY).toBeUndefined()
     expect(migration.env.MIGRATION_DATABASE_URL).toBe(app.env.DATABASE_URL)
     for (const environment of [realtime, migration, seed, authCapture, playwright]) {
       expect(environment.env.DEPLOY_AS_BLOCK).toBeUndefined()
+      expect(environment.env.ALLOWED_MCP_DOMAINS).toBeUndefined()
+      expect(environment.env.SSO_ENABLED).toBeUndefined()
+      expect(environment.env.SSO_DOMAIN_VERIFICATION_ENABLED).toBeUndefined()
+      expect(environment.env.NEXT_PUBLIC_SSO_ENABLED).toBeUndefined()
+    }
+    for (const environment of [build, app, realtime, migration, seed, authCapture]) {
+      expect(environment.env.E2E_MCP_SERVER_URL).toBeUndefined()
     }
     expect(app.env.HOME).not.toBe(seed.env.HOME)
     expect(seed.env.HOME).not.toBe(authCapture.env.HOME)
     expect(authCapture.env.HOME).not.toBe(playwright.env.HOME)
+  })
+
+  test('committed E2E sources contain no SSO private keys or verification tokens', () => {
+    const privateKeyMarker = ['-----BEGIN ', 'PRIVATE KEY-----'].join('')
+    const verificationTokenField = ['domainVerification', 'Token'].join('')
+    const sourceExtensions = new Set([
+      '.js',
+      '.json',
+      '.md',
+      '.pem',
+      '.ts',
+      '.tsx',
+      '.yaml',
+      '.yml',
+    ])
+    const files = collectFiles(path.join(process.cwd(), 'e2e')).filter((file) =>
+      sourceExtensions.has(path.extname(file))
+    )
+
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8')
+      const relativePath = path.relative(process.cwd(), file)
+      if (source.includes(privateKeyMarker)) {
+        throw new Error(`${relativePath} contains a private key`)
+      }
+      if (source.includes(verificationTokenField)) {
+        throw new Error(`${relativePath} contains an SSO verification token field`)
+      }
+    }
   })
 
   test('database guards reject shared or remote targets', () => {
@@ -178,6 +230,7 @@ test.describe('foundation safety guards', () => {
   })
 
   test('loopback detection rejects public addresses', () => {
+    expect(E2E_HOSTS).toEqual([E2E_HOST, E2E_MCP_HOST])
     expect(isLoopbackAddress('127.0.0.1')).toBe(true)
     expect(isLoopbackAddress('127.10.20.30')).toBe(true)
     expect(isLoopbackAddress('::1')).toBe(true)
@@ -234,6 +287,18 @@ test.describe('foundation safety guards', () => {
     expect(() =>
       parseRunOptions(['--project=hosted-billing-chromium-persona-isolation', '--shard=1/2'])
     ).toThrow(/coupled E2E projects must remain unsharded/)
+  })
+
+  test('repeat-each can increase coverage without weakening orchestration', () => {
+    expect(
+      parseRunOptions(
+        ['--project=hosted-billing-chromium-workflows', '--no-deps', '--repeat-each=2'],
+        { ci: false }
+      ).playwrightArgs
+    ).toContain('--repeat-each=2')
+    expect(() =>
+      parseRunOptions(['--project=hosted-billing-chromium-workflows', '--repeat-each'])
+    ).toThrow(/requires a value/)
   })
 
   test('Playwright CLI arguments cannot override orchestration invariants', () => {
@@ -394,3 +459,11 @@ test.describe('foundation safety guards', () => {
     }
   })
 })
+
+function collectFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    if (entry.isDirectory() && entry.name.startsWith('.')) return []
+    const entryPath = path.join(directory, entry.name)
+    return entry.isDirectory() ? collectFiles(entryPath) : [entryPath]
+  })
+}

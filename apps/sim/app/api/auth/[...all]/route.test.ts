@@ -137,3 +137,45 @@ describe('auth catch-all route organization mutations', () => {
     expect(json).toEqual({ data: { ok: true } })
   })
 })
+
+describe('auth catch-all route SSO mutations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it.each([
+    'register',
+    'update-provider',
+    'delete-provider',
+    'request-domain-verification',
+    'verify-domain',
+  ])('blocks the raw Better Auth /sso/%s endpoint', async (path) => {
+    const req = createMockRequest(
+      'POST',
+      undefined,
+      {},
+      `http://localhost:3000/api/auth/sso/${path}`
+    )
+    const res = await POST(req as any)
+
+    expect(res.status).toBe(404)
+    expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+  })
+
+  it('continues to delegate non-mutation SSO endpoints', async () => {
+    const { NextResponse } = await import('next/server')
+    handlerMocks.betterAuthPOST.mockResolvedValueOnce(
+      new NextResponse(null, { status: 200 }) as any
+    )
+    const req = createMockRequest(
+      'POST',
+      undefined,
+      {},
+      'http://localhost:3000/api/auth/sign-in/sso'
+    )
+
+    const res = await POST(req as any)
+    expect(res.status).toBe(200)
+    expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
+  })
+})

@@ -9,6 +9,13 @@ export const dynamic = 'force-dynamic'
 
 const { GET: betterAuthGET, POST: betterAuthPOST } = toNextJsHandler(auth.handler)
 const SAFE_ORGANIZATION_POST_PATHS = new Set(['organization/check-slug', 'organization/set-active'])
+const BLOCKED_SSO_MUTATION_PATHS = new Set([
+  'sso/register',
+  'sso/update-provider',
+  'sso/delete-provider',
+  'sso/request-domain-verification',
+  'sso/verify-domain',
+])
 
 function getAuthPath(request: NextRequest): string {
   const pathname = request.nextUrl?.pathname ?? new URL(request.url).pathname
@@ -36,6 +43,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (isBlockedOrganizationMutationPath(path)) {
     return NextResponse.json(
       { error: 'Organization mutations are handled by application API routes.' },
+      { status: 404 }
+    )
+  }
+
+  if (BLOCKED_SSO_MUTATION_PATHS.has(path)) {
+    return NextResponse.json(
+      { error: 'SSO mutations are handled by application API routes.' },
       { status: 404 }
     )
   }

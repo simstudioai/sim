@@ -3,15 +3,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  deleteSsoProviderContract,
   listSsoProvidersContract,
+  requestSsoDomainVerificationContract,
   type SsoRegistrationBody,
+  type SsoUpdateBody,
   ssoRegistrationContract,
+  updateSsoProviderContract,
+  verifySsoDomainContract,
 } from '@/lib/api/contracts/auth'
 import { organizationKeys } from '@/hooks/queries/organization'
 
-/**
- * Query key factories for SSO-related queries
- */
 export const ssoKeys = {
   all: ['sso'] as const,
   providers: () => [...ssoKeys.all, 'providers'] as const,
@@ -19,9 +21,6 @@ export const ssoKeys = {
     [...ssoKeys.providers(), organizationId ?? ''] as const,
 }
 
-/**
- * Fetch SSO providers
- */
 async function fetchSSOProviders(signal: AbortSignal, organizationId?: string) {
   return requestJson(listSsoProvidersContract, {
     query: organizationId ? { organizationId } : {},
@@ -29,9 +28,6 @@ async function fetchSSOProviders(signal: AbortSignal, organizationId?: string) {
   })
 }
 
-/**
- * Hook to fetch SSO providers
- */
 interface UseSSOProvidersOptions {
   enabled?: boolean
   organizationId?: string
@@ -46,27 +42,88 @@ export function useSSOProviders({ enabled = true, organizationId }: UseSSOProvid
   })
 }
 
-/**
- * Configure SSO provider mutation
- */
-type ConfigureSSOParams = Record<string, unknown>
+function invalidateSSOQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  organizationId: string
+) {
+  queryClient.invalidateQueries({ queryKey: ssoKeys.providers() })
+  queryClient.invalidateQueries({ queryKey: organizationKeys.detail(organizationId) })
+  queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+}
 
-export function useConfigureSSO() {
+export function useCreateSSOProvider() {
   const queryClient = useQueryClient()
-
   return useMutation({
-    mutationFn: (config: ConfigureSSOParams) =>
+    mutationFn: (body: SsoRegistrationBody) =>
       requestJson(ssoRegistrationContract, {
-        body: config as SsoRegistrationBody,
+        body,
       }),
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: ssoKeys.providers() })
+      invalidateSSOQueries(queryClient, variables.orgId)
+    },
+  })
+}
 
-      const orgId = typeof variables.orgId === 'string' ? variables.orgId : undefined
-      if (orgId) {
-        queryClient.invalidateQueries({ queryKey: organizationKeys.detail(orgId) })
-        queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
-      }
+interface UpdateSSOProviderVariables {
+  id: string
+  organizationId: string
+  body: SsoUpdateBody
+}
+
+export function useUpdateSSOProvider() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: UpdateSSOProviderVariables) =>
+      requestJson(updateSsoProviderContract, {
+        params: { id },
+        body,
+      }),
+    onSettled: (_data, _error, variables) => {
+      invalidateSSOQueries(queryClient, variables.organizationId)
+    },
+  })
+}
+
+interface ProviderActionVariables {
+  id: string
+  organizationId: string
+}
+
+export function useDeleteSSOProvider() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id }: ProviderActionVariables) =>
+      requestJson(deleteSsoProviderContract, {
+        params: { id },
+      }),
+    onSettled: (_data, _error, variables) => {
+      invalidateSSOQueries(queryClient, variables.organizationId)
+    },
+  })
+}
+
+export function useRequestSSODomainVerification() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id }: ProviderActionVariables) =>
+      requestJson(requestSsoDomainVerificationContract, {
+        params: { id },
+      }),
+    onSettled: (_data, _error, variables) => {
+      invalidateSSOQueries(queryClient, variables.organizationId)
+    },
+  })
+}
+
+export function useVerifySSODomain() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id }: ProviderActionVariables) =>
+      requestJson(verifySsoDomainContract, {
+        params: { id },
+      }),
+    onSettled: (_data, _error, variables) => {
+      invalidateSSOQueries(queryClient, variables.organizationId)
     },
   })
 }

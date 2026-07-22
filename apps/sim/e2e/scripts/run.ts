@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import path from 'node:path'
+import { type McpFakeServer, startMcpFakeServer } from '../fakes/mcp/server'
 import { type StripeFakeServer, startStripeFakeServer } from '../fakes/stripe/server'
 import {
   buildRunDatabaseUrl,
@@ -24,16 +25,18 @@ import {
   assertNoForbiddenProviderTraffic,
 } from '../support/diagnostics'
 import { formatRedactedEnvironmentSummary } from '../support/env'
-import { assertE2eHostResolvesToLoopback } from '../support/hosts'
+import { assertE2eHostsResolveToLoopback } from '../support/hosts'
 import {
   assertNoSyntheticSecretLeaks,
   loadSyntheticSecretCanaryForScan,
   scrubUnscannableArtifacts,
 } from '../support/leak-canary'
+import { assertValidMcpFakeTraffic, writeMcpRequestLog } from '../support/mcp-requests'
 import { getRunDirectory, SIM_APP_DIR } from '../support/paths'
 import {
   assertAdminApiBoundary,
   assertManifestWorkspaceIdentities,
+  assertSettingsPrimaryRetentionRestored,
   type FoundationProvisioningResult,
   inspectFoundationUsers,
 } from '../support/probes'
@@ -105,13 +108,68 @@ async function main(): Promise<void> {
   let runDatabase: RunDatabase | null = null
   let databaseCreationComplete = false
   let stripeFake: StripeFakeServer | null = null
+  let mcpFake: McpFakeServer | null = null
   let realtime: ManagedProcess | null = null
   let app: ManagedProcess | null = null
   let cleanupPromise: Promise<void> | null = null
+  let fakeFinalizationPromise: Promise<void> | null = null
   let leakCanarySecrets: string[] = runtimeSecretValues(runtimeSecrets)
   let canaryCoverageComplete = true
   let diagnosticsRetained = true
   let failed = false
+
+  const persistFakeRequestLogs = (): void => {
+    const failures: unknown[] = []
+    if (stripeFake) {
+      try {
+        writeFileSync(
+          path.join(logsDirectory, 'stripe-requests.json'),
+          JSON.stringify(stripeFake.requestLog, null, 2)
+        )
+      } catch (error) {
+        failures.push(error)
+      }
+    }
+    if (mcpFake) {
+      try {
+        writeMcpRequestLog(logsDirectory, mcpFake.requestLog)
+      } catch (error) {
+        failures.push(error)
+      }
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'Unable to persist E2E fake request logs')
+    }
+  }
+
+  const finalizeFakeServers = (): Promise<void> => {
+    if (fakeFinalizationPromise) return fakeFinalizationPromise
+    fakeFinalizationPromise = (async () => {
+      const failures: unknown[] = []
+      try {
+        persistFakeRequestLogs()
+      } catch (error) {
+        failures.push(error)
+      }
+      for (const fake of [mcpFake, stripeFake]) {
+        if (!fake) continue
+        try {
+          await fake.stop()
+        } catch (error) {
+          failures.push(error)
+        }
+      }
+      try {
+        persistFakeRequestLogs()
+      } catch (error) {
+        failures.push(error)
+      }
+      if (failures.length > 0) {
+        throw new AggregateError(failures, 'Unable to finalize E2E fake servers')
+      }
+    })()
+    return fakeFinalizationPromise
+  }
 
   const cleanup = (): Promise<void> => {
     if (cleanupPromise) return cleanupPromise
@@ -123,20 +181,10 @@ async function main(): Promise<void> {
         failures.push(error)
       }
 
-      if (stripeFake) {
-        try {
-          writeFileSync(
-            path.join(logsDirectory, 'stripe-requests.json'),
-            JSON.stringify(stripeFake.requestLog, null, 2)
-          )
-        } catch (error) {
-          failures.push(error)
-        }
-        try {
-          await stripeFake.stop()
-        } catch (error) {
-          failures.push(error)
-        }
+      try {
+        await finalizeFakeServers()
+      } catch (error) {
+        failures.push(error)
       }
 
       for (const sensitiveDirectory of [storageStateDirectory, privateDirectory, homesDirectory]) {
@@ -172,15 +220,10 @@ async function main(): Promise<void> {
     console.error(`Received ${signal}; cleaning up the E2E run`)
     let lockTransferred = false
     try {
-      if (stripeFake) {
-        try {
-          writeFileSync(
-            path.join(logsDirectory, 'stripe-requests.json'),
-            JSON.stringify(stripeFake.requestLog, null, 2)
-          )
-        } catch (error) {
-          console.error(error)
-        }
+      try {
+        await finalizeFakeServers()
+      } catch (error) {
+        console.error(error)
       }
       if (runDatabase) {
         let cleanupLogFd: number | null = null
@@ -256,8 +299,12 @@ async function main(): Promise<void> {
   process.on('SIGTERM', handleSigterm)
 
   try {
-    const hostAddresses = await assertE2eHostResolvesToLoopback()
-    console.info(`E2E host resolved to loopback: ${hostAddresses.join(', ')}`)
+    const hostAddresses = await assertE2eHostsResolveToLoopback()
+    console.info(
+      `E2E hosts resolved to loopback: ${Object.entries(hostAddresses)
+        .map(([hostname, addresses]) => `${hostname}=${addresses.join(',')}`)
+        .join(' ')}`
+    )
     await Promise.all([assertPortAvailable(3000), assertPortAvailable(3002)])
 
     const runDatabaseName = createRunDatabaseName(runId)
@@ -273,11 +320,17 @@ async function main(): Promise<void> {
       port: 0,
     })
     if (!stripeFake.baseUrl) throw new Error('Stripe fake did not expose a base URL')
+    mcpFake = await startMcpFakeServer({
+      hostname: '127.0.0.1',
+      port: 0,
+    })
+    if (!mcpFake.baseUrl) throw new Error('MCP fake did not expose a base URL')
 
     const profile = createHostedBillingProfile({
       runId,
       databaseUrl: runDatabase.url,
       stripeApiBaseUrl: stripeFake.baseUrl,
+      mcpServerUrl: mcpFake.baseUrl,
       runtimeHomeDirectory,
       setupHomeDirectory,
       authCaptureHomeDirectory,
@@ -374,9 +427,13 @@ async function main(): Promise<void> {
       process.off('SIGINT', handleSigint)
       process.off('SIGTERM', handleSigterm)
 
-      if (runDatabase && existsSync(manifestPath)) {
+      if (runDatabase) {
         try {
-          await assertManifestWorkspaceIdentities(runDatabase.url, manifestPath)
+          assertSeededScenarioManifestExists(manifestPath)
+          await Promise.all([
+            assertManifestWorkspaceIdentities(runDatabase.url, manifestPath),
+            assertSettingsPrimaryRetentionRestored(runDatabase.url, manifestPath),
+          ])
         } catch (error) {
           failed = true
           process.exitCode = 1
@@ -402,6 +459,25 @@ async function main(): Promise<void> {
         failed = true
         process.exitCode = 1
         console.error(error)
+      }
+      try {
+        persistFakeRequestLogs()
+      } catch (error) {
+        failed = true
+        process.exitCode = 1
+        console.error(error)
+      }
+      if (mcpFake) {
+        try {
+          assertValidMcpFakeTraffic(
+            mcpFake.requestLog,
+            hasMcpWorkflowCompletionMarker(markerDirectory)
+          )
+        } catch (error) {
+          failed = true
+          process.exitCode = 1
+          console.error(error)
+        }
       }
       try {
         assertNoForbiddenProviderTraffic(
@@ -551,6 +627,19 @@ function hasFoundationCompletionMarker(markerDirectory: string): boolean {
     existsSync(markerDirectory) &&
     readdirSync(markerDirectory).some((name) => name.startsWith('foundation-authenticated-'))
   )
+}
+
+function hasMcpWorkflowCompletionMarker(markerDirectory: string): boolean {
+  return (
+    existsSync(markerDirectory) &&
+    readdirSync(markerDirectory).some((name) => name.startsWith('mcp-workflow-complete'))
+  )
+}
+
+function assertSeededScenarioManifestExists(manifestPath: string): void {
+  if (!existsSync(manifestPath)) {
+    throw new Error('Final database invariants require the seeded scenario manifest')
+  }
 }
 
 await main()

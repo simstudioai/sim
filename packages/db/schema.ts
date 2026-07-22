@@ -2959,6 +2959,7 @@ export const ssoProvider = pgTable(
     id: text('id').primaryKey(),
     issuer: text('issuer').notNull(),
     domain: text('domain').notNull(),
+    domainVerified: boolean('domain_verified').notNull().default(false),
     oidcConfig: text('oidc_config'),
     samlConfig: text('saml_config'),
     userId: text('user_id')
@@ -2970,10 +2971,31 @@ export const ssoProvider = pgTable(
     }),
   },
   (table) => ({
-    providerIdIdx: index('sso_provider_provider_id_idx').on(table.providerId),
-    domainIdx: index('sso_provider_domain_idx').on(table.domain),
+    providerIdUnique: uniqueIndex('sso_provider_provider_id_unique').on(table.providerId),
+    domainLowerUnique: uniqueIndex('sso_provider_domain_lower_unique').on(
+      sql`lower(${table.domain})`
+    ),
     userIdIdx: index('sso_provider_user_id_idx').on(table.userId),
     organizationIdIdx: index('sso_provider_organization_id_idx').on(table.organizationId),
+    organizationIdUnique: uniqueIndex('sso_provider_organization_id_unique')
+      .on(table.organizationId)
+      .where(sql`${table.organizationId} IS NOT NULL`),
+    providerIdFormat: check(
+      'sso_provider_provider_id_format_check',
+      sql`length(${table.providerId}) <= 44 AND ${table.providerId} ~ '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$'`
+    ),
+    providerIdNotReserved: check(
+      'sso_provider_provider_id_not_reserved_check',
+      sql`${table.providerId} NOT IN ('google', 'github', 'email-password')`
+    ),
+    domainFormat: check(
+      'sso_provider_domain_format_check',
+      sql`${table.domain} = lower(btrim(${table.domain})) AND ${table.domain} NOT LIKE '%,%' AND ${table.domain} ~ '^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])$'`
+    ),
+    organizationRequired: check(
+      'sso_provider_organization_required_check',
+      sql`${table.organizationId} IS NOT NULL`
+    ),
   })
 )
 

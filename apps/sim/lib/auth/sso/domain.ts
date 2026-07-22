@@ -1,28 +1,35 @@
+import { domainToASCII } from 'node:url'
+import { parse } from 'tldts'
+
 /**
- * Normalizes a user-supplied SSO email domain to a canonical, comparable form:
- * strips protocol, path, query, port, a leading wildcard/`@`, an email local
- * part, and a trailing dot, then lowercases. Returns `null` for inputs that are
- * not a registrable domain (e.g. `example.com`), which callers treat as invalid.
+ * Normalizes one user-supplied SSO email domain to a canonical form. Inputs that
+ * are URLs, email addresses, comma lists, IPs, public suffixes, or domains below
+ * an unknown suffix are rejected.
  */
 export function normalizeSSODomain(input: string): string | null {
   if (typeof input !== 'string') return null
 
-  let value = input.trim().toLowerCase()
+  const trimmed = input.trim().replace(/\.$/, '')
+  if (!trimmed || trimmed.includes(',')) return null
+  if (/[:/@*?\s]/.test(trimmed)) return null
+
+  const value = domainToASCII(trimmed).toLowerCase()
   if (!value) return null
 
-  value = value.replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
-  value = value.replace(/^\*\./, '').replace(/^@/, '')
-  value = value.split('/')[0]
-  value = value.split('?')[0]
-  value = value.split('@').pop() ?? value
-  value = value.split(':')[0]
-  value = value.replace(/\.$/, '')
-
-  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(value)) return null
-
-  const labels = value.split('.')
-  if (labels.some((label) => label.length === 0 || label.length > 63)) return null
-  if (/^\d+$/.test(labels[labels.length - 1])) return null
+  const result = parse(value, {
+    allowPrivateDomains: true,
+    validateHostname: true,
+  })
+  if (
+    result.isIp ||
+    !result.domain ||
+    !result.publicSuffix ||
+    (!result.isIcann && !result.isPrivate) ||
+    result.hostname !== value ||
+    result.publicSuffix === value
+  ) {
+    return null
+  }
 
   return value
 }

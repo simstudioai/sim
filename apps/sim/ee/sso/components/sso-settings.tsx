@@ -4,6 +4,7 @@ import { type ReactNode, useState } from 'react'
 import {
   Button,
   ChipCombobox,
+  ChipConfirmModal,
   ChipInput,
   ChipSelect,
   ChipTextarea,
@@ -14,10 +15,9 @@ import {
   Switch,
   toast,
 } from '@sim/emcn'
-import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
-import type { SsoRegistrationBody } from '@/lib/api/contracts/auth'
+import type { SsoRegistrationBody, SsoUpdateBody } from '@/lib/api/contracts/auth'
 import { useSession } from '@/lib/auth/auth-client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
@@ -28,10 +28,15 @@ import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/comp
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
-import { useConfigureSSO, useSSOProviders } from '@/ee/sso/hooks/sso'
+import {
+  useCreateSSOProvider,
+  useDeleteSSOProvider,
+  useRequestSSODomainVerification,
+  useSSOProviders,
+  useUpdateSSOProvider,
+  useVerifySSODomain,
+} from '@/ee/sso/hooks/sso'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
-
-const logger = createLogger('SSO')
 
 interface FormFieldProps {
   label: ReactNode
@@ -63,10 +68,12 @@ interface SSOProvider {
   domain: string
   issuer: string
   organizationId: string
-  userId?: string
   oidcConfig?: string
   samlConfig?: string
   providerType: 'oidc' | 'saml'
+  domainVerified: boolean
+  isCreator: boolean
+  canManageVerification: boolean
 }
 
 const DEFAULT_FORM_DATA = {
@@ -109,28 +116,42 @@ export function SSO({ organizationId }: SSOProps) {
 
 function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const { data: session } = useSession()
-  const { data: organizationBillingData, isLoading: isLoadingOrganizationBilling } =
-    useOrganizationBilling(organizationId)
+  const {
+    data: organizationBillingData,
+    isPending: isLoadingOrganizationBilling,
+    isError: hasOrganizationBillingError,
+  } = useOrganizationBilling(organizationId)
 
-  const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders({
-    organizationId,
-  })
+  const {
+    data: providersData,
+    isPending: isLoadingProviders,
+    isError: hasProvidersError,
+  } = useSSOProviders({ organizationId })
 
   const providers = providersData?.providers || []
   const existingProvider = providers[0] as SSOProvider | undefined
 
-  const userId = session?.user?.id
   const hasEnterprisePlan = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
 
   const isSSOProviderOwner =
-    !isBillingEnabled && userId ? providers.some((p) => p.userId === userId) : null
+    !isBillingEnabled && session?.user?.id ? providers.some((provider) => provider.isCreator) : null
 
-  const configureSSOMutation = useConfigureSSO()
+  const createSSOMutation = useCreateSSOProvider()
+  const updateSSOMutation = useUpdateSSOProvider()
+  const deleteSSOMutation = useDeleteSSOProvider()
+  const requestVerificationMutation = useRequestSSODomainVerification()
+  const verifyDomainMutation = useVerifySSODomain()
+  const isSaving = createSSOMutation.isPending || updateSSOMutation.isPending
 
   const [showClientSecret, setShowClientSecret] = useState(false)
   const [copied, setCopied] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
+  const [verificationDetails, setVerificationDetails] = useState<{
+    recordName: string
+    recordValue: string
+  } | null>(null)
 
   const [formData, setFormData] = useState(DEFAULT_FORM_DATA)
   const [originalFormData, setOriginalFormData] = useState(DEFAULT_FORM_DATA)
@@ -143,24 +164,45 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
   useSettingsUnsavedGuard({ isDirty: hasChanges })
 
+  const hasLoadError = hasProvidersError || (isBillingEnabled && hasOrganizationBillingError)
+  if (hasLoadError) {
+    return (
+      <section aria-label='SSO settings' aria-busy={false} data-sso-state='error'>
+        <SettingsEmptyState>
+          <span role='alert'>Failed to load SSO settings.</span>
+        </SettingsEmptyState>
+      </section>
+    )
+  }
+
   if (isLoadingProviders || (isBillingEnabled && isLoadingOrganizationBilling)) {
-    return null
+    return (
+      <section aria-label='SSO settings' aria-busy data-sso-state='loading'>
+        <SettingsEmptyState>
+          <span role='status'>Loading SSO settings…</span>
+        </SettingsEmptyState>
+      </section>
+    )
   }
 
   if (isBillingEnabled) {
     if (!hasEnterprisePlan) {
       return (
-        <SettingsEmptyState>
-          Single Sign-On is available on Enterprise plans only.
-        </SettingsEmptyState>
+        <section aria-label='SSO settings' aria-busy={false} data-sso-state='ready'>
+          <SettingsEmptyState>
+            Single Sign-On is available on Enterprise plans only.
+          </SettingsEmptyState>
+        </section>
       )
     }
   } else {
     if (!isLoadingProviders && isSSOProviderOwner === false && providers.length > 0) {
       return (
-        <SettingsEmptyState>
-          Only the user who configured SSO can manage these settings.
-        </SettingsEmptyState>
+        <section aria-label='SSO settings' aria-busy={false} data-sso-state='ready'>
+          <SettingsEmptyState>
+            Only the user who configured SSO can manage these settings.
+          </SettingsEmptyState>
+        </section>
       )
     }
   }
@@ -284,14 +326,11 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     try {
       const providerType = formData.providerType || 'oidc'
 
-      const requestBody: SsoRegistrationBody =
+      const configuration =
         providerType === 'oidc'
           ? {
-              providerType: 'oidc',
-              providerId: formData.providerId,
               issuer: formData.issuerUrl,
               domain: formData.domain,
-              orgId: organizationId,
               mapping: {
                 id: 'sub',
                 email: 'email',
@@ -303,11 +342,8 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               scopes: formData.scopes.split(',').map((s) => s.trim()),
             }
           : {
-              providerType: 'saml',
-              providerId: formData.providerId,
               issuer: formData.issuerUrl,
               domain: formData.domain,
-              orgId: organizationId,
               mapping: {
                 id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
                 email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
@@ -321,9 +357,21 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               ...(formData.idpMetadata ? { idpMetadata: formData.idpMetadata } : {}),
             }
 
-      await configureSSOMutation.mutateAsync(requestBody)
+      if (isEditing && existingProvider) {
+        await updateSSOMutation.mutateAsync({
+          id: existingProvider.id,
+          organizationId,
+          body: configuration as SsoUpdateBody,
+        })
+      } else {
+        await createSSOMutation.mutateAsync({
+          ...configuration,
+          providerType,
+          providerId: formData.providerId,
+          orgId: organizationId,
+        } as SsoRegistrationBody)
+      }
 
-      logger.info('SSO provider configured', { providerId: formData.providerId })
       toast.success(isEditing ? 'SSO provider updated' : 'SSO provider configured')
       setFormData(DEFAULT_FORM_DATA)
       setOriginalFormData(DEFAULT_FORM_DATA)
@@ -334,7 +382,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     } catch (err) {
       const message = getErrorMessage(err, 'Unknown error occurred')
       toast.error(message)
-      logger.error('Failed to configure SSO provider', { error: err })
     }
   }
 
@@ -409,9 +456,46 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       setIsEditing(true)
       setShowErrors(false)
       setShowAdvanced(false)
-    } catch (err) {
-      logger.error('Failed to parse provider config', { error: err })
+    } catch {
       toast.error('Failed to load provider configuration')
+    }
+  }
+
+  const handleRemove = async () => {
+    if (!existingProvider) return
+    try {
+      await deleteSSOMutation.mutateAsync({ id: existingProvider.id, organizationId })
+      setShowRemoveConfirm(false)
+      setVerificationDetails(null)
+      toast.success('SSO provider removed')
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to remove SSO provider'))
+    }
+  }
+
+  const handleRequestVerification = async () => {
+    if (!existingProvider) return
+    try {
+      const result = await requestVerificationMutation.mutateAsync({
+        id: existingProvider.id,
+        organizationId,
+      })
+      setVerificationDetails({
+        recordName: result.recordName,
+        recordValue: result.recordValue,
+      })
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to load DNS verification instructions'))
+    }
+  }
+
+  const handleVerifyDomain = async () => {
+    if (!existingProvider) return
+    try {
+      await verifyDomainMutation.mutateAsync({ id: existingProvider.id, organizationId })
+      toast.success('SSO domain verified')
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Domain verification failed'))
     }
   }
 
@@ -419,59 +503,137 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     const providerCallbackUrl = `${getBaseUrl()}/api/auth/${existingProvider.providerType === 'saml' ? 'sso/saml2/callback' : 'sso/callback'}/${existingProvider.providerId}`
 
     return (
-      <SettingsPanel actions={[{ text: 'Edit', variant: 'primary', onSelect: handleEdit }]}>
-        <div className='flex flex-col gap-4.5'>
-          <FormField label='Provider ID'>
-            <p className='text-[var(--text-primary)] text-small'>{existingProvider.providerId}</p>
-          </FormField>
+      <section aria-label='SSO settings' aria-busy={false} data-sso-state='ready'>
+        <SettingsPanel
+          actions={[
+            { text: 'Edit', variant: 'primary', onSelect: handleEdit },
+            {
+              text: 'Remove',
+              variant: 'destructive',
+              onSelect: () => setShowRemoveConfirm(true),
+            },
+          ]}
+        >
+          <div className='flex flex-col gap-4.5'>
+            <FormField label='Status'>
+              <p aria-label='SSO provider status' className='text-[var(--text-primary)] text-small'>
+                {existingProvider.domainVerified ? 'Active' : 'Pending verification'}
+              </p>
+            </FormField>
 
-          <FormField label='Provider Type'>
-            <p className='text-[var(--text-primary)] text-small'>
-              {existingProvider.providerType.toUpperCase()}
-            </p>
-          </FormField>
+            <FormField label='Provider ID'>
+              <p className='text-[var(--text-primary)] text-small'>{existingProvider.providerId}</p>
+            </FormField>
 
-          <FormField label='Domain'>
-            <p className='text-[var(--text-primary)] text-small'>{existingProvider.domain}</p>
-          </FormField>
+            <FormField label='Provider Type'>
+              <p className='text-[var(--text-primary)] text-small'>
+                {existingProvider.providerType.toUpperCase()}
+              </p>
+            </FormField>
 
-          <FormField label='Issuer URL'>
-            <p className='break-all font-mono text-[var(--text-primary)] text-small leading-relaxed'>
-              {existingProvider.issuer}
-            </p>
-          </FormField>
+            <FormField label='Domain'>
+              <p className='text-[var(--text-primary)] text-small'>{existingProvider.domain}</p>
+            </FormField>
 
-          <FormField label='Callback URL'>
-            <ChipInput
-              value={providerCallbackUrl}
-              readOnly
-              endAdornment={
-                <Button
-                  type='button'
-                  variant='ghost'
-                  onClick={() => copyToClipboard(providerCallbackUrl)}
-                  className='size-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
-                  aria-label='Copy callback URL'
-                >
-                  {copied ? (
-                    <Check className='size-[14px]' />
-                  ) : (
-                    <Clipboard className='size-[14px]' />
-                  )}
-                </Button>
-              }
-            />
-            <p className='text-[var(--text-muted)] text-small'>
-              Configure this in your identity provider
-            </p>
-          </FormField>
-        </div>
-      </SettingsPanel>
+            <FormField label='Issuer URL'>
+              <p className='break-all font-mono text-[var(--text-primary)] text-small leading-relaxed'>
+                {existingProvider.issuer}
+              </p>
+            </FormField>
+
+            <FormField label='Callback URL'>
+              <ChipInput
+                value={providerCallbackUrl}
+                readOnly
+                endAdornment={
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    onClick={() => copyToClipboard(providerCallbackUrl)}
+                    className='size-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
+                    aria-label='Copy callback URL'
+                  >
+                    {copied ? (
+                      <Check className='size-[14px]' />
+                    ) : (
+                      <Clipboard className='size-[14px]' />
+                    )}
+                  </Button>
+                }
+              />
+              <p className='text-[var(--text-muted)] text-small'>
+                Configure this in your identity provider
+              </p>
+            </FormField>
+
+            {!existingProvider.domainVerified && existingProvider.canManageVerification ? (
+              <FormField label='Domain verification'>
+                <div className='flex flex-col items-start gap-3'>
+                  {verificationDetails ? (
+                    <div aria-label='DNS verification instructions' className='flex flex-col gap-2'>
+                      <p className='text-[var(--text-muted)] text-small'>
+                        Add a TXT record with this name and value:
+                      </p>
+                      <p className='break-all font-mono text-small'>
+                        Name: {verificationDetails.recordName}
+                      </p>
+                      <p className='break-all font-mono text-small'>
+                        Value: {verificationDetails.recordValue}
+                      </p>
+                    </div>
+                  ) : null}
+                  <div className='flex gap-2'>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={() => void handleRequestVerification()}
+                      disabled={requestVerificationMutation.isPending}
+                    >
+                      {verificationDetails ? 'Refresh DNS instructions' : 'Show DNS instructions'}
+                    </Button>
+                    <Button
+                      type='button'
+                      variant='primary'
+                      onClick={() => void handleVerifyDomain()}
+                      disabled={verifyDomainMutation.isPending}
+                    >
+                      {verifyDomainMutation.isPending ? 'Checking DNS…' : 'Verify domain'}
+                    </Button>
+                  </div>
+                </div>
+              </FormField>
+            ) : null}
+          </div>
+        </SettingsPanel>
+        <ChipConfirmModal
+          open={showRemoveConfirm}
+          onOpenChange={setShowRemoveConfirm}
+          title='Remove SSO provider'
+          text={[
+            'Remove ',
+            { text: existingProvider.providerId, bold: true },
+            '? Users will no longer be able to sign in through this provider.',
+          ]}
+          confirm={{
+            label: 'Remove provider',
+            onClick: handleRemove,
+            pending: deleteSSOMutation.isPending,
+            pendingLabel: 'Removing...',
+          }}
+        />
+      </section>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} autoComplete='off'>
+    <form
+      onSubmit={handleSubmit}
+      autoComplete='off'
+      role='region'
+      aria-label='SSO settings'
+      aria-busy={false}
+      data-sso-state='ready'
+    >
       <input
         type='text'
         name='fakeusernameremembered'
@@ -505,13 +667,13 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 {
                   text: 'Cancel',
                   onSelect: handleDiscard,
-                  disabled: configureSSOMutation.isPending,
+                  disabled: isSaving,
                 } satisfies SettingsAction,
               ]
             : []),
           ...saveDiscardActions({
             dirty: hasChanges,
-            saving: configureSSOMutation.isPending,
+            saving: isSaving,
             saveDisabled: hasAnyErrors(errors) || !isFormValid(),
             saveLabel: isEditing ? 'Update' : 'Save',
             savingLabel: isEditing ? 'Updating...' : 'Saving...',
@@ -523,8 +685,10 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         <div className='flex flex-col gap-4.5'>
           <FormField label='Provider Type'>
             <ChipSelect
+              aria-label='Provider Type'
               align='start'
               value={formData.providerType}
+              disabled={isEditing}
               onChange={(value: string) =>
                 handleInputChange('providerType', value as 'oidc' | 'saml')
               }
@@ -548,7 +712,9 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             }
           >
             <ChipCombobox
+              aria-label='Provider ID'
               value={formData.providerId}
+              disabled={isEditing}
               onChange={(value: string) => handleInputChange('providerId', value)}
               options={SSO_TRUSTED_PROVIDERS.map((id) => ({
                 label: id,
@@ -566,6 +732,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             }
           >
             <ChipInput
+              aria-label='Issuer URL'
               id='sso-issuer'
               type='url'
               placeholder='https://your-identity-provider.com/oauth2/default'
@@ -586,6 +753,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             error={showErrors && errors.domain.length > 0 ? errors.domain.join(' ') : undefined}
           >
             <ChipInput
+              aria-label='Domain'
               id='sso-domain'
               type='text'
               placeholder='company.com'
@@ -613,6 +781,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 }
               >
                 <ChipInput
+                  aria-label='Client ID'
                   id='sso-client-id'
                   type='text'
                   placeholder='Enter Client ID'
@@ -637,6 +806,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 }
               >
                 <ChipInput
+                  aria-label='Client Secret'
                   id='sso-client-secret'
                   type='text'
                   placeholder='Enter Client Secret'
@@ -677,6 +847,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 error={showErrors && errors.scopes.length > 0 ? errors.scopes.join(' ') : undefined}
               >
                 <ChipInput
+                  aria-label='Scopes'
                   id='sso-scopes'
                   type='text'
                   placeholder='openid,profile,email'
@@ -703,6 +874,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 }
               >
                 <ChipInput
+                  aria-label='Entry Point URL'
                   id='sso-entry-point'
                   type='url'
                   placeholder='https://idp.example.com/sso/saml'
@@ -720,6 +892,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 error={showErrors && errors.cert.length > 0 ? errors.cert.join(' ') : undefined}
               >
                 <ChipTextarea
+                  aria-label='Identity Provider Certificate'
                   id='sso-cert'
                   placeholder={'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'}
                   value={formData.cert}
@@ -751,6 +924,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                     <div className='flex flex-col gap-4.5 pt-2'>
                       <FormField label='Audience (Entity ID)' optional>
                         <ChipInput
+                          aria-label='Audience (Entity ID)'
                           type='text'
                           placeholder='Enter Audience'
                           value={formData.audience}
@@ -763,6 +937,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
                       <FormField label='Callback URL Override' optional>
                         <ChipInput
+                          aria-label='Callback URL Override'
                           type='url'
                           placeholder={`${getBaseUrl()}/api/auth/sso/saml2/callback/provider-id`}
                           value={formData.callbackUrl}
@@ -784,6 +959,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
                       <FormField label='IDP Metadata XML' optional>
                         <ChipTextarea
+                          aria-label='IDP Metadata XML'
                           placeholder='Paste IDP metadata XML here'
                           value={formData.idpMetadata}
                           autoComplete='off'
@@ -803,6 +979,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
           <FormField label='Callback URL'>
             <ChipInput
+              aria-label='Callback URL'
               value={callbackUrl}
               readOnly
               endAdornment={

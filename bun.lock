@@ -383,6 +383,7 @@
         "@sim/utils": "workspace:*",
         "drizzle-orm": "^0.45.2",
         "postgres": "^3.4.5",
+        "tldts": "7.0.30",
         "zod": "4.3.6",
       },
       "devDependencies": {

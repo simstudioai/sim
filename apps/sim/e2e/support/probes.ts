@@ -1,5 +1,6 @@
 import postgres from 'postgres'
 import { readScenarioManifest } from '../fixtures/e2e-world'
+import { assertSettingsPrimaryRetentionBaseline } from './data-retention'
 
 export async function assertAdminApiBoundary(origin: string, adminKey: string): Promise<void> {
   const endpoint = `${origin}/api/v1/admin/users?limit=1&offset=0`
@@ -75,6 +76,34 @@ export async function assertManifestWorkspaceIdentities(
     if (rows.length !== expected.length) {
       throw new Error('Manifest workspace inventory contains unexpected duplicates')
     }
+  } finally {
+    await sql.end()
+  }
+}
+
+export async function assertSettingsPrimaryRetentionRestored(
+  databaseUrl: string,
+  manifestPath: string
+): Promise<void> {
+  const manifest = readScenarioManifest(manifestPath)
+  const organizationId =
+    manifest.worlds['settings-primary']?.organizationIds['enterprise-organization']
+  if (!organizationId) {
+    throw new Error('Settings-primary Enterprise organization is missing from the manifest')
+  }
+
+  const sql = postgres(databaseUrl, { max: 1, connect_timeout: 10 })
+  try {
+    const [row] = await sql<Array<{ dataRetentionSettings: unknown }>>`
+      SELECT data_retention_settings AS "dataRetentionSettings"
+      FROM organization
+      WHERE id = ${organizationId}
+      LIMIT 1
+    `
+    assertSettingsPrimaryRetentionBaseline(
+      row?.dataRetentionSettings,
+      'Post-Playwright settings-primary retention probe'
+    )
   } finally {
     await sql.end()
   }
