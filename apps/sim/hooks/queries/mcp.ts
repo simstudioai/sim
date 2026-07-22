@@ -188,8 +188,10 @@ export function useMcpToolsQuery(workspaceId: string) {
     >()
     for (let index = 0; index < results.length; index++) {
       const result = results[index]
-      // Drop stale data from servers whose latest refetch errored.
-      if (result.data && !result.isError) {
+      // Keep last-known-good tools when the latest refetch errored (React Query retains `data`);
+      // the per-server error rides in `toolsStateByServer`. Blanking a populated server on a
+      // transient discovery failure is what every reference MCP client avoids.
+      if (result.data) {
         tools.push(...result.data)
         hasData = true
       }
