@@ -95,9 +95,9 @@ export function queueTableRows(table: unknown, rows: unknown[]): void {
   else tableRowQueues.set(table, [rows])
 }
 
-/** Dequeues the first queued set among the chain's tables (from before joins). */
-function dequeueActiveRows(): unknown[] | null {
-  for (const table of activeTables) {
+/** Dequeues the first queued set among the given chain's tables (from before joins). */
+function dequeueChainRows(tables: unknown[]): unknown[] | null {
+  for (const table of tables) {
     const queue = tableRowQueues.get(table)
     if (queue && queue.length > 0) return queue.shift() ?? null
   }
@@ -187,7 +187,7 @@ const onConflictDoNothing = vi.fn(() => ({ returning }) as unknown as Promise<vo
 const whereBuilder = () => {
   // Dequeue table-routed rows when the where clause materializes; every
   // downstream terminal (limit/orderBy/...) then resolves the same rows.
-  activeRows = dequeueActiveRows()
+  activeRows = dequeueChainRows(activeTables)
   // Some call sites await the where directly (no limit/orderBy), so the
   // builder is itself a thenable.
   const thenable: any = chainRows()
@@ -201,25 +201,29 @@ const whereBuilder = () => {
 const where = vi.fn(whereBuilder)
 
 // The from/join builder is itself a thenable so `await db.select().from(t)`
-// (no where clause) also resolves table-routed rows. Dequeue happens lazily at
-// await time, so a chain that continues into `.where()` never double-consumes.
-const joinBuilder = (): { where: typeof where; innerJoin: any; leftJoin: any; then: any } => ({
+// (no where clause) also resolves table-routed rows. Each builder closes over
+// ITS chain's tables array, so builders constructed before an earlier one is
+// awaited still route to their own chain. Dequeue happens lazily at await
+// time, so a chain that continues into `.where()` never double-consumes.
+const joinBuilder = (
+  tables: unknown[]
+): { where: typeof where; innerJoin: any; leftJoin: any; then: any } => ({
   where,
   innerJoin,
   leftJoin,
   then: (onFulfilled?: (rows: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
-    Promise.resolve((dequeueActiveRows() ?? []) as unknown[]).then(onFulfilled, onRejected),
+    Promise.resolve((dequeueChainRows(tables) ?? []) as unknown[]).then(onFulfilled, onRejected),
 })
 const joinStep = (table?: unknown) => {
   activeTables.push(table)
-  return joinBuilder()
+  return joinBuilder(activeTables)
 }
 const innerJoin: ReturnType<typeof vi.fn> = vi.fn(joinStep)
 const leftJoin: ReturnType<typeof vi.fn> = vi.fn(joinStep)
 const from = vi.fn((table?: unknown) => {
   activeTables = [table]
   activeRows = null
-  return joinBuilder()
+  return joinBuilder(activeTables)
 })
 
 const select = vi.fn(() => ({ from }))
@@ -288,7 +292,7 @@ export function resetDbChainMock(): void {
   from.mockImplementation((table?: unknown) => {
     activeTables = [table]
     activeRows = null
-    return joinBuilder()
+    return joinBuilder(activeTables)
   })
   innerJoin.mockImplementation(joinStep)
   leftJoin.mockImplementation(joinStep)

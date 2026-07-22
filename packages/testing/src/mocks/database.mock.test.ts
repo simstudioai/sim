@@ -73,6 +73,15 @@ describe('database mock', () => {
     await expect(db.select().from(workflowTable)).resolves.toEqual([])
   })
 
+  it('routes two direct-await builders constructed before either resolves', async () => {
+    queueTableRows(workflowTable, [{ id: 'w-first' }])
+    queueTableRows(memberTable, [{ id: 'm-second' }])
+    const first = db.select().from(workflowTable)
+    const second = db.select().from(memberTable)
+    await expect(first).resolves.toEqual([{ id: 'w-first' }])
+    await expect(second).resolves.toEqual([{ id: 'm-second' }])
+  })
+
   it('routes rows queued for a table referenced only by a join', async () => {
     queueTableRows(memberTable, [{ id: 'joined' }])
     await expect(
