@@ -172,19 +172,7 @@ export function useMcpToolsQuery(workspaceId: string) {
       queryKey: mcpKeys.serverToolsList(workspaceId, serverId),
       queryFn: async ({ signal }: { signal?: AbortSignal }) => {
         try {
-          const tools = await fetchMcpTools(workspaceId, false, signal, serverId)
-          // A successful probe flips the stored status to `connected` server-side; if the
-          // cached list still shows this server failed, refresh it so the row clears its red
-          // state (and its tools stop being dropped) instead of waiting out the list stale-time.
-          const cached = queryClient.getQueryData<McpServer[]>(mcpKeys.serversList(workspaceId))
-          const status = cached?.find((s) => s.id === serverId)?.connectionStatus
-          if (status && status !== 'connected') {
-            queryClient.invalidateQueries(
-              { queryKey: mcpKeys.serversList(workspaceId) },
-              { cancelRefetch: false }
-            )
-          }
-          return tools
+          return await fetchMcpTools(workspaceId, false, signal, serverId)
         } catch (error) {
           await queryClient.invalidateQueries(
             { queryKey: mcpKeys.serversList(workspaceId) },
