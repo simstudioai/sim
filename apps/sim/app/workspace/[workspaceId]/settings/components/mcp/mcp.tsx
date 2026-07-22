@@ -99,9 +99,10 @@ function ServerListItem({
   )
   // A live discovery failure whose stored status hasn't caught up yet would otherwise read as
   // "0 tools"; surface it directly so a failed row reads as failed, not empty.
+  // Shown even when cached tools exist: a present discoveryError means the LATEST
+  // discovery failed, and silently showing the stale tool count would hide that.
   const showDiscoveryError =
     Boolean(discoveryError) &&
-    tools.length === 0 &&
     server.connectionStatus !== 'error' &&
     server.connectionStatus !== 'disconnected'
   const hasConnectionIssue =
@@ -408,8 +409,6 @@ export function MCP() {
     const refreshAction = getRefreshActionState({
       mutationStatus: isCurrentRefresh ? refreshServerMutation.status : 'idle',
       connectionStatus: isCurrentRefresh ? refreshServerMutation.data?.status : undefined,
-      authType: server.authType,
-      error: isCurrentRefresh ? refreshServerMutation.data?.error : undefined,
       workflowsUpdated: isCurrentRefresh ? refreshServerMutation.data?.workflowsUpdated : undefined,
     })
 

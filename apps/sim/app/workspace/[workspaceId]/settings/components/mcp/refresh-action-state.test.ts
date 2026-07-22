@@ -31,28 +31,11 @@ describe('getRefreshActionState', () => {
     })
   })
 
-  it('shows a short Failed result when an OAuth refresh finishes disconnected (status field explains)', () => {
-    expect(
-      getRefreshActionState({
-        mutationStatus: 'success',
-        connectionStatus: 'disconnected',
-        authType: 'oauth',
-        workflowsUpdated: 0,
-      })
-    ).toEqual({
-      text: 'Failed',
-      textTone: 'error',
-      disabled: false,
-    })
-  })
-
   it('keeps Failed when a disconnected OAuth refresh has a concrete error', () => {
     expect(
       getRefreshActionState({
         mutationStatus: 'success',
         connectionStatus: 'disconnected',
-        authType: 'oauth',
-        error: 'The MCP server took too long to respond and timed out',
         workflowsUpdated: 0,
       })
     ).toEqual({

@@ -243,4 +243,62 @@ describe('useMcpOauthPopup', () => {
     expect(order).toEqual(['open', 'start'])
     hook.unmount()
   })
+
+  it('clears the label when the popup closes but still honors a late completion', async () => {
+    vi.useFakeTimers()
+    try {
+      const popup = {
+        close: vi.fn(),
+        focus: vi.fn(),
+        location: { replace: vi.fn() },
+        closed: false,
+      }
+      ;(window.open as ReturnType<typeof vi.fn>).mockReturnValue(popup as unknown as Window)
+      let channelHandler: ((e: { data: unknown }) => void) | null = null
+      class CapturingChannel {
+        constructor(public name: string) {}
+        postMessage(): void {}
+        close(): void {}
+      }
+      Object.defineProperty(CapturingChannel.prototype, 'onmessage', {
+        set(h) {
+          channelHandler = h
+        },
+        get() {
+          return channelHandler
+        },
+        configurable: true,
+      })
+      ;(globalThis as unknown as { BroadcastChannel: unknown }).BroadcastChannel = CapturingChannel
+      mockStartOauth.mockResolvedValue({
+        status: 'redirect',
+        authorizationUrl: 'https://as.example/a?state=st',
+        state: 'st',
+      })
+      const hook = renderHookWithClient(() => useMcpOauthPopup({ workspaceId: 'w1' }))
+      await act(async () => {
+        await hook.result().startOauthForServer('s1')
+      })
+      expect(hook.result().connectingServers.has('s1')).toBe(true)
+
+      // User closes the popup — the label share clears within a poll tick...
+      popup.closed = true
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      expect(hook.result().connectingServers.has('s1')).toBe(false)
+
+      // ...but the flow stays registered: a late BroadcastChannel completion is still honored.
+      const invalidateSpy = vi.spyOn(hook.queryClient, 'invalidateQueries')
+      await act(async () => {
+        channelHandler?.({ data: { type: 'mcp-oauth', ok: true, serverId: 's1', state: 'st' } })
+      })
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['mcp', 'servers', 'w1'] })
+      // And the count did not go negative / re-clear twice.
+      expect(hook.result().connectingServers.has('s1')).toBe(false)
+      hook.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
