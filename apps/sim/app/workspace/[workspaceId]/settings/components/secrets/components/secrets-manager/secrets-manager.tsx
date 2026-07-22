@@ -900,7 +900,7 @@ export function SecretsManager() {
         />
         {hasContent ? (
           <SecretRowMenu
-            label={`Secret actions for ${envVar.key}`}
+            label={`Secret actions for ${envVar.key || 'new personal secret'}`}
             onCopyName={() => copyName(envVar.key)}
             onDelete={() => removeEnvVar(originalIndex)}
           />

@@ -151,6 +151,7 @@ export async function runSecretApi(
     const headers = { 'content-type': 'application/json' }
 
     if (operation.kind === 'read-workspace') {
+      // boundary-raw-fetch: E2E browser-resident credential operation prevents plaintext crossing into Playwright
       const response = await fetch(
         `/api/workspaces/${encodeURIComponent(operation.workspaceId)}/environment`
       )
@@ -169,6 +170,7 @@ export async function runSecretApi(
 
     if (operation.kind === 'upsert-workspace') {
       const value = generateSecret()
+      // boundary-raw-fetch: E2E browser-resident credential operation prevents plaintext crossing into Playwright
       const response = await fetch(
         `/api/workspaces/${encodeURIComponent(operation.workspaceId)}/environment`,
         {
@@ -181,6 +183,7 @@ export async function runSecretApi(
     }
 
     if (operation.kind === 'delete-workspace') {
+      // boundary-raw-fetch: E2E browser-resident credential operation prevents plaintext crossing into Playwright
       const response = await fetch(
         `/api/workspaces/${encodeURIComponent(operation.workspaceId)}/environment`,
         {
@@ -192,6 +195,7 @@ export async function runSecretApi(
       return { status: response.status }
     }
 
+    // boundary-raw-fetch: E2E browser-resident credential operation prevents plaintext crossing into Playwright
     const readResponse = await fetch('/api/environment')
     if (readResponse.status !== 200) return { status: readResponse.status }
     const payload = (await readResponse.json()) as {
@@ -212,6 +216,7 @@ export async function runSecretApi(
     const preservedVariables = Object.fromEntries(
       Object.entries(variables).map(([key, variable]) => [key, variable.value])
     )
+    // boundary-raw-fetch: E2E browser-resident credential operation prevents plaintext crossing into Playwright
     const writeResponse = await fetch('/api/environment', {
       method: 'POST',
       headers,
@@ -254,6 +259,7 @@ export async function findEnvironmentCredential(
   return page.evaluate(
     async ({ workspaceId, key, type }) => {
       const query = new URLSearchParams({ workspaceId, type })
+      // boundary-raw-fetch: E2E browser-resident credential operation prevents plaintext crossing into Playwright
       const response = await fetch(`/api/credentials?${query}`)
       if (response.status !== 200) {
         return { status: response.status, id: null, role: null }
@@ -283,6 +289,7 @@ export async function listApiKeys(
         scope === 'personal'
           ? '/api/users/me/api-keys'
           : `/api/workspaces/${encodeURIComponent(workspaceId ?? '')}/api-keys`
+      // boundary-raw-fetch: E2E browser-resident credential operation prevents plaintext crossing into Playwright
       const response = await fetch(path)
       if (response.status !== 200) {
         return { status: response.status, containsPlaintextField: false, keys: [] }
@@ -321,6 +328,7 @@ export async function deleteApiKeyByName(
         scope === 'personal'
           ? `/api/users/me/api-keys/${encodeURIComponent(id)}`
           : `/api/workspaces/${encodeURIComponent(workspaceId ?? '')}/api-keys/${encodeURIComponent(id)}`
+      // boundary-raw-fetch: E2E browser-resident credential operation prevents plaintext crossing into Playwright
       return (await fetch(path, { method: 'DELETE' })).status
     },
     { scope, workspaceId: targetWorkspaceId, id: match.id }
@@ -332,6 +340,7 @@ export async function workspacePersonalKeyPolicy(
   targetWorkspaceId: string
 ): Promise<{ status: number; allowed?: boolean }> {
   return page.evaluate(async (workspaceId) => {
+    // boundary-raw-fetch: E2E browser-resident credential operation prevents plaintext crossing into Playwright
     const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}`)
     if (response.status !== 200) return { status: response.status }
     const payload = (await response.json()) as {
@@ -350,14 +359,15 @@ export async function setWorkspacePersonalKeyPolicy(
   allowed: boolean
 ): Promise<number> {
   return page.evaluate(
-    async ({ workspaceId, allowed }) =>
-      (
-        await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}`, {
-          method: 'PATCH',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ allowPersonalApiKeys: allowed }),
-        })
-      ).status,
+    async ({ workspaceId, allowed }) => {
+      // boundary-raw-fetch: E2E browser-resident credential operation prevents plaintext crossing into Playwright
+      const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ allowPersonalApiKeys: allowed }),
+      })
+      return response.status
+    },
     { workspaceId: targetWorkspaceId, allowed }
   )
 }
@@ -368,14 +378,18 @@ export async function attemptWorkspaceApiKeyCreate(
   name: string
 ): Promise<number> {
   return page.evaluate(
-    async ({ workspaceId, name }) =>
-      (
-        await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/api-keys`, {
+    async ({ workspaceId, name }) => {
+      // boundary-raw-fetch: E2E browser-resident credential operation prevents plaintext crossing into Playwright
+      const response = await fetch(
+        `/api/workspaces/${encodeURIComponent(workspaceId)}/api-keys`,
+        {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ name, source: 'settings' }),
-        })
-      ).status,
+        }
+      )
+      return response.status
+    },
     { workspaceId: targetWorkspaceId, name }
   )
 }
@@ -386,13 +400,14 @@ export async function attemptWorkspaceApiKeyDelete(
   keyId: string
 ): Promise<number> {
   return page.evaluate(
-    async ({ workspaceId, keyId }) =>
-      (
-        await fetch(
-          `/api/workspaces/${encodeURIComponent(workspaceId)}/api-keys/${encodeURIComponent(keyId)}`,
-          { method: 'DELETE' }
-        )
-      ).status,
+    async ({ workspaceId, keyId }) => {
+      // boundary-raw-fetch: E2E browser-resident credential operation prevents plaintext crossing into Playwright
+      const response = await fetch(
+        `/api/workspaces/${encodeURIComponent(workspaceId)}/api-keys/${encodeURIComponent(keyId)}`,
+        { method: 'DELETE' }
+      )
+      return response.status
+    },
     { workspaceId: targetWorkspaceId, keyId }
   )
 }

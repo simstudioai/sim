@@ -74,12 +74,45 @@ describe('getCredentialActorContext', () => {
   })
 
   it('does not derive credential admin on personal env credentials', async () => {
-    dbState.results = [[{ id: 'c1', workspaceId: 'ws', type: 'env_personal' }], []]
+    dbState.results = [
+      [
+        {
+          id: 'c1',
+          workspaceId: 'ws',
+          type: 'env_personal',
+          envOwnerUserId: 'owner-user',
+        },
+      ],
+      [],
+    ]
     mockCheckWorkspaceAccess.mockResolvedValue(workspaceAdminAccess)
 
     const ctx = await getCredentialActorContext('c1', 'admin-user')
 
     expect(ctx.isAdmin).toBe(false)
+  })
+
+  it('treats a personal env credential owner as admin without a membership row', async () => {
+    dbState.results = [
+      [
+        {
+          id: 'c1',
+          workspaceId: 'ws',
+          type: 'env_personal',
+          envOwnerUserId: 'owner-user',
+        },
+      ],
+      [],
+    ]
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      hasAccess: true,
+      canWrite: false,
+      canAdmin: false,
+    })
+
+    const ctx = await getCredentialActorContext('c1', 'owner-user')
+
+    expect(ctx.isAdmin).toBe(true)
   })
 
   it('is not admin for a non-admin without membership', async () => {
