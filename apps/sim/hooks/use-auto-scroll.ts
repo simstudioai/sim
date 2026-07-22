@@ -214,6 +214,20 @@ export function useAutoScroll(isStreaming: boolean) {
       // behind the input; a user who scrolled away stays put via the sticky
       // check.
       chase.kickUntil(POST_STOP_SETTLE_WINDOW)
+      // The main gesture listeners are gone, so give the settle window its own
+      // kill switch: the chase's clamp-aware interrupt catches wheel-scale
+      // moves, but a slow trackpad glide during a concurrent shrink could slip
+      // under it for up to the window's duration.
+      const cancelOnGesture = (event: Event) => {
+        if (event.type === 'wheel' && (event as WheelEvent).deltaY >= 0) return
+        chase.cancel()
+      }
+      el.addEventListener('wheel', cancelOnGesture, { passive: true })
+      el.addEventListener('touchmove', cancelOnGesture, { passive: true })
+      setTimeout(() => {
+        el.removeEventListener('wheel', cancelOnGesture)
+        el.removeEventListener('touchmove', cancelOnGesture)
+      }, POST_STOP_SETTLE_WINDOW + 100)
     }
   }, [isStreaming])
 

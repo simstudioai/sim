@@ -340,18 +340,25 @@ export function MothershipChat({
     if (!sizer || !el) return
     if (!floorActive) {
       if (sizerFloorAppliedRef.current === 0) return
+      // A drain already in flight keeps its own rAF cadence — settle-burst
+      // commits re-enter this branch and must not add extra steps in layout,
+      // which would accelerate the release past the eased rate.
+      if (floorDrainRafRef.current !== 0) return
       scrollerPaddingRef.current = null
-      cancelAnimationFrame(floorDrainRafRef.current)
       const drain = () => {
         const target = virtualizer.getTotalSize()
         const current = sizerFloorAppliedRef.current
-        if (current === 0) return
+        if (current === 0) {
+          floorDrainRafRef.current = 0
+          return
+        }
         // Re-checked per frame: a user scrolling away mid-drain makes the
         // remaining shrink invisible, so finish instantly instead of clamping.
         const pinned = el.scrollHeight - el.scrollTop - el.clientHeight <= 2
         const next = Math.floor(current - Math.max(1, (current - target) * SMOOTH_CHASE_RATE))
         if (!pinned || next - target <= 1) {
           sizerFloorAppliedRef.current = 0
+          floorDrainRafRef.current = 0
           sizer.style.minHeight = ''
           return
         }
@@ -359,10 +366,11 @@ export function MothershipChat({
         sizer.style.minHeight = `${next}px`
         floorDrainRafRef.current = requestAnimationFrame(drain)
       }
-      drain()
+      floorDrainRafRef.current = requestAnimationFrame(drain)
       return
     }
     cancelAnimationFrame(floorDrainRafRef.current)
+    floorDrainRafRef.current = 0
     if (!scrollerPaddingRef.current) {
       const style = getComputedStyle(el)
       scrollerPaddingRef.current = {
