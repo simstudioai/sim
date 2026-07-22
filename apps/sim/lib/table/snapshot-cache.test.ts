@@ -1,26 +1,18 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockDb,
-  mockSelectExportRowPage,
-  mockCreateMultipartUpload,
-  mockHeadObject,
-  mockDeleteFile,
-} = vi.hoisted(() => {
-  const limit = vi.fn()
-  return {
-    mockDb: { limit, select: () => ({ from: () => ({ where: () => ({ limit }) }) }) },
+const { mockSelectExportRowPage, mockCreateMultipartUpload, mockHeadObject, mockDeleteFile } =
+  vi.hoisted(() => ({
     mockSelectExportRowPage: vi.fn(),
     mockCreateMultipartUpload: vi.fn(),
     mockHeadObject: vi.fn(),
     mockDeleteFile: vi.fn(),
-  }
-})
+  }))
 
-vi.mock('@sim/db', () => ({ db: mockDb }))
+vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/table/jobs/service', () => ({ selectExportRowPage: mockSelectExportRowPage }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({
   createMultipartUpload: mockCreateMultipartUpload,
@@ -45,12 +37,17 @@ let lastHandle: {
 
 /** Queue the values successive `readRowsVersion` calls return. */
 function versions(...values: number[]) {
-  for (const v of values) mockDb.limit.mockResolvedValueOnce([{ rowsVersion: v }])
+  for (const v of values) queueTableRows(schemaMock.userTableDefinitions, [{ rowsVersion: v }])
 }
 
 describe('getOrCreateTableSnapshot', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     lastHandle = null
     mockDeleteFile.mockResolvedValue(undefined)
     mockSelectExportRowPage.mockResolvedValueOnce([

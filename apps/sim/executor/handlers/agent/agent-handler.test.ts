@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { getAllBlocks } from '@/blocks'
 import { BlockType, isMcpTool } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
@@ -87,19 +88,14 @@ vi.mock('@/executor/utils/http', () => ({
   }),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([
-          { id: 'mcp-search-server', connectionStatus: 'connected' },
-          { id: 'same-server', connectionStatus: 'connected' },
-          { id: 'mcp-legacy-server', connectionStatus: 'connected' },
-        ]),
-      }),
-    }),
-  },
-}))
+vi.mock('@sim/db', () => dbChainMock)
+
+/** Connected MCP servers every workspace-server lookup in this suite resolves. */
+const MCP_SERVER_ROWS = [
+  { id: 'mcp-search-server', connectionStatus: 'connected' },
+  { id: 'same-server', connectionStatus: 'connected' },
+  { id: 'mcp-legacy-server', connectionStatus: 'connected' },
+]
 
 const mockGetCustomToolById = vi.fn()
 
@@ -122,6 +118,10 @@ describe('AgentBlockHandler', () => {
   beforeEach(() => {
     handler = new AgentBlockHandler()
     vi.clearAllMocks()
+    resetDbChainMock()
+    // The MCP server lookup awaits select().from(mcpServers).where(...) directly;
+    // queue a set per lookup so the structural where spy keeps its default wiring.
+    queueTableRows(schemaMock.mcpServers, MCP_SERVER_ROWS)
 
     // unstubGlobals removes any module-scope fetch stub before each test, so re-stub here
     vi.stubGlobal('fetch', mockFetch)
@@ -211,6 +211,10 @@ describe('AgentBlockHandler', () => {
         configurable: true,
       })
     } catch (e) {}
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   describe('canHandle', () => {

@@ -1,22 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { limitMock } = vi.hoisted(() => ({ limitMock: vi.fn() }))
-
-vi.mock('@sim/db', () => ({
-  db: { select: () => ({ from: () => ({ where: () => ({ limit: limitMock }) }) }) },
-  skill: { workspaceId: 'workspaceId', name: 'name', content: 'content' },
-}))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
-}))
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(() => ({})),
-  eq: vi.fn(() => ({})),
-  inArray: vi.fn(() => ({})),
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 import { resolveSkillContent } from './skills-resolver'
 
@@ -25,6 +19,11 @@ import { resolveSkillContent } from './skills-resolver'
 describe('resolveSkillContent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('returns null without a skill name or workspace', async () => {
@@ -35,16 +34,15 @@ describe('resolveSkillContent', () => {
   it('resolves builtin skills without touching the database', async () => {
     const content = await resolveSkillContent('research', 'ws-1')
     expect(content).toBeTruthy()
-    expect(limitMock).not.toHaveBeenCalled()
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
   })
 
   it('resolves a workspace user skill by name', async () => {
-    limitMock.mockResolvedValue([{ content: '# Playbook', name: 'posthog-playbook' }])
+    queueTableRows(schemaMock.skill, [{ content: '# Playbook', name: 'posthog-playbook' }])
     expect(await resolveSkillContent('posthog-playbook', 'ws-1')).toBe('# Playbook')
   })
 
   it('returns null when the user skill is not found', async () => {
-    limitMock.mockResolvedValue([])
     expect(await resolveSkillContent('missing', 'ws-1')).toBeNull()
   })
 })

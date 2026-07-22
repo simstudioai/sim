@@ -1,31 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockEq,
-  mockFlags,
-  mockFrom,
-  mockGetHighestPrioritySubscription,
-  mockLimit,
-  mockSelect,
-  mockWhere,
-} = vi.hoisted(() => ({
+const { mockEq, mockFlags, mockGetHighestPrioritySubscription } = vi.hoisted(() => ({
   mockEq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
   mockFlags: { isBillingEnabled: true },
-  mockFrom: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
-  mockLimit: vi.fn(),
-  mockSelect: vi.fn(),
-  mockWhere: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockSelect,
-  },
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@sim/db/schema', () => ({
   organization: {
@@ -91,17 +76,19 @@ const GIB = 1024 ** 3
 describe('storage limits and quota', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockFlags.isBillingEnabled = true
     mockGetEnv.mockReturnValue(undefined)
-    mockSelect.mockReturnValue({ from: mockFrom })
-    mockFrom.mockReturnValue({ where: mockWhere })
-    mockWhere.mockReturnValue({ limit: mockLimit })
-    mockLimit.mockResolvedValue([{ storageUsedBytes: 1024 }])
+    dbChainMockFns.limit.mockResolvedValue([{ storageUsedBytes: 1024 }])
     mockGetHighestPrioritySubscription.mockResolvedValue(null)
   })
 
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   it('reads user and organization counters through the same entity-aware path', async () => {
-    mockLimit
+    dbChainMockFns.limit
       .mockResolvedValueOnce([{ storageUsedBytes: 11 }])
       .mockResolvedValueOnce([{ storageUsedBytes: 22 }])
       .mockResolvedValueOnce([{ storageUsedBytes: 33 }])
@@ -138,7 +125,7 @@ describe('storage limits and quota', () => {
   })
 
   it('returns the exact same quota result for legacy and workspace organization payers', async () => {
-    mockLimit.mockResolvedValue([{ storageUsedBytes: GIB }])
+    dbChainMockFns.limit.mockResolvedValue([{ storageUsedBytes: GIB }])
     mockGetHighestPrioritySubscription.mockResolvedValue({
       metadata: { customStorageLimitGB: 1 },
       plan: 'team_25000',
@@ -170,7 +157,7 @@ describe('storage limits and quota', () => {
     await expect(checkStorageQuota('workspace-owner', GIB)).resolves.toEqual(expected)
     await expect(checkStorageQuotaForBillingContext(ORG_CONTEXT, GIB)).resolves.toEqual(expected)
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
-    expect(mockSelect).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
   it('opts into free-tier enforcement when FREE_STORAGE_LIMIT_GB is explicitly set', async () => {
@@ -178,7 +165,7 @@ describe('storage limits and quota', () => {
     mockGetEnv.mockImplementation((variable: string) =>
       variable === 'FREE_STORAGE_LIMIT_GB' ? '1' : undefined
     )
-    mockLimit.mockResolvedValue([{ storageUsedBytes: GIB }])
+    dbChainMockFns.limit.mockResolvedValue([{ storageUsedBytes: GIB }])
 
     await expect(checkStorageQuota('workspace-owner', GIB / 2)).resolves.toEqual({
       allowed: false,
@@ -199,12 +186,12 @@ describe('storage limits and quota', () => {
     mockGetHighestPrioritySubscription.mockRejectedValueOnce(new Error('subscription unavailable'))
     await expect(checkStorageQuota('workspace-owner', GIB)).resolves.toEqual(expected)
 
-    mockLimit.mockRejectedValueOnce(new Error('counter unavailable'))
+    dbChainMockFns.limit.mockRejectedValueOnce(new Error('counter unavailable'))
     await expect(checkStorageQuotaForBillingContext(ORG_CONTEXT, GIB)).resolves.toEqual(expected)
   })
 
   it('retains zero fallback for direct usage readers', async () => {
-    mockLimit.mockRejectedValueOnce(new Error('counter unavailable'))
+    dbChainMockFns.limit.mockRejectedValueOnce(new Error('counter unavailable'))
 
     await expect(getStorageUsageForBillingContext(ORG_CONTEXT)).resolves.toBe(0)
   })

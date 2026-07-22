@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetOrganizationSubscription,
@@ -12,7 +13,6 @@ const {
   mockGetPlanByName,
   enqueueMock,
   updateCalls,
-  globalTransactionMock,
 } = vi.hoisted(() => ({
   mockGetOrganizationSubscription: vi.fn(),
   mockGetHighestPriorityPersonalSubscription: vi.fn(),
@@ -22,26 +22,9 @@ const {
   mockGetPlanByName: vi.fn(),
   enqueueMock: vi.fn(),
   updateCalls: { value: [] as Array<Record<string, unknown>> },
-  globalTransactionMock: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => {
-  const update = () => ({
-    set: (values: Record<string, unknown>) => {
-      updateCalls.value.push(values)
-      return { where: () => Promise.resolve([]) }
-    },
-  })
-  const txMock = { update }
-  globalTransactionMock.mockImplementation(async (cb: (tx: typeof txMock) => Promise<unknown>) =>
-    cb(txMock)
-  )
-  const dbMock = {
-    update,
-    transaction: globalTransactionMock,
-  }
-  return { db: dbMock }
-})
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/core/billing', () => ({
   getOrganizationSubscription: mockGetOrganizationSubscription,
@@ -95,12 +78,17 @@ function testExecutor(onUpdate: () => void = () => {}) {
 describe('ensureTeamOrganizationForAcceptance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     updateCalls.value = []
     mockGetPlanByName.mockReturnValue({
       priceId: 'price_team_month',
       annualDiscountPriceId: 'price_team_year',
     })
     mockAssertNoUnresolvedEnterpriseIssuance.mockResolvedValue(undefined)
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('is a no-op for enterprise organizations (fixed seats)', async () => {
@@ -187,7 +175,7 @@ describe('ensureTeamOrganizationForAcceptance', () => {
       'org-1',
       expect.objectContaining({ executor })
     )
-    expect(globalTransactionMock).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
   it('blocks an org-scoped Pro conversion while Enterprise issuance is unresolved', async () => {
@@ -273,7 +261,7 @@ describe('ensureTeamOrganizationForAcceptance', () => {
       'stripe.sync-subscription-seats',
       expect.objectContaining({ subscriptionId: 'sub-pro' })
     )
-    expect(globalTransactionMock).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(lockOrder).toEqual(['organization', 'subscription'])
     // ...but with no scheduled cancellation there is no cancel-sync event.
     expect(enqueueMock).not.toHaveBeenCalledWith(

@@ -1,15 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFlags, mockIsTriggerAvailable, mockSelect } = vi.hoisted(() => ({
+const { mockFlags, mockIsTriggerAvailable } = vi.hoisted(() => ({
   mockFlags: { isBillingEnabled: false },
   mockIsTriggerAvailable: vi.fn(),
-  mockSelect: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ db: { select: mockSelect } }))
+vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/billing/core/billing', () => ({ getOrganizationSubscription: vi.fn() }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   getHighestPriorityPersonalSubscription: vi.fn(),
@@ -36,7 +36,12 @@ import { dispatchCleanupJobs } from '@/lib/billing/cleanup-dispatcher'
 describe('dispatchCleanupJobs billing gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockFlags.isBillingEnabled = false
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('never dispatches plan-based retention deletion when billing is disabled', async () => {
@@ -44,6 +49,6 @@ describe('dispatchCleanupJobs billing gate', () => {
 
     expect(result).toEqual({ jobIds: [], jobCount: 0, chunkCount: 0, workspaceCount: 0 })
     expect(mockIsTriggerAvailable).not.toHaveBeenCalled()
-    expect(mockSelect).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 })

@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockFlags,
@@ -11,7 +12,6 @@ const {
   mockCheckUsageStatus,
   mockGetHighestPriorityPersonalSubscription,
   mockGetOrganizationSubscription,
-  mockLimit,
 } = vi.hoisted(() => ({
   mockFlags: { isBillingEnabled: true, isHosted: true },
   mockCheckBillingBlocked: vi.fn(),
@@ -20,7 +20,6 @@ const {
   mockCheckUsageStatus: vi.fn(),
   mockGetHighestPriorityPersonalSubscription: vi.fn(),
   mockGetOrganizationSubscription: vi.fn(),
-  mockLimit: vi.fn(),
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => ({
@@ -32,17 +31,7 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   },
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: mockLimit,
-        })),
-      })),
-    })),
-  },
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
   checkBillingBlocked: mockCheckBillingBlocked,
@@ -76,6 +65,10 @@ import {
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
 
+afterAll(() => {
+  resetDbChainMock()
+})
+
 const ORG_SUBSCRIPTION = {
   id: 'sub-org-b',
   plan: 'team_25000',
@@ -89,6 +82,7 @@ const ORG_SUBSCRIPTION = {
 describe('resolveBillingAttribution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockCheckBillingBlocked.mockResolvedValue({ blocked: false })
     mockCheckBillingEntityBlocked.mockResolvedValue({ blocked: false })
     mockCheckUsageStatus.mockResolvedValue({
@@ -108,7 +102,7 @@ describe('resolveBillingAttribution', () => {
   })
 
   it('bills the workspace organization while retaining an external session actor', async () => {
-    mockLimit.mockResolvedValue([
+    dbChainMockFns.limit.mockResolvedValue([
       {
         billedAccountUserId: 'owner-b',
         organizationId: 'org-b',
@@ -150,7 +144,7 @@ describe('resolveBillingAttribution', () => {
   })
 
   it('resolves the system actor and payer from one workspace row', async () => {
-    mockLimit.mockResolvedValue([
+    dbChainMockFns.limit.mockResolvedValue([
       {
         billedAccountUserId: 'owner-b',
         organizationId: 'org-b',
@@ -167,11 +161,11 @@ describe('resolveBillingAttribution', () => {
       organizationId: 'org-b',
       workspaceId: 'workspace-b',
     })
-    expect(mockLimit).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(1)
   })
 
   it('uses the workspace organization reference even when its billed owner has other memberships', async () => {
-    mockLimit.mockResolvedValue([
+    dbChainMockFns.limit.mockResolvedValue([
       {
         billedAccountUserId: 'multi-org-owner',
         organizationId: 'org-b',
@@ -192,7 +186,7 @@ describe('resolveBillingAttribution', () => {
   })
 
   it('bills a personal workspace billed account without changing the API-key actor', async () => {
-    mockLimit.mockResolvedValue([
+    dbChainMockFns.limit.mockResolvedValue([
       {
         billedAccountUserId: 'personal-owner',
         organizationId: null,
@@ -222,7 +216,7 @@ describe('resolveBillingAttribution', () => {
   })
 
   it('retains the exact personal payer when it has no subscription', async () => {
-    mockLimit.mockResolvedValue([
+    dbChainMockFns.limit.mockResolvedValue([
       {
         billedAccountUserId: 'personal-owner',
         organizationId: null,
@@ -245,7 +239,7 @@ describe('resolveBillingAttribution', () => {
   })
 
   it('serializes only the payer fields needed by later billing gates', async () => {
-    mockLimit.mockResolvedValue([
+    dbChainMockFns.limit.mockResolvedValue([
       {
         billedAccountUserId: 'owner-b',
         organizationId: 'org-b',
@@ -276,7 +270,7 @@ describe('resolveBillingAttribution', () => {
   })
 
   it('carries only the normalized Enterprise concurrency metadata needed by admission', async () => {
-    mockLimit.mockResolvedValue([
+    dbChainMockFns.limit.mockResolvedValue([
       {
         billedAccountUserId: 'owner-b',
         organizationId: 'org-b',
@@ -301,7 +295,7 @@ describe('resolveBillingAttribution', () => {
   })
 
   it('rejects a subscription that does not belong to the exact workspace payer', async () => {
-    mockLimit.mockResolvedValue([
+    dbChainMockFns.limit.mockResolvedValue([
       {
         billedAccountUserId: 'owner-b',
         organizationId: 'org-b',
@@ -321,7 +315,7 @@ describe('resolveBillingAttribution', () => {
   })
 
   it('fails closed when the workspace payer cannot be resolved', async () => {
-    mockLimit.mockResolvedValue([])
+    dbChainMockFns.limit.mockResolvedValue([])
 
     await expect(
       resolveBillingAttribution({
@@ -332,7 +326,7 @@ describe('resolveBillingAttribution', () => {
   })
 
   it('resolves markerless legacy-v0 from the current workspace payer', async () => {
-    mockLimit.mockResolvedValue([
+    dbChainMockFns.limit.mockResolvedValue([
       {
         billedAccountUserId: 'owner-b',
         organizationId: 'org-b',
@@ -354,7 +348,7 @@ describe('resolveBillingAttribution', () => {
   })
 
   it('returns no workspace payer for an opaque markerless legacy-v0 workspace', async () => {
-    mockLimit.mockResolvedValue([])
+    dbChainMockFns.limit.mockResolvedValue([])
 
     await expect(
       resolveLegacyV0BillingAttribution({
@@ -367,7 +361,7 @@ describe('resolveBillingAttribution', () => {
   })
 
   it('converts the serialized period back to the exact runtime billing context', async () => {
-    mockLimit.mockResolvedValue([
+    dbChainMockFns.limit.mockResolvedValue([
       {
         billedAccountUserId: 'owner-b',
         organizationId: 'org-b',
@@ -485,6 +479,7 @@ describe('serialized attribution boundaries', () => {
 describe('checkAttributedUsageLimits', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockFlags.isBillingEnabled = true
     mockFlags.isHosted = true
     mockCheckBillingBlocked.mockResolvedValue({ blocked: false })
