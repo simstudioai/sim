@@ -46,6 +46,8 @@ function copyName(key: string) {
 }
 
 interface SecretRowMenuProps {
+  /** Accessible name that identifies the row owning this menu. */
+  label: string
   /** Copies the secret's name. */
   onCopyName: () => void
   /** Opens credential details; omit when the row has no backing credential. */
@@ -58,10 +60,10 @@ interface SecretRowMenuProps {
  * Trailing `...` actions menu for a secret row. Mirrors the Teammates /
  * Organization member menu so the settings experience is consistent.
  */
-function SecretRowMenu({ onCopyName, onViewDetails, onDelete }: SecretRowMenuProps) {
+function SecretRowMenu({ label, onCopyName, onViewDetails, onDelete }: SecretRowMenuProps) {
   return (
     <RowActionsMenu
-      label='Secret actions'
+      label={label}
       triggerClassName='ml-2'
       actions={[
         ...(onViewDetails ? [{ label: 'View details', onSelect: onViewDetails }] : []),
@@ -220,6 +222,7 @@ function WorkspaceVariableRow({
   return (
     <div className='contents'>
       <ChipInput
+        aria-label={`Workspace secret name ${envKey}`}
         className={cn(!canRename && 'cursor-text')}
         value={renamingKey === envKey ? pendingKeyValue : envKey}
         onChange={(e) => {
@@ -238,12 +241,14 @@ function WorkspaceVariableRow({
       />
       <div />
       <SecretValueField
+        aria-label={`Workspace secret value ${envKey}`}
         value={value}
         onChange={(next) => onValueChange(envKey, next)}
         canEdit={canEdit}
         name={`workspace_env_value_${envKey}_${generateShortId()}`}
       />
       <SecretRowMenu
+        label={`Secret actions for ${envKey}`}
         onCopyName={() => copyName(envKey)}
         onViewDetails={hasCredential && onViewDetails ? () => onViewDetails(envKey) : undefined}
         onDelete={canEdit ? () => onDelete(envKey) : undefined}
@@ -298,6 +303,7 @@ function NewWorkspaceVariableRow({
       />
       {hasContent ? (
         <SecretRowMenu
+          label={`Secret actions for ${envVar.key || 'new workspace secret'}`}
           onCopyName={() => copyName(envVar.key)}
           onDelete={() => {
             onUpdate(index, 'key', '')
@@ -861,6 +867,9 @@ export function SecretsManager() {
     return (
       <div className='contents'>
         <ChipInput
+          aria-label={
+            envVar.key ? `Personal secret name ${envVar.key}` : 'New personal secret name'
+          }
           data-input-type='key'
           error={Boolean(isConflicted || keyError)}
           value={envVar.key}
@@ -876,6 +885,9 @@ export function SecretsManager() {
         />
         <div />
         <SecretValueField
+          aria-label={
+            envVar.key ? `Personal secret value ${envVar.key}` : 'New personal secret value'
+          }
           data-input-type='value'
           value={envVar.value}
           onChange={(next) => updateEnvVar(originalIndex, 'value', next)}
@@ -888,6 +900,7 @@ export function SecretsManager() {
         />
         {hasContent ? (
           <SecretRowMenu
+            label={`Secret actions for ${envVar.key}`}
             onCopyName={() => copyName(envVar.key)}
             onDelete={() => removeEnvVar(originalIndex)}
           />

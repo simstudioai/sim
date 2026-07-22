@@ -57,7 +57,11 @@ export function SecretValueField({
   const [focused, setFocused] = useState(false)
   const editable = canEdit && !readOnly
   const maskActive = canEdit && !unmasked && !focused
-  const displayValue = canEdit ? value : BULLET.repeat(VIEWER_MASK_LENGTH)
+  const displayValue = canEdit
+    ? maskActive && value
+      ? BULLET.repeat(VIEWER_MASK_LENGTH)
+      : value
+    : BULLET.repeat(VIEWER_MASK_LENGTH)
 
   const mergedStyle: CSSProperties | undefined = maskActive
     ? ({ ...style, WebkitTextSecurity: 'disc' } as CSSProperties)
@@ -69,13 +73,12 @@ export function SecretValueField({
       className={className}
       type='text'
       value={displayValue}
-      readOnly
+      readOnly={!editable || !focused}
       style={mergedStyle}
       onChange={(event) => {
         if (editable) onChange?.(event.target.value)
       }}
       onFocus={(event) => {
-        if (editable) event.currentTarget.removeAttribute('readOnly')
         event.currentTarget.scrollLeft = 0
         setFocused(true)
         onFocus?.(event)

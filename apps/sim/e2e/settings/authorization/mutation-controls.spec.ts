@@ -146,6 +146,11 @@ async function expectMutationPermissionsReady(page: Page, pathTemplate: string):
     const navigation = sidebar.getByRole('navigation', { name: 'Workspace settings sections' })
     await expect(navigation).toHaveAttribute('aria-busy', 'false')
     await expect(navigation).toHaveAttribute('data-authorization-state', 'granted')
+    if (pathTemplate.endsWith('/settings/apikeys')) {
+      const apiKeys = page.getByRole('region', { name: 'API keys data', exact: true })
+      await expect(apiKeys).toHaveAttribute('aria-busy', 'false')
+      await expect(apiKeys).toHaveAttribute('data-api-keys-state', 'ready')
+    }
     return
   }
 

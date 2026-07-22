@@ -95,6 +95,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
 
         <DetailSection title='Value'>
           <SecretValueField
+            aria-label='Secret value'
             value={valueField.value}
             onChange={valueField.setValue}
             canEdit={valueField.canEdit}

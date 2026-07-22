@@ -80,9 +80,9 @@ bun run test:e2e -- --grep "unauthenticated"
 ```
 
 Projects form a dependency chain to keep shared boundaries serialized. Selecting
-the personas project therefore also runs navigation, authorization, and
-workflows by default, and an upstream failure skips its dependents. For focused
-local iteration, `--no-deps` is explicitly supported:
+the personas project therefore also runs navigation, authorization, credential
+workflows, and general workflows by default, and an upstream failure skips its
+dependents. For focused local iteration, `--no-deps` is explicitly supported:
 
 ```bash
 bun run test:e2e -- --project=hosted-billing-chromium-personas --no-deps
@@ -165,6 +165,50 @@ authorization, workflow, persona, and isolation tests in 2.4 minutes of
 Playwright time; the clean-build orchestrator completed in 8 minutes 25
 seconds.
 
+## Settings credential workflows
+
+Step 5 owns real Secrets and personal/workspace API-key mutations under
+`e2e/settings/credentials`. It references Step 4's canonical permission-group
+and mutation-control proof IDs instead of rerunning those browser cases. Secret
+sharing and membership changes remain in Step 6.
+
+Run only the credential workflows during local iteration:
+
+```bash
+bun run test:e2e -- --reuse-build \
+  --project=hosted-billing-chromium-credentials --no-deps \
+  e2e/settings/credentials
+```
+
+Credential tests use one worker and unique resources with same-test cleanup.
+The API-key policy case resets and verifies
+`allowPersonalApiKeys=true` before and after its assertions; unrelated Secrets
+tests do not mutate that shared setting. This policy also affects runtime API-key
+authentication, whose direct coverage remains outside the Step 5 browser scope.
+
+The credentials project deliberately disables traces, screenshots, videos, and
+test-authored attachments. Playwright reports action arguments, traces include
+network bodies and DOM snapshots, and API-key creation renders plaintext once.
+Secret values are therefore generated and applied inside the browser without
+crossing Playwright arguments. Secret-bearing same-origin verification and
+replace-all cleanup also remain browser-resident and return only status,
+presence, and fixed-size fingerprints. Blurred secret controls keep plaintext
+out of the DOM, and project teardown redacts credential-shaped values from
+Playwright's automatic failure context before it is written. API-key tests never
+read the create response body or reveal value and verify only masked list
+metadata.
+
+The final leak scan still inspects HTML reports, logs, and ZIP entries. In
+addition to seeded password/token canaries, it rejects complete generated API
+key and versioned E2E runtime-secret patterns. ZIP entries and names are scanned
+independently, and a detected leak reports only sanitized artifact identifiers
+before diagnostics are scrubbed.
+
+On the Step 5 reference run, the single credentials worker completed all 13
+retry-free tests in 29.4 seconds. The final cache-hit dependency chain completed
+all 237 tests in 2.9 minutes of Playwright time and the orchestrator in 6 minutes
+26 seconds.
+
 The cache lives under ignored `e2e/.cache/builds/`. A hit requires matching
 source contents (including uncommitted/untracked files), build/public profile,
 Node/Bun/Next versions, platform, `BUILD_ID`, and the cached artifact checksum.
@@ -187,10 +231,10 @@ were not launched by the orchestrator. Report and trace viewer commands remain
 safe because they do not execute tests.
 
 Sharding is supported only for the navigation project. The runner rejects
-`--shard` for authorization, workflows, persona contracts, and the dedicated
-two-worker cross-world isolation project. Project dependencies serialize
-navigation, authorization, workflows, and persona contracts before the
-isolation project opens its two-worker pool.
+`--shard` for authorization, credentials, workflows, persona contracts, and
+the dedicated two-worker cross-world isolation project. Project dependencies
+serialize navigation, authorization, credentials, workflows, and persona
+contracts before the isolation project opens its two-worker pool.
 
 ## Diagnostics
 
@@ -200,6 +244,10 @@ isolation project opens its two-worker pool.
   `e2e/.runs/<runId>/logs/`
 - Non-secret persona manifest and auth-capture failure screenshots:
   `e2e/.runs/<runId>/`
+
+The credentials project keeps the HTML report, redacted automatic error
+contexts, and redacted service logs but does not produce browser traces,
+screenshots, videos, or test-authored attachments.
 
 Open the report:
 
