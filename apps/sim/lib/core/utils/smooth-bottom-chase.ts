@@ -61,6 +61,9 @@ export function createSmoothBottomChase(
     if (raf !== null) cancelAnimationFrame(raf)
     raf = null
     lastTop = null
+    // A stale deadline must not leak into a later plain kick() — kick alone
+    // parks at rest, only a live kickUntil window idles through it.
+    deadline = 0
   }
 
   const step = () => {

@@ -304,12 +304,17 @@ export function MothershipChat({
    * estimate correction (a fresh row measuring smaller than
    * ROW_HEIGHT_ESTIMATE) releases immediately instead of holding phantom space
    * the chase would scroll into and bounce back out of.
+   *
+   * Active on the same signal as auto-scroll: the reveal keeps re-parsing
+   * markdown (and shrinking) after the network stream closes, so the floor
+   * must hold through `lastRowAnimating` too.
    */
+  const floorActive = isStreamActive || lastRowAnimating
   useLayoutEffect(() => {
     const sizer = sizerRef.current
     const el = scrollElementRef.current
     if (!sizer || !el) return
-    if (!isStreamActive) {
+    if (!floorActive) {
       sizer.style.minHeight = ''
       return
     }
