@@ -5,6 +5,8 @@ import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 import { getMemberOrganizationId, invalidateMembershipCache } from '@/lib/auth/security-policy'
+import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('SessionPolicy')
 
@@ -31,8 +33,12 @@ const NO_POLICY: ResolvedSessionPolicy = {
 }
 
 /**
- * Resolves the session policy for an organization, served from a short TTL
- * cache. Returns a no-op policy for personal (org-less) sessions.
+ * Resolves the EFFECTIVE session policy for an organization, served from a
+ * short TTL cache. Returns a no-op policy for personal (org-less) sessions
+ * and — mirroring data-retention's plan-gated effective settings — for
+ * hosted orgs no longer on an Enterprise plan: stored limits stop enforcing
+ * automatically on downgrade, since the enterprise-gated settings UI can no
+ * longer manage them.
  */
 export async function getSessionPolicy(
   organizationId: string | null | undefined
@@ -52,10 +58,15 @@ export async function getSessionPolicy(
       .limit(1)
 
     const settings: SessionPolicySettings = row?.settings ?? {}
-    const policy: ResolvedSessionPolicy = {
-      maxSessionHours: settings.maxSessionHours ?? null,
-      idleTimeoutHours: settings.idleTimeoutHours ?? null,
-    }
+    const hasBounds = Boolean(settings.maxSessionHours || settings.idleTimeoutHours)
+    const isEntitled =
+      !hasBounds || !isBillingEnabled || (await isOrganizationOnEnterprisePlan(organizationId))
+    const policy: ResolvedSessionPolicy = isEntitled
+      ? {
+          maxSessionHours: settings.maxSessionHours ?? null,
+          idleTimeoutHours: settings.idleTimeoutHours ?? null,
+        }
+      : NO_POLICY
     policyCache.set(organizationId, { policy, fetchedAt: Date.now() })
     return policy
   } catch (error) {
