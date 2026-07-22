@@ -51,7 +51,7 @@ export function ReferencesModal({
 
   return (
     <ChipModal open onOpenChange={(next) => !next && onClose()} srTitle='References'>
-      <ChipModalHeader onClose={onClose}>References · {workflowName}</ChipModalHeader>
+      <ChipModalHeader onClose={onClose}>References — {workflowName}</ChipModalHeader>
       <ChipModalBody>
         <ChipModalTabs
           tabs={TABS}

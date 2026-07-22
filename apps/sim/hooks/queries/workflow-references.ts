@@ -6,11 +6,12 @@ import {
 } from '@/lib/api/contracts/workflow-references'
 
 /**
- * Short — the graph reflects live editor state (workflow blocks/names can change
- * between opens). The modal mounts on demand, so each open refetches once the
- * window lapses while still absorbing rapid open/close flapping.
+ * Zero — the graph reflects live editor state, and no workflow-edit mutation
+ * invalidates this key (edits arrive over the socket, not through React Query).
+ * The modal mounts on demand, so every open refetches; a reopen paints the
+ * cached tree instantly while the background refetch reconciles it.
  */
-export const WORKFLOW_REFERENCES_STALE_TIME = 30 * 1000
+export const WORKFLOW_REFERENCES_STALE_TIME = 0
 
 export const workflowReferenceKeys = {
   all: ['workflow-references'] as const,

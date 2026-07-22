@@ -24,7 +24,7 @@ interface ReferenceTreeItemProps {
 
 function ReferenceTreeItem({ node, depth, onNavigate }: ReferenceTreeItemProps) {
   return (
-    <div role='treeitem' aria-selected={false}>
+    <div role='treeitem' aria-level={depth + 1}>
       <button
         type='button'
         onClick={() => onNavigate(node.id)}

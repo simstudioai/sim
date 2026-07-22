@@ -9,6 +9,7 @@ import {
   type CanonicalGroup,
   type CanonicalModeOverrides,
   resolveActiveCanonicalValue,
+  scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
 import { CUSTOM_BLOCK_TYPE_PREFIX } from '@/blocks/custom/build-config'
 import { BlockType, isWorkflowBlockType } from '@/executor/constants'
@@ -85,20 +86,40 @@ interface ReferenceGraph {
 
 /**
  * Callee workflow ids referenced by a block's tool-input values: `workflow_input`
- * tools whose `params.workflowId` was picked from the workflow selector.
+ * tools resolved to their ACTIVE canonical member — the basic `params.workflowId`
+ * selector or the advanced `params.manualWorkflowId` input, per the tool's
+ * index-scoped `canonicalModes` override ({@link scopeCanonicalModesForTool}) —
+ * mirroring how execution picks the live value.
  */
-function toolInputCallees(toolInputValues: unknown[] | null): string[] {
+function toolInputCallees(
+  toolInputValues: unknown[] | null,
+  canonicalModes: CanonicalModeOverrides | null
+): string[] {
   if (!toolInputValues) return []
   const callees: string[] = []
   for (const value of toolInputValues) {
     const { array } = coerceObjectArray(value)
     if (!array) continue
-    for (const tool of array) {
+    array.forEach((tool, toolIndex) => {
       if (!isRecord(tool) || tool.type !== BlockType.WORKFLOW_INPUT || !isRecord(tool.params)) {
-        continue
+        return
       }
-      if (typeof tool.params.workflowId === 'string') callees.push(tool.params.workflowId)
-    }
+      const scoped = scopeCanonicalModesForTool(
+        canonicalModes ?? undefined,
+        toolIndex,
+        BlockType.WORKFLOW_INPUT
+      )
+      const active = resolveActiveCanonicalValue(
+        WORKFLOW_ID_CANONICAL_GROUP,
+        {
+          workflowId: typeof tool.params.workflowId === 'string' ? tool.params.workflowId : null,
+          manualWorkflowId:
+            typeof tool.params.manualWorkflowId === 'string' ? tool.params.manualWorkflowId : null,
+        },
+        scoped
+      )
+      if (typeof active === 'string' && active) callees.push(active)
+    })
   }
   return callees
 }
@@ -161,7 +182,7 @@ function buildReferenceGraph(
       const sourceId = sourceByCustomType.get(block.type)
       if (sourceId) addEdge(block.parentId, sourceId)
     }
-    for (const calleeId of toolInputCallees(block.toolInputValues)) {
+    for (const calleeId of toolInputCallees(block.toolInputValues, block.canonicalModes)) {
       addEdge(block.parentId, calleeId)
     }
   }

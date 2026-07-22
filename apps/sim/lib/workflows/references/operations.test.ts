@@ -198,6 +198,25 @@ describe('resolveWorkflowReferences', () => {
     expect(bResult.callers.map((n) => n.id)).toEqual(['a'])
   })
 
+  it('resolves a workflow tool to its active advanced-mode value', () => {
+    // Tool 0 is toggled to advanced via the index-scoped canonicalModes key; the
+    // stale basic selector (`b`) must not mask the live manual value (`c`).
+    const blocks: ReferenceBlockRow[] = [
+      {
+        parentId: 'a',
+        type: 'agent',
+        childFromSelector: null,
+        childFromManual: null,
+        canonicalModes: { '0:workflowId': 'advanced' },
+        toolInputValues: [
+          [{ type: 'workflow_input', params: { workflowId: 'b', manualWorkflowId: 'c' } }],
+        ],
+      },
+    ]
+    const { callees } = resolveWorkflowReferences('a', workflows, blocks, [])
+    expect(callees.map((n) => n.id)).toEqual(['c'])
+  })
+
   it('resolves workflow tools from a JSON-stringified tool-input value', () => {
     const blocks: ReferenceBlockRow[] = [
       {
