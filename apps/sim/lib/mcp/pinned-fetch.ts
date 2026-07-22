@@ -70,10 +70,15 @@ function capResponseBody(response: Response, maxBytes: number): Response {
       },
     })
   )
+  const headers = new Headers(response.headers)
+  // The wrapped body is the already-decoded stream; drop framing headers that would
+  // misdescribe it (consistent with `bufferUnderDeadline`).
+  headers.delete('content-encoding')
+  headers.delete('content-length')
   const wrapped = new Response(limited, {
     status: response.status,
     statusText: response.statusText,
-    headers: response.headers,
+    headers,
   })
   // `new Response()` resets `url`/`redirected` (empty/false); the SDK resolves relative
   // auth-metadata URLs (e.g. `resource_metadata`) against `response.url`, so carry them over.
