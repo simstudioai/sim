@@ -127,9 +127,9 @@ Example:
       id: 'proxyUrl',
       title: 'Proxy URL',
       type: 'short-input',
-      placeholder: 'http://user:pass@proxy.host:port',
+      placeholder: 'http://user:pass@proxy.host:port or {{PROXY_URL}}',
       description:
-        'Optional. Route this request through an http:// proxy (e.g. a residential proxy). Must be http://; the proxy host must be publicly reachable.',
+        'Optional. Route this request through an http:// proxy (e.g. a residential proxy). Must be http://; the proxy host must be publicly reachable. Keep credentials in an environment variable and reference it like {{PROXY_URL}}.',
       mode: 'advanced',
     },
   ],
