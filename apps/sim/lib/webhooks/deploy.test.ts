@@ -2,26 +2,11 @@
  * @vitest-environment node
  */
 import { credential } from '@sim/db/schema'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetDbChainMock } from '@sim/testing'
+import { eq } from 'drizzle-orm'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-
-const { mockEq, mockFrom, mockLimit, mockSelect, mockWhere } = vi.hoisted(() => ({
-  mockEq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
-  mockFrom: vi.fn(),
-  mockLimit: vi.fn(),
-  mockSelect: vi.fn(),
-  mockWhere: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({ db: { select: mockSelect } }))
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ conditions })),
-  eq: mockEq,
-  inArray: vi.fn((...args: unknown[]) => ({ args })),
-  isNull: vi.fn((value: unknown) => ({ value })),
-  or: vi.fn((...conditions: unknown[]) => ({ conditions })),
-}))
 
 // deploy.ts pulls in the trigger/block/provider registries at module load; none are exercised by
 // buildProviderConfig (a pure function), so stub them to keep this unit test fast and isolated.
@@ -41,6 +26,8 @@ vi.mock('@/lib/webhooks/pending-verification', () => ({
 }))
 
 import { buildProviderConfig, resolveTriggerCredentialId } from '@/lib/webhooks/deploy'
+
+afterAll(resetDbChainMock)
 
 const trigger = (subBlocks: Partial<SubBlockConfig>[]): { subBlocks: SubBlockConfig[] } => ({
   subBlocks: subBlocks as SubBlockConfig[],
@@ -96,10 +83,7 @@ function makeBlock(
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockSelect.mockReturnValue({ from: mockFrom })
-  mockFrom.mockReturnValue({ where: mockWhere })
-  mockWhere.mockReturnValue({ limit: mockLimit })
-  mockLimit.mockResolvedValue([{ id: 'credential-1' }])
+  resetDbChainMock()
 })
 
 describe('buildProviderConfig canonical collapse', () => {
@@ -200,10 +184,10 @@ describe('resolveTriggerCredentialId', () => {
   it('canonicalizes an OAuth service alias at the credential lookup boundary', async () => {
     await resolveTriggerCredentialId('credential-1', 'workspace-1', 'gmail')
 
-    expect(mockEq).toHaveBeenCalledWith(credential.workspaceId, 'workspace-1')
-    expect(mockEq).toHaveBeenCalledWith(credential.type, 'oauth')
-    expect(mockEq).toHaveBeenCalledWith(credential.providerId, 'google-email')
-    expect(mockEq).toHaveBeenCalledWith(credential.id, 'credential-1')
-    expect(mockEq).toHaveBeenCalledWith(credential.accountId, 'credential-1')
+    expect(eq).toHaveBeenCalledWith(credential.workspaceId, 'workspace-1')
+    expect(eq).toHaveBeenCalledWith(credential.type, 'oauth')
+    expect(eq).toHaveBeenCalledWith(credential.providerId, 'google-email')
+    expect(eq).toHaveBeenCalledWith(credential.id, 'credential-1')
+    expect(eq).toHaveBeenCalledWith(credential.accountId, 'credential-1')
   })
 })

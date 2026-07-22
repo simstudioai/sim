@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 interface Condition {
   kind: string
@@ -10,16 +11,9 @@ interface Condition {
   conditions?: Condition[]
 }
 
-const { mockTransaction, mockIsDeploymentOperationCurrent, mockClaimWebhookPath } = vi.hoisted(
-  () => ({
-    mockTransaction: vi.fn(),
-    mockIsDeploymentOperationCurrent: vi.fn(),
-    mockClaimWebhookPath: vi.fn(),
-  })
-)
-
-vi.mock('@sim/db', () => ({
-  db: { transaction: mockTransaction },
+const { mockIsDeploymentOperationCurrent, mockClaimWebhookPath } = vi.hoisted(() => ({
+  mockIsDeploymentOperationCurrent: vi.fn(),
+  mockClaimWebhookPath: vi.fn(),
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -59,6 +53,8 @@ import {
   StaleWebhookRegistrationOperationError,
   type WebhookRegistrationOperationFence,
 } from '@/lib/webhooks/registration-store'
+
+afterAll(resetDbChainMock)
 
 const FENCE: WebhookRegistrationOperationFence = {
   workflowId: 'workflow-1',
@@ -154,6 +150,7 @@ function activeRow(overrides: Record<string, unknown> = {}) {
 describe('activateWebhookRegistrations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockIsDeploymentOperationCurrent.mockResolvedValue(true)
   })
 
@@ -219,17 +216,18 @@ describe('activateWebhookRegistrations', () => {
 describe('prepareWebhookRegistrationIntents', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockIsDeploymentOperationCurrent.mockResolvedValue(true)
     mockClaimWebhookPath.mockResolvedValue('hooks/a')
-    mockTransaction.mockImplementation(async (callback: (tx: DbOrTx) => Promise<unknown>) => {
-      throw new Error('mockTransaction not configured for this test')
+    dbChainMockFns.transaction.mockImplementation(async () => {
+      throw new Error('db.transaction not configured for this test')
     })
   })
 
   function runInTx(selectResults: unknown[][]) {
     const harness = createTx(selectResults)
-    mockTransaction.mockImplementation(async (callback: (tx: DbOrTx) => Promise<unknown>) =>
-      callback(harness.tx)
+    dbChainMockFns.transaction.mockImplementation(
+      async (callback: (tx: DbOrTx) => Promise<unknown>) => callback(harness.tx)
     )
     return harness
   }

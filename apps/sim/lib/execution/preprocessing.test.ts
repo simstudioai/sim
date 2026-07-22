@@ -22,8 +22,6 @@ const {
   mockResolveSystemBillingAttribution: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ db: {} }))
-vi.mock('drizzle-orm', () => ({ eq: vi.fn() }))
 vi.mock('@/lib/auth/ban', () => ({
   getActivelyBannedUserIds: mockGetActivelyBannedUserIds,
 }))

@@ -1,101 +1,32 @@
 /**
  * @vitest-environment node
  */
-import { schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockDbResults,
-  mockUpdateWhere,
-  mockUpdateReturning,
-  mockUpdateSet,
-  mockDbUpdate,
-  mockOnConflictDoUpdate,
-  mockInsertValues,
-  mockDbInsert,
   mockEnsureUserInOrganizationTx,
   mockSyncUsageLimitsFromSubscription,
   mockReapplyPaidOrgJoinBillingForExistingMemberTx,
   mockAcquireOrganizationMutationLock,
   mockAcquireInvitationMutationLocks,
   mockChangeWorkspaceStoragePayersInTx,
-  mockSelectForUpdate,
-} = vi.hoisted(() => {
-  const mockDbResults: { value: any[] } = { value: [] }
-  const mockUpdateReturning = vi.fn()
-  const mockUpdateWhere = vi.fn().mockReturnValue({ returning: mockUpdateReturning })
-  const mockUpdateSet = vi.fn().mockReturnValue({ where: mockUpdateWhere })
-  const mockDbUpdate = vi.fn().mockReturnValue({ set: mockUpdateSet })
-  const mockOnConflictDoUpdate = vi.fn().mockResolvedValue(undefined)
-  const mockInsertValues = vi.fn().mockReturnValue({
-    onConflictDoUpdate: mockOnConflictDoUpdate,
-  })
-  const mockDbInsert = vi.fn().mockReturnValue({ values: mockInsertValues })
-  const mockEnsureUserInOrganizationTx = vi.fn()
-  const mockSyncUsageLimitsFromSubscription = vi.fn().mockResolvedValue(undefined)
-  const mockReapplyPaidOrgJoinBillingForExistingMemberTx = vi.fn().mockResolvedValue({
-    proUsageSnapshotted: false,
-    proCancelledAtPeriodEnd: false,
-  })
-  const mockAcquireOrganizationMutationLock = vi.fn()
-  const mockAcquireInvitationMutationLocks = vi.fn()
-  const mockChangeWorkspaceStoragePayersInTx = vi.fn()
-  const mockSelectForUpdate = vi.fn()
+} = vi.hoisted(() => ({
+  mockEnsureUserInOrganizationTx: vi.fn(),
+  mockSyncUsageLimitsFromSubscription: vi.fn(),
+  mockReapplyPaidOrgJoinBillingForExistingMemberTx: vi.fn(),
+  mockAcquireOrganizationMutationLock: vi.fn(),
+  mockAcquireInvitationMutationLocks: vi.fn(),
+  mockChangeWorkspaceStoragePayersInTx: vi.fn(),
+}))
 
-  return {
-    mockDbResults,
-    mockUpdateWhere,
-    mockUpdateReturning,
-    mockUpdateSet,
-    mockDbUpdate,
-    mockOnConflictDoUpdate,
-    mockInsertValues,
-    mockDbInsert,
-    mockEnsureUserInOrganizationTx,
-    mockSyncUsageLimitsFromSubscription,
-    mockReapplyPaidOrgJoinBillingForExistingMemberTx,
-    mockAcquireOrganizationMutationLock,
-    mockAcquireInvitationMutationLocks,
-    mockChangeWorkspaceStoragePayersInTx,
-    mockSelectForUpdate,
-  }
-})
-
-vi.mock('@sim/db', () => {
-  const selectImpl = vi.fn().mockImplementation(() => {
-    const chain: any = {}
-    chain.from = vi.fn().mockReturnValue(chain)
-    chain.where = vi.fn().mockReturnValue(chain)
-    chain.orderBy = vi.fn().mockReturnValue(chain)
-    chain.for = vi.fn().mockImplementation(() => {
-      mockSelectForUpdate()
-      return chain
-    })
-    chain.limit = vi
-      .fn()
-      .mockImplementation(() => Promise.resolve(mockDbResults.value.shift() || []))
-    chain.then = vi.fn().mockImplementation((callback: (rows: any[]) => unknown) => {
-      const result = mockDbResults.value.shift() || []
-      return Promise.resolve(callback ? callback(result) : result)
-    })
-    return chain
-  })
-  const txObject = {
-    select: selectImpl,
-    update: mockDbUpdate,
-    insert: mockDbInsert,
-  }
-  return {
-    db: {
-      select: selectImpl,
-      update: mockDbUpdate,
-      insert: mockDbInsert,
-      transaction: vi.fn(async (fn: (tx: typeof txObject) => unknown) => fn(txObject)),
-    },
-  }
-})
-
-vi.mock('@sim/db/schema', () => schemaMock)
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: mockAcquireOrganizationMutationLock,
@@ -129,26 +60,31 @@ import {
 describe('organization workspace helpers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbResults.value = []
+    resetDbChainMock()
     mockEnsureUserInOrganizationTx.mockReset()
-    mockUpdateReturning.mockReset()
     mockChangeWorkspaceStoragePayersInTx.mockReset()
     mockSyncUsageLimitsFromSubscription.mockResolvedValue(undefined)
+    mockReapplyPaidOrgJoinBillingForExistingMemberTx.mockResolvedValue({
+      proUsageSnapshotted: false,
+      proCancelledAtPeriodEnd: false,
+    })
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('attaches owned workspaces to an organization and syncs existing members', async () => {
-    mockDbResults.value = [
-      [{ id: 'ws-1' }, { id: 'ws-2' }],
-      [{ id: 'ws-1' }, { id: 'ws-2' }],
-      [
-        { id: 'ws-1', billedAccountUserId: 'user-1', organizationId: null },
-        { id: 'ws-2', billedAccountUserId: 'user-1', organizationId: null },
-      ],
-      [{ userId: 'owner-1' }],
-      [{ userId: 'owner-1' }, { userId: 'member-1' }],
-      [{ userId: 'owner-1', organizationId: 'org-1' }],
-    ]
-    mockUpdateReturning.mockResolvedValueOnce([{ id: 'ws-2' }, { id: 'ws-1' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }, { id: 'ws-2' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }, { id: 'ws-2' }])
+    queueTableRows(schemaMock.workspace, [
+      { id: 'ws-1', billedAccountUserId: 'user-1', organizationId: null },
+      { id: 'ws-2', billedAccountUserId: 'user-1', organizationId: null },
+    ])
+    queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
+    queueTableRows(schemaMock.permissions, [{ userId: 'owner-1' }, { userId: 'member-1' }])
+    queueTableRows(schemaMock.member, [{ userId: 'owner-1', organizationId: 'org-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'ws-2' }, { id: 'ws-1' }])
     mockEnsureUserInOrganizationTx
       .mockResolvedValueOnce({
         success: true,
@@ -194,11 +130,11 @@ describe('organization workspace helpers', () => {
       'owner-1',
       'org-1'
     )
-    expect(mockUpdateSet).toHaveBeenCalledWith(
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ organizationAssignedAt: expect.any(Date) })
     )
     expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledTimes(1)
-    expect(mockSelectForUpdate.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
       mockEnsureUserInOrganizationTx.mock.invocationCallOrder[0]
     )
     expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledWith(expect.anything(), [
@@ -221,23 +157,23 @@ describe('organization workspace helpers', () => {
         },
       },
     ])
-    expect(mockDbUpdate).toHaveBeenCalledTimes(1)
-    expect(mockDbInsert).toHaveBeenCalledTimes(1)
-    expect(mockInsertValues).toHaveBeenCalledWith([
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith([
       expect.objectContaining({ entityId: 'ws-1', userId: 'owner-1' }),
       expect.objectContaining({ entityId: 'ws-2', userId: 'owner-1' }),
     ])
   })
 
   it('fails before attaching workspaces when an existing member belongs to another organization', async () => {
-    mockDbResults.value = [
-      [{ id: 'ws-1' }],
-      [{ id: 'ws-1' }],
-      [{ id: 'ws-1', billedAccountUserId: 'user-1', organizationId: null }],
-      [{ userId: 'owner-1' }],
-      [{ userId: 'owner-1' }, { userId: 'member-2' }],
-      [{ userId: 'member-2', organizationId: 'org-2' }],
-    ]
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
+    queueTableRows(schemaMock.workspace, [
+      { id: 'ws-1', billedAccountUserId: 'user-1', organizationId: null },
+    ])
+    queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
+    queueTableRows(schemaMock.permissions, [{ userId: 'owner-1' }, { userId: 'member-2' }])
+    queueTableRows(schemaMock.member, [{ userId: 'member-2', organizationId: 'org-2' }])
 
     await expect(
       attachOwnedWorkspacesToOrganization({
@@ -247,19 +183,19 @@ describe('organization workspace helpers', () => {
     ).rejects.toBeInstanceOf(WorkspaceOrganizationMembershipConflictError)
 
     expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
-    expect(mockDbUpdate).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('keeps cross-org members external and still attaches when policy is keep-external', async () => {
-    mockDbResults.value = [
-      [{ id: 'ws-1' }],
-      [{ id: 'ws-1' }],
-      [{ id: 'ws-1', billedAccountUserId: 'user-1', organizationId: null }],
-      [{ userId: 'owner-1' }],
-      [{ userId: 'owner-1' }, { userId: 'member-2' }],
-      [{ userId: 'member-2', organizationId: 'org-2' }],
-    ]
-    mockUpdateReturning.mockResolvedValueOnce([{ id: 'ws-1' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
+    queueTableRows(schemaMock.workspace, [
+      { id: 'ws-1', billedAccountUserId: 'user-1', organizationId: null },
+    ])
+    queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
+    queueTableRows(schemaMock.permissions, [{ userId: 'owner-1' }, { userId: 'member-2' }])
+    queueTableRows(schemaMock.member, [{ userId: 'member-2', organizationId: 'org-2' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'ws-1' }])
     mockEnsureUserInOrganizationTx.mockResolvedValueOnce({
       success: true,
       alreadyMember: true,
@@ -287,11 +223,13 @@ describe('organization workspace helpers', () => {
       expect.anything(),
       expect.objectContaining({ userId: 'owner-1' })
     )
-    expect(mockDbUpdate).toHaveBeenCalled()
+    expect(dbChainMockFns.update).toHaveBeenCalled()
   })
 
   it('rolls back membership work when a concurrent move wins before the locked re-read', async () => {
-    mockDbResults.value = [[{ id: 'ws-1' }], [{ id: 'ws-1' }], []]
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
+    queueTableRows(schemaMock.workspace, [])
 
     const result = await attachOwnedWorkspacesToOrganization({
       ownerUserId: 'user-1',
@@ -309,19 +247,19 @@ describe('organization workspace helpers', () => {
       workspaceIds: ['ws-1'],
     })
     expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
-    expect(mockDbUpdate).not.toHaveBeenCalled()
-    expect(mockDbInsert).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
   it('does not report a committed attachment as failed when derived usage refresh fails', async () => {
-    mockDbResults.value = [
-      [{ id: 'ws-1' }],
-      [{ id: 'ws-1' }],
-      [{ id: 'ws-1', billedAccountUserId: 'user-1', organizationId: null }],
-      [{ userId: 'owner-1' }],
-      [{ userId: 'member-1' }],
-      [],
-    ]
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
+    queueTableRows(schemaMock.workspace, [
+      { id: 'ws-1', billedAccountUserId: 'user-1', organizationId: null },
+    ])
+    queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
+    queueTableRows(schemaMock.permissions, [{ userId: 'member-1' }])
+    queueTableRows(schemaMock.member, [])
     mockEnsureUserInOrganizationTx.mockResolvedValueOnce({
       success: true,
       alreadyMember: false,
@@ -331,7 +269,7 @@ describe('organization workspace helpers', () => {
         proCancelledAtPeriodEnd: false,
       },
     })
-    mockUpdateReturning.mockResolvedValueOnce([{ id: 'ws-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'ws-1' }])
     mockSyncUsageLimitsFromSubscription.mockRejectedValueOnce(new Error('refresh failed'))
 
     await expect(
@@ -343,18 +281,18 @@ describe('organization workspace helpers', () => {
   })
 
   it('detaches organization workspaces into grandfathered shared mode', async () => {
-    mockDbResults.value = [
-      [{ userId: 'owner-1' }],
-      [{ id: 'ws-1', ownerId: 'creator-1', billedAccountUserId: 'old-owner' }],
-      [{ id: 'ws-1' }],
-    ]
+    queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
+    queueTableRows(schemaMock.workspace, [
+      { id: 'ws-1', ownerId: 'creator-1', billedAccountUserId: 'old-owner' },
+    ])
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
 
     const result = await detachOrganizationWorkspaces('org-1')
 
     expect(result.detachedWorkspaceIds).toEqual(['ws-1'])
     expect(result.billedAccountUserId).toBe('owner-1')
     expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledTimes(1)
-    expect(mockSelectForUpdate.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
       mockChangeWorkspaceStoragePayersInTx.mock.invocationCallOrder[0]
     )
     expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledWith(expect.anything(), [
@@ -368,17 +306,17 @@ describe('organization workspace helpers', () => {
         },
       },
     ])
-    expect(mockUpdateSet).toHaveBeenCalledWith(
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceMode: 'grandfathered_shared',
         organizationAssignedAt: null,
       })
     )
-    expect(mockDbUpdate).toHaveBeenCalledTimes(1)
-    expect(mockDbInsert).toHaveBeenCalledTimes(1)
-    expect(mockInsertValues).toHaveBeenCalledWith([
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith([
       expect.objectContaining({ entityId: 'ws-1', userId: 'owner-1' }),
     ])
-    expect(mockOnConflictDoUpdate).toHaveBeenCalled()
+    expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalled()
   })
 })

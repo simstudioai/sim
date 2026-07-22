@@ -4,14 +4,19 @@
  * @vitest-environment node
  */
 import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
   redisConfigMock,
   redisConfigMockFns,
   requestUtilsMockFns,
+  resetDbChainMock,
+  schemaMock,
   workflowsApiUtilsMock,
   workflowsApiUtilsMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockRedisSet,
@@ -20,10 +25,6 @@ const {
   mockRedisTtl,
   mockRedisEval,
   mockRedisClient,
-  mockDbSelect,
-  mockDbInsert,
-  mockDbDelete,
-  mockDbUpdate,
   mockSendEmail,
   mockRenderOTPEmail,
   mockSetChatAuthCookie,
@@ -43,10 +44,6 @@ const {
     ttl: mockRedisTtl,
     eval: mockRedisEval,
   }
-  const mockDbSelect = vi.fn()
-  const mockDbInsert = vi.fn()
-  const mockDbDelete = vi.fn()
-  const mockDbUpdate = vi.fn()
   const mockSendEmail = vi.fn()
   const mockRenderOTPEmail = vi.fn()
   const mockSetChatAuthCookie = vi.fn()
@@ -61,10 +58,6 @@ const {
     mockRedisTtl,
     mockRedisEval,
     mockRedisClient,
-    mockDbSelect,
-    mockDbInsert,
-    mockDbDelete,
-    mockDbUpdate,
     mockSendEmail,
     mockRenderOTPEmail,
     mockSetChatAuthCookie,
@@ -80,30 +73,7 @@ const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
 
 vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockDbSelect,
-    insert: mockDbInsert,
-    delete: mockDbDelete,
-    update: mockDbUpdate,
-    transaction: vi.fn(async (callback: (tx: Record<string, unknown>) => unknown) => {
-      return callback({
-        select: mockDbSelect,
-        insert: mockDbInsert,
-        delete: mockDbDelete,
-        update: mockDbUpdate,
-      })
-    }),
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((field: string, value: string) => ({ field, value, type: 'eq' })),
-  and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
-  gt: vi.fn((field: string, value: string) => ({ field, value, type: 'gt' })),
-  lt: vi.fn((field: string, value: string) => ({ field, value, type: 'lt' })),
-  isNull: vi.fn((field: unknown) => ({ field, type: 'isNull' })),
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/core/storage', () => ({
   getStorageMethod: mockGetStorageMethod,
@@ -201,8 +171,21 @@ describe('Chat OTP API Route', () => {
   const mockIdentifier = 'test-chat'
   const mockOTP = '123456'
 
+  /** Queues the chat-deployment row the route reads before touching OTP storage. */
+  const queueDeployment = (row: Record<string, unknown>) => {
+    queueTableRows(schemaMock.chat, [row])
+  }
+
+  const emailDeployment = {
+    id: mockChatId,
+    authType: 'email',
+    allowedEmails: [mockEmail],
+    title: 'Test Chat',
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
 
     vi.spyOn(Math, 'random').mockReturnValue(0.123456)
     vi.spyOn(Date, 'now').mockReturnValue(1640995200000)
@@ -217,27 +200,6 @@ describe('Chat OTP API Route', () => {
     mockRedisGet.mockResolvedValue(null)
     mockRedisDel.mockResolvedValue(1)
     mockRedisTtl.mockResolvedValue(600)
-
-    const createDbChain = (result: unknown) => ({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue(result),
-        }),
-      }),
-    })
-
-    mockDbSelect.mockImplementation(() => createDbChain([]))
-    mockDbInsert.mockImplementation(() => ({
-      values: vi.fn().mockResolvedValue(undefined),
-    }))
-    mockDbDelete.mockImplementation(() => ({
-      where: vi.fn().mockResolvedValue(undefined),
-    }))
-    mockDbUpdate.mockImplementation(() => ({
-      set: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue(undefined),
-      }),
-    }))
 
     mockGetStorageMethod.mockReturnValue('redis')
 
@@ -271,26 +233,17 @@ describe('Chat OTP API Route', () => {
     vi.restoreAllMocks()
   })
 
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   describe('POST - Store OTP (Redis path)', () => {
     beforeEach(() => {
       mockGetStorageMethod.mockReturnValue('redis')
     })
 
     it('should store OTP in Redis when storage method is redis', async () => {
-      mockDbSelect.mockImplementationOnce(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([
-              {
-                id: mockChatId,
-                authType: 'email',
-                allowedEmails: [mockEmail],
-                title: 'Test Chat',
-              },
-            ]),
-          }),
-        }),
-      }))
+      queueDeployment(emailDeployment)
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'POST',
@@ -306,27 +259,11 @@ describe('Chat OTP API Route', () => {
         900 // 15 minutes
       )
 
-      expect(mockDbInsert).not.toHaveBeenCalled()
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     })
   })
 
   describe('POST - Rate limiting', () => {
-    const buildDeploymentSelect = () =>
-      mockDbSelect.mockImplementationOnce(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([
-              {
-                id: mockChatId,
-                authType: 'email',
-                allowedEmails: [mockEmail],
-                title: 'Test Chat',
-              },
-            ]),
-          }),
-        }),
-      }))
-
     it('returns 429 with Retry-After when IP rate limit is exceeded', async () => {
       mockCheckRateLimitDirect.mockResolvedValueOnce({
         allowed: false,
@@ -354,7 +291,7 @@ describe('Chat OTP API Route', () => {
       expect(response.status).toBe(429)
       expect(headerSet).toHaveBeenCalledWith('Retry-After', '900')
       expect(mockSendEmail).not.toHaveBeenCalled()
-      expect(mockDbSelect).not.toHaveBeenCalled()
+      expect(dbChainMockFns.select).not.toHaveBeenCalled()
     })
 
     it('returns 429 with Retry-After when email rate limit is exceeded', async () => {
@@ -378,7 +315,7 @@ describe('Chat OTP API Route', () => {
         headers: { set: headerSet },
       }))
 
-      buildDeploymentSelect()
+      queueDeployment(emailDeployment)
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'POST',
@@ -420,7 +357,7 @@ describe('Chat OTP API Route', () => {
 
     it('folds spoofed `unknown` client IPs into a single shared bucket', async () => {
       requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce('unknown')
-      buildDeploymentSelect()
+      queueDeployment(emailDeployment)
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'POST',
@@ -448,30 +385,7 @@ describe('Chat OTP API Route', () => {
     })
 
     it('should store OTP in database when storage method is database', async () => {
-      mockDbSelect.mockImplementationOnce(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([
-              {
-                id: mockChatId,
-                authType: 'email',
-                allowedEmails: [mockEmail],
-                title: 'Test Chat',
-              },
-            ]),
-          }),
-        }),
-      }))
-
-      const mockInsertValues = vi.fn().mockResolvedValue(undefined)
-      mockDbInsert.mockImplementationOnce(() => ({
-        values: mockInsertValues,
-      }))
-
-      const mockDeleteWhere = vi.fn().mockResolvedValue(undefined)
-      mockDbDelete.mockImplementation(() => ({
-        where: mockDeleteWhere,
-      }))
+      queueDeployment(emailDeployment)
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'POST',
@@ -480,10 +394,10 @@ describe('Chat OTP API Route', () => {
 
       await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
 
-      expect(mockDbDelete).toHaveBeenCalled()
+      expect(dbChainMockFns.delete).toHaveBeenCalled()
 
-      expect(mockDbInsert).toHaveBeenCalled()
-      expect(mockInsertValues).toHaveBeenCalledWith({
+      expect(dbChainMockFns.insert).toHaveBeenCalled()
+      expect(dbChainMockFns.values).toHaveBeenCalledWith({
         id: expect.any(String),
         identifier: `chat-otp:${mockChatId}:${mockEmail}`,
         value: expect.any(String),
@@ -503,18 +417,7 @@ describe('Chat OTP API Route', () => {
     })
 
     it('should retrieve OTP from Redis and verify successfully', async () => {
-      mockDbSelect.mockImplementationOnce(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([
-              {
-                id: mockChatId,
-                authType: 'email',
-              },
-            ]),
-          }),
-        }),
-      }))
+      queueDeployment({ id: mockChatId, authType: 'email' })
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'PUT',
@@ -525,7 +428,7 @@ describe('Chat OTP API Route', () => {
 
       expect(mockRedisGet).toHaveBeenCalledWith(`otp:${mockEmail}:${mockChatId}`)
       expect(mockRedisDel).toHaveBeenCalledWith(`otp:${mockEmail}:${mockChatId}`)
-      expect(mockDbSelect).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -536,19 +439,11 @@ describe('Chat OTP API Route', () => {
     })
 
     it('rejects verification when the chat has switched away from email auth', async () => {
-      mockDbSelect.mockImplementationOnce(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([
-              {
-                id: mockChatId,
-                authType: 'password',
-                password: 'encrypted-password',
-              },
-            ]),
-          }),
-        }),
-      }))
+      queueDeployment({
+        id: mockChatId,
+        authType: 'password',
+        password: 'encrypted-password',
+      })
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'PUT',
@@ -573,36 +468,13 @@ describe('Chat OTP API Route', () => {
     })
 
     it('should retrieve OTP from database and verify successfully', async () => {
-      let selectCallCount = 0
-
-      mockDbSelect.mockImplementation(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockImplementation(() => {
-              selectCallCount++
-              if (selectCallCount === 1) {
-                return Promise.resolve([
-                  {
-                    id: mockChatId,
-                    authType: 'email',
-                  },
-                ])
-              }
-              return Promise.resolve([
-                {
-                  value: `${mockOTP}:0`,
-                  expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-                },
-              ])
-            }),
-          }),
-        }),
-      }))
-
-      const mockDeleteWhere = vi.fn().mockResolvedValue(undefined)
-      mockDbDelete.mockImplementation(() => ({
-        where: mockDeleteWhere,
-      }))
+      queueDeployment({ id: mockChatId, authType: 'email' })
+      queueTableRows(schemaMock.verification, [
+        {
+          value: `${mockOTP}:0`,
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        },
+      ])
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'PUT',
@@ -611,34 +483,16 @@ describe('Chat OTP API Route', () => {
 
       await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
 
-      expect(mockDbSelect).toHaveBeenCalledTimes(2)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
 
-      expect(mockDbDelete).toHaveBeenCalled()
+      expect(dbChainMockFns.delete).toHaveBeenCalled()
 
       expect(mockRedisGet).not.toHaveBeenCalled()
     })
 
     it('should reject expired OTP from database', async () => {
-      let selectCallCount = 0
-
-      mockDbSelect.mockImplementation(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockImplementation(() => {
-              selectCallCount++
-              if (selectCallCount === 1) {
-                return Promise.resolve([
-                  {
-                    id: mockChatId,
-                    authType: 'email',
-                  },
-                ])
-              }
-              return Promise.resolve([])
-            }),
-          }),
-        }),
-      }))
+      queueDeployment({ id: mockChatId, authType: 'email' })
+      queueTableRows(schemaMock.verification, [])
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'PUT',
@@ -662,18 +516,7 @@ describe('Chat OTP API Route', () => {
     it('should delete OTP from Redis after verification', async () => {
       mockRedisGet.mockResolvedValue(`${mockOTP}:0`)
 
-      mockDbSelect.mockImplementationOnce(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([
-              {
-                id: mockChatId,
-                authType: 'email',
-              },
-            ]),
-          }),
-        }),
-      }))
+      queueDeployment({ id: mockChatId, authType: 'email' })
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'PUT',
@@ -683,7 +526,7 @@ describe('Chat OTP API Route', () => {
       await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
 
       expect(mockRedisDel).toHaveBeenCalledWith(`otp:${mockEmail}:${mockChatId}`)
-      expect(mockDbDelete).not.toHaveBeenCalled()
+      expect(dbChainMockFns.delete).not.toHaveBeenCalled()
     })
   })
 
@@ -694,27 +537,10 @@ describe('Chat OTP API Route', () => {
     })
 
     it('should delete OTP from database after verification', async () => {
-      let selectCallCount = 0
-      mockDbSelect.mockImplementation(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockImplementation(() => {
-              selectCallCount++
-              if (selectCallCount === 1) {
-                return Promise.resolve([{ id: mockChatId, authType: 'email' }])
-              }
-              return Promise.resolve([
-                { value: `${mockOTP}:0`, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
-              ])
-            }),
-          }),
-        }),
-      }))
-
-      const mockDeleteWhere = vi.fn().mockResolvedValue(undefined)
-      mockDbDelete.mockImplementation(() => ({
-        where: mockDeleteWhere,
-      }))
+      queueDeployment({ id: mockChatId, authType: 'email' })
+      queueTableRows(schemaMock.verification, [
+        { value: `${mockOTP}:0`, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
+      ])
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'PUT',
@@ -723,7 +549,7 @@ describe('Chat OTP API Route', () => {
 
       await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
 
-      expect(mockDbDelete).toHaveBeenCalled()
+      expect(dbChainMockFns.delete).toHaveBeenCalled()
       expect(mockRedisDel).not.toHaveBeenCalled()
     })
   })
@@ -737,13 +563,7 @@ describe('Chat OTP API Route', () => {
       mockRedisGet.mockResolvedValue('654321:0')
       mockRedisEval.mockResolvedValue('654321:1')
 
-      mockDbSelect.mockImplementationOnce(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([{ id: mockChatId, authType: 'email' }]),
-          }),
-        }),
-      }))
+      queueDeployment({ id: mockChatId, authType: 'email' })
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'PUT',
@@ -765,13 +585,7 @@ describe('Chat OTP API Route', () => {
       mockRedisGet.mockResolvedValue('654321:4')
       mockRedisEval.mockResolvedValue('LOCKED')
 
-      mockDbSelect.mockImplementationOnce(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([{ id: mockChatId, authType: 'email' }]),
-          }),
-        }),
-      }))
+      queueDeployment({ id: mockChatId, authType: 'email' })
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'PUT',
@@ -788,20 +602,7 @@ describe('Chat OTP API Route', () => {
     })
 
     it('should store OTP with zero attempts on generation', async () => {
-      mockDbSelect.mockImplementationOnce(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([
-              {
-                id: mockChatId,
-                authType: 'email',
-                allowedEmails: [mockEmail],
-                title: 'Test Chat',
-              },
-            ]),
-          }),
-        }),
-      }))
+      queueDeployment(emailDeployment)
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'POST',
@@ -824,13 +625,7 @@ describe('Chat OTP API Route', () => {
       mockGetStorageMethod.mockReturnValue('redis')
       mockRedisGet.mockResolvedValue(null)
 
-      mockDbSelect.mockImplementation(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([{ id: mockChatId, authType: 'email' }]),
-          }),
-        }),
-      }))
+      queueDeployment({ id: mockChatId, authType: 'email' })
 
       const requestRedis = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'PUT',
@@ -850,20 +645,7 @@ describe('Chat OTP API Route', () => {
 
       mockGetStorageMethod.mockReturnValue('redis')
 
-      mockDbSelect.mockImplementation(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([
-              {
-                id: mockChatId,
-                authType: 'email',
-                allowedEmails: [mockEmail],
-                title: 'Test Chat',
-              },
-            ]),
-          }),
-        }),
-      }))
+      queueDeployment(emailDeployment)
 
       const requestRedis = new NextRequest('http://localhost:3000/api/chat/test/otp', {
         method: 'POST',

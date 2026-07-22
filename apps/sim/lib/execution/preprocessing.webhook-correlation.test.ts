@@ -9,8 +9,6 @@ const { mockResolveSystemBillingAttribution } = vi.hoisted(() => ({
   mockResolveSystemBillingAttribution: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ db: {} }))
-vi.mock('drizzle-orm', () => ({ eq: vi.fn() }))
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
   checkServerSideUsageLimits: vi.fn(),
 }))

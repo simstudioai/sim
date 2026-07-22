@@ -1,27 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockReconcileOrganizationSeats, selectRows, mockFeatureFlags } = vi.hoisted(() => ({
+const { mockReconcileOrganizationSeats, mockFeatureFlags } = vi.hoisted(() => ({
   mockReconcileOrganizationSeats: vi.fn(),
-  selectRows: { value: [] as unknown[] },
   mockFeatureFlags: { isBillingEnabled: true },
 }))
 
-vi.mock('@sim/db', () => {
-  const makeChain = () => {
-    const chain: Record<string, unknown> = {}
-    chain.from = () => chain
-    chain.innerJoin = () => chain
-    chain.where = () => chain
-    chain.groupBy = () => chain
-    chain.having = () => chain
-    chain.orderBy = () => Promise.resolve(selectRows.value)
-    return chain
-  }
-  return { db: { select: () => makeChain() } }
-})
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/organizations/seats', () => ({
   reconcileOrganizationSeats: mockReconcileOrganizationSeats,
@@ -38,15 +26,22 @@ import { reconcileTeamSeatDrift } from '@/lib/billing/organizations/seat-drift'
 describe('reconcileTeamSeatDrift', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    selectRows.value = []
+    resetDbChainMock()
     mockFeatureFlags.isBillingEnabled = true
     mockReconcileOrganizationSeats.mockResolvedValue({ changed: true, previousSeats: 1, seats: 2 })
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('reconciles each drifted Team org returned by the query', async () => {
     // The SQL WHERE (Team-only) + HAVING (seats != member count) already
     // restrict the result to drifted Team orgs; the function reconciles each.
-    selectRows.value = [{ organizationId: 'org-1' }, { organizationId: 'org-2' }]
+    queueTableRows(schemaMock.subscription, [
+      { organizationId: 'org-1' },
+      { organizationId: 'org-2' },
+    ])
 
     const result = await reconcileTeamSeatDrift()
 
@@ -63,7 +58,7 @@ describe('reconcileTeamSeatDrift', () => {
   })
 
   it('reconciles a past-due Team candidate returned by the entitlement query', async () => {
-    selectRows.value = [{ organizationId: 'org-past-due' }]
+    queueTableRows(schemaMock.subscription, [{ organizationId: 'org-past-due' }])
 
     const result = await reconcileTeamSeatDrift()
 
@@ -75,7 +70,10 @@ describe('reconcileTeamSeatDrift', () => {
   })
 
   it('counts only reconciles that changed the seat count', async () => {
-    selectRows.value = [{ organizationId: 'org-a' }, { organizationId: 'org-b' }]
+    queueTableRows(schemaMock.subscription, [
+      { organizationId: 'org-a' },
+      { organizationId: 'org-b' },
+    ])
     mockReconcileOrganizationSeats
       .mockResolvedValueOnce({ changed: true, seats: 2 })
       .mockResolvedValueOnce({ changed: false })
@@ -86,7 +84,10 @@ describe('reconcileTeamSeatDrift', () => {
   })
 
   it('continues past a reconcile failure', async () => {
-    selectRows.value = [{ organizationId: 'org-a' }, { organizationId: 'org-b' }]
+    queueTableRows(schemaMock.subscription, [
+      { organizationId: 'org-a' },
+      { organizationId: 'org-b' },
+    ])
     mockReconcileOrganizationSeats
       .mockRejectedValueOnce(new Error('db error'))
       .mockResolvedValueOnce({ changed: true, seats: 3 })
@@ -107,9 +108,10 @@ describe('reconcileTeamSeatDrift', () => {
   })
 
   it('caps reconciles per run while still reporting the full drift count', async () => {
-    selectRows.value = Array.from({ length: 150 }, (_, i) => ({
-      organizationId: `org-${i}`,
-    }))
+    queueTableRows(
+      schemaMock.subscription,
+      Array.from({ length: 150 }, (_, i) => ({ organizationId: `org-${i}` }))
+    )
 
     const result = await reconcileTeamSeatDrift()
 

@@ -1,22 +1,17 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RowExecutionMetadata, TableDefinition, WorkflowGroup } from '@/lib/table/types'
 
-const { mockAppendTableEvent, mockTransaction, mockUpdateRow, mockWriteExecutionsPatch } =
-  vi.hoisted(() => ({
-    mockAppendTableEvent: vi.fn(),
-    mockTransaction: vi.fn(),
-    mockUpdateRow: vi.fn(),
-    mockWriteExecutionsPatch: vi.fn(),
-  }))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    transaction: mockTransaction,
-  },
+const { mockAppendTableEvent, mockUpdateRow, mockWriteExecutionsPatch } = vi.hoisted(() => ({
+  mockAppendTableEvent: vi.fn(),
+  mockUpdateRow: vi.fn(),
+  mockWriteExecutionsPatch: vi.fn(),
 }))
+
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/table/events', () => ({
   appendTableEvent: mockAppendTableEvent,
@@ -77,9 +72,13 @@ const RUNNING_STATE: RowExecutionMetadata = {
 }
 
 describe('writeWorkflowGroupState', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
-    mockTransaction.mockImplementation(async (callback) => callback({}))
+    resetDbChainMock()
     mockWriteExecutionsPatch.mockResolvedValue('wrote')
     mockUpdateRow.mockResolvedValue({})
     mockAppendTableEvent.mockResolvedValue(null)
@@ -90,7 +89,7 @@ describe('writeWorkflowGroupState', () => {
       'wrote'
     )
 
-    expect(mockTransaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
     expect(mockWriteExecutionsPatch).toHaveBeenCalledWith(
       expect.anything(),
       TABLE.id,
