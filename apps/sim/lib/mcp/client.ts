@@ -280,14 +280,17 @@ export class McpClient {
     // and aggregate wall-clock — plus a repeated-cursor guard, since a page cap
     // alone can't stop a server that returns a fresh cursor with no new tools.
     const deadline = startedAt + maxTotalTimeoutMs
+    const maxPages = MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_PAGES
     const tools: McpTool[] = []
     const seenCursors = new Set<string>()
     let cursor: string | undefined
     let bytes = 0
+    let pagesFetched = 0
     let truncated: string | undefined
+    let reachedEnd = false
 
     try {
-      for (let page = 0; page < MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_PAGES; page++) {
+      for (let page = 0; page < maxPages; page++) {
         const remainingMs = deadline - Date.now()
         if (remainingMs <= 0) {
           truncated = 'aggregate timeout'
@@ -309,9 +312,11 @@ export class McpClient {
             },
           }
         )
+        pagesFetched++
 
         if (!result.tools || !Array.isArray(result.tools)) {
           logger.warn(`Invalid tools response from server ${this.config.name}:`, result)
+          reachedEnd = true
           break
         }
 
@@ -320,7 +325,7 @@ export class McpClient {
             truncated = 'tool count'
             break
           }
-          bytes += JSON.stringify(tool).length
+          bytes += Buffer.byteLength(JSON.stringify(tool), 'utf8')
           if (bytes > MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_BYTES) {
             truncated = 'byte size'
             break
@@ -336,7 +341,10 @@ export class McpClient {
         if (truncated) break
 
         const next = result.nextCursor
-        if (!next) break // missing/empty cursor = end of results (spec)
+        if (!next) {
+          reachedEnd = true
+          break // missing/empty cursor = end of results (spec)
+        }
         if (seenCursors.has(next)) {
           truncated = 'repeated cursor'
           break
@@ -345,12 +353,15 @@ export class McpClient {
         cursor = next
       }
 
-      if (truncated || seenCursors.size >= MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_PAGES - 1) {
+      // The loop can exhaust `maxPages` with a cursor still pending — that's a page-cap
+      // truncation, distinct from a natural end (`reachedEnd`) or an explicit budget hit.
+      if (!truncated && !reachedEnd) truncated = 'page cap'
+      if (truncated) {
         logger.warn(`Tool discovery truncated for server ${this.config.name}`, {
           serverId: this.config.id,
-          reason: truncated ?? 'page cap',
+          reason: truncated,
           toolsCollected: tools.length,
-          pagesFetched: seenCursors.size + 1,
+          pagesFetched,
         })
       }
 
@@ -362,13 +373,14 @@ export class McpClient {
         durationMs: Date.now() - startedAt,
         idleTimeoutMs,
         maxTotalTimeoutMs,
-        pagesFetched: seenCursors.size + 1,
+        pagesFetched,
         toolsCollected: tools.length,
         sessionIdPresent: Boolean(this.transport.sessionId),
         error: getMcpSafeErrorDiagnostics(error),
       })
-      // Partial results from earlier pages are still useful; only fail if page one failed.
-      if (tools.length > 0) return tools
+      // At least one page succeeded → keep its (possibly empty) partial result rather than
+      // failing discovery and marking the server unhealthy; only a page-one failure throws.
+      if (pagesFetched > 0) return tools
       throw error
     }
   }

@@ -248,6 +248,32 @@ describe('McpClient notification handler', () => {
     expect(tools.map((t) => t.name)).toEqual(['a'])
   })
 
+  it('keeps an empty partial (does not throw) when page one succeeds but a later page fails', async () => {
+    // Page one is valid but empty with a cursor; page two fails. Page one succeeded, so
+    // discovery must not fail the server — it returns [] rather than throwing.
+    mockSdkListTools
+      .mockResolvedValueOnce({ tools: [], nextCursor: 'c1' })
+      .mockRejectedValueOnce(new Error('page 2 blew up'))
+    const client = new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    await client.connect()
+    await expect(client.listTools()).resolves.toEqual([])
+  })
+
+  it('throws when the very first page fails', async () => {
+    mockSdkListTools.mockRejectedValueOnce(new Error('page 1 blew up'))
+    const client = new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    await client.connect()
+    await expect(client.listTools()).rejects.toThrow()
+  })
+
   it('logs connection diagnostics without header values', async () => {
     const client = new McpClient({
       config: {
