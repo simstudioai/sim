@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 const logger = createLogger('SecurityPolicy')
 
@@ -123,25 +123,6 @@ export async function getMemberOrganizationId(
     })
     return null
   }
-}
-
-/**
- * Atomically bumps the org's security-policy version and drops the local
- * cache entry. Every member's cached session cookie is invalidated on its
- * next request (version mismatch → DB session read), which is what makes
- * policy changes and org-wide revocation take effect within the cache TTL
- * instead of the 24h cookie-cache lifetime.
- *
- * Callers that already write the `organization` row in the same request
- * should fold `securityPolicyVersion: sql`...` + 1` into that UPDATE and call
- * {@link invalidateSecurityPolicyVersionCache} instead.
- */
-export async function bumpSecurityPolicyVersion(organizationId: string): Promise<void> {
-  await db
-    .update(organization)
-    .set({ securityPolicyVersion: sql`${organization.securityPolicyVersion} + 1` })
-    .where(eq(organization.id, organizationId))
-  invalidateSecurityPolicyVersionCache(organizationId)
 }
 
 /**
