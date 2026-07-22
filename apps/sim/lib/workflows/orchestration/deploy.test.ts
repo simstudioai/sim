@@ -1,15 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockLimit,
-  mockUpdateSet,
   mockSaveWorkflowToNormalizedTables,
   mockRecordAudit,
   mockCaptureServerEvent,
-  mockTransaction,
   mockValidateWorkflowSchedules,
   mockValidateTriggerWebhookConfigForDeploy,
   mockEmitWorkflowDeployedEvent,
@@ -22,12 +26,9 @@ const {
   mockLoadWorkflowDeploymentSnapshot,
   mockTx,
 } = vi.hoisted(() => ({
-  mockLimit: vi.fn(),
-  mockUpdateSet: vi.fn(),
   mockSaveWorkflowToNormalizedTables: vi.fn(),
   mockRecordAudit: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
-  mockTransaction: vi.fn(),
   mockValidateWorkflowSchedules: vi.fn(),
   mockValidateTriggerWebhookConfigForDeploy: vi.fn(),
   mockEmitWorkflowDeployedEvent: vi.fn(),
@@ -38,49 +39,15 @@ const {
   mockProcessWorkflowDeploymentOutboxEvent: vi.fn(),
   mockNotifySocketDeploymentChanged: vi.fn(),
   mockLoadWorkflowDeploymentSnapshot: vi.fn(),
-  mockTx: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(() => ({
-            for: vi.fn().mockResolvedValue([{ id: 'workflow-1' }]),
-          })),
-        })),
-      })),
-    })),
-    update: vi.fn(() => ({
-      set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
-    })),
-    execute: vi.fn().mockResolvedValue(undefined),
-  },
+  /**
+   * Sentinel transaction handle the mocked prepare functions hand to the real
+   * onPrepareTransaction callback, which only forwards it into the (mocked)
+   * outbox enqueue — identity is asserted, never chained on.
+   */
+  mockTx: { sentinel: 'tx' },
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: mockLimit,
-        })),
-      })),
-    })),
-    update: vi.fn(() => ({
-      set: mockUpdateSet,
-    })),
-    transaction: mockTransaction,
-  },
-  workflow: {
-    id: 'workflow.id',
-    deployedAt: 'workflow.deployedAt',
-    workspaceId: 'workflow.workspaceId',
-  },
-  workflowDeploymentVersion: {
-    workflowId: 'workflowDeploymentVersion.workflowId',
-    version: 'workflowDeploymentVersion.version',
-    isActive: 'workflowDeploymentVersion.isActive',
-    state: 'workflowDeploymentVersion.state',
-  },
-}))
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 vi.mock('@sim/audit', () => ({
   AuditAction: {
@@ -145,30 +112,20 @@ import {
   performRevertToVersion,
 } from '@/lib/workflows/orchestration/deploy'
 
+afterAll(() => {
+  resetDbChainMock()
+})
+
 describe('performRevertToVersion', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
-    mockTransaction.mockImplementation(async (callback) => callback(mockTx))
-    mockTx.select.mockImplementation((selection?: Record<string, unknown>) => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit:
-            selection && Object.hasOwn(selection, 'state')
-              ? mockLimit
-              : vi.fn(() => ({
-                  for: vi.fn().mockResolvedValue([{ id: 'workflow-1' }]),
-                })),
-        })),
-      })),
-    }))
-    mockTx.update.mockReturnValue({ set: mockUpdateSet })
-    mockUpdateSet.mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
     mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
   })
 
   it('restores variables when the deployment snapshot includes them', async () => {
-    mockLimit.mockResolvedValue([
+    queueTableRows(schemaMock.workflowDeploymentVersion, [
       {
         state: {
           blocks: {},
@@ -207,9 +164,9 @@ describe('performRevertToVersion', () => {
           },
         },
       }),
-      mockTx
+      dbChainMock.db
     )
-    expect(mockUpdateSet).toHaveBeenCalledWith(
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
         variables: {
           variableA: {
@@ -224,7 +181,7 @@ describe('performRevertToVersion', () => {
   })
 
   it('preserves existing variables when reverting a legacy snapshot without variables', async () => {
-    mockLimit.mockResolvedValue([
+    queueTableRows(schemaMock.workflowDeploymentVersion, [
       {
         state: {
           blocks: {},
@@ -245,7 +202,7 @@ describe('performRevertToVersion', () => {
     expect(result.success).toBe(true)
     const savedState = mockSaveWorkflowToNormalizedTables.mock.calls[0][1]
     expect(Object.hasOwn(savedState, 'variables')).toBe(false)
-    const workflowUpdate = mockUpdateSet.mock.calls[0][0]
+    const workflowUpdate = dbChainMockFns.set.mock.calls[0][0]
     expect(Object.hasOwn(workflowUpdate, 'variables')).toBe(false)
   })
 })
@@ -253,6 +210,7 @@ describe('performRevertToVersion', () => {
 describe('performFullDeploy workspace event emission', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
     const now = new Date('2026-07-14T08:00:00.000Z')
     const operation = {
@@ -281,7 +239,7 @@ describe('performFullDeploy workspace event emission', () => {
     }
     mockProcessWorkflowDeploymentOutboxEvent.mockResolvedValue('completed')
     mockNotifySocketDeploymentChanged.mockResolvedValue(undefined)
-    mockLimit.mockResolvedValue([
+    queueTableRows(schemaMock.workflow, [
       { id: 'workflow-1', name: 'My Workflow', workspaceId: 'workspace-1' },
     ])
     mockLoadWorkflowDeploymentSnapshot.mockResolvedValue({
@@ -544,6 +502,7 @@ describe('performFullDeploy workspace event emission', () => {
 describe('performActivateVersion workspace event emission', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
     const now = new Date('2026-07-14T08:00:00.000Z')
     const operation = {
@@ -574,7 +533,9 @@ describe('performActivateVersion workspace event emission', () => {
     mockNotifySocketDeploymentChanged.mockResolvedValue(undefined)
     mockValidateWorkflowSchedules.mockReturnValue({ isValid: true })
     mockValidateTriggerWebhookConfigForDeploy.mockResolvedValue({ success: true })
-    mockLimit.mockResolvedValue([{ id: 'dv-2', state: { blocks: {} }, isActive: false }])
+    queueTableRows(schemaMock.workflowDeploymentVersion, [
+      { id: 'dv-2', state: { blocks: {} }, isActive: false },
+    ])
     mockEnqueueWorkflowDeploymentPreparation.mockResolvedValue('prepare-event-activate-default')
     mockPrepareWorkflowVersionActivation.mockImplementation(async (input) => {
       await input.onPrepareTransaction?.(mockTx, operation)
@@ -671,7 +632,12 @@ describe('performActivateVersion workspace event emission', () => {
   })
 
   it('does not emit when the version is already active (no-op activation)', async () => {
-    mockLimit
+    /**
+     * Per-chain overrides answer the two selects directly (version row, then
+     * workflow deployedAt); the default row queued in beforeEach stays
+     * unconsumed and is cleared by the next reset.
+     */
+    dbChainMockFns.limit
       .mockResolvedValueOnce([{ id: 'dv-2', state: { blocks: {} }, isActive: true }])
       .mockResolvedValueOnce([{ deployedAt: new Date() }])
 

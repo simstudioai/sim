@@ -1,33 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { copilotChats } from '@sim/db/schema'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { and, eq } from 'drizzle-orm'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAnd, mockEq, mockGetChatStreamLockOwners, mockSet, mockUpdate, mockWhere } = vi.hoisted(
-  () => ({
-    mockAnd: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
-    mockEq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
-    mockGetChatStreamLockOwners: vi.fn(),
-    mockSet: vi.fn(),
-    mockUpdate: vi.fn(),
-    mockWhere: vi.fn(),
-  })
-)
+vi.mock('@sim/db', () => dbChainMock)
 
-vi.mock('@sim/db', () => ({
-  db: { update: mockUpdate },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  copilotChats: {
-    id: 'copilotChats.id',
-    conversationId: 'copilotChats.conversationId',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: mockAnd,
-  eq: mockEq,
+const { mockGetChatStreamLockOwners } = vi.hoisted(() => ({
+  mockGetChatStreamLockOwners: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/request/session', () => ({
@@ -39,13 +21,15 @@ import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
 describe('reconcileChatStreamMarkers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockSet.mockReturnValue({ where: mockWhere })
-    mockUpdate.mockReturnValue({ set: mockSet })
-    mockWhere.mockResolvedValue(undefined)
+    resetDbChainMock()
     mockGetChatStreamLockOwners.mockResolvedValue({
       status: 'verified',
       ownersByChatId: new Map<string, string>(),
     })
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('clears a persisted stream marker when Redis verifies no lock owner exists', async () => {
@@ -66,13 +50,10 @@ describe('reconcileChatStreamMarkers', () => {
       repairVerifiedStaleMarkers: true,
     })
 
-    expect(mockUpdate).toHaveBeenCalled()
-    expect(mockSet).toHaveBeenCalledWith({ conversationId: null })
-    expect(mockWhere).toHaveBeenCalledWith(
-      mockAnd(
-        mockEq('copilotChats.id', 'chat-stuck'),
-        mockEq('copilotChats.conversationId', 'stream-orphaned')
-      )
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(copilotChats)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ conversationId: null })
+    expect(dbChainMockFns.where).toHaveBeenCalledWith(
+      and(eq(copilotChats.id, 'chat-stuck'), eq(copilotChats.conversationId, 'stream-orphaned'))
     )
   })
 

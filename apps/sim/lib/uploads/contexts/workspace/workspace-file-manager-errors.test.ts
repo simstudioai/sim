@@ -1,33 +1,20 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => {
-  const chain = {
-    from: vi.fn(),
-    where: vi.fn(),
-    orderBy: vi.fn(),
-  }
-  chain.from.mockReturnValue(chain)
-  chain.where.mockReturnValue(chain)
-  return {
-    chain,
-    select: vi.fn(() => chain),
-  }
-})
-
-vi.mock('@sim/db', () => ({ db: { select: mocks.select } }))
+vi.mock('@sim/db', () => dbChainMock)
 
 import { listWorkspaceFiles } from './workspace-file-manager'
+
+afterAll(resetDbChainMock)
 
 describe('listWorkspaceFiles error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.chain.from.mockReturnValue(mocks.chain)
-    mocks.chain.where.mockReturnValue(mocks.chain)
-    mocks.chain.orderBy.mockRejectedValue(new Error('database unavailable'))
-    mocks.select.mockReturnValue(mocks.chain)
+    resetDbChainMock()
+    dbChainMockFns.orderBy.mockRejectedValue(new Error('database unavailable'))
   })
 
   it('keeps the established best-effort behavior by default', async () => {

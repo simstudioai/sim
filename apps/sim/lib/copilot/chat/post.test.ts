@@ -4,13 +4,15 @@
 
 import {
   authMockFns,
+  dbChainMock,
   permissionsMock,
   permissionsMockFns,
+  resetDbChainMock,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const resolveWorkflowIdForUser = workflowsUtilsMockFns.mockResolveWorkflowIdForUser
 const getUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
@@ -115,42 +117,18 @@ vi.mock('@/lib/copilot/chat-status', () => ({
   },
 }))
 
-vi.mock('@sim/db', () => {
-  const update = vi.fn(() => ({
-    set: vi.fn(() => ({
-      where: vi.fn(() => ({
-        returning: vi.fn().mockResolvedValue([]),
-      })),
-    })),
-  }))
-  const select = vi.fn(() => ({
-    from: vi.fn(() => ({
-      where: vi.fn(() => ({
-        limit: vi.fn().mockResolvedValue([{ permissionType: 'write' }]),
-      })),
-    })),
-  }))
-  return {
-    db: {
-      update,
-      select,
-      transaction: async (cb: (tx: { update: typeof update; select: typeof select }) => unknown) =>
-        cb({ update, select }),
-    },
-  }
-})
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(() => ({})),
-  eq: vi.fn(() => ({})),
-  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 import { handleUnifiedChatPost } from './post'
 
 describe('handleUnifiedChatPost', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     getSession.mockResolvedValue({ user: { id: 'user-1' } })
     resolveWorkflowIdForUser.mockResolvedValue({
       status: 'resolved',

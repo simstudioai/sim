@@ -5,7 +5,8 @@
 import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, resetDbChainMock } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -117,15 +118,7 @@ vi.mock('@/lib/copilot/request/session/sse', () => ({
   SSE_RESPONSE_HEADERS: {},
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    update: vi.fn(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn(),
-      })),
-    })),
-  },
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/copilot/chat-status', () => ({
   chatPubSub: null,
@@ -160,8 +153,13 @@ async function drainStream(stream: ReadableStream) {
 }
 
 describe('createSSEStream terminal error handling', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     billingFlags.isHosted = false
     billingFlags.isCopilotBillingAttributionV1Enabled = false
     fetchGo.mockResolvedValue(
@@ -342,8 +340,13 @@ describe('createSSEStream terminal error handling', () => {
 })
 
 describe('requestChatTitle billing protocol', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     billingFlags.isHosted = true
     billingFlags.isCopilotBillingAttributionV1Enabled = true
     fetchGo.mockResolvedValue(
