@@ -39,6 +39,7 @@ import {
   useDeleteMcpServer,
   useForceRefreshMcpTools,
   useMcpServers,
+  useMcpToolsEvents,
   useMcpToolsQuery,
   useRefreshMcpServer,
   useStoredMcpTools,
@@ -195,6 +196,9 @@ export function MCP() {
   } = useMcpServers(workspaceId)
   const { data: mcpToolsData = [], toolsStateByServer } = useMcpToolsQuery(workspaceId)
   const { data: storedTools = [], refetch: refetchStoredTools } = useStoredMcpTools(workspaceId)
+  // Real-time refresh via the shared list_changed → SSE push (same subscription the workflow
+  // editor uses), so tool changes reflect here without re-probing on every visit.
+  useMcpToolsEvents(workspaceId)
   const forceRefreshToolsMutation = useForceRefreshMcpTools()
   const forceRefreshTools = forceRefreshToolsMutation.mutate
   const createServerMutation = useCreateMcpServer()

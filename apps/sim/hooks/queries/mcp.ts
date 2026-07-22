@@ -42,7 +42,13 @@ const logger = createLogger('McpQueries')
 export type { McpServerStatusConfig, McpTool, StoredMcpTool }
 
 export const MCP_SERVER_LIST_STALE_TIME = 60 * 1000
-export const MCP_SERVER_TOOLS_STALE_TIME = 30 * 1000
+/**
+ * Tool discovery is kept fresh by the `list_changed` → SSE push (see `useMcpToolsEvents`),
+ * so the query only needs a re-probe-on-visit fallback for servers without push. Matches the
+ * server-side cache TTL (`MCP_CONSTANTS.CACHE_TIMEOUT`) — no reference MCP client re-probes
+ * more often than its cache; real changes arrive via push regardless of this value.
+ */
+export const MCP_SERVER_TOOLS_STALE_TIME = 5 * 60 * 1000
 export const MCP_STORED_TOOL_LIST_STALE_TIME = 60 * 1000
 export const MCP_ALLOWED_DOMAINS_STALE_TIME = 5 * 60 * 1000
 
