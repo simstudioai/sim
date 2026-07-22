@@ -9,10 +9,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { memoryService } from '@/executor/handlers/agent/memory'
-import {
-  resolveSkillContentById,
-  type SkillActorScope,
-} from '@/executor/handlers/agent/skills-resolver'
+import { resolveSkillContentById } from '@/executor/handlers/agent/skills-resolver'
 import type { AgentInputs, Message, SkillInput } from '@/executor/handlers/agent/types'
 import type { PiMessage, PiSkill } from '@/executor/handlers/pi/backend'
 import type { ExecutionContext } from '@/executor/types'
@@ -31,28 +28,18 @@ function isMemoryEnabled(config: PiMemoryConfig): boolean {
 
 /**
  * Resolves selected skill inputs to full `{ name, content }` entries for Pi.
- * Skills the acting user cannot access are skipped — prompt construction uses
- * filter semantics, matching the agent handler's metadata injection.
  */
 export async function resolvePiSkills(
   skillInputs: unknown,
-  workspaceId: string | undefined,
-  actor?: SkillActorScope
+  workspaceId: string | undefined
 ): Promise<PiSkill[]> {
   if (!Array.isArray(skillInputs) || !workspaceId) return []
 
   const skills: PiSkill[] = []
   for (const input of skillInputs as SkillInput[]) {
     if (!input?.skillId) continue
-    try {
-      const resolved = await resolveSkillContentById(input.skillId, workspaceId, actor)
-      if (resolved) skills.push({ name: resolved.name, content: resolved.content })
-    } catch (error) {
-      logger.warn('Failed to resolve skill for Pi', {
-        skillId: input.skillId,
-        error: getErrorMessage(error),
-      })
-    }
+    const resolved = await resolveSkillContentById(input.skillId, workspaceId)
+    if (resolved) skills.push({ name: resolved.name, content: resolved.content })
   }
   return skills
 }

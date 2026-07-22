@@ -159,7 +159,6 @@ export const AuditAction = {
   SKILL_DELETED: 'skill.deleted',
   SKILL_MEMBER_ADDED: 'skill_member.added',
   SKILL_MEMBER_REMOVED: 'skill_member.removed',
-  SKILL_MEMBER_ROLE_CHANGED: 'skill_member.role_changed',
 
   // Schedules
   SCHEDULE_CREATED: 'schedule.created',

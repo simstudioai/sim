@@ -215,7 +215,6 @@ export interface PostHogEventMap {
 
   skill_shared: {
     skill_id: string
-    role: 'admin' | 'member'
     workspace_id: string
   }
 

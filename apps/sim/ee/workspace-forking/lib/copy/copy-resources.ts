@@ -331,7 +331,6 @@ export async function copyForkResourceContainers(
         userId: skill.userId,
         name: skill.name,
         description: skill.description,
-        workspaceShared: skill.workspaceShared,
         createdAt: skill.createdAt,
         updatedAt: skill.updatedAt,
       })
@@ -360,18 +359,13 @@ export async function copyForkResourceContainers(
     if (inserts.length > 0) {
       await tx.insert(skill).values(inserts)
 
-      // Copy per-skill ACLs for users who are members of the child workspace,
-      // preserving roles AND statuses: revoked rows are deliberate per-skill
-      // deny markers that override the workspace-shared implicit grant, so
-      // dropping them would invert an explicit deny into a grant on the copy.
-      // Workspace admins need no rows — they are derived skill admins in the
-      // child too (mirrors credential member propagation otherwise).
+      // Copy editor grants for users who are members of the child workspace.
+      // Workspace admins need no rows — they are derived editors in the child
+      // too (mirrors credential member propagation otherwise).
       const memberRows = await tx
         .select({
           skillId: skillMember.skillId,
           userId: skillMember.userId,
-          role: skillMember.role,
-          status: skillMember.status,
         })
         .from(skillMember)
         .innerJoin(
@@ -391,9 +385,6 @@ export async function copyForkResourceContainers(
             id: generateId(),
             skillId: childSkillId,
             userId: member.userId,
-            role: member.role,
-            status: member.status,
-            joinedAt: member.status === 'active' ? now : null,
             createdAt: now,
             updatedAt: now,
           },

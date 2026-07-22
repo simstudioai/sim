@@ -1,5 +1,5 @@
 {
-  "id": "5e112000-b8ee-4b60-82d3-ae088c05f859",
+  "id": "d9424378-1cbb-482c-ab90-8586d366ea60",
   "prevId": "12a47eb4-408b-41d5-92e3-c26a03d1d754",
   "version": "7",
   "dialect": "postgresql",
@@ -10166,13 +10166,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "workspace_shared": {
-          "name": "workspace_shared",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -10259,28 +10252,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "role": {
-          "name": "role",
-          "type": "skill_member_role",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'member'"
-        },
-        "status": {
-          "name": "status",
-          "type": "skill_member_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'active'"
-        },
-        "joined_at": {
-          "name": "joined_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "invited_by": {
           "name": "invited_by",
           "type": "text",
@@ -10308,36 +10279,6 @@
           "columns": [
             {
               "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "skill_member_role_idx": {
-          "name": "skill_member_role_idx",
-          "columns": [
-            {
-              "expression": "role",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "skill_member_status_idx": {
-          "name": "skill_member_status_idx",
-          "columns": [
-            {
-              "expression": "status",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -17505,16 +17446,6 @@
       "name": "permission_type",
       "schema": "public",
       "values": ["admin", "write", "read"]
-    },
-    "public.skill_member_role": {
-      "name": "skill_member_role",
-      "schema": "public",
-      "values": ["admin", "member"]
-    },
-    "public.skill_member_status": {
-      "name": "skill_member_status",
-      "schema": "public",
-      "values": ["active", "revoked"]
     },
     "public.usage_log_category": {
       "name": "usage_log_category",

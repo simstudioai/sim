@@ -144,10 +144,7 @@ export class PiBlockHandler implements BlockHandler {
     }
     const contextualBase = {
       ...base,
-      skills: await resolvePiSkills(inputs.skills, ctx.workspaceId, {
-        userId: ctx.userId,
-        enforce: ctx.enforceCredentialAccess === true,
-      }),
+      skills: await resolvePiSkills(inputs.skills, ctx.workspaceId),
       initialMessages: await loadPiMemory(ctx, memoryConfig),
     }
 

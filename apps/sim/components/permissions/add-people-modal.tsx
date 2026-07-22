@@ -29,20 +29,26 @@ interface AddPeopleModalProps {
   existingMemberEmails: Set<string>
   /** Grants one person the role; a rejection surfaces as a partial failure. */
   addMember: (target: AddPeopleTarget, role: MemberRole) => Promise<unknown>
+  /**
+   * Hides the Role field for resources without per-member roles (skills):
+   * every add is a plain grant and `addMember` receives the default role.
+   */
+  hideRole?: boolean
 }
 
 /**
  * Shared "Add people" modal for member-managed resources (credentials, skills):
- * grants existing workspace members access with a chosen role. Emails are
- * validated against the workspace roster and current membership; each add is an
- * idempotent upsert and partial failures keep only the people that still need
- * adding.
+ * grants existing workspace members access, optionally with a chosen role.
+ * Emails are validated against the workspace roster and current membership;
+ * each add is an idempotent upsert and partial failures keep only the people
+ * that still need adding.
  */
 export function AddPeopleModal({
   open,
   onOpenChange,
   existingMemberEmails,
   addMember,
+  hideRole = false,
 }: AddPeopleModalProps) {
   const { workspacePermissions } = useWorkspacePermissionsContext()
 
@@ -138,16 +144,18 @@ export function AddPeopleModal({
           placeholder='Enter emails'
           disabled={isAdding}
         />
-        <ChipModalField
-          type='dropdown'
-          title='Role'
-          options={MEMBER_ROLE_OPTIONS}
-          value={roleToAdd}
-          placeholder='Select role'
-          align='start'
-          onChange={(role) => setRoleToAdd(role as MemberRole)}
-          disabled={isAdding}
-        />
+        {!hideRole && (
+          <ChipModalField
+            type='dropdown'
+            title='Role'
+            options={MEMBER_ROLE_OPTIONS}
+            value={roleToAdd}
+            placeholder='Select role'
+            align='start'
+            onChange={(role) => setRoleToAdd(role as MemberRole)}
+            disabled={isAdding}
+          />
+        )}
         <ChipModalError>{submitError}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter

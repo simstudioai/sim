@@ -44,11 +44,10 @@ export function SkillInput({
   const [editingSkillId, setEditingSkillId] = useState<string | null>(null)
   const [editingSkillSnapshot, setEditingSkillSnapshot] = useState<SkillDefinition | null>(null)
 
-  // Prefer the live query cache so the modal reflects mutations (e.g. the
-  // Members tab's sharing toggle), but fall back to the click-time snapshot
-  // when a background refetch drops the skill — otherwise the modal would
-  // close mid-edit and silently discard the draft; saving surfaces the real
-  // server error instead.
+  // Prefer the live query cache so the modal reflects concurrent edits, but
+  // fall back to the click-time snapshot when a background refetch drops the
+  // skill — otherwise the modal would close mid-edit and silently discard the
+  // draft; saving surfaces the real server error instead.
   const editingSkill = editingSkillId
     ? (workspaceSkills.find((s) => s.id === editingSkillId) ?? editingSkillSnapshot)
     : null

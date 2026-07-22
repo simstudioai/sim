@@ -93,10 +93,7 @@ export class AgentBlockHandler implements BlockHandler {
     let skillMetadata: Array<{ name: string; description: string }> = []
     if (skillInputs.length > 0 && ctx.workspaceId) {
       await validateSkillsAllowed(ctx.userId, ctx.workspaceId, ctx)
-      skillMetadata = await resolveSkillMetadata(skillInputs, ctx.workspaceId, {
-        userId: ctx.userId,
-        enforce: ctx.enforceCredentialAccess === true,
-      })
+      skillMetadata = await resolveSkillMetadata(skillInputs, ctx.workspaceId)
       if (skillMetadata.length > 0) {
         const skillNames = skillMetadata.map((s) => s.name)
         formattedTools.push(buildLoadSkillTool(skillNames))

@@ -4,11 +4,7 @@ import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, desc, eq, ne } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
-import {
-  getSkillAccessForUser,
-  resolveSkillRoleFromAccess,
-  type SkillMemberRole,
-} from '@/lib/skills/access'
+import { getEditableSkillIds } from '@/lib/skills/access'
 import {
   BUILTIN_SKILLS,
   type BuiltinSkill,
@@ -31,7 +27,6 @@ function builtinSkillRow(workspaceId: string, builtin: BuiltinSkill): typeof ski
     name: builtin.name,
     description: builtin.description,
     content: builtin.content,
-    workspaceShared: true,
     createdAt: BUILTIN_SKILL_TIMESTAMP,
     updatedAt: BUILTIN_SKILL_TIMESTAMP,
   }
@@ -64,15 +59,14 @@ export async function listSkills(params: { workspaceId: string; includeBuiltins?
   return [...builtins, ...dbRows]
 }
 
-/** A skill row tagged with the caller's effective role (`null` on builtins — no ACL). */
-export type SkillWithRole = typeof skill.$inferSelect & { role: SkillMemberRole | null }
+/** A skill row tagged with whether the caller can edit it (always false on builtins). */
+export type SkillWithAccess = typeof skill.$inferSelect & { canEdit: boolean }
 
 /**
- * List the skills a user can see/use in a workspace, each tagged with the
- * user's effective role: workspace admins see every skill as `admin`; others
- * see skills where they hold an active membership (its role) or that are
- * workspace-shared (implicit `member`, unless individually revoked). Built-in
- * template skills have no ACL and always pass through with `role: null`.
+ * List every skill in the workspace, each tagged with whether the caller can
+ * edit it: workspace admins can edit all; others can edit skills where they
+ * hold an explicit editor row. Everyone in the workspace sees and uses every
+ * skill. Built-in template skills are code-only and never editable.
  *
  * Pass `workspaceAccess` when the caller already resolved it to skip a
  * redundant lookup.
@@ -82,31 +76,27 @@ export async function listSkillsForUser(params: {
   userId: string
   includeBuiltins?: boolean
   workspaceAccess?: WorkspaceAccess
-}): Promise<SkillWithRole[]> {
+}): Promise<SkillWithAccess[]> {
   const [dbRows, access] = await Promise.all([
     listSkills({ workspaceId: params.workspaceId, includeBuiltins: false }),
-    getSkillAccessForUser(params.workspaceId, params.userId, {
+    getEditableSkillIds(params.workspaceId, params.userId, {
       workspaceAccess: params.workspaceAccess,
     }),
   ])
 
-  const visible: SkillWithRole[] = []
-  for (const row of dbRows) {
-    const role = resolveSkillRoleFromAccess(row, access)
-    if (role === null) continue
-    visible.push({ ...row, role })
-  }
+  const tagged: SkillWithAccess[] = dbRows.map((row) => ({
+    ...row,
+    canEdit: access.canAdminWorkspace || access.editorSkillIds.has(row.id),
+  }))
 
-  if (params.includeBuiltins === false) return visible
+  if (params.includeBuiltins === false) return tagged
 
-  // Built-ins are deduped against the rows the caller can actually SEE, so a
-  // restricted skill shadowing a built-in's name hides the built-in only from
-  // users who can see the override — never from everyone.
-  const visibleNames = new Set(visible.map((r) => r.name.toLowerCase()))
-  const builtins: SkillWithRole[] = BUILTIN_SKILLS.filter(
-    (b) => !visibleNames.has(b.name.toLowerCase())
-  ).map((b) => ({ ...builtinSkillRow(params.workspaceId, b), role: null }))
-  return [...builtins, ...visible]
+  // A workspace skill that shares a built-in's name overrides it for everyone.
+  const dbNames = new Set(tagged.map((r) => r.name.toLowerCase()))
+  const builtins: SkillWithAccess[] = BUILTIN_SKILLS.filter(
+    (b) => !dbNames.has(b.name.toLowerCase())
+  ).map((b) => ({ ...builtinSkillRow(params.workspaceId, b), canEdit: false }))
+  return [...builtins, ...tagged]
 }
 
 /**
@@ -184,7 +174,6 @@ export async function upsertSkills(params: {
     name?: string
     description?: string
     content?: string
-    workspaceShared?: boolean
   }>
   workspaceId: string
   userId: string
@@ -241,7 +230,6 @@ export async function upsertSkills(params: {
             name: nextName,
             description: s.description ?? current.description,
             content: s.content ?? current.content,
-            ...(s.workspaceShared !== undefined ? { workspaceShared: s.workspaceShared } : {}),
             updatedAt: nowTime,
           })
           .where(and(eq(skill.id, s.id), eq(skill.workspaceId, workspaceId)))
@@ -273,21 +261,16 @@ export async function upsertSkills(params: {
         name: s.name,
         description: s.description,
         content: s.content,
-        workspaceShared: s.workspaceShared ?? true,
         createdAt: nowTime,
         updatedAt: nowTime,
       })
 
-      // The creator is the skill's only explicit admin; everyone else gets
-      // implicit member access while the skill stays workspace-shared, and
-      // workspace admins are derived admins with no rows.
+      // The creator becomes an editor; workspace admins are derived editors
+      // with no rows, and everyone in the workspace can already use the skill.
       await tx.insert(skillMember).values({
         id: generateId(),
         skillId: newId,
         userId,
-        role: 'admin',
-        status: 'active',
-        joinedAt: nowTime,
         invitedBy: userId,
         createdAt: nowTime,
         updatedAt: nowTime,

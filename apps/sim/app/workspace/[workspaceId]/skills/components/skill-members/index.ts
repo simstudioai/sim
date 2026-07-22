@@ -1,5 +1,4 @@
 export {
-  type SkillMembersController,
-  skillMemberLockReason,
-  useSkillMembersController,
-} from './use-skill-members-controller'
+  type SkillEditorsController,
+  useSkillEditorsController,
+} from './use-skill-editors-controller'

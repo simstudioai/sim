@@ -15,7 +15,6 @@ export {
   type CredentialRoleSource,
   credentialRoleLockReason,
   RoleLockTooltip,
-  skillRoleLockReason,
   type WorkspaceRoleSource,
   workspaceRoleLockReason,
 } from './role-lock'

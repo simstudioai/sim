@@ -105,7 +105,6 @@ import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/ru
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { getSharesForResources } from '@/lib/public-shares/share-manager'
-import { canUseSkill, getSkillAccessForUser } from '@/lib/skills/access'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -695,7 +694,7 @@ export class WorkspaceVFS {
               timed('custom_tools', this.materializeCustomTools(workspaceId, userId)),
               timed('custom_blocks', this.materializeCustomBlocks(workspaceId)),
               timed('mcp_servers', this.materializeMcpServers(workspaceId)),
-              timed('skills', this.materializeSkills(workspaceId, userId)),
+              timed('skills', this.materializeSkills(workspaceId)),
               timed('tasks', this.materializeTasks(workspaceId, userId)),
               timed('jobs', this.materializeJobs(workspaceId)),
               timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
@@ -2138,35 +2137,26 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Advertise the workspace skills the acting user can access in the VFS
-   * without eagerly loading their bodies. Paths are registered as lazy so
-   * glob/WORKSPACE.md see them, but full content is fetched only when read (or
-   * a grep whose scope touches the path) resolves them. Per-skill access
-   * filters both the advertised metadata and which lazy paths exist — an
-   * inaccessible skill has no VFS presence at all.
+   * Advertise the workspace skills in the VFS without eagerly loading their
+   * bodies. Paths are registered as lazy so glob/WORKSPACE.md see them, but
+   * full content is fetched only when read (or a grep whose scope touches the
+   * path) resolves them. Skills are workspace-visible — everyone with
+   * workspace access sees and uses every skill.
    */
   private async materializeSkills(
-    workspaceId: string,
-    userId: string
+    workspaceId: string
   ): Promise<NonNullable<WorkspaceMdData['skills']>> {
     try {
-      // Metadata only — skill bodies can be large; keep them out of the eager
-      // map. The lazy bodies need no re-check: only accessible skills register
-      // a path, and the VFS instance is per-request (never shared across users).
-      const [allRows, access] = await Promise.all([
-        db
-          .select({
-            id: skillTable.id,
-            name: skillTable.name,
-            description: skillTable.description,
-            workspaceShared: skillTable.workspaceShared,
-          })
-          .from(skillTable)
-          .where(eq(skillTable.workspaceId, workspaceId))
-          .orderBy(desc(skillTable.createdAt)),
-        getSkillAccessForUser(workspaceId, userId),
-      ])
-      const skillRows = allRows.filter((row) => canUseSkill(row, access))
+      // Metadata only — skill bodies can be large; keep them out of the eager map.
+      const skillRows = await db
+        .select({
+          id: skillTable.id,
+          name: skillTable.name,
+          description: skillTable.description,
+        })
+        .from(skillTable)
+        .where(eq(skillTable.workspaceId, workspaceId))
+        .orderBy(desc(skillTable.createdAt))
 
       for (const s of skillRows) {
         const safeName = sanitizeName(s.name)

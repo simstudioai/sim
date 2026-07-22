@@ -25,6 +25,7 @@
  *   bun run scripts/check-migrations-safety.ts --dir <path>   # a directory
  */
 import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -414,7 +415,9 @@ function changedMigrationFiles(baseRef: string): string[] {
       if (inDir(p)) files.add(p)
     }
   }
-  return [...files]
+  // A migration deleted in the working tree (e.g. regenerated before commit) has
+  // no SQL left to lint — skip it rather than crash on the read.
+  return [...files].filter((f) => existsSync(path.join(ROOT, f)))
 }
 
 async function listSqlFiles(dir: string): Promise<string[]> {

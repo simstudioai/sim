@@ -38,15 +38,12 @@ vi.mock('@sim/db/schema', () => ({
   skill: {
     id: 'skill.id',
     workspaceId: 'skill.workspaceId',
-    workspaceShared: 'skill.workspaceShared',
     name: 'skill.name',
   },
   skillMember: {
     id: 'skillMember.id',
     skillId: 'skillMember.skillId',
     userId: 'skillMember.userId',
-    status: 'skillMember.status',
-    role: 'skillMember.role',
   },
 }))
 
@@ -67,14 +64,11 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 import {
-  canUseSkill,
   checkSkillsUpdateAccess,
-  getSkillAccessForUser,
+  getEditableSkillIds,
   getSkillActorContext,
-  listSkillMembers,
+  listSkillEditors,
   removeWorkspaceSkillMembershipsTx,
-  resolveSkillRole,
-  resolveSkillRoleFromAccess,
 } from '@/lib/skills/access'
 
 const wsAdmin = { hasAccess: true, canWrite: true, canAdmin: true, workspace: { id: 'ws' } }
@@ -88,124 +82,44 @@ beforeEach(() => {
   mockGetUsersWithPermissions.mockResolvedValue([])
 })
 
-describe('resolveSkillRole', () => {
-  it('denies everything without workspace access, even with an explicit admin row', () => {
-    expect(
-      resolveSkillRole({
-        workspaceShared: true,
-        memberRole: 'admin',
-        memberStatus: 'active',
-        workspaceAccess: wsNone,
-      })
-    ).toBeNull()
-  })
-
-  it('resolves workspace admins to admin regardless of rows', () => {
-    expect(
-      resolveSkillRole({
-        workspaceShared: false,
-        memberRole: 'member',
-        memberStatus: 'revoked',
-        workspaceAccess: wsAdmin,
-      })
-    ).toBe('admin')
-  })
-
-  it('resolves an active explicit row to its role', () => {
-    expect(
-      resolveSkillRole({
-        workspaceShared: false,
-        memberRole: 'admin',
-        memberStatus: 'active',
-        workspaceAccess: wsRead,
-      })
-    ).toBe('admin')
-  })
-
-  it('treats a revoked row as a deny even when the skill is workspace-shared', () => {
-    expect(
-      resolveSkillRole({
-        workspaceShared: true,
-        memberRole: 'member',
-        memberStatus: 'revoked',
-        workspaceAccess: wsWrite,
-      })
-    ).toBeNull()
-  })
-
-  it('grants implicit member access to workspace members while shared', () => {
-    expect(
-      resolveSkillRole({
-        workspaceShared: true,
-        memberRole: null,
-        memberStatus: null,
-        workspaceAccess: wsRead,
-      })
-    ).toBe('member')
-  })
-
-  it('denies rowless workspace members when the skill is not shared', () => {
-    expect(
-      resolveSkillRole({
-        workspaceShared: false,
-        memberRole: null,
-        memberStatus: null,
-        workspaceAccess: wsWrite,
-      })
-    ).toBeNull()
-  })
-})
-
 describe('getSkillActorContext', () => {
-  it('treats an explicit skill admin membership as admin', async () => {
-    dbState.results = [
-      [{ id: 's1', workspaceId: 'ws', workspaceShared: true }],
-      [{ role: 'admin', status: 'active' }],
-    ]
-    mockCheckWorkspaceAccess.mockResolvedValue(wsWrite)
+  it('grants edit access from an explicit editor row', async () => {
+    dbState.results = [[{ id: 's1', workspaceId: 'ws' }], [{ id: 'row-1' }]]
+    mockCheckWorkspaceAccess.mockResolvedValue(wsRead)
 
     const ctx = await getSkillActorContext('s1', 'user1')
 
-    expect(ctx.role).toBe('admin')
+    expect(ctx.hasWorkspaceAccess).toBe(true)
+    expect(ctx.canEdit).toBe(true)
   })
 
-  it('derives skill admin from workspace admin without any rows', async () => {
-    dbState.results = [[{ id: 's1', workspaceId: 'ws', workspaceShared: false }], []]
+  it('derives edit access from workspace admin without any rows', async () => {
+    dbState.results = [[{ id: 's1', workspaceId: 'ws' }], []]
     mockCheckWorkspaceAccess.mockResolvedValue(wsAdmin)
 
     const ctx = await getSkillActorContext('s1', 'admin-user')
 
-    expect(ctx.role).toBe('admin')
+    expect(ctx.canEdit).toBe(true)
   })
 
-  it('resolves implicit member access for a rowless workspace member on a shared skill', async () => {
-    dbState.results = [[{ id: 's1', workspaceId: 'ws', workspaceShared: true }], []]
-    mockCheckWorkspaceAccess.mockResolvedValue(wsRead)
-
-    const ctx = await getSkillActorContext('s1', 'reader')
-
-    expect(ctx.role).toBe('member')
-  })
-
-  it('denies a revoked member even on a shared skill', async () => {
-    dbState.results = [
-      [{ id: 's1', workspaceId: 'ws', workspaceShared: true }],
-      [{ role: 'member', status: 'revoked' }],
-    ]
-    mockCheckWorkspaceAccess.mockResolvedValue(wsWrite)
-
-    const ctx = await getSkillActorContext('s1', 'revoked-user')
-
-    expect(ctx.role).toBeNull()
-  })
-
-  it('denies rowless members on a restricted skill', async () => {
-    dbState.results = [[{ id: 's1', workspaceId: 'ws', workspaceShared: false }], []]
+  it('lets rowless workspace members see but not edit', async () => {
+    dbState.results = [[{ id: 's1', workspaceId: 'ws' }], []]
     mockCheckWorkspaceAccess.mockResolvedValue(wsWrite)
 
     const ctx = await getSkillActorContext('s1', 'writer')
 
-    expect(ctx.role).toBeNull()
+    expect(ctx.hasWorkspaceAccess).toBe(true)
+    expect(ctx.canEdit).toBe(false)
+  })
+
+  it('denies everything without workspace access, even with an editor row', async () => {
+    dbState.results = [[{ id: 's1', workspaceId: 'ws' }], [{ id: 'row-1' }]]
+    mockCheckWorkspaceAccess.mockResolvedValue(wsNone)
+
+    const ctx = await getSkillActorContext('s1', 'outsider')
+
+    expect(ctx.hasWorkspaceAccess).toBe(false)
+    expect(ctx.canEdit).toBe(false)
   })
 
   it('returns an empty context when the skill does not exist', async () => {
@@ -214,58 +128,93 @@ describe('getSkillActorContext', () => {
     const ctx = await getSkillActorContext('missing', 'user1')
 
     expect(ctx.skill).toBeNull()
-    expect(ctx.role).toBeNull()
+    expect(ctx.hasWorkspaceAccess).toBe(false)
+    expect(ctx.canEdit).toBe(false)
     expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
-  })
-
-  it('reuses a provided workspace access when it matches the skill workspace', async () => {
-    dbState.results = [
-      [{ id: 's1', workspaceId: 'ws', workspaceShared: true }],
-      [{ role: 'member', status: 'active' }],
-    ]
-
-    const ctx = await getSkillActorContext('s1', 'user1', { workspaceAccess: wsWrite as never })
-
-    expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
-    expect(ctx.role).toBe('member')
   })
 })
 
-describe('getSkillAccessForUser + resolveSkillRoleFromAccess', () => {
-  it('evaluates roles from one membership scan', async () => {
-    dbState.results = [
-      [
-        { skillId: 's-admin', role: 'admin', status: 'active' },
-        { skillId: 's-revoked', role: 'member', status: 'revoked' },
-      ],
-    ]
+describe('getEditableSkillIds', () => {
+  it('collects the editor rows from one workspace-scoped scan', async () => {
+    dbState.results = [[{ skillId: 's-mine' }, { skillId: 's-also-mine' }]]
     mockCheckWorkspaceAccess.mockResolvedValue(wsRead)
 
-    const access = await getSkillAccessForUser('ws', 'user1')
+    const access = await getEditableSkillIds('ws', 'user1')
 
-    expect(resolveSkillRoleFromAccess({ id: 's-admin', workspaceShared: false }, access)).toBe(
-      'admin'
-    )
-    expect(
-      resolveSkillRoleFromAccess({ id: 's-revoked', workspaceShared: true }, access)
-    ).toBeNull()
-    expect(resolveSkillRoleFromAccess({ id: 's-shared', workspaceShared: true }, access)).toBe(
-      'member'
-    )
-    expect(
-      resolveSkillRoleFromAccess({ id: 's-restricted', workspaceShared: false }, access)
-    ).toBeNull()
-    expect(canUseSkill({ id: 's-shared', workspaceShared: true }, access)).toBe(true)
-    expect(canUseSkill({ id: 's-revoked', workspaceShared: true }, access)).toBe(false)
+    expect(access.canAdminWorkspace).toBe(false)
+    expect(access.editorSkillIds).toEqual(new Set(['s-mine', 's-also-mine']))
   })
 
-  it('resolves everything to admin for workspace admins', async () => {
+  it('flags workspace admins as editors of everything', async () => {
     dbState.results = [[]]
     mockCheckWorkspaceAccess.mockResolvedValue(wsAdmin)
 
-    const access = await getSkillAccessForUser('ws', 'admin-user')
+    const access = await getEditableSkillIds('ws', 'admin-user')
 
-    expect(resolveSkillRoleFromAccess({ id: 'any', workspaceShared: false }, access)).toBe('admin')
+    expect(access.canAdminWorkspace).toBe(true)
+  })
+
+  it('grants nothing without workspace access, even with editor rows', async () => {
+    dbState.results = [[{ skillId: 's-mine' }]]
+    mockCheckWorkspaceAccess.mockResolvedValue(wsNone)
+
+    const access = await getEditableSkillIds('ws', 'outsider')
+
+    expect(access.canAdminWorkspace).toBe(false)
+    expect(access.editorSkillIds.size).toBe(0)
+  })
+})
+
+describe('listSkillEditors', () => {
+  const roster = (users: Array<{ userId: string; permissionType: string }>) =>
+    users.map((u) => ({
+      userId: u.userId,
+      permissionType: u.permissionType,
+      name: `${u.userId}-name`,
+      email: `${u.userId}@x.com`,
+      image: null,
+    }))
+
+  it('lists derived workspace admins plus explicit editors still in the roster', async () => {
+    dbState.results = [
+      [
+        { id: 'row-1', userId: 'writer' },
+        { id: 'row-2', userId: 'ghost' },
+      ],
+    ]
+    mockGetUsersWithPermissions.mockResolvedValue(
+      roster([
+        { userId: 'boss', permissionType: 'admin' },
+        { userId: 'writer', permissionType: 'write' },
+        { userId: 'reader', permissionType: 'read' },
+      ])
+    )
+
+    const editors = await listSkillEditors({ id: 's1', workspaceId: 'ws' })
+    const byUser = new Map(editors.map((e) => [e.userId, e]))
+
+    expect(byUser.get('boss')).toMatchObject({
+      id: 'workspace-admin-boss',
+      isWorkspaceAdmin: true,
+      userEmail: 'boss@x.com',
+    })
+    expect(byUser.get('writer')).toMatchObject({ id: 'row-1', isWorkspaceAdmin: false })
+    // Workspace members without a row are not editors.
+    expect(byUser.has('reader')).toBe(false)
+    // Rows for users no longer in the workspace never render.
+    expect(byUser.has('ghost')).toBe(false)
+  })
+
+  it('keeps a workspace admin flagged as derived even when they hold an explicit row', async () => {
+    dbState.results = [[{ id: 'row-1', userId: 'boss' }]]
+    mockGetUsersWithPermissions.mockResolvedValue(
+      roster([{ userId: 'boss', permissionType: 'admin' }])
+    )
+
+    const editors = await listSkillEditors({ id: 's1', workspaceId: 'ws' })
+
+    expect(editors).toHaveLength(1)
+    expect(editors[0]).toMatchObject({ id: 'row-1', userId: 'boss', isWorkspaceAdmin: true })
   })
 })
 
@@ -277,28 +226,37 @@ describe('checkSkillsUpdateAccess', () => {
     expect(dbMock.select).not.toHaveBeenCalled()
   })
 
-  it('partitions resolvable ids and reports denied skills with their role', async () => {
+  it('partitions resolvable ids and denies skills without an editor row', async () => {
     dbState.results = [
       [
-        { id: 's-mine', name: 'mine', workspaceShared: true },
-        { id: 's-other', name: 'other', workspaceShared: true },
-        { id: 's-hidden', name: 'hidden', workspaceShared: false },
+        { id: 's-mine', name: 'mine' },
+        { id: 's-other', name: 'other' },
       ],
-      [{ skillId: 's-mine', role: 'admin', status: 'active' }],
+      [{ skillId: 's-mine' }],
     ]
     mockCheckWorkspaceAccess.mockResolvedValue(wsWrite)
 
     const result = await checkSkillsUpdateAccess({
       workspaceId: 'ws',
       userId: 'u',
-      skillIds: ['s-mine', 's-other', 's-hidden', 's-create'],
+      skillIds: ['s-mine', 's-other', 's-create'],
     })
 
-    expect(result.existingIds).toEqual(new Set(['s-mine', 's-other', 's-hidden']))
-    expect(result.denied).toEqual([
-      { id: 's-other', name: 'other', role: 'member' },
-      { id: 's-hidden', name: 'hidden', role: null },
-    ])
+    expect(result.existingIds).toEqual(new Set(['s-mine', 's-other']))
+    expect(result.denied).toEqual([{ id: 's-other', name: 'other' }])
+  })
+
+  it('denies nothing for workspace admins', async () => {
+    dbState.results = [[{ id: 's-any', name: 'any' }], []]
+    mockCheckWorkspaceAccess.mockResolvedValue(wsAdmin)
+
+    const result = await checkSkillsUpdateAccess({
+      workspaceId: 'ws',
+      userId: 'admin-user',
+      skillIds: ['s-any'],
+    })
+
+    expect(result.denied).toEqual([])
   })
 })
 
@@ -309,118 +267,16 @@ describe('removeWorkspaceSkillMembershipsTx', () => {
     expect(tx.delete).not.toHaveBeenCalled()
   })
 
-  it('deletes only active grants (deny markers survive) and counts them', async () => {
+  it('deletes every editor grant for the user in the workspaces and counts them', async () => {
     const { eq } = await import('drizzle-orm')
     dbState.results = [[{ id: 'm1' }, { id: 'm2' }]]
     const tx = { select: vi.fn(() => makeChain()), delete: vi.fn(() => makeChain()) }
 
     expect(await removeWorkspaceSkillMembershipsTx(tx as never, ['ws'], 'u')).toBe(2)
     expect(tx.delete).toHaveBeenCalledTimes(1)
-    // The delete is scoped to status='active' so revoked per-skill deny
-    // markers persist across leave/rejoin.
-    expect(vi.mocked(eq).mock.calls).toContainEqual(['skillMember.status', 'active'])
-  })
-})
-
-describe('listSkillMembers', () => {
-  const roster = (users: Array<{ userId: string; permissionType: string }>) =>
-    users.map((u) => ({
-      userId: u.userId,
-      permissionType: u.permissionType,
-      name: `${u.userId}-name`,
-      email: `${u.userId}@x.com`,
-      image: null,
-    }))
-
-  it('maps the current roster through resolveSkillRole with derived admins, explicit roles, and implicit members', async () => {
-    dbState.results = [
-      [
-        { id: 'row-1', userId: 'writer', role: 'admin', status: 'active', joinedAt: null },
-        { id: 'row-2', userId: 'denied', role: 'member', status: 'revoked', joinedAt: null },
-        { id: 'row-3', userId: 'ghost', role: 'admin', status: 'active', joinedAt: null },
-      ],
-    ]
-    mockGetUsersWithPermissions.mockResolvedValue(
-      roster([
-        { userId: 'boss', permissionType: 'admin' },
-        { userId: 'writer', permissionType: 'write' },
-        { userId: 'denied', permissionType: 'write' },
-        { userId: 'reader', permissionType: 'read' },
-      ])
-    )
-
-    const entries = await listSkillMembers(
-      { id: 's1', workspaceId: 'ws', workspaceShared: true },
-      { role: 'admin' }
-    )
-    const byUser = new Map(entries.map((e) => [e.userId, e]))
-
-    expect(byUser.get('boss')).toMatchObject({
-      role: 'admin',
-      status: 'active',
-      roleSource: 'workspace-admin',
-    })
-    expect(byUser.get('writer')).toMatchObject({
-      role: 'admin',
-      status: 'active',
-      roleSource: 'explicit',
-    })
-    // A deny marker stays visible as a removed entry so admins can restore it.
-    expect(byUser.get('denied')).toMatchObject({ status: 'revoked', roleSource: 'explicit' })
-    expect(byUser.get('reader')).toMatchObject({
-      role: 'member',
-      status: 'active',
-      roleSource: 'workspace',
-    })
-    // Explicit rows for users no longer in the workspace never render.
-    expect(byUser.has('ghost')).toBe(false)
-  })
-
-  it('omits rowless members on a restricted skill and keeps derived admins over revoked rows', async () => {
-    dbState.results = [
-      [{ id: 'row-1', userId: 'boss', role: 'member', status: 'revoked', joinedAt: null }],
-    ]
-    mockGetUsersWithPermissions.mockResolvedValue(
-      roster([
-        { userId: 'boss', permissionType: 'admin' },
-        { userId: 'reader', permissionType: 'read' },
-      ])
-    )
-
-    const entries = await listSkillMembers(
-      { id: 's1', workspaceId: 'ws', workspaceShared: false },
-      { role: 'admin' }
-    )
-
-    // Derived access can never be broken by explicit rows: the workspace admin
-    // stays an active admin even with a stale revoked row.
-    expect(entries).toHaveLength(1)
-    expect(entries[0]).toMatchObject({
-      userId: 'boss',
-      role: 'admin',
-      status: 'active',
-      roleSource: 'workspace-admin',
-    })
-  })
-
-  it('hides deny markers from non-admin viewers', async () => {
-    dbState.results = [
-      [{ id: 'row-1', userId: 'denied', role: 'member', status: 'revoked', joinedAt: null }],
-    ]
-    mockGetUsersWithPermissions.mockResolvedValue(
-      roster([
-        { userId: 'denied', permissionType: 'write' },
-        { userId: 'reader', permissionType: 'read' },
-      ])
-    )
-
-    const entries = await listSkillMembers(
-      { id: 's1', workspaceId: 'ws', workspaceShared: true },
-      { role: 'member' }
-    )
-
-    // A member viewer sees the active roster only — who was explicitly denied
-    // is admin-only data.
-    expect(entries.map((e) => e.userId)).toEqual(['reader'])
+    // Rows are plain editor grants — the delete has no status filter, so a
+    // re-invited user starts with no edit rights until re-added.
+    expect(vi.mocked(eq).mock.calls).toContainEqual(['skillMember.userId', 'u'])
+    expect(vi.mocked(eq).mock.calls.some(([field]) => field === 'skillMember.status')).toBe(false)
   })
 })

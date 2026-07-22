@@ -31,10 +31,7 @@ import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
-import {
-  resolveSkillContent,
-  SkillAccessDeniedError,
-} from '@/executor/handlers/agent/skills-resolver'
+import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import type { ErrorInfo } from '@/tools/error-extractors'
@@ -1047,22 +1044,7 @@ export async function executeTool(
           error: 'Missing skill_name or workspace context',
         }
       }
-      let content: string | null
-      try {
-        content = await resolveSkillContent(skillName, scope.workspaceId, {
-          userId: scope.userId,
-          enforce: scope.enforceCredentialAccess === true,
-        })
-      } catch (error) {
-        if (error instanceof SkillAccessDeniedError) {
-          return {
-            success: false,
-            output: { error: error.message },
-            error: error.message,
-          }
-        }
-        throw error
-      }
+      const content = await resolveSkillContent(skillName, scope.workspaceId)
       if (!content) {
         return {
           success: false,

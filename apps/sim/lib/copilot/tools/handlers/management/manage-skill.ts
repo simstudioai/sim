@@ -36,7 +36,7 @@ export async function executeManageSkill(
   }
 
   // Workspace write gates only creation; edits and deletes are gated per skill
-  // below (skill admin — explicit member admin or derived workspace admin).
+  // below (skill editor — explicit editor row or derived workspace admin).
   if (
     operation === 'add' &&
     context.userPermission &&
@@ -136,13 +136,13 @@ export async function executeManageSkill(
       }
 
       const actor = await getSkillActorContext(params.skillId, context.userId)
-      if (!actor.skill || actor.skill.workspaceId !== workspaceId || actor.role === null) {
+      if (!actor.skill || actor.skill.workspaceId !== workspaceId || !actor.hasWorkspaceAccess) {
         return { success: false, error: `Skill not found: ${params.skillId}` }
       }
-      if (actor.role !== 'admin') {
+      if (!actor.canEdit) {
         return {
           success: false,
-          error: `Permission denied: editing skill "${actor.skill.name}" requires skill admin access. Ask a skill admin to add you as an admin.`,
+          error: `Permission denied: editing skill "${actor.skill.name}" requires skill editor access. Ask a skill editor to add you.`,
         }
       }
 
@@ -202,13 +202,13 @@ export async function executeManageSkill(
 
       if (!isBuiltinSkillId(params.skillId)) {
         const actor = await getSkillActorContext(params.skillId, context.userId)
-        if (!actor.skill || actor.skill.workspaceId !== workspaceId || actor.role === null) {
+        if (!actor.skill || actor.skill.workspaceId !== workspaceId || !actor.hasWorkspaceAccess) {
           return { success: false, error: `Skill not found: ${params.skillId}` }
         }
-        if (actor.role !== 'admin') {
+        if (!actor.canEdit) {
           return {
             success: false,
-            error: `Permission denied: deleting skill "${actor.skill.name}" requires skill admin access. Ask a skill admin to add you as an admin.`,
+            error: `Permission denied: deleting skill "${actor.skill.name}" requires skill editor access. Ask a skill editor to add you.`,
           }
         }
       }

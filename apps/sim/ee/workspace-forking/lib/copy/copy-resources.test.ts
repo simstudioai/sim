@@ -588,7 +588,6 @@ describe('copyForkResourceContainers skill copy', () => {
     description: 'desc',
     workspaceId: 'src-ws',
     userId: 'src-user',
-    workspaceShared: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   }
@@ -613,7 +612,6 @@ describe('copyForkResourceContainers skill copy', () => {
     expect(childId).not.toBe('sk-1')
     expect(inserted[0].workspaceId).toBe('child-ws')
     expect(inserted[0].userId).toBe('user-1')
-    expect(inserted[0].workspaceShared).toBe(true)
     // The body is deferred to a correlated subquery (in-DB copy), never a materialized string.
     expect(typeof inserted[0].content).not.toBe('string')
     // The content plan carries ONLY the child id - no skill body text crosses the job payload.
@@ -621,17 +619,14 @@ describe('copyForkResourceContainers skill copy', () => {
     expect(result.names.skills).toEqual(['My Skill'])
   })
 
-  it('copies memberships onto the child skill preserving role and status', async () => {
-    // The member query joins the child-workspace permissions in-DB, so the mock's
-    // second row set already represents source members ∩ target roster. Revoked
-    // rows are deliberate per-skill deny markers and must be carried too —
-    // dropping them would invert an explicit deny into an implicit grant on a
-    // workspace-shared copy.
+  it('copies editor grants onto the child skill for users in the target roster', async () => {
+    // The editor query joins the child-workspace permissions in-DB, so the
+    // mock's second row set already represents source editors ∩ target roster.
     const { tx, inserted } = makeSkillTx([
       [sourceSkillRow],
       [
-        { skillId: 'sk-1', userId: 'member-1', role: 'admin', status: 'active' },
-        { skillId: 'sk-1', userId: 'denied-1', role: 'member', status: 'revoked' },
+        { skillId: 'sk-1', userId: 'editor-1' },
+        { skillId: 'sk-1', userId: 'editor-2' },
       ],
     ])
 
@@ -646,18 +641,13 @@ describe('copyForkResourceContainers skill copy', () => {
     })
 
     const childSkill = inserted[0]
-    const activeRow = inserted[1]
-    expect(activeRow.skillId).toBe(childSkill.id)
-    expect(activeRow.userId).toBe('member-1')
-    expect(activeRow.role).toBe('admin')
-    expect(activeRow.status).toBe('active')
-    expect(activeRow.joinedAt).not.toBeNull()
+    const firstGrant = inserted[1]
+    expect(firstGrant.skillId).toBe(childSkill.id)
+    expect(firstGrant.userId).toBe('editor-1')
 
-    const denyRow = inserted[2]
-    expect(denyRow.skillId).toBe(childSkill.id)
-    expect(denyRow.userId).toBe('denied-1')
-    expect(denyRow.status).toBe('revoked')
-    expect(denyRow.joinedAt).toBeNull()
+    const secondGrant = inserted[2]
+    expect(secondGrant.skillId).toBe(childSkill.id)
+    expect(secondGrant.userId).toBe('editor-2')
   })
 })
 

@@ -6,15 +6,13 @@ import { dbChainMock, dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatContext } from '@/stores/panel'
 
-const { discoverServerTools, getSkillById, getSkillActorContext } = vi.hoisted(() => ({
+const { discoverServerTools, getSkillById } = vi.hoisted(() => ({
   discoverServerTools: vi.fn(),
   getSkillById: vi.fn(),
-  getSkillActorContext: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById }))
 vi.mock('@/lib/mcp/service', () => ({ mcpService: { discoverServerTools } }))
-vi.mock('@/lib/skills/access', () => ({ getSkillActorContext }))
 /**
  * Overrides the global `@sim/db` mock: the logs-context tests below need
  * controllable row data, which the stable `dbChainMockFns.limit` provides.
@@ -26,7 +24,6 @@ import { processContextsServer } from './process-contents'
 describe('processContextsServer - skill contexts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getSkillActorContext.mockResolvedValue({ role: 'member' })
   })
 
   it('resolves a tagged skill to full content + encoded VFS path', async () => {
@@ -53,25 +50,6 @@ describe('processContextsServer - skill contexts', () => {
         path: 'agent/skills/My%20Skill%20%E2%80%94%20PostHog.json',
       },
     ])
-  })
-
-  it('drops a skill the mentioning user cannot access', async () => {
-    getSkillById.mockResolvedValue({
-      id: 'sk-1',
-      name: 'restricted-skill',
-      description: 'desc',
-      content: '# Secret playbook',
-    })
-    getSkillActorContext.mockResolvedValue({ role: null })
-
-    const result = await processContextsServer(
-      [{ kind: 'skill', skillId: 'sk-1', label: 'restricted-skill' } as ChatContext],
-      'user-1',
-      'hello',
-      'ws-1'
-    )
-
-    expect(result).toEqual([])
   })
 
   it('drops a skill that does not resolve (unknown or cross-workspace)', async () => {

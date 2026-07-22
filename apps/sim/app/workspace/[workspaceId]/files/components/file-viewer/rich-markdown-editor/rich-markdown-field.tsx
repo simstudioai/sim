@@ -179,7 +179,10 @@ function LoadedRichMarkdownField({
         'flex flex-col overflow-y-auto px-3 py-2',
         chipFieldSurfaceClass,
         error && 'border-[var(--text-error)]',
-        !disabled && !isStreaming && 'cursor-text'
+        !disabled && !isStreaming && 'cursor-text',
+        // Match the chip fields' disabled chrome (dimmed, not copyable) while
+        // keeping the container scrollable; streaming stays full-strength.
+        disabled && !isStreaming && 'select-none opacity-50'
       )}
       style={{ minHeight, maxHeight }}
     >
@@ -210,6 +213,9 @@ function RawMarkdownField({
   error = false,
   onPasteText,
 }: RichMarkdownFieldProps) {
+  // Disabled-look without the `disabled` attribute — a disabled textarea is
+  // inert to wheel/scrollbar, but locked content must stay scrollable.
+  const lockedView = disabled && !isStreaming
   return (
     <ChipTextarea
       value={value}
@@ -220,7 +226,10 @@ function RawMarkdownField({
       }}
       placeholder={placeholder}
       error={error}
-      readOnly={disabled || isStreaming}
+      viewOnly={lockedView}
+      readOnly={isStreaming}
+      tabIndex={lockedView ? -1 : undefined}
+      className={cn(lockedView && 'select-none opacity-50')}
       style={{ minHeight, maxHeight }}
     />
   )

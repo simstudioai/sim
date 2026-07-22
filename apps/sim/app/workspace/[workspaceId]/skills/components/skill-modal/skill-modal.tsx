@@ -131,8 +131,8 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
           updates: { name, description, content },
         })
       } else {
-        // New skills default to workspace-shared; restricting and member
-        // management live on the skill detail page.
+        // The creator becomes an editor; editor management lives on the
+        // skill detail page.
         await createSkill.mutateAsync({
           workspaceId,
           skill: { name, description, content },
@@ -177,9 +177,9 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
 
   const isEditing = !!initialValues
   const isBuiltin = !!initialValues?.readOnly
-  /** New skills are created by the actor (skill admin); existing ones require the admin role. */
-  const isSkillAdmin = !initialValues || initialValues.role === 'admin'
-  const readOnly = isBuiltin || (isEditing && !isSkillAdmin)
+  /** New skills are created by the actor (who becomes an editor); existing ones require editor access. */
+  const canEditSkill = !initialValues || initialValues.canEdit
+  const readOnly = isBuiltin || (isEditing && !canEditSkill)
   const showFooter = activeTab === 'create'
 
   return (

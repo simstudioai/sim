@@ -8,68 +8,39 @@ import {
   type WorkspaceAccess,
 } from '@/lib/workspaces/permissions/utils'
 
-type SkillMemberRecord = typeof skillMember.$inferSelect
 type SkillRecord = typeof skill.$inferSelect
-
-export type SkillMemberRole = SkillMemberRecord['role']
-export type SkillMemberStatus = SkillMemberRecord['status']
-
-/**
- * The caller's effective role on a skill, or `null` when they have no access.
- *
- * Precedence: no workspace access → none; workspace admin → derived admin
- * (always, even over a revoked row — derived access can never be broken by
- * explicit rows); explicit active row → its role; explicit revoked row → deny
- * (a deliberate per-skill removal that overrides the workspace-shared grant);
- * `workspaceShared` → implicit member for any workspace member.
- *
- * Builtin skills are code-only and have no ACL; callers guard with
- * `isBuiltinSkillId` before reaching membership checks.
- */
-export function resolveSkillRole(params: {
-  workspaceShared: boolean
-  memberRole: SkillMemberRole | null | undefined
-  memberStatus: SkillMemberStatus | null | undefined
-  workspaceAccess: Pick<WorkspaceAccess, 'hasAccess' | 'canAdmin'>
-}): SkillMemberRole | null {
-  if (!params.workspaceAccess.hasAccess) return null
-  if (params.workspaceAccess.canAdmin) return 'admin'
-  if (params.memberStatus === 'active') return params.memberRole ?? 'member'
-  if (params.memberStatus === 'revoked') return null
-  if (params.workspaceShared) return 'member'
-  return null
-}
 
 export interface SkillActorContext {
   skill: SkillRecord | null
-  /** The actor's effective role, or `null` when they cannot see/use the skill. */
-  role: SkillMemberRole | null
+  /** Whether the actor can see and use the skill — plain workspace access. */
+  hasWorkspaceAccess: boolean
+  /**
+   * Whether the actor can edit, delete, and share the skill: an explicit
+   * `skill_member` editor row, or derived workspace admin (always, undemotable).
+   */
+  canEdit: boolean
 }
 
 /**
- * Resolves user access context for a skill. Pass `workspaceAccess` when the
- * caller has already resolved access for the skill's workspace (reused only
- * when it matches the skill's workspace), and `skillRow` when the caller has
- * already fetched the skill to skip the redundant select.
+ * Resolves the acting user's context for a single skill. Everyone with
+ * workspace access sees and uses every skill; editing is gated by the editors
+ * list. Builtin skills are code-only and have no editors; callers guard with
+ * `isBuiltinSkillId` before reaching this.
  */
 export async function getSkillActorContext(
   skillId: string,
-  userId: string,
-  options?: { workspaceAccess?: WorkspaceAccess; skillRow?: SkillRecord }
+  userId: string
 ): Promise<SkillActorContext> {
-  const skillRow =
-    options?.skillRow?.id === skillId
-      ? options.skillRow
-      : (await db.select().from(skill).where(eq(skill.id, skillId)).limit(1))[0]
+  const [skillRow] = await db.select().from(skill).where(eq(skill.id, skillId)).limit(1)
 
   if (!skillRow?.workspaceId) {
-    return { skill: skillRow ?? null, role: null }
+    return { skill: skillRow ?? null, hasWorkspaceAccess: false, canEdit: false }
   }
 
-  const [workspaceAccess, [memberRow]] = await Promise.all([
-    resolveWorkspaceAccess(skillRow.workspaceId, userId, options?.workspaceAccess),
+  const [workspaceAccess, [editorRow]] = await Promise.all([
+    resolveWorkspaceAccess(skillRow.workspaceId, userId),
     db
-      .select()
+      .select({ id: skillMember.id })
       .from(skillMember)
       .where(and(eq(skillMember.skillId, skillId), eq(skillMember.userId, userId)))
       .limit(1),
@@ -77,131 +48,74 @@ export async function getSkillActorContext(
 
   return {
     skill: skillRow,
-    role: resolveSkillRole({
-      workspaceShared: skillRow.workspaceShared,
-      memberRole: memberRow?.role,
-      memberStatus: memberRow?.status,
-      workspaceAccess,
-    }),
+    hasWorkspaceAccess: workspaceAccess.hasAccess,
+    canEdit: workspaceAccess.hasAccess && (workspaceAccess.canAdmin || !!editorRow),
   }
 }
 
-export interface SkillAccessForUser {
-  hasWorkspaceAccess: boolean
+export interface EditableSkillIds {
+  /** Workspace admins are derived editors of every skill in the workspace. */
   canAdminWorkspace: boolean
-  membershipBySkillId: Map<string, { role: SkillMemberRole; status: SkillMemberStatus }>
+  /** Skills where the user holds an explicit editor row. */
+  editorSkillIds: Set<string>
 }
 
 /**
- * Batch access surface for filtering many skills at once (list routes, prompt
- * construction, tool catalogs): one workspace-access lookup plus one membership
- * scan, then evaluate per skill with {@link resolveSkillRoleFromAccess}.
+ * Batch edit-access surface for tagging many skills at once (list routes,
+ * upsert authorization): one workspace-access lookup plus one editor-row scan
+ * scoped to the workspace. A skill is editable when `canAdminWorkspace` or its
+ * id is in `editorSkillIds`.
+ *
+ * Pass `workspaceAccess` when the caller already resolved it to skip a
+ * redundant lookup.
  */
-export async function getSkillAccessForUser(
+export async function getEditableSkillIds(
   workspaceId: string,
   userId: string,
   options?: { workspaceAccess?: WorkspaceAccess }
-): Promise<SkillAccessForUser> {
-  const [workspaceAccess, membershipRows] = await Promise.all([
+): Promise<EditableSkillIds> {
+  const [workspaceAccess, editorRows] = await Promise.all([
     resolveWorkspaceAccess(workspaceId, userId, options?.workspaceAccess),
     db
-      .select({
-        skillId: skillMember.skillId,
-        role: skillMember.role,
-        status: skillMember.status,
-      })
+      .select({ skillId: skillMember.skillId })
       .from(skillMember)
       .innerJoin(skill, eq(skillMember.skillId, skill.id))
       .where(and(eq(skill.workspaceId, workspaceId), eq(skillMember.userId, userId))),
   ])
 
-  const membershipBySkillId = new Map<
-    string,
-    { role: SkillMemberRole; status: SkillMemberStatus }
-  >()
-  for (const row of membershipRows) {
-    membershipBySkillId.set(row.skillId, { role: row.role, status: row.status })
+  if (!workspaceAccess.hasAccess) {
+    return { canAdminWorkspace: false, editorSkillIds: new Set() }
   }
 
   return {
-    hasWorkspaceAccess: workspaceAccess.hasAccess,
     canAdminWorkspace: workspaceAccess.canAdmin,
-    membershipBySkillId,
+    editorSkillIds: new Set(editorRows.map((row) => row.skillId)),
   }
 }
 
-/**
- * Per-skill role evaluation against a {@link getSkillAccessForUser} result.
- * Returns the effective role, or `null` when the user cannot see/use the skill.
- */
-export function resolveSkillRoleFromAccess(
-  skillRow: { id: string; workspaceShared: boolean },
-  access: SkillAccessForUser
-): SkillMemberRole | null {
-  const membership = access.membershipBySkillId.get(skillRow.id)
-  return resolveSkillRole({
-    workspaceShared: skillRow.workspaceShared,
-    memberRole: membership?.role,
-    memberStatus: membership?.status,
-    workspaceAccess: {
-      hasAccess: access.hasWorkspaceAccess,
-      canAdmin: access.canAdminWorkspace,
-    },
-  })
-}
-
-/** Whether the user can see/use a skill, given a batch access result. */
-export function canUseSkill(
-  skillRow: { id: string; workspaceShared: boolean },
-  access: SkillAccessForUser
-): boolean {
-  return resolveSkillRoleFromAccess(skillRow, access) !== null
-}
-
-export type SkillMemberRoleSource = 'explicit' | 'workspace-admin' | 'workspace'
-
-export interface SkillMemberEntry {
-  /** Explicit row id, or a synthetic id for derived/implicit entries. */
+export interface SkillEditor {
+  /** Explicit row id, or a synthetic `workspace-admin-<userId>` id for derived admins without rows. */
   id: string
   userId: string
-  role: SkillMemberRole
-  /** `revoked` marks a deliberate per-skill deny (shown as removed, restorable). */
-  status: SkillMemberStatus
-  joinedAt: Date | null
   userName: string | null
   userEmail: string | null
   userImage: string | null
-  roleSource: SkillMemberRoleSource
+  /** Derived editors — always present, cannot be removed from the list. */
+  isWorkspaceAdmin: boolean
 }
 
 /**
- * The canonical member roster for a skill, scoped to what the viewer may see:
- * every CURRENT workspace member mapped through {@link resolveSkillRole}, so
- * the list always matches what enforcement grants. Workspace admins surface as
- * derived admins, explicit active rows as their role, and — while the skill is
- * workspace-shared — remaining members as implicit members. Revoked rows are
- * deliberate per-skill deny markers and exist to be restored, so they are
- * included only for skill-admin viewers; other members never learn who was
- * denied. Explicit rows for users no longer in the workspace are ignored,
- * exactly as enforcement ignores them.
+ * The editor roster for a skill: every workspace admin (derived, undemotable)
+ * plus every explicit-row user still in the workspace roster. Rows for users
+ * who left the workspace are ignored, exactly as edit enforcement ignores them.
  */
-export async function listSkillMembers(
-  skillRow: {
-    id: string
-    workspaceId: string
-    workspaceShared: boolean
-  },
-  viewer: { role: SkillMemberRole }
-): Promise<SkillMemberEntry[]> {
+export async function listSkillEditors(skillRow: {
+  id: string
+  workspaceId: string
+}): Promise<SkillEditor[]> {
   const [explicitRows, workspaceMembers] = await Promise.all([
     db
-      .select({
-        id: skillMember.id,
-        userId: skillMember.userId,
-        role: skillMember.role,
-        status: skillMember.status,
-        joinedAt: skillMember.joinedAt,
-      })
+      .select({ id: skillMember.id, userId: skillMember.userId })
       .from(skillMember)
       .where(eq(skillMember.skillId, skillRow.id)),
     getUsersWithPermissions(skillRow.workspaceId),
@@ -209,52 +123,35 @@ export async function listSkillMembers(
 
   const rowByUser = new Map(explicitRows.map((row) => [row.userId, row]))
 
-  const entries: SkillMemberEntry[] = []
+  const editors: SkillEditor[] = []
   for (const wsMember of workspaceMembers) {
     const row = rowByUser.get(wsMember.userId)
-    const canAdmin = wsMember.permissionType === 'admin'
-    const role = resolveSkillRole({
-      workspaceShared: skillRow.workspaceShared,
-      memberRole: row?.role,
-      memberStatus: row?.status,
-      workspaceAccess: { hasAccess: true, canAdmin },
-    })
+    const isWorkspaceAdmin = wsMember.permissionType === 'admin'
+    if (!row && !isWorkspaceAdmin) continue
 
-    if (role === null) {
-      // Entries only a deny marker would produce are admin-only data.
-      if (row?.status !== 'revoked' || viewer.role !== 'admin') continue
-    }
-
-    entries.push({
-      id: row?.id ?? `${canAdmin ? 'workspace-admin' : 'workspace'}-${wsMember.userId}`,
+    editors.push({
+      id: row?.id ?? `workspace-admin-${wsMember.userId}`,
       userId: wsMember.userId,
-      role: role ?? row?.role ?? 'member',
-      status: role === null ? 'revoked' : 'active',
-      joinedAt: row?.status === 'active' ? (row.joinedAt ?? null) : null,
       userName: wsMember.name,
       userEmail: wsMember.email,
       userImage: wsMember.image ?? null,
-      roleSource: canAdmin ? 'workspace-admin' : row ? 'explicit' : 'workspace',
+      isWorkspaceAdmin,
     })
   }
-  return entries
+  return editors
 }
 
 export interface SkillsUpdateAccess {
   /** Ids from the request that resolve to existing skills in the workspace. */
   existingIds: Set<string>
-  /**
-   * Existing skills the user may not update, with their effective role so the
-   * route can mask invisible skills (role `null` → not-found) and name only the
-   * ones the caller can already see (role `member` → admin required).
-   */
-  denied: Array<{ id: string; name: string; role: SkillMemberRole | null }>
+  /** Existing skills the user may not update (not an editor, not a workspace admin). */
+  denied: Array<{ id: string; name: string }>
 }
 
 /**
  * Partitions an upsert request's skill ids for authorization: ids that resolve
- * to existing workspace skills require skill admin; unresolved ids are creates,
- * gated by workspace write permission instead.
+ * to existing workspace skills require skill editor access; unresolved ids are
+ * creates, gated by workspace write permission instead.
  */
 export async function checkSkillsUpdateAccess(params: {
   workspaceId: string
@@ -265,34 +162,30 @@ export async function checkSkillsUpdateAccess(params: {
   if (params.skillIds.length === 0) return { existingIds: new Set(), denied: [] }
 
   const rows = await db
-    .select({ id: skill.id, name: skill.name, workspaceShared: skill.workspaceShared })
+    .select({ id: skill.id, name: skill.name })
     .from(skill)
     .where(and(eq(skill.workspaceId, params.workspaceId), inArray(skill.id, params.skillIds)))
 
   const existingIds = new Set(rows.map((row) => row.id))
   if (rows.length === 0) return { existingIds, denied: [] }
 
-  const access = await getSkillAccessForUser(params.workspaceId, params.userId, {
+  const access = await getEditableSkillIds(params.workspaceId, params.userId, {
     workspaceAccess: params.workspaceAccess,
   })
-  const denied = rows.flatMap((row) => {
-    const role = resolveSkillRoleFromAccess(row, access)
-    return role === 'admin' ? [] : [{ id: row.id, name: row.name, role }]
-  })
+  const denied = access.canAdminWorkspace
+    ? []
+    : rows.filter((row) => !access.editorSkillIds.has(row.id))
 
   return { existingIds, denied }
 }
 
 /**
- * Removes a user's explicit skill membership grants across one or more
- * workspaces when they leave (workspace removal, org removal/transfer).
- *
- * Active rows are deleted so a later re-invite lands them in the same state as
- * a brand-new member: implicit access to workspace-shared skills, no explicit
- * roles. Revoked rows are deliberate per-skill deny markers written by the
- * members route; they are kept so a per-skill removal survives leave/rejoin.
- * Workspace admins are derived skill admins, so no per-skill owner promotion is
- * needed to avoid orphaning a skill. Returns the number of grants removed.
+ * Removes a user's skill editor grants across one or more workspaces when they
+ * leave (workspace removal, org removal/transfer). Rows are editor grants
+ * only — everyone in the workspace already sees and uses every skill — so a
+ * later re-invite lands them with no edit rights until re-added. Workspace
+ * admins are derived editors, so no promotion is needed to avoid orphaning a
+ * skill. Returns the number of grants removed.
  */
 export async function removeWorkspaceSkillMembershipsTx(
   tx: DbOrTx,
@@ -307,7 +200,6 @@ export async function removeWorkspaceSkillMembershipsTx(
     .where(
       and(
         eq(skillMember.userId, userId),
-        eq(skillMember.status, 'active'),
         inArray(
           skillMember.skillId,
           tx.select({ id: skill.id }).from(skill).where(inArray(skill.workspaceId, workspaceIds))

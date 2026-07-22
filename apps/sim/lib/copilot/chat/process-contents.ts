@@ -23,11 +23,9 @@ import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 import { mcpService } from '@/lib/mcp/service'
 import { createMcpToolId } from '@/lib/mcp/utils'
-import { getSkillActorContext } from '@/lib/skills/access'
 import { getTableById } from '@/lib/table/service'
 import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders } from '@/lib/workflows/utils'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
@@ -82,8 +80,7 @@ export async function processContextsServer(
         return await processSkillFromDb(
           ctx.skillId,
           currentWorkspaceId,
-          ctx.label ? `@${ctx.label}` : '@',
-          userId
+          ctx.label ? `@${ctx.label}` : '@'
         )
       }
       if (ctx.kind === 'mcp' && ctx.serverId && currentWorkspaceId) {
@@ -291,22 +288,11 @@ function sanitizeMessageForDocs(rawMessage: string, contexts: ChatContext[] | un
 async function processSkillFromDb(
   skillId: string,
   workspaceId: string,
-  tag: string,
-  userId: string
+  tag: string
 ): Promise<AgentContext | null> {
   try {
     const s = await getSkillById({ skillId, workspaceId })
     if (!s) return null
-    // Built-in template skills have no ACL; DB skills require the mentioning
-    // user to have access (membership, workspace-shared, or workspace admin)
-    // since the mention injects the full skill body.
-    if (!isBuiltinSkillId(skillId)) {
-      const actor = await getSkillActorContext(skillId, userId, { skillRow: s })
-      if (actor.role === null) {
-        logger.warn('Denied skill mention for user without access', { skillId, userId })
-        return null
-      }
-    }
     // Skills are autoloaded: carry the full SKILL.md body so the Go side can
     // inject it into the dynamic system message for the turn. The path lets the
     // model re-read the canonical VFS file if it needs to.

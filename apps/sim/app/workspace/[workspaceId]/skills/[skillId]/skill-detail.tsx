@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import {
   Chip,
   ChipConfirmModal,
@@ -10,8 +10,8 @@ import {
   chipFieldSurfaceClass,
   cn,
   Send,
-  Switch,
   toast,
+  Tooltip,
 } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -27,8 +27,8 @@ import {
   UnsavedChangesModal,
   useUnsavedChangesGuard,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
-import { SkillMembersCard } from '@/app/workspace/[workspaceId]/skills/[skillId]/components/skill-members-card'
-import { useSkillMembersController } from '@/app/workspace/[workspaceId]/skills/components/skill-members'
+import { SkillEditorsCard } from '@/app/workspace/[workspaceId]/skills/[skillId]/components/skill-editors-card'
+import { useSkillEditorsController } from '@/app/workspace/[workspaceId]/skills/components/skill-members'
 import {
   isSkillNameConflictError,
   parseSkillMarkdown,
@@ -56,6 +56,28 @@ interface FieldErrors {
   content?: string
 }
 
+interface FieldLockTooltipProps {
+  reason: string | null
+  children: ReactNode
+}
+
+/**
+ * Wraps a read-only field so hovering it explains why editing is locked.
+ * Renders children unchanged when the field is editable. The wrapper div
+ * receives the hover events a disabled control swallows.
+ */
+function FieldLockTooltip({ reason, children }: FieldLockTooltipProps) {
+  if (!reason) return <>{children}</>
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <div>{children}</div>
+      </Tooltip.Trigger>
+      <Tooltip.Content>{reason}</Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
 interface SkillDetailProps {
   workspaceId: string
   skillId: string
@@ -64,8 +86,8 @@ interface SkillDetailProps {
 /**
  * Full-page skill detail, mirroring the integration credential detail surface:
  * a fixed action bar (Share / Delete / Save), a heading, editable Name /
- * Description / Content sections, the workspace-sharing switch, and the member
- * roster. Non-admin members and built-in template skills render read-only.
+ * Description / Content sections, and the Skill Editors roster. Non-editors
+ * and built-in template skills render read-only.
  */
 export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   const router = useRouter()
@@ -74,11 +96,15 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   const { data: skills = [], isPending: skillsLoading } = useSkills(workspaceId)
   const updateSkill = useUpdateSkill()
   const deleteSkill = useDeleteSkill()
-  const members = useSkillMembersController({ skillId, workspaceId })
-
   const skill = skills.find((s) => s.id === skillId) ?? null
   const isBuiltin = !!skill?.readOnly
-  const isSkillAdmin = !isBuiltin && skill?.role === 'admin'
+  const editors = useSkillEditorsController({
+    skillId,
+    workspaceId,
+    // Built-ins have no editors; skip the roster fetch (it would 404).
+    enabled: !!skill && !isBuiltin,
+  })
+  const canEdit = !isBuiltin && !!skill?.canEdit
 
   const [nameDraft, setNameDraft] = useState('')
   const [descriptionDraft, setDescriptionDraft] = useState('')
@@ -111,7 +137,7 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   const guard = useUnsavedChangesGuard({ isDirty, backHref: skillsHref })
 
   const handleSave = async () => {
-    if (!skill || !isSkillAdmin || !isDirty || updateSkill.isPending) return
+    if (!skill || !canEdit || !isDirty || updateSkill.isPending) return
 
     const newErrors: FieldErrors = {}
     if (!nameDraft.trim()) {
@@ -152,21 +178,6 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
     }
   }
 
-  const handleAccessChange = (next: boolean) => {
-    if (!skill) return
-    if (next === skill.workspaceShared || updateSkill.isPending) return
-    updateSkill.mutate(
-      { workspaceId, skillId: skill.id, updates: { workspaceShared: next } },
-      {
-        onError: (error) => {
-          toast.error("Couldn't update access", {
-            description: getErrorMessage(error, 'Please try again in a moment.'),
-          })
-        },
-      }
-    )
-  }
-
   const handleConfirmDelete = async () => {
     if (!skill) return
     setShowDeleteConfirm(false)
@@ -201,7 +212,7 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   )
 
   const actions =
-    skill && isSkillAdmin ? (
+    skill && canEdit ? (
       <>
         <Chip leftIcon={Send} onClick={() => setShareOpen(true)}>
           Share
@@ -231,7 +242,12 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
     )
   }
 
-  const readOnly = isBuiltin || !isSkillAdmin
+  const readOnly = isBuiltin || !canEdit
+  const lockReason = !readOnly
+    ? null
+    : isBuiltin
+      ? 'Built-in skills are read-only'
+      : 'You need to be a skill editor to edit this skill'
 
   return (
     <>
@@ -243,91 +259,71 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
         />
 
         <DetailSection title='Name'>
-          <ChipInput
-            id='skill-name'
-            value={nameDraft}
-            onChange={(event) => {
-              setNameDraft(event.target.value)
-              if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }))
-            }}
-            placeholder='my-skill-name'
-            autoComplete='off'
-            data-lpignore='true'
-            disabled={readOnly}
-            error={!!errors.name}
-          />
+          <FieldLockTooltip reason={lockReason}>
+            <ChipInput
+              id='skill-name'
+              value={nameDraft}
+              onChange={(event) => {
+                setNameDraft(event.target.value)
+                if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }))
+              }}
+              placeholder='my-skill-name'
+              autoComplete='off'
+              data-lpignore='true'
+              disabled={readOnly}
+              error={!!errors.name}
+            />
+          </FieldLockTooltip>
           {errors.name && (
             <p className='mt-[9px] text-[var(--text-error)] text-caption'>{errors.name}</p>
           )}
         </DetailSection>
 
         <DetailSection title='Description'>
-          <ChipTextarea
-            id='skill-description'
-            rows={3}
-            value={descriptionDraft}
-            onChange={(event) => {
-              setDescriptionDraft(event.target.value)
-              if (errors.description) setErrors((prev) => ({ ...prev, description: undefined }))
-            }}
-            placeholder='What this skill does and when to use it...'
-            maxLength={1024}
-            autoComplete='off'
-            data-lpignore='true'
-            disabled={readOnly}
-          />
+          <FieldLockTooltip reason={lockReason}>
+            <ChipTextarea
+              id='skill-description'
+              rows={3}
+              value={descriptionDraft}
+              onChange={(event) => {
+                setDescriptionDraft(event.target.value)
+                if (errors.description) setErrors((prev) => ({ ...prev, description: undefined }))
+              }}
+              placeholder='What this skill does and when to use it...'
+              maxLength={1024}
+              autoComplete='off'
+              data-lpignore='true'
+              disabled={readOnly}
+            />
+          </FieldLockTooltip>
           {errors.description && (
             <p className='mt-[9px] text-[var(--text-error)] text-caption'>{errors.description}</p>
           )}
         </DetailSection>
 
         <DetailSection title='Content'>
-          <RichMarkdownField
-            key={`${skill.id}:${contentSeed}`}
-            value={contentDraft}
-            onChange={(value) => {
-              setContentDraft(value)
-              if (errors.content) setErrors((prev) => ({ ...prev, content: undefined }))
-            }}
-            placeholder='Skill instructions in markdown...'
-            minHeight={260}
-            disabled={readOnly}
-            error={!!errors.content}
-            workspaceId={workspaceId}
-            onPasteText={handleContentPaste}
-          />
+          <FieldLockTooltip reason={lockReason}>
+            <RichMarkdownField
+              key={`${skill.id}:${contentSeed}`}
+              value={contentDraft}
+              onChange={(value) => {
+                setContentDraft(value)
+                if (errors.content) setErrors((prev) => ({ ...prev, content: undefined }))
+              }}
+              placeholder='Skill instructions in markdown...'
+              minHeight={260}
+              disabled={readOnly}
+              error={!!errors.content}
+              workspaceId={workspaceId}
+              onPasteText={handleContentPaste}
+            />
+          </FieldLockTooltip>
           {errors.content && (
             <p className='mt-[9px] text-[var(--text-error)] text-caption'>{errors.content}</p>
           )}
         </DetailSection>
 
-        {!isBuiltin && (
-          <DetailSection title='Access'>
-            <div className='flex items-center justify-between'>
-              <span className='text-[var(--text-body)] text-small'>
-                Allow all workspace members to use this skill
-              </span>
-              <Switch
-                checked={skill.workspaceShared}
-                disabled={!isSkillAdmin || updateSkill.isPending}
-                onCheckedChange={handleAccessChange}
-              />
-            </div>
-            <p className='mt-[9px] text-[var(--text-muted)] text-caption'>
-              {skill.workspaceShared
-                ? 'Everyone in this workspace can use this skill. Permissions below still apply for editing the skill.'
-                : 'Only the members below can use this skill.'}
-            </p>
-          </DetailSection>
-        )}
-
-        {!isBuiltin && (
-          <SkillMembersCard
-            members={members}
-            isAdmin={isSkillAdmin}
-            workspaceShared={skill.workspaceShared}
-          />
-        )}
+        {!isBuiltin && <SkillEditorsCard editors={editors} canEdit={canEdit} />}
       </CredentialDetailLayout>
 
       <ChipConfirmModal
@@ -351,8 +347,9 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
       <AddPeopleModal
         open={shareOpen}
         onOpenChange={setShareOpen}
-        existingMemberEmails={members.existingMemberEmails}
-        addMember={members.addMember}
+        existingMemberEmails={editors.existingEditorEmails}
+        addMember={editors.addEditor}
+        hideRole
       />
 
       <UnsavedChangesModal

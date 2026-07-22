@@ -96,8 +96,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'Built-in skills are read-only' }, { status: 400 })
     }
 
-    // Updating an existing skill requires skill admin (explicit member admin or
-    // derived workspace admin); creating a new one requires workspace write.
+    // Updating an existing skill requires editor access (explicit editor row
+    // or derived workspace admin); creating a new one requires workspace write.
     const requestedIds = skills.flatMap((s) => (s.id ? [s.id] : []))
     const { existingIds, denied } = await checkSkillsUpdateAccess({
       workspaceId,
@@ -106,20 +106,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workspaceAccess,
     })
 
-    const invisible = denied.filter((s) => s.role === null)
-    if (invisible.length > 0) {
-      logger.warn(`[${requestId}] User ${userId} cannot see skills being updated`, {
-        skillIds: invisible.map((s) => s.id),
-      })
-      return NextResponse.json({ error: 'Skill not found' }, { status: 404 })
-    }
     if (denied.length > 0) {
-      logger.warn(`[${requestId}] User ${userId} is not an admin of skills being updated`, {
+      logger.warn(`[${requestId}] User ${userId} is not an editor of skills being updated`, {
         deniedSkillIds: denied.map((s) => s.id),
       })
       return NextResponse.json(
         {
-          error: `Skill admin access required to update: ${denied.map((s) => s.name).join(', ')}`,
+          error: `Skill editor access required to update: ${denied.map((s) => s.name).join(', ')}`,
         },
         { status: 403 }
       )
@@ -209,13 +202,13 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
 
     if (!isBuiltinSkillId(skillId)) {
       const actor = await getSkillActorContext(skillId, userId)
-      if (!actor.skill || actor.skill.workspaceId !== workspaceId || actor.role === null) {
+      if (!actor.skill || actor.skill.workspaceId !== workspaceId || !actor.hasWorkspaceAccess) {
         logger.warn(`[${requestId}] Skill not found: ${skillId}`)
         return NextResponse.json({ error: 'Skill not found' }, { status: 404 })
       }
-      if (actor.role !== 'admin') {
-        logger.warn(`[${requestId}] User ${userId} is not an admin of skill ${skillId}`)
-        return NextResponse.json({ error: 'Skill admin access required' }, { status: 403 })
+      if (!actor.canEdit) {
+        logger.warn(`[${requestId}] User ${userId} is not an editor of skill ${skillId}`)
+        return NextResponse.json({ error: 'Skill editor access required' }, { status: 403 })
       }
     }
 

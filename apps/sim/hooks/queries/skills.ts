@@ -7,8 +7,7 @@ import {
   listSkillsContract,
   removeSkillMemberContract,
   type Skill,
-  type SkillMember,
-  type SkillRole,
+  type SkillEditor,
   upsertSkillMemberContract,
   upsertSkillsContract,
 } from '@/lib/api/contracts'
@@ -65,7 +64,6 @@ interface CreateSkillParams {
     name: string
     description: string
     content: string
-    workspaceShared?: boolean
   }
 }
 
@@ -83,7 +81,6 @@ export function useCreateSkill() {
               name: s.name,
               description: s.description,
               content: s.content,
-              workspaceShared: s.workspaceShared,
             },
           ],
           workspaceId,
@@ -119,7 +116,6 @@ interface UpdateSkillParams {
     name?: string
     description?: string
     content?: string
-    workspaceShared?: boolean
   }
 }
 
@@ -159,7 +155,6 @@ export function useUpdateSkill() {
                   name: updates.name ?? s.name,
                   description: updates.description ?? s.description,
                   content: updates.content ?? s.content,
-                  workspaceShared: updates.workspaceShared ?? s.workspaceShared,
                 }
               : s
           )
@@ -175,8 +170,6 @@ export function useUpdateSkill() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: skillsKeys.list(variables.workspaceId) })
-      // The members roster derives implicit members from workspaceShared, so a
-      // sharing toggle must refetch it too.
       queryClient.invalidateQueries({ queryKey: skillsKeys.members(variables.skillId) })
     },
   })
@@ -232,12 +225,12 @@ export function useDeleteSkill() {
 }
 
 /**
- * Fetch the member list for a skill (explicit members, derived workspace
- * admins, and implicit workspace-shared members). Built-in skills have no
- * members — callers should not enable this for readOnly skills.
+ * Fetch the editor roster for a skill (explicit editors plus derived workspace
+ * admins). Built-in skills have no editors — callers should not enable this
+ * for readOnly skills.
  */
 export function useSkillMembers(skillId?: string, options?: { enabled?: boolean }) {
-  return useQuery<SkillMember[]>({
+  return useQuery<SkillEditor[]>({
     queryKey: skillsKeys.members(skillId),
     queryFn: async ({ signal }) => {
       if (!skillId) return []
@@ -245,7 +238,7 @@ export function useSkillMembers(skillId?: string, options?: { enabled?: boolean 
         params: { id: skillId },
         signal,
       })
-      return data.members
+      return data.editors
     },
     enabled: Boolean(skillId) && (options?.enabled ?? true),
     staleTime: SKILL_MEMBER_LIST_STALE_TIME,
@@ -256,47 +249,19 @@ interface UpsertSkillMemberParams {
   skillId: string
   workspaceId: string
   userId: string
-  role: SkillRole
 }
 
 export function useUpsertSkillMember() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ skillId, userId, role }: UpsertSkillMemberParams) => {
+    mutationFn: async ({ skillId, userId }: UpsertSkillMemberParams) => {
       return requestJson(upsertSkillMemberContract, {
         params: { id: skillId },
-        body: { userId, role },
+        body: { userId },
       })
     },
-    onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: skillsKeys.members(variables.skillId) })
-      const previousMembers = queryClient.getQueryData<SkillMember[]>(
-        skillsKeys.members(variables.skillId)
-      )
-      if (previousMembers) {
-        queryClient.setQueryData<SkillMember[]>(
-          skillsKeys.members(variables.skillId),
-          previousMembers.map((member) =>
-            member.userId === variables.userId && member.roleSource !== 'workspace-admin'
-              ? {
-                  ...member,
-                  role: variables.role,
-                  status: 'active',
-                  roleSource: 'explicit',
-                }
-              : member
-          )
-        )
-      }
-      return { previousMembers }
-    },
-    onError: (_err, variables, context) => {
-      if (context?.previousMembers) {
-        queryClient.setQueryData(skillsKeys.members(variables.skillId), context.previousMembers)
-      }
-    },
-    onSettled: (_data, _error, variables) => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: skillsKeys.members(variables.skillId) })
       queryClient.invalidateQueries({ queryKey: skillsKeys.list(variables.workspaceId) })
     },
@@ -321,26 +286,20 @@ export function useRemoveSkillMember() {
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: skillsKeys.members(variables.skillId) })
-      const previousMembers = queryClient.getQueryData<SkillMember[]>(
+      const previousEditors = queryClient.getQueryData<SkillEditor[]>(
         skillsKeys.members(variables.skillId)
       )
-      if (previousMembers) {
-        // Removal writes a deny marker server-side; mirror it so the row moves
-        // to the removed state immediately instead of lingering clickable.
-        queryClient.setQueryData<SkillMember[]>(
+      if (previousEditors) {
+        queryClient.setQueryData<SkillEditor[]>(
           skillsKeys.members(variables.skillId),
-          previousMembers.map((member) =>
-            member.userId === variables.userId && member.roleSource !== 'workspace-admin'
-              ? { ...member, status: 'revoked', roleSource: 'explicit' }
-              : member
-          )
+          previousEditors.filter((editor) => editor.userId !== variables.userId)
         )
       }
-      return { previousMembers }
+      return { previousEditors }
     },
     onError: (_err, variables, context) => {
-      if (context?.previousMembers) {
-        queryClient.setQueryData(skillsKeys.members(variables.skillId), context.previousMembers)
+      if (context?.previousEditors) {
+        queryClient.setQueryData(skillsKeys.members(variables.skillId), context.previousEditors)
       }
     },
     onSettled: (_data, _error, variables) => {
