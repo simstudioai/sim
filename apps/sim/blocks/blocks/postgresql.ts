@@ -409,7 +409,7 @@ export const PostgreSQLBlockMeta = {
   templates: [
     {
       icon: PostgresIcon,
-      title: 'Ask your database in plain English',
+      title: 'Ask Postgres in plain English',
       prompt:
         'Build a workflow that takes a natural-language question, has an agent turn it into a PostgreSQL SELECT query, runs it against the database, and returns the resulting rows as a readable answer.',
       modules: ['agent', 'workflows'],
@@ -418,7 +418,7 @@ export const PostgreSQLBlockMeta = {
     },
     {
       icon: PostgresIcon,
-      title: 'Daily metrics digest to Slack',
+      title: 'Postgres metrics digest to Slack',
       prompt:
         'Create a scheduled workflow that queries key business metrics from PostgreSQL each morning, has an agent summarize the numbers and notable changes, and posts the digest to a Slack channel.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -428,7 +428,7 @@ export const PostgreSQLBlockMeta = {
     },
     {
       icon: PostgresIcon,
-      title: 'Document the schema',
+      title: 'Document your Postgres schema',
       prompt:
         'Build a workflow that introspects a PostgreSQL schema to list its tables, columns, keys, and indexes, then has an agent write plain-English documentation describing what each table holds.',
       modules: ['agent', 'workflows'],
@@ -437,7 +437,7 @@ export const PostgreSQLBlockMeta = {
     },
     {
       icon: PostgresIcon,
-      title: 'Upsert records into a table',
+      title: 'Upsert records into Postgres',
       prompt:
         'Create a workflow that takes incoming records, checks PostgreSQL for an existing row by key, then inserts a new row or updates the existing one so the table stays in sync without duplicates.',
       modules: ['agent', 'workflows'],
@@ -446,7 +446,7 @@ export const PostgreSQLBlockMeta = {
     },
     {
       icon: PostgresIcon,
-      title: 'Nightly stale-data cleanup',
+      title: 'Nightly Postgres data cleanup',
       prompt:
         'Build a scheduled workflow that deletes rows in PostgreSQL older than a retention cutoff and reports how many rows were removed, so tables stay lean on an interval.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -455,7 +455,7 @@ export const PostgreSQLBlockMeta = {
     },
     {
       icon: PostgresIcon,
-      title: 'Sync query results into a Sim table',
+      title: 'Postgres results to Sim table',
       prompt:
         'Create a scheduled workflow that runs a PostgreSQL query for the latest records and writes each row into a Sim table, so the data is available for downstream blocks without a live database call.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -464,7 +464,7 @@ export const PostgreSQLBlockMeta = {
     },
     {
       icon: PostgresIcon,
-      title: 'Alert on threshold breach',
+      title: 'Postgres threshold breach alert',
       prompt:
         'Build a scheduled workflow that queries a PostgreSQL count or aggregate, compares it to a threshold, and posts a Slack alert only when the value crosses the limit so the team hears about problems early.',
       modules: ['scheduled', 'agent', 'workflows'],

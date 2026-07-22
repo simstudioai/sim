@@ -83,6 +83,50 @@ describe('McpConnectionPool', () => {
     expect(client.disconnect).not.toHaveBeenCalled()
   })
 
+  it('keeps the connection after a single timeout release', async () => {
+    const client = makeFakeClient()
+    const create = vi.fn(async () => client)
+
+    const lease = await pool.acquire(params('s1:w1:u1', create))
+    await lease.release(false, true)
+    await borrow(pool, params('s1:w1:u1', create))
+
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(client.disconnect).not.toHaveBeenCalled()
+  })
+
+  it('retires the connection after consecutive timeouts (circuit breaker)', async () => {
+    const client = makeFakeClient()
+    const replacement = makeFakeClient()
+    const create = vi.fn<() => Promise<McpClient>>()
+    create.mockResolvedValueOnce(client)
+    create.mockResolvedValue(replacement)
+
+    const l1 = await pool.acquire(params('s1:w1:u1', create))
+    await l1.release(false, true)
+    const l2 = await pool.acquire(params('s1:w1:u1', create))
+    await l2.release(false, true)
+
+    expect(client.disconnect).toHaveBeenCalledTimes(1)
+    const l3 = await pool.acquire(params('s1:w1:u1', create))
+    expect(l3.client).toBe(replacement)
+    await l3.release()
+  })
+
+  it('resets the timeout count on a healthy release', async () => {
+    const client = makeFakeClient()
+    const create = vi.fn(async () => client)
+
+    const l1 = await pool.acquire(params('s1:w1:u1', create))
+    await l1.release(false, true)
+    await borrow(pool, params('s1:w1:u1', create)) // healthy — resets the count
+    const l3 = await pool.acquire(params('s1:w1:u1', create))
+    await l3.release(false, true) // first of a new streak, not the second strike
+
+    expect(client.disconnect).not.toHaveBeenCalled()
+    expect(create).toHaveBeenCalledTimes(1)
+  })
+
   it('dedups concurrent creates into a single connect (single-flight)', async () => {
     let resolveCreate: ((client: McpClient) => void) | undefined
     const created = new Promise<McpClient>((resolve) => {

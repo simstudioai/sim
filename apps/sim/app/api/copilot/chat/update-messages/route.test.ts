@@ -46,6 +46,7 @@ vi.mock('@/lib/copilot/chat/messages-store', () => ({
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
   eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
+  isNull: vi.fn((field: unknown) => ({ field, type: 'isNull' })),
 }))
 
 import { POST } from '@/app/api/copilot/chat/update-messages/route'

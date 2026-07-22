@@ -28,6 +28,13 @@ const MAX_SURFACED_ERROR_LENGTH = 250
 const DCR_UNSUPPORTED_MESSAGE =
   "This server doesn't support automatic OAuth client registration. Add a pre-registered OAuth client ID and secret, or configure a token instead."
 
+/**
+ * The MCP SDK throws a plain `Error` (no typed class or code) when an auth server lacks a
+ * `registration_endpoint`, so this string-match is the only available signal. Pinned to
+ * `@modelcontextprotocol/sdk` v1.29.0 `registerClient` (client/auth.js): "Incompatible auth
+ * server: does not support dynamic client registration". If a version bump rephrases this, the
+ * 422 branch silently stops firing (users get a generic 500) — update the substring here.
+ */
 function isDynamicClientRegistrationUnsupported(error: unknown): boolean {
   return getErrorMessage(error, '')
     .toLowerCase()

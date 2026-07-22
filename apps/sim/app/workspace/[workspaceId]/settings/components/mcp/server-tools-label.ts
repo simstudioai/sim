@@ -16,7 +16,7 @@ export function getServerToolsLabel(
 
   if (connectionStatus === 'disconnected') {
     return (
-      lastError?.trim() || (authType === 'oauth' ? 'OAuth authorization required' : 'Not Connected')
+      lastError?.trim() || (authType === 'oauth' ? 'OAuth authorization required' : 'Not connected')
     )
   }
 

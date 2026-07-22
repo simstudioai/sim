@@ -93,15 +93,28 @@ function isTimeoutError(error: unknown): boolean {
   if (error instanceof McpError && error.code === ErrorCode.RequestTimeout) {
     return true
   }
+  // AbortSignal.timeout / undici surface a DOMException named TimeoutError whose
+  // message ("The operation was aborted due to timeout") lacks "timed out".
+  const e = error as { name?: string; cause?: { name?: string } } | null
+  if (e?.name === 'TimeoutError' || e?.cause?.name === 'TimeoutError') {
+    return true
+  }
   return getErrorMessage(error, '').toLowerCase().includes('timed out')
 }
 
 /**
  * A pooled connection is dead and must be retired so the caller's retry rebuilds
  * fresh: a stale session (400/404), an auth failure (401 — a rotated/revoked
- * credential; the rebuild re-resolves it), a closed transport, a timeout (no
- * response — possibly wedged), or a reset socket. Benign tool/consent errors and
- * healthy upstream responses (429/5xx) keep the connection warm.
+ * credential; the rebuild re-resolves it), a closed transport, or a reset socket.
+ *
+ * A request timeout is deliberately NOT dead: streamable-HTTP aborts only that
+ * request's own POST stream, leaving the session healthy for the next request, so
+ * every production MCP client (SDK, OpenCode, LibreChat) rejects the request and
+ * keeps the connection rather than tearing it down. Retiring on a timeout instead
+ * forced a full reconnect on the next discovery — and a fresh connect can stall on
+ * our end far longer than a warm request — turning one slow response into a
+ * connect/stall/reconnect churn loop. Benign tool/consent errors and healthy
+ * upstream responses (429/5xx) also keep the connection warm.
  */
 function isDeadConnectionError(error: unknown): boolean {
   if (error instanceof UnauthorizedError) {
@@ -111,9 +124,6 @@ function isDeadConnectionError(error: unknown): boolean {
     return error.code === 404 || error.code === 400 || error.code === 401
   }
   if (error instanceof McpError && error.code === ErrorCode.ConnectionClosed) {
-    return true
-  }
-  if (isTimeoutError(error)) {
     return true
   }
   const message = getErrorMessage(error, '').toLowerCase()
@@ -421,13 +431,17 @@ class McpService {
         create,
       })
       let poison = false
+      let sawTimeout = false
       try {
         return await fn(lease.client)
       } catch (error) {
         poison = isDeadConnectionError(error)
+        // A lone timeout keeps the session; the pool's circuit breaker retires it
+        // after consecutive timeouts with no healthy request in between.
+        sawTimeout = isTimeoutError(error)
         throw error
       } finally {
-        await lease.release(poison)
+        await lease.release(poison, sawTimeout)
       }
     }
 

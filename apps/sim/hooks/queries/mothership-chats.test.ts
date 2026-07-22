@@ -59,6 +59,7 @@ describe('tasks query boundary parsing', () => {
             activeStreamId: 'stream-1',
             lastSeenAt: null,
             pinned: false,
+            deletedAt: null,
           },
         ],
       })
@@ -91,6 +92,7 @@ describe('tasks query boundary parsing', () => {
             activeStreamId: null,
             lastSeenAt: null,
             pinned: false,
+            deletedAt: null,
           },
         ],
       })

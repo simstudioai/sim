@@ -66,7 +66,7 @@ export class ZipBombError extends Error {
  * closed: a ZIP-shaped buffer the guard cannot parse must be rejected rather
  * than handed to a decompression library.
  */
-function isZipShaped(buffer: Buffer): boolean {
+export function isZipShaped(buffer: Buffer): boolean {
   if (buffer.length < 4) {
     return false
   }
@@ -215,6 +215,64 @@ function sumDeclaredUncompressedSize(buffer: Buffer, abortAboveBytes: number): n
   }
 
   return total
+}
+
+/** Parse-time shape of a ZIP central directory, read without decompressing anything. */
+export interface ZipCentralDirectoryStats {
+  /** Records in the contiguous central-directory run — what a per-signature parser allocates. */
+  entryCount: number
+  /** Summed declared extra-field bytes across those records. */
+  totalExtraFieldBytes: number
+}
+
+/**
+ * Walk the real central directory (EOCD-anchored, decoy-resistant, ZIP64-aware —
+ * the same anchoring as {@link assertOoxmlArchiveWithinLimits}) and report its
+ * record count and summed extra-field bytes, so callers can bound a parser's
+ * object graph before handing it the buffer. The walk covers the CONTIGUOUS run
+ * of records at the central-directory offset rather than trusting the EOCD's
+ * declared count, because that run is what JSZip actually allocates one entry
+ * per — a lied count can neither hide records nor inflate the tally. Unlike a
+ * raw whole-buffer signature scan, STORED entry payloads (e.g. a nested `.zip`
+ * archived without recompression) are never miscounted as records. Returns
+ * `null` when the buffer is not a parseable ZIP, so callers can fail closed.
+ */
+export function readZipCentralDirectoryStats(buffer: Buffer): ZipCentralDirectoryStats | null {
+  if (buffer.length < EOCD_MIN_SIZE) {
+    return null
+  }
+
+  const eocdOffset = findEocdOffset(buffer)
+  if (eocdOffset < 0) {
+    return null
+  }
+
+  const location = locateCentralDirectory(buffer, eocdOffset)
+  if (!location) {
+    return null
+  }
+
+  let entryCount = 0
+  let totalExtraFieldBytes = 0
+  let cursor = location.offset
+  while (
+    cursor + CENTRAL_DIRECTORY_HEADER_MIN_SIZE <= buffer.length &&
+    buffer.readUInt32LE(cursor) === CENTRAL_DIRECTORY_HEADER_SIGNATURE
+  ) {
+    const fileNameLength = buffer.readUInt16LE(cursor + 28)
+    const extraFieldLength = buffer.readUInt16LE(cursor + 30)
+    const commentLength = buffer.readUInt16LE(cursor + 32)
+
+    entryCount += 1
+    totalExtraFieldBytes += extraFieldLength
+    cursor += CENTRAL_DIRECTORY_HEADER_MIN_SIZE + fileNameLength + extraFieldLength + commentLength
+  }
+
+  if (entryCount < location.entryCount) {
+    return null
+  }
+
+  return { entryCount, totalExtraFieldBytes }
 }
 
 /**

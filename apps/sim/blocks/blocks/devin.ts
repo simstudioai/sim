@@ -363,7 +363,7 @@ export const DevinBlockMeta = {
     },
     {
       icon: DevinIcon,
-      title: 'Documentation gap closer',
+      title: 'Devin documentation gap closer',
       prompt:
         'Create a workflow that scans a knowledge base of docs against the latest repo state, finds undocumented public APIs, opens a Devin session for each gap with a prompt to write documentation, and stores the produced markdown back into the knowledge base.',
       modules: ['knowledge-base', 'files', 'agent', 'workflows'],

@@ -1499,7 +1499,7 @@ export const RipplingBlockMeta = {
     },
     {
       icon: RipplingIcon,
-      title: 'Org chart export and review',
+      title: 'Rippling org chart export',
       prompt:
         'Build a scheduled weekly workflow that pulls Rippling workers, departments, teams, and titles, writes an updated org chart file, diffs against last week to find structural changes, and Slacks people operations any unexpected moves for review.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
@@ -1509,7 +1509,7 @@ export const RipplingBlockMeta = {
     },
     {
       icon: RipplingIcon,
-      title: 'Custom object data sync',
+      title: 'Rippling custom object sync',
       prompt:
         'Create a workflow that reads rows from a Sim table representing custom Rippling objects — perks, equipment, allowances — and upserts them into Rippling so HR can manage company-specific data with the same governance as core worker records.',
       modules: ['tables', 'agent', 'workflows'],
@@ -1518,7 +1518,7 @@ export const RipplingBlockMeta = {
     },
     {
       icon: RipplingIcon,
-      title: 'Team and title auditor',
+      title: 'Rippling team and title audit',
       prompt:
         'Build a scheduled monthly workflow that lists Rippling teams, titles, and job functions, flags duplicates, unused values, and inconsistent naming, writes a cleanup report file, and opens a Linear task for the people operations owner of each issue.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
@@ -1528,7 +1528,7 @@ export const RipplingBlockMeta = {
     },
     {
       icon: RipplingIcon,
-      title: 'Manager change notifier',
+      title: 'Rippling manager change alerts',
       prompt:
         'Create a scheduled workflow that polls Rippling workers for manager reassignments, notifies the worker and the new manager via email, schedules a thirty-minute intro on Google Calendar, and logs the transition in a tracking table for HR visibility.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -1538,7 +1538,7 @@ export const RipplingBlockMeta = {
     },
     {
       icon: RipplingIcon,
-      title: 'Department headcount digest',
+      title: 'Rippling headcount digest',
       prompt:
         'Build a scheduled weekly workflow that pulls Rippling workers grouped by department and employment type, computes headcount, open requisitions, and growth versus the prior week, writes a narrative summary, and emails it to department heads.',
       modules: ['scheduled', 'agent', 'workflows'],

@@ -1,5 +1,5 @@
 {
-  "id": "315c1e27-1fee-4218-97c8-269bb96f9f41",
+  "id": "12a47eb4-408b-41d5-92e3-c26a03d1d754",
   "prevId": "cca39e95-9fb8-4e3d-9e0d-591aa668edb5",
   "version": "7",
   "dialect": "postgresql",
@@ -1587,6 +1587,12 @@
           "notNull": true,
           "default": false
         },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1728,6 +1734,28 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "copilot_chats_user_workspace_deleted_partial_idx": {
+          "name": "copilot_chats_user_workspace_deleted_partial_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"copilot_chats\".\"deleted_at\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -9950,7 +9978,7 @@
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
-          "default": false
+          "default": true
         },
         "mothership_environment": {
           "name": "mothership_environment",

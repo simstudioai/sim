@@ -32,6 +32,14 @@ const logger = createLogger('McpConnectionPool')
 const MAX_POOL_SIZE = 100
 /** Max lifetime; on expiry the pinned SSRF `resolvedIP` re-resolves. */
 const MAX_CONNECTION_AGE_MS = 10 * 60 * 1000
+/**
+ * Circuit breaker: retire a connection after this many CONSECUTIVE request
+ * timeouts. One timeout is a slow request and keeps the session (retiring on
+ * every timeout causes connect/stall/reconnect churn); repeated timeouts with
+ * no success in between indicate a half-open transport the liveness ping
+ * hasn't caught yet. A healthy release resets the count.
+ */
+const MAX_CONSECUTIVE_TIMEOUTS = 2
 const LIVENESS_TTL_MS = 60 * 1000
 const LIVENESS_PING_TIMEOUT_MS = 5 * 1000
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000
@@ -46,10 +54,14 @@ export interface AcquireParams {
   create: () => Promise<McpClient>
 }
 
-/** A borrowed connection. `release(poison)` must be called exactly once; pass `poison: true` to retire on failure. */
+/**
+ * A borrowed connection. `release(poison, sawTimeout)` must be called exactly once:
+ * `poison: true` retires immediately (dead-connection error); `sawTimeout: true`
+ * counts toward the consecutive-timeout circuit breaker without retiring on its own.
+ */
 export interface ConnectionLease {
   client: McpClient
-  release: (poison?: boolean) => Promise<void>
+  release: (poison?: boolean, sawTimeout?: boolean) => Promise<void>
 }
 
 interface PoolEntry {
@@ -60,15 +72,26 @@ interface PoolEntry {
   lastActivityAt: number
   lastLivenessCheckAt: number
   borrowers: number
+  consecutiveTimeouts: number
   retired: boolean
   closing: boolean
 }
 
+/**
+ * An in-flight `createEntry`. `evictServer` sets `invalidated` on the records for its
+ * server so a connect racing a config edit/delete is one-shot instead of pooled stale.
+ * Lives only until the create settles (cleared in `finally`), so it's self-bounded.
+ */
+interface PendingCreate {
+  serverId: string
+  /** `flag.invalidated` is set by `evictServer` racing this create → it one-shots instead of pooling. */
+  flag: { invalidated: boolean }
+  promise: Promise<PoolEntry>
+}
+
 export class McpConnectionPool {
   private entries = new Map<string, PoolEntry>()
-  private pending = new Map<string, Promise<PoolEntry>>()
-  /** Per-server counter bumped by `evictServer`; an in-flight create built against an older value is retired on completion. */
-  private serverGenerations = new Map<string, number>()
+  private pending = new Map<string, PendingCreate>()
   private idleCheckTimer: ReturnType<typeof setInterval> | null = null
   private disposed = false
 
@@ -85,13 +108,16 @@ export class McpConnectionPool {
     while (entry.closing) entry = await this.resolveEntry(params)
     entry.borrowers++
     entry.lastActivityAt = Date.now()
-    return { client: entry.client, release: (poison) => this.release(entry, poison ?? false) }
+    return {
+      client: entry.client,
+      release: (poison, sawTimeout) => this.release(entry, poison ?? false, sawTimeout ?? false),
+    }
   }
 
   private async resolveEntry(params: AcquireParams): Promise<PoolEntry> {
     while (true) {
       const pending = this.pending.get(params.key)
-      if (pending) return pending
+      if (pending) return pending.promise
 
       const current = this.entries.get(params.key)
       if (!current) return this.createEntry(params)
@@ -136,10 +162,12 @@ export class McpConnectionPool {
     // Re-check: the `await` in `resolveEntry` yields, so two acquires can both
     // reach here; the first registers the pending create, the rest join.
     const inFlight = this.pending.get(params.key)
-    if (inFlight) return inFlight
+    if (inFlight) return inFlight.promise
 
+    // Declared before the create closure so `evictServer` can invalidate a create
+    // that's racing a config edit/delete (the closure reads it after its `await`).
+    const flag = { invalidated: false }
     const creation = (async () => {
-      const generation = this.serverGenerations.get(params.serverId) ?? 0
       const client = await params.create()
       const now = Date.now()
       const entry: PoolEntry = {
@@ -150,6 +178,7 @@ export class McpConnectionPool {
         lastActivityAt: now,
         lastLivenessCheckAt: now,
         borrowers: 0,
+        consecutiveTimeouts: 0,
         retired: false,
         closing: false,
       }
@@ -157,7 +186,7 @@ export class McpConnectionPool {
       // don't pool a connection built against the now-stale config. The current
       // borrower still uses it once (as connect-per-op would for an in-flight
       // request); it's disconnected on release, and the next acquire builds fresh.
-      if (this.disposed || (this.serverGenerations.get(params.serverId) ?? 0) !== generation) {
+      if (this.disposed || flag.invalidated) {
         entry.retired = true
         return entry
       }
@@ -171,15 +200,28 @@ export class McpConnectionPool {
       return entry
     })()
 
-    this.pending.set(params.key, creation)
-    return creation.finally(() => {
-      if (this.pending.get(params.key) === creation) this.pending.delete(params.key)
-    })
+    const record: PendingCreate = {
+      serverId: params.serverId,
+      flag,
+      promise: creation.finally(() => {
+        if (this.pending.get(params.key) === record) this.pending.delete(params.key)
+      }),
+    }
+    this.pending.set(params.key, record)
+    return record.promise
   }
 
-  private async release(entry: PoolEntry, poison: boolean): Promise<void> {
+  private async release(entry: PoolEntry, poison: boolean, sawTimeout: boolean): Promise<void> {
     entry.borrowers = Math.max(0, entry.borrowers - 1)
     entry.lastActivityAt = Date.now()
+    if (sawTimeout) {
+      entry.consecutiveTimeouts++
+      if (entry.consecutiveTimeouts >= MAX_CONSECUTIVE_TIMEOUTS) {
+        this.retire(entry, `${entry.consecutiveTimeouts} consecutive request timeouts`)
+      }
+    } else if (!poison) {
+      entry.consecutiveTimeouts = 0
+    }
     if (poison) this.retire(entry, 'poisoned by failed operation')
     await this.closeIfIdle(entry)
   }
@@ -215,9 +257,11 @@ export class McpConnectionPool {
 
   /** Retire every connection for a server (all users) — config changed or deleted. */
   async evictServer(serverId: string, reason: string): Promise<void> {
-    // Bump first so an in-flight create for this server retires on completion
-    // instead of pooling a connection built against the now-stale config.
-    this.serverGenerations.set(serverId, (this.serverGenerations.get(serverId) ?? 0) + 1)
+    // Flag in-flight creates first so one racing this eviction is one-shot on
+    // completion instead of pooling a connection built against the now-stale config.
+    for (const record of this.pending.values()) {
+      if (record.serverId === serverId) record.flag.invalidated = true
+    }
     for (const entry of this.entries.values()) {
       if (entry.serverId === serverId) this.retire(entry, reason)
     }
@@ -262,7 +306,6 @@ export class McpConnectionPool {
     for (const entry of entries) entry.retired = true
     this.entries.clear()
     this.pending.clear()
-    this.serverGenerations.clear()
     void Promise.allSettled(entries.map((entry) => entry.client.disconnect()))
   }
 }

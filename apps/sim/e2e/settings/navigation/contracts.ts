@@ -17,6 +17,7 @@ export interface AuthenticatedDriver {
 export type SemanticReadiness =
   | { kind: 'button'; name: string }
   | { kind: 'link'; name: string }
+  | { kind: 'radio'; name: string }
   | { kind: 'textbox'; name: string }
   | { kind: 'switch'; name: string }
   | { kind: 'tab'; name: string }
@@ -194,7 +195,7 @@ export const sectionContracts = [
     pathTemplate: '/account/settings/mothership',
     heading: 'Mothership',
     description: 'Internal Sim operations and license management.',
-    readiness: { kind: 'button', name: 'Overview' },
+    readiness: { kind: 'radio', name: 'Overview' },
     driver: platformAccount,
     activeSidebarItem: true,
   },
@@ -507,7 +508,7 @@ export const sectionContracts = [
       'superuser',
       'Mothership',
       'Internal Sim operations and license management.',
-      { kind: 'button', name: 'Overview' },
+      { kind: 'radio', name: 'Overview' },
       platformWorkspace,
     ],
     [

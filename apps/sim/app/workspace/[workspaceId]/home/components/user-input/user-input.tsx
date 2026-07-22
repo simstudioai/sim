@@ -15,7 +15,7 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   AnimatedPlaceholderEffect,
@@ -597,7 +597,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         type='file'
         onChange={handleFileChange}
         className='hidden'
-        accept={CHAT_ACCEPT_ATTRIBUTE}
+        accept={MOTHERSHIP_ACCEPT_ATTRIBUTE}
         multiple
       />
 

@@ -3,7 +3,7 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { buildEffectiveChatTranscript } from '@/lib/copilot/chat/effective-transcript'
@@ -189,7 +189,13 @@ export async function GET(req: NextRequest) {
         updatedAt: copilotChats.updatedAt,
       })
       .from(copilotChats)
-      .where(and(eq(copilotChats.userId, authenticatedUserId), scopeFilter))
+      .where(
+        and(
+          eq(copilotChats.userId, authenticatedUserId),
+          isNull(copilotChats.deletedAt),
+          scopeFilter
+        )
+      )
       .orderBy(desc(copilotChats.updatedAt))
 
     const scope = workflowId ? `workflow ${workflowId}` : `workspace ${workspaceId}`

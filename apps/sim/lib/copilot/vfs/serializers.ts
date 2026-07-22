@@ -453,6 +453,9 @@ function getStaticModelOptionsForVFS(): StaticModelOption[] {
   for (const [providerId, def] of Object.entries(PROVIDER_DEFINITIONS)) {
     if (dynamicProviders.has(providerId)) continue
     for (const model of def.models) {
+      // Retired models are hidden from the agent's menu (mirrors the user picker)
+      // so it never suggests a model whose API calls fail; legacy stays available.
+      if (model.sunset?.status === 'deprecated') continue
       const option: StaticModelOption = {
         id: model.id,
         provider: providerId,
@@ -460,7 +463,7 @@ function getStaticModelOptionsForVFS(): StaticModelOption[] {
       }
       if (model.recommended) option.recommended = true
       if (model.speedOptimized) option.speedOptimized = true
-      if (model.deprecated) option.deprecated = true
+      if (model.sunset) option.deprecated = true
       models.push(option)
     }
   }

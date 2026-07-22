@@ -16,6 +16,7 @@ import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { stripVersionSuffix } from '@/tools/utils'
 
 const logger = createLogger('CopilotChatPayload')
@@ -343,15 +344,25 @@ export async function buildCopilotRequestPayload(
         } catch {
           encodedUploadName = displayName
         }
-        const lines = [
-          `File "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
-          `Read with: read("uploads/${encodedUploadName}")`,
-          `To save permanently: materialize_file(fileName: "${displayName}")`,
-        ]
-        if (displayName.endsWith('.json')) {
-          lines.push(
-            `To import as a workflow: materialize_file(fileName: "${displayName}", operation: "import")`
-          )
+        let lines: string[]
+        if (isArchiveFileName(displayName)) {
+          // A .zip is stored in uploads/ but its contents aren't readable until
+          // the agent extracts it once into workspace files/ (explicit step).
+          lines = [
+            `Archive "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
+            buildArchiveExtractGuidance(displayName),
+          ]
+        } else {
+          lines = [
+            `File "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
+            `Read with: read("uploads/${encodedUploadName}")`,
+            `To save permanently: materialize_file(fileName: "${displayName}")`,
+          ]
+          if (displayName.endsWith('.json')) {
+            lines.push(
+              `To import as a workflow: materialize_file(fileName: "${displayName}", operation: "import")`
+            )
+          }
         }
         uploadContexts.push({
           type: 'uploaded_file',

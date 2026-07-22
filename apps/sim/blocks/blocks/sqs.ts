@@ -172,7 +172,7 @@ export const SQSBlockMeta = {
     },
     {
       icon: SQSIcon,
-      title: 'Dead-letter queue replayer',
+      title: 'SQS dead-letter replayer',
       prompt:
         'Create a scheduled workflow that runs every morning, scans a table of failed jobs, regenerates the original payload, and republishes each failed message to its Amazon SQS queue with retry metadata so transient failures are recovered automatically.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -190,7 +190,7 @@ export const SQSBlockMeta = {
     },
     {
       icon: SQSIcon,
-      title: 'Alert fan-out queue',
+      title: 'SQS alert enricher',
       prompt:
         'Create a workflow triggered by PagerDuty or Datadog alerts that classifies severity, decorates the payload with runbook context, and pushes the enriched alert to an Amazon SQS queue so multiple downstream notifiers and ticketing systems can consume it independently.',
       modules: ['agent', 'workflows'],
@@ -200,7 +200,7 @@ export const SQSBlockMeta = {
     },
     {
       icon: SQSIcon,
-      title: 'Batch order processor',
+      title: 'SQS batch order queue',
       prompt:
         'Build a workflow that takes a list of orders from a table and queues each one as a separate Amazon SQS message for parallel downstream processing. Track each enqueued message ID in the table so you can correlate downstream results back to the originating row.',
       modules: ['tables', 'agent', 'workflows'],
@@ -209,7 +209,7 @@ export const SQSBlockMeta = {
     },
     {
       icon: SQSIcon,
-      title: 'Scheduled fan-out job',
+      title: 'Scheduled SQS fan-out',
       prompt:
         'Create a scheduled workflow that runs every fifteen minutes, queries pending items from a table, batches them, and pushes one Amazon SQS message per batch to your worker queue. Update the table with batch IDs and timestamps so reprocessing is deterministic.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -218,7 +218,7 @@ export const SQSBlockMeta = {
     },
     {
       icon: SQSIcon,
-      title: 'Cross-service notifier',
+      title: 'SQS cross-service notifier',
       prompt:
         'Build a workflow that listens for completed builds in your CI tool, composes a status payload with build metadata and artifact links, and sends the payload to an Amazon SQS queue so internal services like deploy, audit, and notification workers can react asynchronously.',
       modules: ['agent', 'workflows'],

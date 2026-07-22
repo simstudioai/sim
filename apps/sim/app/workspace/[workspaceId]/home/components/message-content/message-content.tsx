@@ -1,6 +1,16 @@
 'use client'
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { cn } from '@sim/emcn'
 import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
@@ -18,6 +28,7 @@ import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } fro
 import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 
 const FILE_SUBAGENT_ID = 'file'
+/** Quiet period before the shimmer takes the slot back from streamed output. */
 const STREAM_IDLE_DELAY_MS = 1_500
 
 interface TextSegment {
@@ -738,47 +749,69 @@ export function shouldSmoothTextSegment({
   return isStreaming && segmentIndex === segmentCount - 1
 }
 
-export function shouldShowTrailingThinking({
-  isStreaming,
-  isStreamIdle,
-  isRenderingStream,
-  hasExecutingTool,
-  lastSegmentType,
-}: {
-  isStreaming: boolean
-  isStreamIdle: boolean
-  isRenderingStream: boolean
-  hasExecutingTool: boolean
-  lastSegmentType?: 'text' | 'agent_group' | 'options' | 'stopped'
-}): boolean {
-  return (
-    isStreaming &&
-    isStreamIdle &&
-    !isRenderingStream &&
-    !hasExecutingTool &&
-    lastSegmentType !== 'stopped'
-  )
+const DISPATCH_TOOL_NAMES = new Set([...SUBAGENT_KEYS, ...Object.values(SUBAGENT_DISPATCH_TOOLS)])
+
+/**
+ * Activity phrase for the turn-level shimmer, derived from the most recent
+ * stream block. The shimmer only shows in quiet gaps (see showShimmer), so the
+ * phrase describes the wait, not the output: a stall after streamed text is
+ * the agent deciding what's next — Thinking — never "Generating" (while text
+ * actually generates the shimmer is hidden). Dispatching covers only the
+ * dispatch call itself (whose tool row the parser absorbs, so nothing else
+ * shows); once the lane is open its own delegating shimmer owns the state and
+ * the turn-level one stays hidden (`null`).
+ */
+export function deriveThinkingLabel(blocks: ContentBlock[]): string | null {
+  const last = blocks[blocks.length - 1]
+  switch (last?.type) {
+    case 'subagent':
+      return null
+    case 'subagent_end':
+      return 'Returning…'
+    case 'tool_call':
+      return last.toolCall && DISPATCH_TOOL_NAMES.has(last.toolCall.name)
+        ? 'Dispatching…'
+        : 'Thinking…'
+    default:
+      return 'Thinking…'
+  }
 }
 
 interface MessageContentProps {
   blocks: ContentBlock[]
   fallbackContent: string
   isStreaming: boolean
+  /**
+   * True for the last message in the transcript. The last turn keeps a
+   * fixed-height thinking slot at its bottom (see JSX) so the shimmer fades in
+   * place without ever changing height.
+   */
+  isLast?: boolean
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
   onPhaseChange?: (phase: MessagePhase) => void
+  /**
+   * The message's actions row (copy/thumbs). Rendered here, in the thinking
+   * slot's position, so at settle the shimmer and the actions trade places in
+   * one render — a single tiny reflow instead of a collapse the buttons ride
+   * or a late mount the chase visibly scrolls to. The caller gates it on
+   * content/question eligibility only; the settle timing is owned here.
+   */
+  actions?: ReactNode
 }
 
 function MessageContentInner({
   blocks,
   fallbackContent,
   isStreaming = false,
+  isLast = false,
   questionAnswers,
   onOptionSelect,
   onQuestionDismiss,
   onPhaseChange,
+  actions,
 }: MessageContentProps) {
   const { onWorkspaceResourceSelect } = useChatSurface()
   const parsed = useMemo(() => (blocks.length > 0 ? parseBlocks(blocks) : []), [blocks])
@@ -791,6 +824,10 @@ function MessageContentInner({
   const handleTrailingStreamActivityChange = useCallback((active: boolean) => {
     setTrailingStreamActivity(active)
   }, [])
+  const [trailingPendingTag, setTrailingPendingTag] = useState(false)
+  const handleTrailingPendingTagChange = useCallback((pending: boolean) => {
+    setTrailingPendingTag(pending)
+  }, [])
   const [isStreamIdle, setIsStreamIdle] = useState(false)
 
   const segments: MessageSegment[] =
@@ -802,8 +839,8 @@ function MessageContentInner({
   const visibleStreamActivityKey = getVisibleStreamActivityKey(segments)
 
   // Every visible stream update restarts the quiet-period clock. A layout
-  // effect clears an already-visible indicator before paint, so a chunk from
-  // any parallel lane hides the one turn-level loader without a stale flash.
+  // effect clears an already-visible shimmer before paint, so a chunk from any
+  // parallel lane yields the slot to the arriving output without a stale flash.
   useLayoutEffect(() => {
     if (!isStreaming) {
       setIsStreamIdle(false)
@@ -826,91 +863,117 @@ function MessageContentInner({
     onPhaseChangeRef.current?.(phase)
   }, [phase])
 
-  if (segments.length === 0) {
-    if (isStreaming) {
-      return (
-        <div className='space-y-[10px]'>
-          <PendingTagIndicator />
-        </div>
-      )
-    }
-    return null
-  }
+  // The slot is the last message's own element, so it grows on send with the
+  // row (no separate mount → no jump). Gated on phase, not isStreaming: the
+  // trailing text keeps visually revealing on a timer after the network stream
+  // closes, and collapsing under a still-growing reveal reads as the blob
+  // winking out early while everything shifts.
+  const thinkingExpanded = phase !== 'settled' && lastSegment?.type !== 'stopped'
 
-  // Executing tools already render an active row. An open subagent lane does
-  // not suppress the turn-level indicator: once its latest visible chunk has
-  // settled, the loader can bridge the wait until that lane (or a parallel
-  // sibling) emits again.
+  if (segments.length === 0 && !isLast) return null
+
+  // A visible executing tool row already spins — the turn-level shimmer would
+  // double it. (A null label means a just-opened lane's shimmer owns the state.)
+  // A mid-stream special tag renders nothing until complete, so its bytes are a
+  // wait, not output — the shimmer bridges it without the quiet-period delay.
+  const thinkingLabel = deriveThinkingLabel(blocks)
   const hasExecutingTool = assistantMessageHasVisibleExecutingTool(blocks)
-  const showTrailingThinking = shouldShowTrailingThinking({
-    isStreaming: phase === 'streaming',
-    isStreamIdle,
-    isRenderingStream: trailingStreamActivity,
-    hasExecutingTool,
-    lastSegmentType: lastSegment.type,
-  })
+  const showShimmer =
+    thinkingExpanded &&
+    thinkingLabel !== null &&
+    (segments.length === 0 ||
+      trailingPendingTag ||
+      (isStreamIdle && !trailingStreamActivity && !hasExecutingTool))
 
   return (
-    <div className='space-y-[10px]'>
-      {segments.map((segment, i) => {
-        switch (segment.type) {
-          case 'text':
-            return (
-              <ChatContent
-                key={segment.id}
-                content={segment.content}
-                isStreaming={shouldSmoothTextSegment({
-                  isStreaming,
-                  segmentIndex: i,
-                  segmentCount: segments.length,
-                })}
-                questionAnswers={questionAnswers}
-                onOptionSelect={onOptionSelect}
-                onQuestionDismiss={onQuestionDismiss}
-                onWorkspaceResourceSelect={onWorkspaceResourceSelect}
-                onRevealStateChange={
-                  i === segments.length - 1 ? handleTrailingRevealChange : undefined
-                }
-                onStreamActivityChange={
-                  i === segments.length - 1 ? handleTrailingStreamActivityChange : undefined
-                }
-              />
-            )
-          case 'agent_group': {
-            return (
-              <div key={segment.id} className={isStreaming ? 'animate-stream-fade-in' : undefined}>
-                <AgentGroup
+    <div>
+      <div className='space-y-[10px]'>
+        {segments.map((segment, i) => {
+          switch (segment.type) {
+            case 'text':
+              return (
+                <ChatContent
                   key={segment.id}
-                  agentName={segment.agentName}
-                  agentLabel={segment.agentLabel}
-                  items={segment.items}
-                  isDelegating={segment.isDelegating}
-                  isStreaming={isStreaming}
-                  isCurrentSection={i === segments.length - 1}
-                  isLaneOpen={segment.isOpen}
+                  content={segment.content}
+                  isStreaming={shouldSmoothTextSegment({
+                    isStreaming,
+                    segmentIndex: i,
+                    segmentCount: segments.length,
+                  })}
+                  questionAnswers={questionAnswers}
+                  onOptionSelect={onOptionSelect}
+                  onQuestionDismiss={onQuestionDismiss}
+                  onWorkspaceResourceSelect={onWorkspaceResourceSelect}
+                  onRevealStateChange={
+                    i === segments.length - 1 ? handleTrailingRevealChange : undefined
+                  }
+                  onStreamActivityChange={
+                    i === segments.length - 1 ? handleTrailingStreamActivityChange : undefined
+                  }
+                  onPendingTagChange={
+                    i === segments.length - 1 ? handleTrailingPendingTagChange : undefined
+                  }
                 />
-              </div>
-            )
+              )
+            case 'agent_group': {
+              return (
+                <div
+                  key={segment.id}
+                  className={isStreaming ? 'animate-stream-fade-in' : undefined}
+                >
+                  <AgentGroup
+                    key={segment.id}
+                    agentName={segment.agentName}
+                    agentLabel={segment.agentLabel}
+                    items={segment.items}
+                    isDelegating={segment.isDelegating}
+                    isStreaming={isStreaming}
+                    isCurrentSection={i === segments.length - 1}
+                    isLaneOpen={segment.isOpen}
+                  />
+                </div>
+              )
+            }
+            case 'options':
+              return (
+                <div
+                  key={`options-${i}`}
+                  className={isStreaming ? 'animate-stream-fade-in' : undefined}
+                >
+                  <Options items={segment.items} onSelect={onOptionSelect} />
+                </div>
+              )
+            case 'stopped':
+              return (
+                <div key={`stopped-${i}`} className='flex items-center gap-[8px]'>
+                  <CircleStop className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                  <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
+                </div>
+              )
           }
-          case 'options':
-            return (
-              <div
-                key={`options-${i}`}
-                className={isStreaming ? 'animate-stream-fade-in' : undefined}
-              >
-                <Options items={segment.items} onSelect={onOptionSelect} />
-              </div>
-            )
-          case 'stopped':
-            return (
-              <div key={`stopped-${i}`} className='flex items-center gap-[8px]'>
-                <CircleStop className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
-              </div>
-            )
-        }
-      })}
-      {showTrailingThinking && <PendingTagIndicator />}
+        })}
+      </div>
+      {thinkingExpanded && isLast ? (
+        // Fixed-height placeholder for the NEXT piece of output: the shimmer
+        // and arriving output trade places via opacity only, so mid-turn swaps
+        // can't move layout. A sibling of the space-y stack (not a child), so
+        // it carries no stray sibling margin — pt-[10px] is its own gap.
+        <div aria-hidden={!showShimmer} className='pt-[10px]'>
+          <div
+            className={cn(
+              'transition-opacity duration-200 ease-out',
+              showShimmer ? 'opacity-100' : 'opacity-0'
+            )}
+          >
+            <PendingTagIndicator label={thinkingLabel ?? 'Thinking…'} />
+          </div>
+        </div>
+      ) : (
+        // The actions row takes the slot's place in the SAME render — a single
+        // ~10px reflow instead of a collapse the buttons would ride upward or a
+        // late mount the chase would visibly scroll to.
+        actions && <div className='mt-2.5'>{actions}</div>
+      )}
     </div>
   )
 }

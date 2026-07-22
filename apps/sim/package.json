@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "engines": {
     "bun": ">=1.2.13",
-    "node": ">=20.0.0"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "dev": "next dev --port 3000",
@@ -33,6 +33,7 @@
     "lint:check": "biome check .",
     "format": "biome format --write .",
     "format:check": "biome format .",
+    "generate:pi-model-catalog": "bun run scripts/generate-pi-model-catalog.ts",
     "generate-docs": "bun run ../../scripts/generate-docs.ts"
   },
   "dependencies": {
@@ -68,7 +69,8 @@
     "@calcom/embed-react": "1.5.3",
     "@cerebras/cerebras_cloud_sdk": "^1.23.0",
     "@e2b/code-interpreter": "^2.0.0",
-    "@earendil-works/pi-coding-agent": "0.79.4",
+    "@earendil-works/pi-ai": "0.80.10",
+    "@earendil-works/pi-coding-agent": "0.80.10",
     "@floating-ui/dom": "1.7.6",
     "@google-cloud/storage": "7.21.0",
     "@google/genai": "1.34.0",
@@ -165,7 +167,7 @@
     "isolated-vm": "6.0.2",
     "jose": "6.0.11",
     "js-tiktoken": "1.0.21",
-    "js-yaml": "4.2.0",
+    "js-yaml": "4.3.0",
     "json5": "2.2.3",
     "jszip": "3.10.1",
     "lru-cache": "11.3.6",
@@ -205,7 +207,7 @@
     "resend": "^4.1.2",
     "rss-parser": "3.13.0",
     "safe-regex2": "5.1.0",
-    "sharp": "0.34.3",
+    "sharp": "0.35.3",
     "socket.io-client": "4.8.1",
     "ssh2": "^1.17.0",
     "streamdown": "2.5.0",
@@ -216,6 +218,7 @@
     "three": "0.177.0",
     "tldts": "7.0.30",
     "twilio": "5.9.0",
+    "typebox": "1.1.38",
     "undici": "7.28.0",
     "unpdf": "1.4.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { copilotMessages, workspaceFiles } from '@sim/db/schema'
+import { copilotChats, copilotMessages, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, inArray, isNull } from 'drizzle-orm'
 import { chunkArray } from '@/lib/cleanup/batch-delete'
@@ -26,6 +26,7 @@ type ChatScopedContext = (typeof CHAT_SCOPED_CONTEXTS)[number]
 interface FileRef {
   key: string
   context: ChatScopedContext
+  chatId: string
 }
 
 /**
@@ -42,7 +43,11 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
   for (const chunk of chunkArray(chatIds, CHAT_FILE_COLLECT_CHUNK_SIZE)) {
     const [linkedFiles, messageRows] = await Promise.all([
       db
-        .select({ key: workspaceFiles.key, context: workspaceFiles.context })
+        .select({
+          key: workspaceFiles.key,
+          context: workspaceFiles.context,
+          chatId: workspaceFiles.chatId,
+        })
         .from(workspaceFiles)
         .where(
           and(
@@ -54,15 +59,15 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
       // Scan every message row for the chat (no deleted_at filter): this is a
       // deletion path collecting blob keys, so attachments on any row count.
       db
-        .select({ content: copilotMessages.content })
+        .select({ content: copilotMessages.content, chatId: copilotMessages.chatId })
         .from(copilotMessages)
         .where(inArray(copilotMessages.chatId, chunk)),
     ])
 
     for (const f of linkedFiles) {
-      if (!seen.has(f.key)) {
+      if (f.chatId && !seen.has(f.key)) {
         seen.add(f.key)
-        files.push({ key: f.key, context: f.context as ChatScopedContext })
+        files.push({ key: f.key, context: f.context as ChatScopedContext, chatId: f.chatId })
       }
     }
 
@@ -80,7 +85,7 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
           const key = (attachment as Record<string, unknown>).key as string
           if (!seen.has(key)) {
             seen.add(key)
-            files.push({ key, context: 'copilot' })
+            files.push({ key, context: 'copilot', chatId: row.chatId })
           }
         }
       }
@@ -195,17 +200,36 @@ export async function prepareChatCleanup(
 
   return {
     execute: async () => {
+      // A chat can be restored (or its delete can fail) between selection and
+      // the caller's row delete. Purge backend data and files only for chats
+      // whose rows are actually gone, so a surviving row never loses its data.
+      const survivors = new Set<string>()
+      for (const chunk of chunkArray(chatIds, CHAT_FILE_COLLECT_CHUNK_SIZE)) {
+        const rows = await db
+          .select({ id: copilotChats.id })
+          .from(copilotChats)
+          .where(inArray(copilotChats.id, chunk))
+        for (const row of rows) survivors.add(row.id)
+      }
+      if (survivors.size > 0) {
+        logger.info(
+          `[${label}] Skipping external cleanup for ${survivors.size} chats whose rows still exist`
+        )
+      }
+      const confirmedChatIds = chatIds.filter((id) => !survivors.has(id))
+      const confirmedFiles = files.filter((file) => !survivors.has(file.chatId))
+
       // Call copilot backend
-      if (chatIds.length > 0) {
-        const copilotResult = await cleanupCopilotBackend(chatIds, label)
+      if (confirmedChatIds.length > 0) {
+        const copilotResult = await cleanupCopilotBackend(confirmedChatIds, label)
         logger.info(
           `[${label}] Copilot backend: ${copilotResult.deleted} deleted, ${copilotResult.failed} failed`
         )
       }
 
       // Delete storage files with correct context per file
-      if (files.length > 0) {
-        const fileStats = await deleteStorageFiles(files, label)
+      if (confirmedFiles.length > 0) {
+        const fileStats = await deleteStorageFiles(confirmedFiles, label)
         logger.info(
           `[${label}] Storage cleanup: ${fileStats.filesDeleted} deleted, ${fileStats.filesFailed} failed`
         )

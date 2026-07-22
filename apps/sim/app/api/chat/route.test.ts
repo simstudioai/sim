@@ -16,8 +16,9 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckWorkflowAccessForChatCreation } = vi.hoisted(() => ({
+const { mockCheckWorkflowAccessForChatCreation, mockValidateChatDeployAuth } = vi.hoisted(() => ({
   mockCheckWorkflowAccessForChatCreation: vi.fn(),
+  mockValidateChatDeployAuth: vi.fn(),
 }))
 
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
@@ -32,6 +33,16 @@ vi.mock('@/app/api/chat/utils', () => ({
   checkWorkflowAccessForChatCreation: mockCheckWorkflowAccessForChatCreation,
 }))
 
+vi.mock('@/ee/access-control/utils/permission-check', () => {
+  class ChatDeployAuthNotAllowedError extends Error {
+    constructor() {
+      super('This chat authentication mode is not allowed based on your permission group settings')
+      this.name = 'ChatDeployAuthNotAllowedError'
+    }
+  }
+  return { validateChatDeployAuth: mockValidateChatDeployAuth, ChatDeployAuthNotAllowedError }
+})
+
 vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
 vi.mock('@/lib/core/config/env', () =>
@@ -42,6 +53,7 @@ vi.mock('@/lib/core/config/env', () =>
 )
 
 import { GET, POST } from '@/app/api/chat/route'
+import { ChatDeployAuthNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 describe('Chat API Route', () => {
   beforeEach(() => {
@@ -235,6 +247,40 @@ describe('Chat API Route', () => {
           identifier: 'test-chat',
         })
       )
+    })
+
+    it('returns 403 when the chat auth type is blocked by the permission group', async () => {
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-id', email: 'user@example.com' },
+      })
+
+      const validData = {
+        workflowId: 'workflow-123',
+        identifier: 'test-chat',
+        title: 'Test Chat',
+        authType: 'public',
+        customizations: {
+          primaryColor: '#000000',
+          welcomeMessage: 'Hello',
+        },
+      }
+
+      dbChainMockFns.limit.mockResolvedValueOnce([])
+      mockCheckWorkflowAccessForChatCreation.mockResolvedValue({
+        hasAccess: true,
+        workflow: { userId: 'user-id', workspaceId: 'workspace-1', isDeployed: true },
+      })
+      mockValidateChatDeployAuth.mockRejectedValueOnce(new ChatDeployAuthNotAllowedError())
+
+      const req = new NextRequest('http://localhost:3000/api/chat', {
+        method: 'POST',
+        body: JSON.stringify(validData),
+      })
+      const response = await POST(req)
+
+      expect(response.status).toBe(403)
+      expect(mockValidateChatDeployAuth).toHaveBeenCalledWith('user-id', 'workspace-1', 'public')
+      expect(mockPerformChatDeploy).not.toHaveBeenCalled()
     })
 
     it('passes chat customizations and outputConfigs through in the API request shape', async () => {

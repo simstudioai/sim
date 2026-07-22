@@ -61,6 +61,8 @@ export function readinessLocator(page: Page, readiness: SemanticReadiness): Loca
       return page.getByRole('button', { name: readiness.name, exact: true })
     case 'link':
       return page.getByRole('link', { name: readiness.name, exact: true })
+    case 'radio':
+      return page.getByRole('radio', { name: readiness.name, exact: true })
     case 'textbox':
       return page.getByRole('textbox', { name: readiness.name, exact: true })
     case 'switch':

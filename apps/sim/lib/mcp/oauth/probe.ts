@@ -1,7 +1,7 @@
 import { extractWWWAuthenticateParams } from '@modelcontextprotocol/sdk/client/auth.js'
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { createLogger } from '@sim/logger'
-import { createPinnedFetch } from '@/lib/core/security/input-validation.server'
+import { createPinnedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import { isLoopbackHostname } from '@/lib/core/utils/urls'
 import { createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
 import type { McpAuthType } from '@/lib/mcp/types'
@@ -33,12 +33,16 @@ export async function detectMcpAuthType(
     return 'headers'
   }
 
-  const probeFetch: FetchLike = resolvedIP
-    ? createPinnedFetch(resolvedIP)
-    : createSsrfGuardedMcpFetch()
+  // Pre-validated IP → pin directly (we own the Agent); otherwise the SSRF-guarded fetch
+  // self-manages its per-request Agent teardown.
+  const pinned = resolvedIP ? createPinnedFetchWithDispatcher(resolvedIP) : undefined
+  const probeFetch: FetchLike = pinned?.fetch ?? createSsrfGuardedMcpFetch()
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
+  // Session cleanup runs after we return; the pinned Agent must outlive it, so tear it
+  // down once cleanup settles.
+  let sessionClose: Promise<void> = Promise.resolve()
 
   try {
     const res = await probeFetch(url, {
@@ -63,7 +67,7 @@ export async function detectMcpAuthType(
 
     const sessionId = res.headers.get('mcp-session-id')
     if (sessionId) {
-      void closeMcpSession(url, sessionId, probeFetch)
+      sessionClose = closeMcpSession(url, sessionId, probeFetch)
     }
 
     if (res.status === 401) {
@@ -82,6 +86,10 @@ export async function detectMcpAuthType(
     return 'headers'
   } finally {
     clearTimeout(timer)
+    // destroy() after the session-close hop settles, so that cleanup isn't aborted mid-flight.
+    if (pinned) {
+      void sessionClose.finally(() => pinned.dispatcher.destroy().catch(() => {}))
+    }
   }
 }
 

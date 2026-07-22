@@ -6,6 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCheckStorageQuotaForBillingContext,
+  mockDecompress,
+  mockFetchBuffer,
+  mockFindFolder,
   mockFindUpload,
   mockHasCloudStorage,
   mockHeadObject,
@@ -14,6 +17,9 @@ const {
   mockResolveStorageBillingContext,
 } = vi.hoisted(() => ({
   mockCheckStorageQuotaForBillingContext: vi.fn(),
+  mockDecompress: vi.fn(),
+  mockFetchBuffer: vi.fn(),
+  mockFindFolder: vi.fn(),
   mockFindUpload: vi.fn(),
   mockHasCloudStorage: vi.fn(),
   mockHeadObject: vi.fn(),
@@ -33,7 +39,26 @@ vi.mock('@/lib/uploads', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchWorkspaceFileBuffer: vi.fn(),
+  fetchWorkspaceFileBuffer: mockFetchBuffer,
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
+  findWorkspaceFileFolderIdByPath: mockFindFolder,
+}))
+
+vi.mock('@/lib/uploads/archive', () => ({
+  decompressArchiveBufferToWorkspaceFiles: mockDecompress,
+  ArchiveError: class ArchiveError extends Error {
+    reason: string
+    entryName?: string
+    constructor(reason: string, message: string, entryName?: string) {
+      super(message)
+      this.name = 'ArchiveError'
+      this.reason = reason
+      this.entryName = entryName
+    }
+  },
+  MAX_ARCHIVE_BYTES: 100 * 1024 * 1024,
 }))
 
 vi.mock('@/lib/uploads/core/storage-service', () => ({
@@ -50,6 +75,8 @@ vi.mock('@/lib/billing/storage', () => ({
 
 vi.mock('@/lib/copilot/vfs/path-utils', () => ({
   canonicalWorkspaceFilePath: vi.fn(() => 'files/report.txt'),
+  encodeVfsPathSegments: (segments: string[]) =>
+    segments.map((s) => encodeURIComponent(s)).join('/'),
 }))
 
 vi.mock('@/lib/workflows/operations/import-export', () => ({ parseWorkflowJson: vi.fn() }))
@@ -291,5 +318,212 @@ describe('executeMaterializeFile - save storage transition', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('report.txt')
     expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
+  })
+})
+
+describe('executeMaterializeFile - extract operation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockFindFolder.mockResolvedValue(null)
+  })
+
+  function zipRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'wf_zip',
+      key: 'mothership/abc/bundle.zip',
+      userId: 'user-1',
+      workspaceId: 'ws-1',
+      context: 'mothership',
+      chatId: 'chat-1',
+      originalName: 'bundle.zip',
+      displayName: 'bundle.zip',
+      contentType: 'application/zip',
+      size: 2048,
+      deletedAt: null,
+      uploadedAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    }
+  }
+
+  it('dispatches to the archive extractor and returns the unpacked files', async () => {
+    mockFindUpload.mockResolvedValue(zipRow())
+    mockFetchBuffer.mockResolvedValue(Buffer.from('zip-bytes'))
+    mockDecompress.mockResolvedValue({
+      extracted: [
+        { id: 'f1', name: 'a.txt', url: '/x', size: 1, type: 'text/plain', key: 'k1' },
+        { id: 'f2', name: 'b.txt', url: '/y', size: 2, type: 'text/plain', key: 'k2' },
+      ],
+      skipped: 0,
+      skippedUnsafePaths: [],
+    })
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['bundle.zip'], operation: 'extract' },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockDecompress).toHaveBeenCalledTimes(1)
+    expect(mockDecompress).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+        userId: 'user-1',
+        rootFolderSegments: ['bundle'],
+        skipNoiseEntries: true,
+      })
+    )
+    expect(result.output).toMatchObject({ succeeded: ['bundle.zip'], failed: [] })
+    expect(result.resources).toEqual([
+      { type: 'file', id: 'f1', title: 'a.txt' },
+      { type: 'file', id: 'f2', title: 'b.txt' },
+    ])
+  })
+
+  it('refuses to extract an upload that belongs to a different workspace', async () => {
+    mockFindUpload.mockResolvedValue(zipRow({ workspaceId: 'other-ws' }))
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['bundle.zip'], operation: 'extract' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    const output = result.output as { failed: Array<{ fileName: string; error: string }> }
+    expect(output.failed[0].error).toContain('does not belong to this workspace')
+    expect(mockDecompress).not.toHaveBeenCalled()
+  })
+
+  it('reports an already-extracted archive instead of duplicating the tree', async () => {
+    mockFindUpload.mockResolvedValue(zipRow())
+    mockFindFolder.mockResolvedValue('folder-existing')
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'f-old' }])
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['bundle.zip'], operation: 'extract' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    const output = result.output as { failed: Array<{ fileName: string; error: string }> }
+    expect(output.failed[0].error).toContain('already extracted')
+    expect(mockDecompress).not.toHaveBeenCalled()
+  })
+
+  it('detects a prior nested-only extraction via subfolders, not just direct files', async () => {
+    // A zip containing only nested entries (src/index.ts) leaves NO direct files
+    // under the archive root — only subfolders. The guard must still refuse.
+    mockFindUpload.mockResolvedValue(zipRow())
+    mockFindFolder.mockResolvedValue('folder-existing')
+    dbChainMockFns.limit.mockResolvedValueOnce([]) // no direct files
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'subfolder-1' }]) // but a subfolder tree
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['bundle.zip'], operation: 'extract' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    const output = result.output as { failed: Array<{ fileName: string; error: string }> }
+    expect(output.failed[0].error).toContain('already extracted')
+    expect(mockDecompress).not.toHaveBeenCalled()
+  })
+
+  it('dedupes repeated fileNames so one call cannot double-extract', async () => {
+    mockFindUpload.mockResolvedValue(zipRow())
+    mockFetchBuffer.mockResolvedValue(Buffer.from('zip-bytes'))
+    mockDecompress.mockResolvedValue({
+      extracted: [{ id: 'f1', name: 'a.txt', url: '/x', size: 1, type: 'text/plain', key: 'k1' }],
+      skipped: 0,
+      skippedUnsafePaths: [],
+    })
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['bundle.zip', 'bundle.zip'], operation: 'extract' },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockDecompress).toHaveBeenCalledTimes(1)
+  })
+
+  it('folds reserved system folder names into the "archive" fallback folder', async () => {
+    // '.changelogs' / '.plans' back workflow changelog/plan aliases; extraction
+    // must never write into them (and the already-extracted lookup hides them,
+    // so a second extract would silently duplicate).
+    mockFindUpload.mockResolvedValue(
+      zipRow({ displayName: '.changelogs.zip', originalName: '.changelogs.zip' })
+    )
+    mockFetchBuffer.mockResolvedValue(Buffer.from('zip-bytes'))
+    mockDecompress.mockResolvedValue({
+      extracted: [{ id: 'f1', name: 'a.txt', url: '/x', size: 1, type: 'text/plain', key: 'k1' }],
+      skipped: 0,
+      skippedUnsafePaths: [],
+    })
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['.changelogs.zip'], operation: 'extract' },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockDecompress).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      expect.objectContaining({ rootFolderSegments: ['archive'] })
+    )
+  })
+
+  it('folds degenerate archive names into the "archive" fallback folder', async () => {
+    mockFindUpload.mockResolvedValue(zipRow({ displayName: '..zip', originalName: '..zip' }))
+    mockFetchBuffer.mockResolvedValue(Buffer.from('zip-bytes'))
+    mockDecompress.mockResolvedValue({
+      extracted: [{ id: 'f1', name: 'a.txt', url: '/x', size: 1, type: 'text/plain', key: 'k1' }],
+      skipped: 0,
+      skippedUnsafePaths: [],
+    })
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['..zip'], operation: 'extract' },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockDecompress).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      expect.objectContaining({ rootFolderSegments: ['archive'] })
+    )
+  })
+})
+
+describe('executeMaterializeFile - save operation on archives', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockFindFolder.mockResolvedValue(null)
+  })
+
+  it('refuses to save a .zip upload and points at extract instead', async () => {
+    mockFindUpload.mockResolvedValue({
+      id: 'wf_zip',
+      key: 'mothership/abc/bundle.zip',
+      userId: 'user-1',
+      workspaceId: 'ws-1',
+      context: 'mothership',
+      chatId: 'chat-1',
+      originalName: 'bundle.zip',
+      displayName: 'bundle.zip',
+      contentType: 'application/zip',
+      size: 2048,
+      deletedAt: null,
+      uploadedAt: new Date(),
+      updatedAt: new Date(),
+    })
+
+    const result = await executeMaterializeFile({ fileNames: ['bundle.zip'] }, context)
+
+    expect(result.success).toBe(false)
+    const output = result.output as { failed: Array<{ fileName: string; error: string }> }
+    expect(output.failed[0].error).toContain('operation: "extract"')
+    expect(mockDecompress).not.toHaveBeenCalled()
   })
 })
