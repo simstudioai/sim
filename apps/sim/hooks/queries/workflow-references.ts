@@ -6,42 +6,33 @@ import {
 } from '@/lib/api/contracts/workflow-references'
 
 /**
- * Zero — the graph reflects live editor state (workflow blocks/names can change
- * between opens). The modal stays mounted with the query disabled while closed, so
- * a non-zero window would serve a cached graph on reopen without refetching. Zero
- * marks the data stale immediately, forcing a refetch each time the modal reopens.
+ * Short — the graph reflects live editor state (workflow blocks/names can change
+ * between opens). The modal mounts on demand, so each open refetches once the
+ * window lapses while still absorbing rapid open/close flapping.
  */
-export const WORKFLOW_REFERENCES_STALE_TIME = 0
+export const WORKFLOW_REFERENCES_STALE_TIME = 30 * 1000
 
 export const workflowReferenceKeys = {
   all: ['workflow-references'] as const,
   details: () => [...workflowReferenceKeys.all, 'detail'] as const,
-  detail: (workspaceId?: string, workflowId?: string) =>
-    [...workflowReferenceKeys.details(), workspaceId ?? '', workflowId ?? ''] as const,
+  detail: (workflowId?: string) => [...workflowReferenceKeys.details(), workflowId ?? ''] as const,
 }
 
 async function fetchWorkflowReferences(
-  workspaceId: string,
   workflowId: string,
   signal?: AbortSignal
 ): Promise<WorkflowReferencesResponse> {
   return requestJson(getWorkflowReferencesContract, {
     params: { id: workflowId },
-    query: { workspaceId },
     signal,
   })
 }
 
-export function useWorkflowReferences(
-  workspaceId?: string,
-  workflowId?: string,
-  options?: { enabled?: boolean }
-) {
+export function useWorkflowReferences(workflowId?: string) {
   return useQuery({
-    queryKey: workflowReferenceKeys.detail(workspaceId, workflowId),
-    queryFn: ({ signal }) =>
-      fetchWorkflowReferences(workspaceId as string, workflowId as string, signal),
-    enabled: Boolean(workspaceId && workflowId) && (options?.enabled ?? true),
+    queryKey: workflowReferenceKeys.detail(workflowId),
+    queryFn: ({ signal }) => fetchWorkflowReferences(workflowId as string, signal),
+    enabled: Boolean(workflowId),
     staleTime: WORKFLOW_REFERENCES_STALE_TIME,
   })
 }

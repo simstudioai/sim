@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { nonEmptyIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 /**
@@ -11,7 +11,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 export interface ReferenceNode {
   /** Referenced workflow id. */
   id: string
-  /** Referenced workflow name (falls back to the id if unresolved). */
+  /** Referenced workflow name. */
   name: string
   /**
    * True when this node closes a cycle already on the current path (e.g. the
@@ -34,10 +34,6 @@ export const workflowReferencesParamsSchema = z.object({
   id: nonEmptyIdSchema,
 })
 
-export const workflowReferencesQuerySchema = z.object({
-  workspaceId: workspaceIdSchema,
-})
-
 export const workflowReferencesResponseSchema = z.object({
   /** Workflows that call this workflow (inbound), each recursively expanded. */
   callers: z.array(referenceNodeSchema),
@@ -51,7 +47,6 @@ export const getWorkflowReferencesContract = defineRouteContract({
   method: 'GET',
   path: '/api/workflows/[id]/references',
   params: workflowReferencesParamsSchema,
-  query: workflowReferencesQuerySchema,
   response: {
     mode: 'json',
     schema: workflowReferencesResponseSchema,

@@ -388,8 +388,6 @@ export const WorkflowItem = memo(function WorkflowItem({
       }
 
       if (e.metaKey || e.ctrlKey) {
-        e.preventDefault()
-        setIsReferencesOpen(true)
         return
       }
 
@@ -525,13 +523,15 @@ export const WorkflowItem = memo(function WorkflowItem({
         itemName={deleteModalNames}
       />
 
-      <ReferencesModal
-        isOpen={isReferencesOpen}
-        onClose={() => setIsReferencesOpen(false)}
-        workspaceId={workspaceId}
-        workflowId={workflow.id}
-        workflowName={workflow.name}
-      />
+      {isReferencesOpen && (
+        <ReferencesModal
+          isOpen
+          onClose={() => setIsReferencesOpen(false)}
+          workspaceId={workspaceId}
+          workflowId={workflow.id}
+          workflowName={workflow.name}
+        />
+      )}
     </>
   )
 })

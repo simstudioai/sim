@@ -28,12 +28,12 @@ function workflowBlock(
     childFromSelector: mode === 'basic' ? childId : null,
     childFromManual: mode === 'manual' ? childId : null,
     canonicalModes: null,
+    toolInputValues: null,
   }
 }
 
 describe('resolveWorkflowReferences', () => {
   it('resolves direct callers and callees', () => {
-    // A → B, A → C
     const blocks = [workflowBlock('a', 'b'), workflowBlock('a', 'c')]
     const { callers, callees } = resolveWorkflowReferences('a', workflows, blocks, [])
 
@@ -46,7 +46,6 @@ describe('resolveWorkflowReferences', () => {
   })
 
   it('resolves references made through workflow_input blocks', () => {
-    // A → B → C, all via the workflow_input block type.
     const blocks = [
       workflowBlock('a', 'b', 'basic', 'workflow_input'),
       workflowBlock('b', 'c', 'basic', 'workflow_input'),
@@ -76,6 +75,7 @@ describe('resolveWorkflowReferences', () => {
         childFromSelector: 'b',
         childFromManual: 'c',
         canonicalModes: { workflowId: 'advanced' },
+        toolInputValues: null,
       },
     ]
     const { callees } = resolveWorkflowReferences('a', workflows, blocks, [])
@@ -83,7 +83,6 @@ describe('resolveWorkflowReferences', () => {
   })
 
   it('marks cycles as leaves and stops recursing', () => {
-    // A → B → A
     const blocks = [workflowBlock('a', 'b'), workflowBlock('b', 'a')]
     const { callees } = resolveWorkflowReferences('a', workflows, blocks, [])
 
@@ -134,6 +133,7 @@ describe('resolveWorkflowReferences', () => {
         childFromSelector: null,
         childFromManual: null,
         canonicalModes: null,
+        toolInputValues: null,
       },
     ]
     const customBlocks: CustomBlockLink[] = [{ type: 'custom_block_x', workflowId: 'c' }]
@@ -153,6 +153,7 @@ describe('resolveWorkflowReferences', () => {
         childFromSelector: null,
         childFromManual: null,
         canonicalModes: null,
+        toolInputValues: null,
       },
     ]
     const { callees } = resolveWorkflowReferences('d', workflows, blocks, [])
@@ -170,5 +171,48 @@ describe('resolveWorkflowReferences', () => {
     const blocks = [workflowBlock('a', 'c'), workflowBlock('a', 'b')]
     const { callees } = resolveWorkflowReferences('a', workflows, blocks, [])
     expect(callees.map((n) => n.name)).toEqual(['B', 'C'])
+  })
+
+  it('resolves workflow tools inside tool-input sub-blocks', () => {
+    // Agent block on A carrying a workflow_input tool that calls B; a non-workflow
+    // tool and a malformed entry must be ignored.
+    const blocks: ReferenceBlockRow[] = [
+      {
+        parentId: 'a',
+        type: 'agent',
+        childFromSelector: null,
+        childFromManual: null,
+        canonicalModes: null,
+        toolInputValues: [
+          [
+            { type: 'workflow_input', params: { workflowId: 'b' } },
+            { type: 'function', params: {} },
+            { type: 'workflow_input' },
+          ],
+        ],
+      },
+    ]
+    const { callees } = resolveWorkflowReferences('a', workflows, blocks, [])
+    expect(callees.map((n) => n.id)).toEqual(['b'])
+
+    const bResult = resolveWorkflowReferences('b', workflows, blocks, [])
+    expect(bResult.callers.map((n) => n.id)).toEqual(['a'])
+  })
+
+  it('resolves workflow tools from a JSON-stringified tool-input value', () => {
+    const blocks: ReferenceBlockRow[] = [
+      {
+        parentId: 'a',
+        type: 'agent',
+        childFromSelector: null,
+        childFromManual: null,
+        canonicalModes: null,
+        toolInputValues: [
+          JSON.stringify([{ type: 'workflow_input', params: { workflowId: 'c' } }]),
+        ],
+      },
+    ]
+    const { callees } = resolveWorkflowReferences('a', workflows, blocks, [])
+    expect(callees.map((n) => n.id)).toEqual(['c'])
   })
 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { ChipModal, ChipModalBody, ChipModalHeader, ChipModalTabs } from '@sim/emcn'
 import { useRouter } from 'next/navigation'
 import type { ReferenceNode } from '@/lib/api/contracts/workflow-references'
@@ -30,7 +30,8 @@ interface ReferencesModalProps {
 /**
  * IDE-style reference viewer for a workflow. "Used by" lists the workflows that
  * call it (inbound); "Uses" lists the workflows it calls (outbound). Both are
- * recursive trees whose rows navigate to the referenced workflow.
+ * recursive trees whose rows navigate to the referenced workflow. Mounted on
+ * demand by the owning row, so state initializes fresh per open.
  */
 export function ReferencesModal({
   isOpen,
@@ -41,24 +42,13 @@ export function ReferencesModal({
 }: ReferencesModalProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<ReferencesTab>('callers')
-  const [prevIsOpen, setPrevIsOpen] = useState(false)
 
-  if (isOpen !== prevIsOpen) {
-    setPrevIsOpen(isOpen)
-    if (isOpen) setActiveTab('callers')
+  const { data, isPending, isError } = useWorkflowReferences(workflowId)
+
+  const handleNavigate = (targetId: string) => {
+    router.push(`/workspace/${workspaceId}/w/${targetId}`)
+    onClose()
   }
-
-  const { data, isPending, isError } = useWorkflowReferences(workspaceId, workflowId, {
-    enabled: isOpen,
-  })
-
-  const handleNavigate = useCallback(
-    (targetId: string) => {
-      router.push(`/workspace/${workspaceId}/w/${targetId}`)
-      onClose()
-    },
-    [router, workspaceId, onClose]
-  )
 
   const nodes: ReferenceNode[] = data ? data[activeTab] : []
 

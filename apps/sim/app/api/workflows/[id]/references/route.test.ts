@@ -4,20 +4,18 @@
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetUserEntityPermissions, mockGetWorkflowReferences } = vi.hoisted(
-  () => ({
-    mockGetSession: vi.fn(),
-    mockGetUserEntityPermissions: vi.fn(),
-    mockGetWorkflowReferences: vi.fn(),
-  })
-)
+const { mockGetSession, mockAuthorizeWorkflow, mockGetWorkflowReferences } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+  mockAuthorizeWorkflow: vi.fn(),
+  mockGetWorkflowReferences: vi.fn(),
+}))
 
 vi.mock('@/lib/auth', () => ({
   getSession: mockGetSession,
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
+vi.mock('@sim/platform-authz/workflow', () => ({
+  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflow,
 }))
 
 vi.mock('@/lib/workflows/references/operations', () => ({
@@ -31,10 +29,8 @@ const REFERENCES = {
   callees: [],
 }
 
-function callRoute(id = 'wf-1', workspaceId: string | null = 'ws-1') {
-  const url = workspaceId
-    ? `http://localhost:3000/api/workflows/${id}/references?workspaceId=${workspaceId}`
-    : `http://localhost:3000/api/workflows/${id}/references`
+function callRoute(id = 'wf-1') {
+  const url = `http://localhost:3000/api/workflows/${id}/references`
   return GET(createMockRequest('GET', undefined, {}, url), { params: Promise.resolve({ id }) })
 }
 
@@ -42,7 +38,12 @@ describe('GET /api/workflows/[id]/references', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    mockGetUserEntityPermissions.mockResolvedValue('read')
+    mockAuthorizeWorkflow.mockResolvedValue({
+      allowed: true,
+      status: 200,
+      workflow: { id: 'wf-1', workspaceId: 'ws-1' },
+      workspacePermission: 'read',
+    })
     mockGetWorkflowReferences.mockResolvedValue(REFERENCES)
   })
 
@@ -53,22 +54,41 @@ describe('GET /api/workflows/[id]/references', () => {
     expect(mockGetWorkflowReferences).not.toHaveBeenCalled()
   })
 
-  it('returns 400 without a workspaceId', async () => {
-    const response = await callRoute('wf-1', null)
-    expect(response.status).toBe(400)
+  it('returns 404 when the workflow does not exist', async () => {
+    mockAuthorizeWorkflow.mockResolvedValue({
+      allowed: false,
+      status: 404,
+      message: 'Workflow not found',
+      workflow: null,
+      workspacePermission: null,
+    })
+    const response = await callRoute()
+    expect(response.status).toBe(404)
+    expect(mockGetWorkflowReferences).not.toHaveBeenCalled()
   })
 
-  it('returns 403 when the user cannot access the workspace', async () => {
-    mockGetUserEntityPermissions.mockResolvedValue(null)
+  it('returns 403 when the user cannot read the workflow', async () => {
+    mockAuthorizeWorkflow.mockResolvedValue({
+      allowed: false,
+      status: 403,
+      message: 'Unauthorized: Access denied to read this workflow',
+      workflow: { id: 'wf-1', workspaceId: 'ws-1' },
+      workspacePermission: null,
+    })
     const response = await callRoute()
     expect(response.status).toBe(403)
     expect(mockGetWorkflowReferences).not.toHaveBeenCalled()
   })
 
-  it('returns the reference trees for the workflow', async () => {
+  it('returns the reference trees scoped to the workflow workspace', async () => {
     const response = await callRoute()
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual(REFERENCES)
+    expect(mockAuthorizeWorkflow).toHaveBeenCalledWith({
+      workflowId: 'wf-1',
+      userId: 'user-1',
+      action: 'read',
+    })
     expect(mockGetWorkflowReferences).toHaveBeenCalledWith('ws-1', 'wf-1')
   })
 })
