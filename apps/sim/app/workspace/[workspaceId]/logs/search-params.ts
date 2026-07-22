@@ -41,12 +41,13 @@ const TOKEN_TO_TIME_RANGE: Record<string, TimeRange> = Object.fromEntries(
 ) as Record<string, TimeRange>
 
 /**
- * Parser for the `timeRange` param. Serializes labels to kebab tokens and
- * tolerantly maps unknown tokens back to the default ("All time").
+ * Parser for the `timeRange` param. Serializes labels to kebab tokens. Unknown
+ * tokens parse to `null` so each consuming surface's `.withDefault(...)` decides
+ * the fallback (logs: "All time"; audit-logs: "Past 30 days").
  */
 export const parseAsTimeRange = createParser<TimeRange>({
   parse(value) {
-    return TOKEN_TO_TIME_RANGE[value] ?? DEFAULT_TIME_RANGE
+    return TOKEN_TO_TIME_RANGE[value] ?? null
   },
   serialize(value) {
     return TIME_RANGE_TO_TOKEN[value] ?? 'all-time'

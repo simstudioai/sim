@@ -238,7 +238,10 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
   const customStartDate = urlFilters.startDate ?? ''
   const customEndDate = urlFilters.endDate ?? ''
   const [datePickerOpen, setDatePickerOpen] = useState(false)
-  const previousTimeRangeRef = useRef<TimeRange>(timeRange)
+  /** Cancel target for the date picker — never 'Custom range' itself, so a deep link straight to an empty custom range still cancels back to a preset. */
+  const previousTimeRangeRef = useRef<TimeRange>(
+    timeRange === 'Custom range' ? 'Past 30 days' : timeRange
+  )
   const dateRangeAppliedRef = useRef(false)
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS).trim()

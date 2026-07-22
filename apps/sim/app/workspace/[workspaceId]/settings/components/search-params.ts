@@ -3,8 +3,9 @@ import { parseAsString } from 'nuqs/server'
 /**
  * Shared URL query-param definition for the settings list search boxes
  * (teammates, api-keys, copilot, custom-tools, mcp, secrets,
- * workflow-mcp-servers). Settings sections never co-render, so they all share
- * the `search` key without collisions.
+ * workflow-mcp-servers, and the ee sections: audit-logs, access-control,
+ * custom-blocks, data-drains, forks). Settings sections never co-render, so
+ * they all share the `search` key without collisions.
  *
  * Consume via `useSettingsSearch` (`settings/components/use-settings-search`),
  * which owns the debounced-write wiring — the input is controlled directly by

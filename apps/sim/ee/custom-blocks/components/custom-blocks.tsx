@@ -60,6 +60,9 @@ export function CustomBlocks() {
     return blocks.filter((b) => b.name.toLowerCase().includes(q))
   }, [blocks, searchTerm])
 
+  /** Open the detail only once the deep-linked id resolves to a loaded block. */
+  const selectedBlock = selectedBlockId ? blocks.find((b) => b.id === selectedBlockId) : undefined
+
   if (isLoading) return null
 
   if (!canManage) {
@@ -70,11 +73,11 @@ export function CustomBlocks() {
     )
   }
 
-  if ((isCreating || (selectedBlockId && canAdmin)) && workspaceId) {
+  if ((isCreating || (selectedBlock && canAdmin)) && workspaceId) {
     return (
       <CustomBlockDetail
-        key={isCreating ? 'new' : selectedBlockId}
-        blockId={isCreating ? null : selectedBlockId}
+        key={isCreating ? 'new' : selectedBlock?.id}
+        blockId={isCreating ? null : (selectedBlock?.id ?? null)}
         workspaceId={workspaceId}
         onBack={() => {
           setIsCreating(false)

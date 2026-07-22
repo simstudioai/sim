@@ -9,7 +9,8 @@ import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 /**
  * The shared `?search=` binding for settings list search boxes (teammates,
- * api-keys, copilot, custom-tools, mcp, secrets, workflow-mcp-servers).
+ * api-keys, copilot, custom-tools, mcp, secrets, workflow-mcp-servers, and the
+ * ee sections: audit-logs, access-control, custom-blocks, data-drains, forks).
  * Composes `useDebouncedSearchSetter`, so it carries the canonical semantics:
  * the value updates instantly (drives the controlled input and the in-memory
  * filter), non-empty URL writes are debounced, and clearing (or a
