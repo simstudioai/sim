@@ -116,8 +116,8 @@ import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
 
-const SLACK_COMMUNITY_URL =
-  'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA'
+/** App redirect (next.config.ts) to the canonical Slack community invite. */
+const SLACK_COMMUNITY_URL = '/slack'
 
 export function SidebarTooltip({
   children,
