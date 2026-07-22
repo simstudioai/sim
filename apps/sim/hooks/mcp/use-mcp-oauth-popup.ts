@@ -50,9 +50,9 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
 
   // Per-server count of live authorization attempts; a row shows "Connecting…" / "Reopen
   // authorization" while its count > 0. Reference counting (not a boolean set) keeps the label
-  // deterministic across concurrent attempts: a reopen increments before the superseded flow
-  // decrements, so the count never dips to 0 mid-reopen (no flicker), and every attempt clears
-  // exactly once (never stuck).
+  // deterministic across concurrent attempts: a reopen retires the superseded flow and starts
+  // its own count within one batched update (no flicker), and every attempt clears exactly
+  // once (never stuck).
   const [connectingCounts, setConnectingCounts] = useState<Map<string, number>>(() => new Map())
   // OAuth `state` nonce -> { serverId, safety timeout }. `state` keys the BroadcastChannel
   // correlation: the callback echoes it on every result (even failures that resolve no serverId),
@@ -153,27 +153,65 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
       const starting = (startingRef.current ??= new Set())
       if (starting.has(serverId)) return
       starting.add(serverId)
+      // Popup-first: open (or, via the shared window name, reuse+focus) the popup
+      // SYNCHRONOUSLY inside the user's click so the browser's activation gate sees
+      // it. Opening after the /oauth/start await loses the activation and gets
+      // silently popup-blocked — the "pressed Connect and nothing happened" bug.
+      const popup = window.open(
+        'about:blank',
+        `mcp-oauth-${serverId}`,
+        'width=560,height=720,resizable=yes,scrollbars=yes'
+      )
+      if (!popup) {
+        starting.delete(serverId)
+        toast.error('Popup blocked. Please allow popups for this site and retry.')
+        return
+      }
+      popup.focus?.()
+      // Opening the shared named window just navigated ANY prior authorization window to
+      // about:blank, so prior flows for this server are moot regardless of how this attempt
+      // ends — retire them now (a failed start must not leave a windowless flow "connecting"
+      // for the 10-minute safety timeout).
+      retireFlows(serverId)
       incConnecting(serverId) // this attempt begins
       try {
         const result = await startOauth({ serverId, workspaceId })
-        // The replacement start succeeded (already-authorized, or a fresh popup opened), so retire
-        // any prior attempt for this server now — its result is moot and the server-side `state`
-        // it depended on has been overwritten. A *failed* start (below) leaves prior flows intact.
-        retireFlows(serverId)
         if (result.status === 'already_authorized') {
+          try {
+            popup.close()
+          } catch {}
           invalidateServer(serverId)
           decConnecting(serverId) // this attempt ends
+          return
+        }
+        const { authorizationUrl, state } = result
+        let navigated = true
+        try {
+          popup.location.replace(authorizationUrl)
+        } catch {
+          // A COOP-severed reused window can refuse scripted navigation; reopen by name.
+          // This runs after the await, so it can itself be popup-blocked — check it.
+          navigated = window.open(authorizationUrl, `mcp-oauth-${serverId}`) !== null
+        }
+        if (!navigated) {
+          try {
+            popup.close()
+          } catch {}
+          decConnecting(serverId)
+          toast.error('Popup blocked. Please allow popups for this site and retry.')
           return
         }
         // Track the in-flight flow by its `state` nonce for the BroadcastChannel gate, bounded by
         // a safety timeout in case no result ever arrives (popup abandoned, or a callback the
         // client can't otherwise observe under COOP).
-        const { state } = result
         pendingFlowsRef.current.set(state, {
           serverId,
           timeout: window.setTimeout(() => settleFlow(state), OAUTH_FLOW_TIMEOUT_MS),
         })
       } catch (e) {
+        try {
+          popup.close()
+        } catch {}
         decConnecting(serverId) // this attempt ends; any prior flow keeps its own count
         logger.error('Failed to start MCP OAuth', e)
         toast.error(toError(e).message || 'Failed to start authorization')

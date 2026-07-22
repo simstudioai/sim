@@ -79,6 +79,16 @@ async function flush() {
 describe('useMcpOauthPopup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Popup-first: startOauthForServer opens a blank window synchronously.
+    window.open = vi.fn(
+      () =>
+        ({
+          close: vi.fn(),
+          focus: vi.fn(),
+          location: { replace: vi.fn() },
+          closed: false,
+        }) as unknown as Window
+    )
     // jsdom has no BroadcastChannel; the hook opens one on mount.
     class FakeBroadcastChannel {
       onmessage: ((event: MessageEvent) => void) | null = null
@@ -115,7 +125,11 @@ describe('useMcpOauthPopup', () => {
 
     // Settle the first flow so the guard clears.
     await act(async () => {
-      resolveStart({ status: 'redirect', popup: { closed: false }, state: 'state-1' })
+      resolveStart({
+        status: 'redirect',
+        authorizationUrl: 'https://as.example/a?state=state-1',
+        state: 'state-1',
+      })
     })
     await flush()
 
@@ -123,7 +137,11 @@ describe('useMcpOauthPopup', () => {
   })
 
   it('allows a fresh start after the previous one settles (reopen after abandon)', async () => {
-    mockStartOauth.mockResolvedValue({ status: 'redirect', popup: { closed: false }, state: 'st' })
+    mockStartOauth.mockResolvedValue({
+      status: 'redirect',
+      authorizationUrl: 'https://as.example/a?state=st',
+      state: 'st',
+    })
 
     const hook = renderHookWithClient(() => useMcpOauthPopup({ workspaceId: 'w1' }))
     await flush()
@@ -162,10 +180,10 @@ describe('useMcpOauthPopup', () => {
     hook.unmount()
   })
 
-  it('keeps the row connecting when a reopen fails but a prior flow is still live', async () => {
+  it('clears the row when a reopen fails (the reopen blanked the prior window)', async () => {
     mockStartOauth.mockResolvedValueOnce({
       status: 'redirect',
-      popup: { closed: false },
+      authorizationUrl: 'https://as.example/a?state=st-a',
       state: 'st-a',
     })
     const hook = renderHookWithClient(() => useMcpOauthPopup({ workspaceId: 'w1' }))
@@ -177,15 +195,52 @@ describe('useMcpOauthPopup', () => {
     await flush()
     expect(hook.result().connectingServers.has('s1')).toBe(true)
 
-    // Reopen fails (e.g. popup blocked). The still-live prior flow must keep the row connecting
-    // rather than the failed attempt clearing it (deterministic reference counting).
-    mockStartOauth.mockRejectedValueOnce(new Error('Popup blocked'))
+    // Reopen fails after the named-window open already navigated the prior auth window to
+    // about:blank — the prior flow is moot (windowless), so BOTH it and the failed attempt
+    // clear, leaving the row idle with 'Connect with OAuth' immediately available.
+    mockStartOauth.mockRejectedValueOnce(new Error('start failed'))
     await act(async () => {
       await hook.result().startOauthForServer('s1')
     })
     await flush()
-    expect(hook.result().connectingServers.has('s1')).toBe(true)
+    expect(hook.result().connectingServers.has('s1')).toBe(false)
 
+    hook.unmount()
+  })
+
+  it('does not issue the start request when the popup is blocked', async () => {
+    ;(window.open as ReturnType<typeof vi.fn>).mockReturnValue(null)
+    const hook = renderHookWithClient(() => useMcpOauthPopup({ workspaceId: 'w1' }))
+    await flush()
+
+    await act(async () => {
+      await hook.result().startOauthForServer('s1')
+    })
+    await flush()
+
+    expect(mockStartOauth).not.toHaveBeenCalled()
+    expect(hook.result().connectingServers.has('s1')).toBe(false)
+    hook.unmount()
+  })
+
+  it('opens the popup before the start request resolves (popup-first)', async () => {
+    const order: string[] = []
+    ;(window.open as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      order.push('open')
+      return { close: vi.fn(), focus: vi.fn(), location: { replace: vi.fn() } } as unknown as Window
+    })
+    mockStartOauth.mockImplementation(async () => {
+      order.push('start')
+      return { status: 'redirect', authorizationUrl: 'https://as.example/a?state=st', state: 'st' }
+    })
+    const hook = renderHookWithClient(() => useMcpOauthPopup({ workspaceId: 'w1' }))
+    await flush()
+
+    await act(async () => {
+      await hook.result().startOauthForServer('s1')
+    })
+
+    expect(order).toEqual(['open', 'start'])
     hook.unmount()
   })
 })
