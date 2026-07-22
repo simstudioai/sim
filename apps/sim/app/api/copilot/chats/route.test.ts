@@ -3,32 +3,15 @@
  *
  * @vitest-environment node
  */
-import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockSelectDistinctOn, mockFrom, mockLeftJoin, mockWhere, mockOrderBy } = vi.hoisted(() => ({
-  mockSelectDistinctOn: vi.fn(),
-  mockFrom: vi.fn(),
-  mockLeftJoin: vi.fn(),
-  mockWhere: vi.fn(),
-  mockOrderBy: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    selectDistinctOn: mockSelectDistinctOn,
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
-  or: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'or' })),
-  inArray: vi.fn((field: unknown, values: unknown) => ({ field, values, type: 'inArray' })),
-  isNull: vi.fn((field: unknown) => ({ field, type: 'isNull' })),
-  desc: vi.fn((field: unknown) => ({ field, type: 'desc' })),
-  sql: vi.fn(),
-}))
+import {
+  copilotHttpMock,
+  copilotHttpMockFns,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
 
@@ -45,16 +28,11 @@ import { GET } from '@/app/api/copilot/chats/route'
 describe('Copilot Chats List API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    mockSelectDistinctOn.mockReturnValue({ from: mockFrom })
-    mockFrom.mockReturnValue({ leftJoin: mockLeftJoin })
-    mockLeftJoin.mockReturnValue({ leftJoin: mockLeftJoin, where: mockWhere })
-    mockWhere.mockReturnValue({ orderBy: mockOrderBy })
-    mockOrderBy.mockResolvedValue([])
+    resetDbChainMock()
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   describe('GET', () => {
@@ -78,7 +56,7 @@ describe('Copilot Chats List API Route', () => {
         isAuthenticated: true,
       })
 
-      mockOrderBy.mockResolvedValueOnce([])
+      queueTableRows(schemaMock.copilotChats, [])
 
       const request = new Request('http://localhost:3000/api/copilot/chats')
       const response = await GET(request as any)
@@ -111,7 +89,7 @@ describe('Copilot Chats List API Route', () => {
           updatedAt: new Date('2024-01-01'),
         },
       ]
-      mockOrderBy.mockResolvedValueOnce(mockChats)
+      queueTableRows(schemaMock.copilotChats, mockChats)
 
       const request = new Request('http://localhost:3000/api/copilot/chats')
       const response = await GET(request as any)
@@ -151,7 +129,7 @@ describe('Copilot Chats List API Route', () => {
           updatedAt: new Date('2024-01-01'),
         },
       ]
-      mockOrderBy.mockResolvedValueOnce(mockChats)
+      queueTableRows(schemaMock.copilotChats, mockChats)
 
       const request = new Request('http://localhost:3000/api/copilot/chats')
       const response = await GET(request as any)
@@ -176,7 +154,7 @@ describe('Copilot Chats List API Route', () => {
           updatedAt: new Date('2024-01-01'),
         },
       ]
-      mockOrderBy.mockResolvedValueOnce(mockChats)
+      queueTableRows(schemaMock.copilotChats, mockChats)
 
       const request = new Request('http://localhost:3000/api/copilot/chats')
       const response = await GET(request as any)
@@ -192,7 +170,7 @@ describe('Copilot Chats List API Route', () => {
         isAuthenticated: true,
       })
 
-      mockOrderBy.mockRejectedValueOnce(new Error('Database connection failed'))
+      dbChainMockFns.orderBy.mockRejectedValueOnce(new Error('Database connection failed'))
 
       const request = new Request('http://localhost:3000/api/copilot/chats')
       const response = await GET(request as any)
@@ -216,13 +194,13 @@ describe('Copilot Chats List API Route', () => {
           updatedAt: new Date('2024-01-01'),
         },
       ]
-      mockOrderBy.mockResolvedValueOnce(mockChats)
+      queueTableRows(schemaMock.copilotChats, mockChats)
 
       const request = new Request('http://localhost:3000/api/copilot/chats')
       await GET(request as any)
 
-      expect(mockSelectDistinctOn).toHaveBeenCalled()
-      expect(mockWhere).toHaveBeenCalled()
+      expect(dbChainMockFns.selectDistinctOn).toHaveBeenCalled()
+      expect(dbChainMockFns.where).toHaveBeenCalled()
     })
 
     it('should return 401 when userId is null despite isAuthenticated being true', async () => {

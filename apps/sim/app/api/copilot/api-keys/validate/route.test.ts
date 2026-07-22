@@ -1,11 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockRequest, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockDbLimit,
   mockCheckInternalApiKey,
   mockCheckAttributedUsageLimits,
   mockCheckServerSideUsageLimits,
@@ -21,7 +20,6 @@ const {
   mockGetWorkspaceBillingSettings,
   mockFlags,
 } = vi.hoisted(() => ({
-  mockDbLimit: vi.fn(),
   mockCheckInternalApiKey: vi.fn(),
   mockCheckAttributedUsageLimits: vi.fn(),
   mockCheckServerSideUsageLimits: vi.fn(),
@@ -76,12 +74,6 @@ const OLD_GO_OPAQUE_WORKSPACE_VALIDATE_BODY = {
   userId: 'user-1',
   workspaceId: 'local-self-hosted-workspace',
 } as const
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: () => ({ from: () => ({ where: () => ({ limit: mockDbLimit }) }) }),
-  },
-}))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   BILLING_ACCOUNT_DECISION_HEADER: 'x-sim-billing-account-decision',
@@ -151,9 +143,10 @@ function request(body: Record<string, unknown>, headers: Record<string, string> 
 describe('POST /api/copilot/api-keys/validate billing protocols', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockFlags.isCopilotBillingProtocolRequired = false
     mockCheckInternalApiKey.mockReturnValue({ success: true })
-    mockDbLimit.mockResolvedValue([{ id: 'user-1' }])
+    queueTableRows(schemaMock.user, [{ id: 'user-1' }])
     mockResolveBillingAttribution.mockResolvedValue(ATTRIBUTION)
     mockResolveLegacyV0BillingAttribution.mockResolvedValue(ATTRIBUTION)
     mockSerializeBillingAttributionHeader.mockReturnValue('serialized-attribution')
@@ -191,6 +184,10 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
       currentUsage: 0,
       limit: 100,
     })
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('keeps the exact old-Go validate bodies contract-compatible', () => {

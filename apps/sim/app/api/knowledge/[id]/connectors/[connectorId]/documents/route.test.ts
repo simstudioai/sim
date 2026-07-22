@@ -4,31 +4,20 @@
 import {
   auditMock,
   createMockRequest,
+  dbChainMock,
+  dbChainMockFns,
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
   knowledgeApiUtilsMockFns,
   requestUtilsMockFns,
+  resetDbChainMock,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockDbChain } = vi.hoisted(() => {
-  const chain = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockResolvedValue([]),
-    limit: vi.fn().mockResolvedValue([]),
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-    returning: vi.fn().mockResolvedValue([]),
-  }
-  return { mockDbChain: chain }
-})
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockCheckAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseAccess
 const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWriteAccess
 
-vi.mock('@sim/db', () => ({ db: mockDbChain }))
+vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 vi.mock('@sim/audit', () => auditMock)
 
@@ -39,15 +28,12 @@ describe('Connector Documents API Route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('test-req-id')
-    mockDbChain.select.mockReturnThis()
-    mockDbChain.from.mockReturnThis()
-    mockDbChain.where.mockReturnThis()
-    mockDbChain.orderBy.mockResolvedValue([])
-    mockDbChain.limit.mockResolvedValue([])
-    mockDbChain.update.mockReturnThis()
-    mockDbChain.set.mockReturnThis()
-    mockDbChain.returning.mockResolvedValue([])
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   describe('GET', () => {
@@ -69,7 +55,7 @@ describe('Connector Documents API Route', () => {
         userId: 'user-1',
       })
       mockCheckAccess.mockResolvedValue({ hasAccess: true })
-      mockDbChain.limit.mockResolvedValueOnce([])
+      dbChainMockFns.limit.mockResolvedValueOnce([])
 
       const req = createMockRequest('GET')
       const response = await GET(req as never, { params: mockParams })
@@ -85,8 +71,8 @@ describe('Connector Documents API Route', () => {
       mockCheckAccess.mockResolvedValue({ hasAccess: true })
 
       const doc = { id: 'doc-1', filename: 'test.txt', userExcluded: false }
-      mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456' }])
-      mockDbChain.orderBy.mockResolvedValueOnce([doc])
+      dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-456' }])
+      dbChainMockFns.orderBy.mockResolvedValueOnce([doc])
 
       const url = 'http://localhost/api/knowledge/kb-123/connectors/conn-456/documents'
       const req = createMockRequest('GET', undefined, undefined, url)
@@ -106,8 +92,8 @@ describe('Connector Documents API Route', () => {
       })
       mockCheckAccess.mockResolvedValue({ hasAccess: true })
 
-      mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456' }])
-      mockDbChain.orderBy
+      dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-456' }])
+      dbChainMockFns.orderBy
         .mockResolvedValueOnce([{ id: 'doc-1', userExcluded: false }])
         .mockResolvedValueOnce([{ id: 'doc-2', userExcluded: true }])
 
@@ -143,7 +129,7 @@ describe('Connector Documents API Route', () => {
         userId: 'user-1',
       })
       mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
-      mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456' }])
+      dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-456' }])
 
       const req = createMockRequest('PATCH', { documentIds: [] })
       const response = await PATCH(req as never, { params: mockParams })
@@ -157,7 +143,7 @@ describe('Connector Documents API Route', () => {
         userId: 'user-1',
       })
       mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
-      mockDbChain.limit.mockResolvedValueOnce([])
+      dbChainMockFns.limit.mockResolvedValueOnce([])
 
       const req = createMockRequest('PATCH', { operation: 'restore', documentIds: ['doc-1'] })
       const response = await PATCH(req as never, { params: mockParams })
@@ -176,8 +162,8 @@ describe('Connector Documents API Route', () => {
         hasAccess: true,
         knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
       })
-      mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456' }])
-      mockDbChain.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
+      dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-456' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
 
       const req = createMockRequest('PATCH', { operation: 'restore', documentIds: ['doc-1'] })
       const response = await PATCH(req as never, { params: mockParams })
@@ -198,8 +184,8 @@ describe('Connector Documents API Route', () => {
         hasAccess: true,
         knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
       })
-      mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456' }])
-      mockDbChain.returning.mockResolvedValueOnce([{ id: 'doc-2' }, { id: 'doc-3' }])
+      dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-456' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-2' }, { id: 'doc-3' }])
 
       const req = createMockRequest('PATCH', {
         operation: 'exclude',

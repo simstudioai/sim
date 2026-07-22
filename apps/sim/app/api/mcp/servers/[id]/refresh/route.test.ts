@@ -1,22 +1,16 @@
 /**
  * @vitest-environment node
  */
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import type { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockClearCache, mockDiscoverServerTools, mockSelect, mockUpdateSet } = vi.hoisted(() => ({
+const { mockClearCache, mockDiscoverServerTools } = vi.hoisted(() => ({
   mockClearCache: vi.fn(),
   mockDiscoverServerTools: vi.fn(),
-  mockSelect: vi.fn(),
-  mockUpdateSet: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockSelect,
-    update: vi.fn().mockReturnValue({ set: mockUpdateSet }),
-  },
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/core/utils/with-route-handler', () => ({
   withRouteHandler: (handler: unknown) => handler,
@@ -68,23 +62,16 @@ const persistedServer = {
   toolCount: 0,
 }
 
-function selectRows(rows: unknown[]) {
-  return {
-    from: vi.fn().mockReturnValue({
-      where: vi.fn().mockReturnValue({
-        limit: vi.fn().mockResolvedValue(rows),
-      }),
-    }),
-  }
-}
-
 describe('MCP server refresh route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockSelect.mockReturnValueOnce(selectRows([initialServer]))
-    mockUpdateSet.mockReturnValue({
-      where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([persistedServer]) }),
-    })
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValueOnce([initialServer])
+    dbChainMockFns.returning.mockResolvedValue([persistedServer])
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('preserves the service-persisted OAuth pending status', async () => {
@@ -102,7 +89,7 @@ describe('MCP server refresh route', () => {
         error: null,
       })
     )
-    expect(mockUpdateSet).not.toHaveBeenCalledWith(
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
       expect.objectContaining({ connectionStatus: expect.anything() })
     )
   })
@@ -112,11 +99,7 @@ describe('MCP server refresh route', () => {
     mockDiscoverServerTools.mockRejectedValueOnce(
       new Error(`Upstream reflected ${reflectedSecret}`)
     )
-    mockUpdateSet.mockReturnValueOnce({
-      where: vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([initialServer]),
-      }),
-    })
+    dbChainMockFns.returning.mockResolvedValueOnce([initialServer])
 
     const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
       method: 'POST',
@@ -142,11 +125,7 @@ describe('MCP server refresh route', () => {
       lastConnected: new Date(Date.now() + 60_000),
       toolCount: 7,
     }
-    mockUpdateSet.mockReturnValueOnce({
-      where: vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([newerSuccessfulServer]),
-      }),
-    })
+    dbChainMockFns.returning.mockResolvedValueOnce([newerSuccessfulServer])
 
     const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
       method: 'POST',
@@ -175,12 +154,17 @@ describe('MCP server refresh route', () => {
         serverName: 'OAuth Server',
       },
     ])
-    // The route's server lookup consumes the first select (beforeEach). The sync's
-    // workflow select is left unmocked, so it throws — exercising the guard that
-    // keeps a secondary sync failure from turning a successful refresh into a 500.
-    mockUpdateSet.mockReturnValueOnce({
-      where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([initialServer]) }),
-    })
+    // The route's server lookup consumes the first from() (verbatim mini-builder);
+    // the sync's workflow select then throws — exercising the guard that keeps a
+    // secondary sync failure from turning a successful refresh into a 500.
+    dbChainMockFns.from
+      .mockImplementationOnce(() => ({
+        where: () => ({ limit: () => Promise.resolve([initialServer]) }),
+      }))
+      .mockImplementationOnce(() => {
+        throw new Error('workflow select unavailable')
+      })
+    dbChainMockFns.returning.mockResolvedValueOnce([initialServer])
 
     const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
       method: 'POST',

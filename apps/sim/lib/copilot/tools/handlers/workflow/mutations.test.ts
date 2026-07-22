@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { createEnvMock, workflowAuthzMockFns } from '@sim/testing'
+import { createEnvMock, dbChainMock, schemaMock, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
@@ -44,10 +44,7 @@ vi.mock('@sim/audit', () => ({
   recordAudit: recordAuditMock,
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {},
-  workflow: {},
-}))
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 vi.mock('@/lib/api-key/orchestration', () => ({
   performCreateWorkspaceApiKey: vi.fn(),
