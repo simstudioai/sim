@@ -294,7 +294,7 @@ export const env = createEnv({
 
 
     // Admission & Burst Protection
-    ADMISSION_GATE_MAX_INFLIGHT:           z.string().optional().default('500'),   // Max concurrent in-flight execution requests per pod
+    ADMISSION_GATE_MAX_INFLIGHT:           z.string().optional().default('10'),    // Max concurrent in-flight executions per pod (aligned with web DB pool primaryMax=10)
     API_MAX_JSON_BODY_BYTES:               z.string().optional().default('52428800'),// Default max JSON request body size for contract routes (50 MB)
     CHAT_MAX_REQUEST_BYTES:                z.string().optional().default('230686720'),// Max request body size for the public deployed-chat endpoint (220 MB; covers 15 base64 file attachments)
     WEBHOOK_MAX_REQUEST_BYTES:             z.string().optional().default('10485760'),// Max request body size for public webhook receiver endpoints (10 MB; provider payloads rarely exceed a few MB)

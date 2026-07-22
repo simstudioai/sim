@@ -10,7 +10,7 @@ These local-only Artillery scenarios exercise `POST /api/workflows/[id]/execute`
 
 The default rates are tuned for these local limits:
 
-- `ADMISSION_GATE_MAX_INFLIGHT=500`
+- `ADMISSION_GATE_MAX_INFLIGHT=10`
 
 The admission gate caps total in-flight requests per pod.
 
@@ -23,7 +23,7 @@ Default profile:
 - Starts at `2` requests per second
 - Ramps to `8` requests per second
 - Holds there for `20` seconds
-- Good for validating queueing against a Free workspace concurrency of `5`
+- Good for validating queueing against a Free workspace concurrency of `10`
 
 ```bash
 WORKFLOW_ID=<workflow-id> \
@@ -102,6 +102,6 @@ Optional variables:
 
 - `load:workflow` is an alias for `load:workflow:baseline`
 - All scenarios send `x-execution-mode: async`
-- Artillery output will show request counts and response codes, which is usually enough for quick local verification
-- At these defaults, you should see `429` responses when approaching `ADMISSION_GATE_MAX_INFLIGHT=500`
+- The baseline asserts `202` responses, but completion throughput still requires querying `workflow_execution_logs.ended_at`; request counts alone do not measure workflow throughput
+- At these defaults, you should see `429` responses when approaching `ADMISSION_GATE_MAX_INFLIGHT=10`
 - If you still see lots of `429` or `ETIMEDOUT` responses locally, lower the rates again before increasing durations

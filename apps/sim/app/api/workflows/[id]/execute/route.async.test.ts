@@ -34,6 +34,11 @@ const {
   mockReleaseExecutionIdClaim,
   mockReleaseExecutionSlot,
   mockRequireBillingAttributionHeader,
+  mockShouldExecuteInline,
+  mockStartJob,
+  mockCompleteJob,
+  mockMarkJobFailed,
+  mockExecuteWorkflowJob,
   mockValidatePublicApiAllowed,
 } = vi.hoisted(() => ({
   mockAssertBillingAttributionSnapshot: vi.fn((value: unknown) => {
@@ -52,6 +57,11 @@ const {
   mockReleaseExecutionIdClaim: vi.fn(),
   mockReleaseExecutionSlot: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
+  mockShouldExecuteInline: vi.fn(() => false),
+  mockStartJob: vi.fn(),
+  mockCompleteJob: vi.fn(),
+  mockMarkJobFailed: vi.fn(),
+  mockExecuteWorkflowJob: vi.fn(),
   mockValidatePublicApiAllowed: vi.fn(),
 }))
 
@@ -114,11 +124,11 @@ vi.mock('@/lib/execution/payloads/store', () => ({
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({
     enqueue: mockEnqueue,
-    startJob: vi.fn(),
-    completeJob: vi.fn(),
-    markJobFailed: vi.fn(),
+    startJob: mockStartJob,
+    completeJob: mockCompleteJob,
+    markJobFailed: mockMarkJobFailed,
   }),
-  shouldExecuteInline: vi.fn().mockReturnValue(false),
+  shouldExecuteInline: mockShouldExecuteInline,
 }))
 
 vi.mock('@/lib/core/utils/urls', () => ({
@@ -136,7 +146,7 @@ vi.mock('@/lib/execution/call-chain', () => ({
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
 vi.mock('@/background/workflow-execution', () => ({
-  executeWorkflowJob: vi.fn(),
+  executeWorkflowJob: mockExecuteWorkflowJob,
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -147,6 +157,7 @@ vi.mock('@sim/utils/id', () => ({
   ),
 }))
 
+import { getAdmissionGateStatus, tryAdmit } from '@/lib/core/admission/gate'
 import { storeLargeValue } from '@/lib/execution/payloads/store'
 import { POST } from './route'
 
@@ -163,7 +174,10 @@ const billingAttribution = {
   payerSubscription: null,
 }
 
-function createSessionReplayRequest(executionId: string): NextRequest {
+function createSessionReplayRequest(
+  executionId: string,
+  executionMode: 'async' | 'sync' = 'async'
+): NextRequest {
   return createMockRequest(
     'POST',
     {
@@ -173,7 +187,8 @@ function createSessionReplayRequest(executionId: string): NextRequest {
     },
     {
       'Content-Type': 'application/json',
-      'X-Execution-Mode': 'async',
+      Cookie: 'session=value',
+      ...(executionMode === 'async' ? { 'X-Execution-Mode': 'async' } : {}),
     }
   )
 }
@@ -283,6 +298,8 @@ describe('workflow execute async route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockShouldExecuteInline.mockReturnValue(false)
+    mockExecuteWorkflowJob.mockResolvedValue({ success: true })
     mockGenerateId.mockReset().mockReturnValue('execution-123')
     mockClaimExecutionId.mockImplementation(async (executionId: string) => ({
       key: `workflow-execution-id:${executionId}`,
@@ -385,6 +402,81 @@ describe('workflow execute async route', () => {
         }),
       })
     )
+  })
+
+  it('retains the admission ticket until database-backed async execution finishes', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    let resolveInlineExecution!: () => void
+    const inlineExecution = new Promise<void>((resolve) => {
+      resolveInlineExecution = resolve
+    })
+    mockExecuteWorkflowJob.mockReturnValueOnce(inlineExecution)
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { input: { hello: 'world' } },
+        {
+          'Content-Type': 'application/json',
+          'X-Execution-Mode': 'async',
+        }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(202)
+    expect(getAdmissionGateStatus().inflight).toBe(1)
+
+    resolveInlineExecution()
+    await vi.waitFor(() => {
+      expect(getAdmissionGateStatus().inflight).toBe(0)
+    })
+    expect(mockCompleteJob).toHaveBeenCalledWith('job-123', undefined)
+  })
+
+  it('applies admission backpressure to session-backed async executions', async () => {
+    hybridAuthMockFns.mockHasExternalApiCredentials.mockReturnValue(false)
+    const heldTickets = Array.from({ length: getAdmissionGateStatus().maxInflight }, () =>
+      tryAdmit()
+    ).filter((ticket): ticket is NonNullable<ReturnType<typeof tryAdmit>> => ticket !== null)
+
+    try {
+      const response = await POST(
+        createSessionReplayRequest('66666666-6666-4666-8666-666666666666'),
+        {
+          params: Promise.resolve({ id: 'workflow-1' }),
+        }
+      )
+
+      expect(response.status).toBe(429)
+      expect(mockCheckHybridAuth).not.toHaveBeenCalled()
+      expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    } finally {
+      for (const ticket of heldTickets) {
+        ticket.release()
+      }
+    }
+  })
+
+  it('leaves session-backed synchronous executions on their existing path', async () => {
+    hybridAuthMockFns.mockHasExternalApiCredentials.mockReturnValue(false)
+    const heldTickets = Array.from({ length: getAdmissionGateStatus().maxInflight }, () =>
+      tryAdmit()
+    ).filter((ticket): ticket is NonNullable<ReturnType<typeof tryAdmit>> => ticket !== null)
+
+    try {
+      const response = await POST(
+        createSessionReplayRequest('77777777-7777-4777-8777-777777777777', 'sync'),
+        { params: Promise.resolve({ id: 'workflow-1' }) }
+      )
+
+      expect(response.status).not.toBe(429)
+      expect(mockCheckHybridAuth).toHaveBeenCalled()
+    } finally {
+      for (const ticket of heldTickets) {
+        ticket.release()
+      }
+    }
   })
 
   it('preserves a first-use execution ID supplied by an authenticated session', async () => {

@@ -22,3 +22,5 @@ scenarios:
             input:
               source: artillery-baseline
               runId: "{{ $uuid }}"
+          expect:
+            - statusCode: 202

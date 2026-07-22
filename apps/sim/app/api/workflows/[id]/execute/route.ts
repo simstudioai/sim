@@ -19,7 +19,11 @@ import {
   type BillingAttributionSnapshot,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
+import {
+  type AdmissionTicket,
+  admissionRejectedResponse,
+  tryAdmit,
+} from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { isAsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 import {
@@ -283,6 +287,12 @@ interface AsyncExecutionResult {
   retainExecutionClaim: boolean
 }
 
+/** Mutable bag so async inline work can retain the HTTP admission ticket. */
+interface AdmissionLease {
+  ticket: AdmissionTicket
+  retained: boolean
+}
+
 type ValidatedPreprocessContext = {
   actorUserId: string
   workflow: PreprocessExecutionSuccess['workflowRecord']
@@ -319,7 +329,10 @@ function requirePreprocessedExecutionContext(
   }
 }
 
-async function handleAsyncExecution(params: AsyncExecutionParams): Promise<AsyncExecutionResult> {
+async function handleAsyncExecution(
+  params: AsyncExecutionParams,
+  admission?: AdmissionLease
+): Promise<AsyncExecutionResult> {
   const {
     requestId,
     workflowId,
@@ -442,7 +455,17 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
 
   asyncLogger.info('Queued async workflow execution', { jobId })
 
-  if (shouldExecuteInline()) {
+  /**
+   * DB-backend path runs executions in this process. Hold the admission ticket
+   * until the run finishes so ADMISSION_GATE_MAX_INFLIGHT bounds concurrent
+   * executions (not just concurrent HTTP handlers). Trigger.dev path releases
+   * on HTTP return — the remote worker enforces its own concurrency.
+   */
+  const executeInline = shouldExecuteInline()
+  if (executeInline) {
+    if (admission) {
+      admission.retained = true
+    }
     void (async () => {
       let workerOwnsReservation = false
       try {
@@ -471,6 +494,8 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
             error: toError(markFailedError).message,
           })
         }
+      } finally {
+        admission?.ticket.release()
       }
     })()
   }
@@ -500,7 +525,15 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
 export const POST = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const isSessionRequest = req.headers.has('cookie') && !hasExternalApiCredentials(req.headers)
-    if (isSessionRequest) {
+    const isAsyncRequest = req.headers.get('x-execution-mode') === 'async'
+
+    /**
+     * Session-backed sync and SSE runs retain their existing lifecycle because
+     * their work completes through the response/stream. Session-backed async
+     * runs use the same inline worker path as API-key requests and must consume
+     * an admission ticket until that work completes.
+     */
+    if (isSessionRequest && !isAsyncRequest) {
       return handleExecutePost(req, params)
     }
 
@@ -509,17 +542,21 @@ export const POST = withRouteHandler(
       return admissionRejectedResponse()
     }
 
+    const admission: AdmissionLease = { ticket, retained: false }
     try {
-      return await handleExecutePost(req, params)
+      return await handleExecutePost(req, params, admission)
     } finally {
-      ticket.release()
+      if (!admission.retained) {
+        ticket.release()
+      }
     }
   }
 )
 
 async function handleExecutePost(
   req: NextRequest,
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }>,
+  admission?: AdmissionLease
 ): Promise<NextResponse | Response> {
   const requestId = generateRequestId()
   const { id: workflowId } = await params
@@ -1051,17 +1088,20 @@ async function handleExecutePost(
     reqLogger.info('Preprocessing passed')
 
     if (isAsyncMode) {
-      const asyncResult = await handleAsyncExecution({
-        requestId,
-        workflowId,
-        userId: actorUserId,
-        billingAttribution,
-        workspaceId,
-        input,
-        triggerType: loggingTriggerType,
-        executionId,
-        callChain,
-      })
+      const asyncResult = await handleAsyncExecution(
+        {
+          requestId,
+          workflowId,
+          userId: actorUserId,
+          billingAttribution,
+          workspaceId,
+          input,
+          triggerType: loggingTriggerType,
+          executionId,
+          callChain,
+        },
+        admission
+      )
       executionIdClaimCommitted = asyncResult.retainExecutionClaim
       return asyncResult.response
     }
