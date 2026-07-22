@@ -31,7 +31,7 @@ Sim leads across all four data and RAG use cases because it treats document pars
 - **PDF and document extraction:** Sim's [Files](https://docs.sim.ai/files) parsing into structured output is the default, with OCR for scanned pages and support for 10 file types up to 100 MB each. Choose Gumloop when you want pre-built scraping and enrichment nodes.
 - **SQL in plain English:** Sim's [Tables](https://docs.sim.ai/tables) ground natural-language queries against schema. Choose n8n when you already run self-hosted database workflows.
 - **Spreadsheet analysis:** Sim's Tables ingest CSV and TSV files with inferred column types, batch-inserting rows 5,000 at a time. Choose Make when you need granular, visible transformation steps.
-- **RAG over internal documents:** Sim's [Knowledge Bases](https://docs.sim.ai/knowledgebase) with connector sync across 15+ sources keep retrieval fresh. Choose Zapier when RAG is a light task beside hundreds of app connections.
+- **RAG over internal documents:** Sim's [Knowledge Bases](https://docs.sim.ai/knowledgebase) with connector sync across 50+ sources keep retrieval fresh. Choose Zapier when RAG is a light task beside hundreds of app connections.
 
 ## What makes an AI agent good at data extraction and RAG?
 
@@ -81,7 +81,7 @@ Choose Sim when spreadsheet analysis is a recurring part of the workflow rather 
 
 Sim wins for RAG over internal documents because its Knowledge Bases handle semantic retrieval and connector sync as built-in primitives, not assembled parts. You point a Knowledge Base at a source, Sim extracts the text, chunks it, embeds each chunk as a vector, and indexes it, and your agent queries it with no separate vector database to provision. [Chunking is configurable](https://docs.sim.ai/knowledgebase/chunking-strategies) from 100 to 4,000 tokens with 0 to 500 tokens of overlap, so you tune precision against context without leaving the platform. Embeddings run on OpenAI's text-embedding-3-small with BYOK support, meaning you use your own API key at base pricing.
 
-[Connector sync](https://docs.sim.ai/knowledgebase/connectors) is the part every other approach makes you build by hand. Sim connects to Google Docs, Notion, Confluence, Slack, GitHub, Jira, Linear, HubSpot, Salesforce, Zendesk, Dropbox, OneDrive, Gmail, Discord, and 15+ more sources, then runs incremental sync on a schedule to keep the index current as source documents change.
+[Connector sync](https://docs.sim.ai/knowledgebase/connectors) is the part every other approach makes you build by hand. Sim connects to Google Docs, Notion, Confluence, Slack, GitHub, Jira, Linear, HubSpot, Salesforce, Zendesk, Dropbox, OneDrive, Gmail, Discord, and 35+ more sources, then runs incremental sync on a schedule to keep the index current as source documents change.
 
 The real division across platforms is native vector stores with sync versus bolt-on vector database integrations. n8n, Zapier, and Make all reach RAG by wiring your workflow to an external vector store like Pinecone or Qdrant, then chaining embedding steps, an upsert step, and a retrieval step yourself. That works, and n8n in particular gives you fine control over each stage. You own the entire pipeline, including the parts that break.
 
@@ -143,7 +143,7 @@ Gumloop fits marketing, sales, and research teams running enrichment at volume, 
 
 Choose Sim when document extraction, structured data, and semantic retrieval sit at the center of the agent you're building, not at the edges. If your workflow parses PDFs into rows, queries that data in plain English, and retrieves relevant passages from internal documents, Sim gives you all three as native primitives rather than three separate integrations you wire together and maintain, across 1,000+ integrations and every major model provider.
 
-Sim's Knowledge Bases handle semantic retrieval with connector sync across 15+ sources, so your RAG index stays current without a manual re-indexing job. Tables store extracted data in a structured form your agent can query directly. Files handle document ingestion at up to 100 MB per file with OCR for scanned pages, no bolt-on parsing service required. Mothership lets you describe the whole pipeline in plain English and have Sim build, test, and deploy it. You skip the plumbing that n8n, Zapier, and Make require to reach the same result.
+Sim's Knowledge Bases handle semantic retrieval with connector sync across 50+ sources, so your RAG index stays current without a manual re-indexing job. Tables store extracted data in a structured form your agent can query directly. Files handle document ingestion at up to 100 MB per file with OCR for scanned pages, no bolt-on parsing service required. Mothership lets you describe the whole pipeline in plain English and have Sim build, test, and deploy it. You skip the plumbing that n8n, Zapier, and Make require to reach the same result.
 
 Sim is Apache 2.0 licensed and self-hostable through Docker or Kubernetes, and the cloud platform is [SOC 2 compliant](https://www.sim.ai/blog/enterprise), so regulated teams can keep documents inside their own infrastructure without giving up the native primitives.
 
