@@ -21,6 +21,8 @@ import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 const FILE_SUBAGENT_ID = 'file'
 /** Quiet period before the shimmer takes the slot back from streamed output. */
 const STREAM_IDLE_DELAY_MS = 1_500
+/** Unmount the loader after the slot's 300ms collapse, with margin. */
+const SLOT_EXIT_DELAY_MS = 400
 
 interface TextSegment {
   type: 'text'
@@ -808,23 +810,15 @@ function MessageContentInner({
   }, [])
   const [isStreamIdle, setIsStreamIdle] = useState(false)
   /**
-   * True once the slot's collapse transition has finished (seeded true so a
-   * settled mount never runs the loader). The loader must stay mounted through
-   * the collapse: with `grid-rows` transitioning 1fr→0fr, unmounting the
-   * content in the same flip zeroes the track instantly — the slot snaps
-   * instead of sliding out, clamping `scrollTop` at settle.
+   * True once the slot's collapse has finished (seeded true so a settled mount
+   * never runs the loader). The loader must stay mounted through the collapse:
+   * with `grid-rows` transitioning 1fr→0fr, unmounting the content in the same
+   * flip zeroes the track instantly — the slot snaps instead of sliding out,
+   * clamping `scrollTop` at settle. Timed rather than transitionend-latched:
+   * motion-reduce (`transition-none`) and browsers that can't animate
+   * `grid-template-rows` never fire the event.
    */
   const [slotExited, setSlotExited] = useState(true)
-  const handleSlotTransitionEnd = useCallback((event: React.TransitionEvent<HTMLDivElement>) => {
-    if (
-      event.target === event.currentTarget &&
-      event.propertyName === 'grid-template-rows' &&
-      // Only the collapse's end exits the loader; the expand ends with a live track.
-      getComputedStyle(event.currentTarget).gridTemplateRows === '0px'
-    ) {
-      setSlotExited(true)
-    }
-  }, [])
 
   const segments: MessageSegment[] =
     parsed.length > 0
@@ -859,27 +853,26 @@ function MessageContentInner({
     onPhaseChangeRef.current?.(phase)
   }, [phase])
 
-  // Nothing to render yet and not the live tail: no slot, no blob.
-  if (segments.length === 0 && !isLast) return null
-
-  // The thinking slot expands while the turn is in flight and collapses when it
-  // ends. It's the last message's own element, so it grows on send with the row
-  // (no separate mount → no jump) and slides out once, at the end. Gated on
-  // phase, not isStreaming: the trailing text keeps visually revealing on a
-  // timer after the network stream closes, and collapsing under a still-growing
-  // reveal reads as the blob winking out early while everything shifts. The
-  // slot leaves only at true settle, after the reveal has finished painting.
+  // The slot is the last message's own element, so it grows on send with the
+  // row (no separate mount → no jump). Gated on phase, not isStreaming: the
+  // trailing text keeps visually revealing on a timer after the network stream
+  // closes, and collapsing under a still-growing reveal reads as the blob
+  // winking out early while everything shifts.
   const thinkingExpanded = phase !== 'settled' && lastSegment?.type !== 'stopped'
+
+  useEffect(() => {
+    if (thinkingExpanded) return
+    const timeout = setTimeout(() => setSlotExited(true), SLOT_EXIT_DELAY_MS)
+    return () => clearTimeout(timeout)
+  }, [thinkingExpanded])
 
   // Guarded render adjust (see sim-hooks): a live turn re-arms the exit latch.
   if (thinkingExpanded && slotExited) setSlotExited(false)
 
-  // The shimmer stands in for the NEXT piece of output and yields the moment
-  // output actually arrives: hidden while the trailing text is visibly
-  // revealing or any lane streamed within the quiet period, shown otherwise.
-  // Immediately on an empty turn — nothing has arrived yet. A null label means
-  // a just-opened lane's delegating shimmer owns the state, and a visible
-  // executing tool row already spins — the turn-level shimmer would double it.
+  if (segments.length === 0 && !isLast) return null
+
+  // A visible executing tool row already spins — the turn-level shimmer would
+  // double it. (A null label means a just-opened lane's shimmer owns the state.)
   const thinkingLabel = deriveThinkingLabel(blocks)
   const hasExecutingTool = assistantMessageHasVisibleExecutingTool(blocks)
   const showShimmer =
@@ -960,7 +953,6 @@ function MessageContentInner({
         // it carries no leftover sibling margin — pt-[10px] is its own gap.
         <div
           aria-hidden={!showShimmer}
-          onTransitionEnd={handleSlotTransitionEnd}
           className={cn(
             'grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none',
             thinkingExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
@@ -970,7 +962,7 @@ function MessageContentInner({
             <div
               className={cn(
                 'pt-[10px] transition-transform duration-300 ease-out motion-reduce:transition-none',
-                thinkingExpanded ? 'translate-y-0' : 'translate-y-2'
+                thinkingExpanded ? 'translate-y-0' : 'translate-y-[8px]'
               )}
             >
               <div
