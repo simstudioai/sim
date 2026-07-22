@@ -175,19 +175,24 @@ export interface SkillMemberEntry {
 }
 
 /**
- * The canonical member roster for a skill: every CURRENT workspace member
- * mapped through {@link resolveSkillRole}, so the list always matches what
- * enforcement grants. Workspace admins surface as derived admins, explicit
- * active rows as their role, revoked rows as removed (deny) entries, and —
- * while the skill is workspace-shared — remaining members as implicit members.
- * Explicit rows for users no longer in the workspace are ignored, exactly as
- * enforcement ignores them.
+ * The canonical member roster for a skill, scoped to what the viewer may see:
+ * every CURRENT workspace member mapped through {@link resolveSkillRole}, so
+ * the list always matches what enforcement grants. Workspace admins surface as
+ * derived admins, explicit active rows as their role, and — while the skill is
+ * workspace-shared — remaining members as implicit members. Revoked rows are
+ * deliberate per-skill deny markers and exist to be restored, so they are
+ * included only for skill-admin viewers; other members never learn who was
+ * denied. Explicit rows for users no longer in the workspace are ignored,
+ * exactly as enforcement ignores them.
  */
-export async function listSkillMembers(skillRow: {
-  id: string
-  workspaceId: string
-  workspaceShared: boolean
-}): Promise<SkillMemberEntry[]> {
+export async function listSkillMembers(
+  skillRow: {
+    id: string
+    workspaceId: string
+    workspaceShared: boolean
+  },
+  viewer: { role: SkillMemberRole }
+): Promise<SkillMemberEntry[]> {
   const [explicitRows, workspaceMembers] = await Promise.all([
     db
       .select({
@@ -215,7 +220,10 @@ export async function listSkillMembers(skillRow: {
       workspaceAccess: { hasAccess: true, canAdmin },
     })
 
-    if (role === null && row?.status !== 'revoked') continue
+    if (role === null) {
+      // Entries only a deny marker would produce are admin-only data.
+      if (row?.status !== 'revoked' || viewer.role !== 'admin') continue
+    }
 
     entries.push({
       id: row?.id ?? `${canAdmin ? 'workspace-admin' : 'workspace'}-${wsMember.userId}`,

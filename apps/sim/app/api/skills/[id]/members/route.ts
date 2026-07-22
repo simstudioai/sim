@@ -91,11 +91,14 @@ export const GET = withRouteHandler(async (_request: NextRequest, context: Route
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const entries = await listSkillMembers({
-      id: actor.skill.id,
-      workspaceId: actor.skill.workspaceId,
-      workspaceShared: actor.skill.workspaceShared,
-    })
+    const entries = await listSkillMembers(
+      {
+        id: actor.skill.id,
+        workspaceId: actor.skill.workspaceId,
+        workspaceShared: actor.skill.workspaceShared,
+      },
+      { role: actor.role }
+    )
 
     const members = entries.map((entry) => ({
       ...entry,

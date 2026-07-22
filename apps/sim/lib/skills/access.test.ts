@@ -349,7 +349,10 @@ describe('listSkillMembers', () => {
       ])
     )
 
-    const entries = await listSkillMembers({ id: 's1', workspaceId: 'ws', workspaceShared: true })
+    const entries = await listSkillMembers(
+      { id: 's1', workspaceId: 'ws', workspaceShared: true },
+      { role: 'admin' }
+    )
     const byUser = new Map(entries.map((e) => [e.userId, e]))
 
     expect(byUser.get('boss')).toMatchObject({
@@ -384,7 +387,10 @@ describe('listSkillMembers', () => {
       ])
     )
 
-    const entries = await listSkillMembers({ id: 's1', workspaceId: 'ws', workspaceShared: false })
+    const entries = await listSkillMembers(
+      { id: 's1', workspaceId: 'ws', workspaceShared: false },
+      { role: 'admin' }
+    )
 
     // Derived access can never be broken by explicit rows: the workspace admin
     // stays an active admin even with a stale revoked row.
@@ -395,5 +401,26 @@ describe('listSkillMembers', () => {
       status: 'active',
       roleSource: 'workspace-admin',
     })
+  })
+
+  it('hides deny markers from non-admin viewers', async () => {
+    dbState.results = [
+      [{ id: 'row-1', userId: 'denied', role: 'member', status: 'revoked', joinedAt: null }],
+    ]
+    mockGetUsersWithPermissions.mockResolvedValue(
+      roster([
+        { userId: 'denied', permissionType: 'write' },
+        { userId: 'reader', permissionType: 'read' },
+      ])
+    )
+
+    const entries = await listSkillMembers(
+      { id: 's1', workspaceId: 'ws', workspaceShared: true },
+      { role: 'member' }
+    )
+
+    // A member viewer sees the active roster only — who was explicitly denied
+    // is admin-only data.
+    expect(entries.map((e) => e.userId)).toEqual(['reader'])
   })
 })
