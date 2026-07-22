@@ -4,12 +4,18 @@ import { useMemo, useState } from 'react'
 import { ChipTag } from '@sim/emcn'
 import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import {
+  customBlockIdParam,
+  customBlockIdUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
 import { CustomBlockDetail } from '@/ee/custom-blocks/components/custom-block-detail'
 import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
@@ -40,8 +46,13 @@ export function CustomBlocks() {
   )
   const fallbackIconUrl = useOrgBrandConfig().logoUrl ?? null
 
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selected, setSelected] = useState<string | 'new' | null>(null)
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
+  const [selectedBlockId, setSelectedBlockId] = useQueryState(customBlockIdParam.key, {
+    ...customBlockIdParam.parser,
+    ...customBlockIdUrlKeys,
+  })
+  /** The create flow has no entity id and is not deep-linkable — stays local. */
+  const [isCreating, setIsCreating] = useState(false)
 
   const filtered = useMemo(() => {
     if (!searchTerm.trim()) return blocks
@@ -59,13 +70,16 @@ export function CustomBlocks() {
     )
   }
 
-  if (selected !== null && workspaceId) {
+  if ((isCreating || (selectedBlockId && canAdmin)) && workspaceId) {
     return (
       <CustomBlockDetail
-        key={selected}
-        blockId={selected === 'new' ? null : selected}
+        key={isCreating ? 'new' : selectedBlockId}
+        blockId={isCreating ? null : selectedBlockId}
         workspaceId={workspaceId}
-        onBack={() => setSelected(null)}
+        onBack={() => {
+          setIsCreating(false)
+          void setSelectedBlockId(null, { history: 'replace' })
+        }}
       />
     )
   }
@@ -84,7 +98,7 @@ export function CustomBlocks() {
                 text: 'Create block',
                 icon: Plus,
                 variant: 'primary',
-                onSelect: () => setSelected('new'),
+                onSelect: () => setIsCreating(true),
               },
             ]
           : []
@@ -109,7 +123,7 @@ export function CustomBlocks() {
                 <button
                   key={cb.id}
                   type='button'
-                  onClick={() => canAdmin && setSelected(cb.id)}
+                  onClick={() => canAdmin && void setSelectedBlockId(cb.id)}
                   className='w-full rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                   disabled={!canAdmin}
                 >

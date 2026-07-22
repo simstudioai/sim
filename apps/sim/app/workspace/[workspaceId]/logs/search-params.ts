@@ -104,6 +104,8 @@ export const parseAsTriggers = createParser<TriggerType[]>({
  */
 export const logFilterParsers = {
   timeRange: parseAsTimeRange.withDefault(DEFAULT_TIME_RANGE),
+  // Deliberately nullable: only populated when timeRange is "Custom range";
+  // every preset range derives its window from the label instead.
   startDate: parseAsString,
   endDate: parseAsString,
   level: parseAsLogLevel.withDefault('all'),

@@ -50,6 +50,37 @@ export const forkViewUrlKeys = {
 } as const
 
 /**
+ * `group-id` deep-links the Access Control settings tab to a specific
+ * permission group's detail sub-view (mirrors `mcpServerId` on the MCP tab).
+ */
+export const groupIdParam = {
+  key: 'group-id',
+  parser: parseAsString,
+} as const
+
+/** Opening a group's detail is a destination → push to history; clear on close. */
+export const groupIdUrlKeys = {
+  history: 'push',
+  clearOnDefault: true,
+} as const
+
+/**
+ * `custom-block-id` deep-links the Custom Blocks settings tab to a specific
+ * block's detail sub-view. The "create new" flow stays in local state — only
+ * existing entities are deep-linkable.
+ */
+export const customBlockIdParam = {
+  key: 'custom-block-id',
+  parser: parseAsString,
+} as const
+
+/** Opening a block's detail is a destination → push to history; clear on close. */
+export const customBlockIdUrlKeys = {
+  history: 'push',
+  clearOnDefault: true,
+} as const
+
+/**
  * `fork-direction` is the sync direction (push/pull) on the parent fork's detail
  * page — shareable view state, so a copied link opens the same side of the sync.
  */

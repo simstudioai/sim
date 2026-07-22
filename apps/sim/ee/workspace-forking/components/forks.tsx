@@ -29,6 +29,7 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { ForkActivityPanel } from '@/ee/workspace-forking/components/fork-activity-panel/fork-activity-panel'
 import { ForkExcludedWorkflows } from '@/ee/workspace-forking/components/fork-excluded-workflows/fork-excluded-workflows'
@@ -288,7 +289,7 @@ export function Forks() {
   const rollback = useRollbackFork()
   const unlink = useUnlinkFork()
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [isForkModalOpen, setIsForkModalOpen] = useState(false)
   const [confirmRollbackOpen, setConfirmRollbackOpen] = useState(false)
   const [confirmUnlink, setConfirmUnlink] = useState<{ id: string; name: string } | null>(null)
@@ -403,7 +404,7 @@ export function Forks() {
           workspaceId={workspaceId}
           otherWorkspaceId={parent.id}
           otherWorkspaceName={parent.name}
-          onBack={() => setSelectedForkId(null)}
+          onBack={() => setSelectedForkId(null, { history: 'replace' })}
           actions={parentHeaderActions}
         />
       ) : forkView === 'activity' ? (
