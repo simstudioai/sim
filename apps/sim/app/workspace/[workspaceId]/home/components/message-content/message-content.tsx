@@ -31,10 +31,11 @@ const FILE_SUBAGENT_ID = 'file'
 /** Quiet period before the shimmer takes the slot back from streamed output. */
 const STREAM_IDLE_DELAY_MS = 1_500
 /**
- * The one vertical extent (10px gap + 36px row) every tail-region occupant —
- * shimmer slot, actions row, stopped row — must share. The settle swap is only
- * jump-free because these are equal; changing one side without the others
- * reintroduces a scroll clamp at end of turn.
+ * The vertical extent (10px gap + 36px row) shared by the shimmer slot and the
+ * actions row that replaces it at settle. The swap is only jump-free because
+ * these are equal; changing one side without the other reintroduces a scroll
+ * clamp at end of turn. (A stopped turn's stacked rows are exempt — their
+ * extra height is glided-in growth, not a swap.)
  */
 const TAIL_REGION_CLASSES = 'mt-[10px] flex h-[36px] items-center'
 
@@ -982,22 +983,22 @@ function MessageContentInner({
             <PendingTagIndicator label={thinkingLabel ?? 'Thinking…'} />
           </div>
         </div>
-      ) : (
-        // The settled tail takes the slot's place in the SAME render and at the
-        // SAME extent (TAIL_REGION_CLASSES), so the swap is height-neutral by
-        // construction — no reflow for the pinned scroller to absorb. A stopped
-        // turn stacks a second region (status row above the actions); that +46px
-        // is deliberate — the teardown's eased follow glides it into view, and
-        // the stacked layout beats a combined status/actions row visually.
+      ) : // The settled tail takes the slot's place in the SAME render and at the
+      // SAME extent (TAIL_REGION_CLASSES), so the swap is height-neutral by
+      // construction — no reflow for the pinned scroller to absorb. A stopped
+      // turn instead stacks compact natural rows (10px gaps, no 36px boxes):
+      // its extra height is glided-in growth either way, so only the
+      // shimmer-swap occupant needs the fixed extent.
+      lastSegment?.type === 'stopped' ? (
         <>
-          {lastSegment?.type === 'stopped' && (
-            <div className={cn(TAIL_REGION_CLASSES, 'gap-[8px]')}>
-              <CircleStop className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-              <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
-            </div>
-          )}
-          {actions && <div className={TAIL_REGION_CLASSES}>{actions}</div>}
+          <div className='mt-[10px] flex items-center gap-[8px]'>
+            <CircleStop className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+            <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
+          </div>
+          {actions && <div className='mt-[10px]'>{actions}</div>}
         </>
+      ) : (
+        actions && <div className={TAIL_REGION_CLASSES}>{actions}</div>
       )}
     </div>
   )
