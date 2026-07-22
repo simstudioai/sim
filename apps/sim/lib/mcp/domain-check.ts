@@ -139,14 +139,17 @@ function isLocalhostHostname(hostname: string): boolean {
  * URLs with env var references in the hostname are skipped — they will be
  * validated after resolution at execution time.
  *
- * Returns the IP address to pin subsequent connections to (the resolved IP for
- * hostnames, or the literal itself for public IP-literal URLs) so the caller can
- * prevent DNS-rebinding TOCTOU attacks and stop redirects from escaping to
- * internal hosts. Pinning matters for IP literals too: without it the transport
- * uses the default fetch, which follows an attacker-controlled 3xx redirect to a
- * private/metadata address. Returns null only when pinning is unnecessary or
- * impossible: no URL, allowlist-only mode, env-var hostnames (validated later),
- * and localhost on self-hosted (no rebinding risk against a fixed loopback).
+ * Returns the resolved IP (or the literal itself for IP-literal URLs) as a
+ * non-null **policy signal**: the SSRF guard is active for this server. A public
+ * resolution selects the validate-at-connect guarded fetch — DNS-rebinding TOCTOU
+ * and redirect escapes are prevented by re-validating every socket connect and
+ * following redirects under per-hop validation (see `createSsrfGuardedMcpFetch` /
+ * `followRedirectsGuarded`), NOT by pinning to this address. The value is literally
+ * pinned only for the self-hosted private/loopback carve-out (a policy-permitted
+ * DNS alias the guarded lookup would otherwise filter). Returns null when the guard
+ * is unnecessary or impossible: no URL, allowlist-only mode, env-var hostnames
+ * (validated later), and localhost on self-hosted (no rebinding risk against a
+ * fixed loopback).
  *
  * @throws McpSsrfError if the URL resolves to a blocked IP address
  */
