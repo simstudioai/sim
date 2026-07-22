@@ -2,8 +2,7 @@
  * @vitest-environment node
  */
 import { member, organization, subscription } from '@sim/db/schema'
-import { databaseMock, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import type { Mock } from 'vitest'
+import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => dbChainMock)
@@ -25,88 +24,20 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 
 /**
- * Drizzle mock for `getHighestPrioritySubscription`. It issues up to four
- * queries keyed by table:
+ * `getHighestPrioritySubscription` issues up to four queries keyed by table:
  *   - `subscription` for the user's personal subs (parallelized with members)
  *   - `member`       for the user's org memberships  (parallelized with subs)
  *   - `organization` for the org-existence follow-up
  *   - `subscription` again for the org-scoped subs follow-up
  *
- * The mock routes results by the table object passed to `.from()`, serving the
- * (twice-read) `subscription` table from a FIFO queue (first read = personal,
- * second = org). It records which tables were queried so we can assert the
- * parallelized pair both run and that follow-ups are skipped when appropriate.
- *
- * The routing implementation is installed in `beforeEach` onto the SHARED
- * `dbChainMockFns.select` (this file mocks `@sim/db` with `dbChainMock`) AND
- * mirrored onto the setup-level `databaseMock` entry points. Under
- * `isolate: false` the module under test may have been loaded by an earlier
- * suite in this worker with `@sim/db` bound to `databaseMock` — pointing both
- * shared instances at the same routing keeps either binding correct. Table
- * identity likewise relies on the setup-level `@sim/db/schema` mock (no local
- * schema factory), which is stable across suites in the shared worker.
+ * Results are routed by the table object passed to `.from()` via
+ * `queueTableRows` (FIFO per table: first `subscription` read = personal,
+ * second = org). `dbChainMockFns.from` call args record which tables were
+ * queried so we can assert the parallelized pair both run and that follow-ups
+ * are skipped when appropriate.
  */
-type TableName = 'subscription' | 'member' | 'organization'
-
-const TABLE_NAMES = new Map<unknown, TableName>([
-  [subscription, 'subscription'],
-  [member, 'member'],
-  [organization, 'organization'],
-])
-
-const resultsByTable: Record<TableName, unknown[][]> = {
-  subscription: [],
-  member: [],
-  organization: [],
-}
-const fromCalls: string[] = []
-
-function routedSelect() {
-  return {
-    from: (table: unknown) => {
-      const name = TABLE_NAMES.get(table)
-      if (name) fromCalls.push(name)
-      const where = () => {
-        const queue = name ? resultsByTable[name] : undefined
-        const next = queue && queue.length > 0 ? queue.shift() : []
-        return Promise.resolve(next ?? [])
-      }
-      return { where }
-    },
-  }
-}
-
-const GLOBAL_DB_KEYS = [
-  'select',
-  'selectDistinct',
-  'insert',
-  'update',
-  'delete',
-  'transaction',
-] as const
-
-const globalDb = databaseMock.db as unknown as Record<(typeof GLOBAL_DB_KEYS)[number], Mock>
-const savedGlobalDbImpls = new Map<
-  (typeof GLOBAL_DB_KEYS)[number],
-  ((...args: unknown[]) => unknown) | undefined
->()
-
-/** Mirrors the setup-level databaseMock entry points onto the shared chain fns. */
-function delegateGlobalDbToChainMocks(): void {
-  for (const key of GLOBAL_DB_KEYS) {
-    const fn = globalDb[key]
-    if (typeof fn?.mockImplementation !== 'function') continue
-    if (!savedGlobalDbImpls.has(key)) savedGlobalDbImpls.set(key, fn.getMockImplementation())
-    fn.mockImplementation((...args: unknown[]) => (dbChainMockFns[key] as Mock)(...args))
-  }
-}
-
-/** Restores the databaseMock entry points captured before this suite ran. */
-function restoreGlobalDb(): void {
-  for (const [key, impl] of savedGlobalDbImpls) {
-    if (impl) globalDb[key].mockImplementation(impl)
-    else globalDb[key].mockReset()
-  }
+function fromTables(): unknown[] {
+  return dbChainMockFns.from.mock.calls.map(([table]) => table)
 }
 
 interface SubRow {
@@ -124,32 +55,21 @@ function orgEnterprise(orgId: string): SubRow {
   return { id: 'sub-org-enterprise', referenceId: orgId, plan: 'enterprise', status: 'active' }
 }
 
-function queue(table: TableName, rows: unknown[]) {
-  resultsByTable[table].push(rows)
-}
-
 describe('getHighestPrioritySubscription', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    resultsByTable.subscription = []
-    resultsByTable.member = []
-    resultsByTable.organization = []
-    fromCalls.length = 0
-    dbChainMockFns.select.mockImplementation(routedSelect)
-    delegateGlobalDbToChainMocks()
   })
 
   afterAll(() => {
     resetDbChainMock()
-    restoreGlobalDb()
   })
 
   it('picks the org Enterprise sub over a personal Pro sub (priority order)', async () => {
-    queue('subscription', [personalPro('user-1')]) // personalSubs query
-    queue('member', [{ organizationId: 'org-1' }]) // memberships query
-    queue('organization', [{ id: 'org-1' }]) // org-existence query
-    queue('subscription', [orgEnterprise('org-1')]) // org-subscriptions query
+    queueTableRows(subscription, [personalPro('user-1')]) // personalSubs query
+    queueTableRows(member, [{ organizationId: 'org-1' }]) // memberships query
+    queueTableRows(organization, [{ id: 'org-1' }]) // org-existence query
+    queueTableRows(subscription, [orgEnterprise('org-1')]) // org-subscriptions query
 
     const result = await getHighestPrioritySubscription('user-1')
 
@@ -159,10 +79,10 @@ describe('getHighestPrioritySubscription', () => {
   })
 
   it('selection is deterministic regardless of which parallelized query resolves first', async () => {
-    queue('subscription', [personalPro('user-1')])
-    queue('member', [{ organizationId: 'org-1' }])
-    queue('organization', [{ id: 'org-1' }])
-    queue('subscription', [orgEnterprise('org-1')])
+    queueTableRows(subscription, [personalPro('user-1')])
+    queueTableRows(member, [{ organizationId: 'org-1' }])
+    queueTableRows(organization, [{ id: 'org-1' }])
+    queueTableRows(subscription, [orgEnterprise('org-1')])
 
     const result = await getHighestPrioritySubscription('user-1')
 
@@ -170,35 +90,38 @@ describe('getHighestPrioritySubscription', () => {
   })
 
   it('issues BOTH the personal-subscriptions and memberships queries (parallelized pair)', async () => {
-    queue('subscription', [personalPro('user-1')])
-    queue('member', [{ organizationId: 'org-1' }])
-    queue('organization', [{ id: 'org-1' }])
-    queue('subscription', [orgEnterprise('org-1')])
+    queueTableRows(subscription, [personalPro('user-1')])
+    queueTableRows(member, [{ organizationId: 'org-1' }])
+    queueTableRows(organization, [{ id: 'org-1' }])
+    queueTableRows(subscription, [orgEnterprise('org-1')])
 
     await getHighestPrioritySubscription('user-1')
 
-    expect(fromCalls).toContain('subscription')
-    expect(fromCalls).toContain('member')
+    expect(fromTables()).toContain(subscription)
+    expect(fromTables()).toContain(member)
     // First two queries are exactly the parallelized pair (in either order).
-    expect(fromCalls.slice(0, 2).sort()).toEqual(['member', 'subscription'])
+    const firstTwo = fromTables().slice(0, 2)
+    expect(firstTwo).toHaveLength(2)
+    expect(firstTwo).toContain(subscription)
+    expect(firstTwo).toContain(member)
   })
 
   it('returns the personal sub and skips org follow-ups when there are no memberships', async () => {
-    queue('subscription', [personalPro('user-1')])
-    queue('member', [])
+    queueTableRows(subscription, [personalPro('user-1')])
+    queueTableRows(member, [])
 
     const result = await getHighestPrioritySubscription('user-1')
 
     expect(result?.id).toBe('sub-personal-pro')
     expect(result?.plan).toBe('pro')
     // org-existence + org-subscription follow-ups are NOT issued.
-    expect(fromCalls).not.toContain('organization')
-    expect(fromCalls.filter((t) => t === 'subscription')).toHaveLength(1)
+    expect(fromTables()).not.toContain(organization)
+    expect(fromTables().filter((t) => t === subscription)).toHaveLength(1)
   })
 
   it('returns null when neither personal nor org subscriptions exist', async () => {
-    queue('subscription', [])
-    queue('member', [])
+    queueTableRows(subscription, [])
+    queueTableRows(member, [])
 
     const result = await getHighestPrioritySubscription('user-1')
 
@@ -206,27 +129,27 @@ describe('getHighestPrioritySubscription', () => {
   })
 
   it('excludes orphaned org memberships whose organization row no longer exists', async () => {
-    queue('subscription', [])
-    queue('member', [{ organizationId: 'ghost-org' }]) // membership points at a deleted org
-    queue('organization', [])
+    queueTableRows(subscription, [])
+    queueTableRows(member, [{ organizationId: 'ghost-org' }]) // membership points at a deleted org
+    queueTableRows(organization, [])
 
     const result = await getHighestPrioritySubscription('user-1')
 
     // Org subs are never fetched (no valid org ids) -> falls back to null.
     expect(result).toBeNull()
-    expect(fromCalls).toContain('organization')
+    expect(fromTables()).toContain(organization)
     // Only the initial personal-subs read on `subscription`; org-subs query skipped.
-    expect(fromCalls.filter((t) => t === 'subscription')).toHaveLength(1)
+    expect(fromTables().filter((t) => t === subscription)).toHaveLength(1)
   })
 
   it('falls back to the personal sub when the only org is orphaned', async () => {
-    queue('subscription', [personalPro('user-1')])
-    queue('member', [{ organizationId: 'ghost-org' }])
-    queue('organization', [])
+    queueTableRows(subscription, [personalPro('user-1')])
+    queueTableRows(member, [{ organizationId: 'ghost-org' }])
+    queueTableRows(organization, [])
 
     const result = await getHighestPrioritySubscription('user-1')
 
     expect(result?.id).toBe('sub-personal-pro')
-    expect(fromCalls.filter((t) => t === 'subscription')).toHaveLength(1)
+    expect(fromTables().filter((t) => t === subscription)).toHaveLength(1)
   })
 })

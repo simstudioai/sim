@@ -11,13 +11,11 @@ export function createMockSql() {
     toSQL: () => ({ sql: strings.join('?'), params: values }),
   })
 
-  // Add sql.raw method used by some queries
   sqlFn.raw = (rawSql: string) => ({
     rawSql,
     toSQL: () => ({ sql: rawSql, params: [] }),
   })
 
-  // Add sql.join method used to combine multiple SQL fragments
   sqlFn.join = (fragments: any[], separator: any) => ({
     fragments,
     separator,
@@ -63,6 +61,41 @@ export function createMockSqlOperators() {
 }
 
 /**
+ * Table-routed result queues.
+ *
+ * `queueTableRows(schemaMock.member, [rowA, rowB])` enqueues one result set for
+ * the next select chain whose `.from()` (or subsequent join) references that
+ * table. Each chain consumes at most one queued set (FIFO per table); chains
+ * against tables with no queued sets resolve the chain-fn defaults (empty
+ * array). Queues are cleared by `resetDbChainMock()`.
+ *
+ * The queue is keyed by table object identity, so pass the same schema-mock
+ * table object the code under test passes to `.from()`.
+ */
+const tableRowQueues = new Map<unknown, unknown[][]>()
+
+/** The `.from()` table of the select chain currently being built. */
+let activeTable: unknown
+
+/** Rows dequeued for the current chain, shared by every downstream terminal. */
+let activeRows: unknown[] | null = null
+
+/**
+ * Enqueues one result set for the next select chain reading `table`.
+ */
+export function queueTableRows(table: unknown, rows: unknown[]): void {
+  const queue = tableRowQueues.get(table)
+  if (queue) queue.push(rows)
+  else tableRowQueues.set(table, [rows])
+}
+
+function dequeueRows(table: unknown): unknown[] | null {
+  const queue = tableRowQueues.get(table)
+  if (!queue || queue.length === 0) return null
+  return queue.shift() ?? null
+}
+
+/**
  * Pre-wired chain of vi.fn()s for drizzle-style DB queries.
  *
  * Each builder step is a stable, module-level `vi.fn()` — safe to reference
@@ -74,37 +107,44 @@ export function createMockSqlOperators() {
  * - `select().from().innerJoin()|leftJoin()` → returns the same where-builder
  * - `insert().values().returning()` / `update().set().where()` / `delete().where()`
  *
- * Terminals (`limit`, `orderBy`, `returning`, `groupBy`, `for`, `values`)
- * default to resolving `[]` (or `undefined` for `values`). Override per-test
- * with `dbChainMockFns.limit.mockResolvedValueOnce([...])`. `for` mirrors
- * drizzle's `.for('update')` — it returns a Promise with `.limit` / `.orderBy`
- * / `.returning` / `.groupBy` attached, so both `await .where().for('update')`
- * (terminal) and `await .where().for('update').limit(1)` (chained) work.
- * Override the terminal result with `dbChainMockFns.for.mockResolvedValueOnce(
- * [...])`; override the chained result by mocking the downstream terminal
- * (e.g. `dbChainMockFns.limit.mockResolvedValueOnce([...])`).
+ * Results resolve, in priority order:
+ * 1. a per-test override (`dbChainMockFns.limit.mockResolvedValueOnce([...])`)
+ * 2. rows queued for the chain's `.from()` table via `queueTableRows`
+ * 3. the default empty array
+ *
+ * `for` mirrors drizzle's `.for('update')` — it returns a Promise with
+ * `.limit` / `.orderBy` / `.returning` / `.groupBy` attached, so both
+ * `await .where().for('update')` (terminal) and
+ * `await .where().for('update').limit(1)` (chained) work.
  *
  * `vi.clearAllMocks()` clears call history but preserves default wiring. Tests
- * that replace a wiring with `mockReturnValue(...)` (not `...Once`) must re-wire
- * in their own `beforeEach`.
+ * that replace a wiring with `mockReturnValue(...)` (not `...Once`) must
+ * re-wire via `resetDbChainMock()` in their own `beforeEach`.
  *
  * @example
  * ```ts
- * import { dbChainMock, dbChainMockFns } from '@sim/testing'
- * vi.mock('@sim/db', () => dbChainMock)
+ * import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+ * import { schemaMock } from '@sim/testing'
+ *
+ * beforeEach(() => {
+ *   vi.clearAllMocks()
+ *   resetDbChainMock()
+ * })
  *
  * it('finds rows', async () => {
- *   dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'w-1' }])
- *   // ... exercise code that hits db.select().from().where().limit() ...
+ *   queueTableRows(schemaMock.workflow, [{ id: 'w-1' }])
+ *   // ... exercise code that hits db.select().from(workflow).where() ...
  *   expect(dbChainMockFns.where).toHaveBeenCalled()
  * })
  * ```
  */
-const offset = vi.fn(() => Promise.resolve([] as unknown[]))
-// `.limit()` returns a builder that is awaitable (default empty page) and also
-// exposes `.offset()` for keyset/OFFSET paging (`.limit(n).offset(m)`).
+const chainRows = () => Promise.resolve((activeRows ?? []) as unknown[])
+
+const offset = vi.fn(chainRows)
+// `.limit()` returns a builder that is awaitable and also exposes `.offset()`
+// for keyset/OFFSET paging (`.limit(n).offset(m)`).
 const limitBuilder = () => {
-  const thenable: any = Promise.resolve([] as unknown[])
+  const thenable: any = chainRows()
   thenable.offset = offset
   return thenable
 }
@@ -113,7 +153,7 @@ const returning = vi.fn(() => Promise.resolve([] as unknown[]))
 const execute = vi.fn(() => Promise.resolve([] as unknown[]))
 
 const terminalBuilder = () => {
-  const thenable: any = Promise.resolve([] as unknown[])
+  const thenable: any = chainRows()
   thenable.limit = limit
   thenable.orderBy = orderBy
   thenable.returning = returning
@@ -136,10 +176,12 @@ const onConflictDoUpdate = vi.fn(() => ({ returning }) as unknown as Promise<voi
 const onConflictDoNothing = vi.fn(() => ({ returning }) as unknown as Promise<void>)
 
 const whereBuilder = () => {
-  // Some call sites (e.g. `db.select().from(t).where(eq(...))` with no
-  // limit/orderBy) await the where directly. Make the builder a thenable so
-  // those calls resolve to the default empty array.
-  const thenable: any = Promise.resolve([] as unknown[])
+  // Dequeue table-routed rows when the where clause materializes; every
+  // downstream terminal (limit/orderBy/...) then resolves the same rows.
+  activeRows = dequeueRows(activeTable)
+  // Some call sites await the where directly (no limit/orderBy), so the
+  // builder is itself a thenable.
+  const thenable: any = chainRows()
   thenable.limit = limit
   thenable.orderBy = orderBy
   thenable.returning = returning
@@ -156,7 +198,11 @@ const joinBuilder = (): { where: typeof where; innerJoin: any; leftJoin: any } =
 })
 const innerJoin: ReturnType<typeof vi.fn> = vi.fn(joinBuilder)
 const leftJoin: ReturnType<typeof vi.fn> = vi.fn(joinBuilder)
-const from = vi.fn(joinBuilder)
+const from = vi.fn((table?: unknown) => {
+  activeTable = table
+  activeRows = null
+  return joinBuilder()
+})
 
 const select = vi.fn(() => ({ from }))
 const selectDistinct = vi.fn(() => ({ from }))
@@ -166,6 +212,7 @@ const insert = vi.fn(() => ({ values }))
 const set = vi.fn(() => ({ where }))
 const update = vi.fn(() => ({ set }))
 const del = vi.fn(() => ({ where }))
+const query = vi.fn(() => Promise.resolve([] as unknown[]))
 const transaction: ReturnType<typeof vi.fn> = vi.fn(
   async (cb: (tx: any) => unknown): Promise<unknown> => cb(dbChainMock.db)
 )
@@ -197,19 +244,27 @@ export const dbChainMockFns = {
 }
 
 /**
- * Re-applies the default chain wiring to every `dbChainMockFns` entry. Call
- * this in `beforeEach` (after `vi.clearAllMocks()`) if any test uses
- * `mockReturnValue` / `mockResolvedValue` (permanent overrides) — this
+ * Re-applies the default chain wiring to every `dbChainMockFns` entry and
+ * clears all table-routed row queues. Call this in `beforeEach` (after
+ * `vi.clearAllMocks()`) if any test uses `mockReturnValue` /
+ * `mockResolvedValue` (permanent overrides) or `queueTableRows` — this
  * guarantees the next test starts with fresh defaults.
  *
  * Not needed if tests exclusively use the `...Once` variants, since those
  * auto-expire after one call.
  */
 export function resetDbChainMock(): void {
+  tableRowQueues.clear()
+  activeTable = undefined
+  activeRows = null
   select.mockImplementation(() => ({ from }))
   selectDistinct.mockImplementation(() => ({ from }))
   selectDistinctOn.mockImplementation(() => ({ from }))
-  from.mockImplementation(joinBuilder)
+  from.mockImplementation((table?: unknown) => {
+    activeTable = table
+    activeRows = null
+    return joinBuilder()
+  })
   innerJoin.mockImplementation(joinBuilder)
   leftJoin.mockImplementation(joinBuilder)
   where.mockImplementation(whereBuilder)
@@ -221,7 +276,7 @@ export function resetDbChainMock(): void {
   set.mockImplementation(() => ({ where }))
   del.mockImplementation(() => ({ where }))
   limit.mockImplementation(limitBuilder)
-  offset.mockImplementation(() => Promise.resolve([] as unknown[]))
+  offset.mockImplementation(chainRows)
   orderBy.mockImplementation(terminalBuilder)
   returning.mockImplementation(() => Promise.resolve([] as unknown[]))
   having.mockImplementation(terminalBuilder)
@@ -231,10 +286,29 @@ export function resetDbChainMock(): void {
     return builder
   })
   execute.mockImplementation(() => Promise.resolve([] as unknown[]))
+  query.mockImplementation(() => Promise.resolve([] as unknown[]))
   forClause.mockImplementation(forBuilder)
   transaction.mockImplementation(async (cb: (tx: typeof dbChainMock.db) => unknown) =>
     cb(dbChainMock.db)
   )
+}
+
+/**
+ * The single shared `@sim/db` mock instance backing BOTH `dbChainMock` and
+ * `databaseMock`. Because every binding resolves to the same chain fns, a
+ * module bound to either export behaves identically — there is exactly one
+ * db-mock state to configure and reset.
+ */
+const dbInstance = {
+  select,
+  selectDistinct,
+  selectDistinctOn,
+  insert,
+  update,
+  delete: del,
+  execute,
+  query,
+  transaction,
 }
 
 /**
@@ -245,104 +319,30 @@ export function resetDbChainMock(): void {
  * vi.mock('@sim/db', () => dbChainMock)
  * ```
  */
-const dbChainInstance = {
-  select,
-  selectDistinct,
-  selectDistinctOn,
-  insert,
-  update,
-  delete: del,
-  execute,
-  transaction,
-}
-
 export const dbChainMock = {
-  db: dbChainInstance,
+  db: dbInstance,
   /** Same instance as `db` so per-test chain overrides cover both clients. */
-  dbReplica: dbChainInstance,
+  dbReplica: dbInstance,
   /** Sub-pool clients (`dbFor('cleanup' | 'exec')`) share the same instance too. */
-  dbFor: () => dbChainInstance,
+  dbFor: () => dbInstance,
   runOutsideTransactionContext: <T>(fn: () => T): T => fn(),
   instrumentPoolClient: <T>(client: T): T => client,
 }
 
 /**
- * Creates a mock database connection.
- */
-export function createMockDb() {
-  // A `where(...)` result that is both awaitable (resolves to `[]`) and exposes
-  // `.limit`/`.orderBy`, so `select().from()[.leftJoin()].where()[.limit()]`
-  // works whether or not a terminal is chained.
-  const whereResult = () => {
-    const thenable: any = Promise.resolve([])
-    thenable.limit = vi.fn(() => Promise.resolve([]))
-    thenable.orderBy = vi.fn(() => Promise.resolve([]))
-    return thenable
-  }
-  const fromBuilder = () => ({
-    where: vi.fn(whereResult),
-    leftJoin: vi.fn(() => ({ where: vi.fn(whereResult) })),
-    innerJoin: vi.fn(() => ({ where: vi.fn(whereResult) })),
-  })
-
-  return {
-    select: vi.fn(() => ({
-      from: vi.fn(fromBuilder),
-    })),
-    selectDistinct: vi.fn(() => ({
-      from: vi.fn(fromBuilder),
-    })),
-    selectDistinctOn: vi.fn(() => ({
-      from: vi.fn(fromBuilder),
-    })),
-    insert: vi.fn(() => ({
-      values: vi.fn(() => ({
-        returning: vi.fn(() => Promise.resolve([])),
-        onConflictDoUpdate: vi.fn(() => ({
-          returning: vi.fn(() => Promise.resolve([])),
-        })),
-        onConflictDoNothing: vi.fn(() => ({
-          returning: vi.fn(() => Promise.resolve([])),
-        })),
-      })),
-    })),
-    update: vi.fn(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn(() => ({
-          returning: vi.fn(() => Promise.resolve([])),
-        })),
-      })),
-    })),
-    delete: vi.fn(() => ({
-      where: vi.fn(() => ({
-        returning: vi.fn(() => Promise.resolve([])),
-      })),
-    })),
-    transaction: vi.fn(async (callback) => callback(createMockDb())),
-    query: vi.fn(() => Promise.resolve([])),
-  }
-}
-
-/**
- * Mock module for @sim/db.
- * Use with vi.mock() to replace the real database.
+ * Mock module for `@sim/db` installed globally in vitest.setup.ts. Shares its
+ * `db` instance (and therefore all chain fns and table queues) with
+ * `dbChainMock`; additionally exposes the `sql` template tag and operator
+ * exports the real module provides.
  *
  * @example
  * ```ts
  * vi.mock('@sim/db', () => databaseMock)
  * ```
  */
-const mockDbInstance = createMockDb()
-
 export const databaseMock = {
-  db: mockDbInstance,
-  /** Same instance as `db` so per-test overrides cover both clients. */
-  dbReplica: mockDbInstance,
-  /** Sub-pool clients (`dbFor('cleanup' | 'exec')`) share the same instance too. */
-  dbFor: () => mockDbInstance,
+  ...dbChainMock,
   sql: createMockSql(),
-  runOutsideTransactionContext: <T>(fn: () => T): T => fn(),
-  instrumentPoolClient: <T>(client: T): T => client,
   ...createMockSqlOperators(),
 }
 

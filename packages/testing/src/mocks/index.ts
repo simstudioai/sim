@@ -39,13 +39,13 @@ export {
 export { copilotHttpMock, copilotHttpMockFns } from './copilot-http.mock'
 // Database mocks
 export {
-  createMockDb,
   createMockSql,
   createMockSqlOperators,
   databaseMock,
   dbChainMock,
   dbChainMockFns,
   drizzleOrmMock,
+  queueTableRows,
   resetDbChainMock,
 } from './database.mock'
 // Encryption mocks
