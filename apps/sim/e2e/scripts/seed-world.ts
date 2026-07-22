@@ -4,6 +4,9 @@ import {
   invitation,
   invitationWorkspaceGrant,
   member,
+  permissionGroup,
+  permissionGroupMember,
+  permissionGroupWorkspace,
   permissions,
   subscription,
   user,
@@ -12,6 +15,7 @@ import {
 } from '@sim/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/types'
 import {
   buildScenarioManifest,
   createWorldRecords,
@@ -637,6 +641,152 @@ async function assertTrustedWorldInvariants(world: E2EWorld): Promise<void> {
       throw new Error(`Persisted invitation grants do not match scenario: ${definition.key}`)
     }
   }
+  await assertWorkflowPersonaInvariants(world)
+}
+
+async function assertWorkflowPersonaInvariants(world: E2EWorld): Promise<void> {
+  const teamTarget = world.records.users.get('team-workflow-member')
+  const enterpriseTarget = world.records.users.get('enterprise-workflow-member')
+  if (!teamTarget || !enterpriseTarget) return
+
+  const teamOrganization = required(
+    world.records.organizations,
+    'team-organization',
+    'workflow organization'
+  )
+  const enterpriseOrganization = required(
+    world.records.organizations,
+    'enterprise-organization',
+    'workflow organization'
+  )
+  const teamWorkspace = required(world.records.workspaces, 'team-workspace', 'workflow workspace')
+  const teamInvitationWorkspace = required(
+    world.records.workspaces,
+    'team-invitation-workspace',
+    'workflow workspace'
+  )
+  const enterpriseWorkspace = required(
+    world.records.workspaces,
+    'enterprise-workspace',
+    'workflow workspace'
+  )
+
+  const teamMembers = await db
+    .select({ userId: member.userId })
+    .from(member)
+    .where(eq(member.organizationId, teamOrganization.id))
+  const teamPending = await db
+    .select({ id: invitation.id })
+    .from(invitation)
+    .where(
+      and(eq(invitation.organizationId, teamOrganization.id), eq(invitation.status, 'pending'))
+    )
+  const teamSubscription = world.scenario.subscriptionsByKey.get('team-subscription')
+  if (
+    teamMembers.length !== 5 ||
+    teamPending.length !== 1 ||
+    teamSubscription?.seats !== 5 ||
+    teamMembers.length + teamPending.length !== 6
+  ) {
+    throw new Error('Team workflow seat baseline does not match the repeatable scenario')
+  }
+
+  const teamTargetPermissions = await db
+    .select({ workspaceId: permissions.entityId, permission: permissions.permissionType })
+    .from(permissions)
+    .where(
+      and(
+        eq(permissions.userId, teamTarget.id),
+        eq(permissions.entityType, 'workspace'),
+        inArray(permissions.entityId, [teamWorkspace.id, teamInvitationWorkspace.id])
+      )
+    )
+  if (
+    teamTargetPermissions.length !== 1 ||
+    teamTargetPermissions[0].workspaceId !== teamWorkspace.id ||
+    teamTargetPermissions[0].permission !== 'read'
+  ) {
+    throw new Error('Team workflow member must retain only its explicit Read anchor')
+  }
+
+  const enterpriseMembers = await db
+    .select({ userId: member.userId })
+    .from(member)
+    .where(eq(member.organizationId, enterpriseOrganization.id))
+  const enterpriseSubscription = world.scenario.subscriptionsByKey.get('enterprise-subscription')
+  const enterpriseTargetPermissions = await db
+    .select({ workspaceId: permissions.entityId, permission: permissions.permissionType })
+    .from(permissions)
+    .where(
+      and(
+        eq(permissions.userId, enterpriseTarget.id),
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, enterpriseWorkspace.id)
+      )
+    )
+  if (
+    enterpriseMembers.length !== 4 ||
+    enterpriseSubscription?.seats !== 4 ||
+    enterpriseSubscription.enterprise?.seats !== 4 ||
+    enterpriseTargetPermissions.length !== 1 ||
+    enterpriseTargetPermissions[0].permission !== 'read'
+  ) {
+    throw new Error('Enterprise workflow member baseline does not match the repeatable scenario')
+  }
+
+  const restrictedGroupId = required(
+    world.records.permissionGroups,
+    'restricted-enterprise-group',
+    'restricted permission group'
+  )
+  const [restrictedGroup] = await db
+    .select({
+      organizationId: permissionGroup.organizationId,
+      config: permissionGroup.config,
+      isDefault: permissionGroup.isDefault,
+    })
+    .from(permissionGroup)
+    .where(eq(permissionGroup.id, restrictedGroupId))
+    .limit(1)
+  const restrictedMembers = await db
+    .select({ userId: permissionGroupMember.userId })
+    .from(permissionGroupMember)
+    .where(eq(permissionGroupMember.permissionGroupId, restrictedGroupId))
+  const restrictedWorkspaces = await db
+    .select({ workspaceId: permissionGroupWorkspace.workspaceId })
+    .from(permissionGroupWorkspace)
+    .where(eq(permissionGroupWorkspace.permissionGroupId, restrictedGroupId))
+  const expectedRestrictedConfig = {
+    ...DEFAULT_PERMISSION_GROUP_CONFIG,
+    hideSecretsTab: true,
+    hideApiKeysTab: true,
+    hideInboxTab: true,
+    disableMcpTools: true,
+    disableCustomTools: true,
+  }
+  if (
+    restrictedGroup?.organizationId !== enterpriseOrganization.id ||
+    restrictedGroup.isDefault ||
+    !sameJsonRecord(restrictedGroup.config, expectedRestrictedConfig) ||
+    restrictedMembers.length !== 1 ||
+    restrictedMembers[0].userId !==
+      required(world.records.users, 'permission-group-restricted', 'restricted group member').id ||
+    restrictedWorkspaces.length !== 1 ||
+    restrictedWorkspaces[0].workspaceId !== enterpriseWorkspace.id
+  ) {
+    throw new Error('Seeded restricted Enterprise permission group changed unexpectedly')
+  }
+}
+
+function sameJsonRecord(actual: unknown, expected: Record<string, unknown>): boolean {
+  if (!actual || typeof actual !== 'object' || Array.isArray(actual)) return false
+  const record = actual as Record<string, unknown>
+  const actualKeys = Object.keys(record).sort()
+  const expectedKeys = Object.keys(expected).sort()
+  return (
+    JSON.stringify(actualKeys) === JSON.stringify(expectedKeys) &&
+    expectedKeys.every((key) => JSON.stringify(record[key]) === JSON.stringify(expected[key]))
+  )
 }
 
 async function assertSecondOrganizationIsRejected(

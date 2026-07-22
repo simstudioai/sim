@@ -17,6 +17,7 @@ import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-gr
 export interface PermissionConfigResult {
   config: PermissionGroupConfig
   isLoading: boolean
+  isError: boolean
   isInPermissionGroup: boolean
   filterBlocks: <T extends { type: string }>(blocks: T[]) => T[]
   filterProviders: (providerIds: string[]) => string[]
@@ -70,12 +71,19 @@ export function usePermissionConfig(): PermissionConfigResult {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
 
-  const { data: permissionData, isLoading: isPermissionLoading } =
-    useUserPermissionConfig(workspaceId)
-  const { data: envAllowlistData, isLoading: isEnvAllowlistLoading } =
-    useAllowedIntegrationsFromEnv()
+  const {
+    data: permissionData,
+    isLoading: isPermissionLoading,
+    isError: isPermissionError,
+  } = useUserPermissionConfig(workspaceId)
+  const {
+    data: envAllowlistData,
+    isLoading: isEnvAllowlistLoading,
+    isError: isEnvAllowlistError,
+  } = useAllowedIntegrationsFromEnv()
 
   const isLoading = isPermissionLoading || isEnvAllowlistLoading
+  const isError = isPermissionError || isEnvAllowlistError
 
   const config = useMemo(() => {
     if (!permissionData?.config) {
@@ -158,6 +166,7 @@ export function usePermissionConfig(): PermissionConfigResult {
     () => ({
       config: mergedConfig,
       isLoading,
+      isError,
       isInPermissionGroup,
       filterBlocks,
       filterProviders,
@@ -171,6 +180,7 @@ export function usePermissionConfig(): PermissionConfigResult {
     [
       mergedConfig,
       isLoading,
+      isError,
       isInPermissionGroup,
       filterBlocks,
       filterProviders,
