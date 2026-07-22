@@ -81,6 +81,11 @@ const AuditLogs = dynamic(() =>
   import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs)
 )
 const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((m) => m.SSO))
+const SessionPolicySettings = dynamic(() =>
+  import('@/ee/session-policy/components/session-policy-settings').then(
+    (m) => m.SessionPolicySettings
+  )
+)
 const DataRetentionSettings = dynamic(() =>
   import('@/ee/data-retention/components/data-retention-settings').then(
     (m) => m.DataRetentionSettings
@@ -158,6 +163,9 @@ export function SettingsPage({ section }: SettingsPageProps) {
         />
       )}
       {effectiveSection === 'sso' && organizationId && <SSO organizationId={organizationId} />}
+      {effectiveSection === 'sessions' && organizationId && (
+        <SessionPolicySettings key={organizationId} organizationId={organizationId} />
+      )}
       {effectiveSection === 'data-retention' && organizationId && (
         <DataRetentionSettings organizationId={organizationId} />
       )}
