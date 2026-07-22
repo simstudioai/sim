@@ -8,10 +8,56 @@
  *
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { databaseMock, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import type { Mock } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => dbChainMock)
+
+/**
+ * Under `isolate: false` the module under test may have been loaded by an
+ * earlier suite in this shared worker with `@sim/db` bound to the setup-level
+ * `databaseMock` instead of this file's `dbChainMock`. Delegating the
+ * databaseMock entry points to the same shared chain fns keeps either binding
+ * correct.
+ */
+const GLOBAL_DB_KEYS = [
+  'select',
+  'selectDistinct',
+  'insert',
+  'update',
+  'delete',
+  'transaction',
+] as const
+
+const globalDb = databaseMock.db as unknown as Record<(typeof GLOBAL_DB_KEYS)[number], Mock>
+const savedGlobalDbImpls = new Map<
+  (typeof GLOBAL_DB_KEYS)[number],
+  ((...args: unknown[]) => unknown) | undefined
+>()
+
+/** Mirrors the setup-level databaseMock entry points onto the shared chain fns. */
+function delegateGlobalDbToChainMocks(): void {
+  for (const key of GLOBAL_DB_KEYS) {
+    const fn = globalDb[key]
+    if (typeof fn?.mockImplementation !== 'function') continue
+    if (!savedGlobalDbImpls.has(key)) savedGlobalDbImpls.set(key, fn.getMockImplementation())
+    fn.mockImplementation((...args: unknown[]) => (dbChainMockFns[key] as Mock)(...args))
+  }
+}
+
+/** Restores the databaseMock entry points captured before this suite ran. */
+function restoreGlobalDb(): void {
+  for (const [key, impl] of savedGlobalDbImpls) {
+    if (impl) globalDb[key].mockImplementation(impl)
+    else globalDb[key].mockReset()
+  }
+}
+
+afterAll(() => {
+  resetDbChainMock()
+  restoreGlobalDb()
+})
 
 const {
   mockGetFreeTierLimit,
@@ -84,6 +130,8 @@ const PRO_SUBSCRIPTION = {
 describe('getUserUsageLimit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    delegateGlobalDbToChainMocks()
     mockIsOrgScopedSubscription.mockReturnValue(false)
     mockGetHighestPrioritySubscription.mockResolvedValue(null)
   })
@@ -164,6 +212,8 @@ describe('getUserUsageLimit', () => {
 describe('syncUsageLimitsFromSubscription', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    delegateGlobalDbToChainMocks()
     mockIsOrgScopedSubscription.mockReturnValue(false)
   })
 

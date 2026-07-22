@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockInsert,
@@ -11,10 +11,6 @@ const {
   mockOnConflictDoUpdate,
   mockValues,
   mockWhere,
-  mockGenerateCronExpression,
-  mockCalculateNextRunTime,
-  mockValidateCronExpression,
-  mockGetScheduleTimeValues,
   mockRandomUUID,
   mockTransaction,
   mockSelect,
@@ -25,10 +21,6 @@ const {
   mockOnConflictDoUpdate: vi.fn(),
   mockValues: vi.fn(),
   mockWhere: vi.fn(),
-  mockGenerateCronExpression: vi.fn(),
-  mockCalculateNextRunTime: vi.fn(),
-  mockValidateCronExpression: vi.fn(),
-  mockGetScheduleTimeValues: vi.fn(),
   mockRandomUUID: vi.fn(),
   mockTransaction: vi.fn(),
   mockSelect: vi.fn(),
@@ -61,28 +53,39 @@ vi.mock('@/lib/webhooks/deploy', () => ({
   cleanupWebhooksForWorkflow: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('./utils', async (importOriginal) => {
-  const original = await importOriginal<typeof import('./utils')>()
-  return {
-    ...original,
-    generateCronExpression: mockGenerateCronExpression,
-    calculateNextRunTime: mockCalculateNextRunTime,
-    validateCronExpression: mockValidateCronExpression,
-    getScheduleTimeValues: mockGetScheduleTimeValues,
-  }
-})
-
-vi.stubGlobal('crypto', {
-  randomUUID: mockRandomUUID,
-})
-
 import { createSchedulesForDeploy, deleteSchedulesForWorkflow } from './deploy'
 import type { BlockState } from './utils'
+import * as scheduleUtils from './utils'
 import { findScheduleBlocks, validateScheduleBlock, validateWorkflowSchedules } from './validation'
+
+/**
+ * Spy on the shared `./utils` namespace instead of `vi.mock`: under
+ * `isolate: false` the modules under test may already be cached from another
+ * test file, bound to the real utils instance, which a per-file `vi.mock`
+ * factory could never rebind. Patching the resolved namespace covers both
+ * fresh and reused module graphs.
+ */
+const mockGenerateCronExpression = vi.spyOn(scheduleUtils, 'generateCronExpression')
+const mockCalculateNextRunTime = vi.spyOn(scheduleUtils, 'calculateNextRunTime')
+const mockValidateCronExpression = vi.spyOn(scheduleUtils, 'validateCronExpression')
+const mockGetScheduleTimeValues = vi.spyOn(scheduleUtils, 'getScheduleTimeValues')
+
+afterAll(() => {
+  mockGenerateCronExpression.mockRestore()
+  mockCalculateNextRunTime.mockRestore()
+  mockValidateCronExpression.mockRestore()
+  mockGetScheduleTimeValues.mockRestore()
+})
 
 describe('Schedule Deploy Utilities', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+
+    /**
+     * Re-stub per test: `unstubGlobals: true` unstubs all globals before each
+     * test, so a top-level stub would not survive past collection.
+     */
+    vi.stubGlobal('crypto', { randomUUID: mockRandomUUID })
 
     mockRandomUUID.mockReturnValue('test-uuid')
     mockGenerateCronExpression.mockReturnValue('0 9 * * *')
@@ -128,6 +131,7 @@ describe('Schedule Deploy Utilities', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+    vi.unstubAllGlobals()
   })
 
   describe('findScheduleBlocks', () => {

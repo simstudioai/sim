@@ -1,7 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { usageLog } from '@sim/db/schema'
+import { databaseMock, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import type { Mock } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetHighestPrioritySubscription,
@@ -23,31 +26,7 @@ const {
   mockUpdate: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => {
-  const instance = { insert: mockInsert, transaction: mockTransaction }
-  return { db: instance, dbReplica: instance }
-})
-
-vi.mock('@sim/db/schema', () => ({
-  usageLog: {
-    billingEntityId: 'usageLog.billingEntityId',
-    billingEntityType: 'usageLog.billingEntityType',
-    billingPeriodEnd: 'usageLog.billingPeriodEnd',
-    billingPeriodStart: 'usageLog.billingPeriodStart',
-    category: 'usageLog.category',
-    cost: 'usageLog.cost',
-    createdAt: 'usageLog.createdAt',
-    description: 'usageLog.description',
-    eventKey: 'usageLog.eventKey',
-    executionId: 'usageLog.executionId',
-    id: 'usageLog.id',
-    metadata: 'usageLog.metadata',
-    source: 'usageLog.source',
-    userId: 'usageLog.userId',
-    workflowId: 'usageLog.workflowId',
-    workspaceId: 'usageLog.workspaceId',
-  },
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/core/plan', () => ({
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
@@ -69,9 +48,66 @@ import {
   resolveCumulativeTopUp,
 } from '@/lib/billing/core/usage-log'
 
+/**
+ * `@sim/db` behavior is driven through the SHARED mock instances rather than a
+ * file-local factory object. This file mocks `@sim/db` with `dbChainMock` and
+ * wires its `insert` / `transaction` entry points to this file's `mockInsert`
+ * / `mockTransaction` in `beforeEach`; the setup-level `databaseMock` entry
+ * points are mirrored onto the same chain fns. Under `isolate: false` the
+ * module under test may have been loaded by an earlier suite in this worker
+ * with `@sim/db` bound to `databaseMock` — configuring both shared instances
+ * keeps either binding correct.
+ */
+const GLOBAL_DB_KEYS = [
+  'select',
+  'selectDistinct',
+  'insert',
+  'update',
+  'delete',
+  'transaction',
+] as const
+
+const globalDb = databaseMock.db as unknown as Record<(typeof GLOBAL_DB_KEYS)[number], Mock>
+const savedGlobalDbImpls = new Map<
+  (typeof GLOBAL_DB_KEYS)[number],
+  ((...args: unknown[]) => unknown) | undefined
+>()
+
+/** Mirrors the setup-level databaseMock entry points onto the shared chain fns. */
+function delegateGlobalDbToChainMocks(): void {
+  for (const key of GLOBAL_DB_KEYS) {
+    const fn = globalDb[key]
+    if (typeof fn?.mockImplementation !== 'function') continue
+    if (!savedGlobalDbImpls.has(key)) savedGlobalDbImpls.set(key, fn.getMockImplementation())
+    fn.mockImplementation((...args: unknown[]) => (dbChainMockFns[key] as Mock)(...args))
+  }
+}
+
+/** Restores the databaseMock entry points captured before this suite ran. */
+function restoreGlobalDb(): void {
+  for (const [key, impl] of savedGlobalDbImpls) {
+    if (impl) globalDb[key].mockImplementation(impl)
+    else globalDb[key].mockReset()
+  }
+}
+
+/** Re-wires the shared db mocks to this file's insert/transaction chain. */
+function installSharedDbMocks(): void {
+  resetDbChainMock()
+  dbChainMockFns.insert.mockImplementation((...args: unknown[]) => mockInsert(...args))
+  dbChainMockFns.transaction.mockImplementation((...args: unknown[]) => mockTransaction(...args))
+  delegateGlobalDbToChainMocks()
+}
+
+afterAll(() => {
+  resetDbChainMock()
+  restoreGlobalDb()
+})
+
 describe('recordUsage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    installSharedDbMocks()
     mockReturning.mockResolvedValue([{ cost: '0.10' }, { cost: '0.20' }])
     mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning })
     mockValues.mockReturnValue({
@@ -121,9 +157,10 @@ describe('recordUsage', () => {
     expect(values[0].eventKey).toMatch(/^[a-f0-9]{64}$/)
     expect(values[1].eventKey).toMatch(/^[a-f0-9]{64}$/)
     expect(values[0].eventKey).not.toBe(values[1].eventKey)
-    expect(mockOnConflictDoNothing).toHaveBeenCalledWith(
-      expect.objectContaining({ target: 'usageLog.eventKey' })
-    )
+    expect(mockOnConflictDoNothing).toHaveBeenCalledTimes(1)
+    expect(mockOnConflictDoNothing.mock.calls[0][0]).toMatchObject({
+      target: usageLog.eventKey,
+    })
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
   })
 
@@ -219,6 +256,7 @@ describe('recordCumulativeUsage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    installSharedDbMocks()
     mockReturning.mockResolvedValue([{ cost: '0.3474447' }])
     mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning })
     mockValues.mockReturnValue({ onConflictDoNothing: mockOnConflictDoNothing })

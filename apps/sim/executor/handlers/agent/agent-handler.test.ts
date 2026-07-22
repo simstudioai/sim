@@ -1,4 +1,3 @@
-import { setupGlobalFetchMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { getAllBlocks } from '@/blocks'
 import { BlockType, isMcpTool } from '@/executor/constants'
@@ -108,13 +107,11 @@ vi.mock('@/lib/workflows/custom-tools/operations', () => ({
   getCustomToolById: (...args: unknown[]) => mockGetCustomToolById(...args),
 }))
 
-setupGlobalFetchMock()
-
 const mockGetAllBlocks = getAllBlocks as Mock
 const mockExecuteTool = executeTool as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockTransformBlockTool = transformBlockTool as Mock
-const mockFetch = global.fetch as unknown as Mock
+const mockFetch = vi.fn()
 const mockExecuteProviderRequest = executeProviderRequest as Mock
 
 describe('AgentBlockHandler', () => {
@@ -125,6 +122,9 @@ describe('AgentBlockHandler', () => {
   beforeEach(() => {
     handler = new AgentBlockHandler()
     vi.clearAllMocks()
+
+    // unstubGlobals removes any module-scope fetch stub before each test, so re-stub here
+    vi.stubGlobal('fetch', mockFetch)
 
     Object.defineProperty(global, 'window', {
       value: {},

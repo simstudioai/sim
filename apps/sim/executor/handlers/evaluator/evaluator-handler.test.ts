@@ -27,7 +27,7 @@ import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
 const mockGetProviderFromModel = getProviderFromModel as Mock
-const mockFetch = global.fetch as unknown as Mock
+const mockFetch = vi.fn()
 
 describe('EvaluatorBlockHandler', () => {
   let handler: EvaluatorBlockHandler
@@ -68,6 +68,9 @@ describe('EvaluatorBlockHandler', () => {
 
     // Reset mocks using vi
     vi.clearAllMocks()
+
+    // unstubGlobals removes any module-scope fetch stub before each test, so re-stub here
+    vi.stubGlobal('fetch', mockFetch)
 
     // Default mock implementations
     authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValue({

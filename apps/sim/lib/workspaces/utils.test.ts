@@ -1,16 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { db } from '@sim/db'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { databaseMock, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import type { Mock } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockChangeWorkspaceStoragePayerInTx } = vi.hoisted(() => ({
   mockChangeWorkspaceStoragePayerInTx: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: { select: vi.fn(), transaction: vi.fn() },
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/storage/payer-transfer', () => ({
   changeWorkspaceStoragePayerInTx: mockChangeWorkspaceStoragePayerInTx,
@@ -22,10 +21,56 @@ import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
 } from '@/lib/workspaces/utils'
 
-const mockDb = db as unknown as {
-  select: ReturnType<typeof vi.fn>
-  transaction: ReturnType<typeof vi.fn>
+/**
+ * `@sim/db` behavior is driven through the SHARED `dbChainMockFns` instances
+ * instead of a file-local factory object. Under `isolate: false` the module
+ * under test may have been loaded by an earlier suite in this shared worker
+ * with `@sim/db` bound to the setup-level `databaseMock` instead of this
+ * file's `dbChainMock`; delegating the databaseMock entry points to the same
+ * chain fns keeps either binding correct.
+ */
+const mockDb = {
+  select: dbChainMockFns.select,
+  transaction: dbChainMockFns.transaction,
 }
+
+const GLOBAL_DB_KEYS = [
+  'select',
+  'selectDistinct',
+  'insert',
+  'update',
+  'delete',
+  'transaction',
+] as const
+
+const globalDb = databaseMock.db as unknown as Record<(typeof GLOBAL_DB_KEYS)[number], Mock>
+const savedGlobalDbImpls = new Map<
+  (typeof GLOBAL_DB_KEYS)[number],
+  ((...args: unknown[]) => unknown) | undefined
+>()
+
+/** Mirrors the setup-level databaseMock entry points onto the shared chain fns. */
+function delegateGlobalDbToChainMocks(): void {
+  for (const key of GLOBAL_DB_KEYS) {
+    const fn = globalDb[key]
+    if (typeof fn?.mockImplementation !== 'function') continue
+    if (!savedGlobalDbImpls.has(key)) savedGlobalDbImpls.set(key, fn.getMockImplementation())
+    fn.mockImplementation((...args: unknown[]) => (dbChainMockFns[key] as Mock)(...args))
+  }
+}
+
+/** Restores the databaseMock entry points captured before this suite ran. */
+function restoreGlobalDb(): void {
+  for (const [key, impl] of savedGlobalDbImpls) {
+    if (impl) globalDb[key].mockImplementation(impl)
+    else globalDb[key].mockReset()
+  }
+}
+
+afterAll(() => {
+  resetDbChainMock()
+  restoreGlobalDb()
+})
 
 function createMockChain(finalResult: unknown) {
   const chain: any = {}
@@ -68,6 +113,8 @@ function createUpdateChain(result: unknown) {
 describe('reassignBilledAccountForUser', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    delegateGlobalDbToChainMocks()
   })
 
   it('routes each resolved workspace through the payer helper in its own transaction', async () => {
@@ -180,6 +227,8 @@ describe('reassignBilledAccountForUser', () => {
 describe('reassignWorkflowOwnershipForWorkspaceMemberRemovalTx', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    delegateGlobalDbToChainMocks()
   })
 
   it('reassigns departing member workflows to the workspace billed account', async () => {
@@ -277,6 +326,8 @@ describe('reassignWorkflowOwnershipForWorkspaceMemberRemovalTx', () => {
 describe('listAccessibleWorkspaceRowsForUser', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    delegateGlobalDbToChainMocks()
   })
 
   it('elevates an org admin to admin on an org workspace where they hold a lower explicit grant', async () => {
