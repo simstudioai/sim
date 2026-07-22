@@ -1044,11 +1044,13 @@ export const auth = betterAuth({
       /**
        * Without this, /sign-in/email-otp auto-registers any unknown email —
        * bypassing the signup gate entirely (no captcha, no /sign-up path).
-       * Gated by the same DISABLE_EMAIL_SIGNUP flag as the signup form; when
-       * set, better-auth also silently skips sending OTPs to unknown emails
-       * (enumeration-safe) while existing users keep OTP sign-in.
+       * Gated by the same DISABLE_EMAIL_SIGNUP flag as the signup form (and by
+       * DISABLE_REGISTRATION, whose /sign-up path check has the same blind
+       * spot); when set, better-auth also silently skips sending OTPs to
+       * unknown emails (enumeration-safe) while existing users keep OTP
+       * sign-in.
        */
-      disableSignUp: isEmailSignupDisabled,
+      disableSignUp: isEmailSignupDisabled || isRegistrationDisabled,
       sendVerificationOnSignUp: false,
       otpLength: 6, // Explicitly set the OTP length
       expiresIn: 15 * 60, // 15 minutes in seconds
