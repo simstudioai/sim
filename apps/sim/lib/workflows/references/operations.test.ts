@@ -125,7 +125,6 @@ describe('resolveWorkflowReferences', () => {
   })
 
   it('resolves references made through custom blocks', () => {
-    // D places custom_block_x, which is bound to source workflow C.
     const blocks: ReferenceBlockRow[] = [
       {
         parentId: 'd',

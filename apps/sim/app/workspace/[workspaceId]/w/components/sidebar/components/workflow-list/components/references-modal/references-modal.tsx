@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { ChipModal, ChipModalBody, ChipModalHeader, ChipModalTabs } from '@sim/emcn'
 import { useRouter } from 'next/navigation'
-import type { ReferenceNode } from '@/lib/api/contracts/workflow-references'
 import { ReferenceTree } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/references-modal/components/reference-tree/reference-tree'
 import { useWorkflowReferences } from '@/hooks/queries/workflow-references'
 
@@ -20,7 +19,6 @@ const EMPTY_MESSAGE: Record<ReferencesTab, string> = {
 }
 
 interface ReferencesModalProps {
-  isOpen: boolean
   onClose: () => void
   workspaceId: string
   workflowId: string
@@ -34,7 +32,6 @@ interface ReferencesModalProps {
  * demand by the owning row, so state initializes fresh per open.
  */
 export function ReferencesModal({
-  isOpen,
   onClose,
   workspaceId,
   workflowId,
@@ -50,10 +47,10 @@ export function ReferencesModal({
     onClose()
   }
 
-  const nodes: ReferenceNode[] = data ? data[activeTab] : []
+  const nodes = data?.[activeTab] ?? []
 
   return (
-    <ChipModal open={isOpen} onOpenChange={(next) => !next && onClose()} srTitle='References'>
+    <ChipModal open onOpenChange={(next) => !next && onClose()} srTitle='References'>
       <ChipModalHeader onClose={onClose}>References · {workflowName}</ChipModalHeader>
       <ChipModalBody>
         <ChipModalTabs

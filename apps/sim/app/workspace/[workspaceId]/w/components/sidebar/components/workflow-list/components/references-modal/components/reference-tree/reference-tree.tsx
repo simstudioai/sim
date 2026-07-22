@@ -1,7 +1,6 @@
 'use client'
 
-import { cn } from '@sim/emcn'
-import { WorkflowIcon } from '@/components/icons'
+import { Workflow } from '@sim/emcn/icons'
 import type { ReferenceNode } from '@/lib/api/contracts/workflow-references'
 
 const CONFIG = {
@@ -30,12 +29,9 @@ function ReferenceTreeItem({ node, depth, onNavigate }: ReferenceTreeItemProps) 
         type='button'
         onClick={() => onNavigate(node.id)}
         style={{ paddingLeft: CONFIG.BASE_INDENT + depth * CONFIG.INDENT_PER_LEVEL }}
-        className={cn(
-          'flex w-full min-w-0 items-center gap-2 rounded-md py-1.5 pr-2 text-left transition-colors',
-          'hover:bg-[var(--surface-hover)]'
-        )}
+        className='flex w-full min-w-0 items-center gap-2 rounded-md py-1.5 pr-2 text-left transition-colors hover:bg-[var(--surface-hover)]'
       >
-        <WorkflowIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+        <Workflow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
         <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>{node.name}</span>
         {node.cycle && (
           <span className='shrink-0 text-[var(--text-muted)] text-caption'>(cycle)</span>

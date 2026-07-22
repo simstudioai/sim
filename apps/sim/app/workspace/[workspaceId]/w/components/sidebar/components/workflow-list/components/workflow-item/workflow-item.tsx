@@ -525,7 +525,6 @@ export const WorkflowItem = memo(function WorkflowItem({
 
       {isReferencesOpen && (
         <ReferencesModal
-          isOpen
           onClose={() => setIsReferencesOpen(false)}
           workspaceId={workspaceId}
           workflowId={workflow.id}
