@@ -14,8 +14,8 @@ import { modelToContentBlocks } from '@/app/workspace/[workspaceId]/home/hooks/s
 import type { ContentBlock } from '../../types'
 import {
   assistantMessageHasVisibleExecutingTool,
+  deriveThinkingLabel,
   parseBlocks,
-  shouldShowTrailingThinking,
   shouldSmoothTextSegment,
 } from './message-content'
 
@@ -628,62 +628,6 @@ describe('narration text seams', () => {
   })
 })
 
-describe('shouldShowTrailingThinking', () => {
-  it('shows one turn-level indicator while an open subagent waits between completed steps', () => {
-    expect(
-      shouldShowTrailingThinking({
-        isStreaming: true,
-        isStreamIdle: true,
-        isRenderingStream: false,
-        hasExecutingTool: false,
-        lastSegmentType: 'agent_group',
-      })
-    ).toBe(true)
-  })
-
-  it('stays hidden while a chunk is rendering or before the stream becomes idle', () => {
-    expect(
-      shouldShowTrailingThinking({
-        isStreaming: true,
-        isStreamIdle: true,
-        isRenderingStream: true,
-        hasExecutingTool: false,
-        lastSegmentType: 'text',
-      })
-    ).toBe(false)
-    expect(
-      shouldShowTrailingThinking({
-        isStreaming: true,
-        isStreamIdle: false,
-        isRenderingStream: false,
-        hasExecutingTool: false,
-        lastSegmentType: 'agent_group',
-      })
-    ).toBe(false)
-  })
-
-  it('does not duplicate an executing tool row or survive a stopped turn', () => {
-    expect(
-      shouldShowTrailingThinking({
-        isStreaming: true,
-        isStreamIdle: true,
-        isRenderingStream: false,
-        hasExecutingTool: true,
-        lastSegmentType: 'agent_group',
-      })
-    ).toBe(false)
-    expect(
-      shouldShowTrailingThinking({
-        isStreaming: true,
-        isStreamIdle: true,
-        isRenderingStream: false,
-        hasExecutingTool: false,
-        lastSegmentType: 'stopped',
-      })
-    ).toBe(false)
-  })
-})
-
 describe('parseBlocks legacy — thinking between top-level tools', () => {
   it('keeps consecutive mothership tools in one group across intervening thinking', () => {
     const blocks: ContentBlock[] = [
@@ -791,5 +735,29 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
       },
     ]
     expect(assistantMessageHasVisibleExecutingTool(blocks)).toBe(false)
+  })
+})
+
+describe('deriveThinkingLabel', () => {
+  it('maps the most recent block to an activity phrase', () => {
+    expect(deriveThinkingLabel([])).toBe('Thinking…')
+    expect(deriveThinkingLabel([{ type: 'thinking', content: 'hm', timestamp: 1 }])).toBe(
+      'Thinking…'
+    )
+    // A stall after streamed text is the agent deciding what's next, not generating.
+    expect(deriveThinkingLabel([mainText('hi')])).toBe('Thinking…')
+    expect(deriveThinkingLabel([{ type: 'subagent_text', content: 'x', timestamp: 1 }])).toBe(
+      'Thinking…'
+    )
+    expect(deriveThinkingLabel([{ type: 'subagent_end', spanId: 'S1', timestamp: 1 }])).toBe(
+      'Returning…'
+    )
+  })
+
+  it('shows Dispatching for the dispatch call, then yields to the opened lane', () => {
+    expect(deriveThinkingLabel([mainToolCall('t1', 'workflow')])).toBe('Dispatching…')
+    expect(deriveThinkingLabel([mainToolCall('t1', 'workspace_file')])).toBe('Dispatching…')
+    expect(deriveThinkingLabel([mainToolCall('t1', 'grep')])).toBe('Thinking…')
+    expect(deriveThinkingLabel([subagentStart('workflow', 'S1', 'main')])).toBeNull()
   })
 })

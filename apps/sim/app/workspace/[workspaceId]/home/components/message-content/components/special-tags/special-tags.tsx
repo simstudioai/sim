@@ -559,13 +559,18 @@ export function SpecialTags({
   }
 }
 
+interface PendingTagIndicatorProps {
+  /** Activity phrase next to the loader; crossfades on change. */
+  label: string
+}
+
 /**
- * Renders a "Thinking" shimmer while a special tag is still streaming in.
+ * Renders the turn-level activity shimmer.
  */
-export function PendingTagIndicator() {
+export function PendingTagIndicator({ label }: PendingTagIndicatorProps) {
   return (
     <div className='animate-stream-fade-in py-2'>
-      <ThinkingLoader size={20} startVariant='corners' label='Thinking…' labelRatio={0.7} />
+      <ThinkingLoader size={20} startVariant='corners' label={label} labelRatio={0.7} />
     </div>
   )
 }
