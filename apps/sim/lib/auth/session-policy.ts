@@ -3,33 +3,18 @@ import type { SessionPolicySettings } from '@sim/db/schema'
 import { organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
+import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 
 const logger = createLogger('SessionPolicy')
 
-/**
- * How long a resolved org policy is served from process memory before the
- * next request re-reads it. This TTL is also the effective upper bound on
- * org-wide session-revocation latency: a {@link bumpSecurityPolicyVersion}
- * call changes the cookie-cache version, and every cached session cookie in
- * the org falls through to a DB read within one TTL.
- */
+/** How long a resolved org session policy is served from process memory. */
 export const SESSION_POLICY_CACHE_TTL_MS = 60 * 1000
 
 const HOUR_MS = 60 * 60 * 1000
 
-/**
- * Floor for `idleTimeoutHours`. Session activity is only recorded on
- * DB-path refreshes, and the session cookie cache serves reads for up to
- * 24 hours without touching the DB — an idle timeout below that window
- * would sign out demonstrably active users.
- */
-export const MIN_IDLE_TIMEOUT_HOURS = 24
-
 export interface ResolvedSessionPolicy {
   maxSessionHours: number | null
   idleTimeoutHours: number | null
-  /** Org security-policy version embedded in the cookie-cache version. */
-  version: number
 }
 
 interface PolicyCacheEntry {
@@ -42,7 +27,6 @@ const policyCache = new Map<string, PolicyCacheEntry>()
 const NO_POLICY: ResolvedSessionPolicy = {
   maxSessionHours: null,
   idleTimeoutHours: null,
-  version: 1,
 }
 
 /**
@@ -61,10 +45,7 @@ export async function getSessionPolicy(
 
   try {
     const [row] = await db
-      .select({
-        settings: organization.sessionPolicySettings,
-        version: organization.securityPolicyVersion,
-      })
+      .select({ settings: organization.sessionPolicySettings })
       .from(organization)
       .where(eq(organization.id, organizationId))
       .limit(1)
@@ -73,7 +54,6 @@ export async function getSessionPolicy(
     const policy: ResolvedSessionPolicy = {
       maxSessionHours: settings.maxSessionHours ?? null,
       idleTimeoutHours: settings.idleTimeoutHours ?? null,
-      version: row?.version ?? 1,
     }
     policyCache.set(organizationId, { policy, fetchedAt: Date.now() })
     return policy
@@ -98,8 +78,8 @@ export function invalidateSessionPolicyCache(organizationId: string): void {
  * Better Auth's sliding refresh rewrites `expiresAt` to `now + expiresIn`
  * (30 days) on every refresh, which would silently stretch a shortened
  * session back out — so this clamp must run in BOTH the session create and
- * session update database hooks. Returns the proposed date unchanged when
- * no policy field is set.
+ * session update database hooks. The idle floor guards values that bypassed
+ * contract validation (legacy rows, direct DB writes).
  */
 export function clampSessionExpiry(
   policy: ResolvedSessionPolicy,
@@ -115,33 +95,62 @@ export function clampSessionExpiry(
     const idleHours = Math.max(policy.idleTimeoutHours, MIN_IDLE_TIMEOUT_HOURS)
     clamped = Math.min(clamped, now.getTime() + idleHours * HOUR_MS)
   }
-  return clamped === proposedExpiresAt.getTime() ? proposedExpiresAt : new Date(clamped)
+  return new Date(clamped)
 }
 
 /**
- * Atomically bumps the org's security-policy version and drops the local
- * policy cache entry. Every member's cached session cookie is invalidated on
- * its next request (version mismatch → DB session read), which is what makes
- * policy tightening and org-wide revocation take effect within the cache TTL
- * instead of the 24h cookie-cache lifetime.
+ * Session shape shared by the Better Auth create/update database hooks —
+ * the fields the clamp guards need.
  */
-export async function bumpSecurityPolicyVersion(organizationId: string): Promise<void> {
-  await db
-    .update(organization)
-    .set({ securityPolicyVersion: sql`${organization.securityPolicyVersion} + 1` })
-    .where(eq(organization.id, organizationId))
-  invalidateSessionPolicyCache(organizationId)
-}
-
-/**
- * Cookie-cache version for a session, consumed by Better Auth's
- * `session.cookieCache.version`. Embeds the member org's security-policy
- * version so bumps propagate to cached cookies; org-less sessions use the
- * static default.
- */
-export async function getSessionCookieCacheVersion(session: {
+interface ClampableSession {
   activeOrganizationId?: string | null
-}): Promise<string> {
+  impersonatedBy?: string | null
+  createdAt?: Date | null
+  expiresAt?: Date | null
+}
+
+/**
+ * Applies the org session policy to a session's proposed `expiresAt` from a
+ * Better Auth database hook. Returns the original date (or undefined/null as
+ * given) when no clamp applies: impersonation sessions are platform-admin
+ * tooling with their own short expiry, and org-less sessions have no policy.
+ */
+export async function clampExpiryForSession(session: ClampableSession): Promise<Date | undefined> {
+  if (!session.expiresAt || session.impersonatedBy || !session.activeOrganizationId) {
+    return session.expiresAt ?? undefined
+  }
   const policy = await getSessionPolicy(session.activeOrganizationId)
-  return String(policy.version)
+  return clampSessionExpiry(policy, session.createdAt ?? new Date(), session.expiresAt)
+}
+
+/**
+ * Eagerly clamps every existing member session to the given policy in a
+ * single SQL statement — the SQL twin of {@link clampSessionExpiry}, kept in
+ * this module so the two encodings of the clamp cannot drift. Runs when a
+ * policy is saved so tightening applies without waiting for each session's
+ * next refresh; `LEAST` never extends an already-shorter expiry, and
+ * impersonation sessions are exempt. No-ops when the policy sets no bounds.
+ */
+export async function eagerClampOrgSessions(
+  organizationId: string,
+  policy: ResolvedSessionPolicy
+): Promise<void> {
+  const bounds = [sql`expires_at`]
+  if (policy.maxSessionHours) {
+    const maxSecs = policy.maxSessionHours * 3600
+    bounds.push(sql`created_at + make_interval(secs => ${maxSecs})`)
+  }
+  if (policy.idleTimeoutHours) {
+    const idleSecs = Math.max(policy.idleTimeoutHours, MIN_IDLE_TIMEOUT_HOURS) * 3600
+    bounds.push(sql`now() + make_interval(secs => ${idleSecs})`)
+  }
+  if (bounds.length === 1) return
+
+  await db.execute(sql`
+    UPDATE "session" SET expires_at = LEAST(${sql.join(bounds, sql`, `)})
+    WHERE impersonated_by IS NULL
+      AND user_id IN (
+        SELECT user_id FROM member WHERE organization_id = ${organizationId}
+      )
+  `)
 }

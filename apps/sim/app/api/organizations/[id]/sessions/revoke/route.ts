@@ -2,12 +2,13 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, session as sessionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { revokeOrganizationSessionsContract } from '@/lib/api/contracts/organization'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { bumpSecurityPolicyVersion } from '@/lib/auth/session-policy'
+import { bumpSecurityPolicyVersion } from '@/lib/auth/security-policy'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -45,7 +46,7 @@ export const POST = withRouteHandler(
       )
     }
 
-    if (memberEntry.role !== 'owner' && memberEntry.role !== 'admin') {
+    if (!isOrgAdminRole(memberEntry.role)) {
       return NextResponse.json(
         { error: 'Forbidden - Only organization owners and admins can revoke sessions' },
         { status: 403 }
@@ -72,17 +73,17 @@ export const POST = withRouteHandler(
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    const memberRows = await db
-      .select({ userId: member.userId })
-      .from(member)
-      .where(eq(member.organizationId, organizationId))
-    const memberIds = memberRows.map((row) => row.userId)
-
     const revoked = await db
       .delete(sessionTable)
       .where(
         and(
-          inArray(sessionTable.userId, memberIds),
+          inArray(
+            sessionTable.userId,
+            db
+              .select({ userId: member.userId })
+              .from(member)
+              .where(eq(member.organizationId, organizationId))
+          ),
           isNull(sessionTable.impersonatedBy),
           ne(sessionTable.token, session.session.token)
         )

@@ -1,0 +1,76 @@
+---
+title: Session Policies
+description: Set session lifetime limits and sign out every member of your organization at once
+---
+
+import { FAQ } from '@/components/ui/faq'
+
+Session Policies let organization owners and admins on Enterprise plans control how long member sign-in sessions last, and sign out every member org-wide in one action. Policies apply to every member of the organization on every device.
+
+---
+
+## Setup
+
+Go to **Settings → Security → Session policies** in your organization settings.
+
+Both limits are optional. Leave a field empty to keep the default behavior: sessions last 30 days and extend automatically while a member stays active.
+
+---
+
+## Settings
+
+### Max session lifetime
+
+Caps how long a session can exist from the moment a member signs in, regardless of activity. When the limit is reached, the member must sign in again.
+
+Use this to enforce periodic re-authentication — for example, a value of `168` requires everyone to sign in again at least weekly. Accepts 1 to 8760 hours (1 year).
+
+### Idle timeout
+
+Signs a member out after this many hours without activity. Activity extends the session, so members who use Sim regularly stay signed in; dormant sessions expire.
+
+Accepts 24 to 8760 hours. The 24-hour minimum exists because session activity is recorded at most once per day — a shorter window would sign out members who are actively working.
+
+### Sign out all members
+
+The **Sign out all members** action immediately revokes every member session in the organization except your own. Members are signed out on their next request — typically within a minute — and must sign in again.
+
+Use this after a security incident, an offboarding wave, or before tightening a policy you want to take effect everywhere at once.
+
+---
+
+## How enforcement works
+
+- **New sign-ins** get an expiry that respects the policy from the moment the session is created.
+- **Existing sessions** are shortened immediately when you save a tighter policy — no member keeps a longer session than the new policy allows.
+- **Loosening a policy never extends existing sessions.** Members pick up the longer limit the next time they sign in.
+- Changes propagate to active members within about a minute; there is no need to redeploy or wait for sessions to naturally expire.
+
+---
+
+## FAQ
+
+<FAQ
+  items={[
+    {
+      question: 'Do session policies apply to SSO sign-ins?',
+      answer:
+        'Yes. Sessions created through SSO follow the same lifetime and idle limits as any other sign-in method. Your identity provider may enforce its own, stricter session rules on top.',
+    },
+    {
+      question: 'What happens to a member who is working when their session expires?',
+      answer:
+        'They are redirected to sign in again on their next request. Unsaved workflow changes in the editor are preserved by the collaborative canvas, which continuously syncs edits.',
+    },
+    {
+      question: 'Does "Sign out all members" affect API keys or running workflows?',
+      answer:
+        'No. It revokes browser sign-in sessions only. API keys, deployed workflows, webhooks, and schedules keep working — manage those separately from the API keys settings.',
+    },
+    {
+      question: 'Why is the minimum idle timeout 24 hours?',
+      answer:
+        'Session activity is recorded at most once per 24 hours for performance. An idle timeout below that window could sign out members who are actively using Sim, so shorter values are not accepted.',
+    },
+  ]}
+/>

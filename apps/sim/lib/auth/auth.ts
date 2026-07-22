@@ -34,11 +34,8 @@ import {
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { getRequestedSignInProviderId, isSignInProviderAllowed } from '@/lib/auth/constants'
-import {
-  clampSessionExpiry,
-  getSessionCookieCacheVersion,
-  getSessionPolicy,
-} from '@/lib/auth/session-policy'
+import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
+import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
@@ -667,7 +664,7 @@ export const auth = betterAuth({
           try {
             // Find the first organization this user is a member of
             const members = await db
-              .select()
+              .select({ organizationId: schema.member.organizationId })
               .from(schema.member)
               .where(eq(schema.member.userId, session.userId))
               .limit(1)
@@ -678,16 +675,10 @@ export const auth = betterAuth({
                 organizationId: members[0].organizationId,
               })
 
-              // Impersonation sessions are platform-admin tooling with their
-              // own short expiry — org session policies do not apply.
-              const expiresAt =
-                session.impersonatedBy || !session.expiresAt
-                  ? session.expiresAt
-                  : clampSessionExpiry(
-                      await getSessionPolicy(members[0].organizationId),
-                      session.createdAt ?? new Date(),
-                      session.expiresAt
-                    )
+              const expiresAt = await clampExpiryForSession({
+                ...session,
+                activeOrganizationId: members[0].organizationId,
+              })
 
               return {
                 data: {
@@ -722,13 +713,11 @@ export const auth = betterAuth({
         before: async (data, ctx) => {
           if (!data.expiresAt) return { data }
           const current = ctx?.context?.session?.session
-          if (!current?.activeOrganizationId || current.impersonatedBy) return { data }
-          const policy = await getSessionPolicy(current.activeOrganizationId)
-          const expiresAt = clampSessionExpiry(
-            policy,
-            current.createdAt ?? new Date(),
-            new Date(data.expiresAt)
-          )
+          if (!current) return { data }
+          const expiresAt = await clampExpiryForSession({
+            ...current,
+            expiresAt: new Date(data.expiresAt),
+          })
           return { data: { ...data, expiresAt } }
         },
       },

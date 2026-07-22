@@ -142,24 +142,33 @@ export const organizationDataRetentionResponseSchema = z.object({
   data: organizationDataRetentionDataSchema,
 })
 
+/**
+ * Session-policy bounds — the single source for the contract validation, the
+ * server-side clamp (`@/lib/auth/session-policy`), and the settings UI.
+ * `MIN_IDLE_TIMEOUT_HOURS` matches the session cookie-cache window: activity
+ * is only recorded on DB-path refreshes, so a shorter idle timeout would sign
+ * out demonstrably active users.
+ */
+export const MIN_SESSION_LIFETIME_HOURS = 1
+export const MIN_IDLE_TIMEOUT_HOURS = 24
+export const MAX_SESSION_POLICY_HOURS = 8760
+
 export const updateOrganizationSessionPolicyBodySchema = z.object({
   maxSessionHours: z
     .number()
     .int()
-    .min(1, 'Max session lifetime must be at least 1 hour')
-    .max(8760, 'Max session lifetime cannot exceed 8760 hours (1 year)')
-    .nullable()
-    .optional(),
+    .min(MIN_SESSION_LIFETIME_HOURS, 'Max session lifetime must be at least 1 hour')
+    .max(MAX_SESSION_POLICY_HOURS, 'Max session lifetime cannot exceed 8760 hours (1 year)')
+    .nullable(),
   idleTimeoutHours: z
     .number()
     .int()
     .min(
-      24,
+      MIN_IDLE_TIMEOUT_HOURS,
       'Idle timeout must be at least 24 hours — session activity is only recorded once per cookie-cache window'
     )
-    .max(8760, 'Idle timeout cannot exceed 8760 hours (1 year)')
-    .nullable()
-    .optional(),
+    .max(MAX_SESSION_POLICY_HOURS, 'Idle timeout cannot exceed 8760 hours (1 year)')
+    .nullable(),
 })
 
 export type UpdateOrganizationSessionPolicyBody = z.input<

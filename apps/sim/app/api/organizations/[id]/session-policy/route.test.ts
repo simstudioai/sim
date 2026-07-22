@@ -1,79 +1,36 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { member, organization } from '@sim/db/schema'
+import {
+  createMockRequest,
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockDbState,
-  mockGetSession,
-  mockIsEnterprise,
-  mockBumpVersion,
-  mockRecordAudit,
-  mockExecute,
-  mockUpdateReturning,
-} = vi.hoisted(() => ({
-  mockDbState: { selectResults: [] as unknown[][] },
+const { mockGetSession, mockIsEnterprise, mockEagerClamp, mockRecordAudit } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockIsEnterprise: vi.fn(),
-  mockBumpVersion: vi.fn(),
+  mockEagerClamp: vi.fn(),
   mockRecordAudit: vi.fn(),
-  mockExecute: vi.fn(),
-  mockUpdateReturning: vi.fn(),
 }))
 
-function createSelectChain() {
-  const chain = {
-    from: vi.fn(),
-    where: vi.fn(),
-    limit: vi.fn(),
-  }
-  chain.from.mockReturnValue(chain)
-  chain.where.mockReturnValue(chain)
-  chain.limit.mockImplementation(() => Promise.resolve(mockDbState.selectResults.shift() ?? []))
-  return chain
-}
-
-function createUpdateChain() {
-  const chain = {
-    set: vi.fn(),
-    where: vi.fn(),
-    returning: vi.fn(),
-  }
-  chain.set.mockReturnValue(chain)
-  chain.where.mockReturnValue(chain)
-  chain.returning.mockImplementation(() => Promise.resolve(mockUpdateReturning()))
-  return chain
-}
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(() => createSelectChain()),
-    update: vi.fn(() => createUpdateChain()),
-    execute: mockExecute,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  member: {
-    id: 'member.id',
-    organizationId: 'member.organizationId',
-    userId: 'member.userId',
-    role: 'member.role',
-  },
-  organization: {
-    id: 'organization.id',
-    name: 'organization.name',
-    sessionPolicySettings: 'organization.sessionPolicySettings',
-  },
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/auth', () => ({
   getSession: mockGetSession,
 }))
 
 vi.mock('@/lib/auth/session-policy', () => ({
-  bumpSecurityPolicyVersion: mockBumpVersion,
+  eagerClampOrgSessions: mockEagerClamp,
+  invalidateSessionPolicyCache: vi.fn(),
+}))
+
+vi.mock('@/lib/auth/security-policy', () => ({
+  invalidateSecurityPolicyVersionCache: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/subscription', () => ({
@@ -100,13 +57,12 @@ const routeContext = { params: Promise.resolve({ id: ORG_ID }) }
 describe('session policy route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbState.selectResults = []
+    resetDbChainMock()
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Admin', email: 'admin@acme.dev' },
       session: { token: 'tok-1' },
     })
     mockIsEnterprise.mockResolvedValue(true)
-    mockExecute.mockResolvedValue(undefined)
   })
 
   describe('GET', () => {
@@ -117,16 +73,16 @@ describe('session policy route', () => {
     })
 
     it('returns 403 for non-members', async () => {
-      mockDbState.selectResults = [[]]
+      queueTableRows(member, [])
       const response = await GET(createMockRequest('GET'), routeContext)
       expect(response.status).toBe(403)
     })
 
     it('returns the configured policy for members', async () => {
-      mockDbState.selectResults = [
-        [{ id: 'member-1' }],
-        [{ sessionPolicySettings: { maxSessionHours: 72, idleTimeoutHours: null } }],
-      ]
+      queueTableRows(member, [{ id: 'member-1' }])
+      queueTableRows(organization, [
+        { sessionPolicySettings: { maxSessionHours: 72, idleTimeoutHours: null } },
+      ])
       const response = await GET(createMockRequest('GET'), routeContext)
       expect(response.status).toBe(200)
       const body = await response.json()
@@ -143,32 +99,37 @@ describe('session policy route', () => {
     }
 
     it('rejects non-admin members', async () => {
-      mockDbState.selectResults = [[{ role: 'member' }]]
-      const response = await PUT(putRequest({ maxSessionHours: 72 }), routeContext)
+      queueTableRows(member, [{ role: 'member' }])
+      const response = await PUT(
+        putRequest({ maxSessionHours: 72, idleTimeoutHours: null }),
+        routeContext
+      )
       expect(response.status).toBe(403)
     })
 
     it('rejects an idle timeout below the cookie-cache window', async () => {
-      mockDbState.selectResults = [[{ role: 'admin' }]]
-      const response = await PUT(putRequest({ idleTimeoutHours: 5 }), routeContext)
+      queueTableRows(member, [{ role: 'admin' }])
+      const response = await PUT(
+        putRequest({ maxSessionHours: null, idleTimeoutHours: 5 }),
+        routeContext
+      )
       expect(response.status).toBe(400)
     })
 
     it('rejects non-enterprise organizations', async () => {
-      mockDbState.selectResults = [[{ role: 'owner' }]]
+      queueTableRows(member, [{ role: 'owner' }])
       mockIsEnterprise.mockResolvedValue(false)
-      const response = await PUT(putRequest({ maxSessionHours: 72 }), routeContext)
+      const response = await PUT(
+        putRequest({ maxSessionHours: 72, idleTimeoutHours: null }),
+        routeContext
+      )
       expect(response.status).toBe(403)
     })
 
     it('saves the policy, eagerly clamps sessions, and bumps the version', async () => {
-      mockDbState.selectResults = [
-        [{ role: 'owner' }],
-        [{ name: 'Acme', sessionPolicySettings: null }],
-      ]
-      mockUpdateReturning.mockReturnValue([
-        { sessionPolicySettings: { maxSessionHours: 72, idleTimeoutHours: 48 } },
-      ])
+      queueTableRows(member, [{ role: 'owner' }])
+      queueTableRows(organization, [{ name: 'Acme' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: ORG_ID }])
 
       const response = await PUT(
         putRequest({ maxSessionHours: 72, idleTimeoutHours: 48 }),
@@ -177,29 +138,33 @@ describe('session policy route', () => {
       expect(response.status).toBe(200)
       const body = await response.json()
       expect(body.data.configured).toEqual({ maxSessionHours: 72, idleTimeoutHours: 48 })
-      expect(mockExecute).toHaveBeenCalledTimes(1)
-      expect(mockBumpVersion).toHaveBeenCalledWith(ORG_ID)
+      expect(mockEagerClamp).toHaveBeenCalledWith(ORG_ID, {
+        maxSessionHours: 72,
+        idleTimeoutHours: 48,
+      })
+      // The version bump rides the settings UPDATE (single round trip).
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ securityPolicyVersion: expect.anything() })
+      )
       expect(mockRecordAudit).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'organization.session_policy.updated' })
       )
     })
 
-    it('skips the eager clamp when both policy fields are cleared', async () => {
-      mockDbState.selectResults = [
-        [{ role: 'owner' }],
-        [{ name: 'Acme', sessionPolicySettings: { maxSessionHours: 72 } }],
-      ]
-      mockUpdateReturning.mockReturnValue([
-        { sessionPolicySettings: { maxSessionHours: null, idleTimeoutHours: null } },
-      ])
+    it('clearing both fields still saves and delegates the no-op to the clamp', async () => {
+      queueTableRows(member, [{ role: 'owner' }])
+      queueTableRows(organization, [{ name: 'Acme' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: ORG_ID }])
 
       const response = await PUT(
         putRequest({ maxSessionHours: null, idleTimeoutHours: null }),
         routeContext
       )
       expect(response.status).toBe(200)
-      expect(mockExecute).not.toHaveBeenCalled()
-      expect(mockBumpVersion).toHaveBeenCalledWith(ORG_ID)
+      expect(mockEagerClamp).toHaveBeenCalledWith(ORG_ID, {
+        maxSessionHours: null,
+        idleTimeoutHours: null,
+      })
     })
   })
 })

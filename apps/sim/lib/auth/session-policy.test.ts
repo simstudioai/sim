@@ -2,16 +2,13 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import {
-  clampSessionExpiry,
-  MIN_IDLE_TIMEOUT_HOURS,
-  type ResolvedSessionPolicy,
-} from '@/lib/auth/session-policy'
+import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
+import { clampSessionExpiry, type ResolvedSessionPolicy } from '@/lib/auth/session-policy'
 
 const HOUR_MS = 60 * 60 * 1000
 
 function policy(overrides: Partial<ResolvedSessionPolicy> = {}): ResolvedSessionPolicy {
-  return { maxSessionHours: null, idleTimeoutHours: null, version: 1, ...overrides }
+  return { maxSessionHours: null, idleTimeoutHours: null, ...overrides }
 }
 
 describe('clampSessionExpiry', () => {
@@ -20,8 +17,10 @@ describe('clampSessionExpiry', () => {
   /** Better Auth's sliding refresh proposes now + 30 days. */
   const proposed = new Date(now.getTime() + 30 * 24 * HOUR_MS)
 
-  it('returns the proposed date unchanged when no policy fields are set', () => {
-    expect(clampSessionExpiry(policy(), createdAt, proposed, now)).toBe(proposed)
+  it('returns the proposed time unchanged when no policy fields are set', () => {
+    expect(clampSessionExpiry(policy(), createdAt, proposed, now).getTime()).toBe(
+      proposed.getTime()
+    )
   })
 
   it('caps absolute lifetime at createdAt + maxSessionHours', () => {
@@ -80,6 +79,6 @@ describe('clampSessionExpiry', () => {
       shortProposal,
       now
     )
-    expect(result).toBe(shortProposal)
+    expect(result.getTime()).toBe(shortProposal.getTime())
   })
 })

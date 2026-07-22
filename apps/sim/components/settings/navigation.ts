@@ -544,6 +544,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   {
     label: 'Session policies',
     icon: Clock,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/session-policies',
     unified: {
       id: 'sessions',
       description: 'Set session lifetime limits and sign out members org-wide.',

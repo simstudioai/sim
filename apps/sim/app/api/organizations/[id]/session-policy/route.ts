@@ -3,12 +3,14 @@ import { db } from '@sim/db'
 import type { SessionPolicySettings } from '@sim/db/schema'
 import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateOrganizationSessionPolicyContract } from '@/lib/api/contracts/organization'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { bumpSecurityPolicyVersion } from '@/lib/auth/session-policy'
+import { invalidateSecurityPolicyVersionCache } from '@/lib/auth/security-policy'
+import { eagerClampOrgSessions, invalidateSessionPolicyCache } from '@/lib/auth/session-policy'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -104,7 +106,7 @@ export const PUT = withRouteHandler(
       )
     }
 
-    if (memberEntry.role !== 'owner' && memberEntry.role !== 'admin') {
+    if (!isOrgAdminRole(memberEntry.role)) {
       return NextResponse.json(
         { error: 'Forbidden - Only organization owners and admins can update the session policy' },
         { status: 403 }
@@ -122,10 +124,7 @@ export const PUT = withRouteHandler(
     }
 
     const [currentOrg] = await db
-      .select({
-        name: organization.name,
-        sessionPolicySettings: organization.sessionPolicySettings,
-      })
+      .select({ name: organization.name })
       .from(organization)
       .where(eq(organization.id, organizationId))
       .limit(1)
@@ -134,48 +133,36 @@ export const PUT = withRouteHandler(
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    const current = normalizeConfigured(currentOrg.sessionPolicySettings)
-    const merged: SessionPolicySettings = { ...current }
-    if (body.maxSessionHours !== undefined) merged.maxSessionHours = body.maxSessionHours
-    if (body.idleTimeoutHours !== undefined) merged.idleTimeoutHours = body.idleTimeoutHours
+    const merged = {
+      maxSessionHours: body.maxSessionHours,
+      idleTimeoutHours: body.idleTimeoutHours,
+    }
 
+    // The version bump rides the settings UPDATE (same row, one round trip);
+    // it invalidates every member's cached session cookie so the changed
+    // policy re-evaluates on the next request instead of after the 24h
+    // cookie-cache lifetime.
     const [updated] = await db
       .update(organization)
-      .set({ sessionPolicySettings: merged, updatedAt: new Date() })
+      .set({
+        sessionPolicySettings: merged,
+        securityPolicyVersion: sql`${organization.securityPolicyVersion} + 1`,
+        updatedAt: new Date(),
+      })
       .where(eq(organization.id, organizationId))
-      .returning({ sessionPolicySettings: organization.sessionPolicySettings })
+      .returning({ id: organization.id })
 
     if (!updated) {
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
+    invalidateSessionPolicyCache(organizationId)
+    invalidateSecurityPolicyVersionCache(organizationId)
+
     // Eagerly clamp existing member sessions so a tightened policy applies to
     // sessions that never hit a refresh (the lazy hook clamp only runs on
-    // refresh, up to 24h away). Loosening never extends: LEAST keeps the
-    // current expiry when it is already shorter. Impersonation sessions are
-    // platform-admin tooling and exempt.
-    const maxMs = merged.maxSessionHours ? merged.maxSessionHours * 60 * 60 * 1000 : null
-    const idleMs = merged.idleTimeoutHours
-      ? Math.max(merged.idleTimeoutHours, 24) * 60 * 60 * 1000
-      : null
-    if (maxMs !== null || idleMs !== null) {
-      await db.execute(sql`
-        UPDATE "session" SET expires_at = LEAST(
-          expires_at,
-          ${maxMs !== null ? sql`created_at + make_interval(secs => ${maxMs / 1000})` : sql`expires_at`},
-          ${idleMs !== null ? sql`now() + make_interval(secs => ${idleMs / 1000})` : sql`expires_at`}
-        )
-        WHERE impersonated_by IS NULL
-          AND user_id IN (
-            SELECT user_id FROM member WHERE organization_id = ${organizationId}
-          )
-      `)
-    }
-
-    // Invalidate every member's cached session cookie so the tightened (or
-    // loosened) policy re-evaluates on the next request instead of after the
-    // 24h cookie-cache lifetime.
-    await bumpSecurityPolicyVersion(organizationId)
+    // refresh, up to 24h away).
+    await eagerClampOrgSessions(organizationId, merged)
 
     logger.info('Updated organization session policy', { organizationId })
 
@@ -197,7 +184,7 @@ export const PUT = withRouteHandler(
       success: true,
       data: {
         isEnterprise: true,
-        configured: normalizeConfigured(updated.sessionPolicySettings),
+        configured: normalizeConfigured(merged),
       },
     })
   }

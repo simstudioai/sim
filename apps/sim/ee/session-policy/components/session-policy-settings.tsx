@@ -2,6 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ChipConfirmModal, ChipInput, Label, toast } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
+import {
+  MAX_SESSION_POLICY_HOURS,
+  MIN_IDLE_TIMEOUT_HOURS,
+  MIN_SESSION_LIFETIME_HOURS,
+} from '@/lib/api/contracts/organization'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -12,9 +18,6 @@ import {
   useRevokeOrganizationSessions,
   useUpdateOrganizationSessionPolicy,
 } from '@/ee/session-policy/hooks/session-policy'
-
-const MAX_POLICY_HOURS = 8760
-const MIN_IDLE_HOURS = 24
 
 interface SessionPolicySettingsProps {
   organizationId: string
@@ -102,16 +105,21 @@ export function SessionPolicySettings({ organizationId }: SessionPolicySettingsP
     const max = parseHours(maxSessionHours)
     const idle = parseHours(idleTimeoutHours)
 
-    if (Number.isNaN(max) || (max !== null && (max < 1 || max > MAX_POLICY_HOURS))) {
-      toast.error(`Max session lifetime must be a whole number between 1 and ${MAX_POLICY_HOURS}`)
+    if (
+      Number.isNaN(max) ||
+      (max !== null && (max < MIN_SESSION_LIFETIME_HOURS || max > MAX_SESSION_POLICY_HOURS))
+    ) {
+      toast.error(
+        `Max session lifetime must be a whole number between ${MIN_SESSION_LIFETIME_HOURS} and ${MAX_SESSION_POLICY_HOURS}`
+      )
       return
     }
     if (
       Number.isNaN(idle) ||
-      (idle !== null && (idle < MIN_IDLE_HOURS || idle > MAX_POLICY_HOURS))
+      (idle !== null && (idle < MIN_IDLE_TIMEOUT_HOURS || idle > MAX_SESSION_POLICY_HOURS))
     ) {
       toast.error(
-        `Idle timeout must be a whole number between ${MIN_IDLE_HOURS} and ${MAX_POLICY_HOURS}`
+        `Idle timeout must be a whole number between ${MIN_IDLE_TIMEOUT_HOURS} and ${MAX_SESSION_POLICY_HOURS}`
       )
       return
     }
@@ -125,7 +133,7 @@ export function SessionPolicySettings({ organizationId }: SessionPolicySettingsP
       setSavedIdleTimeoutHours(idleTimeoutHours)
       toast.success('Session policy updated')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update session policy')
+      toast.error(getErrorMessage(error, 'Failed to update session policy'))
     }
   }
 
@@ -142,7 +150,7 @@ export function SessionPolicySettings({ organizationId }: SessionPolicySettingsP
         `Signed out ${result.data.revokedSessions} session${result.data.revokedSessions === 1 ? '' : 's'}`
       )
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to revoke sessions')
+      toast.error(getErrorMessage(error, 'Failed to revoke sessions'))
     }
   }
 
@@ -174,7 +182,7 @@ export function SessionPolicySettings({ organizationId }: SessionPolicySettingsP
           <HourField
             id='idle-timeout-hours'
             title='Idle timeout (hours)'
-            hint={`Sessions expire after this many hours without activity. Minimum ${MIN_IDLE_HOURS} hours.`}
+            hint={`Sessions expire after this many hours without activity. Minimum ${MIN_IDLE_TIMEOUT_HOURS} hours.`}
             value={idleTimeoutHours}
             onChange={setIdleTimeoutHours}
           />
