@@ -103,13 +103,25 @@ function mockServers(servers: McpServer[]) {
   })
 }
 
+// jsdom has no EventSource; useMcpToolsQuery mounts the shared SSE subscription.
+class FakeEventSource {
+  onopen: (() => void) | null = null
+  onerror: (() => void) | null = null
+  constructor(public url: string) {}
+  addEventListener(): void {}
+  close(): void {}
+}
+
 describe('useMcpToolsQuery', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ;(globalThis as unknown as { EventSource: unknown }).EventSource = FakeEventSource
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    ;(globalThis as unknown as Record<string, unknown>).__mcp_sse_connections = undefined
+    ;(globalThis as unknown as Record<string, unknown>).__mcp_sse_subscribed = undefined
   })
 
   it('does not auto-discover disconnected or errored OAuth servers', async () => {

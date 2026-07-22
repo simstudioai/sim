@@ -146,6 +146,11 @@ function isServerEligibleForDiscovery(server: McpServer, workspaceId: string): b
 export function useMcpToolsQuery(workspaceId: string) {
   const queryClient = useQueryClient()
   const { data: servers, isLoading: serversLoading } = useMcpServers(workspaceId)
+  // Push is intrinsic to consuming the tools query: every surface that reads tools (settings,
+  // tool picker, dynamic args, tool selector, canvas block) gets real-time `list_changed`
+  // refresh via the shared, reference-counted subscription — so the 5-min stale time is always
+  // push-backed and no consumer is left re-probing.
+  useMcpToolsEvents(workspaceId)
 
   /**
    * Skip disabled rows, rows retained from a previous workspace, and OAuth rows
