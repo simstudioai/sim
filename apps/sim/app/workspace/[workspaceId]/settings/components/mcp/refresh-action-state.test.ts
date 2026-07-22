@@ -31,7 +31,7 @@ describe('getRefreshActionState', () => {
     })
   })
 
-  it('shows OAuth authorization required when an OAuth refresh finishes disconnected', () => {
+  it('shows a short Failed result when an OAuth refresh finishes disconnected (status field explains)', () => {
     expect(
       getRefreshActionState({
         mutationStatus: 'success',
@@ -40,7 +40,7 @@ describe('getRefreshActionState', () => {
         workflowsUpdated: 0,
       })
     ).toEqual({
-      text: 'OAuth authorization required',
+      text: 'Failed',
       textTone: 'error',
       disabled: false,
     })

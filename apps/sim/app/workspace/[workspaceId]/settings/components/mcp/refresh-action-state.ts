@@ -29,7 +29,9 @@ export function getRefreshActionState({
     authType === 'oauth' &&
     !error?.trim()
   ) {
-    return { text: 'OAuth authorization required', textTone: 'error', disabled: false }
+    // The detail view's Status field carries the "OAuth authorization required"
+    // explanation; the header chip stays a short action-shaped result.
+    return { text: 'Failed', textTone: 'error', disabled: false }
   }
 
   if (

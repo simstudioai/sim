@@ -114,38 +114,37 @@ function ServerListItem({
       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
         <div className='flex items-center gap-1.5'>
           <span className='max-w-[200px] truncate text-[var(--text-body)] text-sm'>
-            {server.name || 'Unnamed Server'}
+            {server.name || 'Unnamed server'}
           </span>
           <span className='text-[var(--text-muted)] text-caption'>({transportLabel})</span>
         </div>
         <p
           className={cn(
-            'truncate text-sm',
-            hasConnectionIssue ? 'text-[var(--text-error)]' : 'text-[var(--text-muted)]'
+            'truncate text-caption',
+            hasConnectionIssue && !isConnecting
+              ? 'text-[var(--text-error)]'
+              : 'text-[var(--text-muted)]'
           )}
         >
-          {isRefreshing
-            ? 'Refreshing...'
-            : isLoadingTools && tools.length === 0
-              ? 'Loading...'
-              : showDiscoveryError
-                ? discoveryError
-                : toolsLabel}
+          {isConnecting
+            ? 'Waiting for authorization...'
+            : isRefreshing
+              ? 'Refreshing...'
+              : isLoadingTools && tools.length === 0
+                ? 'Loading...'
+                : showDiscoveryError
+                  ? discoveryError
+                  : toolsLabel}
         </p>
       </div>
       <div className='flex flex-shrink-0 items-center gap-1'>
+        {canManage && server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
+          <Chip onClick={onAuthorize}>{isConnecting ? 'Reopen authorization' : 'Authorize'}</Chip>
+        )}
         <RowActionsMenu
           label='Server actions'
           actions={[
             { label: 'Details', onSelect: onViewDetails },
-            ...(canManage && server.authType === 'oauth' && server.connectionStatus !== 'connected'
-              ? [
-                  {
-                    label: isConnecting ? 'Reopen authorization' : 'Authorize',
-                    onSelect: onAuthorize,
-                  },
-                ]
-              : []),
             ...(canManage
               ? [
                   {
@@ -193,11 +192,7 @@ export function MCP() {
     isLoading: serversLoading,
     error: serversError,
   } = useMcpServers(workspaceId)
-  const {
-    data: mcpToolsData = [],
-    error: toolsError,
-    toolsStateByServer,
-  } = useMcpToolsQuery(workspaceId)
+  const { data: mcpToolsData = [], toolsStateByServer } = useMcpToolsQuery(workspaceId)
   const { data: storedTools = [], refetch: refetchStoredTools } = useStoredMcpTools(workspaceId)
   const forceRefreshToolsMutation = useForceRefreshMcpTools()
   const forceRefreshTools = forceRefreshToolsMutation.mutate
@@ -399,15 +394,10 @@ export function MCP() {
     return issues
   }
 
-  // Only a failure to load the server LIST replaces the list. A tool-discovery failure
-  // (`toolsError`) must not blank the page — the servers still render, each row surfacing its
-  // own discovery state via `toolsStateByServer`, with a non-blocking notice above the list.
+  // Only a failure to load the server LIST replaces the list. A tool-discovery failure must
+  // not blank the page — the servers still render, each row surfacing its own discovery
+  // state via `toolsStateByServer`.
   const listError = serversError
-  // Any per-server discovery failure — even a partial one where other servers succeeded (which
-  // suppresses the aggregate `toolsError`) — so the notice below still surfaces it.
-  const hasDiscoveryError =
-    Boolean(toolsError) ||
-    Array.from(toolsStateByServer.values()).some((state) => state.error != null)
   const hasServers = servers && servers.length > 0
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && servers.length > 0
 
@@ -426,7 +416,7 @@ export function MCP() {
     return (
       <SettingsPanel
         back={{ text: 'MCP tools', icon: ArrowLeft, onSelect: handleBackToList }}
-        title={server.name || 'Unnamed Server'}
+        title={server.name || 'Unnamed server'}
         actions={
           canEdit
             ? [
@@ -447,8 +437,8 @@ export function MCP() {
         <SettingsSection label='Server'>
           <div className='flex flex-col gap-4.5'>
             <div className='flex flex-col gap-2'>
-              <span className='text-[var(--text-muted)] text-caption'>Server Name</span>
-              <p className='text-[var(--text-body)] text-sm'>{server.name || 'Unnamed Server'}</p>
+              <span className='text-[var(--text-muted)] text-caption'>Server name</span>
+              <p className='text-[var(--text-body)] text-sm'>{server.name || 'Unnamed server'}</p>
             </div>
 
             <div className='flex flex-col gap-2'>
@@ -487,9 +477,7 @@ export function MCP() {
                       await startOauthForServer(server.id)
                     }}
                   >
-                    {connectingOauthServers.has(server.id)
-                      ? 'Reopen authorization window'
-                      : 'Connect with OAuth'}
+                    {connectingOauthServers.has(server.id) ? 'Reopen authorization' : 'Authorize'}
                   </Chip>
                 </div>
               </div>
@@ -651,7 +639,7 @@ export function MCP() {
         search={{
           value: searchTerm,
           onChange: setSearchTerm,
-          placeholder: 'Search MCPs...',
+          placeholder: 'Search servers...',
         }}
         actions={
           canEdit
@@ -669,21 +657,18 @@ export function MCP() {
       >
         {listError ? (
           <div className='flex h-full flex-col items-center justify-center gap-2'>
-            <p className='text-[var(--text-error)] text-xs leading-tight'>
+            <p className='text-[var(--text-error)] text-small leading-tight'>
               {getErrorMessage(listError, 'Failed to load MCP servers')}
             </p>
           </div>
-        ) : serversLoading ? null : !hasServers ? (
+        ) : serversLoading ? (
+          <SettingsEmptyState>Loading...</SettingsEmptyState>
+        ) : !hasServers ? (
           <SettingsEmptyState>
             {canEdit ? 'Click "Add server" above to get started' : 'No MCP servers configured'}
           </SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
-            {hasDiscoveryError && (
-              <p className='text-[var(--text-error)] text-xs leading-tight'>
-                {getErrorMessage(toolsError, 'Some tools could not be discovered')}
-              </p>
-            )}
             {filteredServers.map((server) => {
               if (!server?.id) return null
               const tools = toolsByServer[server.id] || []
@@ -749,8 +734,8 @@ export function MCP() {
           onOpenChange={(open) => {
             if (!open) setServerToDeleteId(null)
           }}
-          srTitle='Delete MCP Server'
-          title='Delete MCP Server'
+          srTitle='Delete MCP server'
+          title='Delete MCP server'
           text={[
             'Are you sure you want to delete ',
             {
