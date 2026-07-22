@@ -98,8 +98,8 @@ export function Teammates() {
   const queryClient = useQueryClient()
   const {
     isInvitationsDisabled: isInvitationsDisabledByConfig,
-    isLoading: permissionConfigLoading,
-    isError: permissionConfigError,
+    isPermissionLoading: permissionConfigLoading,
+    isPermissionError: permissionConfigError,
   } = usePermissionConfig()
 
   const resendInvitation = useResendWorkspaceInvitation()

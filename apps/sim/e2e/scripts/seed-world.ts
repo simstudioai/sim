@@ -641,13 +641,18 @@ async function assertTrustedWorldInvariants(world: E2EWorld): Promise<void> {
       throw new Error(`Persisted invitation grants do not match scenario: ${definition.key}`)
     }
   }
-  await assertWorkflowPersonaInvariants(world)
+  if (world.scenario.definition.namespace.world === 'settings-primary') {
+    await assertWorkflowPersonaInvariants(world)
+  }
 }
 
 async function assertWorkflowPersonaInvariants(world: E2EWorld): Promise<void> {
-  const teamTarget = world.records.users.get('team-workflow-member')
-  const enterpriseTarget = world.records.users.get('enterprise-workflow-member')
-  if (!teamTarget || !enterpriseTarget) return
+  const teamTarget = required(world.records.users, 'team-workflow-member', 'Team workflow member')
+  const enterpriseTarget = required(
+    world.records.users,
+    'enterprise-workflow-member',
+    'Enterprise workflow member'
+  )
 
   const teamOrganization = required(
     world.records.organizations,

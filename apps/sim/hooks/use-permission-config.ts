@@ -18,6 +18,9 @@ export interface PermissionConfigResult {
   config: PermissionGroupConfig
   isLoading: boolean
   isError: boolean
+  /** Permission-group policy state only; excludes the independent integration allowlist query. */
+  isPermissionLoading: boolean
+  isPermissionError: boolean
   isInPermissionGroup: boolean
   filterBlocks: <T extends { type: string }>(blocks: T[]) => T[]
   filterProviders: (providerIds: string[]) => string[]
@@ -167,6 +170,8 @@ export function usePermissionConfig(): PermissionConfigResult {
       config: mergedConfig,
       isLoading,
       isError,
+      isPermissionLoading,
+      isPermissionError,
       isInPermissionGroup,
       filterBlocks,
       filterProviders,
@@ -181,6 +186,8 @@ export function usePermissionConfig(): PermissionConfigResult {
       mergedConfig,
       isLoading,
       isError,
+      isPermissionLoading,
+      isPermissionError,
       isInPermissionGroup,
       filterBlocks,
       filterProviders,

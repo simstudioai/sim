@@ -42,8 +42,8 @@ export function TeamManagement({
   const { data: session, isPending: isSessionPending, error: sessionError } = useSession()
   const {
     isInvitationsDisabled,
-    isLoading: isPermissionConfigLoading,
-    isError: isPermissionConfigError,
+    isPermissionLoading: isPermissionConfigLoading,
+    isPermissionError: isPermissionConfigError,
   } = usePermissionConfig()
 
   const { data: userSubscriptionData } = useSubscriptionData()
@@ -73,14 +73,14 @@ export function TeamManagement({
   const hasLoadError =
     Boolean(sessionError) ||
     isOrganizationError ||
-    isOrganizationBillingError ||
+    (adminOrOwner && isOrganizationBillingError) ||
     isRosterError ||
     isPermissionConfigError
   const isMembersLoading =
     !hasLoadError &&
     (isSessionPending ||
       isLoading ||
-      isOrgBillingLoading ||
+      (adminOrOwner && isOrgBillingLoading) ||
       isLoadingRoster ||
       isPermissionConfigLoading)
   const dataState = hasLoadError ? 'error' : isMembersLoading ? 'loading' : 'ready'
