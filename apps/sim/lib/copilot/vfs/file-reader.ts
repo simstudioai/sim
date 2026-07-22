@@ -1,5 +1,6 @@
 import { type Span, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
+import type { SharpConstructor } from 'sharp'
 import { toError } from '@sim/utils/errors'
 import {
   CopilotVfsOutcome,
@@ -106,7 +107,7 @@ async function prepareImageForVision(
         const mediaType = detectImageMime(buffer, claimedType)
         span.setAttribute(TraceAttr.CopilotVfsInputMediaTypeDetected, mediaType)
 
-        let sharpModule: typeof import('sharp')
+        let sharpModule: SharpConstructor
         try {
           sharpModule = (await import('sharp')).default
         } catch (err) {
