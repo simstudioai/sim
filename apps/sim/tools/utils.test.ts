@@ -209,6 +209,17 @@ describe('formatRequestParams', () => {
 
     expect(result.body).toBe('{"prompt": "Hello"}\n{"prompt": "World"}')
   })
+
+  it.concurrent('should pass through a non-empty proxyUrl (trimmed)', () => {
+    const result = formatRequestParams(mockTool, { proxyUrl: '  http://user:pass@host:8080  ' })
+    expect(result.proxyUrl).toBe('http://user:pass@host:8080')
+  })
+
+  it.concurrent('should omit proxyUrl when blank, whitespace, or absent', () => {
+    expect(formatRequestParams(mockTool, {}).proxyUrl).toBeUndefined()
+    expect(formatRequestParams(mockTool, { proxyUrl: '' }).proxyUrl).toBeUndefined()
+    expect(formatRequestParams(mockTool, { proxyUrl: '   ' }).proxyUrl).toBeUndefined()
+  })
 })
 
 describe('validateRequiredParametersAfterMerge', () => {
