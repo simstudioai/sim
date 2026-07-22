@@ -2,8 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
   coerceObjectArray,
+  remapConditionIdsInSubBlocks,
   remapWorkflowReferencesInSubBlocks,
   type SubBlockRecord,
 } from '@/lib/workflows/persistence/remap-internal-ids'
@@ -375,6 +377,77 @@ describe('remapWorkflowReferencesInSubBlocks', () => {
     expect(result.inputMapping.value).toBe('')
     expect(result.manualWorkflowIds.value).toBe('wf-src,wf-uncopied')
     expect(result.tools.value as unknown[]).toHaveLength(0)
+  })
+})
+
+describe('remapConditionIdsInSubBlocks', () => {
+  const OLD_ID = 'old-block'
+  const NEW_ID = 'new-block'
+  const conditionsValue = JSON.stringify([
+    { id: `${OLD_ID}-if`, title: 'if', value: '<a.b> > 1' },
+    { id: `${OLD_ID}-else`, title: 'else', value: '' },
+  ])
+
+  it('remaps condition row ids on a condition block', () => {
+    const subBlocks: SubBlockRecord = {
+      conditions: { id: 'conditions', type: 'condition-input', value: conditionsValue },
+    }
+    const result = remapConditionIdsInSubBlocks(subBlocks, 'condition', OLD_ID, NEW_ID)
+    const rows = JSON.parse(result.conditions.value as string)
+    expect(rows.map((row: { id: string }) => row.id)).toEqual([`${NEW_ID}-if`, `${NEW_ID}-else`])
+  })
+
+  /**
+   * Regression: a fallback writer stamped the conditions subblock `short-input`.
+   * The remap must key on block type + subblock key, not the drifted stored type,
+   * so the row ids and the edge handle move together (previously the ids stayed
+   * stale while the handle remapped, orphaning every edge out of the block).
+   */
+  it('remaps condition row ids even when the stored subblock type drifted', () => {
+    const subBlocks: SubBlockRecord = {
+      conditions: { id: 'conditions', type: 'short-input', value: conditionsValue },
+    }
+    const result = remapConditionIdsInSubBlocks(subBlocks, 'condition', OLD_ID, NEW_ID)
+    const rows = JSON.parse(result.conditions.value as string)
+    const handle = remapConditionEdgeHandle(`condition-${OLD_ID}-else`, OLD_ID, NEW_ID)
+    expect(handle).toBe(`condition-${NEW_ID}-else`)
+    expect(rows.map((row: { id: string }) => row.id)).toContain(`${NEW_ID}-else`)
+  })
+
+  it('remaps route ids on a router_v2 block', () => {
+    const subBlocks: SubBlockRecord = {
+      routes: {
+        id: 'routes',
+        type: 'router-input',
+        value: JSON.stringify([{ id: `${OLD_ID}-route1`, title: 'Route 1', value: 'desc' }]),
+      },
+    }
+    const result = remapConditionIdsInSubBlocks(subBlocks, 'router_v2', OLD_ID, NEW_ID)
+    const rows = JSON.parse(result.routes.value as string)
+    expect(rows[0].id).toBe(`${NEW_ID}-route1`)
+  })
+
+  it('leaves rows with a foreign block-id prefix untouched (matches the edge-handle remap)', () => {
+    const subBlocks: SubBlockRecord = {
+      conditions: {
+        id: 'conditions',
+        type: 'condition-input',
+        value: JSON.stringify([{ id: 'foreign-block-if', title: 'if', value: '' }]),
+      },
+    }
+    const result = remapConditionIdsInSubBlocks(subBlocks, 'condition', OLD_ID, NEW_ID)
+    expect(result.conditions).toBe(subBlocks.conditions)
+    expect(remapConditionEdgeHandle('condition-foreign-block-if', OLD_ID, NEW_ID)).toBe(
+      'condition-foreign-block-if'
+    )
+  })
+
+  it('does not touch subblocks on non-dynamic-handle block types', () => {
+    const subBlocks: SubBlockRecord = {
+      conditions: { id: 'conditions', type: 'condition-input', value: conditionsValue },
+    }
+    const result = remapConditionIdsInSubBlocks(subBlocks, 'function', OLD_ID, NEW_ID)
+    expect(result.conditions).toBe(subBlocks.conditions)
   })
 })
 
