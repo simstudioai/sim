@@ -352,16 +352,19 @@ export function MothershipChat({
           floorDrainRafRef.current = 0
           return
         }
-        // Re-checked per frame: a user scrolling away mid-drain makes the
-        // remaining shrink invisible, so finish instantly instead of clamping.
-        const pinned = el.scrollHeight - el.scrollTop - el.clientHeight <= 2
-        const next = Math.floor(current - Math.max(1, (current - target) * SMOOTH_CHASE_RATE))
-        if (!pinned || next - target <= 1) {
+        // Instant-clear only when the whole remaining debt sits BELOW the
+        // viewport (debt ≤ distance-from-bottom) — then the shrink is
+        // invisible. A merely-unpinned viewport with debt larger than its
+        // slack would still clamp, so it keeps the eased drain instead.
+        const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+        const debt = current - target
+        if (debt <= 1 || debt <= distance) {
           sizerFloorAppliedRef.current = 0
           floorDrainRafRef.current = 0
           sizer.style.minHeight = ''
           return
         }
+        const next = Math.floor(current - Math.max(1, debt * SMOOTH_CHASE_RATE))
         sizerFloorAppliedRef.current = next
         sizer.style.minHeight = `${next}px`
         floorDrainRafRef.current = requestAnimationFrame(drain)

@@ -66,10 +66,21 @@ export function useAutoScroll(isStreaming: boolean) {
     containerRef.current = el
   }, [])
 
+  /**
+   * Cancels the previous teardown's settle window (chase, temp listeners,
+   * removal timer). Invoked when a new stream starts — a stop-then-resend must
+   * not leave the old settle chase writing beside the new stream's chase — and
+   * on unmount.
+   */
+  const settleCleanupRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => settleCleanupRef.current?.(), [])
+
   useEffect(() => {
     if (!isStreaming) return
     const el = containerRef.current
     if (!el) return
+    settleCleanupRef.current?.()
+    settleCleanupRef.current = null
 
     /**
      * Eased bottom-chase shared by the mutation observer and the seed below —
@@ -224,10 +235,19 @@ export function useAutoScroll(isStreaming: boolean) {
       }
       el.addEventListener('wheel', cancelOnGesture, { passive: true })
       el.addEventListener('touchmove', cancelOnGesture, { passive: true })
-      setTimeout(() => {
+      const removeGestureGuard = () => {
         el.removeEventListener('wheel', cancelOnGesture)
         el.removeEventListener('touchmove', cancelOnGesture)
+      }
+      const guardTimeout = setTimeout(() => {
+        removeGestureGuard()
+        settleCleanupRef.current = null
       }, POST_STOP_SETTLE_WINDOW + 100)
+      settleCleanupRef.current = () => {
+        chase.cancel()
+        clearTimeout(guardTimeout)
+        removeGestureGuard()
+      }
     }
   }, [isStreaming])
 
