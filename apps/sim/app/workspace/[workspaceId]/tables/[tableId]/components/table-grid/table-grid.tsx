@@ -42,6 +42,7 @@ import {
 import type { ColumnConfig } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
+import { resolveSelectOptions } from '../select-field'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
@@ -1432,6 +1433,12 @@ export function TableGrid({
           }
         } else if (column.type === 'date') {
           text = storageToDisplay(String(val), { seconds: true })
+        } else if (column.type === 'select' || column.type === 'multiselect') {
+          // Cells store option ids; measure the rendered pill labels instead so
+          // auto-fit doesn't size the column to opaque ids.
+          text = resolveSelectOptions(column, val)
+            .map((o) => o.name)
+            .join(', ')
         } else {
           text = String(val)
         }
