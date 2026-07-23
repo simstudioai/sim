@@ -1065,11 +1065,9 @@ export async function executeSync(
       // query — the FOR UPDATE lock above only covers the window up to its
       // own commit; this closes the remaining gap between that commit and
       // this call.
-      await hardDeleteDocuments(safeHardDeleteIds, syncLogId, connectorId)
-      result.docsDeleted += safeHardDeleteIds.length
+      result.docsDeleted += await hardDeleteDocuments(safeHardDeleteIds, syncLogId, connectorId)
     }
 
-    // Check if connector/KB were deleted before retrying stuck documents
     const postBatchLiveness = await checkSyncLiveness(connectorId, connector.knowledgeBaseId)
     if (postBatchLiveness.connectorDeleted) {
       throw new ConnectorDeletedException(connectorId)
@@ -1489,7 +1487,6 @@ async function updateDocument(
   kbOwner: KnowledgeBaseOwner,
   sourceConfig?: Record<string, unknown>
 ): Promise<DocumentData> {
-  // Fetch old file URL before uploading replacement
   const existingRows = await db
     .select({ fileUrl: document.fileUrl })
     .from(document)

@@ -2451,10 +2451,31 @@ async function hardDeleteDocumentBatch(
       }
     }
 
-    await tx.delete(embedding).where(inArray(embedding.documentId, existingIds))
+    /**
+     * Re-verify `expectedConnectorId` here too, not only on the pre-transaction
+     * SELECT above — the billing lookups and KB locking between that SELECT
+     * and this delete are async and can span a concurrent "delete connector,
+     * keep documents" request that clears these rows' `connectorId` in
+     * between. Deleting a detached document's embeddings would corrupt its
+     * search index even if the document row itself were spared, so both the
+     * embedding delete and the document delete are scoped to this re-verified
+     * ID set rather than the stale `existingIds`.
+     */
+    const stillTargetedIds = expectedConnectorId
+      ? (
+          await tx
+            .select({ id: document.id })
+            .from(document)
+            .where(
+              and(inArray(document.id, existingIds), eq(document.connectorId, expectedConnectorId))
+            )
+        ).map((d) => d.id)
+      : existingIds
+
+    await tx.delete(embedding).where(inArray(embedding.documentId, stillTargetedIds))
     const deletedRows = await tx
       .delete(document)
-      .where(inArray(document.id, existingIds))
+      .where(inArray(document.id, stillTargetedIds))
       .returning({ id: document.id })
 
     const deletedIds = new Set(deletedRows.map((row) => row.id))
