@@ -1,1 +1,0 @@
-ALTER TABLE "chat" ADD COLUMN IF NOT EXISTS "include_thinking" boolean DEFAULT false NOT NULL;
