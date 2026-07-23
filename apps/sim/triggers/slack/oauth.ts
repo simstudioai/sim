@@ -23,11 +23,20 @@ const BOT_FILTER_EVENTS = ['message', 'app_mention']
 const OWN_MESSAGE_EVENTS = ['message', 'app_mention', 'reaction_added', 'reaction_removed']
 
 /**
- * Slack trigger backed by a reusable custom-bot credential (set up once, reused
- * across triggers and actions). Events route by that credential
- * (`webhook.routingKey = credentialId`) to one shared ingest URL, so many
- * triggers on the same bot share a single Request URL, verified with the bot's
- * own signing secret.
+ * Unified Slack trigger. A single credential picker lists both the native Sim
+ * Slack app (an OAuth-connected account) and reusable custom bots; the deploy
+ * path resolves the credential's kind server-side to pick the backend:
+ * - Custom bot: events route by that credential (`webhook.routingKey =
+ *   credentialId`) to one shared ingest URL verified with the bot's own signing
+ *   secret, so many triggers on the same bot share a single Request URL.
+ * - Native Sim app: events route by Slack `team_id` on the official shared app
+ *   (derived at deploy time via `auth.test`, no path or app setup). Only the
+ *   events the shared app subscribes to are usable; the deploy path enforces
+ *   that (`SIM_SUBSCRIBED_EVENTS`), so the event picker offers every event
+ *   rather than mutating its option set with the selected credential.
+ *
+ * The trigger is only reachable through the preview-gated `slack_v2` block, so
+ * the native Sim-app mode inherits that gate — no separate env flag.
  */
 export const slackOAuthTrigger: TriggerConfig = {
   id: 'slack_oauth',
@@ -51,16 +60,21 @@ export const slackOAuthTrigger: TriggerConfig = {
     },
     {
       id: 'customBotCredential',
-      title: 'Slack Bot',
+      title: 'Slack Account',
       type: 'oauth-input',
       canonicalParamId: 'botCredential',
       serviceId: 'slack',
-      credentialKind: 'service-account',
-      credentialLabels: { serviceAccountConnect: 'Set up a custom bot' },
+      credentialKind: 'any',
+      credentialLabels: {
+        oauthGroup: 'Sim app',
+        oauthConnect: 'Connect the Sim app',
+        serviceAccountGroup: 'Custom bots',
+        serviceAccountConnect: 'Set up a custom bot',
+      },
       requiredScopes: getScopesForService('slack'),
-      placeholder: 'Select a connected bot',
+      placeholder: 'Select Slack account or bot',
       description:
-        'Choose a custom Slack bot you set up once and reuse across triggers and actions.',
+        'Connect the native Sim Slack app, or choose a custom Slack bot you set up once and reuse across triggers and actions.',
       required: true,
       mode: 'trigger',
     },
