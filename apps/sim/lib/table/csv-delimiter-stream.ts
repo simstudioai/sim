@@ -35,7 +35,11 @@ export async function sniffCsvDelimiterFromStream(
   let size = 0
   let exhausted = false
 
-  while (size < CSV_DELIMITER_SNIFF_BYTES) {
+  // Read until the buffered size *exceeds* the window (not just reaches it) or the stream ends.
+  // The `<=` is deliberate: a file whose size is exactly the window must still trigger one more
+  // read so EOF is observed and `exhausted` becomes true — otherwise it would be misjudged as a
+  // truncated prefix and disagree with the buffered callers (which pass complete for that size).
+  while (size <= CSV_DELIMITER_SNIFF_BYTES) {
     const next = await reader.next()
     if (next.done) {
       exhausted = true
@@ -49,9 +53,9 @@ export async function sniffCsvDelimiterFromStream(
   // Copy at most the sniff window for detection — `Buffer.concat`'s length arg truncates,
   // so an oversized final chunk can't inflate this allocation past CSV_DELIMITER_SNIFF_BYTES.
   const sample = Buffer.concat(chunks, Math.min(size, CSV_DELIMITER_SNIFF_BYTES))
-  // `exhausted` (the loop stopped on end-of-stream, never on the size cap) means the whole file
-  // fit in the window, so its last row must count even without a trailing newline. Otherwise the
-  // sample is a truncated prefix whose final line may be partial and should be dropped.
+  // `exhausted` (the loop stopped on end-of-stream, never on exceeding the window) means the whole
+  // file fit in the window, so its last row must count even without a trailing newline. Otherwise
+  // the sample is a truncated prefix whose final line may be partial and should be dropped.
   const delimiter = await detectCsvDelimiter(sample, fallback, { complete: exhausted })
 
   const stream = Readable.from(

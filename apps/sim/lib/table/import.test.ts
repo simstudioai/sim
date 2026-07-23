@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
 import {
   buildAutoMapping,
+  CSV_DELIMITER_SNIFF_BYTES,
   CsvImportValidationError,
   coerceRowsForTable,
   coerceValue,
@@ -463,6 +464,21 @@ describe('import', () => {
       const { delimiter, stream } = await sniffCsvDelimiterFromStream(Readable.from([full]))
       expect(delimiter).toBe(';')
       expect((await collect(stream)).equals(full)).toBe(true)
+    })
+
+    it('treats a file exactly the sniff-window size as complete (observes EOF at the boundary)', async () => {
+      // Header widens under comma; a single giant data row pads the file to exactly the window
+      // with no trailing newline. If the loop stopped at the boundary without seeing EOF, the row
+      // would be dropped and comma would win — so this passing proves the boundary EOF is observed.
+      const header = 'a,b;c,d;e,f\n'
+      const suffix = ';3'
+      const pad = 'x'.repeat(
+        CSV_DELIMITER_SNIFF_BYTES - header.length - '1;'.length - suffix.length
+      )
+      const full = Buffer.from(`${header}1;${pad}${suffix}`)
+      expect(full.length).toBe(CSV_DELIMITER_SNIFF_BYTES)
+      const { delimiter } = await sniffCsvDelimiterFromStream(Readable.from([full]))
+      expect(delimiter).toBe(';')
     })
 
     it('counts the final row of a fully-buffered file with no trailing newline', async () => {
