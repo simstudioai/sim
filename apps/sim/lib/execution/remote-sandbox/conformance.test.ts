@@ -266,17 +266,20 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     expect(res.error).toBeUndefined()
   })
 
-  it('surfaces a non-zero shell exit as an error', async () => {
+  it('surfaces the real command output as the error, not a generic message', async () => {
+    // E2B populates stderr; Daytona merges both streams into stdout with an empty
+    // stderr, so the error must fall back to stdout or Daytona failures would read
+    // as a generic "Process exited with code N".
     if (provider === 'e2b') {
-      mockE2BCommandsRun.mockResolvedValue({ stdout: '', stderr: 'bad', exitCode: 3 })
+      mockE2BCommandsRun.mockResolvedValue({ stdout: '', stderr: 'boom detail', exitCode: 3 })
     } else {
-      mockExecuteCommand.mockResolvedValue({ result: 'bad', exitCode: 3 })
+      mockExecuteCommand.mockResolvedValue({ result: 'boom detail', exitCode: 3 })
     }
 
     const res = await executeShellInSandbox({ code: 'false', envs: {}, timeoutMs: 1000 })
 
     expect(res.result).toBeNull()
-    expect(res.error).toBeTruthy()
+    expect(res.error).toContain('boom detail')
   })
 
   it('exports binary output files as base64', async () => {

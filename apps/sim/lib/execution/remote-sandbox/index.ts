@@ -109,8 +109,9 @@ async function writeSandboxInputs(
       // checked explicitly — a silently-missing mount is exactly what this guard
       // exists to prevent.
       if (result.exitCode !== 0) {
+        // Daytona merges streams into stdout, so fall back to it for the real error.
         throw new Error(
-          `Failed to fetch mounted file into sandbox at ${file.path}: ${result.stderr || `curl exited ${result.exitCode}`}`
+          `Failed to fetch mounted file into sandbox at ${file.path}: ${result.stderr || result.stdout || `curl exited ${result.exitCode}`}`
         )
       }
       fetchedByUrl.push(file.path)
@@ -220,7 +221,10 @@ async function readSandboxOutputFile(
         timeoutMs: 120_000,
         rootUser: options?.rootUser,
       })
-      if (b64Result.exitCode !== 0) throw new Error(b64Result.stderr || 'base64 failed')
+      // Daytona merges streams into stdout, so fall back to it for the real error.
+      if (b64Result.exitCode !== 0) {
+        throw new Error(b64Result.stderr || b64Result.stdout || 'base64 failed')
+      }
       return b64Result.stdout
     }
     return await sandbox.readFile(outputSandboxPath)
@@ -353,7 +357,10 @@ export async function executeShellInSandbox(
     const stdout = [result.stdout, result.stderr].filter(Boolean).join('\n')
 
     if (result.exitCode !== 0) {
-      const errorMessage = result.stderr || `Process exited with code ${result.exitCode}`
+      // Daytona merges both streams into stdout (stderr is always empty), so fall
+      // back to stdout for the real command output before the generic message.
+      const errorMessage =
+        result.stderr || result.stdout || `Process exited with code ${result.exitCode}`
       logger.error('Sandbox shell execution error', {
         sandboxId,
         exitCode: result.exitCode,
