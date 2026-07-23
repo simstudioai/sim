@@ -326,11 +326,11 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
   },
   webhook_trigger: {
     id: 'webhook_trigger',
-    name: 'Webhook',
+    name: 'Webhook Trigger',
     blocks: [
       {
         id: 'webhook_trigger',
-        name: 'Webhook',
+        name: 'Webhook Trigger',
         type: 'webhook',
         bgColor: '#10B981',
         position: { x: 0, y: 0 },
