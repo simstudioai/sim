@@ -96,6 +96,7 @@ export {
   McpOauthRedirectRequiredMock,
   mcpOauthMock,
   mcpOauthMockFns,
+  OauthStepTimeoutErrorMock,
 } from './mcp-oauth.mock'
 // Permission mocks
 export { permissionsMock, permissionsMockFns } from './permissions.mock'

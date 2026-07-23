@@ -9,6 +9,7 @@ import {
   McpOauthRedirectRequiredMock,
   mcpOauthMock,
   mcpOauthMockFns,
+  OauthStepTimeoutErrorMock,
   permissionsMock,
   permissionsMockFns,
   resetDbChainMock,
@@ -84,6 +85,35 @@ describe('MCP OAuth start route', () => {
       expect.anything(),
       expect.objectContaining({ serverUrl: 'https://mcp.exa.ai/mcp' })
     )
+  })
+
+  it('retries mcpAuthGuarded once on a transient stall and succeeds on the fresh attempt', async () => {
+    mcpOauthMockFns.mockMcpAuthGuarded
+      .mockRejectedValueOnce(new OauthStepTimeoutErrorMock('mcpAuthGuarded (attempt 1)', 12_000))
+      .mockRejectedValueOnce(new McpOauthRedirectRequiredMock('https://mcp.exa.ai/authorize'))
+    const request = new NextRequest(
+      'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
+    )
+
+    const response = await GET(request)
+    const body = await response.json()
+
+    expect(mcpOauthMockFns.mockMcpAuthGuarded).toHaveBeenCalledTimes(2)
+    expect(response.status).toBe(200)
+    expect(body).toEqual({ status: 'redirect', authorizationUrl: 'https://mcp.exa.ai/authorize' })
+  })
+
+  it('does not retry a non-timeout error (e.g. redirect success on the first attempt)', async () => {
+    mcpOauthMockFns.mockMcpAuthGuarded.mockRejectedValueOnce(
+      new McpOauthRedirectRequiredMock('https://mcp.exa.ai/authorize')
+    )
+    const request = new NextRequest(
+      'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
+    )
+
+    await GET(request)
+
+    expect(mcpOauthMockFns.mockMcpAuthGuarded).toHaveBeenCalledTimes(1)
   })
 
   it('requires workspace write permission via MCP auth middleware', async () => {

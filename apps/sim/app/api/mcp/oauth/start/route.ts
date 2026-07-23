@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -16,14 +17,26 @@ import {
   loadPreregisteredClient,
   McpOauthInsecureUrlError,
   McpOauthRedirectRequired,
+  makeTimedStep,
   mcpAuthGuarded,
+  OauthStepTimeoutError,
   SimMcpOauthProvider,
   setOauthRowUser,
 } from '@/lib/mcp/oauth'
 import { createMcpErrorResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpOauthStartAPI')
+const timedStep = makeTimedStep(logger)
 const OAUTH_START_TTL_MS = 10 * 60 * 1000
+/**
+ * OAuth discovery + DCR occasionally hits the transient headers-then-stalled-body class we've
+ * documented for CDN-fronted MCP hosts — a per-connection stall a fresh attempt dodges. Bound
+ * each attempt tightly and retry once so an intermittent stall recovers automatically instead
+ * of hanging the browser popup to the client's timeout. Two 12s attempts stay under the
+ * client's 30s `/oauth/start` deadline.
+ */
+const MCP_AUTH_ATTEMPT_MS = 12_000
+const MCP_AUTH_MAX_ATTEMPTS = 2
 const MAX_SURFACED_ERROR_LENGTH = 250
 const DCR_UNSUPPORTED_MESSAGE =
   "This server doesn't support automatic OAuth client registration. Add a pre-registered OAuth client ID and secret, or configure a token instead."
@@ -81,18 +94,21 @@ export const GET = withRouteHandler(
       const parsed = await parseRequest(startMcpOauthContract, request, {})
       if (!parsed.success) return parsed.response
       const { serverId } = parsed.data.query
+      logger.info(`Starting MCP OAuth flow for server ${serverId}`)
 
-      const [server] = await db
-        .select()
-        .from(mcpServers)
-        .where(
-          and(
-            eq(mcpServers.id, serverId),
-            eq(mcpServers.workspaceId, workspaceId),
-            isNull(mcpServers.deletedAt)
+      const [server] = await timedStep('loadServer', 15_000, () =>
+        db
+          .select()
+          .from(mcpServers)
+          .where(
+            and(
+              eq(mcpServers.id, serverId),
+              eq(mcpServers.workspaceId, workspaceId),
+              isNull(mcpServers.deletedAt)
+            )
           )
-        )
-        .limit(1)
+          .limit(1)
+      )
 
       if (!server) {
         return createMcpErrorResponse(new Error('Server not found'), 'Server not found', 404)
@@ -107,8 +123,9 @@ export const GET = withRouteHandler(
       if (!server.url) {
         return createMcpErrorResponse(new Error('Server has no URL'), 'Missing server URL', 400)
       }
+      const serverUrl = server.url
       try {
-        assertSafeOauthServerUrl(server.url)
+        assertSafeOauthServerUrl(serverUrl)
       } catch (e) {
         if (e instanceof McpOauthInsecureUrlError) {
           return createMcpErrorResponse(
@@ -120,11 +137,13 @@ export const GET = withRouteHandler(
         throw e
       }
 
-      const row = await getOrCreateOauthRow({
-        mcpServerId: server.id,
-        userId,
-        workspaceId,
-      })
+      const row = await timedStep('getOrCreateOauthRow', 15_000, () =>
+        getOrCreateOauthRow({
+          mcpServerId: server.id,
+          userId,
+          workspaceId,
+        })
+      )
       const hasActiveFlow =
         !!row.state &&
         !!row.stateCreatedAt &&
@@ -140,13 +159,34 @@ export const GET = withRouteHandler(
         await setOauthRowUser(row.id, userId)
         row.userId = userId
       }
-      const preregistered = await loadPreregisteredClient(server.id)
+      const preregistered = await timedStep('loadPreregisteredClient', 15_000, () =>
+        loadPreregisteredClient(server.id)
+      )
       const provider = new SimMcpOauthProvider({ row, preregistered })
 
       try {
-        const result = await mcpAuthGuarded(provider, {
-          serverUrl: server.url,
-        })
+        // OAuth discovery + DCR through the guarded fetch. Each attempt is bounded (labeled in
+        // logs); a per-connection transient stall on the first attempt is retried on a fresh
+        // one. `McpOauthRedirectRequired` is the SUCCESS signal — rethrow it immediately so the
+        // outer catch returns the authorize URL; only a bounded timeout is retried.
+        let result: Awaited<ReturnType<typeof mcpAuthGuarded>> | undefined
+        for (let attempt = 1; attempt <= MCP_AUTH_MAX_ATTEMPTS; attempt++) {
+          try {
+            result = await timedStep(
+              `mcpAuthGuarded (attempt ${attempt})`,
+              MCP_AUTH_ATTEMPT_MS,
+              () => mcpAuthGuarded(provider, { serverUrl })
+            )
+            break
+          } catch (attemptError) {
+            if (attemptError instanceof OauthStepTimeoutError && attempt < MCP_AUTH_MAX_ATTEMPTS) {
+              logger.warn(`MCP OAuth start stalled for server ${serverId}, retrying`)
+              await sleep(250)
+              continue
+            }
+            throw attemptError
+          }
+        }
         if (result === 'AUTHORIZED') {
           return NextResponse.json({ status: 'already_authorized' })
         }
