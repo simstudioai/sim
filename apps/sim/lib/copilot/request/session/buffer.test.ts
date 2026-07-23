@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
+import { redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1EventType,
@@ -99,8 +99,6 @@ const createRedisStub = () => {
 }
 
 let mockRedis: ReturnType<typeof createRedisStub>
-
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 import {
   allocateCursor,

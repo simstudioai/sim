@@ -16,11 +16,17 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import {
+  groupIdParam,
+  groupIdUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { GroupDetail } from '@/ee/access-control/components/group-detail'
 import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
 import {
@@ -94,8 +100,11 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
 
   const createPermissionGroup = useCreatePermissionGroup()
 
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
+  const [selectedGroupId, setSelectedGroupId] = useQueryState(groupIdParam.key, {
+    ...groupIdParam.parser,
+    ...groupIdUrlKeys,
+  })
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupDescription, setNewGroupDescription] = useState('')
@@ -191,8 +200,8 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
           workspaceOptions={workspaceOptions}
           organizationWorkspaces={organizationWorkspaces}
           workspacesLoading={workspacesLoading}
-          onBack={() => setSelectedGroupId(null)}
-          onDeleted={() => setSelectedGroupId(null)}
+          onBack={() => void setSelectedGroupId(null, { history: 'replace' })}
+          onDeleted={() => void setSelectedGroupId(null, { history: 'replace' })}
         />
       </section>
     )
@@ -234,7 +243,7 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
                   key={group.id}
                   type='button'
                   aria-label={`Open permission group ${group.name}`}
-                  onClick={() => setSelectedGroupId(group.id)}
+                  onClick={() => void setSelectedGroupId(group.id)}
                   className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                 >
                   <div className='flex min-w-0 flex-1 flex-col'>

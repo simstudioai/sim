@@ -1,3 +1,4 @@
+ALTER TABLE "settings" ALTER COLUMN "super_user_mode_enabled" SET DEFAULT false;--> statement-breakpoint
 DO $$
 BEGIN
 	IF EXISTS (

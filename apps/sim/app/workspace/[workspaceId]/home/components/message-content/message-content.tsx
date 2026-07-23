@@ -30,6 +30,14 @@ import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 const FILE_SUBAGENT_ID = 'file'
 /** Quiet period before the shimmer takes the slot back from streamed output. */
 const STREAM_IDLE_DELAY_MS = 1_500
+/**
+ * The vertical extent (10px gap + 36px row) shared by the shimmer slot and the
+ * actions row that replaces it at settle. The swap is only jump-free because
+ * these are equal; changing one side without the other reintroduces a scroll
+ * clamp at end of turn. (A stopped turn's stacked rows are exempt — their
+ * extra height is glided-in growth, not a swap.)
+ */
+const TAIL_REGION_CLASSES = 'mt-[10px] flex h-[36px] items-center'
 
 interface TextSegment {
   type: 'text'
@@ -853,8 +861,16 @@ function MessageContentInner({
   }, [visibleStreamActivityKey, isStreaming])
 
   const lastSegment = segments[segments.length - 1]
-  const hasTrailingTextSegment = lastSegment?.type === 'text'
-  const isRevealing = hasTrailingTextSegment && trailingRevealing
+  // The reveal tail is the last TEXT segment — a stopped block appends AFTER
+  // the text that is still visibly draining, and treating the turn as settled
+  // the moment it lands tears down the scroll machinery mid-reveal.
+  const revealTailIndex =
+    lastSegment?.type === 'stopped' && segments[segments.length - 2]?.type === 'text'
+      ? segments.length - 2
+      : lastSegment?.type === 'text'
+        ? segments.length - 1
+        : -1
+  const isRevealing = revealTailIndex >= 0 && trailingRevealing
   const phase = deriveMessagePhase({ isStreaming, isRevealing })
 
   const onPhaseChangeRef = useRef(onPhaseChange)
@@ -905,13 +921,13 @@ function MessageContentInner({
                   onQuestionDismiss={onQuestionDismiss}
                   onWorkspaceResourceSelect={onWorkspaceResourceSelect}
                   onRevealStateChange={
-                    i === segments.length - 1 ? handleTrailingRevealChange : undefined
+                    i === revealTailIndex ? handleTrailingRevealChange : undefined
                   }
                   onStreamActivityChange={
-                    i === segments.length - 1 ? handleTrailingStreamActivityChange : undefined
+                    i === revealTailIndex ? handleTrailingStreamActivityChange : undefined
                   }
                   onPendingTagChange={
-                    i === segments.length - 1 ? handleTrailingPendingTagChange : undefined
+                    i === revealTailIndex ? handleTrailingPendingTagChange : undefined
                   }
                 />
               )
@@ -943,13 +959,12 @@ function MessageContentInner({
                   <Options items={segment.items} onSelect={onOptionSelect} />
                 </div>
               )
+            // The stopped row renders in the tail region below, in the
+            // shimmer's place — a stop while the shimmer is visible must read
+            // as an in-place replacement, not the shimmer vanishing from the
+            // tail while a row mounts up here.
             case 'stopped':
-              return (
-                <div key={`stopped-${i}`} className='flex items-center gap-[8px]'>
-                  <CircleStop className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                  <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
-                </div>
-              )
+              return null
           }
         })}
       </div>
@@ -957,8 +972,8 @@ function MessageContentInner({
         // Fixed-height placeholder for the NEXT piece of output: the shimmer
         // and arriving output trade places via opacity only, so mid-turn swaps
         // can't move layout. A sibling of the space-y stack (not a child), so
-        // it carries no stray sibling margin — pt-[10px] is its own gap.
-        <div aria-hidden={!showShimmer} className='pt-[10px]'>
+        // it carries no stray sibling margin.
+        <div aria-hidden={!showShimmer} className={TAIL_REGION_CLASSES}>
           <div
             className={cn(
               'transition-opacity duration-200 ease-out',
@@ -968,11 +983,22 @@ function MessageContentInner({
             <PendingTagIndicator label={thinkingLabel ?? 'Thinking…'} />
           </div>
         </div>
+      ) : // The settled tail takes the slot's place in the SAME render and at the
+      // SAME extent (TAIL_REGION_CLASSES), so the swap is height-neutral by
+      // construction — no reflow for the pinned scroller to absorb. A stopped
+      // turn instead stacks compact natural rows (10px gaps, no 36px boxes):
+      // its extra height is glided-in growth either way, so only the
+      // shimmer-swap occupant needs the fixed extent.
+      lastSegment?.type === 'stopped' ? (
+        <>
+          <div className='mt-[10px] flex items-center gap-[8px]'>
+            <CircleStop className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+            <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
+          </div>
+          {actions && <div className='mt-[10px]'>{actions}</div>}
+        </>
       ) : (
-        // The actions row takes the slot's place in the SAME render — a single
-        // ~10px reflow instead of a collapse the buttons would ride upward or a
-        // late mount the chase would visibly scroll to.
-        actions && <div className='mt-2.5'>{actions}</div>
+        actions && <div className={TAIL_REGION_CLASSES}>{actions}</div>
       )}
     </div>
   )

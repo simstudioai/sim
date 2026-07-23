@@ -28,8 +28,6 @@ const {
   mockResolveStorageBillingContext: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
-
 vi.mock('@/lib/copilot/tools/handlers/upload-file-reader', () => ({
   findMothershipUploadRowByChatAndName: mockFindUpload,
 }))

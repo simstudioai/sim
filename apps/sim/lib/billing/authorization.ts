@@ -16,7 +16,9 @@ const logger = createLogger('BillingAuthorization')
 /**
  * Classify a `/subscription/upgrade` request as a personal checkout using
  * the same reference resolution as the Better Auth Stripe plugin
- * (`@better-auth/stripe` 1.6.13): an explicit `referenceId` defines the
+ * (`@better-auth/stripe` 1.6.23, `referenceMiddleware` — classification
+ * unchanged from 1.6.13; 1.6.23 only moved the resolved `referenceId` into
+ * the middleware return value): an explicit `referenceId` defines the
  * reference (personal iff it is the session user); without one, the
  * reference defaults to the user unless `customerType: 'organization'`
  * selects the session's active organization.

@@ -18,9 +18,6 @@ vi.mock('next/navigation', () => ({
 }))
 
 // Override the global `getAllBlocks: () => ({})` stub — `getIconColorMap` iterates it as an array.
-vi.mock('@/blocks/registry', () => ({
-  getAllBlocks: () => [],
-}))
 
 const { MentionChipView } = await import('./mention-chip')
 

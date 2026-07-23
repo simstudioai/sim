@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbFor } from '@sim/db'
 import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -53,6 +53,13 @@ import type {
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import type { SerializedConnection } from '@/serializer/types'
+
+/**
+ * All paused-execution / resume-queue / execution-log persistence in this
+ * module runs on the exec pool, mirroring the completion writes in
+ * `lib/logs/execution/logger.ts`.
+ */
+const execDb = dbFor('exec')
 
 const logger = createLogger('HumanInTheLoopManager')
 const RUN_BUFFER_UNAVAILABLE_ERROR = 'Run buffer temporarily unavailable'
@@ -373,7 +380,7 @@ export class PauseResumeManager {
       ...resumeMetadata,
     }
 
-    await db.transaction(async (tx) => {
+    await execDb.transaction(async (tx) => {
       const existing = await tx
         .select()
         .from(pausedExecutions)
@@ -489,7 +496,7 @@ export class PauseResumeManager {
   static async enqueueOrStartResume(args: EnqueueResumeArgs): Promise<EnqueueResumeResult> {
     const { executionId, workflowId, contextId, resumeInput, userId, allowedPauseKinds } = args
 
-    return await db.transaction(async (tx) => {
+    return await execDb.transaction(async (tx) => {
       const pausedExecution = await tx
         .select()
         .from(pausedExecutions)
@@ -815,7 +822,7 @@ export class PauseResumeManager {
     } = args
     const parentExecutionId = pausedExecution.executionId
 
-    await db
+    await execDb
       .update(workflowExecutionLogs)
       .set({ status: 'running' })
       .where(eq(workflowExecutionLogs.executionId, parentExecutionId))
@@ -1653,7 +1660,7 @@ export class PauseResumeManager {
     const { resumeEntryId, pausedExecutionId, parentExecutionId, contextId } = args
     const now = new Date()
 
-    await db.transaction(async (tx) => {
+    await execDb.transaction(async (tx) => {
       await tx
         .update(resumeQueue)
         .set({ status: 'completed', completedAt: now, failureReason: null })
@@ -1720,7 +1727,7 @@ export class PauseResumeManager {
   }): Promise<void> {
     const now = new Date()
 
-    await db.transaction(async (tx) => {
+    await execDb.transaction(async (tx) => {
       await tx
         .update(resumeQueue)
         .set({ status: 'failed', failureReason: args.failureReason, completedAt: now })
@@ -1752,7 +1759,7 @@ export class PauseResumeManager {
   }): Promise<void> {
     const now = new Date()
 
-    await db.transaction(async (tx) => {
+    await execDb.transaction(async (tx) => {
       const pausedExecution = args.preserveForRetry
         ? await tx
             .select({
@@ -1843,7 +1850,7 @@ export class PauseResumeManager {
   }): Promise<void> {
     const { pausedExecutionId, contextId, pauseBlockId, executionState } = args
 
-    const pausedExecution = await db
+    const pausedExecution = await execDb
       .select()
       .from(pausedExecutions)
       .where(eq(pausedExecutions.id, pausedExecutionId))
@@ -1905,7 +1912,7 @@ export class PauseResumeManager {
       ? collectLargeValueReferenceKeys(snapshotReferenceValue, snapshotWorkspaceId)
       : []
 
-    await db.transaction(async (tx) => {
+    await execDb.transaction(async (tx) => {
       await tx
         .update(pausedExecutions)
         .set({
@@ -1937,7 +1944,7 @@ export class PauseResumeManager {
   static async beginPausedCancellation(executionId: string, workflowId: string): Promise<boolean> {
     const now = new Date()
 
-    return await db.transaction(async (tx) => {
+    return await execDb.transaction(async (tx) => {
       const pausedExecution = await tx
         .select({ id: pausedExecutions.id, status: pausedExecutions.status })
         .from(pausedExecutions)
@@ -1992,7 +1999,7 @@ export class PauseResumeManager {
   ): Promise<boolean> {
     const now = new Date()
 
-    return await db.transaction(async (tx) => {
+    return await execDb.transaction(async (tx) => {
       const pausedExecution = await tx
         .select({ id: pausedExecutions.id, status: pausedExecutions.status })
         .from(pausedExecutions)
@@ -2033,7 +2040,7 @@ export class PauseResumeManager {
   ): Promise<boolean> {
     const now = new Date()
 
-    return await db.transaction(async (tx) => {
+    return await execDb.transaction(async (tx) => {
       const pausedExecution = await tx
         .select({ id: pausedExecutions.id })
         .from(pausedExecutions)
@@ -2077,7 +2084,7 @@ export class PauseResumeManager {
     workflowId: string
   ): Promise<void> {
     const now = new Date()
-    await db
+    await execDb
       .update(pausedExecutions)
       .set({
         status: sql`CASE WHEN resumed_count > 0 THEN 'partially_resumed' ELSE 'paused' END`,
@@ -2097,7 +2104,7 @@ export class PauseResumeManager {
     executionId: string,
     workflowId: string
   ): Promise<'cancelling' | 'cancelled' | null> {
-    const activeResume = await db
+    const activeResume = await execDb
       .select({ id: resumeQueue.id })
       .from(resumeQueue)
       .where(and(eq(resumeQueue.parentExecutionId, executionId), eq(resumeQueue.status, 'claimed')))
@@ -2108,7 +2115,7 @@ export class PauseResumeManager {
       return null
     }
 
-    const pausedExecution = await db
+    const pausedExecution = await execDb
       .select({ status: pausedExecutions.status })
       .from(pausedExecutions)
       .where(
@@ -2135,7 +2142,7 @@ export class PauseResumeManager {
   }): Promise<void> {
     const now = new Date()
 
-    await db.transaction(async (tx) => {
+    await execDb.transaction(async (tx) => {
       const pausedExecution = await tx
         .select({
           automaticResumeRetryCount: pausedExecutions.automaticResumeRetryCount,
@@ -2228,7 +2235,7 @@ export class PauseResumeManager {
     pausedExecutionId: string
     nextResumeAt: Date | null
   }): Promise<void> {
-    await db
+    await execDb
       .update(pausedExecutions)
       .set({ nextResumeAt: args.nextResumeAt })
       .where(
@@ -2260,7 +2267,7 @@ export class PauseResumeManager {
       }
     }
 
-    const rows = await db
+    const rows = await execDb
       .select()
       .from(pausedExecutions)
       .where(whereClause)
@@ -2278,7 +2285,7 @@ export class PauseResumeManager {
   static async getPausedExecutionById(
     id: string
   ): Promise<typeof pausedExecutions.$inferSelect | null> {
-    const rows = await db
+    const rows = await execDb
       .select()
       .from(pausedExecutions)
       .where(eq(pausedExecutions.id, id))
@@ -2292,7 +2299,7 @@ export class PauseResumeManager {
   }): Promise<PausedExecutionDetail | null> {
     const { workflowId, executionId } = options
 
-    const row = await db
+    const row = await execDb
       .select()
       .from(pausedExecutions)
       .where(
@@ -2308,7 +2315,7 @@ export class PauseResumeManager {
       return null
     }
 
-    const queueEntries = await db
+    const queueEntries = await execDb
       .select()
       .from(resumeQueue)
       .where(eq(resumeQueue.parentExecutionId, executionId))
@@ -2386,7 +2393,7 @@ export class PauseResumeManager {
     } | null = null
 
     while (!pendingEntry) {
-      const selection = await db.transaction(async (tx) => {
+      const selection = await execDb.transaction(async (tx) => {
         const pausedExecution = await tx
           .select()
           .from(pausedExecutions)

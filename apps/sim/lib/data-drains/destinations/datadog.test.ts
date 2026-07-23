@@ -23,6 +23,7 @@ const meta = (sequence: number) => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.stubGlobal('fetch', fetchMock)
   fetchMock.mockResolvedValue(new Response(null, { status: 202 }))
 })
 

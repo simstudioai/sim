@@ -17,6 +17,7 @@ import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/conn
 import {
   ConnectServiceAccountModal,
   type ServiceAccountProviderId,
+  useServiceAccountConnectTarget,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -129,6 +130,20 @@ export function CredentialSelector({
         : null,
     [credentialKind, isMergedKinds, serviceId]
   )
+
+  // Canonical resolver for the service-account connect control: the vendor-
+  // accurate label and — critically — the per-viewer preview gate (a custom
+  // Slack bot rides `slack_v2`). Shared with the integrations page and chat so
+  // the gate can't be bypassed here. When `hidden`, the setup action is
+  // suppressed; existing service-account credentials stay selectable.
+  const serviceAccountTarget = useServiceAccountConnectTarget({
+    serviceAccountProviderId: serviceAccountService?.serviceAccountProviderId as
+      | ServiceAccountProviderId
+      | undefined,
+    serviceName: serviceAccountService?.name,
+    serviceIcon: serviceAccountService?.icon,
+  })
+  const serviceAccountConnectHidden = Boolean(serviceAccountTarget?.hidden)
 
   const selectedCredential = useMemo(
     () => credentials.find((cred) => cred.id === selectedId),
@@ -249,19 +264,23 @@ export function CredentialSelector({
       iconElement: getProviderIcon((cred.provider ?? provider) as OAuthProvider),
     }))
 
-    options.push({
-      label:
-        credentialKind === 'service-account'
-          ? (subBlock.credentialLabels?.serviceAccountConnect ??
-            (credentials.length > 0
-              ? `Add another ${getProviderName(provider)} key`
-              : `Add ${getProviderName(provider)} key`))
-          : credentials.length > 0
-            ? `Connect another ${getProviderName(provider)} account`
-            : `Connect ${getProviderName(provider)} account`,
-      value: '__connect_account__',
-      iconElement: <ExternalLink className='size-3' />,
-    })
+    // Suppress the setup action when the service-account flow is preview-gated
+    // for this viewer (a custom Slack bot needs slack_v2) — existing accounts
+    // above stay selectable.
+    if (credentialKind !== 'service-account' || !serviceAccountConnectHidden) {
+      options.push({
+        label:
+          credentialKind === 'service-account'
+            ? (subBlock.credentialLabels?.serviceAccountConnect ??
+              serviceAccountTarget?.label ??
+              `Add ${getProviderName(provider)} key`)
+            : credentials.length > 0
+              ? `Connect another ${getProviderName(provider)} account`
+              : `Connect ${getProviderName(provider)} account`,
+        value: '__connect_account__',
+        iconElement: <ExternalLink className='size-3' />,
+      })
+    }
 
     return options
   }, [
@@ -271,6 +290,8 @@ export function CredentialSelector({
     credentials,
     credentialKind,
     subBlock.credentialLabels,
+    serviceAccountConnectHidden,
+    serviceAccountTarget,
     provider,
     getProviderIcon,
     getProviderName,
@@ -302,11 +323,19 @@ export function CredentialSelector({
         section: labels?.serviceAccountGroup ?? 'Service accounts',
         items: [
           ...credentials.filter((c) => c.type === 'service_account').map(toOption),
-          {
-            label: labels?.serviceAccountConnect ?? `Add ${getProviderName(provider)} key`,
-            value: '__connect_service_account__',
-            iconElement: <ExternalLink className='size-3' />,
-          },
+          // Drop the setup action when the flow is preview-gated for this viewer.
+          ...(serviceAccountConnectHidden
+            ? []
+            : [
+                {
+                  label:
+                    labels?.serviceAccountConnect ??
+                    serviceAccountTarget?.label ??
+                    `Add ${getProviderName(provider)} key`,
+                  value: '__connect_service_account__',
+                  iconElement: <ExternalLink className='size-3' />,
+                },
+              ]),
         ],
       },
     ]
@@ -314,6 +343,8 @@ export function CredentialSelector({
     isMergedKinds,
     subBlock.credentialLabels,
     credentials,
+    serviceAccountConnectHidden,
+    serviceAccountTarget,
     provider,
     getProviderIcon,
     getProviderName,

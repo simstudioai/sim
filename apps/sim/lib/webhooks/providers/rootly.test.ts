@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import { resetEnvMock, setEnv } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { rootlyHandler } from '@/lib/webhooks/providers/rootly'
@@ -168,14 +169,14 @@ describe('Rootly webhook provider', () => {
     const fetchMock = vi.fn()
 
     beforeEach(() => {
-      vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.test')
+      setEnv({ NEXT_PUBLIC_APP_URL: 'https://app.test' })
       vi.stubGlobal('fetch', fetchMock)
       fetchMock.mockReset()
     })
 
     afterEach(() => {
       vi.unstubAllGlobals()
-      vi.unstubAllEnvs()
+      resetEnvMock()
     })
 
     it('creates a Rootly endpoint with a generated secret and the mapped event type', async () => {

@@ -66,6 +66,13 @@ interface BYOKKeyManagerBaseProps {
   description?: string
   /** Show the provider search box (hidden when there are only a couple). */
   showSearch?: boolean
+  /**
+   * Controlled search value + setter. The BYOK settings page passes the shared
+   * `?search=` binding (`useSettingsSearch`) so the search is deep-linkable;
+   * modal/embedded consumers omit both and keep local state.
+   */
+  searchTerm?: string
+  onSearchTermChange?: (value: string) => void
 }
 
 /** One key per provider; saving replaces the stored key. */
@@ -138,7 +145,9 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
     showSearch = true,
   } = props
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [localSearchTerm, setLocalSearchTerm] = useState('')
+  const searchTerm = props.searchTerm ?? localSearchTerm
+  const setSearchTerm = props.onSearchTermChange ?? setLocalSearchTerm
   const [editing, setEditing] = useState<EditingState | null>(null)
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [nameInput, setNameInput] = useState('')

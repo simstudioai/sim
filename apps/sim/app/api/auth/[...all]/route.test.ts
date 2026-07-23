@@ -1,8 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const handlerMocks = vi.hoisted(() => ({
   betterAuthGET: vi.fn(),
@@ -12,7 +12,6 @@ const handlerMocks = vi.hoisted(() => ({
     user: { id: 'anon' },
     session: { id: 'anon-session' },
   })),
-  isAuthDisabled: false,
   withSSOCallbackIntent: vi.fn((_providerId: string, callback: () => Promise<unknown>) =>
     callback()
   ),
@@ -38,22 +37,18 @@ vi.mock('@/lib/auth/anonymous', () => ({
   createAnonymousSession: handlerMocks.createAnonymousSession,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isAuthDisabled() {
-    return handlerMocks.isAuthDisabled
-  },
-}))
-
 import { GET, POST } from '@/app/api/auth/[...all]/route'
+
+afterAll(resetEnvFlagsMock)
 
 describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    handlerMocks.isAuthDisabled = false
+    setEnvFlags({ isAuthDisabled: false })
   })
 
   it('returns anonymous session in better-auth response envelope when auth is disabled', async () => {
-    handlerMocks.isAuthDisabled = true
+    setEnvFlags({ isAuthDisabled: true })
 
     const req = createMockRequest(
       'GET',
@@ -74,7 +69,7 @@ describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
   })
 
   it('delegates to better-auth handler when auth is enabled', async () => {
-    handlerMocks.isAuthDisabled = false
+    setEnvFlags({ isAuthDisabled: false })
 
     const { NextResponse } = await import('next/server')
     handlerMocks.betterAuthGET.mockResolvedValueOnce(

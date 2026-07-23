@@ -1,6 +1,6 @@
 {
-  "id": "38f2231b-db45-45b4-8605-b6753f65c87f",
-  "prevId": "7f5792f2-30c5-4a53-936f-3133d5378649",
+  "id": "ad7390d5-6c22-48a8-9e1e-5b2a0623ab28",
+  "prevId": "18059bad-80c8-4739-a925-3883824a5cd2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8201,6 +8201,19 @@
           "type": "json",
           "primaryKey": false,
           "notNull": false
+        },
+        "session_policy_settings": {
+          "name": "session_policy_settings",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "security_policy_version": {
+          "name": "security_policy_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
         },
         "whitelabel_settings": {
           "name": "whitelabel_settings",

@@ -212,7 +212,7 @@ export function WorkflowBlockView({
         >
           <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
             <div
-              className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-md'
+              className='flex size-[24px] flex-shrink-0 items-center justify-center overflow-hidden rounded-md [&_img]:size-full'
               style={{
                 background: isEnabled ? iconBgColor : 'gray',
               }}

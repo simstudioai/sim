@@ -158,7 +158,7 @@ describe('SSO hardening migration state', () => {
     )
 
     await expect(isSSOHardeningMigrationApplied(fakeSql)).resolves.toBe(true)
-    expect(unsafe).toHaveBeenCalledWith(expect.stringContaining('created_at = 1784759628537'))
+    expect(unsafe).toHaveBeenCalledWith(expect.stringContaining('created_at = 1784826761128'))
   })
 
   it('resolves the migration timestamp by tag and fails closed if it is renamed', () => {

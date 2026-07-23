@@ -1,16 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockMaterializeExecutionData, mockSelect } = vi.hoisted(() => ({
+const { mockMaterializeExecutionData } = vi.hoisted(() => ({
   mockMaterializeExecutionData: vi.fn(),
-  mockSelect: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: { select: mockSelect },
-}))
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 vi.mock('@/lib/logs/execution/trace-store', () => ({
   materializeExecutionData: mockMaterializeExecutionData,
@@ -32,24 +30,15 @@ const EXECUTION_STATE = {
   activeExecutionPath: [],
 }
 
-function createSelectChain(rows: unknown[]) {
-  const chain = {
-    from: vi.fn(),
-    where: vi.fn(),
-    orderBy: vi.fn(),
-    limit: vi.fn().mockResolvedValue(rows),
-  }
-  chain.from.mockReturnValue(chain)
-  chain.where.mockReturnValue(chain)
-  chain.orderBy.mockReturnValue(chain)
-  return chain
-}
-
 describe('execution state lookup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockMaterializeExecutionData.mockReset()
-    mockSelect.mockReset()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('materializes externalized execution data for a specific execution', async () => {
@@ -64,16 +53,14 @@ describe('execution state lookup', () => {
         executionId: 'execution-1',
       },
     }
-    mockSelect.mockReturnValueOnce(
-      createSelectChain([
-        {
-          executionId: 'execution-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          executionData: slimExecutionData,
-        },
-      ])
-    )
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionData: slimExecutionData,
+      },
+    ])
     mockMaterializeExecutionData.mockResolvedValueOnce({
       executionState: EXECUTION_STATE,
     })
@@ -100,16 +87,14 @@ describe('execution state lookup', () => {
         executionId: 'execution-1',
       },
     }
-    mockSelect.mockReturnValueOnce(
-      createSelectChain([
-        {
-          executionId: 'execution-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          executionData: slimExecutionData,
-        },
-      ])
-    )
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionData: slimExecutionData,
+      },
+    ])
     mockMaterializeExecutionData.mockResolvedValueOnce({
       workflowInput: { leadId: 'lead-1' },
     })
@@ -128,24 +113,22 @@ describe('execution state lookup', () => {
   })
 
   it('checks older pointer-backed candidates when the latest has no execution state', async () => {
-    mockSelect.mockReturnValueOnce(
-      createSelectChain([
-        {
-          executionId: 'execution-2',
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          executionState: null,
-          traceStoreRef: { id: 'value-2' },
-        },
-        {
-          executionId: 'execution-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          executionState: null,
-          traceStoreRef: { id: 'value-1' },
-        },
-      ])
-    )
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-2',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionState: null,
+        traceStoreRef: { id: 'value-2' },
+      },
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionState: null,
+        traceStoreRef: { id: 'value-1' },
+      },
+    ])
     mockMaterializeExecutionData
       .mockResolvedValueOnce({})
       .mockImplementationOnce(async (executionData: Record<string, unknown>) => {

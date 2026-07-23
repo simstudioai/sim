@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { deleteColumn, renameColumn } from '@/lib/table/columns/service'
 import {
@@ -13,8 +13,6 @@ import {
 } from '@/lib/table/rows/service'
 import type { TableDefinition } from '@/lib/table/types'
 import { getUniqueColumns } from '@/lib/table/validation'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 // Capacity is exercised in billing.test.ts; here it's a no-op so the timeout-scaling
 // suites can use large synthetic row counts without tripping the plan limit.

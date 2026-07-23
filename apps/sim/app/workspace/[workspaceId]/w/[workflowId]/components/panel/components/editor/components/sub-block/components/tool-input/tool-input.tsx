@@ -408,7 +408,7 @@ function createToolIcon(
 ) {
   return (
     <div
-      className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+      className='flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
       style={{ background: bgColor }}
     >
       <IconComponent className={cn('size-[10px]', getTileIconColorClass(bgColor))} />

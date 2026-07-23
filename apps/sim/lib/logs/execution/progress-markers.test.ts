@@ -1,21 +1,22 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionLastCompletedBlock, ExecutionLastStartedBlock } from '@/lib/logs/types'
 
-const { mockGetRedisClient, mockRedis } = vi.hoisted(() => {
+const { mockRedis } = vi.hoisted(() => {
   const mockRedis = {
     eval: vi.fn(),
     hgetall: vi.fn(),
     del: vi.fn(),
   }
-  return { mockGetRedisClient: vi.fn<[], typeof mockRedis | null>(() => mockRedis), mockRedis }
+  return { mockRedis }
 })
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: mockGetRedisClient,
-}))
+const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+
+afterAll(resetRedisConfigMock)
 
 vi.mock('@/lib/core/execution-limits', () => ({
   getExecutionReservationTtlMs: () => 5_460_000,

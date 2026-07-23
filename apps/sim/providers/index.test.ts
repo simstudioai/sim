@@ -18,10 +18,6 @@ vi.mock('@/providers/registry', () => ({
   }),
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  getCostMultiplier: vi.fn(() => 1),
-}))
-
 import { executeProviderRequest } from '@/providers'
 import type { ProviderResponse } from '@/providers/types'
 

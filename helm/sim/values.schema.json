@@ -159,6 +159,10 @@
               "type": "string",
               "description": "Comma-separated additional public origins to trust for auth (e.g. 'https://app.example.com,https://www.example.com'). Merged into Better Auth trustedOrigins."
             },
+            "AUTH_TRUSTED_PROXIES": {
+              "type": "string",
+              "description": "Comma-separated reverse-proxy IPs or CIDR ranges in front of the app (e.g. '10.0.0.0/16'). Better Auth walks x-forwarded-for right to left, skips these hops, and uses the first untrusted address as the client IP."
+            },
             "SSO_TRUSTED_PROVIDER_IDS": {
               "type": "string",
               "description": "Comma-separated SSO provider IDs to trust for automatic account linking when an SSO sign-in matches an existing account's email. Only needed for IdPs that do not assert email_verified. Merged into Better Auth accountLinking.trustedProviders."

@@ -1,11 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionEventEntry } from '@/lib/execution/event-buffer'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 
-const { mockGetRedisClient, mockRedis, persistedEntries } = vi.hoisted(() => {
+const { mockRedis, persistedEntries } = vi.hoisted(() => {
   const persistedEntries: ExecutionEventEntry[] = []
   const mockRedis = {
     get: vi.fn(),
@@ -18,13 +19,12 @@ const { mockGetRedisClient, mockRedis, persistedEntries } = vi.hoisted(() => {
     pipeline: vi.fn(),
     eval: vi.fn(),
   }
-  const mockGetRedisClient = vi.fn(() => mockRedis)
-  return { mockGetRedisClient, mockRedis, persistedEntries }
+  return { mockRedis, persistedEntries }
 })
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: mockGetRedisClient,
-}))
+const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+
+afterAll(resetRedisConfigMock)
 
 import {
   createExecutionEventWriter,

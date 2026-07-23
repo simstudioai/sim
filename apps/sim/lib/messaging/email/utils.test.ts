@@ -1,5 +1,5 @@
-import { createEnvMock, urlsMock, urlsMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, resetUrlsMock, setEnv, urlsMockFns } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   EMAIL_HEADER_CONTROL_CHARS_REGEX,
   getFromEmailAddress,
@@ -14,15 +14,17 @@ import {
  * environment configurations for email addresses.
  */
 
-// Set up mocks at module level - these will be used for all tests in this file
-vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({
+beforeAll(() => {
+  setEnv({
     FROM_EMAIL_ADDRESS: 'Sim <noreply@sim.ai>',
     EMAIL_DOMAIN: 'example.com',
   })
-)
+})
 
-vi.mock('@/lib/core/utils/urls', () => urlsMock)
+afterAll(() => {
+  resetEnvMock()
+  resetUrlsMock()
+})
 
 beforeEach(() => {
   urlsMockFns.mockGetEmailDomain.mockReturnValue('fallback.com')
