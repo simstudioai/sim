@@ -10,6 +10,7 @@
 import type React from 'react'
 import {
   AnthropicIcon,
+  AvianIcon,
   AzureIcon,
   BasetenIcon,
   BedrockIcon,
@@ -3757,6 +3758,67 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         sunset: { status: 'legacy' },
+      },
+    ],
+  },
+  avian: {
+    id: 'avian',
+    name: 'Avian',
+    description: 'Avian AI inference API',
+    defaultModel: 'deepseek/deepseek-v3.2',
+    modelPatterns: [],
+    icon: AvianIcon,
+    capabilities: {
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'deepseek/deepseek-v3.2',
+        pricing: {
+          input: 0.26,
+          output: 0.38,
+          updatedAt: '2026-02-27',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 164000,
+      },
+      {
+        id: 'moonshotai/kimi-k2.5',
+        pricing: {
+          input: 0.45,
+          output: 2.2,
+          updatedAt: '2026-02-27',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 131000,
+      },
+      {
+        id: 'z-ai/glm-5',
+        pricing: {
+          input: 0.3,
+          output: 2.55,
+          updatedAt: '2026-02-27',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 131000,
+      },
+      {
+        id: 'minimax/minimax-m2.5',
+        pricing: {
+          input: 0.3,
+          output: 1.1,
+          updatedAt: '2026-02-27',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
       },
     ],
   },
