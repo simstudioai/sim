@@ -7,6 +7,16 @@ import { BackLink } from '@/app/(landing)/components/back-link'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { ShareButton } from '@/app/(landing)/components/share-button'
 
+/** Renders an ISO date as "Jul 1, 2026". Pinned to UTC so the day matches the frontmatter date in every reader's timezone. */
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
 interface ContentPostPageProps {
   /** Route base path, e.g. `/blog` or `/library`. */
   basePath: string
@@ -32,6 +42,8 @@ export function ContentPostPage({
   shareUrl,
 }: ContentPostPageProps) {
   const Article = post.Content
+  const modifiedIso = post.updated ?? post.date
+  const showUpdated = modifiedIso.slice(0, 10) !== post.date.slice(0, 10)
 
   return (
     <article className='w-full bg-[var(--bg)]' itemScope itemType='https://schema.org/BlogPosting'>
@@ -74,19 +86,31 @@ export function ContentPostPage({
               </p>
             </div>
             <div className='mt-6 flex items-center gap-6'>
-              <time
-                className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em]'
-                dateTime={post.date}
-                itemProp='datePublished'
-              >
-                {new Date(post.date).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  timeZone: 'UTC',
-                })}
-              </time>
-              <meta itemProp='dateModified' content={post.updated ?? post.date} />
+              <div className='flex items-center gap-2'>
+                <time
+                  className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em]'
+                  dateTime={post.date}
+                  itemProp='datePublished'
+                >
+                  {formatDate(post.date)}
+                </time>
+                {showUpdated ? (
+                  <>
+                    <span aria-hidden='true' className='text-[var(--text-muted)] text-xs'>
+                      ·
+                    </span>
+                    <time
+                      className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em]'
+                      dateTime={modifiedIso}
+                      itemProp='dateModified'
+                    >
+                      Updated {formatDate(modifiedIso)}
+                    </time>
+                  </>
+                ) : (
+                  <meta itemProp='dateModified' content={modifiedIso} />
+                )}
+              </div>
               <div className='flex items-center gap-3'>
                 {(post.authors || [post.author]).map((a) => (
                   <div key={a?.name} className='flex items-center gap-2'>
@@ -151,12 +175,7 @@ export function ContentPostPage({
                     </div>
                     <div className='flex flex-col gap-2'>
                       <span className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em]'>
-                        {new Date(p.date).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                          timeZone: 'UTC',
-                        })}
+                        {formatDate(p.date)}
                       </span>
                       <h3 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
                         {p.title}
