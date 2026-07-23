@@ -372,12 +372,12 @@ export function ChatDeploy({
             )}
           </div>
 
-          <div className='flex items-center justify-between gap-3 pl-0.5'>
+          <div className='flex items-center justify-between gap-3'>
             <div className='min-w-0'>
-              <Label className='block font-medium text-[var(--text-primary)] text-small'>
+              <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
                 Include thinking
               </Label>
-              <p className='mt-1 text-[var(--text-secondary)] text-xs'>
+              <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
                 Allow this chat to stream model thinking when the client opts in. Off by default.
               </p>
             </div>
