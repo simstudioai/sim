@@ -78,11 +78,12 @@ describe('shouldReconcileDeletions', () => {
 
 describe('partitionSyncReconciliation', () => {
   const live = (id: string, externalId: string | null = id) => ({ id, externalId })
+  const noFailures = new Set<string>()
 
   it('marks a live document missing from the listing as pending removal, not hard-deleted', async () => {
     const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    const result = partitionSyncReconciliation([live('a')], [], new Set(), undefined)
+    const result = partitionSyncReconciliation([live('a')], [], new Set(), noFailures, undefined)
 
     expect(result).toEqual({ resurrectIds: [], softDeleteIds: ['a'], hardDeleteIds: [] })
   })
@@ -90,7 +91,7 @@ describe('partitionSyncReconciliation', () => {
   it('hard-deletes a document already pending removal that is still absent', async () => {
     const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    const result = partitionSyncReconciliation([], [live('a')], new Set(), undefined)
+    const result = partitionSyncReconciliation([], [live('a')], new Set(), noFailures, undefined)
 
     expect(result).toEqual({ resurrectIds: [], softDeleteIds: [], hardDeleteIds: ['a'] })
   })
@@ -98,7 +99,13 @@ describe('partitionSyncReconciliation', () => {
   it('resurrects a pending-removal document that reappears in the listing', async () => {
     const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    const result = partitionSyncReconciliation([], [live('a')], new Set(['a']), undefined)
+    const result = partitionSyncReconciliation(
+      [],
+      [live('a')],
+      new Set(['a']),
+      noFailures,
+      undefined
+    )
 
     expect(result).toEqual({ resurrectIds: ['a'], softDeleteIds: [], hardDeleteIds: [] })
   })
@@ -106,7 +113,13 @@ describe('partitionSyncReconciliation', () => {
   it('leaves a document untouched when it is still present in the listing', async () => {
     const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    const result = partitionSyncReconciliation([live('a')], [], new Set(['a']), undefined)
+    const result = partitionSyncReconciliation(
+      [live('a')],
+      [],
+      new Set(['a']),
+      noFailures,
+      undefined
+    )
 
     expect(result).toEqual({ resurrectIds: [], softDeleteIds: [], hardDeleteIds: [] })
   })
@@ -114,7 +127,7 @@ describe('partitionSyncReconciliation', () => {
   it('resurrects even on a forced fullSync', async () => {
     const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    const result = partitionSyncReconciliation([], [live('a')], new Set(['a']), true)
+    const result = partitionSyncReconciliation([], [live('a')], new Set(['a']), noFailures, true)
 
     expect(result.resurrectIds).toEqual(['a'])
   })
@@ -122,7 +135,13 @@ describe('partitionSyncReconciliation', () => {
   it('hard-deletes both live and pending-removal documents immediately on a forced fullSync', async () => {
     const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    const result = partitionSyncReconciliation([live('a')], [live('b')], new Set(), true)
+    const result = partitionSyncReconciliation(
+      [live('a')],
+      [live('b')],
+      new Set(),
+      noFailures,
+      true
+    )
 
     expect(result.softDeleteIds).toEqual([])
     expect(result.hardDeleteIds.sort()).toEqual(['a', 'b'])
@@ -135,6 +154,7 @@ describe('partitionSyncReconciliation', () => {
       [live('kept'), live('newly-missing')],
       [live('resurrected'), live('confirmed-gone')],
       new Set(['kept', 'resurrected']),
+      noFailures,
       undefined
     )
 
@@ -152,10 +172,53 @@ describe('partitionSyncReconciliation', () => {
       [live('a', null)],
       [live('b', null)],
       new Set(),
+      noFailures,
       undefined
     )
 
     expect(result).toEqual({ resurrectIds: [], softDeleteIds: [], hardDeleteIds: [] })
+  })
+
+  it('does not resurrect a reappearing document whose content refresh failed', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const result = partitionSyncReconciliation(
+      [],
+      [live('a')],
+      new Set(['a']),
+      new Set(['a']),
+      undefined
+    )
+
+    expect(result).toEqual({ resurrectIds: [], softDeleteIds: [], hardDeleteIds: [] })
+  })
+
+  it('still refuses to resurrect a failed refresh even on a forced fullSync', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const result = partitionSyncReconciliation(
+      [],
+      [live('a')],
+      new Set(['a']),
+      new Set(['a']),
+      true
+    )
+
+    expect(result.resurrectIds).toEqual([])
+  })
+
+  it('resurrects the ones that succeeded while excluding the one that failed', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const result = partitionSyncReconciliation(
+      [],
+      [live('ok'), live('failed')],
+      new Set(['ok', 'failed']),
+      new Set(['failed']),
+      undefined
+    )
+
+    expect(result.resurrectIds).toEqual(['ok'])
   })
 })
 

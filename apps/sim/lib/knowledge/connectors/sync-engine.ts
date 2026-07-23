@@ -260,7 +260,11 @@ type ReconciliationDoc = { id: string; externalId: string | null }
  * was already pending-removal (`tombstonedDocs`) coming into this sync. A
  * document that reappears while pending-removal is resurrected
  * (`resurrectIds`) regardless of `fullSync`, since presence — unlike absence —
- * is trustworthy evidence even from a partial listing.
+ * is trustworthy evidence even from a partial listing. A document whose
+ * content refresh was attempted but failed (`failedExternalIds`) is excluded
+ * from resurrection even though it was seen — surfacing it now would show
+ * known-stale pre-tombstone content; it stays tombstoned for a later sync to
+ * retry.
  *
  * A forced `fullSync` is an explicit request to reconcile right now: it skips
  * the grace period and purges everything absent in one pass.
@@ -269,10 +273,14 @@ export function partitionSyncReconciliation(
   existingDocs: ReconciliationDoc[],
   tombstonedDocs: ReconciliationDoc[],
   seenExternalIds: Set<string>,
+  failedExternalIds: Set<string>,
   fullSync: boolean | undefined
 ): { resurrectIds: string[]; softDeleteIds: string[]; hardDeleteIds: string[] } {
   const resurrectIds = tombstonedDocs
-    .filter((d) => d.externalId && seenExternalIds.has(d.externalId))
+    .filter(
+      (d) =>
+        d.externalId && seenExternalIds.has(d.externalId) && !failedExternalIds.has(d.externalId)
+    )
     .map((d) => d.id)
   const liveMissingIds = existingDocs
     .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
@@ -610,6 +618,14 @@ export async function executeSync(
     )
 
     const seenExternalIds = new Set<string>()
+    /**
+     * externalIds whose content update was attempted but failed (hydration
+     * error, or the write itself rejected) — as opposed to `docsFailed` counts
+     * elsewhere, this specifically excludes them from resurrection below: a
+     * tombstoned document whose refresh failed must stay tombstoned rather
+     * than come back visible while still serving stale pre-tombstone content.
+     */
+    const failedExternalIds = new Set<string>()
 
     const pendingOps: DocOp[] = []
     for (const extDoc of externalDocs) {
@@ -735,13 +751,16 @@ export async function executeSync(
           })
         )
 
-        for (const outcome of hydrated) {
+        for (let i = 0; i < hydrated.length; i++) {
+          const outcome = hydrated[i]
           if (outcome.status === 'fulfilled' && outcome.value) {
             readyOps.push(outcome.value)
           } else if (outcome.status === 'rejected') {
             result.docsFailed++
+            failedExternalIds.add(deferredOps[i].extDoc.externalId)
             logger.error('Failed to hydrate deferred document', {
               connectorId,
+              externalId: deferredOps[i].extDoc.externalId,
               error: getErrorMessage(outcome.reason),
             })
           }
@@ -804,6 +823,7 @@ export async function executeSync(
           else result.docsUpdated++
         } else {
           result.docsFailed++
+          failedExternalIds.add(batch[j].extDoc.externalId)
           logger.error('Failed to process document', {
             connectorId,
             externalId: batch[j].extDoc.externalId,
@@ -835,6 +855,7 @@ export async function executeSync(
       existingDocs,
       tombstonedDocs,
       seenExternalIds,
+      failedExternalIds,
       options?.fullSync
     )
 
