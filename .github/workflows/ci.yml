@@ -82,6 +82,7 @@ jobs:
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           COVERED=false
 
@@ -125,8 +126,18 @@ jobs:
                 fi
               fi
               if [ "$STATE" = "success" ]; then
-                COVERED=true
-                echo "Push run ${RUN_ID} passed its test jobs for ${HEAD_SHA} — skipping duplicate test-build."
+                # (3) Re-verify merge-tree equivalence against the LIVE base
+                # tip at decision time: the base branch may have gained real
+                # commits during the poll, in which case the frozen BASE_SHA
+                # check from step (1) is stale and the skip would be unsound.
+                # Any error yields "unknown" and we run the tests.
+                LIVE_DELTA="$(gh api "repos/${REPO}/compare/${HEAD_SHA}...heads/${BASE_REF}" --jq '.files | length' 2>/dev/null || echo unknown)"
+                if [ "$LIVE_DELTA" = "0" ]; then
+                  COVERED=true
+                  echo "Push run ${RUN_ID} passed its test jobs for ${HEAD_SHA} and the live base tip still adds no file changes — skipping duplicate test-build."
+                else
+                  echo "Base branch moved during the poll (live delta: ${LIVE_DELTA}) — running tests in this PR run."
+                fi
                 break
               elif [ "$STATE" = "failed" ]; then
                 echo "Push run ${RUN_ID} did not pass (state: ${STATE}) — running tests in this PR run."

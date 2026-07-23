@@ -1,5 +1,6 @@
 import { vi } from 'vitest'
 import { envMockFns, mockEnvObject } from './env.mock'
+import { envFlagsMock } from './env-flags.mock'
 
 /** Mirrors the real `LOCALHOST_HOSTNAMES` from `@/lib/core/utils/urls`. */
 export const LOCALHOST_HOSTNAMES_MOCK: ReadonlySet<string> = new Set([
@@ -27,7 +28,9 @@ function getBaseUrlImpl(): string {
       'NEXT_PUBLIC_APP_URL must be configured for webhooks and callbacks to work correctly'
     )
   }
-  return hasHttpProtocol(baseUrl) ? baseUrl : `http://${baseUrl}`
+  // Mirrors the real module: protocol-less values get https:// under isProd.
+  const protocol = envFlagsMock.isProd ? 'https://' : 'http://'
+  return hasHttpProtocol(baseUrl) ? baseUrl : `${protocol}${baseUrl}`
 }
 
 function getInternalApiBaseUrlImpl(): string {
@@ -54,7 +57,8 @@ function getBaseDomainImpl(): string {
     try {
       return new URL(fallbackUrl).host
     } catch {
-      return 'localhost:3000'
+      // Mirrors the real module's unparseable-URL fallback per environment.
+      return envFlagsMock.isProd ? 'sim.ai' : 'localhost:3000'
     }
   }
 }
