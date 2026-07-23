@@ -14,7 +14,6 @@ import {
   Agent,
   type Dispatcher,
   type RequestInit as UndiciRequestInit,
-  interceptors as undiciInterceptors,
   request as undiciRequest,
 } from 'undici'
 import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
@@ -587,7 +586,13 @@ export async function followRedirectsGuarded(
     })
     const status = response.status
     const location = response.headers.get('location')
-    if (![301, 302, 303, 307, 308].includes(status) || !location) return response
+    if (![301, 302, 303, 307, 308].includes(status) || !location) {
+      // `response.url` is already the final hop's URL (set per-request by the raw fetch); flag
+      // `redirected` too when at least one hop was followed, matching fetch semantics.
+      if (hop > 0)
+        Object.defineProperty(response, 'redirected', { value: true, configurable: true })
+      return response
+    }
     // Cancel the redirect body up front so the throw paths below (hop cap, blocked
     // target) can't leave a socket checked out on the long-lived Agent.
     await response.body?.cancel().catch(() => {})
@@ -881,6 +886,33 @@ async function undiciRequestAsResponse(
 }
 
 /**
+ * Normalizes a `fetch(input, init)` call into a URL string + init. A `Request` input carries
+ * its own method/headers/body/signal; lift them into the init (explicit init fields win, per
+ * fetch semantics) so a manual redirect follower can't silently downgrade a POST Request to a
+ * bare GET or lose its headers.
+ */
+async function liftFetchArgs(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<{ target: string; effectiveInit: RequestInit }> {
+  const target = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  if (typeof Request !== 'undefined' && input instanceof Request) {
+    const bodyAllowed = input.method !== 'GET' && input.method !== 'HEAD'
+    return {
+      target,
+      effectiveInit: {
+        method: input.method,
+        headers: input.headers,
+        body: bodyAllowed ? await input.clone().arrayBuffer() : undefined,
+        signal: input.signal,
+        ...init,
+      },
+    }
+  }
+  return { target, effectiveInit: init ?? {} }
+}
+
+/**
  * SSRF-guarded `fetch` + its `Agent` for outbound requests to user-controlled
  * hosts: DNS resolves normally, and every socket connect validates the chosen
  * addresses via {@link createSsrfGuardedLookup}; redirects are followed manually
@@ -903,21 +935,7 @@ export function createSsrfGuardedFetchWithDispatcher(options?: { maxResponseSize
     undiciRequestAsResponse(url, init as unknown as RequestInit, dispatcher)
 
   const guarded = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const target = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-    // A Request input carries its own method/headers/body/signal; lift them into the
-    // init (explicit init fields win, per fetch semantics) so the manual redirect
-    // follower doesn't silently downgrade a guarded POST Request to a bare GET.
-    let effectiveInit: RequestInit = init ?? {}
-    if (typeof Request !== 'undefined' && input instanceof Request) {
-      const bodyAllowed = input.method !== 'GET' && input.method !== 'HEAD'
-      effectiveInit = {
-        method: input.method,
-        headers: input.headers,
-        body: bodyAllowed ? await input.clone().arrayBuffer() : undefined,
-        signal: input.signal,
-        ...init,
-      }
-    }
+    const { target, effectiveInit } = await liftFetchArgs(input, init)
     // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
     return followRedirectsGuarded(rawFetch, target, effectiveInit as unknown as UndiciRequestInit)
   }
@@ -977,21 +995,40 @@ export function createPinnedFetchWithDispatcher(
     ...(options?.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
   })
 
+  const rawFetch = (url: string, init: UndiciRequestInit): Promise<Response> =>
+    // double-cast-allowed: DOM RequestInit and undici RequestInit differ in TS but match at runtime
+    undiciRequestAsResponse(url, init as unknown as RequestInit, dispatcher)
+
   // Requests go through `undici.request` (not `undici.fetch`) because fetch's streaming
   // `response.body` never delivers under the Bun runtime the server runs on — the same bug
-  // {@link createSsrfGuardedFetchWithDispatcher} works around. Unlike the guarded builder, the
-  // pinned fetch is handed straight to provider/A2A SDKs with no `followRedirectsGuarded`
-  // wrapper, so redirects are followed here via undici's redirect interceptor. Every hop still
-  // dispatches through the pinned `Agent` (its `connect.lookup` forces `resolvedIP`), so a
-  // redirect can't escape to another address — matching the old fetch path's guarantee.
-  const redirecting = dispatcher.compose(
-    undiciInterceptors.redirect({ maxRedirections: DEFAULT_MAX_REDIRECTS })
-  )
-  const pinned = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
-    undiciRequestAsResponse(input, init ?? {}, redirecting)
+  // {@link createSsrfGuardedFetchWithDispatcher} works around. Redirects are handled here (not
+  // by a caller's wrapper — the pinned fetch is passed straight to provider/A2A SDKs), honoring
+  // the request's `redirect` mode: `manual`/`error` must NOT transparently follow (e.g.
+  // `detectMcpAuthType` inspects the 3xx to classify auth). The default `follow` uses
+  // {@link followRedirectsGuarded}, which drops headers on cross-origin hops (so a redirect
+  // can't disclose a provider `api-key` to another origin) and stamps the final `response.url`.
+  // Every hop still dispatches through the pinned `Agent` (its `connect.lookup` forces
+  // `resolvedIP`), so a redirect can't escape to another address.
+  const pinned = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const { target, effectiveInit } = await liftFetchArgs(input, init)
+    const mode = effectiveInit.redirect ?? 'follow'
+    // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
+    const undiciInit = effectiveInit as unknown as UndiciRequestInit
+    if (mode === 'manual') {
+      return rawFetch(target, undiciInit)
+    }
+    if (mode === 'error') {
+      const response = await rawFetch(target, undiciInit)
+      const location = response.headers.get('location')
+      if (response.status >= 300 && response.status < 400 && location) {
+        await response.body?.cancel().catch(() => {})
+        throw new TypeError('Pinned fetch received an unexpected redirect (redirect: "error")')
+      }
+      return response
+    }
+    return followRedirectsGuarded(rawFetch, target, undiciInit)
+  }
 
-  // Return the base `Agent` (not the composed dispatcher) so callers `destroy()` the socket
-  // owner on close; the interceptor is stateless and re-dispatches through it.
   return { fetch: pinned, dispatcher }
 }
 

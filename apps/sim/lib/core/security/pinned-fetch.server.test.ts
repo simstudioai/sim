@@ -4,23 +4,11 @@
 import { Readable } from 'node:stream'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAgent,
-  mockUndiciRequest,
-  mockRedirectInterceptor,
-  capturedAgentOptions,
-  capturedRedirectOptions,
-} = vi.hoisted(() => {
+const { mockAgent, mockUndiciRequest, capturedAgentOptions } = vi.hoisted(() => {
   const capturedAgentOptions: unknown[] = []
-  const capturedRedirectOptions: unknown[] = []
   class MockAgent {
     constructor(options: unknown) {
       capturedAgentOptions.push(options)
-    }
-    // The pinned builder follows redirects by composing this Agent with the redirect
-    // interceptor; the composed dispatcher is what reaches undici.request.
-    compose(interceptor: unknown) {
-      return { __composed: true, base: this, interceptor }
     }
     close() {
       return Promise.resolve()
@@ -29,24 +17,14 @@ const {
       return Promise.resolve()
     }
   }
-  const mockRedirectInterceptor = vi.fn((options: unknown) => {
-    capturedRedirectOptions.push(options)
-    return { __redirectInterceptor: true }
-  })
   return {
     mockAgent: MockAgent,
     mockUndiciRequest: vi.fn(),
-    mockRedirectInterceptor,
     capturedAgentOptions,
-    capturedRedirectOptions,
   }
 })
 
-vi.mock('undici', () => ({
-  Agent: mockAgent,
-  request: mockUndiciRequest,
-  interceptors: { redirect: mockRedirectInterceptor },
-}))
+vi.mock('undici', () => ({ Agent: mockAgent, request: mockUndiciRequest }))
 
 declare module '@/lib/core/security/input-validation.server?pinned-fetch-test' {
   // biome-ignore lint/suspicious/noExportsInTest: ambient re-declaration for the query-suffixed specifier
@@ -73,7 +51,6 @@ describe('createPinnedFetch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     capturedAgentOptions.length = 0
-    capturedRedirectOptions.length = 0
     mockUndiciRequest.mockResolvedValue(undiciReply(200, {}, byteStream('ok')))
   })
 
@@ -113,13 +90,7 @@ describe('createPinnedFetch', () => {
     expect(resolved).toEqual({ address: '2606:4700:4700::1111', family: 6 })
   })
 
-  it('follows redirects through the pinned Agent (interceptor composed with the app max)', () => {
-    createPinnedFetch('203.0.113.10')
-    expect(mockRedirectInterceptor).toHaveBeenCalledTimes(1)
-    expect(capturedRedirectOptions[0]).toEqual({ maxRedirections: 5 })
-  })
-
-  it('dispatches through the composed (redirect-following) dispatcher, preserving init', async () => {
+  it('dispatches through the pinned Agent, preserving init', async () => {
     const pinned = createPinnedFetch('203.0.113.10')
     const controller = new AbortController()
 
@@ -133,22 +104,54 @@ describe('createPinnedFetch', () => {
     expect(mockUndiciRequest).toHaveBeenCalledTimes(1)
     const [url, options] = mockUndiciRequest.mock.calls[0]
     expect(url).toBe('https://myresource.openai.azure.com/openai/v1/responses')
-    expect((options.dispatcher as { __composed?: boolean }).__composed).toBe(true)
-    expect((options.dispatcher as { base: unknown }).base).toBeInstanceOf(mockAgent)
+    expect(options.dispatcher).toBeInstanceOf(mockAgent)
     expect(options.method).toBe('POST')
     expect(options.headers).toEqual({ 'api-key': 'secret' })
     expect(options.body).toBe('{}')
     expect(options.signal).toBe(controller.signal)
   })
 
-  it('handles an undefined init by still dispatching through the pinned dispatcher', async () => {
+  it('honors redirect: "manual" — returns the 3xx without following (auth-type probe)', async () => {
+    mockUndiciRequest.mockResolvedValueOnce(
+      undiciReply(302, { location: 'https://login.example.com/' }, byteStream(''))
+    )
     const pinned = createPinnedFetch('203.0.113.10')
-    await pinned('https://example.com')
-    const options = mockUndiciRequest.mock.calls[0][1] as { dispatcher: { __composed?: boolean } }
-    expect(options.dispatcher.__composed).toBe(true)
+
+    const response = await pinned('https://mcp.example.com/', { redirect: 'manual' })
+
+    expect(mockUndiciRequest).toHaveBeenCalledTimes(1)
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe('https://login.example.com/')
   })
 
-  it('reuses one composed dispatcher across all calls of a single instance', async () => {
+  it('follows redirects by default and DROPS headers on a cross-origin hop (no api-key leak)', async () => {
+    mockUndiciRequest
+      .mockResolvedValueOnce(
+        undiciReply(307, { location: 'https://other-origin.example/final' }, byteStream(''))
+      )
+      .mockResolvedValueOnce(undiciReply(200, {}, byteStream('done')))
+    const pinned = createPinnedFetch('203.0.113.10')
+
+    const response = await pinned('https://azure.example.com/v1/responses', {
+      method: 'GET',
+      headers: { 'api-key': 'secret' },
+    })
+
+    expect(mockUndiciRequest).toHaveBeenCalledTimes(2)
+    // Second (cross-origin) hop must not carry the provider credential — no headers forwarded.
+    const secondHopHeaders = (mockUndiciRequest.mock.calls[1][1].headers ?? {}) as Record<
+      string,
+      string
+    >
+    expect(secondHopHeaders['api-key']).toBeUndefined()
+    expect(Object.keys(secondHopHeaders)).toHaveLength(0)
+    expect(response.status).toBe(200)
+    expect(response.url).toBe('https://other-origin.example/final')
+    expect(response.redirected).toBe(true)
+    expect(await response.text()).toBe('done')
+  })
+
+  it('reuses one dispatcher across all calls of a single instance', async () => {
     const pinned = createPinnedFetch('203.0.113.10')
     await pinned('https://example.com/a')
     await pinned('https://example.com/b')
