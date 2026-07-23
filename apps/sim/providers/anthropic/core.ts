@@ -54,7 +54,7 @@ export interface AnthropicProviderConfig {
  * Adds fields not yet in the SDK: adaptive thinking, output_format, output_config.
  */
 interface AnthropicPayload extends Omit<Anthropic.Messages.MessageStreamParams, 'thinking'> {
-  thinking?: Anthropic.Messages.ThinkingConfigParam | { type: 'adaptive' }
+  thinking?: Anthropic.Messages.ThinkingConfigParam | { type: 'adaptive'; display?: 'summarized' }
   output_format?: { type: 'json_schema'; schema: Record<string, unknown> }
   output_config?: { effort: string }
 }
@@ -125,13 +125,22 @@ function supportsAdaptiveThinking(modelId: string): boolean {
  * - Opus 4.6, Sonnet 4.6: Uses adaptive thinking with effort parameter
  * - Other models: Uses budget_tokens-based extended thinking
  *
+ * The newest Claude generations default `thinking.display` to `omitted`
+ * (empty thinking blocks, no thinking deltas). Their registry entries mark
+ * `capabilities.thinking.streamed: 'summary'`, and for those models Sim opts
+ * back in with `display: 'summarized'` — but only on agent-events runs, so
+ * legacy runs keep the exact pre-agent-events request shape.
+ *
  * Returns both the thinking config and optional output_config for adaptive thinking.
  */
-function buildThinkingConfig(
+export function buildThinkingConfig(
   modelId: string,
-  thinkingLevel: string
+  thinkingLevel: string,
+  agentEvents: boolean
 ): {
-  thinking: { type: 'enabled'; budget_tokens: number } | { type: 'adaptive' }
+  thinking:
+    | { type: 'enabled'; budget_tokens: number }
+    | { type: 'adaptive'; display?: 'summarized' }
   outputConfig?: { effort: string }
 } | null {
   const capability = getThinkingCapability(modelId)
@@ -141,8 +150,12 @@ function buildThinkingConfig(
 
   // Models with effort support use adaptive thinking
   if (supportsAdaptiveThinking(modelId)) {
+    const requestSummarizedDisplay = agentEvents && capability.streamed === 'summary'
     return {
-      thinking: { type: 'adaptive' },
+      thinking: {
+        type: 'adaptive',
+        ...(requestSummarizedDisplay ? { display: 'summarized' as const } : {}),
+      },
       outputConfig: { effort: thinkingLevel },
     }
   }
@@ -343,7 +356,11 @@ export async function executeAnthropicProviderRequest(
   // Add extended thinking configuration if supported and requested
   // The 'none' sentinel means "disable thinking" — skip configuration entirely.
   if (request.thinkingLevel && request.thinkingLevel !== 'none') {
-    const thinkingConfig = buildThinkingConfig(request.model, request.thinkingLevel)
+    const thinkingConfig = buildThinkingConfig(
+      request.model,
+      request.thinkingLevel,
+      request.agentEvents === true
+    )
     if (thinkingConfig) {
       payload.thinking = thinkingConfig.thinking
       if (thinkingConfig.outputConfig) {

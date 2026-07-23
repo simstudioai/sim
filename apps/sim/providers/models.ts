@@ -770,7 +770,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high', 'xhigh', 'max'],
             default: 'high',
-            streamed: 'none',
+            streamed: 'summary',
           },
         },
         contextWindow: 1000000,
@@ -790,7 +790,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high', 'xhigh', 'max'],
             default: 'high',
-            streamed: 'none',
+            streamed: 'summary',
           },
         },
         contextWindow: 1000000,
@@ -811,7 +811,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high', 'xhigh', 'max'],
             default: 'high',
-            streamed: 'none',
+            streamed: 'summary',
           },
         },
         contextWindow: 1000000,
@@ -832,7 +832,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high', 'xhigh', 'max'],
             default: 'high',
-            streamed: 'none',
+            streamed: 'summary',
           },
         },
         contextWindow: 1000000,
@@ -4365,7 +4365,7 @@ export function supportsNativeStructuredOutputs(modelId: string): boolean {
  */
 export function getThinkingCapability(
   modelId: string
-): { levels: string[]; default?: string } | null {
+): NonNullable<ModelCapabilities['thinking']> | null {
   const normalizedModelId = modelId.toLowerCase()
 
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {

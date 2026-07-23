@@ -49,6 +49,10 @@ const VISIBILITY_LABELS: Record<ThinkingStreamVisibility, string> = {
 const VISIBILITY_NOTES: Partial<Record<string, string>> = {
   'openai:summary': 'Requires OpenAI organization verification; falls back to no summaries.',
   'azure-openai:summary': 'Requires OpenAI organization verification; falls back to no summaries.',
+  'anthropic:summary':
+    'These generations omit full thinking; Sim requests summarized thinking on streaming runs.',
+  'azure-anthropic:summary':
+    'These generations omit full thinking; Sim requests summarized thinking on streaming runs.',
   'anthropic:none': 'These model generations return thinking with omitted display by default.',
   'azure-anthropic:none':
     'These model generations return thinking with omitted display by default.',

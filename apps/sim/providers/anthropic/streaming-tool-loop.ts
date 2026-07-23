@@ -31,7 +31,7 @@ export type AnthropicStreamingToolLoopPayload = Omit<
   Anthropic.Messages.MessageStreamParams,
   'thinking'
 > & {
-  thinking?: Anthropic.Messages.ThinkingConfigParam | { type: 'adaptive' }
+  thinking?: Anthropic.Messages.ThinkingConfigParam | { type: 'adaptive'; display?: 'summarized' }
   output_format?: { type: 'json_schema'; schema: Record<string, unknown> }
   output_config?: { effort: string }
 }
