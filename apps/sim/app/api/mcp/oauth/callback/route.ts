@@ -16,54 +16,16 @@ import {
   loadOauthRowByState,
   loadPreregisteredClient,
   type McpOauthCallbackReason,
+  makeTimedStep,
   mcpAuthGuarded,
   SimMcpOauthProvider,
 } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
 
 const logger = createLogger('McpOauthCallbackAPI')
+const timedStep = makeTimedStep(logger)
 
 export const dynamic = 'force-dynamic'
-
-class OauthCallbackStepTimeout extends Error {
-  constructor(step: string, ms: number) {
-    super(`MCP OAuth callback step "${step}" did not settle within ${ms}ms`)
-    this.name = 'OauthCallbackStepTimeout'
-  }
-}
-
-/**
- * Times and bounds one awaited step of the callback so a stalled operation
- * surfaces as a labeled, logged error instead of hanging the request forever.
- * The losing promise is not cancelled (a wedged DB/socket op can't be), so it
- * settles in the background with its rejection swallowed; the point is that the
- * request stops waiting on it and the logs name the exact step that stalled.
- */
-async function timedStep<T>(step: string, ms: number, fn: () => Promise<T>): Promise<T> {
-  const start = Date.now()
-  logger.info(`OAuth callback step start: ${step}`)
-  const work = Promise.resolve(fn())
-  work.catch(() => {})
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    const value = await Promise.race([
-      work,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new OauthCallbackStepTimeout(step, ms)), ms)
-        timer.unref?.()
-      }),
-    ])
-    logger.info(`OAuth callback step done: ${step} (${Date.now() - start}ms)`)
-    return value
-  } catch (error) {
-    logger.error(`OAuth callback step failed: ${step} (${Date.now() - start}ms)`, {
-      error: toError(error).message,
-    })
-    throw error
-  } finally {
-    clearTimeout(timer)
-  }
-}
 
 function escapeHtml(value: string): string {
   return value

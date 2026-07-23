@@ -7,6 +7,7 @@ import {
   McpOauthRedirectRequiredMock,
   mcpOauthMock,
   mcpOauthMockFns,
+  OauthStepTimeoutErrorMock,
   permissionsMock,
   permissionsMockFns,
   resetDbChainMock,
@@ -73,6 +74,54 @@ describe('MCP OAuth start route', () => {
       expect.anything(),
       expect.objectContaining({ serverUrl: 'https://mcp.exa.ai/mcp' })
     )
+  })
+
+  it('returns 504 (not a retry) when the auth step times out', async () => {
+    // The stall is intentionally NOT auto-retried — a lingering attempt shares the OAuth row and
+    // could corrupt the retry's PKCE/state. The bounded step fails fast; the user re-clicks.
+    mcpOauthMockFns.mockMcpAuthGuarded.mockImplementationOnce(() => {
+      throw new OauthStepTimeoutErrorMock('mcpAuthGuarded', 12_000)
+    })
+    const request = new NextRequest(
+      'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
+    )
+
+    const response = await GET(request)
+
+    expect(mcpOauthMockFns.mockMcpAuthGuarded).toHaveBeenCalledTimes(1)
+    expect(response.status).toBe(504)
+  })
+
+  it('returns 504 (not a generic 500) when a DB step times out', async () => {
+    // DB-step timeouts are bounded too; their OauthStepTimeoutError must reach the same
+    // 504 handler, not fall through to the generic 500.
+    mcpOauthMockFns.mockGetOrCreateOauthRow.mockImplementationOnce(() => {
+      throw new OauthStepTimeoutErrorMock('getOrCreateOauthRow', 5_000)
+    })
+    const request = new NextRequest(
+      'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
+    )
+
+    const response = await GET(request)
+
+    expect(response.status).toBe(504)
+    expect(mcpOauthMockFns.mockMcpAuthGuarded).not.toHaveBeenCalled()
+  })
+
+  it('returns the authorize URL without error-logging the success redirect throw', async () => {
+    mcpOauthMockFns.mockMcpAuthGuarded.mockRejectedValueOnce(
+      new McpOauthRedirectRequiredMock('https://mcp.exa.ai/authorize')
+    )
+    const request = new NextRequest(
+      'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
+    )
+
+    const response = await GET(request)
+    const body = await response.json()
+
+    expect(mcpOauthMockFns.mockMcpAuthGuarded).toHaveBeenCalledTimes(1)
+    expect(response.status).toBe(200)
+    expect(body).toEqual({ status: 'redirect', authorizationUrl: 'https://mcp.exa.ai/authorize' })
   })
 
   it('requires workspace write permission via MCP auth middleware', async () => {
