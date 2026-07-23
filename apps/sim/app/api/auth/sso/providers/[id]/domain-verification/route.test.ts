@@ -11,6 +11,7 @@ const {
   mockIsOrganizationOnEnterprisePlan,
   mockRequestDomainVerification,
   mockVerifyDomain,
+  mockWithSSOProviderMutationLock,
   ssoProviderTable,
 } = vi.hoisted(() => ({
   dbState: {
@@ -26,6 +27,7 @@ const {
   mockIsOrganizationOnEnterprisePlan: vi.fn(),
   mockRequestDomainVerification: vi.fn(),
   mockVerifyDomain: vi.fn(),
+  mockWithSSOProviderMutationLock: vi.fn((callback: () => Promise<unknown>) => callback()),
   ssoProviderTable: {
     id: 'sso.id',
     issuer: 'sso.issuer',
@@ -61,6 +63,7 @@ vi.mock('@sim/db', () => ({
   },
   member: memberTable,
   ssoProvider: ssoProviderTable,
+  withSSOProviderMutationLock: mockWithSSOProviderMutationLock,
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -128,6 +131,23 @@ describe('SSO domain verification façades', () => {
     expect(mockRequestDomainVerification).toHaveBeenCalledWith(
       expect.objectContaining({ headers: expect.objectContaining({ cookie: 'session=one' }) })
     )
+    expect(mockWithSSOProviderMutationLock).toHaveBeenCalledOnce()
+  })
+
+  it('builds instructions from the provider domain observed inside the mutation lock', async () => {
+    mockWithSSOProviderMutationLock.mockImplementationOnce(
+      async (callback: () => Promise<unknown>) => {
+        dbState.providers = [{ ...PROVIDER, domain: 'updated.acme.com' }]
+        return callback()
+      }
+    )
+
+    const response = await requestVerification(createMockRequest('POST'), context)
+
+    expect(response.status).toBe(201)
+    await expect(response.json()).resolves.toMatchObject({
+      recordName: '_better-auth-token-acme-saml.updated.acme.com',
+    })
   })
 
   it('delegates DNS verification to Better Auth', async () => {
@@ -136,5 +156,6 @@ describe('SSO domain verification façades', () => {
     expect(mockVerifyDomain).toHaveBeenCalledWith(
       expect.objectContaining({ body: { providerId: 'acme-saml' } })
     )
+    expect(mockWithSSOProviderMutationLock).toHaveBeenCalledOnce()
   })
 })

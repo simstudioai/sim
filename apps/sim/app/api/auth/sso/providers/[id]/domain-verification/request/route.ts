@@ -1,3 +1,4 @@
+import { withSSOProviderMutationLock } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
@@ -35,12 +36,15 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
     const parsed = await parseRequest(requestSsoDomainVerificationContract, request, context)
     if (!parsed.success) return parsed.response
 
-    const provider = await getManagedSSOProvider(parsed.data.params.id, session.user.id, {
-      requireCreator: true,
-    })
-    const result = await auth.api.requestDomainVerification({
-      body: { providerId: provider.providerId },
-      headers: collectAuthHeaders(request),
+    const { provider, result } = await withSSOProviderMutationLock(async () => {
+      const provider = await getManagedSSOProvider(parsed.data.params.id, session.user.id, {
+        requireCreator: true,
+      })
+      const result = await auth.api.requestDomainVerification({
+        body: { providerId: provider.providerId },
+        headers: collectAuthHeaders(request),
+      })
+      return { provider, result }
     })
 
     return NextResponse.json(
