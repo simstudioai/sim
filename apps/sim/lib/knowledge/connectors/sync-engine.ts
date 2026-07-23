@@ -1541,7 +1541,17 @@ async function updateDocument(
           // on deletedAt IS NULL, rejects the row and leaves stale content active.
           deletedAt: null,
         })
-        .where(and(eq(document.id, existingDocId), isNull(document.archivedAt)))
+        .where(
+          and(
+            eq(document.id, existingDocId),
+            // A concurrent "delete connector, keep documents" request can null out
+            // connectorId between this sync's liveness check and this write. Without
+            // this check, that now-standalone document would still match on id alone
+            // and get overwritten with connector-sourced content post-detachment.
+            eq(document.connectorId, connectorId),
+            isNull(document.archivedAt)
+          )
+        )
         .returning({ id: document.id })
         .then((rows) => {
           if (rows.length === 0) {
