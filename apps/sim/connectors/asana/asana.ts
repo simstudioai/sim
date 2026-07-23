@@ -113,10 +113,17 @@ export function isActiveProject(project: AsanaProject): boolean {
  * array, or any entry whose `archived` is missing or non-boolean is kept. A
  * task that still sits in at least one active project is kept, matching the
  * listing, which reaches it through that active project.
+ *
+ * `pinnedProjectGid` mirrors the listing's pinned-project exception: when the
+ * user configured a specific `project`, the listing keeps syncing it even once
+ * archived, so a task reachable through that project must survive rehydration
+ * too. Without this the listing would keep emitting the task while every
+ * hydration returned `null`, stranding it as permanently empty.
  */
-export function isTaskUnderActiveProject(task: AsanaTask): boolean {
+export function isTaskUnderActiveProject(task: AsanaTask, pinnedProjectGid?: string): boolean {
   const projects = task.projects
   if (!Array.isArray(projects) || projects.length === 0) return true
+  if (pinnedProjectGid && projects.some((project) => project?.gid === pinnedProjectGid)) return true
   return !projects.every((project) => project?.archived === true)
 }
 
@@ -382,9 +389,10 @@ export const asanaConnector: ConnectorConfig = {
 
   getDocument: async (
     accessToken: string,
-    _sourceConfig: Record<string, unknown>,
+    sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
+    const pinnedProjectGid = (sourceConfig.project as string) || undefined
     try {
       const result = await asanaGet<{ data: AsanaTask }>(
         accessToken,
@@ -394,7 +402,7 @@ export const asanaConnector: ConnectorConfig = {
 
       if (!task) return null
 
-      if (!isTaskUnderActiveProject(task)) {
+      if (!isTaskUnderActiveProject(task, pinnedProjectGid)) {
         logger.info('Skipping Asana task whose projects are all archived', { externalId })
         return null
       }

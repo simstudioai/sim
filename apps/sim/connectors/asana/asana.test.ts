@@ -118,6 +118,30 @@ describe('isTaskUnderActiveProject', () => {
       } as unknown as typeof baseTask)
     ).toBe(true)
   })
+
+  it.concurrent('keeps a task reachable through the pinned project even once archived', () => {
+    expect(
+      isTaskUnderActiveProject(
+        {
+          ...baseTask,
+          projects: [{ gid: 'p1', name: 'Pinned', archived: true }],
+        },
+        'p1'
+      )
+    ).toBe(true)
+  })
+
+  it.concurrent('still excludes an all-archived task when the pinned project is elsewhere', () => {
+    expect(
+      isTaskUnderActiveProject(
+        {
+          ...baseTask,
+          projects: [{ gid: 'p1', name: 'Old', archived: true }],
+        },
+        'p9'
+      )
+    ).toBe(false)
+  })
 })
 
 describe('decideTaskCap', () => {
