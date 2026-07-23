@@ -44,6 +44,7 @@ tests:
               secretKeyRef:
                 name: sso-migration-gate
                 key: SSO_PROVIDER_WRITES_QUIESCED
+                optional: true
       - contains:
           path: spec.template.spec.initContainers[0].env
           content:
@@ -52,3 +53,4 @@ tests:
               secretKeyRef:
                 name: sso-migration-gate
                 key: SSO_AUDIT_APPROVED_PROVIDER_IDS
+                optional: true

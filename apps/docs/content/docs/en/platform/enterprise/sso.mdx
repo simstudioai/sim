@@ -346,6 +346,12 @@ migrations:
     # SSO_PROVIDER_WRITES_QUIESCED and SSO_AUDIT_APPROVED_PROVIDER_IDS.
 ```
 
+Secret-backed keys are optional at Kubernetes pod admission so removing retired
+one-shot keys cannot block deployments after 0266. A pending 0266 migration
+still fails closed unless `SSO_PROVIDER_WRITES_QUIESCED` resolves to `true`;
+`SSO_AUDIT_APPROVED_PROVIDER_IDS` may be absent when no linked providers require
+an explicit approval.
+
 Remove the one-shot values after 0266 is journaled. Do not leave provider writes
 disabled or interpret the flag itself as quiescence.
 

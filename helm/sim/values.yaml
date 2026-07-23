@@ -558,6 +558,9 @@ migrations:
     providerWritesQuiesced: ""
     auditApprovedProviderIds: ""
     # Optional Secret-backed mode. When set, both values above are ignored.
+    # Secret/key references are optional at pod admission so retired one-shot
+    # values cannot block post-0266 pods. The migration still fails closed
+    # before 0266 when providerWritesQuiesced is absent or not "true".
     existingSecret: ""
     providerWritesQuiescedKey: SSO_PROVIDER_WRITES_QUIESCED
     auditApprovedProviderIdsKey: SSO_AUDIT_APPROVED_PROVIDER_IDS
