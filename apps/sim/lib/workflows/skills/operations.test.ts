@@ -1,53 +1,43 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { orderByMock, getEditableSkillIdsMock } = vi.hoisted(() => ({
-  orderByMock: vi.fn(),
+const { getEditableSkillIdsMock } = vi.hoisted(() => ({
   getEditableSkillIdsMock: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: { select: () => ({ from: () => ({ where: () => ({ orderBy: orderByMock }) }) }) },
-}))
-vi.mock('@sim/db/schema', () => ({
-  skill: { workspaceId: 'workspaceId', name: 'name', createdAt: 'createdAt' },
-  skillMember: { skillId: 'skillId', userId: 'userId' },
-}))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
-}))
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 vi.mock('@sim/utils/id', () => ({ generateId: () => 'gen-uuid', generateShortId: () => 'gen-id' }))
-vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: () => 'req-id' }))
 vi.mock('@/lib/skills/access', () => ({
   getEditableSkillIds: getEditableSkillIdsMock,
 }))
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(() => ({})),
-  desc: vi.fn(() => ({})),
-  eq: vi.fn(() => ({})),
-  ne: vi.fn(() => ({})),
-}))
 
-import { listSkills, listSkillsForUser } from './operations'
+import { listSkills, listSkillsForUser } from '@/lib/workflows/skills/operations'
 
 describe('listSkills includeBuiltins', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('prepends builtin template skills by default', async () => {
-    orderByMock.mockResolvedValue([])
     const result = await listSkills({ workspaceId: 'ws-1' })
     expect(result.length).toBeGreaterThan(0)
     expect(result.every((s) => s.id.startsWith('builtin-'))).toBe(true)
   })
 
-  // The mothership skill inventory passes includeBuiltins: false so it never sees
-  // the code-only template skills.
+  /**
+   * The mothership skill inventory passes includeBuiltins: false so it never
+   * sees the code-only template skills.
+   */
   it('excludes builtin template skills when includeBuiltins is false', async () => {
-    orderByMock.mockResolvedValue([
+    queueTableRows(schemaMock.skill, [
       { id: 'sk-1', name: 'mine', description: 'd', content: 'c', workspaceId: 'ws-1' },
     ])
     const result = await listSkills({ workspaceId: 'ws-1', includeBuiltins: false })
@@ -60,14 +50,19 @@ describe('listSkills includeBuiltins', () => {
 describe('listSkillsForUser', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     getEditableSkillIdsMock.mockResolvedValue({
       canAdminWorkspace: false,
       editorSkillIds: new Set(),
     })
   })
 
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   it('returns every workspace skill tagged with edit access from editor rows', async () => {
-    orderByMock.mockResolvedValue([
+    queueTableRows(schemaMock.skill, [
       { id: 'sk-mine', name: 'mine', description: 'd', content: 'c', workspaceId: 'ws-1' },
       { id: 'sk-other', name: 'other', description: 'd', content: 'c', workspaceId: 'ws-1' },
     ])
@@ -88,7 +83,7 @@ describe('listSkillsForUser', () => {
   })
 
   it('tags every skill editable for workspace admins', async () => {
-    orderByMock.mockResolvedValue([
+    queueTableRows(schemaMock.skill, [
       { id: 'sk-1', name: 'one', description: 'd', content: 'c', workspaceId: 'ws-1' },
       { id: 'sk-2', name: 'two', description: 'd', content: 'c', workspaceId: 'ws-1' },
     ])
@@ -107,8 +102,6 @@ describe('listSkillsForUser', () => {
   })
 
   it('always passes builtin skills through as non-editable', async () => {
-    orderByMock.mockResolvedValue([])
-
     const result = await listSkillsForUser({ workspaceId: 'ws-1', userId: 'user-1' })
 
     expect(result.length).toBeGreaterThan(0)
@@ -116,7 +109,7 @@ describe('listSkillsForUser', () => {
   })
 
   it('lets a workspace skill sharing a builtin name override it for everyone', async () => {
-    orderByMock.mockResolvedValue([
+    queueTableRows(schemaMock.skill, [
       { id: 'sk-research', name: 'research', description: 'd', content: 'c', workspaceId: 'ws-1' },
     ])
 

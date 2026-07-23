@@ -5,6 +5,13 @@ import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 
 const logger = createLogger('BatchDelete')
 
+/**
+ * Structural client surface the delete helpers need. Satisfied by the global
+ * `db`, a `dbFor(...)` sub-pool client, and a transaction handle, so callers
+ * pick which pool the deletes run on (cleanup jobs pass `dbFor('cleanup')`).
+ */
+export type BatchDeleteClient = Pick<typeof db, 'select' | 'delete'>
+
 export const DEFAULT_BATCH_SIZE = 2000
 /** 50 × 2000 = 100K row cap per cleanup run; drains long-tail tenants in days, not weeks. */
 export const DEFAULT_MAX_BATCHES_PER_TABLE = 50
@@ -84,6 +91,8 @@ export interface ChunkedBatchDeleteOptions<TRow extends { id: string }> {
    */
   totalRowLimit?: number
   workspaceChunkSize?: number
+  /** Client the DELETEs run on. Defaults to the global pool. */
+  dbClient?: BatchDeleteClient
 }
 
 /**
@@ -107,6 +116,7 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
   maxBatches = DEFAULT_MAX_BATCHES_PER_TABLE,
   totalRowLimit = DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
   workspaceChunkSize = DEFAULT_WORKSPACE_CHUNK_SIZE,
+  dbClient = db,
 }: ChunkedBatchDeleteOptions<TRow>): Promise<TableCleanupResult> {
   const result: TableCleanupResult = { table: tableName, deleted: 0, failed: 0 }
 
@@ -149,7 +159,7 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
         if (onBatch) await onBatch(rows)
 
         const ids = rows.map((r) => r.id)
-        const deleted = await db
+        const deleted = await dbClient
           .delete(tableDef)
           .where(inArray(sql`id`, ids))
           .returning({ id: sql`id` })
@@ -189,6 +199,8 @@ export interface BatchDeleteOptions {
   batchSize?: number
   maxBatches?: number
   workspaceChunkSize?: number
+  /** Client the SELECTs and DELETEs run on. Defaults to the global pool. */
+  dbClient?: BatchDeleteClient
 }
 
 /**
@@ -204,16 +216,18 @@ export async function batchDeleteByWorkspaceAndTimestamp({
   retentionDate,
   tableName,
   requireTimestampNotNull = false,
+  dbClient = db,
   ...rest
 }: BatchDeleteOptions): Promise<TableCleanupResult> {
   return chunkedBatchDelete({
     tableDef,
     workspaceIds,
     tableName,
+    dbClient,
     selectChunk: (chunkIds, limit) => {
       const predicates = [inArray(workspaceIdCol, chunkIds), lt(timestampCol, retentionDate)]
       if (requireTimestampNotNull) predicates.push(isNotNull(timestampCol))
-      return db
+      return dbClient
         .select({ id: sql<string>`id` })
         .from(tableDef)
         .where(and(...predicates))
@@ -232,6 +246,7 @@ export async function deleteRowsById(
   idCol: PgColumn,
   ids: string[],
   tableName: string,
+  dbClient: BatchDeleteClient = db,
   chunkSize: number = DEFAULT_DELETE_CHUNK_SIZE
 ): Promise<TableCleanupResult> {
   const result: TableCleanupResult = { table: tableName, deleted: 0, failed: 0 }
@@ -240,7 +255,7 @@ export async function deleteRowsById(
   const chunks = chunkArray(ids, chunkSize)
   for (const [chunkIdx, chunkIds] of chunks.entries()) {
     try {
-      const deleted = await db
+      const deleted = await dbClient
         .delete(tableDef)
         .where(inArray(idCol, chunkIds))
         .returning({ id: idCol })

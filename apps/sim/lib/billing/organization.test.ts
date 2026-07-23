@@ -24,8 +24,6 @@ const {
   mockIsSubscriptionOrgScoped: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
-
 vi.mock('@/lib/billing/core/billing', () => ({
   getPlanPricing: mockGetPlanPricing,
   isSubscriptionOrgScoped: mockIsSubscriptionOrgScoped,

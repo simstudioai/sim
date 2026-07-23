@@ -1,5 +1,5 @@
 import { cn } from '@sim/emcn'
-import { createEnvMock } from '@sim/testing'
+import { resetEnvMock, setEnv } from '@sim/testing'
 import {
   formatDate,
   formatDateTime,
@@ -7,7 +7,28 @@ import {
   formatTime,
   getTimezoneAbbreviation,
 } from '@sim/utils/formatting'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
+beforeAll(() => {
+  setEnv({
+    ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    OPENAI_API_KEY_1: 'test-openai-key-1',
+    OPENAI_API_KEY_2: 'test-openai-key-2',
+    OPENAI_API_KEY_3: 'test-openai-key-3',
+    ANTHROPIC_API_KEY_1: 'test-anthropic-key-1',
+    ANTHROPIC_API_KEY_2: 'test-anthropic-key-2',
+    ANTHROPIC_API_KEY_3: 'test-anthropic-key-3',
+    GEMINI_API_KEY_1: 'test-gemini-key-1',
+    GEMINI_API_KEY_2: 'test-gemini-key-2',
+    GEMINI_API_KEY_3: 'test-gemini-key-3',
+    XAI_API_KEY_1: 'test-xai-key-1',
+    XAI_API_KEY_2: 'test-xai-key-2',
+    XAI_API_KEY_3: 'test-xai-key-3',
+  })
+})
+
+afterAll(resetEnvMock)
+
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { convertScheduleOptionsToCron } from '@/lib/core/utils/scheduling'
@@ -30,24 +51,6 @@ vi.mock('crypto', () => ({
     toString: vi.fn().mockReturnValue('random-iv'),
   }),
 }))
-
-vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({
-    ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-    OPENAI_API_KEY_1: 'test-openai-key-1',
-    OPENAI_API_KEY_2: 'test-openai-key-2',
-    OPENAI_API_KEY_3: 'test-openai-key-3',
-    ANTHROPIC_API_KEY_1: 'test-anthropic-key-1',
-    ANTHROPIC_API_KEY_2: 'test-anthropic-key-2',
-    ANTHROPIC_API_KEY_3: 'test-anthropic-key-3',
-    GEMINI_API_KEY_1: 'test-gemini-key-1',
-    GEMINI_API_KEY_2: 'test-gemini-key-2',
-    GEMINI_API_KEY_3: 'test-gemini-key-3',
-    XAI_API_KEY_1: 'test-xai-key-1',
-    XAI_API_KEY_2: 'test-xai-key-2',
-    XAI_API_KEY_3: 'test-xai-key-3',
-  })
-)
 
 afterEach(() => {
   vi.clearAllMocks()

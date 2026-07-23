@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { escapeCql } from '@/connectors/confluence/confluence'
+import { escapeCql, isCurrentContent } from '@/connectors/confluence/confluence'
 
 describe('escapeCql', () => {
   it.concurrent('returns plain strings unchanged', () => {
@@ -27,5 +27,24 @@ describe('escapeCql', () => {
 
   it.concurrent('leaves other special chars unchanged', () => {
     expect(escapeCql("it's a test & <tag>")).toBe("it's a test & <tag>")
+  })
+})
+
+describe('isCurrentContent', () => {
+  it.concurrent('keeps current content', () => {
+    expect(isCurrentContent({ id: '1', status: 'current' })).toBe(true)
+  })
+
+  it.concurrent('keeps content with no status field', () => {
+    expect(isCurrentContent({ id: '1' })).toBe(true)
+  })
+
+  it.concurrent('excludes archived content', () => {
+    expect(isCurrentContent({ id: '1', status: 'archived' })).toBe(false)
+  })
+
+  it.concurrent('excludes trashed and deleted content', () => {
+    expect(isCurrentContent({ id: '1', status: 'trashed' })).toBe(false)
+    expect(isCurrentContent({ id: '1', status: 'deleted' })).toBe(false)
   })
 })

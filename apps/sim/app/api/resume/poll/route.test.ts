@@ -1,13 +1,17 @@
 /**
  * @vitest-environment node
  */
+import {
+  dbChainMockFns,
+  redisConfigMockFns,
+  resetDbChainMock,
+  resetRedisConfigMock,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  acquireLockMock,
   assertBillingAttributionSnapshotMock,
-  dbSelectMock,
   dueRowsLimitMock,
   enqueueOrStartResumeMock,
   executionSnapshotFromJsonMock,
@@ -17,14 +21,11 @@ const {
   lteMock,
   preprocessExecutionMock,
   processQueuedResumesMock,
-  releaseLockMock,
   setAutomaticResumeWaitingMock,
   setNextResumeAtMock,
   sqlMock,
 } = vi.hoisted(() => ({
-  acquireLockMock: vi.fn(),
   assertBillingAttributionSnapshotMock: vi.fn((value: unknown) => value),
-  dbSelectMock: vi.fn(),
   dueRowsLimitMock: vi.fn(),
   enqueueOrStartResumeMock: vi.fn(),
   executionSnapshotFromJsonMock: vi.fn(),
@@ -34,7 +35,6 @@ const {
   lteMock: vi.fn(),
   preprocessExecutionMock: vi.fn(),
   processQueuedResumesMock: vi.fn(),
-  releaseLockMock: vi.fn(),
   setAutomaticResumeWaitingMock: vi.fn(),
   setNextResumeAtMock: vi.fn(),
   sqlMock: vi.fn((strings: TemplateStringsArray) =>
@@ -42,25 +42,8 @@ const {
   ),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: dbSelectMock,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  pausedExecutions: {
-    id: 'id',
-    executionId: 'executionId',
-    workflowId: 'workflowId',
-    pausePoints: 'pausePoints',
-    metadata: 'metadata',
-    executionSnapshot: 'executionSnapshot',
-    status: 'status',
-    nextResumeAt: 'nextResumeAt',
-    automaticResumeRetryCount: 'automaticResumeRetryCount',
-  },
-}))
+const acquireLockMock = redisConfigMockFns.mockAcquireLock
+const releaseLockMock = redisConfigMockFns.mockReleaseLock
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
@@ -77,11 +60,6 @@ vi.mock('@/lib/auth/internal', () => ({
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionSnapshot: assertBillingAttributionSnapshotMock,
-}))
-
-vi.mock('@/lib/core/config/redis', () => ({
-  acquireLock: acquireLockMock,
-  releaseLock: releaseLockMock,
 }))
 
 vi.mock('@/lib/execution/preprocessing', () => ({
@@ -173,7 +151,8 @@ function makeSerializedSnapshot(index: number) {
 describe('time-pause resume admission', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    dbSelectMock.mockImplementation((selection: Record<string, unknown>) => {
+    resetDbChainMock()
+    dbChainMockFns.select.mockImplementation((selection: Record<string, unknown>) => {
       if ('snapshotBytes' in selection) {
         return {
           from: vi.fn(() => ({
@@ -217,6 +196,11 @@ describe('time-pause resume admission', () => {
       queuePosition: 1,
     })
     executionSnapshotFromJsonMock.mockImplementation((value: string) => JSON.parse(value))
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
+    resetRedisConfigMock()
   })
 
   it('keeps a timed pause unclaimed, records why, and schedules automatic retry', async () => {
@@ -385,14 +369,14 @@ describe('time-pause resume admission', () => {
     expect(dueRowsLimitMock).toHaveBeenCalledWith(200)
     expect(legacySizeRowsLimitMock).toHaveBeenCalledWith(200)
     expect(fallbackRowsLimitMock).toHaveBeenCalledWith(LEGACY_PAUSED_SNAPSHOT_FALLBACK_CHUNK_SIZE)
-    expect(dbSelectMock).toHaveBeenCalledTimes(3)
-    expect(dbSelectMock.mock.calls[0]?.[0]).not.toHaveProperty('executionSnapshot')
-    expect(dbSelectMock.mock.calls[0]?.[0]).toEqual(
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.select.mock.calls[0]?.[0]).not.toHaveProperty('executionSnapshot')
+    expect(dbChainMockFns.select.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({ metadata: 'boundedMetadata' })
     )
-    expect(dbSelectMock.mock.calls[1]?.[0]).toHaveProperty('snapshotBytes')
-    expect(dbSelectMock.mock.calls[1]?.[0]).not.toHaveProperty('executionSnapshot')
-    expect(dbSelectMock.mock.calls[2]?.[0]).toHaveProperty('executionSnapshot')
+    expect(dbChainMockFns.select.mock.calls[1]?.[0]).toHaveProperty('snapshotBytes')
+    expect(dbChainMockFns.select.mock.calls[1]?.[0]).not.toHaveProperty('executionSnapshot')
+    expect(dbChainMockFns.select.mock.calls[2]?.[0]).toHaveProperty('executionSnapshot')
     expect(
       sqlMock.mock.calls.some(([strings]) =>
         (strings as TemplateStringsArray).join('').includes('octet_length(')
@@ -455,9 +439,9 @@ describe('time-pause resume admission', () => {
     expect(legacySizeRowsLimitMock).toHaveBeenNthCalledWith(1, 200)
     expect(legacySizeRowsLimitMock).toHaveBeenNthCalledWith(2, 200)
     expect(fallbackRowsLimitMock).not.toHaveBeenCalled()
-    expect(dbSelectMock.mock.calls.some(([selection]) => 'executionSnapshot' in selection)).toBe(
-      false
-    )
+    expect(
+      dbChainMockFns.select.mock.calls.some(([selection]) => 'executionSnapshot' in selection)
+    ).toBe(false)
     expect(executionSnapshotFromJsonMock).not.toHaveBeenCalled()
     expect(preprocessExecutionMock).not.toHaveBeenCalled()
     expect(enqueueOrStartResumeMock).not.toHaveBeenCalled()

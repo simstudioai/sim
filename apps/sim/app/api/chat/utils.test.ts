@@ -4,7 +4,7 @@
  * @vitest-environment node
  */
 import {
-  dbChainMock,
+  authMockFns,
   encryptionMock,
   encryptionMockFns,
   loggingSessionMock,
@@ -19,7 +19,6 @@ const {
   mockValidateAuthToken,
   mockSetDeploymentAuthCookie,
   mockIsEmailAllowed,
-  mockGetSession,
   mockCheckRateLimitDirect,
 } = vi.hoisted(() => ({
   mockMergeSubblockStateWithValues: vi.fn().mockReturnValue({}),
@@ -27,21 +26,13 @@ const {
   mockValidateAuthToken: vi.fn().mockReturnValue(false),
   mockSetDeploymentAuthCookie: vi.fn(),
   mockIsEmailAllowed: vi.fn(),
-  mockGetSession: vi.fn(),
   mockCheckRateLimitDirect: vi.fn().mockResolvedValue({ allowed: true }),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/core/rate-limiter', () => ({
   RateLimiter: class {
     checkRateLimitDirect = mockCheckRateLimitDirect
   },
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
 }))
 
 const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
@@ -74,6 +65,8 @@ vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'
+
+const mockGetSession = authMockFns.mockGetSession
 
 describe('Chat API Utils', () => {
   beforeEach(() => {

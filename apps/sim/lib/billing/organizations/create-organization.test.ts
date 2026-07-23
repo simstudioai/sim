@@ -1,14 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns } from '@sim/testing'
+import { dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGenerateId } = vi.hoisted(() => ({
   mockGenerateId: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@sim/utils/id', () => ({
   generateId: mockGenerateId,

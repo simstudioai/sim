@@ -7,10 +7,8 @@
  *
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns } from '@sim/testing'
+import { dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 const { serviceLogger } = vi.hoisted(() => {
   const logger = {

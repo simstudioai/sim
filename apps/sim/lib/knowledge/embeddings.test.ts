@@ -1,74 +1,54 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const {
-  mockRecordUsage,
-  mockToBillingContext,
-  mockCheckAndBillPayerOverageThreshold,
-  mockCalculateCost,
-} = vi.hoisted(() => ({
-  mockRecordUsage: vi.fn(),
-  mockToBillingContext: vi.fn(),
-  mockCheckAndBillPayerOverageThreshold: vi.fn(),
-  mockCalculateCost: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  recordUsage: mockRecordUsage,
-}))
-
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: vi.fn(),
-  toBillingContext: mockToBillingContext,
-}))
-
-vi.mock('@/lib/billing/threshold-billing', () => ({
-  checkAndBillPayerOverageThreshold: mockCheckAndBillPayerOverageThreshold,
-}))
-
-vi.mock('@/lib/api-key/byok', () => ({
-  getBYOKKey: vi.fn(),
-}))
-
-vi.mock('@/lib/core/config/api-keys', () => ({
-  getRotatingApiKey: vi.fn(),
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: {},
-  getEnv: vi.fn(() => undefined),
-  envNumber: (_value: unknown, fallback: number) => fallback,
-}))
-
-vi.mock('@/lib/knowledge/documents/utils', () => ({
-  isRetryableError: vi.fn(),
-  retryWithExponentialBackoff: vi.fn(),
-}))
-
-vi.mock('@/lib/knowledge/embedding-models', () => ({
-  DEFAULT_EMBEDDING_MODEL: 'text-embedding-3-small',
-  EMBEDDING_DIMENSIONS: { 'text-embedding-3-small': 1536 },
-  SUPPORTED_EMBEDDING_MODELS: ['text-embedding-3-small'],
-  getEmbeddingModelInfo: vi.fn(() => ({ tokenizerProvider: 'openai' })),
-}))
-
-vi.mock('@/lib/tokenization', () => ({
-  batchByTokenLimit: vi.fn(),
-  estimateTokenCount: vi.fn(() => ({ count: 100 })),
-}))
-
-vi.mock('@/providers/utils', () => ({
-  calculateCost: mockCalculateCost,
-}))
-
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as billingAttributionModule from '@/lib/billing/core/billing-attribution'
+import * as usageLogModule from '@/lib/billing/core/usage-log'
+import * as thresholdBillingModule from '@/lib/billing/threshold-billing'
+import * as embeddingModelsModule from '@/lib/knowledge/embedding-models'
 import { recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
+import * as tokenizationModule from '@/lib/tokenization'
+import * as providersUtilsModule from '@/providers/utils'
+
+/**
+ * Spy on the real module namespaces instead of vi.mock: under `isolate: false`
+ * `@/lib/knowledge/embeddings` is a shared consumer cached across test files,
+ * so vi.mock here would bind this file's fixtures into it for every later
+ * file. Patching the real namespaces (and restoring afterAll) is the only
+ * wiring that composes.
+ */
+const mockRecordUsage = vi
+  .spyOn(usageLogModule, 'recordUsage')
+  .mockResolvedValue(undefined as never)
+const mockToBillingContext = vi.spyOn(billingAttributionModule, 'toBillingContext')
+const mockCheckAndBillPayerOverageThreshold = vi
+  .spyOn(thresholdBillingModule, 'checkAndBillPayerOverageThreshold')
+  .mockResolvedValue(undefined as never)
+const mockCalculateCost = vi.spyOn(providersUtilsModule, 'calculateCost')
+const estimateTokenCountSpy = vi
+  .spyOn(tokenizationModule, 'estimateTokenCount')
+  .mockReturnValue({ count: 100 } as never)
+const getEmbeddingModelInfoSpy = vi
+  .spyOn(embeddingModelsModule, 'getEmbeddingModelInfo')
+  .mockReturnValue({ tokenizerProvider: 'openai' } as never)
+
+afterAll(() => {
+  mockRecordUsage.mockRestore()
+  mockToBillingContext.mockRestore()
+  mockCheckAndBillPayerOverageThreshold.mockRestore()
+  mockCalculateCost.mockRestore()
+  estimateTokenCountSpy.mockRestore()
+  getEmbeddingModelInfoSpy.mockRestore()
+})
 
 describe('recordSearchEmbeddingUsage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCalculateCost.mockReturnValue({ total: 0.01 })
+    mockRecordUsage.mockResolvedValue(undefined as never)
+    mockCheckAndBillPayerOverageThreshold.mockResolvedValue(undefined as never)
+    estimateTokenCountSpy.mockReturnValue({ count: 100 } as never)
+    getEmbeddingModelInfoSpy.mockReturnValue({ tokenizerProvider: 'openai' } as never)
+    mockCalculateCost.mockReturnValue({ total: 0.01 } as never)
     mockToBillingContext.mockReturnValue({
       billingEntity: { type: 'organization', id: 'org-1' },
       billingPeriod: {

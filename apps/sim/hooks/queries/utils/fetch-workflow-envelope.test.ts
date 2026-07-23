@@ -1,21 +1,22 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockRequestJson } = vi.hoisted(() => ({
-  mockRequestJson: vi.fn(),
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
-
-vi.mock('@/lib/api/contracts/workflows', () => ({
-  getWorkflowStateContract: { __contract: 'getWorkflowState' },
-}))
-
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as requestModule from '@/lib/api/client/request'
+import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
+
+/**
+ * Spy on the real module namespace instead of vi.mock: under `isolate: false`
+ * `@/hooks/queries/utils/fetch-workflow-envelope` may already be cached bound
+ * to the real request module, so patching the shared namespace is the only
+ * wiring that always applies.
+ */
+const mockRequestJson = vi.spyOn(requestModule, 'requestJson')
+
+afterAll(() => {
+  mockRequestJson.mockRestore()
+})
 
 describe('fetchWorkflowEnvelope', () => {
   beforeEach(() => {
@@ -42,9 +43,9 @@ describe('fetchWorkflowEnvelope', () => {
     await fetchWorkflowEnvelope('wf-2', controller.signal)
 
     expect(mockRequestJson).toHaveBeenCalledTimes(1)
-    expect(mockRequestJson).toHaveBeenCalledWith(
-      { __contract: 'getWorkflowState' },
-      { params: { id: 'wf-2' }, signal: controller.signal }
-    )
+    expect(mockRequestJson).toHaveBeenCalledWith(getWorkflowStateContract, {
+      params: { id: 'wf-2' },
+      signal: controller.signal,
+    })
   })
 })

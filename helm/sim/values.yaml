@@ -85,6 +85,11 @@ app:
     # TRUSTED_ORIGINS: comma-separated extra public origins to trust for auth (e.g. apex+www, alias hostnames).
     # Merged into Better Auth `trustedOrigins` alongside NEXT_PUBLIC_APP_URL. Leave empty when serving from a single origin.
     TRUSTED_ORIGINS: ""
+    # AUTH_TRUSTED_PROXIES: comma-separated reverse-proxy IPs or CIDR ranges in front of the app
+    # (ingress controller, load balancer). Better Auth walks x-forwarded-for right to left, skips
+    # these hops, and uses the first untrusted address as the client IP. Required for correct
+    # session IPs and rate-limit keying behind a multi-hop proxy chain (e.g. "10.0.0.0/16").
+    AUTH_TRUSTED_PROXIES: ""
     # SOCKET_SERVER_URL: Auto-detected when realtime.enabled=true (uses internal service)
     # NEXT_PUBLIC_SOCKET_URL: public WebSocket URL for browsers. Leave empty to default to the
     # page's own origin (assumes the ingress/reverse proxy routes /socket.io to the realtime service).

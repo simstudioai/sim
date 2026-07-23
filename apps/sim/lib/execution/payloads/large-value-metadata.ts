@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, dbFor } from '@sim/db'
 import {
   executionLargeValueDependencies,
   executionLargeValueReferences,
@@ -54,6 +54,8 @@ interface PruneLargeValueMetadataOptions {
   tombstonesDeletedBefore: Date
   batchSize?: number
   maxRowsPerTable?: number
+  /** Client the prune DELETEs run on. Defaults to the global pool; cleanup jobs pass `dbFor('cleanup')`. */
+  dbClient?: LargeValueMetadataClient
 }
 
 function parseLargeValueStorageKey(key: string): LargeValueStorageKeyParts | null {
@@ -186,7 +188,7 @@ export async function registerLargeValueOwner(
     return false
   }
 
-  await db.transaction(async (tx) => {
+  await dbFor('exec').transaction(async (tx) => {
     await tx
       .insert(executionLargeValues)
       .values({
@@ -309,7 +311,8 @@ export async function addLargeValueReference(
     return
   }
 
-  const [existingRef] = await db
+  const execDb = dbFor('exec')
+  const [existingRef] = await execDb
     .select({ key: executionLargeValueReferences.key })
     .from(executionLargeValueReferences)
     .where(
@@ -326,7 +329,7 @@ export async function addLargeValueReference(
     return
   }
 
-  const existingRefs = await db
+  const existingRefs = await execDb
     .select({ key: executionLargeValueReferences.key })
     .from(executionLargeValueReferences)
     .where(
@@ -344,7 +347,7 @@ export async function addLargeValueReference(
     )
   }
 
-  await db
+  await execDb
     .insert(executionLargeValueReferences)
     .values({
       key: boundedKey,
@@ -363,24 +366,31 @@ export async function replaceLargeValueReferences(
   const referenceKeys = scope.workspaceId
     ? collectLargeValueReferenceKeys(value, scope.workspaceId)
     : []
-  await db.transaction(async (tx) => {
+  await dbFor('exec').transaction(async (tx) => {
     await replaceLargeValueReferenceKeysWithClient(tx, scope, referenceKeys)
   })
 }
 
-export async function markLargeValuesDeleted(keys: string[]): Promise<void> {
+export async function markLargeValuesDeleted(
+  keys: string[],
+  dbClient: LargeValueMetadataClient = db
+): Promise<void> {
   if (keys.length === 0) {
     return
   }
 
-  await db
+  await dbClient
     .update(executionLargeValues)
     .set({ deletedAt: new Date() })
     .where(inArray(executionLargeValues.key, keys))
 }
 
-async function pruneStaleReferences(workspaceIds: string[], batchSize: number): Promise<number> {
-  const rows = await db.execute<{ count: number }>(sql`
+async function pruneStaleReferences(
+  workspaceIds: string[],
+  batchSize: number,
+  dbClient: LargeValueMetadataClient
+): Promise<number> {
+  const rows = await dbClient.execute<{ count: number }>(sql`
     WITH deleted AS (
       DELETE FROM ${executionLargeValueReferences} AS ref
       WHERE ref.ctid IN (
@@ -418,9 +428,10 @@ async function pruneStaleReferences(workspaceIds: string[], batchSize: number): 
 
 async function pruneDeletedParentDependencies(
   workspaceIds: string[],
-  batchSize: number
+  batchSize: number,
+  dbClient: LargeValueMetadataClient
 ): Promise<number> {
-  const rows = await db.execute<{ count: number }>(sql`
+  const rows = await dbClient.execute<{ count: number }>(sql`
     WITH deleted AS (
       DELETE FROM ${executionLargeValueDependencies} AS dependency
       WHERE dependency.ctid IN (
@@ -452,9 +463,10 @@ async function pruneDeletedParentDependencies(
 async function pruneDeletedLargeValueTombstones(
   workspaceIds: string[],
   deletedBefore: Date,
-  batchSize: number
+  batchSize: number,
+  dbClient: LargeValueMetadataClient
 ): Promise<number> {
-  const rows = await db.execute<{ count: number }>(sql`
+  const rows = await dbClient.execute<{ count: number }>(sql`
     WITH deleted AS (
       DELETE FROM ${executionLargeValues} AS value
       WHERE value.ctid IN (
@@ -482,6 +494,7 @@ export async function pruneLargeValueMetadata({
   tombstonesDeletedBefore,
   batchSize = LARGE_VALUE_METADATA_PRUNE_BATCH_SIZE,
   maxRowsPerTable = LARGE_VALUE_METADATA_PRUNE_MAX_ROWS_PER_TABLE,
+  dbClient = db,
 }: PruneLargeValueMetadataOptions): Promise<LargeValueMetadataPruneResult> {
   const result: LargeValueMetadataPruneResult = {
     referencesDeleted: 0,
@@ -498,7 +511,8 @@ export async function pruneLargeValueMetadata({
     if (referencesRemaining > 0) {
       result.referencesDeleted += await pruneStaleReferences(
         workspaceChunk,
-        Math.min(batchSize, referencesRemaining)
+        Math.min(batchSize, referencesRemaining),
+        dbClient
       )
     }
 
@@ -506,7 +520,8 @@ export async function pruneLargeValueMetadata({
     if (dependenciesRemaining > 0) {
       result.dependenciesDeleted += await pruneDeletedParentDependencies(
         workspaceChunk,
-        Math.min(batchSize, dependenciesRemaining)
+        Math.min(batchSize, dependenciesRemaining),
+        dbClient
       )
     }
 
@@ -515,7 +530,8 @@ export async function pruneLargeValueMetadata({
       result.tombstonesDeleted += await pruneDeletedLargeValueTombstones(
         workspaceChunk,
         tombstonesDeletedBefore,
-        Math.min(batchSize, tombstonesRemaining)
+        Math.min(batchSize, tombstonesRemaining),
+        dbClient
       )
     }
 

@@ -51,8 +51,13 @@ import {
   canonicalWorkspaceFilePath,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
-import type { DeploymentData, KbTagDefinitionSummary } from '@/lib/copilot/vfs/serializers'
+import type {
+  DeploymentData,
+  KbTagDefinitionSummary,
+  VfsServiceAccountAuth,
+} from '@/lib/copilot/vfs/serializers'
 import {
+  describeServiceAccountForOAuthProvider,
   serializeApiKeyIntegrations,
   serializeApiKeys,
   serializeBlockSchema,
@@ -246,7 +251,15 @@ function getStaticComponentFiles(): Map<string, string> {
 
   let integrationCount = 0
 
-  const oauthServices = new Map<string, { provider: string; operations: string[] }>()
+  // `serviceAccount` marks services that also accept a shared service-account
+  // credential (connect AS AN APPLICATION, not as the user) — the same
+  // `auth.serviceAccount` shape the per-operation schemas carry, so the agent
+  // discovers all three auth modes (oauth / api_key / service account) from one
+  // uniform field instead of a separate file.
+  const oauthServices = new Map<
+    string,
+    { provider: string; operations: string[]; serviceAccount?: VfsServiceAccountAuth }
+  >()
 
   // Integration tools come from the shared exposed-tool set (latest version of
   // each operation owned by a visible block), the same set used to build the
@@ -267,7 +280,11 @@ function getStaticComponentFiles(): Map<string, string> {
       if (existing) {
         existing.operations.push(operation)
       } else {
-        oauthServices.set(service, { provider: tool.oauth.provider, operations: [operation] })
+        oauthServices.set(service, {
+          provider: tool.oauth.provider,
+          operations: [operation],
+          serviceAccount: describeServiceAccountForOAuthProvider(tool.oauth.provider),
+        })
       }
     }
   }
@@ -2556,6 +2573,7 @@ export class WorkspaceVFS {
             displayName: c.displayName,
             role: c.role,
             scope: null,
+            credentialType: c.type,
             createdAt: c.updatedAt,
           })),
         ])

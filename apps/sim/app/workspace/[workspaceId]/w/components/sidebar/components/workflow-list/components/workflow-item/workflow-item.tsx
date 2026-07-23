@@ -10,6 +10,7 @@ import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
+import { ReferencesModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/references-modal/references-modal'
 import { Avatars } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/avatars/avatars'
 import {
   useContextMenu,
@@ -80,6 +81,7 @@ export const WorkflowItem = memo(function WorkflowItem({
   const { canDeleteWorkflows, canDeleteFolder } = useCanDelete({ workspaceId })
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isReferencesOpen, setIsReferencesOpen] = useState(false)
   const [deleteItemType, setDeleteItemType] = useState<'workflow' | 'mixed'>('workflow')
   const [deleteModalNames, setDeleteModalNames] = useState<string | string[]>('')
   const [canDeleteSelection, setCanDeleteSelection] = useState(true)
@@ -398,6 +400,10 @@ export const WorkflowItem = memo(function WorkflowItem({
     [shouldPreventClickRef, workflow.id, onWorkflowClick, isEditing]
   )
 
+  const handleFindReferences = useCallback(() => {
+    setIsReferencesOpen(true)
+  }, [])
+
   return (
     <>
       <Link
@@ -486,12 +492,14 @@ export const WorkflowItem = memo(function WorkflowItem({
         menuRef={menuRef}
         onClose={closeMenu}
         onOpenInNewTab={handleOpenInNewTab}
+        onFindReferences={handleFindReferences}
         onRename={handleStartEdit}
         renameInputRef={inputRef}
         onDuplicate={handleDuplicate}
         onExport={handleExport}
         onDelete={handleOpenDeleteModal}
         showOpenInNewTab={!isMixedSelection && selectedWorkflows.size <= 1}
+        showFindReferences={!isMixedSelection && selectedWorkflows.size <= 1}
         showRename={!isMixedSelection && selectedWorkflows.size <= 1}
         showDuplicate={true}
         showExport={true}
@@ -514,6 +522,15 @@ export const WorkflowItem = memo(function WorkflowItem({
         itemType={deleteItemType}
         itemName={deleteModalNames}
       />
+
+      {isReferencesOpen && (
+        <ReferencesModal
+          onClose={() => setIsReferencesOpen(false)}
+          workspaceId={workspaceId}
+          workflowId={workflow.id}
+          workflowName={workflow.name}
+        />
+      )}
     </>
   )
 })

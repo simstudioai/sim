@@ -1,17 +1,12 @@
 /**
  * @vitest-environment node
  */
+import { resetDbChainMock } from '@sim/testing'
 import type { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockPerformDeleteMcpServer } = vi.hoisted(() => ({
   mockPerformDeleteMcpServer: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(),
-  },
 }))
 
 vi.mock('@/lib/mcp/middleware', () => ({
@@ -57,6 +52,11 @@ function createDeleteRequest(serverId = 'server-1') {
 describe('MCP servers DELETE route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('returns 404 when orchestration reports a missing server', async () => {

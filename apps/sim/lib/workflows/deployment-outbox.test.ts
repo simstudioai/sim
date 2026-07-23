@@ -1,10 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockLimit,
   mockPrepareWebhooks,
   mockGetDeploymentOperation,
   mockMarkDeploymentComponentReadiness,
@@ -26,7 +32,6 @@ const {
   mockCaptureServerEvent,
   mockTx,
 } = vi.hoisted(() => ({
-  mockLimit: vi.fn(),
   mockPrepareWebhooks: vi.fn(),
   mockGetDeploymentOperation: vi.fn(),
   mockMarkDeploymentComponentReadiness: vi.fn(),
@@ -58,58 +63,11 @@ vi.mock('@sim/audit', () => ({
   recordAudit: mockRecordAudit,
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: mockLimit,
-        })),
-      })),
-    })),
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    transaction: vi.fn(),
-  },
-  workflow: {
-    id: 'workflow.id',
-    isDeployed: 'workflow.isDeployed',
-  },
-  workflowDeploymentVersion: {
-    id: 'workflowDeploymentVersion.id',
-    workflowId: 'workflowDeploymentVersion.workflowId',
-    state: 'workflowDeploymentVersion.state',
-    isActive: 'workflowDeploymentVersion.isActive',
-  },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...args) => ({ type: 'and', args })),
-  eq: vi.fn((column, value) => ({ type: 'eq', column, value })),
-  ne: vi.fn((column, value) => ({ type: 'ne', column, value })),
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: { INTERNAL_API_SECRET: 'secret' },
-}))
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 vi.mock('@/lib/core/outbox/service', () => ({
   enqueueOutboxEvent: vi.fn(),
   processOutboxEventById: vi.fn(),
-}))
-
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: () => 'request-generated',
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'http://localhost:3000',
-  getSocketServerUrl: () => 'http://localhost:3002',
 }))
 
 vi.mock('@/lib/mcp/server-locks', () => ({
@@ -231,9 +189,21 @@ function handler() {
   })[WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS.PREPARE_V2]
 }
 
+afterAll(() => {
+  resetDbChainMock()
+})
+
 describe('versioned deployment preparation outbox', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    /**
+     * These handlers only reach db.transaction in deferred cleanup helpers the
+     * suite intentionally keeps inert (the previous private factory returned
+     * undefined without running the callback); the default chain-mock
+     * transaction would execute the callback and consume queued select rows.
+     */
+    dbChainMockFns.transaction.mockResolvedValue(undefined)
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
     mockPrepareWebhooks.mockResolvedValue(undefined)
     mockActivateWebhookRegistrations.mockResolvedValue(undefined)
@@ -280,9 +250,12 @@ describe('versioned deployment preparation outbox', () => {
       completedAt: NOW,
     })
     mockGetDeploymentOperation.mockResolvedValue(preparing)
-    mockLimit
-      .mockResolvedValueOnce([{ id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' }])
-      .mockResolvedValueOnce([{ id: 'version-2', state: { blocks: {} } }])
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    queueTableRows(schemaMock.workflowDeploymentVersion, [
+      { id: 'version-2', state: { blocks: {} } },
+    ])
     mockMarkDeploymentComponentReadiness
       .mockResolvedValueOnce({ success: true, operation: webhooksReady })
       .mockResolvedValueOnce({ success: true, operation: schedulesReady })
@@ -366,9 +339,12 @@ describe('versioned deployment preparation outbox', () => {
   it('generation-guards failure on the final outbox attempt', async () => {
     const preparing = operation()
     mockGetDeploymentOperation.mockResolvedValue(preparing)
-    mockLimit
-      .mockResolvedValueOnce([{ id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' }])
-      .mockResolvedValueOnce([{ id: 'version-2', state: { blocks: {} } }])
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    queueTableRows(schemaMock.workflowDeploymentVersion, [
+      { id: 'version-2', state: { blocks: {} } },
+    ])
     mockPrepareWebhooks.mockRejectedValue(new Error('provider unavailable'))
 
     await expect(handler()(payload(), context(new AbortController(), 3))).rejects.toThrow(
@@ -388,9 +364,12 @@ describe('versioned deployment preparation outbox', () => {
   it('retries transient mid-attempt failures without failing the operation', async () => {
     const preparing = operation()
     mockGetDeploymentOperation.mockResolvedValue(preparing)
-    mockLimit
-      .mockResolvedValueOnce([{ id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' }])
-      .mockResolvedValueOnce([{ id: 'version-2', state: { blocks: {} } }])
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    queueTableRows(schemaMock.workflowDeploymentVersion, [
+      { id: 'version-2', state: { blocks: {} } },
+    ])
     mockPrepareWebhooks.mockRejectedValue(new Error('provider briefly unavailable'))
 
     await expect(handler()(payload(), context(new AbortController(), 0))).rejects.toThrow(
@@ -428,9 +407,12 @@ describe('versioned deployment preparation outbox', () => {
       },
     })
     mockGetDeploymentOperation.mockResolvedValue(preparing)
-    mockLimit
-      .mockResolvedValueOnce([{ id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' }])
-      .mockResolvedValueOnce([{ id: 'version-2', state: { blocks: {} } }])
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    queueTableRows(schemaMock.workflowDeploymentVersion, [
+      { id: 'version-2', state: { blocks: {} } },
+    ])
     mockMarkDeploymentComponentReadiness
       .mockResolvedValueOnce({ success: true, operation: webhooksReady })
       .mockResolvedValueOnce({ success: true, operation: schedulesReady })
@@ -464,9 +446,12 @@ describe('versioned deployment preparation outbox', () => {
   it('fails the operation immediately on a non-retryable preparation error', async () => {
     const preparing = operation()
     mockGetDeploymentOperation.mockResolvedValue(preparing)
-    mockLimit
-      .mockResolvedValueOnce([{ id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' }])
-      .mockResolvedValueOnce([{ id: 'version-2', state: { blocks: {} } }])
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    queueTableRows(schemaMock.workflowDeploymentVersion, [
+      { id: 'version-2', state: { blocks: {} } },
+    ])
     mockPrepareWebhooks.mockRejectedValue(
       new NonRetryableDeploymentError(
         'Webhook path "/leads" is already in use. Choose a different path.',
@@ -489,10 +474,11 @@ describe('versioned deployment preparation outbox', () => {
   })
 
   it('keeps v1 cleanup from deleting a candidate owned by the current v2 operation', async () => {
-    mockLimit
-      .mockResolvedValueOnce([{ id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' }])
-      .mockResolvedValueOnce([{ isActive: false }])
-      .mockResolvedValueOnce([{ isDeployed: true }])
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    queueTableRows(schemaMock.workflowDeploymentVersion, [{ isActive: false }])
+    queueTableRows(schemaMock.workflow, [{ isDeployed: true }])
     mockIsDeploymentVersionProtectedByCurrentOperation.mockResolvedValue(true)
     const cleanupHandler =
       createWorkflowDeploymentOutboxHandlers()[

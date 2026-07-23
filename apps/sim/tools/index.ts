@@ -14,6 +14,7 @@ import { DEFAULT_EXECUTION_TIMEOUT_MS, getMaxExecutionTimeout } from '@/lib/core
 import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
 import {
   secureFetchWithPinnedIP,
+  validateAndPinProxyUrl,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -1809,6 +1810,15 @@ async function executeToolRequest(
             throw new Error(`Invalid tool URL: ${urlValidation.error}`)
           }
 
+          let proxyOption: string | undefined
+          if (requestParams.proxyUrl) {
+            const proxyValidation = await validateAndPinProxyUrl(requestParams.proxyUrl)
+            if (!proxyValidation.isValid) {
+              throw new Error(`Invalid proxy URL: ${proxyValidation.error}`)
+            }
+            proxyOption = proxyValidation.pinnedProxyUrl
+          }
+
           const secureResponse = await secureFetchWithPinnedIP(fullUrl, urlValidation.resolvedIP!, {
             method: requestParams.method,
             headers: headersRecord,
@@ -1816,6 +1826,7 @@ async function executeToolRequest(
             timeout: requestParams.timeout,
             maxResponseBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
             signal,
+            proxyUrl: proxyOption,
           })
 
           const responseHeaders = new Headers(secureResponse.headers.toRecord())

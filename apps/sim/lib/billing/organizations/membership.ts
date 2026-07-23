@@ -24,6 +24,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, count, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { invalidateMembershipCache } from '@/lib/auth/security-policy'
+import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
   assertNoUnresolvedEnterpriseIssuance,
@@ -630,6 +632,12 @@ export async function ensureUserInOrganization(
   }
 
   const result = await addUserToOrganization(params)
+
+  if (result.success) {
+    // Invalidates the membership cache and clamps pre-join sessions to the
+    // org policy — same treatment as invite acceptance. Best-effort.
+    await applySessionPolicyToNewMember(params.userId, params.organizationId)
+  }
 
   return {
     ...result,
@@ -1344,7 +1352,7 @@ export async function transferUserBetweenOrganizations(
   }
 
   try {
-    return await withInvitationSafeOrganizationAccessMutation(
+    const transferResult = await withInvitationSafeOrganizationAccessMutation(
       {
         userId: params.userId,
         organizationId: params.sourceOrganizationId,
@@ -1515,6 +1523,11 @@ export async function transferUserBetweenOrganizations(
         }
       }
     )
+    // The transferred member's fallbacks must resolve to the destination org
+    // immediately, and their sessions clamp to its policy — same treatment as
+    // invite acceptance. Best-effort.
+    await applySessionPolicyToNewMember(params.userId, params.destinationOrganizationId)
+    return transferResult
   } catch (error) {
     logger.error('Failed to transfer organization member', { ...params, error })
     return { success: false, error: getErrorMessage(error), ...emptyResult }
@@ -1735,6 +1748,10 @@ export async function removeUserFromOrganization(
     billingActions.usageCaptured = result.usageCaptured
     billingActions.workspaceAccessRevoked = result.workspaceIdsToRevoke.length
     billingActions.pendingInvitationsCancelled = result.pendingInvitationsCancelled
+
+    // The departed member's cookie-version/hook-clamp fallbacks must stop
+    // resolving to this org immediately, not after the membership-cache TTL.
+    invalidateMembershipCache(userId)
 
     if (result.usageCaptured > 0) {
       logger.info('Captured departed member usage', {

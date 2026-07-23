@@ -7,13 +7,11 @@
  * timestamp for dates) are always available at the SQL builder layer — the
  * latent bug that PR #4657 was originally fixing.
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/table/sql', () => ({
   buildFilterClause: vi.fn(() => sql`true`),

@@ -18,7 +18,7 @@ import {
   userStats,
   workspace,
 } from '@sim/db/schema'
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockChangeOrganizationWorkspaceBilledAccountsInTx, mockChangeWorkspaceStoragePayersInTx } =
@@ -41,8 +41,6 @@ import {
 } from '@/lib/billing/organizations/membership'
 import type { DbOrTx } from '@/lib/db/types'
 import { attachOwnedWorkspacesToOrganizationTx } from '@/lib/workspaces/organization-workspaces'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/core/outbox/service', () => ({
   enqueueOutboxEvent: vi.fn(),

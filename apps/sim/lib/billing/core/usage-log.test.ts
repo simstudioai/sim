@@ -1,7 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { usageLog } from '@sim/db/schema'
+import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetHighestPrioritySubscription,
@@ -23,42 +25,12 @@ const {
   mockUpdate: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => {
-  const instance = { insert: mockInsert, transaction: mockTransaction }
-  return { db: instance, dbReplica: instance }
-})
-
-vi.mock('@sim/db/schema', () => ({
-  usageLog: {
-    billingEntityId: 'usageLog.billingEntityId',
-    billingEntityType: 'usageLog.billingEntityType',
-    billingPeriodEnd: 'usageLog.billingPeriodEnd',
-    billingPeriodStart: 'usageLog.billingPeriodStart',
-    category: 'usageLog.category',
-    cost: 'usageLog.cost',
-    createdAt: 'usageLog.createdAt',
-    description: 'usageLog.description',
-    eventKey: 'usageLog.eventKey',
-    executionId: 'usageLog.executionId',
-    id: 'usageLog.id',
-    metadata: 'usageLog.metadata',
-    source: 'usageLog.source',
-    userId: 'usageLog.userId',
-    workflowId: 'usageLog.workflowId',
-    workspaceId: 'usageLog.workspaceId',
-  },
-}))
-
 vi.mock('@/lib/billing/core/plan', () => ({
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
 }))
 
 vi.mock('@/lib/billing/subscriptions/utils', () => ({
   isOrgScopedSubscription: mockIsOrgScopedSubscription,
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isBillingEnabled: true,
 }))
 
 import {
@@ -69,9 +41,30 @@ import {
   resolveCumulativeTopUp,
 } from '@/lib/billing/core/usage-log'
 
+/**
+ * Re-wires the shared db mocks (`dbChainMockFns`, backing the single shared
+ * `@sim/db` mock instance) to this file's insert/transaction chain.
+ */
+function installSharedDbMocks(): void {
+  resetDbChainMock()
+  dbChainMockFns.insert.mockImplementation((...args: unknown[]) => mockInsert(...args))
+  dbChainMockFns.transaction.mockImplementation((...args: unknown[]) => mockTransaction(...args))
+}
+
+afterAll(() => {
+  resetDbChainMock()
+})
+
+beforeAll(() => {
+  setEnvFlags({ isBillingEnabled: true })
+})
+
+afterAll(resetEnvFlagsMock)
+
 describe('recordUsage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    installSharedDbMocks()
     mockReturning.mockResolvedValue([{ cost: '0.10' }, { cost: '0.20' }])
     mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning })
     mockValues.mockReturnValue({
@@ -121,9 +114,10 @@ describe('recordUsage', () => {
     expect(values[0].eventKey).toMatch(/^[a-f0-9]{64}$/)
     expect(values[1].eventKey).toMatch(/^[a-f0-9]{64}$/)
     expect(values[0].eventKey).not.toBe(values[1].eventKey)
-    expect(mockOnConflictDoNothing).toHaveBeenCalledWith(
-      expect.objectContaining({ target: 'usageLog.eventKey' })
-    )
+    expect(mockOnConflictDoNothing).toHaveBeenCalledTimes(1)
+    expect(mockOnConflictDoNothing.mock.calls[0][0]).toMatchObject({
+      target: usageLog.eventKey,
+    })
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
   })
 
@@ -219,6 +213,7 @@ describe('recordCumulativeUsage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    installSharedDbMocks()
     mockReturning.mockResolvedValue([{ cost: '0.3474447' }])
     mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning })
     mockValues.mockReturnValue({ onConflictDoNothing: mockOnConflictDoNothing })

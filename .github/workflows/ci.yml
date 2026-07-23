@@ -41,9 +41,11 @@ jobs:
     secrets: inherit
 
   # Detect if this is a version release commit (e.g., "v0.5.24: ...")
+  # Smallest runner on purpose: a few seconds of pure shell over the commit
+  # message, no checkout and no install.
   detect-version:
     name: Detect Version
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     outputs:
@@ -74,7 +76,13 @@ jobs:
   migrate:
     name: Migrate DB
     needs: [test-build]
+    # Explicit need results instead of the implicit success(): a skipped job
+    # anywhere in the transitive needs chain silently fails implicit success()
+    # and cascade-skips the deploy chain (migrate -> promote-images ->
+    # CodeDeploy) — this bit us on 2026-07-23. State requirements explicitly.
     if: >-
+      !cancelled() &&
+      needs.test-build.result == 'success' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     uses: ./.github/workflows/migrations.yml
@@ -302,7 +310,11 @@ jobs:
   promote-images:
     name: Promote Images
     needs: [migrate, build-amd64]
+    # Explicit results: see migrate's comment.
     if: >-
+      !cancelled() &&
+      needs.migrate.result == 'success' &&
+      needs.build-amd64.result == 'success' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
@@ -425,7 +437,13 @@ jobs:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
     needs: [promote-images, build-ghcr-arm64, detect-version]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Explicit results: see migrate's comment.
+    if: >-
+      !cancelled() &&
+      needs.promote-images.result == 'success' &&
+      needs.build-ghcr-arm64.result == 'success' &&
+      needs.detect-version.result == 'success' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
@@ -486,9 +504,11 @@ jobs:
           fi
 
   # Check if docs changed
+  # Smallest runner on purpose: a depth-2 checkout plus a path filter, no
+  # install and no build.
   check-docs-changes:
     name: Check Docs Changes
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     outputs:
@@ -510,7 +530,12 @@ jobs:
   process-docs:
     name: Process Docs
     needs: [promote-images, check-docs-changes]
-    if: needs.check-docs-changes.outputs.docs_changed == 'true'
+    # Explicit results: see migrate's comment.
+    if: >-
+      !cancelled() &&
+      needs.promote-images.result == 'success' &&
+      needs.check-docs-changes.result == 'success' &&
+      needs.check-docs-changes.outputs.docs_changed == 'true'
     uses: ./.github/workflows/docs-embeddings.yml
     secrets: inherit
 
@@ -520,7 +545,12 @@ jobs:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
     needs: [create-ghcr-manifests, detect-version]
-    if: needs.detect-version.outputs.is_release == 'true'
+    # Explicit results: see migrate's comment.
+    if: >-
+      !cancelled() &&
+      needs.create-ghcr-manifests.result == 'success' &&
+      needs.detect-version.result == 'success' &&
+      needs.detect-version.outputs.is_release == 'true'
     permissions:
       contents: write
     steps:

@@ -2,10 +2,8 @@
  * @vitest-environment node
  */
 
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 const { mockReadFileRecord, mockFetchBuffer } = vi.hoisted(() => ({
   mockReadFileRecord: vi.fn(),

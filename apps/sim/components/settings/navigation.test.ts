@@ -42,6 +42,7 @@ describe('settings navigation boundaries', () => {
       'inbox',
       'recently-deleted',
       'sso',
+      'sessions',
       'data-retention',
       'data-drains',
       'whitelabeling',
@@ -63,6 +64,7 @@ describe('settings navigation boundaries', () => {
       'access-control',
       'audit-logs',
       'sso',
+      'sessions',
       'data-retention',
       'data-drains',
       'whitelabeling',
@@ -118,6 +120,7 @@ describe('settings navigation boundaries', () => {
       'data-drains',
       'data-retention',
       'organization',
+      'sessions',
       'sso',
       'whitelabeling',
     ])

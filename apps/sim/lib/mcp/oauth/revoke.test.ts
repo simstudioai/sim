@@ -8,7 +8,8 @@
  * raw `fetch`.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const BLOCKED_ENDPOINT = 'http://169.254.170.2/v2/credentials/'
 const PUBLIC_SERVER_URL = 'https://mcp.attacker.com'
@@ -20,14 +21,12 @@ const {
   mockDiscoverOAuthServerInfo,
   mockLoadOauthRow,
   mockDecryptSecret,
-  mockDbSelect,
 } = vi.hoisted(() => ({
   mockUndiciFetch: vi.fn(),
   mockValidateMcpServerSsrf: vi.fn(),
   mockDiscoverOAuthServerInfo: vi.fn(),
   mockLoadOauthRow: vi.fn(),
   mockDecryptSecret: vi.fn(),
-  mockDbSelect: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
@@ -50,24 +49,21 @@ vi.mock('@/lib/mcp/oauth/storage', () => ({
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: mockDecryptSecret,
 }))
-vi.mock('@sim/db', () => ({
-  db: { select: mockDbSelect },
-}))
 
 import { revokeMcpOauthTokens } from './revoke'
 
 function wireServerRow(row: Record<string, unknown>) {
-  const builder = {
-    from: () => builder,
-    where: () => builder,
-    limit: () => Promise.resolve([row]),
-  }
-  mockDbSelect.mockReturnValue(builder)
+  queueTableRows(schemaMock.mcpServers, [row])
 }
 
 describe('revokeMcpOauthTokens — SSRF guard', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
 
     mockLoadOauthRow.mockResolvedValue({
       tokens: { access_token: 'access-secret', refresh_token: 'refresh-secret' },

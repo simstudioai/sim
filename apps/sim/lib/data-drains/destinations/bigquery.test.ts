@@ -67,6 +67,7 @@ const meta = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.stubGlobal('fetch', fetchMock)
   fetchMock.mockResolvedValue(
     new Response(JSON.stringify({}), {
       status: 200,

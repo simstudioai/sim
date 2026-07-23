@@ -1,7 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+/**
+ * `@/lib/auth/auth-client` builds a Better Auth client at module scope, which
+ * throws when NEXT_PUBLIC_APP_URL is absent from the environment (and under
+ * `isolate: false` an earlier file may have imported the graph in a polluted
+ * env). These tests only exercise pure parsing/model helpers, so stub the
+ * client module out entirely.
+ */
+vi.mock('@/lib/auth/auth-client', () => ({
+  useSession: vi.fn(() => ({ data: null, isPending: false })),
+}))
+
 import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import { getHiddenToolNames } from '@/lib/copilot/tools/client/hidden-tools'

@@ -21,8 +21,7 @@ export const skillIdUrlKeys = {
 /**
  * `search` filters the skills list by name/description. The input is controlled
  * directly by the instant nuqs value; only its URL write is debounced via
- * `limitUrlUpdates` (`debounce`) on the setter — never written on every
- * keystroke.
+ * `useDebouncedSearchSetter` — never written on every keystroke.
  */
 export const skillSearchParam = {
   key: 'search',

@@ -1,14 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMock,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+  workflowAuthzMockFns,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   ensureWorkspaceAccess: vi.fn(),
   ensureWorkflowAccess: vi.fn(),
   getDefaultWorkspaceId: vi.fn(),
-  assertFolderMutable: vi.fn(),
-  assertWorkflowMutable: vi.fn(),
   getWorkspaceFileByName: vi.fn(),
   findWorkspaceFileFolderIdByPath: vi.fn(),
   ensureWorkspaceFileFolderPath: vi.fn(),
@@ -25,24 +30,9 @@ const mocks = vi.hoisted(() => ({
   getKnowledgeBases: vi.fn(),
   updateKnowledgeBase: vi.fn(),
   checkKnowledgeBaseWriteAccess: vi.fn(),
-  workflowRows: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: () => ({
-      from: () => ({
-        where: () => Promise.resolve(mocks.workflowRows()),
-      }),
-    }),
-  },
-  workflow: { id: 'id', name: 'name', folderId: 'folderId', workspaceId: 'workspaceId' },
-}))
-
-vi.mock('@sim/platform-authz/workflow', () => ({
-  assertFolderMutable: mocks.assertFolderMutable,
-  assertWorkflowMutable: mocks.assertWorkflowMutable,
-}))
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 vi.mock('@/lib/copilot/tools/handlers/access', () => ({
   ensureWorkspaceAccess: mocks.ensureWorkspaceAccess,
@@ -102,16 +92,22 @@ const context = { userId: 'user-1', workspaceId: 'ws-1' } as ExecutionContext
 describe('vfs mv/cp', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mocks.ensureWorkspaceAccess.mockResolvedValue(undefined)
     mocks.ensureWorkflowAccess.mockResolvedValue({ workspaceId: 'ws-1', workflow: {} })
-    mocks.assertFolderMutable.mockResolvedValue(undefined)
-    mocks.assertWorkflowMutable.mockResolvedValue(undefined)
+    workflowAuthzMockFns.mockAssertFolderMutable.mockResolvedValue(undefined)
+    workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
     mocks.verifyFolderWorkspace.mockResolvedValue(true)
     mocks.listFolders.mockResolvedValue([])
-    mocks.workflowRows.mockReturnValue([])
     mocks.getWorkspaceFileByName.mockResolvedValue(null)
     mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue(null)
     mocks.ensureWorkspaceFileFolderPath.mockResolvedValue('ensured-folder')
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
+    workflowAuthzMockFns.mockAssertFolderMutable.mockReset().mockResolvedValue(undefined)
+    workflowAuthzMockFns.mockAssertWorkflowMutable.mockReset().mockResolvedValue(undefined)
   })
 
   describe('category rules', () => {
@@ -286,7 +282,7 @@ describe('vfs mv/cp', () => {
 
   describe('workflows', () => {
     it('renames a workflow at root', async () => {
-      mocks.workflowRows.mockReturnValue([{ id: 'wf-1', name: 'Old Name', folderId: null }])
+      queueTableRows(schemaMock.workflow, [{ id: 'wf-1', name: 'Old Name', folderId: null }])
       mocks.performUpdateWorkflow.mockResolvedValue({ success: true })
 
       const result = await executeVfsMv(
@@ -294,7 +290,7 @@ describe('vfs mv/cp', () => {
         context
       )
 
-      expect(mocks.assertWorkflowMutable).toHaveBeenCalledWith('wf-1')
+      expect(workflowAuthzMockFns.mockAssertWorkflowMutable).toHaveBeenCalledWith('wf-1')
       expect(mocks.performUpdateWorkflow).toHaveBeenCalledWith(
         expect.objectContaining({ workflowId: 'wf-1', name: 'New Name', folderId: null })
       )
@@ -306,7 +302,7 @@ describe('vfs mv/cp', () => {
       mocks.listFolders.mockResolvedValue([
         { folderId: 'fold-1', folderName: 'Archive', parentId: null },
       ])
-      mocks.workflowRows.mockReturnValue([{ id: 'wf-1', name: 'My Workflow', folderId: null }])
+      queueTableRows(schemaMock.workflow, [{ id: 'wf-1', name: 'My Workflow', folderId: null }])
       mocks.performUpdateWorkflow.mockResolvedValue({ success: true })
 
       const result = await executeVfsMv(
@@ -314,7 +310,7 @@ describe('vfs mv/cp', () => {
         context
       )
 
-      expect(mocks.assertFolderMutable).toHaveBeenCalledWith('fold-1')
+      expect(workflowAuthzMockFns.mockAssertFolderMutable).toHaveBeenCalledWith('fold-1')
       expect(mocks.performUpdateWorkflow).toHaveBeenCalledWith(
         expect.objectContaining({ workflowId: 'wf-1', name: undefined, folderId: 'fold-1' })
       )
@@ -322,8 +318,10 @@ describe('vfs mv/cp', () => {
     })
 
     it('surfaces locked-workflow rejections per item', async () => {
-      mocks.workflowRows.mockReturnValue([{ id: 'wf-1', name: 'Locked One', folderId: null }])
-      mocks.assertWorkflowMutable.mockRejectedValue(new Error('Workflow is locked'))
+      queueTableRows(schemaMock.workflow, [{ id: 'wf-1', name: 'Locked One', folderId: null }])
+      workflowAuthzMockFns.mockAssertWorkflowMutable.mockRejectedValue(
+        new Error('Workflow is locked')
+      )
 
       const result = await executeVfsMv(
         { sources: ['workflows/Locked%20One'], destination: 'workflows/Renamed' },
@@ -335,7 +333,7 @@ describe('vfs mv/cp', () => {
     })
 
     it('duplicates a workflow with cp (locked source allowed)', async () => {
-      mocks.workflowRows.mockReturnValue([{ id: 'wf-1', name: 'Template', folderId: null }])
+      queueTableRows(schemaMock.workflow, [{ id: 'wf-1', name: 'Template', folderId: null }])
       mocks.duplicateWorkflow.mockResolvedValue({ id: 'wf-2', name: 'My Copy' })
 
       const result = await executeVfsCp(
@@ -343,7 +341,7 @@ describe('vfs mv/cp', () => {
         context
       )
 
-      expect(mocks.assertWorkflowMutable).not.toHaveBeenCalled()
+      expect(workflowAuthzMockFns.mockAssertWorkflowMutable).not.toHaveBeenCalled()
       expect(mocks.duplicateWorkflow).toHaveBeenCalledWith(
         expect.objectContaining({
           sourceWorkflowId: 'wf-1',
@@ -434,7 +432,7 @@ describe('vfs mv/cp', () => {
 
     it('rejects creation inside a locked workflow folder', async () => {
       mocks.listFolders.mockResolvedValue([])
-      mocks.assertFolderMutable.mockRejectedValue(new Error('Folder is locked'))
+      workflowAuthzMockFns.mockAssertFolderMutable.mockRejectedValue(new Error('Folder is locked'))
 
       const result = await executeVfsMkdir({ paths: ['workflows/Locked/Sub'] }, context)
 

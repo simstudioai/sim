@@ -1,14 +1,9 @@
 /** @vitest-environment node */
 
-import {
-  invitation,
-  invitationWorkspaceGrant,
-  organization,
-  permissions,
-  workspace,
-} from '@sim/db/schema'
+import { organization, workspace } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkspaceMoveError } from '@/lib/workspaces/admin-move'
 import {
   buildPendingInvitationMergeScopeCondition,
@@ -20,32 +15,21 @@ import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
 vi.unmock('drizzle-orm')
 
 const {
-  mockDb,
   recordAudit,
   enqueueOutboxEvent,
   invalidateWorkspaceTableLimitsCache,
   changeWorkspaceStoragePayerInTx,
 } = vi.hoisted(() => ({
-  mockDb: {
-    select: vi.fn(),
-    insert: vi.fn(),
-    update: vi.fn(),
-    transaction: vi.fn(),
-  },
   recordAudit: vi.fn(),
   enqueueOutboxEvent: vi.fn(),
   invalidateWorkspaceTableLimitsCache: vi.fn(),
   changeWorkspaceStoragePayerInTx: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ db: mockDb }))
 vi.mock('@sim/audit', () => ({
   AuditAction: { WORKSPACE_UPDATED: 'workspace.updated', INVITATION_UPDATED: 'invitation.updated' },
   AuditResourceType: { WORKSPACE: 'workspace' },
   recordAudit,
-}))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }))
 vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: vi.fn(),
@@ -86,79 +70,29 @@ const destination = {
   ownerEmail: 'org-owner@example.com',
 }
 
-let selectedWorkspace = movedWorkspace
-const operationOrder: string[] = []
-
-function createSelectChain() {
-  let source: unknown
-  const rows = () => {
-    if (source === workspace) return [selectedWorkspace]
-    if (source === organization) return [destination]
-    if (source === invitation || source === invitationWorkspaceGrant || source === permissions) {
-      return []
-    }
-    return []
-  }
-  const chain = {
-    from(table: unknown) {
-      source = table
-      return chain
-    },
-    innerJoin() {
-      return chain
-    },
-    leftJoin() {
-      return chain
-    },
-    where() {
-      return chain
-    },
-    orderBy() {
-      return chain
-    },
-    for() {
-      if (source === workspace) operationOrder.push('workspace-lock')
-      return chain
-    },
-    groupBy() {
-      return chain
-    },
-    async limit() {
-      return rows()
-    },
-    then(resolve: (value: unknown[]) => unknown, reject: (error: unknown) => unknown) {
-      return Promise.resolve(rows()).then(resolve, reject)
-    },
-  }
-  return chain
+/**
+ * The move flow reads the workspace three times in order — the pre-lock
+ * `FOR UPDATE` select (rows ignored), the classification row, and the final
+ * summary reload — so the workspace queue gets one set per read. All
+ * invitation/grant/permission selects resolve the queue-less empty default.
+ */
+function queueMoveSelects(workspaceRow: Record<string, unknown>) {
+  queueTableRows(workspace, [workspaceRow])
+  queueTableRows(workspace, [workspaceRow])
+  queueTableRows(workspace, [workspaceRow])
+  queueTableRows(organization, [destination])
 }
+
+afterAll(resetDbChainMock)
 
 beforeEach(() => {
   vi.clearAllMocks()
-  operationOrder.length = 0
-  selectedWorkspace = movedWorkspace
-  mockDb.select.mockImplementation(() => createSelectChain())
-  mockDb.transaction.mockImplementation(async (callback: (tx: typeof mockDb) => unknown) =>
-    callback(mockDb)
-  )
-  mockDb.update.mockReturnValue({
-    set: () => ({
-      where: vi.fn().mockResolvedValue([]),
-    }),
-  })
-  mockDb.insert.mockReturnValue({
-    values: () => ({
-      onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
-    }),
-  })
-  changeWorkspaceStoragePayerInTx.mockImplementation(async () => {
-    operationOrder.push('payer-mutation')
-    return {
-      billableBytes: 128,
-      newPayer: { type: 'organization', id: destination.id },
-      oldPayer: { type: 'user', id: personalWorkspace.billedAccountUserId },
-      repairedWorkspaceLedger: false,
-    }
+  resetDbChainMock()
+  changeWorkspaceStoragePayerInTx.mockResolvedValue({
+    billableBytes: 128,
+    newPayer: { type: 'organization', id: destination.id },
+    oldPayer: { type: 'user', id: personalWorkspace.billedAccountUserId },
+    repairedWorkspaceLedger: false,
   })
 })
 
@@ -226,6 +160,8 @@ describe('pending invitation destination identity', () => {
 
 describe('moveWorkspaceToOrganization retries', () => {
   it('returns the existing destination summary without repeating side effects', async () => {
+    queueMoveSelects(movedWorkspace)
+
     const result = await moveWorkspaceToOrganization({
       workspaceId: movedWorkspace.id,
       destinationOrganizationId: destination.id,
@@ -240,13 +176,13 @@ describe('moveWorkspaceToOrganization retries', () => {
     expect(enqueueOutboxEvent).not.toHaveBeenCalled()
     expect(recordAudit).not.toHaveBeenCalled()
     expect(invalidateWorkspaceTableLimitsCache).not.toHaveBeenCalled()
-    expect(mockDb.insert).not.toHaveBeenCalled()
-    expect(mockDb.update).not.toHaveBeenCalled()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
   })
 
   it('pre-locks a nonzero workspace before changing its storage payer', async () => {
-    selectedWorkspace = personalWorkspace
+    queueMoveSelects(personalWorkspace)
 
     await moveWorkspaceToOrganization({
       workspaceId: personalWorkspace.id,
@@ -254,9 +190,12 @@ describe('moveWorkspaceToOrganization retries', () => {
       adminEmail: 'admin@sim.ai',
     })
 
-    const firstWorkspaceLock = operationOrder.indexOf('workspace-lock')
-    const payerMutation = operationOrder.indexOf('payer-mutation')
-    expect(firstWorkspaceLock).toBeGreaterThanOrEqual(0)
-    expect(payerMutation).toBeGreaterThan(firstWorkspaceLock)
+    // The first `.for('update')` in the move path is the workspace pre-lock
+    // select (the earlier invitation-scan selects carry no row lock), so its
+    // invocation order against the payer mutation proves lock-before-payer.
+    const firstForUpdate = dbChainMockFns.for.mock.invocationCallOrder[0]
+    const payerMutation = changeWorkspaceStoragePayerInTx.mock.invocationCallOrder[0]
+    expect(firstForUpdate).toBeGreaterThan(0)
+    expect(payerMutation).toBeGreaterThan(firstForUpdate)
   })
 })

@@ -3,6 +3,7 @@
   "pages": [
     "index",
     "sso",
+    "session-policies",
     "access-control",
     "custom-blocks",
     "whitelabeling",

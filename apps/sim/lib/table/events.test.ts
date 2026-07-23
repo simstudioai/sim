@@ -1,15 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: () => null,
-}))
+beforeAll(() => {
+  setEnv({ REDIS_URL: undefined })
+})
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: { REDIS_URL: undefined },
-}))
+afterAll(resetEnvMock)
 
 import type { TableEvent } from '@/lib/table/events'
 import { appendTableEvent, getLatestTableEventId, readTableEventsSince } from '@/lib/table/events'

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest, dbChainMock, dbChainMockFns } from '@sim/testing'
+import { authMockFns, createMockRequest, dbChainMock, dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -9,22 +9,13 @@ const {
   mockGetOrganizationBillingData,
   mockGetOrganizationSubscription,
   mockGetPersonalBillingSummary,
-  mockGetSession,
   mockResolveBillingInterval,
 } = vi.hoisted(() => ({
   mockGetCreditBalanceForEntity: vi.fn(),
   mockGetOrganizationBillingData: vi.fn(),
   mockGetOrganizationSubscription: vi.fn(),
   mockGetPersonalBillingSummary: vi.fn(),
-  mockGetSession: vi.fn(),
   mockResolveBillingInterval: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => dbChainMock)
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
 }))
 
 vi.mock('@/lib/billing/core/billing', () => ({
@@ -45,6 +36,8 @@ vi.mock('@/lib/billing/credits/balance', () => ({
 }))
 
 import { GET } from '@/app/api/billing/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const PERSONAL_SUMMARY = {
   type: 'individual',
