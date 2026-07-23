@@ -29,16 +29,18 @@ const timedStep = makeTimedStep(logger)
 const OAUTH_START_TTL_MS = 10 * 60 * 1000
 /**
  * Per-step budgets, kept small so the whole request stays under the client's 30s `/oauth/start`
- * deadline even in the worst case (5+5+5 DB + 12 auth = 27s). OAuth discovery + DCR occasionally
- * hits the transient headers-then-stalled-body class documented for CDN-fronted MCP hosts; the
- * bound turns that into a fast, labeled failure so the popup closes with a clear error and the
- * user can retry (a fresh click = a fresh connection that dodges the per-connection stall) rather
- * than the popup hanging blank. We deliberately do NOT auto-retry here: `timedStep` can't cancel
- * a wedged attempt, and a lingering first attempt sharing this server's OAuth row could overwrite
- * the retry's PKCE verifier / state and break the callback.
+ * deadline even in the worst case: up to four bounded DB steps (loadServer, getOrCreateOauthRow,
+ * setOauthRowUser, loadPreregisteredClient) + the auth step = 4×4 + 10 = 26s, leaving margin for
+ * middleware and network. OAuth discovery + DCR occasionally hits the transient
+ * headers-then-stalled-body class documented for CDN-fronted MCP hosts; the bound turns that into
+ * a fast, labeled failure so the popup closes with a clear error and the user can retry (a fresh
+ * click = a fresh connection that dodges the per-connection stall) rather than the popup hanging
+ * blank. We deliberately do NOT auto-retry here: `timedStep` can't cancel a wedged attempt, and a
+ * lingering first attempt sharing this server's OAuth row could overwrite the retry's PKCE
+ * verifier / state and break the callback.
  */
-const DB_STEP_MS = 5_000
-const MCP_AUTH_STEP_MS = 12_000
+const DB_STEP_MS = 4_000
+const MCP_AUTH_STEP_MS = 10_000
 const MAX_SURFACED_ERROR_LENGTH = 250
 const DCR_UNSUPPORTED_MESSAGE =
   "This server doesn't support automatic OAuth client registration. Add a pre-registered OAuth client ID and secret, or configure a token instead."
