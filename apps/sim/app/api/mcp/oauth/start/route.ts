@@ -158,7 +158,7 @@ export const GET = withRouteHandler(
         )
       }
       if (row.userId !== userId) {
-        await setOauthRowUser(row.id, userId)
+        await timedStep('setOauthRowUser', DB_STEP_MS, () => setOauthRowUser(row.id, userId))
         row.userId = userId
       }
       const preregistered = await timedStep('loadPreregisteredClient', DB_STEP_MS, () =>
