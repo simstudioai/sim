@@ -253,7 +253,7 @@ export const googleSheetsConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     _cursor?: string,
-    syncContext?: Record<string, unknown>
+    _syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const spreadsheetId = (sourceConfig.spreadsheetId as string)?.trim()
     if (!spreadsheetId) {
@@ -269,18 +269,14 @@ export const googleSheetsConnector: ConnectorConfig = {
 
     /**
      * A trashed spreadsheet is no longer current content, so it drops out of the
-     * listing and stops being re-indexed. Unlike an ordinary empty listing page
-     * (which could equally mean the source is unreachable), this is a direct,
-     * single-resource confirmation from the Drive API that the spreadsheet itself
-     * is gone — so `sourceConfirmedEmpty` tells the sync engine's zero-document
-     * guard it's safe to reconcile (purge the stored tabs) on this sync, rather
-     * than requiring a forced full resync. `validateConfig` reports the trashed
-     * state so the connector does not look healthy while serving tabs from a file
-     * its owner has thrown away.
+     * listing and stops being re-indexed. The sync engine reconciles its absence
+     * the same way it does for every connector: pending-removal on the first
+     * sync that doesn't see it, purged once a later sync confirms it's still
+     * gone. `validateConfig` reports the trashed state so the connector does not
+     * look healthy while serving tabs from a file its owner has thrown away.
      */
     if (isTrashedDriveFile(driveMetadata)) {
       logger.info('Spreadsheet is in the Drive trash; listing no documents', { spreadsheetId })
-      if (syncContext) syncContext.sourceConfirmedEmpty = true
       return { documents: [], hasMore: false }
     }
 

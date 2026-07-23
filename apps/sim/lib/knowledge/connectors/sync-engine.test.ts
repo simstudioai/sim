@@ -76,98 +76,86 @@ describe('shouldReconcileDeletions', () => {
   })
 })
 
-describe('shouldSkipEmptyListing', () => {
-  it('does not skip when the listing is non-empty', async () => {
-    const { shouldSkipEmptyListing } = await import('@/lib/knowledge/connectors/sync-engine')
+describe('partitionSyncReconciliation', () => {
+  const live = (id: string, externalId: string | null = id) => ({ id, externalId })
 
-    expect(shouldSkipEmptyListing(1, 5, undefined, {})).toBe(false)
+  it('marks a live document missing from the listing as pending removal, not hard-deleted', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const result = partitionSyncReconciliation([live('a')], [], new Set(), undefined)
+
+    expect(result).toEqual({ resurrectIds: [], softDeleteIds: ['a'], hardDeleteIds: [] })
   })
 
-  it('does not skip when there are no existing documents to lose', async () => {
-    const { shouldSkipEmptyListing } = await import('@/lib/knowledge/connectors/sync-engine')
+  it('hard-deletes a document already pending removal that is still absent', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    expect(shouldSkipEmptyListing(0, 0, undefined, {})).toBe(false)
+    const result = partitionSyncReconciliation([], [live('a')], new Set(), undefined)
+
+    expect(result).toEqual({ resurrectIds: [], softDeleteIds: [], hardDeleteIds: ['a'] })
   })
 
-  it('does not skip on a forced fullSync', async () => {
-    const { shouldSkipEmptyListing } = await import('@/lib/knowledge/connectors/sync-engine')
+  it('resurrects a pending-removal document that reappears in the listing', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    expect(shouldSkipEmptyListing(0, 5, true, {})).toBe(false)
+    const result = partitionSyncReconciliation([], [live('a')], new Set(['a']), undefined)
+
+    expect(result).toEqual({ resurrectIds: ['a'], softDeleteIds: [], hardDeleteIds: [] })
   })
 
-  it('skips by default on an empty listing with existing documents', async () => {
-    const { shouldSkipEmptyListing } = await import('@/lib/knowledge/connectors/sync-engine')
+  it('leaves a document untouched when it is still present in the listing', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    expect(shouldSkipEmptyListing(0, 5, undefined, {})).toBe(true)
-    expect(shouldSkipEmptyListing(0, 5, undefined, undefined)).toBe(true)
-    expect(shouldSkipEmptyListing(0, 5, false, {})).toBe(true)
+    const result = partitionSyncReconciliation([live('a')], [], new Set(['a']), undefined)
+
+    expect(result).toEqual({ resurrectIds: [], softDeleteIds: [], hardDeleteIds: [] })
   })
 
-  it('does not skip when the connector confirms the empty result against the source', async () => {
-    const { shouldSkipEmptyListing } = await import('@/lib/knowledge/connectors/sync-engine')
+  it('resurrects even on a forced fullSync', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    expect(shouldSkipEmptyListing(0, 5, undefined, { sourceConfirmedEmpty: true })).toBe(false)
+    const result = partitionSyncReconciliation([], [live('a')], new Set(['a']), true)
+
+    expect(result.resurrectIds).toEqual(['a'])
   })
 
-  it('still skips when sourceConfirmedEmpty is falsy', async () => {
-    const { shouldSkipEmptyListing } = await import('@/lib/knowledge/connectors/sync-engine')
+  it('hard-deletes both live and pending-removal documents immediately on a forced fullSync', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    expect(shouldSkipEmptyListing(0, 5, undefined, { sourceConfirmedEmpty: false })).toBe(true)
+    const result = partitionSyncReconciliation([live('a')], [live('b')], new Set(), true)
+
+    expect(result.softDeleteIds).toEqual([])
+    expect(result.hardDeleteIds.sort()).toEqual(['a', 'b'])
   })
-})
 
-describe('exceedsDeletionSafetyThreshold', () => {
-  it('does not block a small deletion, even above 50%', async () => {
-    const { exceedsDeletionSafetyThreshold } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+  it('handles a mixed batch of every outcome in one pass', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const result = partitionSyncReconciliation(
+      [live('kept'), live('newly-missing')],
+      [live('resurrected'), live('confirmed-gone')],
+      new Set(['kept', 'resurrected']),
+      undefined
     )
 
-    expect(exceedsDeletionSafetyThreshold(4, 5, undefined, {})).toBe(false)
+    expect(result).toEqual({
+      resurrectIds: ['resurrected'],
+      softDeleteIds: ['newly-missing'],
+      hardDeleteIds: ['confirmed-gone'],
+    })
   })
 
-  it('does not block a large deletion below 50%', async () => {
-    const { exceedsDeletionSafetyThreshold } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+  it('ignores documents with a null externalId', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const result = partitionSyncReconciliation(
+      [live('a', null)],
+      [live('b', null)],
+      new Set(),
+      undefined
     )
 
-    expect(exceedsDeletionSafetyThreshold(6, 20, undefined, {})).toBe(false)
-  })
-
-  it('blocks a deletion above both the ratio and count thresholds by default', async () => {
-    const { exceedsDeletionSafetyThreshold } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
-    )
-
-    expect(exceedsDeletionSafetyThreshold(10, 10, undefined, {})).toBe(true)
-    expect(exceedsDeletionSafetyThreshold(10, 10, undefined, undefined)).toBe(true)
-  })
-
-  it('does not block on a forced fullSync', async () => {
-    const { exceedsDeletionSafetyThreshold } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
-    )
-
-    expect(exceedsDeletionSafetyThreshold(10, 10, true, {})).toBe(false)
-  })
-
-  it('does not block when the connector confirms the deletion against the source', async () => {
-    const { exceedsDeletionSafetyThreshold } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
-    )
-
-    expect(exceedsDeletionSafetyThreshold(10, 10, undefined, { sourceConfirmedEmpty: true })).toBe(
-      false
-    )
-  })
-
-  it('still blocks when sourceConfirmedEmpty is falsy', async () => {
-    const { exceedsDeletionSafetyThreshold } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
-    )
-
-    expect(exceedsDeletionSafetyThreshold(10, 10, undefined, { sourceConfirmedEmpty: false })).toBe(
-      true
-    )
+    expect(result).toEqual({ resurrectIds: [], softDeleteIds: [], hardDeleteIds: [] })
   })
 })
 
