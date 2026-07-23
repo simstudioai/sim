@@ -117,3 +117,23 @@ describe('permissionGroupFullConfigSchema key order', () => {
     expect(JSON.stringify(serverEcho)).toBe(JSON.stringify(edited))
   })
 })
+
+describe('permission group description trimming', () => {
+  it('trims a padded description on create', () => {
+    const result = createPermissionGroupBodySchema.safeParse({
+      name: 'Engineering',
+      description: '  padded  ',
+    })
+    expect(result.success && result.data.description).toBe('padded')
+  })
+
+  it('trims a padded description on update', () => {
+    const result = updatePermissionGroupBodySchema.safeParse({ description: '  padded  ' })
+    expect(result.success && result.data.description).toBe('padded')
+  })
+
+  it('still accepts a null description on update', () => {
+    const result = updatePermissionGroupBodySchema.safeParse({ description: null })
+    expect(result.success && result.data.description).toBeNull()
+  })
+})

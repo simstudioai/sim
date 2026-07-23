@@ -949,7 +949,11 @@ export function GroupDetail({
   const trimmedName = editingName.trim()
   const trimmedDescription = editingDescription.trim()
   const nameChanged = trimmedName !== viewingGroup.name
-  const descriptionChanged = trimmedDescription !== (viewingGroup.description ?? '')
+  // Compare trimmed on both sides: `name` is trimmed by its contract schema but a
+  // description stored before this PR (or written straight to the API) can still
+  // carry padding, and comparing it raw would leave the form dirty on open with
+  // no way to clear it — Discard restores the same padded value.
+  const descriptionChanged = trimmedDescription !== (viewingGroup.description ?? '').trim()
   const hasChanges = hasConfigChanges || nameChanged || descriptionChanged
 
   const guard = useSettingsUnsavedGuard({ isDirty: hasChanges })
