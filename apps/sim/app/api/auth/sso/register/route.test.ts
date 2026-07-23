@@ -12,6 +12,7 @@ const {
   mockRegisterSSOProvider,
   mockSecureFetchWithPinnedIP,
   mockValidateUrlWithDNS,
+  mockWithSSOProviderMutationLock,
   ssoProviderTable,
 } = vi.hoisted(() => ({
   dbState: {
@@ -28,6 +29,7 @@ const {
   mockRegisterSSOProvider: vi.fn(),
   mockSecureFetchWithPinnedIP: vi.fn(),
   mockValidateUrlWithDNS: vi.fn(),
+  mockWithSSOProviderMutationLock: vi.fn((callback: () => Promise<unknown>) => callback()),
   ssoProviderTable: {
     id: 'sso.id',
     providerId: 'sso.providerId',
@@ -58,6 +60,7 @@ vi.mock('@sim/db', () => ({
   },
   member: memberTable,
   ssoProvider: ssoProviderTable,
+  withSSOProviderMutationLock: mockWithSSOProviderMutationLock,
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -193,6 +196,28 @@ describe('POST /api/auth/sso/register', () => {
       const response = await POST(request({ ...OIDC_BODY, domain }))
       expect(response.status).toBe(409)
     }
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
+  it('re-checks domain overlap inside the mutation lock after configuration work', async () => {
+    mockWithSSOProviderMutationLock.mockImplementationOnce(
+      async (callback: () => Promise<unknown>) => {
+        dbState.providers = [
+          {
+            id: 'concurrent',
+            providerId: 'concurrent-provider',
+            domain: 'login.acme.com',
+            organizationId: 'org-concurrent',
+          },
+        ]
+        return callback()
+      }
+    )
+
+    const response = await POST(request(OIDC_BODY))
+
+    expect(response.status).toBe(409)
+    expect(mockWithSSOProviderMutationLock).toHaveBeenCalledOnce()
     expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
   })
 

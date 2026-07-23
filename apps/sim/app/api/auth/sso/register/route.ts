@@ -1,3 +1,4 @@
+import { withSSOProviderMutationLock } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
@@ -61,9 +62,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         organizationId: body.orgId,
       }
     )
-    const registration = await auth.api.registerSSOProvider({
-      body: providerConfig,
-      headers: collectAuthHeaders(request),
+    const registration = await withSSOProviderMutationLock(async () => {
+      await assertSSOProviderAvailable({
+        providerId: body.providerId,
+        domain,
+        organizationId: body.orgId,
+      })
+      return auth.api.registerSSOProvider({
+        body: providerConfig,
+        headers: collectAuthHeaders(request),
+      })
     })
 
     logger.info('SSO provider registered', {

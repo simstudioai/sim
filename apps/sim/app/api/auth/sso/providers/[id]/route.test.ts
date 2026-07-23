@@ -12,6 +12,7 @@ const {
   mockGetSession,
   mockIsOrganizationOnEnterprisePlan,
   mockUpdateSSOProvider,
+  mockWithSSOProviderMutationLock,
   ssoProviderTable,
 } = vi.hoisted(() => ({
   accountTable: {
@@ -32,6 +33,7 @@ const {
   mockGetSession: vi.fn(),
   mockIsOrganizationOnEnterprisePlan: vi.fn(),
   mockUpdateSSOProvider: vi.fn(),
+  mockWithSSOProviderMutationLock: vi.fn((callback: () => Promise<unknown>) => callback()),
   ssoProviderTable: {
     id: 'sso.id',
     issuer: 'sso.issuer',
@@ -74,6 +76,7 @@ vi.mock('@sim/db', () => ({
   account: accountTable,
   member: memberTable,
   ssoProvider: ssoProviderTable,
+  withSSOProviderMutationLock: mockWithSSOProviderMutationLock,
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -165,6 +168,33 @@ describe('/api/auth/sso/providers/[id]', () => {
         }),
       })
     )
+  })
+
+  it('re-checks domain overlap inside the mutation lock before updating', async () => {
+    mockWithSSOProviderMutationLock.mockImplementationOnce(
+      async (callback: () => Promise<unknown>) => {
+        dbState.providers = [
+          PROVIDER,
+          {
+            id: 'concurrent',
+            issuer: 'https://other-idp.example.com',
+            domain: 'login.new.example.com',
+            oidcConfig: '{}',
+            samlConfig: null,
+            userId: 'creator-2',
+            providerId: 'concurrent-provider',
+            organizationId: 'org-2',
+          },
+        ]
+        return callback()
+      }
+    )
+
+    const response = await PATCH(createMockRequest('PATCH', SAML_UPDATE), context)
+
+    expect(response.status).toBe(409)
+    expect(mockWithSSOProviderMutationLock).toHaveBeenCalledOnce()
+    expect(mockUpdateSSOProvider).not.toHaveBeenCalled()
   })
 
   it('reports the compatibility-active state while verification enforcement is disabled', async () => {

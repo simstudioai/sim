@@ -47,6 +47,50 @@ const postgresClient = instrumentPoolClient(
 
 export const db = drizzle(postgresClient, { schema })
 
+const SSO_PROVIDER_MUTATION_LOCK_KEY = 4_961_002_271n
+let ssoProviderMutationTail = Promise.resolve()
+
+/**
+ * Serializes SSO provider create/update mutations across app processes.
+ *
+ * Parent/child domain overlap cannot be represented by a normal unique index,
+ * so callers must re-check availability while holding this lock and keep it
+ * through the Better Auth write. The lock uses a reserved connection and a
+ * transaction-scoped advisory lock so it remains safe behind transaction-mode
+ * poolers and is released automatically if the callback or process fails.
+ *
+ * The per-process queue prevents concurrent requests from reserving multiple
+ * primary-pool connections while they wait for the same cross-process lock.
+ */
+export async function withSSOProviderMutationLock<T>(callback: () => Promise<T>): Promise<T> {
+  const predecessor = ssoProviderMutationTail
+  let releaseLocalLock!: () => void
+  ssoProviderMutationTail = new Promise<void>((resolve) => {
+    releaseLocalLock = resolve
+  })
+
+  await predecessor
+  try {
+    const reserved = await postgresClient.reserve()
+    try {
+      await reserved.unsafe('BEGIN')
+      try {
+        await reserved.unsafe(`SELECT pg_advisory_xact_lock(${SSO_PROVIDER_MUTATION_LOCK_KEY})`)
+        const result = await callback()
+        await reserved.unsafe('COMMIT')
+        return result
+      } catch (error) {
+        await reserved.unsafe('ROLLBACK')
+        throw error
+      }
+    } finally {
+      reserved.release()
+    }
+  } finally {
+    releaseLocalLock()
+  }
+}
+
 /**
  * Opt-in read-replica client for reads that tolerate bounded staleness and have
  * no read-your-writes dependency (logs, exports, dashboard aggregations). Never

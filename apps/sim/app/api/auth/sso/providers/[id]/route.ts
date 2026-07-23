@@ -1,3 +1,4 @@
+import { withSSOProviderMutationLock } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
@@ -68,9 +69,17 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
         existingDomain: provider.domain,
       }
     )
-    const updated = await auth.api.updateSSOProvider({
-      body: providerConfig,
-      headers: collectAuthHeaders(request),
+    const updated = await withSSOProviderMutationLock(async () => {
+      await assertSSOProviderAvailable({
+        providerId: provider.providerId,
+        domain,
+        organizationId: provider.organizationId!,
+        excludeRowId: provider.id,
+      })
+      return auth.api.updateSSOProvider({
+        body: providerConfig,
+        headers: collectAuthHeaders(request),
+      })
     })
 
     logger.info('SSO provider updated', {
