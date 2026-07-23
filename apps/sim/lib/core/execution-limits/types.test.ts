@@ -35,6 +35,7 @@ declare module '@/lib/core/execution-limits/types?execution-limits-test' {
 import {
   createTimeoutAbortController,
   getExecutionTimeout,
+  isTimeoutAbortReason,
 } from '@/lib/core/execution-limits/types?execution-limits-test'
 
 afterAll(resetEnvFlagsMock)
@@ -81,26 +82,34 @@ describe('getExecutionTimeout', () => {
     }
   })
 
-  it('aborts with reason "timeout" when the timer fires', () => {
+  it('aborts with an AbortError carrying the timeout reason when the timer fires', () => {
     vi.useFakeTimers()
     try {
       const controller = createTimeoutAbortController(1000)
       vi.advanceTimersByTime(1000)
       expect(controller.signal.aborted).toBe(true)
       expect(controller.isTimedOut()).toBe(true)
-      expect(controller.signal.reason).toBe('timeout')
+      const reason = controller.signal.reason as DOMException
+      expect(reason).toBeInstanceOf(DOMException)
+      expect(reason.name).toBe('AbortError')
+      expect(reason.message).toBe('timeout')
+      expect(isTimeoutAbortReason(reason)).toBe(true)
       controller.cleanup()
     } finally {
       vi.useRealTimers()
     }
   })
 
-  it('manual abort uses reason "user"', () => {
+  it('manual abort uses an AbortError carrying the user reason', () => {
     const controller = createTimeoutAbortController(60_000)
     controller.abort()
     expect(controller.signal.aborted).toBe(true)
     expect(controller.isTimedOut()).toBe(false)
-    expect(controller.signal.reason).toBe('user')
+    const reason = controller.signal.reason as DOMException
+    expect(reason).toBeInstanceOf(DOMException)
+    expect(reason.name).toBe('AbortError')
+    expect(reason.message).toBe('user')
+    expect(isTimeoutAbortReason(reason)).toBe(false)
     controller.cleanup()
   })
 })

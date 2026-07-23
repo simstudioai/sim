@@ -315,6 +315,11 @@ interface ExecutionMetadata {
   resumeFromSnapshot?: boolean
   resumeTerminalNoop?: boolean
   executionMode?: 'sync' | 'stream' | 'async'
+  /**
+   * Run-level agent-events opt-in (see the snapshot ExecutionMetadata).
+   * Gates streaming tool loops and provider thinking-summary requests.
+   */
+  agentEvents?: boolean
 }
 
 export interface BlockState {
