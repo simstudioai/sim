@@ -819,14 +819,14 @@ export function GroupDetail({
   const [viewingGroup, setViewingGroup] = useState<PermissionGroup>(group)
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig>({ ...group.config })
   const [editingName, setEditingName] = useState(group.name)
-  const [editingDescription, setEditingDescription] = useState(group.description ?? '')
+  const [editingDescription, setEditingDescription] = useState((group.description ?? '').trim())
   const prevGroupIdRef = useRef(group.id)
   if (prevGroupIdRef.current !== group.id) {
     prevGroupIdRef.current = group.id
     setViewingGroup(group)
     setEditingConfig({ ...group.config })
     setEditingName(group.name)
-    setEditingDescription(group.description ?? '')
+    setEditingDescription((group.description ?? '').trim())
   }
 
   /**
@@ -949,10 +949,10 @@ export function GroupDetail({
   const trimmedName = editingName.trim()
   const trimmedDescription = editingDescription.trim()
   const nameChanged = trimmedName !== viewingGroup.name
-  // Compare trimmed on both sides: `name` is trimmed by its contract schema but a
-  // description stored before this PR (or written straight to the API) can still
-  // carry padding, and comparing it raw would leave the form dirty on open with
-  // no way to clear it — Discard restores the same padded value.
+  // `name` is trimmed by its contract schema, but a description stored before this
+  // PR (or written straight to the API) can still carry padding. The buffer is
+  // seeded trimmed and compared against a trimmed baseline, so such a row opens
+  // clean instead of being dirty with no way to clear it.
   const descriptionChanged = trimmedDescription !== (viewingGroup.description ?? '').trim()
   const hasChanges = hasConfigChanges || nameChanged || descriptionChanged
 
@@ -1345,7 +1345,7 @@ export function GroupDetail({
   const handleDiscardConfig = () => {
     setEditingConfig({ ...viewingGroup.config })
     setEditingName(viewingGroup.name)
-    setEditingDescription(viewingGroup.description ?? '')
+    setEditingDescription((viewingGroup.description ?? '').trim())
   }
 
   const handleBack = useCallback(() => {
