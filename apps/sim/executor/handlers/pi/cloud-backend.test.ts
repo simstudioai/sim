@@ -13,7 +13,7 @@ const { mockRun, mockReadFile, mockWriteFile, mockExecuteTool, mockProviderEnvVa
   })
 )
 
-vi.mock('@/lib/execution/e2b', () => ({
+vi.mock('@/lib/execution/remote-sandbox', () => ({
   withPiSandbox: (fn: (runner: unknown) => unknown) =>
     fn({ run: mockRun, readFile: mockReadFile, writeFile: mockWriteFile }),
 }))

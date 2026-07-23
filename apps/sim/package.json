@@ -65,6 +65,7 @@
     "@browserbasehq/stagehand": "^3.2.1",
     "@calcom/embed-react": "1.5.3",
     "@cerebras/cerebras_cloud_sdk": "^1.23.0",
+    "@daytonaio/sdk": "0.197.0",
     "@e2b/code-interpreter": "^2.0.0",
     "@earendil-works/pi-ai": "0.80.10",
     "@earendil-works/pi-coding-agent": "0.80.10",
