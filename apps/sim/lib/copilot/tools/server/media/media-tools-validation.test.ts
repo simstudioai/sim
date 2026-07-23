@@ -162,14 +162,29 @@ describe('media tool path validation', () => {
     expect(mocks.writeWorkspaceFileByPath).not.toHaveBeenCalled()
   })
 
-  it('rejects missing generated-media outputs before calling the provider', async () => {
+  it('uses the default video output path when outputs are omitted', async () => {
     const result = await generateVideoServerTool.execute(
       { prompt: 'Create a launch video' },
       CONTEXT
     )
 
-    expect(result.success).toBe(false)
-    expect(mocks.generateFalVideo).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect(mocks.writeWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: { path: 'files/generated-video.mp4', mode: 'create', mimeType: undefined },
+      })
+    )
+  })
+
+  it('uses a content-type-derived default audio output path when outputs are omitted', async () => {
+    const result = await generateAudioServerTool.execute({ prompt: 'Create a voiceover' }, CONTEXT)
+
+    expect(result.success).toBe(true)
+    expect(mocks.writeWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: { path: 'files/generated-audio.mp3', mode: 'create', mimeType: undefined },
+      })
+    )
   })
 
   it('passes uploads/ media files to ffmpeg', async () => {

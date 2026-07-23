@@ -76,11 +76,13 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
     }
 
     try {
-      const outputFile = await prepareMediaOutput({
-        output: params.outputs,
-        workspaceId,
-        userId: context.userId,
-      })
+      const outputFile = params.outputs?.files?.length
+        ? await prepareMediaOutput({
+            output: params.outputs,
+            workspaceId,
+            userId: context.userId,
+          })
+        : undefined
 
       const apiKey = getRotatingApiKey('gemini')
       const ai = new GoogleGenAI({ apiKey })
@@ -163,18 +165,19 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
         }
       }
 
-      const resolvedOutputPath = outputFile.path
+      const ext = mimeType.includes('jpeg') || mimeType.includes('jpg') ? '.jpg' : '.png'
+      const outputPath = outputFile?.path || `files/generated-image${ext}`
       const imageBuffer = Buffer.from(imageBase64, 'base64')
-      const mode = outputFile.mode
+      const mode = outputFile?.mode ?? 'create'
 
       assertServerToolNotAborted(context)
       const written = await writeWorkspaceFileByPath({
         workspaceId,
         userId: context.userId,
         target: {
-          path: resolvedOutputPath,
+          path: outputPath,
           mode,
-          mimeType: outputFile.mimeType,
+          mimeType: outputFile?.mimeType,
         },
         buffer: imageBuffer,
         inferredMimeType: mimeType,

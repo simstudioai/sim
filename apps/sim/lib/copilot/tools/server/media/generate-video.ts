@@ -61,12 +61,14 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
     }
 
     try {
-      const outputFile = await prepareMediaOutput({
-        output: params.outputs,
-        workspaceId,
-        userId: context.userId,
-      })
-      const outputPath = outputFile.path
+      const outputFile = params.outputs?.files?.length
+        ? await prepareMediaOutput({
+            output: params.outputs,
+            workspaceId,
+            userId: context.userId,
+          })
+        : undefined
+      const outputPath = outputFile?.path || 'files/generated-video.mp4'
 
       let imageDataUri: string | undefined
       const inputFile = params.inputs
@@ -101,13 +103,13 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         imageDataUri,
       })
 
-      const mode = outputFile.mode
+      const mode = outputFile?.mode ?? 'create'
 
       assertServerToolNotAborted(context)
       const written = await writeWorkspaceFileByPath({
         workspaceId,
         userId: context.userId,
-        target: { path: outputPath, mode, mimeType: outputFile.mimeType },
+        target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType,
       })

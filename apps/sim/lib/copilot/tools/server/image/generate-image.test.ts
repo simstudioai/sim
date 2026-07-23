@@ -170,7 +170,7 @@ describe('generateImageServerTool', () => {
     expect(mocks.generateContent).not.toHaveBeenCalled()
   })
 
-  it('rejects explicitly empty input and output containers before generation', async () => {
+  it('rejects an explicitly empty input container before generation', async () => {
     const emptyInputs = await generateImageServerTool.execute(
       {
         prompt: 'Edit the supplied image',
@@ -179,20 +179,24 @@ describe('generateImageServerTool', () => {
       },
       CONTEXT
     )
-    const emptyOutputs = await generateImageServerTool.execute(
-      { prompt: 'Create a portrait', outputs: {} },
-      CONTEXT
-    )
 
     expect(emptyInputs).toEqual({
       success: false,
       message: 'Failed to generate image: Input requires at least one file',
     })
-    expect(emptyOutputs).toEqual({
-      success: false,
-      message: 'Failed to generate image: Output requires exactly one file; received 0',
-    })
     expect(mocks.generateContent).not.toHaveBeenCalled()
+  })
+
+  it('uses the default image output path when outputs are omitted', async () => {
+    const result = await generateImageServerTool.execute({ prompt: 'Create a portrait' }, CONTEXT)
+
+    expect(result.success).toBe(true)
+    expect(mocks.validateWorkspaceFileWriteTarget).not.toHaveBeenCalled()
+    expect(mocks.writeWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: { path: 'files/generated-image.png', mode: 'create', mimeType: undefined },
+      })
+    )
   })
 
   it('fails before generation when canonical output preflight rejects a files/ target', async () => {
