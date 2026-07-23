@@ -177,20 +177,17 @@ export default async function ComparisonProviderPage({
               Sim is the open-source AI workspace where teams build, deploy, and manage AI agents
               visually, conversationally, or with code. Here is how Sim compares to{' '}
               {competitor.name} on platform architecture, AI capabilities, integrations, pricing,
-              security, and support. Every fact below is sourced and dated.
+              security, and support. Every fact below is sourced and dated, last verified{' '}
+              <time dateTime={latestVerified.toISOString().slice(0, 10)}>
+                {latestVerified.toLocaleDateString('en-US', {
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric',
+                  timeZone: 'UTC',
+                })}
+              </time>
+              .
             </p>
-            <time
-              className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em]'
-              dateTime={latestVerified.toISOString().slice(0, 10)}
-            >
-              Last verified{' '}
-              {latestVerified.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                timeZone: 'UTC',
-              })}
-            </time>
             <p className='sr-only'>
               Sim is an open-source AI workspace for building, deploying, and managing AI agents.
               This page compares Sim to {competitor.name} across platform architecture, AI
