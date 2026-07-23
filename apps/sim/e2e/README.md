@@ -4,6 +4,9 @@ This directory contains the reusable full-stack Playwright harness. It runs the
 production Next.js app, realtime, deterministic external fakes, and a migrated
 per-run pgvector database.
 
+For the cross-contract decision guide used when settings behavior changes, see
+[`MAINTENANCE.md`](MAINTENANCE.md).
+
 ## One-time setup
 
 0. Install Node 22 and Bun. Playwright workers require Node 22; set
