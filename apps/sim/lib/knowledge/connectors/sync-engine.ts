@@ -516,6 +516,14 @@ export async function executeSync(
     let hasMore = true
     const syncContext: Record<string, unknown> = { syncRunId: generateId() }
 
+    /**
+     * Bounded to the same retry window as the stuck-document retry below: a
+     * document whose refresh keeps failing every sync (e.g. permanently
+     * oversized) would otherwise be a tombstone that never resolves, forcing a
+     * full listing — and its listing-time overhead — for this connector
+     * forever. Past the window, this connector stops forcing full syncs on its
+     * account; the document itself is unaffected and stays tombstoned either way.
+     */
     const hasTombstonedDocs = await db
       .select({ id: document.id })
       .from(document)
@@ -523,7 +531,8 @@ export async function executeSync(
         and(
           eq(document.connectorId, connectorId),
           isNull(document.archivedAt),
-          isNotNull(document.deletedAt)
+          isNotNull(document.deletedAt),
+          gt(document.deletedAt, new Date(Date.now() - RETRY_WINDOW_DAYS * 24 * 60 * 60 * 1000))
         )
       )
       .limit(1)

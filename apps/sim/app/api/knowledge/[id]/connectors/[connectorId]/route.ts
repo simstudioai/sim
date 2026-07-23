@@ -335,12 +335,18 @@ export const DELETE = withRouteHandler(async (request: NextRequest, { params }: 
         .from(document)
         .where(and(eq(document.connectorId, connectorId), isNull(document.archivedAt)))
 
+      const documentIds = docs.map((doc) => doc.id)
       if (deleteDocuments) {
-        const documentIds = docs.map((doc) => doc.id)
         if (documentIds.length > 0) {
           await tx.delete(embedding).where(inArray(embedding.documentId, documentIds))
           await tx.delete(document).where(inArray(document.id, documentIds))
         }
+      } else if (documentIds.length > 0) {
+        // Kept documents become normal standalone KB entries once their connector
+        // is gone — resurrect any pending-removal ones rather than leaving them
+        // invisible tombstones with no future sync left to ever confirm or
+        // resurrect them.
+        await tx.update(document).set({ deletedAt: null }).where(inArray(document.id, documentIds))
       }
 
       const deletedConnectors = await tx
