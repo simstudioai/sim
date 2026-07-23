@@ -76,6 +76,101 @@ describe('shouldReconcileDeletions', () => {
   })
 })
 
+describe('shouldSkipEmptyListing', () => {
+  it('does not skip when the listing is non-empty', async () => {
+    const { shouldSkipEmptyListing } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldSkipEmptyListing(1, 5, undefined, {})).toBe(false)
+  })
+
+  it('does not skip when there are no existing documents to lose', async () => {
+    const { shouldSkipEmptyListing } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldSkipEmptyListing(0, 0, undefined, {})).toBe(false)
+  })
+
+  it('does not skip on a forced fullSync', async () => {
+    const { shouldSkipEmptyListing } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldSkipEmptyListing(0, 5, true, {})).toBe(false)
+  })
+
+  it('skips by default on an empty listing with existing documents', async () => {
+    const { shouldSkipEmptyListing } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldSkipEmptyListing(0, 5, undefined, {})).toBe(true)
+    expect(shouldSkipEmptyListing(0, 5, undefined, undefined)).toBe(true)
+    expect(shouldSkipEmptyListing(0, 5, false, {})).toBe(true)
+  })
+
+  it('does not skip when the connector confirms the empty result against the source', async () => {
+    const { shouldSkipEmptyListing } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldSkipEmptyListing(0, 5, undefined, { sourceConfirmedEmpty: true })).toBe(false)
+  })
+
+  it('still skips when sourceConfirmedEmpty is falsy', async () => {
+    const { shouldSkipEmptyListing } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldSkipEmptyListing(0, 5, undefined, { sourceConfirmedEmpty: false })).toBe(true)
+  })
+})
+
+describe('exceedsDeletionSafetyThreshold', () => {
+  it('does not block a small deletion, even above 50%', async () => {
+    const { exceedsDeletionSafetyThreshold } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(exceedsDeletionSafetyThreshold(4, 5, undefined, {})).toBe(false)
+  })
+
+  it('does not block a large deletion below 50%', async () => {
+    const { exceedsDeletionSafetyThreshold } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(exceedsDeletionSafetyThreshold(6, 20, undefined, {})).toBe(false)
+  })
+
+  it('blocks a deletion above both the ratio and count thresholds by default', async () => {
+    const { exceedsDeletionSafetyThreshold } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(exceedsDeletionSafetyThreshold(10, 10, undefined, {})).toBe(true)
+    expect(exceedsDeletionSafetyThreshold(10, 10, undefined, undefined)).toBe(true)
+  })
+
+  it('does not block on a forced fullSync', async () => {
+    const { exceedsDeletionSafetyThreshold } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(exceedsDeletionSafetyThreshold(10, 10, true, {})).toBe(false)
+  })
+
+  it('does not block when the connector confirms the deletion against the source', async () => {
+    const { exceedsDeletionSafetyThreshold } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(exceedsDeletionSafetyThreshold(10, 10, undefined, { sourceConfirmedEmpty: true })).toBe(
+      false
+    )
+  })
+
+  it('still blocks when sourceConfirmedEmpty is falsy', async () => {
+    const { exceedsDeletionSafetyThreshold } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(exceedsDeletionSafetyThreshold(10, 10, undefined, { sourceConfirmedEmpty: false })).toBe(
+      true
+    )
+  })
+})
+
 describe('resolveTagMapping', () => {
   beforeEach(() => {
     vi.clearAllMocks()
