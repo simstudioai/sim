@@ -38,6 +38,7 @@ const UPLOAD_RECORD = {
   id: 'wf_upload',
   name: 'start.png',
   type: 'image/png',
+  workspaceId: 'workspace-1',
   storageContext: 'mothership',
 }
 

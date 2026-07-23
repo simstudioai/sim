@@ -28,7 +28,7 @@ import {
   validateMediaOutputFile,
 } from '@/lib/copilot/tools/server/media/file-paths'
 
-const FILE_RECORD = { id: 'wf_file', name: 'portrait.png' }
+const FILE_RECORD = { id: 'wf_file', name: 'portrait.png', workspaceId: 'workspace-1' }
 
 describe('media file paths', () => {
   beforeEach(() => {
@@ -63,6 +63,20 @@ describe('media file paths', () => {
     ).resolves.toBe(FILE_RECORD)
 
     expect(mocks.resolveChatUpload).toHaveBeenCalledWith('My%20Portrait.png', 'chat-1')
+  })
+
+  it('rejects uploads from a different workspace', async () => {
+    mocks.resolveChatUpload.mockResolvedValue({ ...FILE_RECORD, workspaceId: 'workspace-2' })
+
+    await expect(
+      resolveMediaInputFile({
+        workspaceId: 'workspace-1',
+        chatId: 'chat-1',
+        path: 'uploads/My%20Portrait.png',
+      })
+    ).rejects.toThrow(
+      'Upload does not belong to the current workspace: "uploads/My%20Portrait.png"'
+    )
   })
 
   it('rejects unresolved inputs instead of dropping them', async () => {

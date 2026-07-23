@@ -57,6 +57,9 @@ export async function resolveMediaInputFile(args: {
       throw new Error(`Chat context is required for upload input: ${path}`)
     }
     file = await resolveChatUpload(filename, args.chatId)
+    if (file && file.workspaceId !== args.workspaceId) {
+      throw new Error(`Upload does not belong to the current workspace: "${path}"`)
+    }
   } else {
     file = await resolveWorkspaceFileReference(args.workspaceId, path)
   }
