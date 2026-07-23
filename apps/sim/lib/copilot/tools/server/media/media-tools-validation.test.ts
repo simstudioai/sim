@@ -193,6 +193,29 @@ describe('media tool path validation', () => {
     )
   })
 
+  it('uses the default ffmpeg output path when outputs are omitted', async () => {
+    mocks.resolveWorkspaceFileReference.mockResolvedValue({
+      ...UPLOAD_RECORD,
+      name: 'input.mov',
+      type: 'video/quicktime',
+    })
+
+    const result = await ffmpegServerTool.execute(
+      {
+        operation: 'convert',
+        inputs: { files: [{ path: 'files/input.mov' }] },
+      },
+      CONTEXT
+    )
+
+    expect(result.success).toBe(true)
+    expect(mocks.writeWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: { path: 'files/ffmpeg-convert.mp4', mode: 'create', mimeType: undefined },
+      })
+    )
+  })
+
   it('rejects extra video inputs before calling the provider', async () => {
     const result = await generateVideoServerTool.execute(
       {

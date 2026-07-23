@@ -83,7 +83,7 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
 
     try {
       const outputFile =
-        params.operation === 'probe'
+        params.operation === 'probe' || !params.outputs?.files?.length
           ? undefined
           : await prepareMediaOutput({
               output: params.outputs,
@@ -130,21 +130,18 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
         }
       }
 
-      if (!result.buffer) {
+      if (!result.buffer || !result.ext) {
         return { success: false, message: `ffmpeg ${params.operation} produced no output` }
       }
-      if (!outputFile) {
-        return { success: false, message: `ffmpeg ${params.operation} requires an output file` }
-      }
 
-      const outputPath = outputFile.path
-      const mode = outputFile.mode
+      const outputPath = outputFile?.path ?? `files/ffmpeg-${params.operation}.${result.ext}`
+      const mode = outputFile?.mode ?? 'create'
 
       assertServerToolNotAborted(context)
       const written = await writeWorkspaceFileByPath({
         workspaceId,
         userId: context.userId,
-        target: { path: outputPath, mode, mimeType: outputFile.mimeType },
+        target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType || 'application/octet-stream',
       })
