@@ -524,7 +524,7 @@ export function VoiceInterface({
   return (
     <div
       className={cn(
-        'desktop-title-bar-fixed-page light fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]',
+        'light fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]',
         className
       )}
     >

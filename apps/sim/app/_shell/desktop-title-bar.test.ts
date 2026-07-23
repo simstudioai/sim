@@ -5,9 +5,10 @@ import { describe, expect, it } from 'vitest'
 import { applyDesktopTitleBarMode, supportsDesktopTitleBar } from '@/app/_shell/desktop-title-bar'
 
 describe('desktop title bar', () => {
-  it('reserves traffic-light space only in the macOS main desktop window', () => {
+  it('reserves traffic-light space only for desktop login on macOS', () => {
     expect(supportsDesktopTitleBar('/login', 'Macintosh', true)).toBe(true)
-    expect(supportsDesktopTitleBar('/workspace/ws/home', 'Macintosh', true)).toBe(true)
+    expect(supportsDesktopTitleBar('/workspace/ws/home', 'Macintosh', true)).toBe(false)
+    expect(supportsDesktopTitleBar('/signup', 'Macintosh', true)).toBe(false)
     expect(supportsDesktopTitleBar('/desktop/launcher', 'Macintosh', true)).toBe(false)
     expect(supportsDesktopTitleBar('/login', 'Windows NT 10.0', true)).toBe(false)
     expect(supportsDesktopTitleBar('/login', 'Macintosh', false)).toBe(false)

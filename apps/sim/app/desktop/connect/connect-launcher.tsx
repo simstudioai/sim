@@ -43,7 +43,7 @@ export function ConnectLauncher({ providerId, completePath }: ConnectLauncherPro
   }, [start])
 
   return (
-    <main className='desktop-title-bar-page flex items-center justify-center px-6'>
+    <main className='flex min-h-screen items-center justify-center px-6'>
       <div className='max-w-sm text-center'>
         {error ? (
           <>

@@ -2,7 +2,7 @@ import { Skeleton } from '@sim/emcn'
 
 export default function ResumeLoading() {
   return (
-    <div className='desktop-title-bar-page bg-background'>
+    <div className='min-h-screen bg-background'>
       <div className='border-b px-4 py-3'>
         <div className='mx-auto flex max-w-[1200px] items-center justify-between'>
           <Skeleton className='h-[24px] w-[80px] rounded-[4px]' />

@@ -15,7 +15,7 @@ export function SettingsUnavailable({
     <div
       className={cn(
         'flex w-full items-center justify-center bg-[var(--surface-1)] p-6',
-        embedded ? 'h-full' : 'desktop-title-bar-page-height'
+        embedded ? 'h-full' : 'h-screen'
       )}
     >
       <div className='flex max-w-md flex-col items-center gap-3 text-center'>

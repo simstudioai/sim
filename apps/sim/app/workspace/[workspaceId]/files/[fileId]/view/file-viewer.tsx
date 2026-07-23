@@ -20,7 +20,7 @@ export function FileViewer() {
   const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace&t=${file.size}`
 
   return (
-    <div className='desktop-title-bar-fixed-page fixed inset-0 z-50 bg-[var(--bg)]'>
+    <div className='fixed inset-0 z-50 bg-[var(--bg)]'>
       <iframe
         src={serveUrl}
         className='h-full w-full border-0'
