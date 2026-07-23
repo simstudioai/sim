@@ -19,33 +19,82 @@ const CALLOUT_LABELS: Record<string, string> = {
 }
 
 /**
+ * Inline formatting tags whose text flows directly into their surrounding
+ * sentence with no implied word break — e.g. `un<b>believe</b>able` must stay
+ * `unbelievable`, and `Hello<b>!</b>` must stay `Hello!`, not gain an
+ * artificial space. Anything not in this set (p, li, td, div, headings, br,
+ * etc.) is treated as a block boundary that always implies a break, even when
+ * the source HTML has no literal whitespace there.
+ */
+const INLINE_FORMATTING_TAGS = new Set([
+  'b',
+  'strong',
+  'i',
+  'em',
+  'u',
+  's',
+  'strike',
+  'del',
+  'ins',
+  'sup',
+  'sub',
+  'small',
+  'mark',
+  'code',
+  'span',
+  'a',
+  'abbr',
+  'cite',
+  'q',
+  'kbd',
+  'var',
+  'samp',
+  'time',
+])
+
+/**
  * Cheerio's `.text()` concatenates every descendant text node with no
  * separator at all, so pulling a macro body's text in one call fuses adjacent
  * blocks together (e.g. a `<p>...for:</p>` immediately followed by
  * `<li>GitLab</li>` becomes `for:GitLab`, corrupting the very word boundaries
- * RAG chunking depends on). Selecting "block" elements and taking `.text()` on
- * each independently isn't enough either — nested blocks (a `<li>` containing
- * its own nested `<ul><li>`, a `<td>` containing a `<blockquote>`) still fuse
- * together the same way, one level deeper, since a matched outer block's
- * `.text()` recurses into and flattens its matched descendants too. Walking
- * every text node individually and joining them all with a single space
- * fixes both cases at once, with no double-counting, regardless of nesting
- * depth — matching how `html-parser.ts` already walks HTML for the same
- * reason elsewhere in this codebase.
+ * RAG chunking depends on). Simply joining every text node with a space isn't
+ * right either — that would corrupt genuinely inline-formatted text the same
+ * way. This walks the DOM, accumulating text through inline tags without a
+ * separator (preserving exact source adjacency) and flushing to a new segment
+ * at every other tag boundary (a block always implies a break, regardless of
+ * source whitespace) — matching how `html-parser.ts` already walks HTML for a
+ * related reason elsewhere in this codebase, extended with the inline/block
+ * distinction real Confluence rich text requires.
  */
 function extractBlockJoinedText($: cheerio.CheerioAPI, $el: cheerio.Cheerio<any>): string {
   const parts: string[] = []
+  let current = ''
+
+  const flush = () => {
+    const text = current.trim()
+    if (text) parts.push(text)
+    current = ''
+  }
+
   const visit = ($node: cheerio.Cheerio<any>) => {
     $node.contents().each((_, child) => {
       if (child.type === 'text') {
-        const text = $(child).text().trim()
-        if (text) parts.push(text)
+        current += $(child).text()
       } else if (child.type === 'tag') {
-        visit($(child))
+        const tag = child.tagName?.toLowerCase()
+        if (tag && INLINE_FORMATTING_TAGS.has(tag)) {
+          visit($(child))
+        } else {
+          flush()
+          visit($(child))
+          flush()
+        }
       }
     })
   }
+
   visit($el)
+  flush()
   return parts.join(' ').trim()
 }
 

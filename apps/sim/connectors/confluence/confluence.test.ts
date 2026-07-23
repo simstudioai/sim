@@ -110,14 +110,24 @@ describe('preserveConfluenceCallouts', () => {
     expect(result).toContain('GitLab access requests go to the private channel instead.')
   })
 
-  it.concurrent('preserves word boundaries in a rich, multi-node Panel header', () => {
+  it.concurrent('preserves word boundaries between a block header and its own content', () => {
     const html =
-      '<div class="panel"><div class="panelHeader"><b>Warning:</b><span>Do not use</span></div>' +
+      '<div class="panel"><div class="panelHeader"><b>Warning:</b></div>' +
       '<div class="panelContent"><p>See replacement form.</p></div></div>'
     const result = preserveConfluenceCallouts(html)
-    expect(result).not.toContain('Warning:Do')
-    expect(result).toContain('[CALLOUT: Warning: Do not use]')
+    expect(result).toContain('[CALLOUT: Warning:] See replacement form.')
   })
+
+  it.concurrent(
+    'keeps a rich header with a real source space intact, without adding a second one',
+    () => {
+      const html =
+        '<div class="panel"><div class="panelHeader"><b>Warning:</b> <span>Do not use</span></div>' +
+        '<div class="panelContent"><p>See replacement form.</p></div></div>'
+      const result = preserveConfluenceCallouts(html)
+      expect(result).toContain('[CALLOUT: Warning: Do not use]')
+    }
+  )
 
   it.concurrent('falls back to a bare CALLOUT label when a Panel macro has no header text', () => {
     const html =
@@ -202,5 +212,37 @@ describe('preserveConfluenceCallouts', () => {
     expect(result).not.toContain('quotedtext')
     expect(result).not.toContain('textafter')
     expect(result).toContain('Cell text quoted text after quote')
+  })
+
+  it.concurrent(
+    'does not inject an artificial space into inline-formatted text mid-word (inline vs. block regression)',
+    () => {
+      const html =
+        '<div class="panel"><div class="panelContent">' +
+        '<p>This is un<b>believe</b>able.</p>' +
+        '</div></div>'
+      const result = preserveConfluenceCallouts(html)
+      expect(result).not.toContain('un believe able')
+      expect(result).toContain('This is unbelieveable.')
+    }
+  )
+
+  it.concurrent('does not inject a space before punctuation carried by an inline tag', () => {
+    const html =
+      '<div class="confluence-information-macro confluence-information-macro-warning">' +
+      '<div class="confluence-information-macro-body"><p>Do not proceed<b>!</b></p></div>' +
+      '</div>'
+    const result = preserveConfluenceCallouts(html)
+    expect(result).not.toContain('proceed !')
+    expect(result).toContain('[WARNING] Do not proceed!')
+  })
+
+  it.concurrent('keeps natural word spacing when inline tags wrap a whole word', () => {
+    const html =
+      '<div class="panel"><div class="panelContent">' +
+      '<p>Do <b>NOT</b> use this form.</p>' +
+      '</div></div>'
+    const result = preserveConfluenceCallouts(html)
+    expect(result).toContain('Do NOT use this form.')
   })
 })
