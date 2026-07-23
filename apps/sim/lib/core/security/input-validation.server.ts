@@ -14,7 +14,7 @@ import {
   Agent,
   type Dispatcher,
   type RequestInit as UndiciRequestInit,
-  fetch as undiciFetch,
+  interceptors as undiciInterceptors,
   request as undiciRequest,
 } from 'undici'
 import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
@@ -781,7 +781,7 @@ function nodeReadableToWebStream(nodeStream: Readable): ReadableStream<Uint8Arra
 async function undiciRequestAsResponse(
   input: RequestInfo | URL,
   init: RequestInit,
-  dispatcher: Agent
+  dispatcher: Dispatcher
 ): Promise<Response> {
   let url: string
   let effectiveInit = init as UndiciRequestInit
@@ -977,16 +977,21 @@ export function createPinnedFetchWithDispatcher(
     ...(options?.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
   })
 
-  const pinned = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    // double-cast-allowed: DOM RequestInfo/URL and undici fetch input types differ but are structurally compatible at runtime (Node's global fetch IS undici)
-    const undiciInput = input as unknown as Parameters<typeof undiciFetch>[0]
-    // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
-    const undiciInit: UndiciRequestInit = { ...(init as unknown as UndiciRequestInit), dispatcher }
-    const response = await undiciFetch(undiciInput, undiciInit)
-    // double-cast-allowed: undici Response and DOM Response are structurally compatible at runtime
-    return response as unknown as Response
-  }
+  // Requests go through `undici.request` (not `undici.fetch`) because fetch's streaming
+  // `response.body` never delivers under the Bun runtime the server runs on — the same bug
+  // {@link createSsrfGuardedFetchWithDispatcher} works around. Unlike the guarded builder, the
+  // pinned fetch is handed straight to provider/A2A SDKs with no `followRedirectsGuarded`
+  // wrapper, so redirects are followed here via undici's redirect interceptor. Every hop still
+  // dispatches through the pinned `Agent` (its `connect.lookup` forces `resolvedIP`), so a
+  // redirect can't escape to another address — matching the old fetch path's guarantee.
+  const redirecting = dispatcher.compose(
+    undiciInterceptors.redirect({ maxRedirections: DEFAULT_MAX_REDIRECTS })
+  )
+  const pinned = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+    undiciRequestAsResponse(input, init ?? {}, redirecting)
 
+  // Return the base `Agent` (not the composed dispatcher) so callers `destroy()` the socket
+  // owner on close; the interceptor is stateless and re-dispatches through it.
   return { fetch: pinned, dispatcher }
 }
 
