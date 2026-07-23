@@ -9,7 +9,7 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import {
   prepareMediaOutput,
-  requireMediaFileDeclarations,
+  requireAtLeastOneMediaFile,
   resolveMediaInputFile,
 } from '@/lib/copilot/tools/server/media/file-paths'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
@@ -91,7 +91,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
       const parts: Part[] = []
 
       const referencePaths = params.inputs
-        ? requireMediaFileDeclarations(params.inputs.files, 'Input').map((file) => file.path)
+        ? requireAtLeastOneMediaFile(params.inputs.files, 'Input').map((file) => file.path)
         : []
 
       if (referencePaths.length) {

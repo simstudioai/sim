@@ -7,8 +7,8 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import {
-  getSingleMediaFileDeclaration,
   prepareMediaOutput,
+  requireExactlyOneMediaFile,
   resolveMediaInputFile,
 } from '@/lib/copilot/tools/server/media/file-paths'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
@@ -70,7 +70,7 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
 
       let imageDataUri: string | undefined
       const inputFile = params.inputs
-        ? getSingleMediaFileDeclaration(params.inputs.files, 'Input')
+        ? requireExactlyOneMediaFile(params.inputs.files, 'Input')
         : undefined
       if (inputFile) {
         const fileRecord = await resolveMediaInputFile({

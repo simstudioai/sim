@@ -17,7 +17,7 @@ interface MediaOutputDeclaration {
   mimeType?: string
 }
 
-export function getSingleMediaFileDeclaration<T extends { path: string }>(
+export function requireExactlyOneMediaFile<T extends { path: string }>(
   files: T[] | undefined,
   label: 'Input' | 'Output'
 ): T {
@@ -27,7 +27,7 @@ export function getSingleMediaFileDeclaration<T extends { path: string }>(
   return files[0]
 }
 
-export function requireMediaFileDeclarations<T extends { path: string }>(
+export function requireAtLeastOneMediaFile<T extends { path: string }>(
   files: T[] | undefined,
   label: 'Input' | 'Output'
 ): T[] {
@@ -94,7 +94,7 @@ export async function prepareMediaOutput<T extends MediaOutputDeclaration>(args:
   workspaceId: string
   userId: string
 }): Promise<T & { mode: WorkspaceFileWriteMode }> {
-  const file = getSingleMediaFileDeclaration(args.output?.files, 'Output')
+  const file = requireExactlyOneMediaFile(args.output?.files, 'Output')
   const output = { ...file, mode: file.mode ?? 'create' }
   await validateMediaOutputFile({
     workspaceId: args.workspaceId,

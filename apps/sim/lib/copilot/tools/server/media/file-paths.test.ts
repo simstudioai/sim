@@ -22,8 +22,8 @@ vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
 }))
 
 import {
-  getSingleMediaFileDeclaration,
   prepareMediaOutput,
+  requireExactlyOneMediaFile,
   resolveMediaInputFile,
   validateMediaOutputFile,
 } from '@/lib/copilot/tools/server/media/file-paths'
@@ -164,9 +164,9 @@ describe('media file paths', () => {
 
   it('rejects extra declarations for single-file media parameters', () => {
     expect(() =>
-      getSingleMediaFileDeclaration([{ path: 'files/a.png' }, { path: 'files/b.png' }], 'Output')
+      requireExactlyOneMediaFile([{ path: 'files/a.png' }, { path: 'files/b.png' }], 'Output')
     ).toThrow('Output requires exactly one file; received 2')
-    expect(() => getSingleMediaFileDeclaration([], 'Output')).toThrow(
+    expect(() => requireExactlyOneMediaFile([], 'Output')).toThrow(
       'Output requires exactly one file; received 0'
     )
   })
