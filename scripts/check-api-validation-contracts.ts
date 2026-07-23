@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 966,
-  zodRoutes: 966,
+  totalRoutes: 968,
+  zodRoutes: 968,
   nonZodRoutes: 0,
 } as const
 
@@ -34,6 +34,9 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/demo-requests/route.ts',
   // Input-less session-bound GET: nothing to validate; response is
   // contract-typed via `satisfies InvitationDetails` in the route.
+  // Public updater feed: input-less GET, session-less, returns YAML (not JSON),
+  // so it can't be JSON-contract-bound. Wrapped in withRouteHandler.
+  'apps/sim/app/api/desktop/update/latest-mac.yml/route.ts',
   'apps/sim/app/api/invitations/route.ts',
   'apps/sim/app/api/logs/export/route.ts',
   'apps/sim/app/api/tools/docusign/route.ts',

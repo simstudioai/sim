@@ -27,9 +27,12 @@ export function ConnectLauncher({ providerId, completePath }: ConnectLauncherPro
       await client.oauth2.link({
         providerId,
         callbackURL: completePath,
-        // Failed flows still bounce to the loopback so the desktop app can
-        // surface the failure instead of waiting out the handoff TTL.
-        errorCallbackURL: `${completePath}&error=oauth_failed`,
+        // Failed flows bounce to the same complete page (which forwards the
+        // failure to the loopback) instead of waiting out the handoff TTL.
+        // Do NOT bake in a query param here: better-auth appends its own
+        // `&error=<code>`, and a second `error` key deserializes to an array
+        // that the complete page can't read — so it would look like success.
+        errorCallbackURL: completePath,
       })
     } catch (err) {
       setError(getErrorMessage(err, 'Could not start the connection.'))

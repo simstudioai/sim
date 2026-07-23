@@ -32,6 +32,7 @@ import {
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import { ViewInvitationsMenuItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-menu-item'
 import { ViewInvitationsModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-modal'
+import { invitationKeys } from '@/hooks/queries/invitations'
 import {
   type Workspace,
   type WorkspaceCreationPolicy,
@@ -370,11 +371,12 @@ function WorkspaceHeaderImpl({
               return
             }
             if (open) {
-              // The workspace list is mounted app-wide, so it never refetches
-              // on its own (no focus refetch). Opening the switcher is the
-              // "user is looking" moment: refetch when stale so workspaces
-              // the user was auto-added to appear without a page refresh.
+              // Opening the switcher is the "user is looking" moment: refetch
+              // stale server state so a workspace the user was auto-added to,
+              // or a fresh pending invitation, appears without a page refresh
+              // (these are app-wide queries with no focus refetch on the web).
               void queryClient.refetchQueries({ queryKey: workspaceKeys.lists(), stale: true })
+              void queryClient.refetchQueries({ queryKey: invitationKeys.mine(), stale: true })
             }
             setIsWorkspaceMenuOpen(open)
           }}

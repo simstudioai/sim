@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   channelForHostname,
   DESKTOP_RELEASE_REPO,
@@ -28,7 +29,7 @@ const RELEASES_API_URL = `https://api.github.com/repos/${DESKTOP_RELEASE_REPO}/r
  * design: the updater's HTTP client carries no session, and the response
  * only describes public GitHub release artifacts.
  */
-export async function GET(): Promise<Response> {
+export const GET = withRouteHandler(async (): Promise<Response> => {
   const hostname = new URL(env.NEXT_PUBLIC_APP_URL).hostname
   const channel = channelForHostname(hostname)
 
@@ -89,4 +90,4 @@ export async function GET(): Promise<Response> {
       'cache-control': `public, max-age=${REVALIDATE_SECONDS}`,
     },
   })
-}
+})

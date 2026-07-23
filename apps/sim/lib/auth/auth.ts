@@ -195,6 +195,11 @@ if (validStripeKey) {
 
 export const auth = betterAuth({
   baseURL: getBaseUrl(),
+  // Where Better Auth sends OAuth callbacks that fail before the flow state is
+  // parsed — most commonly a provider-side Cancel/Deny. Without this it
+  // defaults to a nonexistent `/error` (a 404 dead-end), which strands the
+  // desktop sign-in/connect handoffs since their loopback is never pinged.
+  onAPIError: { errorURL: `${getBaseUrl()}/oauth-error` },
   trustedOrigins: [
     getBaseUrl(),
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),

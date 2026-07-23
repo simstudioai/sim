@@ -170,8 +170,14 @@ export function useDesktopOAuthConnectListener() {
       void queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
       void queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
 
-      const ctx = readOAuthReturnContext()
-      if (ctx) consumeOAuthReturnContext()
+      // The app stays open across interleaved connect flows, so an abandoned
+      // modal-connect can leave a stale context that would attach to a later
+      // (e.g. chip) completion and show the wrong provider's message. Discard
+      // anything older than the same window the web routers use, mirroring
+      // their freshness check.
+      const rawCtx = readOAuthReturnContext()
+      if (rawCtx) consumeOAuthReturnContext()
+      const ctx = rawCtx && Date.now() - rawCtx.requestedAt <= CONTEXT_MAX_AGE_MS ? rawCtx : null
 
       if (!result.ok) {
         toast.error('The account connection didn’t finish. Try connecting again.')

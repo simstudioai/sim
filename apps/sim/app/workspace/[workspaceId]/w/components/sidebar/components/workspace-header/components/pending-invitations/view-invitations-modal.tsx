@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import type { InvitationDetails } from '@/lib/api/contracts/invitations'
+import { getInvitationErrorMessage } from '@/lib/invitations/error-messages'
 import {
   useAcceptMyInvitation,
   useDeclineMyInvitation,
@@ -50,7 +51,7 @@ interface ViewInvitationsModalProps {
  * the joined workspace; declining keeps it open for the remaining rows.
  */
 export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModalProps) {
-  const { data: invitations } = useMyPendingInvitations()
+  const { data: invitations } = useMyPendingInvitations(open)
   const acceptInvitation = useAcceptMyInvitation()
   const declineInvitation = useDeclineMyInvitation()
   const router = useRouter()
@@ -65,7 +66,12 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
       router.push(result.redirectPath)
     } catch (error) {
       logger.error('Failed to accept invitation', { error })
-      toast.error(getErrorMessage(error, 'Could not accept the invitation. It may have expired.'))
+      toast.error(
+        getInvitationErrorMessage(
+          getErrorMessage(error, ''),
+          'Could not accept the invitation. It may have expired.'
+        )
+      )
     }
   }
 
@@ -74,7 +80,9 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
       await declineInvitation.mutateAsync({ invitationId: inv.id })
     } catch (error) {
       logger.error('Failed to decline invitation', { error })
-      toast.error(getErrorMessage(error, 'Could not decline the invitation.'))
+      toast.error(
+        getInvitationErrorMessage(getErrorMessage(error, ''), 'Could not decline the invitation.')
+      )
     }
   }
 

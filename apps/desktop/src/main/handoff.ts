@@ -177,8 +177,12 @@ export function createHandoffManager(
     params: Record<string, string>
   ): Promise<boolean> => {
     const state = generateShortId(STATE_LENGTH)
+    // startLoopback() already tore down any prior server; if this bind fails,
+    // clear the now-orphaned pending so a superseded flow can't linger as a
+    // dangling entry pointing at a server that no longer exists.
     const port = await startLoopback()
     if (!port) {
+      clear()
       return false
     }
     pending = { state, createdAt: now(), kind }

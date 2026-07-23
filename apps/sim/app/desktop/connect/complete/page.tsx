@@ -43,6 +43,9 @@ export default async function ConnectCompletePage({ searchParams }: ConnectCompl
     return <InvalidRequest />
   }
 
-  const error = sanitizeOAuthErrorSlug(params.error)
+  // Defensive: if `error` somehow arrives as a repeated query key (array), a
+  // failure must never read as success — take the first code.
+  const rawError = Array.isArray(params.error) ? params.error[0] : params.error
+  const error = sanitizeOAuthErrorSlug(rawError)
   redirect(buildConnectLoopbackUrl(state, port, error ?? undefined))
 }

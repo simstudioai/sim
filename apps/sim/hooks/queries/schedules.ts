@@ -91,6 +91,11 @@ export function useWorkspaceSchedules(workspaceId?: string) {
     enabled: Boolean(workspaceId),
     staleTime: SCHEDULE_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
+    // Pinned off (not inheriting the QueryClient default, which is on in the
+    // desktop app): a background refetch regenerates occurrence ids, which
+    // would close an open scheduled-task modal and drop its draft. See the
+    // taskById note in scheduled-tasks/hooks/use-scheduled-tasks.ts.
+    refetchOnWindowFocus: false,
   })
 }
 
