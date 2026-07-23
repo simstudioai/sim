@@ -1002,16 +1002,12 @@ export async function executeSync(
       logger.info('Connector deleted during sync, cleaning up', { connectorId })
 
       try {
+        // Includes pending-removal (tombstoned) docs — the connector is gone, so
+        // there's no future sync left to confirm or resurrect them.
         const connectorDocs = await db
           .select({ id: document.id })
           .from(document)
-          .where(
-            and(
-              eq(document.connectorId, connectorId),
-              isNull(document.archivedAt),
-              isNull(document.deletedAt)
-            )
-          )
+          .where(and(eq(document.connectorId, connectorId), isNull(document.archivedAt)))
 
         await hardDeleteDocuments(
           connectorDocs.map((doc) => doc.id),
@@ -1341,14 +1337,13 @@ async function updateDocument(
           ...tagValues,
           processingStatus: 'pending',
           uploadedAt: new Date(),
+          // A tombstoned document reappearing with changed content is resurrected
+          // in the same write as its content update — otherwise reconciliation's
+          // separate resurrect step would clear deletedAt while this update, gated
+          // on deletedAt IS NULL, rejects the row and leaves stale content active.
+          deletedAt: null,
         })
-        .where(
-          and(
-            eq(document.id, existingDocId),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
-          )
-        )
+        .where(and(eq(document.id, existingDocId), isNull(document.archivedAt)))
         .returning({ id: document.id })
         .then((rows) => {
           if (rows.length === 0) {

@@ -328,16 +328,12 @@ export const DELETE = withRouteHandler(async (request: NextRequest, { params }: 
     const { deletedDocs, docCount } = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT 1 FROM knowledge_connector WHERE id = ${connectorId} FOR UPDATE`)
 
+      // Includes pending-removal (tombstoned) docs — the connector is being
+      // deleted, so there's no future sync left to confirm or resurrect them.
       const docs = await tx
         .select({ id: document.id, fileUrl: document.fileUrl })
         .from(document)
-        .where(
-          and(
-            eq(document.connectorId, connectorId),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
-          )
-        )
+        .where(and(eq(document.connectorId, connectorId), isNull(document.archivedAt)))
 
       if (deleteDocuments) {
         const documentIds = docs.map((doc) => doc.id)
