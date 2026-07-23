@@ -201,17 +201,23 @@ export const GET = withRouteHandler(
         if (isDynamicClientRegistrationUnsupported(e)) {
           return createMcpErrorResponse(toError(e), DCR_UNSUPPORTED_MESSAGE, 422)
         }
-        if (e instanceof OauthStepTimeoutError) {
-          logger.warn(`MCP OAuth start stalled for server ${serverId}`)
-          return createMcpErrorResponse(
-            e,
-            'Authorization is taking too long — please try again.',
-            504
-          )
-        }
         throw e
       }
     } catch (error) {
+      // Any bounded step timing out (DB reads or the auth step) is a stall, not a bug —
+      // surface it as a fast 504 so the popup closes with a clear "try again" rather than a
+      // generic 500. A fresh retry is a clean flow: the callback correlates on the `state`
+      // nonce, so even if a lingering timed-out attempt later overwrites the row's state, the
+      // user's authorize URL (carrying the fresh nonce) simply fails `invalid_state` — a clean
+      // retry, never silent corruption.
+      if (error instanceof OauthStepTimeoutError) {
+        logger.warn('MCP OAuth start stalled')
+        return createMcpErrorResponse(
+          error,
+          'Authorization is taking too long — please try again.',
+          504
+        )
+      }
       logger.error('Error starting MCP OAuth flow:', error)
       // Only surface OAuth-flow errors verbatim; everything else (DB, decryption,
       // network) gets a generic message to avoid leaking internal details.
