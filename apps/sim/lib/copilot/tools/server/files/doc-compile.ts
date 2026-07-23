@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
+import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
@@ -61,7 +61,7 @@ export interface E2BDocFormat {
 /**
  * Resolves the E2B doc format + engine for a filename, or null for non-docs.
  * pptx/docx → node, pdf/xlsx → python. Only meaningful when the E2B doc sandbox
- * is enabled; callers gate on isE2BDocEnabled before using this.
+ * is enabled; callers gate on isDocSandboxEnabled before using this.
  */
 export async function getE2BDocFormat(fileName: string): Promise<E2BDocFormat | null> {
   const l = fileName.toLowerCase()
@@ -536,7 +536,7 @@ export async function resolveServableDocBytes(args: {
     if (stored) {
       return { buffer: stored.buffer, contentType: stored.contentType }
     }
-    if (isE2BDocEnabled && (await getE2BDocFormat(fileName))) {
+    if (isDocSandboxEnabled && (await getE2BDocFormat(fileName))) {
       throw new DocCompileUserError('Document is still being generated')
     }
   }

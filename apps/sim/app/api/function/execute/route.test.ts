@@ -113,7 +113,7 @@ afterAll(resetEnvFlagsMock)
 describe('Function Execute API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    envFlagsMock.isE2bEnabled = false
+    envFlagsMock.isRemoteSandboxEnabled = false
 
     hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
       success: true,
@@ -351,7 +351,7 @@ describe('Function Execute API Route', () => {
     })
 
     it('exports multiple declared sandbox output files', async () => {
-      envFlagsMock.isE2bEnabled = true
+      envFlagsMock.isRemoteSandboxEnabled = true
       mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
         stdout: 'ok',
@@ -419,7 +419,7 @@ describe('Function Execute API Route', () => {
     })
 
     it('prevalidates all sandbox output destinations before writing any files', async () => {
-      envFlagsMock.isE2bEnabled = true
+      envFlagsMock.isRemoteSandboxEnabled = true
       mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
         stdout: 'ok',
@@ -463,7 +463,7 @@ describe('Function Execute API Route', () => {
     })
 
     it('rejects duplicate sandbox output destinations before writing files', async () => {
-      envFlagsMock.isE2bEnabled = true
+      envFlagsMock.isRemoteSandboxEnabled = true
       mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
         stdout: 'ok',
@@ -508,7 +508,7 @@ describe('Function Execute API Route', () => {
     })
 
     it('returns a targeted error when a declared sandbox output is missing', async () => {
-      envFlagsMock.isE2bEnabled = true
+      envFlagsMock.isRemoteSandboxEnabled = true
       mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
         stdout: 'ok',
@@ -541,7 +541,7 @@ describe('Function Execute API Route', () => {
     })
 
     it('rejects sandboxPath outputs when the call would run in isolated-vm (E2B enabled, JS without imports)', async () => {
-      envFlagsMock.isE2bEnabled = true
+      envFlagsMock.isRemoteSandboxEnabled = true
 
       const req = createMockRequest('POST', {
         code: 'return "content"',
@@ -582,14 +582,14 @@ describe('Function Execute API Route', () => {
 
       expect(response.status).toBe(422)
       expect(data.success).toBe(false)
-      // E2B is disabled in this test, so the remediation must name that cause
-      // instead of suggesting python (which would also fail without E2B).
-      expect(data.error).toContain('E2B is not enabled')
+      // No remote sandbox is enabled in this test, so the remediation must name
+      // that cause instead of suggesting python (which would also fail without one).
+      expect(data.error).toContain('No remote code sandbox is enabled')
       expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
     })
 
     it('flags an overwrite export whose bytes are identical to the current file content as unchanged', async () => {
-      envFlagsMock.isE2bEnabled = true
+      envFlagsMock.isRemoteSandboxEnabled = true
       const staleContent = '# doc\nunchanged mounted content\n'
       mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
@@ -636,7 +636,7 @@ describe('Function Execute API Route', () => {
     })
 
     it('reports size, previousSize, and sha256 receipts on a successful overwrite export', async () => {
-      envFlagsMock.isE2bEnabled = true
+      envFlagsMock.isRemoteSandboxEnabled = true
       const newContent = '# doc\nnew content\n'
       mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
@@ -727,7 +727,7 @@ describe('Function Execute API Route', () => {
     })
 
     it('rejects large refs in runtimes without ref-native helpers', async () => {
-      envFlagsMock.isE2bEnabled = true
+      envFlagsMock.isRemoteSandboxEnabled = true
       const req = createMockRequest('POST', {
         code: 'echo "$__blockRef_0"',
         language: 'shell',

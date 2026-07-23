@@ -98,7 +98,7 @@ import {
   workspacePlansBackingFolderPath,
 } from '@/lib/copilot/vfs/workflow-aliases'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   getAccessibleEnvCredentials,
@@ -935,7 +935,7 @@ export class WorkspaceVFS {
           totalLines: 1,
         }
       }
-      if (isE2BDocEnabled && (await getE2BDocFormat(record.name))) {
+      if (isDocSandboxEnabled && (await getE2BDocFormat(record.name))) {
         bin = (
           await compileDoc({ source: code, fileName: record.name, workspaceId: this._workspaceId })
         ).buffer
@@ -988,7 +988,7 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(record.name) : null
+        const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         if (!e2bFmt && !taskId) return null
 
@@ -1114,7 +1114,7 @@ export class WorkspaceVFS {
     }
 
     const extractMatch = /^files\/.+\/extract$/.test(path)
-    if (extractMatch && isE2BDocEnabled) {
+    if (extractMatch && isDocSandboxEnabled) {
       let record: WorkspaceFileRecord | null = null
       try {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'extract')
@@ -1183,7 +1183,7 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled-check')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(record.name) : null
+        const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
         if (!e2bFmt && !taskId && !isMermaidFile) return null

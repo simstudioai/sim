@@ -147,14 +147,27 @@ class DaytonaSandboxHandle implements SandboxHandle {
         toSeconds(options.timeoutMs)
       )
       const commandId: string = started.cmdId ?? started.commandId
+      // Accumulate the streamed chunks as well as forwarding them: callers read
+      // markers out of stdout (the Pi cloud flow parses __BASE_SHA__/__CHANGED__)
+      // and format failures from stderr, so returning empty strings here would
+      // both break marker extraction and blank out error messages even though
+      // the callbacks fired correctly.
+      let stdout = ''
+      let stderr = ''
       await this.sandbox.process.getSessionCommandLogs(
         sessionId,
         commandId,
-        (chunk: string) => options.onStdout?.(chunk),
-        (chunk: string) => options.onStderr?.(chunk)
+        (chunk: string) => {
+          stdout += chunk
+          options.onStdout?.(chunk)
+        },
+        (chunk: string) => {
+          stderr += chunk
+          options.onStderr?.(chunk)
+        }
       )
       const finished = await this.sandbox.process.getSessionCommand(sessionId, commandId)
-      return { stdout: '', stderr: '', exitCode: finished.exitCode ?? 0 }
+      return { stdout, stderr, exitCode: finished.exitCode ?? 0 }
     } catch (error) {
       return { stdout: '', stderr: getErrorMessage(error), exitCode: 1 }
     } finally {

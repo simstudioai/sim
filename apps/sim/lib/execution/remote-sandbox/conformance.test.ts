@@ -24,6 +24,11 @@ const {
   mockUploadFile,
   mockDownloadFile,
   mockDelete,
+  mockCreateSession,
+  mockExecuteSessionCommand,
+  mockGetSessionCommandLogs,
+  mockGetSessionCommand,
+  mockDeleteSession,
 } = vi.hoisted(() => ({
   mockEnv: {
     SANDBOX_PROVIDER: 'e2b' as string | undefined,
@@ -49,6 +54,11 @@ const {
   mockUploadFile: vi.fn(),
   mockDownloadFile: vi.fn(),
   mockDelete: vi.fn(),
+  mockCreateSession: vi.fn(),
+  mockExecuteSessionCommand: vi.fn(),
+  mockGetSessionCommandLogs: vi.fn(),
+  mockGetSessionCommand: vi.fn(),
+  mockDeleteSession: vi.fn(),
 }))
 
 vi.mock('@e2b/code-interpreter', () => ({ Sandbox: { create: mockE2BCreate } }))
@@ -63,6 +73,7 @@ import {
   executeInSandbox,
   executeShellInSandbox,
   SIM_RESULT_PREFIX,
+  withPiSandbox,
 } from '@/lib/execution/remote-sandbox'
 
 type Provider = 'e2b' | 'daytona'
@@ -102,11 +113,21 @@ beforeEach(() => {
   mockDaytonaCreate.mockResolvedValue({
     id: 'sb_1',
     codeInterpreter: { runCode: mockInterpreterRunCode },
-    process: { codeRun: mockProcessCodeRun, executeCommand: mockExecuteCommand },
+    process: {
+      codeRun: mockProcessCodeRun,
+      executeCommand: mockExecuteCommand,
+      createSession: mockCreateSession,
+      executeSessionCommand: mockExecuteSessionCommand,
+      getSessionCommandLogs: mockGetSessionCommandLogs,
+      getSessionCommand: mockGetSessionCommand,
+      deleteSession: mockDeleteSession,
+    },
     fs: { uploadFile: mockUploadFile, downloadFile: mockDownloadFile },
     delete: mockDelete,
   })
   mockExecuteCommand.mockResolvedValue({ result: '', exitCode: 0 })
+  mockExecuteSessionCommand.mockResolvedValue({ cmdId: 'cmd_1' })
+  mockGetSessionCommand.mockResolvedValue({ exitCode: 0 })
 })
 
 describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
@@ -342,5 +363,38 @@ describe('provider selection', () => {
       })
     ).rejects.toThrow(/DAYTONA_DOC_SNAPSHOT_ID is unset/)
     mockEnv.DAYTONA_DOC_SNAPSHOT_ID = original
+  })
+
+  it('accumulates streamed Pi output into stdout/stderr, not just callbacks', async () => {
+    useProvider('daytona')
+    // Daytona streams via getSessionCommandLogs callbacks; the runner must also
+    // return the joined output so the Pi cloud flow can parse markers from stdout
+    // and format errors from stderr.
+    mockGetSessionCommandLogs.mockImplementation(
+      async (
+        _sid: string,
+        _cid: string,
+        onStdout: (c: string) => void,
+        onStderr: (c: string) => void
+      ) => {
+        onStdout('__BASE_SHA__=abc123\n')
+        onStderr('warning: detached HEAD\n')
+      }
+    )
+    mockGetSessionCommand.mockResolvedValue({ exitCode: 2 })
+
+    const streamedOut: string[] = []
+    const result = await withPiSandbox((runner) =>
+      runner.run('git clone ...', {
+        timeoutMs: 1000,
+        onStdout: (c) => streamedOut.push(c),
+      })
+    )
+
+    expect(result.stdout).toContain('__BASE_SHA__=abc123')
+    expect(result.stderr).toContain('detached HEAD')
+    expect(result.exitCode).toBe(2)
+    // Callbacks still fire for live streaming.
+    expect(streamedOut.join('')).toContain('__BASE_SHA__=abc123')
   })
 })

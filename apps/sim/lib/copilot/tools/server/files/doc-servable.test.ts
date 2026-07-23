@@ -53,7 +53,7 @@ afterAll(resetEnvFlagsMock)
 describe('resolveServableDocBytes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    setEnvFlags({ isE2BDocEnabled: true })
+    setEnvFlags({ isDocSandboxEnabled: true })
     betaFlag.value = false
   })
 
@@ -90,7 +90,7 @@ describe('resolveServableDocBytes', () => {
 
   it('throws DocCompileUserError when a generated doc artifact is not ready (E2B regime)', async () => {
     mockLoadCompiledDoc.mockResolvedValue(null)
-    setEnvFlags({ isE2BDocEnabled: true })
+    setEnvFlags({ isDocSandboxEnabled: true })
 
     await expect(
       resolveServableDocBytes({
@@ -105,7 +105,7 @@ describe('resolveServableDocBytes', () => {
 
   it('compiles via the sandbox when E2B is disabled and no artifact is stored', async () => {
     mockLoadCompiledDoc.mockResolvedValue(null)
-    setEnvFlags({ isE2BDocEnabled: false })
+    setEnvFlags({ isDocSandboxEnabled: false })
     const compiled = Buffer.from('%PDF-isolated-vm-binary')
     mockRunSandboxTask.mockResolvedValue(compiled)
 
@@ -150,7 +150,7 @@ describe('resolveServableDocBytes', () => {
 
   it('throws when a generated XLSX artifact is not ready (E2B + mothership-beta enabled)', async () => {
     mockLoadCompiledDoc.mockResolvedValue(null)
-    setEnvFlags({ isE2BDocEnabled: true })
+    setEnvFlags({ isDocSandboxEnabled: true })
     betaFlag.value = true
 
     await expect(
