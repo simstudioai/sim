@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { env } from '@/lib/core/config/env'
 import type { CodeLanguage } from '@/lib/execution/languages'
 import { daytonaProvider } from '@/lib/execution/remote-sandbox/daytona'
 import { e2bProvider } from '@/lib/execution/remote-sandbox/e2b'
@@ -12,6 +12,7 @@ import type {
   SandboxHandle,
   SandboxKind,
   SandboxProvider,
+  SandboxProviderId,
   SandboxShellExecutionRequest,
 } from '@/lib/execution/remote-sandbox/types'
 
@@ -25,24 +26,44 @@ export type {
 const logger = createLogger('RemoteSandbox')
 
 /**
- * Resolves which provider serves this execution.
+ * The known sandbox providers. Keyed by {@link SandboxProviderId}, so adding an
+ * adapter is one entry here plus one member on the id union — the type makes an
+ * unhandled provider a compile error, not a runtime surprise.
+ */
+const PROVIDERS: Record<SandboxProviderId, SandboxProvider> = {
+  e2b: e2bProvider,
+  daytona: daytonaProvider,
+}
+
+const DEFAULT_PROVIDER: SandboxProviderId = 'e2b'
+
+/**
+ * Resolves which provider serves this execution from the `SANDBOX_PROVIDER` env
+ * var (defaulting to {@link DEFAULT_PROVIDER}).
  *
  * Selection is deliberately resolved ONCE, before the sandbox is created, and is
  * never revisited mid-execution: user code has side effects (HTTP calls, S3
- * writes, DB mutations), so retrying a partially-executed run on the other
- * provider could duplicate them. This is a manual failover — flip the
- * `sandbox-provider-daytona` flag and new executions move over.
+ * writes, DB mutations), so retrying a partially-executed run on another provider
+ * could duplicate them. Changing providers is a config change — set
+ * `SANDBOX_PROVIDER` and redeploy; in-flight executions are unaffected.
  */
-async function resolveProvider(): Promise<SandboxProvider> {
-  const useDaytona = await isFeatureEnabled('sandbox-provider-daytona')
-  return useDaytona ? daytonaProvider : e2bProvider
+function resolveProvider(): SandboxProvider {
+  const configured = env.SANDBOX_PROVIDER
+  if (!configured) return PROVIDERS[DEFAULT_PROVIDER]
+  const provider = PROVIDERS[configured as SandboxProviderId]
+  if (!provider) {
+    throw new Error(
+      `Unknown SANDBOX_PROVIDER "${configured}" (expected one of: ${Object.keys(PROVIDERS).join(', ')})`
+    )
+  }
+  return provider
 }
 
 async function createSandbox(
   kind: SandboxKind,
   options?: { language?: CodeLanguage }
 ): Promise<SandboxHandle> {
-  const provider = await resolveProvider()
+  const provider = resolveProvider()
   const sandbox = await provider.create(kind, options)
   logger.info('Created sandbox', { provider: provider.id, kind, sandboxId: sandbox.sandboxId })
   return sandbox

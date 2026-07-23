@@ -105,16 +105,6 @@ const FEATURE_FLAGS = {
       'self-hosted/local behaviour. Fallback mirrors FORKING_ENABLED for off-AppConfig reads.',
     fallback: 'FORKING_ENABLED',
   },
-  'sandbox-provider-daytona': {
-    description:
-      'Route remote sandbox execution (function blocks, shell, doc generation, Pi cloud agent) to ' +
-      'Daytona instead of E2B — the manual failover for an E2B outage. Global on/off only: ' +
-      'resolved without user/org context at every sandbox entry point so the whole deployment ' +
-      'switches together, and resolved ONCE before the sandbox is created so a run is never ' +
-      'migrated mid-execution (user code has side effects). Requires the DAYTONA_* snapshot ids; ' +
-      'each sandbox kind fails closed when its snapshot is unset.',
-    fallback: 'SANDBOX_PROVIDER_DAYTONA',
-  },
   'deploy-as-block': {
     description:
       'Publish a deployed workflow as a reusable, org-wide custom block (custom name/SVG icon/' +

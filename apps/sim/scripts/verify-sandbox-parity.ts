@@ -2,21 +2,20 @@
 
 /**
  * Runs the real sandbox execution paths against whichever provider the
- * `sandbox-provider-daytona` flag currently selects, and prints a pass/fail
- * matrix.
+ * `SANDBOX_PROVIDER` env var selects, and prints a pass/fail matrix.
  *
- * This is the pre-flip confidence check: run it against E2B, run it against
+ * This is the pre-switch confidence check: run it against E2B, run it against
  * Daytona, and compare. Every case exercises the shared layer end-to-end
  * (`executeInSandbox` / `executeShellInSandbox`) against a live sandbox — not
  * mocks — so it catches the failures unit tests cannot: a missing package, an
  * expired snapshot, an image that vanished during an org move, blocked egress.
  *
  * Usage:
- *   # E2B (flag off)
+ *   # E2B (default)
  *   bun run apps/sim/scripts/verify-sandbox-parity.ts
  *
- *   # Daytona (flag on via its env fallback)
- *   SANDBOX_PROVIDER_DAYTONA=true \
+ *   # Daytona
+ *   SANDBOX_PROVIDER=daytona \
  *   DAYTONA_SHELL_SNAPSHOT_ID=mothership-shell:<tag> \
  *   DAYTONA_DOC_SNAPSHOT_ID=mothership-docs:<tag> \
  *     bun run apps/sim/scripts/verify-sandbox-parity.ts
@@ -153,7 +152,7 @@ const CASES: Case[] = [
 ]
 
 async function main() {
-  const provider = process.env.SANDBOX_PROVIDER_DAYTONA ? 'daytona' : 'e2b'
+  const provider = process.env.SANDBOX_PROVIDER || 'e2b'
   const docConfigured =
     provider === 'daytona'
       ? Boolean(process.env.DAYTONA_DOC_SNAPSHOT_ID)

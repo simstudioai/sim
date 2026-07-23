@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
 
 const {
-  mockIsFeatureEnabled,
+  mockEnv,
   mockE2BCreate,
   mockE2BRunCode,
   mockE2BCommandsRun,
@@ -25,7 +25,17 @@ const {
   mockDownloadFile,
   mockDelete,
 } = vi.hoisted(() => ({
-  mockIsFeatureEnabled: vi.fn(),
+  mockEnv: {
+    SANDBOX_PROVIDER: 'e2b' as string | undefined,
+    E2B_API_KEY: 'test-key',
+    MOTHERSHIP_E2B_TEMPLATE_ID: 'mothership-shell',
+    MOTHERSHIP_E2B_DOC_TEMPLATE_ID: 'mothership-docs',
+    E2B_PI_TEMPLATE_ID: 'sim-pi',
+    DAYTONA_API_KEY: 'test-key',
+    DAYTONA_SHELL_SNAPSHOT_ID: 'mothership-shell:v1' as string | undefined,
+    DAYTONA_DOC_SNAPSHOT_ID: 'mothership-docs:v1' as string | undefined,
+    DAYTONA_PI_SNAPSHOT_ID: 'sim-pi:v1' as string | undefined,
+  },
   mockE2BCreate: vi.fn(),
   mockE2BRunCode: vi.fn(),
   mockE2BCommandsRun: vi.fn(),
@@ -47,19 +57,7 @@ vi.mock('@daytonaio/sdk', () => ({
     create = mockDaytonaCreate
   },
 }))
-vi.mock('@/lib/core/config/env', () => ({
-  env: {
-    E2B_API_KEY: 'test-key',
-    MOTHERSHIP_E2B_TEMPLATE_ID: 'mothership-shell',
-    MOTHERSHIP_E2B_DOC_TEMPLATE_ID: 'mothership-docs',
-    E2B_PI_TEMPLATE_ID: 'sim-pi',
-    DAYTONA_API_KEY: 'test-key',
-    DAYTONA_SHELL_SNAPSHOT_ID: 'mothership-shell:v1',
-    DAYTONA_DOC_SNAPSHOT_ID: 'mothership-docs:v1',
-    DAYTONA_PI_SNAPSHOT_ID: 'sim-pi:v1',
-  },
-}))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: mockIsFeatureEnabled }))
+vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
 
 import {
   executeInSandbox,
@@ -70,9 +68,9 @@ import {
 type Provider = 'e2b' | 'daytona'
 const PROVIDERS: Provider[] = ['e2b', 'daytona']
 
-/** Points the shared layer at one provider and stubs that provider's SDK. */
+/** Points the shared layer at one provider via the SANDBOX_PROVIDER env var. */
 function useProvider(provider: Provider) {
-  mockIsFeatureEnabled.mockResolvedValue(provider === 'daytona')
+  mockEnv.SANDBOX_PROVIDER = provider
 }
 
 /** Stubs a code execution that prints `stdout` and emits `result` via the marker. */
@@ -295,11 +293,11 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
 })
 
 describe('provider selection', () => {
-  it('routes to E2B when the flag is off and Daytona when it is on', async () => {
+  it('routes by SANDBOX_PROVIDER, defaulting to E2B when unset', async () => {
     stubCodeRun('e2b', `${SIM_RESULT_PREFIX}null`)
     stubCodeRun('daytona', `${SIM_RESULT_PREFIX}null`)
 
-    useProvider('e2b')
+    mockEnv.SANDBOX_PROVIDER = undefined
     await executeInSandbox({ code: 'x', language: CodeLanguage.Python, timeoutMs: 1000 })
     expect(mockE2BCreate).toHaveBeenCalledTimes(1)
     expect(mockDaytonaCreate).not.toHaveBeenCalled()
@@ -307,6 +305,13 @@ describe('provider selection', () => {
     useProvider('daytona')
     await executeInSandbox({ code: 'x', language: CodeLanguage.Python, timeoutMs: 1000 })
     expect(mockDaytonaCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('throws on an unknown SANDBOX_PROVIDER', async () => {
+    mockEnv.SANDBOX_PROVIDER = 'modal'
+    await expect(
+      executeInSandbox({ code: 'x', language: CodeLanguage.Python, timeoutMs: 1000 })
+    ).rejects.toThrow(/Unknown SANDBOX_PROVIDER "modal"/)
   })
 
   it('binds language at create time so JS never runs through the Python toolbox', async () => {
@@ -325,9 +330,8 @@ describe('provider selection', () => {
 
   it('fails closed when a Daytona snapshot id is unset', async () => {
     useProvider('daytona')
-    const { env } = await import('@/lib/core/config/env')
-    const original = env.DAYTONA_DOC_SNAPSHOT_ID
-    ;(env as { DAYTONA_DOC_SNAPSHOT_ID?: string }).DAYTONA_DOC_SNAPSHOT_ID = undefined
+    const original = mockEnv.DAYTONA_DOC_SNAPSHOT_ID
+    mockEnv.DAYTONA_DOC_SNAPSHOT_ID = undefined
 
     await expect(
       executeInSandbox({
@@ -337,6 +341,6 @@ describe('provider selection', () => {
         sandboxKind: 'doc',
       })
     ).rejects.toThrow(/DAYTONA_DOC_SNAPSHOT_ID is unset/)
-    ;(env as { DAYTONA_DOC_SNAPSHOT_ID?: string }).DAYTONA_DOC_SNAPSHOT_ID = original
+    mockEnv.DAYTONA_DOC_SNAPSHOT_ID = original
   })
 })
