@@ -712,10 +712,10 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             }
           >
             <ChipCombobox
-              aria-label='Provider ID'
               value={formData.providerId}
               disabled={isEditing}
               onChange={(value: string) => handleInputChange('providerId', value)}
+              inputProps={{ 'aria-label': 'Provider ID' }}
               options={SSO_TRUSTED_PROVIDERS.map((id) => ({
                 label: id,
                 value: id,

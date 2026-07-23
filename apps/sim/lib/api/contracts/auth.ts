@@ -138,7 +138,7 @@ export type SsoUpdateData = z.output<typeof ssoUpdateBodySchema>
 
 export const updateSsoProviderContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/auth/sso/providers/:id',
+  path: '/api/auth/sso/providers/[id]',
   params: ssoProviderParamsSchema,
   body: ssoUpdateBodySchema,
   response: {
@@ -149,7 +149,7 @@ export const updateSsoProviderContract = defineRouteContract({
 
 export const deleteSsoProviderContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/auth/sso/providers/:id',
+  path: '/api/auth/sso/providers/[id]',
   params: ssoProviderParamsSchema,
   response: {
     mode: 'json',
@@ -187,7 +187,7 @@ export type SsoProviderListResponse = ContractJsonResponse<typeof listSsoProvide
 
 export const requestSsoDomainVerificationContract = defineRouteContract({
   method: 'POST',
-  path: '/api/auth/sso/providers/:id/domain-verification/request',
+  path: '/api/auth/sso/providers/[id]/domain-verification/request',
   params: ssoProviderParamsSchema,
   response: {
     mode: 'json',
@@ -201,7 +201,7 @@ export const requestSsoDomainVerificationContract = defineRouteContract({
 
 export const verifySsoDomainContract = defineRouteContract({
   method: 'POST',
-  path: '/api/auth/sso/providers/:id/domain-verification/verify',
+  path: '/api/auth/sso/providers/[id]/domain-verification/verify',
   params: ssoProviderParamsSchema,
   response: {
     mode: 'json',

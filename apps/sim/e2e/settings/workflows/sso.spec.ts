@@ -34,7 +34,9 @@ test('SAML provider lifecycle stays pending and uses scoped management APIs', as
   await sso.getByLabel('Provider Type', { exact: true }).click()
   await page.getByRole('menuitem', { name: 'SAML', exact: true }).click()
   await sso.getByLabel('Provider ID', { exact: true }).fill(providerId)
+  await sso.getByLabel('Issuer URL', { exact: true }).click()
   await sso.getByLabel('Issuer URL', { exact: true }).fill(issuer)
+  await sso.getByLabel('Domain', { exact: true }).click()
   await sso.getByLabel('Domain', { exact: true }).fill(domain)
   await sso.getByLabel('Entry Point URL', { exact: true }).fill(entryPoint)
   const publicCertificate = rootCertificates[0]
@@ -51,7 +53,7 @@ test('SAML provider lifecycle stays pending and uses scoped management APIs', as
   const createResponsePromise = waitForSameOriginResponse(page, 'POST', '/api/auth/sso/register')
   const createResponse = await (async () => {
     try {
-      await sso.getByRole('button', { name: 'Save', exact: true }).click()
+      await page.getByRole('button', { name: 'Save', exact: true }).click()
       return await createResponsePromise
     } finally {
       const certificateInput = page.getByLabel('Identity Provider Certificate', { exact: true })
@@ -109,13 +111,19 @@ test('SAML provider lifecycle stays pending and uses scoped management APIs', as
   if (!created?.id) throw new Error('Created SSO provider row was not recoverable')
 
   try {
-    const instructionsResponsePromise = waitForSameOriginResponse(
-      page,
-      'POST',
-      `/api/auth/sso/providers/${encodeURIComponent(created.id)}/domain-verification/request`
-    )
+    const expectedInstructionsPath = `/api/auth/sso/providers/${encodeURIComponent(created.id)}/domain-verification/request`
+    const instructionsResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return (
+        response.request().method() === 'POST' &&
+        url.origin === new URL(page.url()).origin &&
+        url.pathname.endsWith('/domain-verification/request')
+      )
+    })
     await sso.getByRole('button', { name: 'Show DNS instructions', exact: true }).click()
-    expect((await instructionsResponsePromise).status()).toBe(201)
+    const instructionsResponse = await instructionsResponsePromise
+    expect(new URL(instructionsResponse.url()).pathname).toBe(expectedInstructionsPath)
+    expect(instructionsResponse.status()).toBe(201)
     await expect(sso.getByLabel('DNS verification instructions')).toBeVisible()
     await expect(
       sso.getByText('Add a TXT record with this name and value:', { exact: true })
@@ -129,11 +137,12 @@ test('SAML provider lifecycle stays pending and uses scoped management APIs', as
   }
 
   sso = await expectSsoReady(page)
-  await sso.getByRole('button', { name: 'Edit', exact: true }).click()
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
   await expect(sso.getByLabel('Provider Type', { exact: true })).toBeDisabled()
   await expect(sso.getByLabel('Provider ID', { exact: true })).toBeDisabled()
+  await sso.getByLabel('Issuer URL', { exact: true }).click()
   await sso.getByLabel('Issuer URL', { exact: true }).fill(updatedIssuer)
-  await sso.getByRole('button', { name: 'Discard', exact: true }).click()
+  await page.getByRole('button', { name: 'Discard', exact: true }).click()
   await expect(sso.getByText(issuer, { exact: true })).toBeVisible()
   expect(
     (await listSsoProviders(context.request, ids.enterpriseOrganizationId)).find(
@@ -141,7 +150,8 @@ test('SAML provider lifecycle stays pending and uses scoped management APIs', as
     )?.issuer
   ).toBe(issuer)
 
-  await sso.getByRole('button', { name: 'Edit', exact: true }).click()
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
+  await sso.getByLabel('Issuer URL', { exact: true }).click()
   await sso.getByLabel('Issuer URL', { exact: true }).fill(updatedIssuer)
   const updateResponsePromise = waitForSameOriginResponse(
     page,
@@ -150,7 +160,7 @@ test('SAML provider lifecycle stays pending and uses scoped management APIs', as
   )
   let updateResponse: Response | undefined
   try {
-    await sso.getByRole('button', { name: 'Update', exact: true }).click()
+    await page.getByRole('button', { name: 'Update', exact: true }).click()
     updateResponse = await updateResponsePromise
   } finally {
     const certificateInput = page.getByLabel('Identity Provider Certificate', { exact: true })
@@ -183,7 +193,7 @@ test('SAML provider lifecycle stays pending and uses scoped management APIs', as
   ).toBe(updatedIssuer)
 
   sso = await expectSsoReady(page)
-  await sso.getByRole('button', { name: 'Remove', exact: true }).click()
+  await page.getByRole('button', { name: 'Remove', exact: true }).click()
   const confirmation = page.getByRole('dialog', { name: 'Remove SSO provider' })
   const deleteResponsePromise = waitForSameOriginResponse(
     page,

@@ -90,12 +90,15 @@ vi.mock('@/lib/billing', () => ({
   isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
 }))
 
-vi.mock('@/lib/core/config/env', () => createEnvMock({ SSO_ENABLED: 'true' }))
+vi.mock('@/lib/core/config/env', () =>
+  createEnvMock({ SSO_ENABLED: 'true', SSO_DOMAIN_VERIFICATION_ENABLED: 'true' })
+)
 
 vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: () => 'https://app.example.com',
 }))
 
+import { env } from '@/lib/core/config/env'
 import { DELETE, PATCH } from '@/app/api/auth/sso/providers/[id]/route'
 
 const PROVIDER = {
@@ -162,6 +165,17 @@ describe('/api/auth/sso/providers/[id]', () => {
         }),
       })
     )
+  })
+
+  it('reports the compatibility-active state while verification enforcement is disabled', async () => {
+    const previousValue = env.SSO_DOMAIN_VERIFICATION_ENABLED
+    env.SSO_DOMAIN_VERIFICATION_ENABLED = undefined
+    try {
+      const response = await PATCH(createMockRequest('PATCH', SAML_UPDATE), context)
+      await expect(response.json()).resolves.toMatchObject({ domainVerified: true })
+    } finally {
+      env.SSO_DOMAIN_VERIFICATION_ENABLED = previousValue
+    }
   })
 
   it('rejects attempts to change the provider type', async () => {

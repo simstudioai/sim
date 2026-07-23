@@ -15,7 +15,7 @@ import {
   SSOManagementError,
   ssoManagementErrorResponse,
 } from '@/lib/auth/sso/management'
-import { env } from '@/lib/core/config/env'
+import { env, isTruthy } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SSOProviderRoute')
@@ -84,7 +84,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
       success: true,
       providerId: provider.providerId,
       providerType: isSamlProvider ? ('saml' as const) : ('oidc' as const),
-      domainVerified: updated.domainVerified,
+      domainVerified: isTruthy(env.SSO_DOMAIN_VERIFICATION_ENABLED) ? updated.domainVerified : true,
       message: 'SSO provider updated successfully',
     })
   } catch (error) {

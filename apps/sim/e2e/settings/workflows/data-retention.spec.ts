@@ -47,7 +47,7 @@ test('organization retention and one-field workspace override restore their exac
   await selectLabeledOption(retention, 'Organization log retention', '1 day')
   await selectLabeledOption(retention, 'Organization soft deletion cleanup', '3 days')
   await selectLabeledOption(retention, 'Organization task cleanup', '7 days')
-  await retention.getByRole('button', { name: 'Discard', exact: true }).click()
+  await page.getByRole('button', { name: 'Discard', exact: true }).click()
   await expect(retention.getByLabel('Organization log retention')).toHaveText('30 days')
   await expect(retention.getByLabel('Organization soft deletion cleanup')).toHaveText('90 days')
   await expect(retention.getByLabel('Organization task cleanup')).toHaveText('30 days')
@@ -65,7 +65,7 @@ test('organization retention and one-field workspace override restore their exac
     'PUT',
     `/api/organizations/${encodeURIComponent(ids.enterpriseOrganizationId)}/data-retention`
   )
-  await retention.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   const saveDefaultsResponse = await saveDefaultsResponsePromise
   expect(saveDefaultsResponse.status()).toBe(200)
   const savedDefaultsBody = saveDefaultsResponse.request().postDataJSON() as Record<string, unknown>
@@ -84,7 +84,7 @@ test('organization retention and one-field workspace override restore their exac
   })
 
   retention = await expectDataRetentionReady(page)
-  await retention.getByRole('button', { name: 'Add override', exact: true }).click()
+  await page.getByRole('button', { name: 'Add override', exact: true }).click()
   await retention.getByRole('button', { name: 'Select workspaces', exact: true }).click()
   await page.getByRole('menuitem', { name: workspaceName, exact: true }).click()
   await page.keyboard.press('Escape')
@@ -101,7 +101,7 @@ test('organization retention and one-field workspace override restore their exac
     'PUT',
     `/api/organizations/${encodeURIComponent(ids.enterpriseOrganizationId)}/data-retention`
   )
-  await retention.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   const addOverrideResponse = await addOverrideResponsePromise
   expect(addOverrideResponse.status()).toBe(200)
   const addOverrideBody = addOverrideResponse.request().postDataJSON() as Record<string, unknown>
@@ -144,7 +144,7 @@ test('organization retention and one-field workspace override restore their exac
   await retention
     .getByRole('button', { name: `Edit retention policy for ${workspaceName}` })
     .click()
-  await retention.getByRole('button', { name: 'Remove override', exact: true }).click()
+  await page.getByRole('button', { name: 'Remove override', exact: true }).click()
   const removeConfirmation = page.getByRole('dialog', { name: 'Remove override' })
   const removeOverrideResponsePromise = waitForSameOriginResponse(
     page,
@@ -174,7 +174,7 @@ test('organization retention and one-field workspace override restore their exac
     'PUT',
     `/api/organizations/${encodeURIComponent(ids.enterpriseOrganizationId)}/data-retention`
   )
-  await retention.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   const restoreResponse = await restoreResponsePromise
   expect(restoreResponse.status()).toBe(200)
   const restoreBody = restoreResponse.request().postDataJSON() as Record<string, unknown>

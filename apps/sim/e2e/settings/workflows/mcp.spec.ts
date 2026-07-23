@@ -43,7 +43,7 @@ test('MCP allowlist, discovery, edit, and delete lifecycle uses the real fake se
     }
   }
   page.on('request', recordBlockedMutation)
-  await mcp.getByRole('button', { name: 'Add server', exact: true }).click()
+  await page.getByRole('button', { name: 'Add server', exact: true }).click()
   let dialog = page.getByRole('dialog', { name: 'Add MCP server' })
   await dialog.getByRole('textbox', { name: 'Server Name' }).fill(`${serverName}-blocked`)
   await dialog.getByRole('textbox', { name: 'Server URL' }).fill(blockedUrl)
@@ -56,7 +56,7 @@ test('MCP allowlist, discovery, edit, and delete lifecycle uses the real fake se
   page.off('request', recordBlockedMutation)
 
   mcp = await expectMcpReady(page)
-  await mcp.getByRole('button', { name: 'Add server', exact: true }).click()
+  await page.getByRole('button', { name: 'Add server', exact: true }).click()
   dialog = page.getByRole('dialog', { name: 'Add MCP server' })
   await dialog.getByRole('textbox', { name: 'Server Name' }).fill(serverName)
   await dialog.getByRole('textbox', { name: 'Server URL' }).fill(mcpServerUrl)
@@ -130,7 +130,7 @@ test('MCP allowlist, discovery, edit, and delete lifecycle uses the real fake se
   await expect(mcp.getByText('required', { exact: true })).toBeVisible()
   await expect(mcp.getByText('Fixture query to look up.', { exact: true })).toBeVisible()
 
-  await mcp.getByRole('button', { name: 'Edit', exact: true }).click()
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
   dialog = page.getByRole('dialog', { name: 'Edit MCP server' })
   await dialog.getByRole('textbox', { name: 'Server Name' }).fill(editedServerName)
   await expect(dialog.getByRole('textbox', { name: 'Server URL' })).toHaveValue(mcpServerUrl)
@@ -184,7 +184,10 @@ test('MCP allowlist, discovery, edit, and delete lifecycle uses the real fake se
   })
 
   mcp = await expectMcpReady(page)
-  await mcp.getByRole('button', { name: 'MCP tools', exact: true }).click()
+  await page
+    .getByRole('button', { name: 'MCP tools', exact: true })
+    .and(page.locator('button:not([aria-current])'))
+    .click()
   mcp = await expectMcpReady(page)
   const editedRow = mcp.getByRole('group', { name: `MCP server ${editedServerName}` })
   await editedRow.getByRole('button', { name: `Actions for ${editedServerName}` }).click()

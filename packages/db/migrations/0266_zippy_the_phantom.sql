@@ -55,6 +55,16 @@ BEGIN
 
 	IF EXISTS (
 		SELECT 1
+		FROM "sso_provider" AS parent_provider
+		JOIN "sso_provider" AS child_provider ON parent_provider."id" < child_provider."id"
+		WHERE lower(parent_provider."domain") LIKE '%.' || lower(child_provider."domain")
+			OR lower(child_provider."domain") LIKE '%.' || lower(parent_provider."domain")
+	) THEN
+		RAISE EXCEPTION 'SSO migration blocked: parent/child domain overlaps require manual remediation';
+	END IF;
+
+	IF EXISTS (
+		SELECT 1
 		FROM "sso_provider"
 		GROUP BY "organization_id"
 		HAVING count(*) > 1

@@ -143,12 +143,13 @@ async function signInThroughUi(
   personaKey: string
 ): Promise<void> {
   for (let attempt = 0; attempt <= UI_RETRY_DELAYS_MS.length; attempt += 1) {
-    const responsePromise = page.waitForResponse((response) => {
-      const url = new URL(response.url())
-      return url.pathname === '/api/auth/sign-in/email'
-    })
-    await page.getByRole('button', { name: 'Sign in' }).click()
-    const response = await responsePromise
+    const [response] = await Promise.all([
+      page.waitForResponse((candidate) => {
+        const url = new URL(candidate.url())
+        return url.pathname === '/api/auth/sign-in/email'
+      }),
+      page.getByRole('button', { name: 'Sign in', exact: true }).click(),
+    ])
     if (response.status() === 200) {
       try {
         await page.waitForURL(/\/workspace(?:\/|$)/, { timeout: 30_000 })
