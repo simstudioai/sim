@@ -156,6 +156,11 @@ class DaytonaSandboxHandle implements SandboxHandle {
       // and format failures from stderr, so returning empty strings here would
       // both break marker extraction and blank out error messages even though
       // the callbacks fired correctly.
+      // The `.catch` keeps its own reference to the stream's outcome AND ensures a
+      // late rejection is always handled — when the timeout wins the race, this
+      // promise is abandoned and deleteSession (finally) tears the session down,
+      // which rejects it; without the handler that would be an unhandledRejection.
+      let streamError: unknown
       const streamed = this.sandbox.process
         .getSessionCommandLogs(
           sessionId,
@@ -170,6 +175,10 @@ class DaytonaSandboxHandle implements SandboxHandle {
           }
         )
         .then(() => 'done' as const)
+        .catch((error: unknown) => {
+          streamError = error
+          return 'error' as const
+        })
 
       // `runAsync: true` returns immediately, so the timeout must be enforced here
       // — otherwise a hung command streams forever, unlike E2B's commands.run
@@ -179,23 +188,27 @@ class DaytonaSandboxHandle implements SandboxHandle {
       const timedOut = new Promise<'timeout'>((resolve) => {
         timer = setTimeout(() => resolve('timeout'), options.timeoutMs)
       })
+      let outcome: 'done' | 'error' | 'timeout'
       try {
-        const outcome = await Promise.race([streamed, timedOut])
-        if (outcome === 'timeout') {
-          return {
-            stdout,
-            stderr: stderr || `Command timed out after ${options.timeoutMs}ms`,
-            exitCode: 124,
-          }
-        }
+        outcome = await Promise.race([streamed, timedOut])
       } finally {
         if (timer) clearTimeout(timer)
+      }
+      if (outcome === 'timeout') {
+        return {
+          stdout,
+          stderr: stderr || `Command timed out after ${options.timeoutMs}ms`,
+          exitCode: 124,
+        }
+      }
+      if (outcome === 'error') {
+        return { stdout, stderr: stderr || getErrorMessage(streamError), exitCode: 1 }
       }
 
       const finished = await this.sandbox.process.getSessionCommand(sessionId, commandId)
       return { stdout, stderr, exitCode: finished.exitCode ?? 0 }
     } catch (error) {
-      return { stdout, stderr, exitCode: 1 }
+      return { stdout, stderr: stderr || getErrorMessage(error), exitCode: 1 }
     } finally {
       try {
         await this.sandbox.process.deleteSession(sessionId)

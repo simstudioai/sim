@@ -426,4 +426,30 @@ describe('provider selection', () => {
     // The session is deleted to terminate the still-running command.
     expect(mockDeleteSession).toHaveBeenCalled()
   })
+
+  it('surfaces the thrown error when the stream rejects', async () => {
+    useProvider('daytona')
+    // A failure with no chunks streamed must still carry the error detail, not an
+    // empty/opaque message.
+    mockGetSessionCommandLogs.mockRejectedValue(new Error('session died'))
+
+    const result = await withPiSandbox((runner) =>
+      runner.run('git clone ...', { timeoutMs: 1000, onStdout: () => {} })
+    )
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('session died')
+  })
+
+  it('surfaces the error when starting the streamed command throws', async () => {
+    useProvider('daytona')
+    mockExecuteSessionCommand.mockRejectedValue(new Error('start failed'))
+
+    const result = await withPiSandbox((runner) =>
+      runner.run('git clone ...', { timeoutMs: 1000, onStdout: () => {} })
+    )
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('start failed')
+  })
 })
