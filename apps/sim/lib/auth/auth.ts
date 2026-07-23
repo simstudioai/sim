@@ -211,7 +211,19 @@ export const auth = betterAuth({
   disabledPaths: [...SSO_DISABLED_PATHS],
   // Full browser contracts intentionally exercise many isolated sessions from loopback.
   // Keep Better Auth's limiter enabled while raising only the hermetic profile's ceiling.
-  ...(usesGuardedE2eAuthRateLimit ? { rateLimit: { max: 10_000 } } : {}),
+  // Better Auth's built-in sign-in/sign-up rules override the base maximum, so they
+  // require explicit custom rules for the shared loopback IP used by Playwright.
+  ...(usesGuardedE2eAuthRateLimit
+    ? {
+        rateLimit: {
+          max: 10_000,
+          customRules: {
+            '/sign-in/*': { window: 10, max: 10_000 },
+            '/sign-up/*': { window: 10, max: 10_000 },
+          },
+        },
+      }
+    : {}),
   trustedOrigins: [
     getBaseUrl(),
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),

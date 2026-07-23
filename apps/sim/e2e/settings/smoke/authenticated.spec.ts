@@ -43,7 +43,18 @@ test('billing-enabled signup, login, and settings use real Sim boundaries', asyn
 
   await page.getByLabel('Email').fill(email)
   await page.getByRole('textbox', { name: 'Password' }).fill(password)
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  const [signInResponse] = await Promise.all([
+    page.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return (
+        response.request().method() === 'POST' &&
+        url.origin === new URL(page.url()).origin &&
+        url.pathname === '/api/auth/sign-in/email'
+      )
+    }),
+    page.getByRole('button', { name: 'Sign in', exact: true }).click(),
+  ])
+  expect(signInResponse.status(), signInResponse.statusText()).toBe(200)
   await expect(page).toHaveURL(/\/workspace(?:\/|$)/)
 
   await page.context().storageState({ path: storageStatePath })
