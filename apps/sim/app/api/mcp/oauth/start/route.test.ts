@@ -87,23 +87,23 @@ describe('MCP OAuth start route', () => {
     )
   })
 
-  it('retries mcpAuthGuarded once on a transient stall and succeeds on the fresh attempt', async () => {
-    mcpOauthMockFns.mockMcpAuthGuarded
-      .mockRejectedValueOnce(new OauthStepTimeoutErrorMock('mcpAuthGuarded (attempt 1)', 12_000))
-      .mockRejectedValueOnce(new McpOauthRedirectRequiredMock('https://mcp.exa.ai/authorize'))
+  it('returns 504 (not a retry) when the auth step times out', async () => {
+    // The stall is intentionally NOT auto-retried — a lingering attempt shares the OAuth row and
+    // could corrupt the retry's PKCE/state. The bounded step fails fast; the user re-clicks.
+    mcpOauthMockFns.mockMcpAuthGuarded.mockImplementationOnce(() => {
+      throw new OauthStepTimeoutErrorMock('mcpAuthGuarded', 12_000)
+    })
     const request = new NextRequest(
       'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
     )
 
     const response = await GET(request)
-    const body = await response.json()
 
-    expect(mcpOauthMockFns.mockMcpAuthGuarded).toHaveBeenCalledTimes(2)
-    expect(response.status).toBe(200)
-    expect(body).toEqual({ status: 'redirect', authorizationUrl: 'https://mcp.exa.ai/authorize' })
+    expect(mcpOauthMockFns.mockMcpAuthGuarded).toHaveBeenCalledTimes(1)
+    expect(response.status).toBe(504)
   })
 
-  it('does not retry a non-timeout error (e.g. redirect success on the first attempt)', async () => {
+  it('returns the authorize URL without error-logging the success redirect throw', async () => {
     mcpOauthMockFns.mockMcpAuthGuarded.mockRejectedValueOnce(
       new McpOauthRedirectRequiredMock('https://mcp.exa.ai/authorize')
     )
@@ -111,9 +111,12 @@ describe('MCP OAuth start route', () => {
       'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
     )
 
-    await GET(request)
+    const response = await GET(request)
+    const body = await response.json()
 
     expect(mcpOauthMockFns.mockMcpAuthGuarded).toHaveBeenCalledTimes(1)
+    expect(response.status).toBe(200)
+    expect(body).toEqual({ status: 'redirect', authorizationUrl: 'https://mcp.exa.ai/authorize' })
   })
 
   it('requires workspace write permission via MCP auth middleware', async () => {

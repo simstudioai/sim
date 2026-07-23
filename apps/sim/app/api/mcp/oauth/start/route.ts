@@ -3,7 +3,6 @@ import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -29,14 +28,17 @@ const logger = createLogger('McpOauthStartAPI')
 const timedStep = makeTimedStep(logger)
 const OAUTH_START_TTL_MS = 10 * 60 * 1000
 /**
- * OAuth discovery + DCR occasionally hits the transient headers-then-stalled-body class we've
- * documented for CDN-fronted MCP hosts — a per-connection stall a fresh attempt dodges. Bound
- * each attempt tightly and retry once so an intermittent stall recovers automatically instead
- * of hanging the browser popup to the client's timeout. Two 12s attempts stay under the
- * client's 30s `/oauth/start` deadline.
+ * Per-step budgets, kept small so the whole request stays under the client's 30s `/oauth/start`
+ * deadline even in the worst case (5+5+5 DB + 12 auth = 27s). OAuth discovery + DCR occasionally
+ * hits the transient headers-then-stalled-body class documented for CDN-fronted MCP hosts; the
+ * bound turns that into a fast, labeled failure so the popup closes with a clear error and the
+ * user can retry (a fresh click = a fresh connection that dodges the per-connection stall) rather
+ * than the popup hanging blank. We deliberately do NOT auto-retry here: `timedStep` can't cancel
+ * a wedged attempt, and a lingering first attempt sharing this server's OAuth row could overwrite
+ * the retry's PKCE verifier / state and break the callback.
  */
-const MCP_AUTH_ATTEMPT_MS = 12_000
-const MCP_AUTH_MAX_ATTEMPTS = 2
+const DB_STEP_MS = 5_000
+const MCP_AUTH_STEP_MS = 12_000
 const MAX_SURFACED_ERROR_LENGTH = 250
 const DCR_UNSUPPORTED_MESSAGE =
   "This server doesn't support automatic OAuth client registration. Add a pre-registered OAuth client ID and secret, or configure a token instead."
@@ -96,7 +98,7 @@ export const GET = withRouteHandler(
       const { serverId } = parsed.data.query
       logger.info(`Starting MCP OAuth flow for server ${serverId}`)
 
-      const [server] = await timedStep('loadServer', 15_000, () =>
+      const [server] = await timedStep('loadServer', DB_STEP_MS, () =>
         db
           .select()
           .from(mcpServers)
@@ -137,7 +139,7 @@ export const GET = withRouteHandler(
         throw e
       }
 
-      const row = await timedStep('getOrCreateOauthRow', 15_000, () =>
+      const row = await timedStep('getOrCreateOauthRow', DB_STEP_MS, () =>
         getOrCreateOauthRow({
           mcpServerId: server.id,
           userId,
@@ -159,35 +161,35 @@ export const GET = withRouteHandler(
         await setOauthRowUser(row.id, userId)
         row.userId = userId
       }
-      const preregistered = await timedStep('loadPreregisteredClient', 15_000, () =>
+      const preregistered = await timedStep('loadPreregisteredClient', DB_STEP_MS, () =>
         loadPreregisteredClient(server.id)
       )
       const provider = new SimMcpOauthProvider({ row, preregistered })
 
       try {
-        // OAuth discovery + DCR through the guarded fetch. Each attempt is bounded (labeled in
-        // logs); a per-connection transient stall on the first attempt is retried on a fresh
-        // one. `McpOauthRedirectRequired` is the SUCCESS signal — rethrow it immediately so the
-        // outer catch returns the authorize URL; only a bounded timeout is retried.
-        let result: Awaited<ReturnType<typeof mcpAuthGuarded>> | undefined
-        for (let attempt = 1; attempt <= MCP_AUTH_MAX_ATTEMPTS; attempt++) {
+        // OAuth discovery + DCR through the guarded fetch, bounded so a transient stall fails
+        // fast with a labeled log instead of hanging the popup. `McpOauthRedirectRequired` is
+        // the SUCCESS signal (a throw carrying the authorize URL), so we catch it INSIDE the
+        // bounded step and return it as a normal value — otherwise timedStep would error-log
+        // every successful authorize. Only a real error or a timeout escapes as a throw.
+        const authOutcome = await timedStep('mcpAuthGuarded', MCP_AUTH_STEP_MS, async () => {
           try {
-            result = await timedStep(
-              `mcpAuthGuarded (attempt ${attempt})`,
-              MCP_AUTH_ATTEMPT_MS,
-              () => mcpAuthGuarded(provider, { serverUrl })
-            )
-            break
-          } catch (attemptError) {
-            if (attemptError instanceof OauthStepTimeoutError && attempt < MCP_AUTH_MAX_ATTEMPTS) {
-              logger.warn(`MCP OAuth start stalled for server ${serverId}, retrying`)
-              await sleep(250)
-              continue
+            return { kind: 'result' as const, value: await mcpAuthGuarded(provider, { serverUrl }) }
+          } catch (e) {
+            if (e instanceof McpOauthRedirectRequired) {
+              return { kind: 'redirect' as const, authorizationUrl: e.authorizationUrl }
             }
-            throw attemptError
+            throw e
           }
+        })
+        if (authOutcome.kind === 'redirect') {
+          logger.info(`OAuth redirect for server ${serverId}`)
+          return NextResponse.json({
+            status: 'redirect',
+            authorizationUrl: authOutcome.authorizationUrl,
+          })
         }
-        if (result === 'AUTHORIZED') {
+        if (authOutcome.value === 'AUTHORIZED') {
           return NextResponse.json({ status: 'already_authorized' })
         }
         return createMcpErrorResponse(
@@ -196,15 +198,16 @@ export const GET = withRouteHandler(
           500
         )
       } catch (e) {
-        if (e instanceof McpOauthRedirectRequired) {
-          logger.info(`OAuth redirect for server ${serverId}`)
-          return NextResponse.json({
-            status: 'redirect',
-            authorizationUrl: e.authorizationUrl,
-          })
-        }
         if (isDynamicClientRegistrationUnsupported(e)) {
           return createMcpErrorResponse(toError(e), DCR_UNSUPPORTED_MESSAGE, 422)
+        }
+        if (e instanceof OauthStepTimeoutError) {
+          logger.warn(`MCP OAuth start stalled for server ${serverId}`)
+          return createMcpErrorResponse(
+            e,
+            'Authorization is taking too long — please try again.',
+            504
+          )
         }
         throw e
       }
