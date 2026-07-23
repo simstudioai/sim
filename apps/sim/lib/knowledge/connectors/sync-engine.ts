@@ -1121,34 +1121,55 @@ export async function executeSync(
       try {
         const stuckDocIds = stuckDocs.map((doc) => doc.id)
 
-        await db.delete(embedding).where(inArray(embedding.documentId, stuckDocIds))
-
-        await db
-          .update(document)
-          .set({
-            processingStatus: 'pending',
-            processingStartedAt: null,
-            processingCompletedAt: null,
-            processingError: null,
-            chunkCount: 0,
-            tokenCount: 0,
-            characterCount: 0,
-          })
-          .where(inArray(document.id, stuckDocIds))
-
-        await processDocumentsWithQueue(
-          stuckDocs.map((doc) => ({
-            documentId: doc.id,
-            filename: doc.filename ?? 'document.txt',
-            fileUrl: doc.fileUrl ?? '',
-            fileSize: doc.fileSize ?? 0,
-            mimeType: doc.mimeType ?? 'text/plain',
-          })),
-          connector.knowledgeBaseId,
-          {},
-          generateId(),
-          billingAttribution
+        /**
+         * Re-verify connectorId at write time — a concurrent "delete connector,
+         * keep documents" request can null it out between the select above and
+         * these writes, and resetting/re-enqueuing a detached document's
+         * processing state would corrupt a standalone KB entry the connector no
+         * longer owns.
+         */
+        const stillOwnedIds = new Set(
+          (
+            await db
+              .select({ id: document.id })
+              .from(document)
+              .where(and(inArray(document.id, stuckDocIds), eq(document.connectorId, connectorId)))
+          ).map((d) => d.id)
         )
+        const retryDocs = stuckDocs.filter((doc) => stillOwnedIds.has(doc.id))
+
+        if (retryDocs.length > 0) {
+          const retryDocIds = retryDocs.map((doc) => doc.id)
+
+          await db.delete(embedding).where(inArray(embedding.documentId, retryDocIds))
+
+          await db
+            .update(document)
+            .set({
+              processingStatus: 'pending',
+              processingStartedAt: null,
+              processingCompletedAt: null,
+              processingError: null,
+              chunkCount: 0,
+              tokenCount: 0,
+              characterCount: 0,
+            })
+            .where(inArray(document.id, retryDocIds))
+
+          await processDocumentsWithQueue(
+            retryDocs.map((doc) => ({
+              documentId: doc.id,
+              filename: doc.filename ?? 'document.txt',
+              fileUrl: doc.fileUrl ?? '',
+              fileSize: doc.fileSize ?? 0,
+              mimeType: doc.mimeType ?? 'text/plain',
+            })),
+            connector.knowledgeBaseId,
+            {},
+            generateId(),
+            billingAttribution
+          )
+        }
       } catch (error) {
         logger.warn('Failed to enqueue stuck documents for reprocessing', {
           connectorId,
