@@ -118,7 +118,10 @@ export async function isSocketAllowedByNetworkPolicy(
   handshake: HandshakeLike
 ): Promise<boolean> {
   // Read at call time so the break-glass works without a realtime restart.
-  if (process.env.DISABLE_ORG_IP_ALLOWLIST === 'true') return true
+  // Mirror the app's isTruthy() string semantics ('true'/'1') so the same env
+  // value disables enforcement identically across both processes.
+  const disableFlag = process.env.DISABLE_ORG_IP_ALLOWLIST
+  if (disableFlag === 'true' || disableFlag === '1') return true
 
   try {
     const organizationId = await getMemberOrganizationId(userId)

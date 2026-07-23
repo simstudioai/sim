@@ -198,6 +198,20 @@ if (validStripeKey) {
 }
 
 /**
+ * Error code tagged on the FORBIDDEN thrown by the get-session network-policy
+ * check, so the `getSessionImpl` wrapper can translate exactly that denial to
+ * a null session (signed-out) without swallowing unrelated errors.
+ */
+const ORG_IP_RESTRICTED_CODE = 'ORG_IP_RESTRICTED'
+
+function isOrgIpRestrictedError(error: unknown): boolean {
+  return (
+    error instanceof APIError &&
+    (error.body as { code?: string } | undefined)?.code === ORG_IP_RESTRICTED_CODE
+  )
+}
+
+/**
  * Reverse-proxy hops trusted for forwarded-IP resolution. When configured,
  * Better Auth walks the x-forwarded-for chain right to left, skips these
  * hops, and records the first untrusted address as the session client IP —
@@ -1046,10 +1060,29 @@ export const auth = betterAuth({
     oneTimeToken({
       expiresIn: 24 * 60, // 24 hours in minutes (better-auth's expiresIn unit)
     }),
-    customSession(async ({ user, session }) => ({
-      user,
-      session,
-    })),
+    customSession(async ({ user, session }, ctx) => {
+      // Single get-session chokepoint for the org IP allowlist: this handler
+      // runs for the server `auth.api.getSession` path AND the browser
+      // `client.getSession` HTTP call, so a blocked member is signed out on
+      // both. Throwing FORBIDDEN (consistent with the sign-in and
+      // access-control denials) yields a 403 for the HTTP client and is
+      // translated to a null session by the `getSessionImpl` wrapper for
+      // server callers. Impersonation sessions are platform tooling and exempt.
+      const impersonatedBy = (session as { impersonatedBy?: string | null }).impersonatedBy
+      if (user?.id && !impersonatedBy) {
+        const network = await enforceOrgNetworkPolicy(user.id, () =>
+          getTrustedClientIp(new Request('http://localhost/', { headers: ctx.headers }))
+        )
+        if (!network.allowed) {
+          logger.warn('Session denied by org network policy', { userId: user.id })
+          throw new APIError('FORBIDDEN', {
+            code: ORG_IP_RESTRICTED_CODE,
+            message: network.reason ?? 'Access restricted. Please contact your administrator.',
+          })
+        }
+      }
+      return { user, session }
+    }),
     emailOTP({
       sendVerificationOTP: async (data) => {
         if (!isEmailVerificationEnabled) {
@@ -3642,29 +3675,20 @@ async function getSessionImpl() {
     return createAnonymousSession()
   }
 
+  // Org IP-allowlist enforcement lives in the `customSession` get-session
+  // handler, which runs for BOTH this server path and the browser
+  // `client.getSession` HTTP call. It throws FORBIDDEN with
+  // ORG_IP_RESTRICTED_CODE on a blocked member; translate that to a null
+  // session here so server callers see a clean signed-out state rather than
+  // an exception (the HTTP client receives the 403 and treats it as no
+  // session). Any other error propagates unchanged.
   const hdrs = await headers()
-  const session = await auth.api.getSession({
-    headers: hdrs,
-  })
-
-  // Org IP allowlists are enforced at this chokepoint so every route and
-  // layout that calls getSession directly re-checks the policy, not just
-  // hybrid-auth routes. A denied member is treated as signed out.
-  // Impersonation sessions are platform tooling and exempt.
-  const impersonatedBy = session
-    ? (session.session as { impersonatedBy?: string | null }).impersonatedBy
-    : null
-  if (session?.user?.id && !impersonatedBy) {
-    const network = await enforceOrgNetworkPolicy(session.user.id, () =>
-      getTrustedClientIp(new Request('http://localhost/', { headers: hdrs }))
-    )
-    if (!network.allowed) {
-      logger.warn('Session denied by org network policy', { userId: session.user.id })
-      return null
-    }
+  try {
+    return await auth.api.getSession({ headers: hdrs })
+  } catch (error) {
+    if (isOrgIpRestrictedError(error)) return null
+    throw error
   }
-
-  return session
 }
 
 export const getSession = cache(getSessionImpl)
