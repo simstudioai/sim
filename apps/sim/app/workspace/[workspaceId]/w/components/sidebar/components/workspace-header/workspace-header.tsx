@@ -1,10 +1,11 @@
 'use client'
 
-import { memo, type ReactElement, useEffect, useRef, useState } from 'react'
+import { memo, type ReactElement, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronDown,
   Chip,
   ChipConfirmModal,
+  ChipInput,
   chipGeometryClass,
   chipVariants,
   cn,
@@ -19,7 +20,7 @@ import {
 } from '@sim/emcn'
 import { ManageWorkspace, PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { MoreHorizontal } from 'lucide-react'
+import { MoreHorizontal, Search } from 'lucide-react'
 import { useActiveOrganization } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -34,6 +35,9 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 const logger = createLogger('WorkspaceHeader')
+
+/** Show the search input once the workspace list exceeds this count. */
+const WORKSPACE_SEARCH_THRESHOLD = 3
 
 /**
  * Derives the single-letter avatar initial for a workspace, ignoring the word
@@ -150,6 +154,25 @@ function WorkspaceHeaderImpl({
   const contextMenuClosedRef = useRef(true)
   const hasInputFocusedRef = useRef(false)
   const renameInputRef = useRef<HTMLInputElement | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const workspaceListRef = useRef<HTMLDivElement>(null)
+
+  const [workspaceSearch, setWorkspaceSearch] = useState('')
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
+
+  const showSearch = workspaces.length > WORKSPACE_SEARCH_THRESHOLD
+  const filteredWorkspaces = useMemo(() => {
+    const q = workspaceSearch.trim().toLowerCase()
+    return q ? workspaces.filter((w) => w.name.toLowerCase().includes(q)) : workspaces
+  }, [workspaceSearch, workspaces])
+
+  useEffect(() => {
+    if (!showSearch || !isWorkspaceMenuOpen) return
+    const el = workspaceListRef.current?.querySelector<HTMLElement>(
+      `[data-workspace-row-idx="${highlightedIndex}"]`
+    )
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [highlightedIndex, showSearch, isWorkspaceMenuOpen])
 
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => {
@@ -361,6 +384,13 @@ function WorkspaceHeaderImpl({
               return
             }
             setIsWorkspaceMenuOpen(open)
+            if (open && showSearch) {
+              requestAnimationFrame(() => searchInputRef.current?.focus())
+            }
+            if (!open && showSearch) {
+              setWorkspaceSearch('')
+              setHighlightedIndex(0)
+            }
           }}
         >
           <DropdownMenuTrigger asChild>
@@ -422,14 +452,57 @@ function WorkspaceHeaderImpl({
               </div>
             ) : (
               <>
-                <div className='-mx-1.5 flex max-h-[94px] flex-col gap-0.5 overflow-y-auto px-1.5'>
-                  {workspaces.map((workspace) => {
+                {showSearch && (
+                  <ChipInput
+                    ref={searchInputRef}
+                    icon={Search}
+                    placeholder='Search workspaces...'
+                    value={workspaceSearch}
+                    onChange={(e) => {
+                      setWorkspaceSearch(e.target.value)
+                      setHighlightedIndex(0)
+                    }}
+                    onKeyDown={(e) => {
+                      e.stopPropagation()
+                      if (filteredWorkspaces.length === 0) return
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault()
+                        setHighlightedIndex((i) => (i + 1) % filteredWorkspaces.length)
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault()
+                        setHighlightedIndex(
+                          (i) => (i - 1 + filteredWorkspaces.length) % filteredWorkspaces.length
+                        )
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault()
+                        const target = filteredWorkspaces[highlightedIndex]
+                        if (target) onWorkspaceSwitch(target)
+                      }
+                    }}
+                    className='mb-1.5'
+                  />
+                )}
+                <div
+                  ref={workspaceListRef}
+                  className='-mx-1.5 flex max-h-[94px] flex-col gap-0.5 overflow-y-auto px-1.5'
+                >
+                  {filteredWorkspaces.length === 0 && workspaceSearch && (
+                    <div className='px-2 py-[5px] text-[var(--text-muted)] text-caption'>
+                      No results for "{workspaceSearch}"
+                    </div>
+                  )}
+                  {filteredWorkspaces.map((workspace, idx) => {
                     const initial = getWorkspaceInitial(workspace.name)
                     const isActive = workspace.id === workspaceId
                     const isMenuOpen = menuOpenWorkspaceId === workspace.id
+                    const isKeyboardHighlighted = showSearch && idx === highlightedIndex
 
                     return (
-                      <div key={workspace.id}>
+                      <div
+                        key={workspace.id}
+                        data-workspace-row-idx={showSearch ? idx : undefined}
+                        onMouseEnter={showSearch ? () => setHighlightedIndex(idx) : undefined}
+                      >
                         {editingWorkspaceId === workspace.id ? (
                           <div
                             className={chipVariants({ active: true, fullWidth: true, flush: true })}
@@ -506,7 +579,7 @@ function WorkspaceHeaderImpl({
                           <div
                             className={cn(
                               chipVariants({
-                                active: isActive || isMenuOpen,
+                                active: isActive || isMenuOpen || isKeyboardHighlighted,
                                 fullWidth: true,
                                 flush: true,
                               }),
