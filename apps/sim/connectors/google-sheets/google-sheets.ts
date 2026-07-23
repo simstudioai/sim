@@ -268,8 +268,16 @@ export const googleSheetsConnector: ConnectorConfig = {
     ])
 
     /**
-     * A trashed spreadsheet is no longer current content, so it must drop out of
-     * the full listing for deletion reconciliation to purge its stored tabs.
+     * A trashed spreadsheet is no longer current content, so it drops out of the
+     * listing and stops being re-indexed.
+     *
+     * This does not by itself purge the stored tabs: an empty listing is
+     * indistinguishable from a provider outage, so the sync engine's
+     * zero-document guard deliberately skips reconciliation rather than risk
+     * wiping a knowledge base on a bad response. A forced full resync is the
+     * supported way to complete the cleanup. `validateConfig` reports the
+     * trashed state so the connector does not look healthy while serving tabs
+     * from a file its owner has thrown away.
      */
     if (isTrashedDriveFile(driveMetadata)) {
       logger.info('Spreadsheet is in the Drive trash; listing no documents', { spreadsheetId })

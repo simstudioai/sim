@@ -88,38 +88,63 @@ export function shouldIngestKBArticle(
   return state !== REMOVED_FROM_VIEW_KB_WORKFLOW_STATE
 }
 
+/**
+ * The object form a field takes under `sysparm_display_value=all`.
+ *
+ * Under `all` the Table API wraps EVERY column — not just reference and choice
+ * fields, and explicitly including `sys_id` — in `{ display_value, value }`.
+ * Reference fields carry an additional `link`, and `display_value` is `null`
+ * rather than `""` when the field is empty.
+ */
+interface ServiceNowFieldObject {
+  value?: string
+  display_value?: string | null
+  link?: string
+}
+
+/**
+ * A field as it may arrive from the Table API.
+ *
+ * Both shapes must be tolerated: this connector requests
+ * `sysparm_display_value=all` (object form), but plain strings are what the
+ * same endpoint returns under `true`/`false`, and are still what a record
+ * fetched without the parameter looks like. Every read therefore goes through
+ * {@link rawValue} or {@link displayValue}, never through a direct field access.
+ */
+type ServiceNowField = string | ServiceNowFieldObject | null | undefined
+
 interface ServiceNowRecord {
-  sys_id: string
-  sys_updated_on?: string
-  sys_created_on?: string
-  sys_created_by?: string
-  sys_updated_by?: string
+  sys_id: ServiceNowField
+  sys_updated_on?: ServiceNowField
+  sys_created_on?: ServiceNowField
+  sys_created_by?: ServiceNowField
+  sys_updated_by?: ServiceNowField
 }
 
 interface KBArticle extends ServiceNowRecord {
-  short_description?: string
-  text?: string
-  wiki?: string
-  workflow_state?: string
-  kb_category?: string | { display_value?: string }
-  kb_knowledge_base?: string | { display_value?: string }
-  number?: string
-  author?: string | { display_value?: string }
+  short_description?: ServiceNowField
+  text?: ServiceNowField
+  wiki?: ServiceNowField
+  workflow_state?: ServiceNowField
+  kb_category?: ServiceNowField
+  kb_knowledge_base?: ServiceNowField
+  number?: ServiceNowField
+  author?: ServiceNowField
 }
 
 interface Incident extends ServiceNowRecord {
-  number?: string
-  short_description?: string
-  description?: string
-  state?: string
-  priority?: string
-  category?: string
-  assigned_to?: string | { display_value?: string }
-  opened_by?: string | { display_value?: string }
-  close_notes?: string
-  comments_and_work_notes?: string
-  work_notes?: string
-  resolution_notes?: string
+  number?: ServiceNowField
+  short_description?: ServiceNowField
+  description?: ServiceNowField
+  state?: ServiceNowField
+  priority?: ServiceNowField
+  category?: ServiceNowField
+  assigned_to?: ServiceNowField
+  opened_by?: ServiceNowField
+  close_notes?: ServiceNowField
+  comments_and_work_notes?: ServiceNowField
+  work_notes?: ServiceNowField
+  resolution_notes?: ServiceNowField
 }
 
 /**
@@ -244,14 +269,22 @@ async function serviceNowApiGetById(
   return data.result ?? null
 }
 
+/**
+ * Accepts a record that carries a usable sys_id in either wire shape.
+ *
+ * Both listing and single-record fetches send `sysparm_display_value=all`, under
+ * which `sys_id` arrives as `{ display_value, value }` rather than as a plain
+ * string, so a `typeof === 'string'` test would reject every record. Normalising
+ * through {@link rawValue} accepts the object form and still accepts the plain
+ * string form returned when the parameter is absent or set to `true`/`false`.
+ * `rawValue` returns `undefined` for an empty string, so a non-empty result is
+ * exactly the original intent: reject records with no usable sys_id.
+ */
 function isServiceNowRecord(record: unknown): record is ServiceNowRecord & Record<string, unknown> {
-  return (
-    typeof record === 'object' &&
-    record !== null &&
-    !Array.isArray(record) &&
-    typeof (record as Record<string, unknown>).sys_id === 'string' &&
-    ((record as Record<string, unknown>).sys_id as string).length > 0
-  )
+  if (typeof record !== 'object' || record === null || Array.isArray(record)) {
+    return false
+  }
+  return Boolean(rawValue((record as Record<string, unknown>).sys_id))
 }
 
 /**
@@ -326,7 +359,8 @@ function priorityLabel(priority: string | undefined): string {
  * Converts a KB article record to an ExternalDocument.
  */
 function kbArticleToDocument(article: KBArticle, instanceUrl: string): ExternalDocument {
-  const title = rawValue(article.short_description) || rawValue(article.number) || article.sys_id
+  const sysId = rawValue(article.sys_id) ?? ''
+  const title = rawValue(article.short_description) || rawValue(article.number) || sysId
   /**
    * Wiki-template KB articles populate `wiki` with the body and leave
    * `text` empty; HTML-template articles do the opposite. Falling back
@@ -334,7 +368,6 @@ function kbArticleToDocument(article: KBArticle, instanceUrl: string): ExternalD
    */
   const articleText = rawValue(article.text) || rawValue(article.wiki) || ''
   const content = htmlToPlainText(articleText)
-  const sysId = rawValue(article.sys_id) || article.sys_id
   const updatedOn = rawValue(article.sys_updated_on) || ''
   const contentHash = `servicenow:${sysId}:${updatedOn}`
   const sourceUrl = `${instanceUrl}/kb_view.do?sys_kb_id=${sysId}`
@@ -363,9 +396,10 @@ function kbArticleToDocument(article: KBArticle, instanceUrl: string): ExternalD
  * Converts an incident record to an ExternalDocument.
  */
 function incidentToDocument(incident: Incident, instanceUrl: string): ExternalDocument {
+  const sysId = rawValue(incident.sys_id) ?? ''
   const number = rawValue(incident.number)
   const shortDesc = rawValue(incident.short_description)
-  const title = number ? `${number}: ${shortDesc || 'Untitled'}` : shortDesc || incident.sys_id
+  const title = number ? `${number}: ${shortDesc || 'Untitled'}` : shortDesc || sysId
 
   const parts: string[] = []
   if (shortDesc) {
@@ -399,7 +433,6 @@ function incidentToDocument(incident: Incident, instanceUrl: string): ExternalDo
   }
 
   const content = parts.join('\n')
-  const sysId = rawValue(incident.sys_id) || incident.sys_id
   const updatedOn = rawValue(incident.sys_updated_on) || ''
   const contentHash = `servicenow:${sysId}:${updatedOn}`
   const sourceUrl = `${instanceUrl}/incident.do?sys_id=${sysId}`
@@ -540,7 +573,7 @@ export const servicenowConnector: ConnectorConfig = {
       query,
     })
 
-    const { result, nextOffset } = await serviceNowApiGet(
+    const { result, nextOffset, totalCount } = await serviceNowApiGet(
       instanceUrl,
       tableName,
       authHeader,
@@ -578,12 +611,21 @@ export const servicenowConnector: ConnectorConfig = {
     const nextCursor = hasMore ? String(nextOffset) : undefined
 
     /**
-     * More records exist past the `maxItems` cap. See the `remaining <= 0`
-     * branch above — the listing is knowingly incomplete, so reconciliation
-     * must not treat the untraversed tail as removed at the source.
+     * Records exist past the `maxItems` cap. See the `remaining <= 0` branch
+     * above — the listing is knowingly incomplete, so reconciliation must not
+     * treat the untraversed tail as removed at the source.
+     *
+     * A full page landing exactly on the cap is ambiguous: `nextOffset` is set
+     * whenever a page comes back full, so it cannot distinguish "more rows
+     * follow" from "the table ended on a page boundary". `X-Total-Count`
+     * resolves it when present; when the header is absent the ambiguity is
+     * resolved conservatively (assume truncated), since over-flagging only
+     * defers a purge whereas under-flagging deletes live documents.
      */
     if (nextOffset !== undefined && !hasMore && syncContext) {
-      syncContext.listingCapped = true
+      if (totalCount === undefined || totalCount > maxItems) {
+        syncContext.listingCapped = true
+      }
     }
 
     logger.info('Fetched ServiceNow documents', {

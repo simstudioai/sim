@@ -20,14 +20,27 @@ const KB_CONFIG = {
   contentType: 'kb_knowledge',
 } as const
 
-interface FakeRecord {
-  sys_id: string
-  workflow_state?: unknown
-  short_description?: string
-  text?: string
+/**
+ * Wraps a value the way `sysparm_display_value=all` does. Under `all` the Table
+ * API returns EVERY column — `sys_id` included — as `{ display_value, value }`,
+ * so fixtures must use this shape to exercise the real listing path.
+ */
+function field(value: string): { display_value: string; value: string } {
+  return { display_value: value, value }
 }
 
-function kbRecord(sysId: string, workflowState?: unknown): FakeRecord {
+/** Builds a `kb_knowledge` row in the `sysparm_display_value=all` wire shape. */
+function kbRecord(sysId: string, workflowState?: string): Record<string, unknown> {
+  return {
+    sys_id: field(sysId),
+    ...(workflowState === undefined ? {} : { workflow_state: field(workflowState) }),
+    short_description: field(`Article ${sysId.slice(0, 4)}`),
+    text: field(`Body of ${sysId.slice(0, 4)}`),
+  }
+}
+
+/** Builds the same row in the plain-string shape (`display_value` absent/true/false). */
+function kbRecordPlain(sysId: string, workflowState?: string): Record<string, unknown> {
   return {
     sys_id: sysId,
     ...(workflowState === undefined ? {} : { workflow_state: workflowState }),
@@ -136,6 +149,47 @@ describe('shouldIngestKBArticle', () => {
 })
 
 describe('servicenowConnector.listDocuments', () => {
+  it('accepts the sysparm_display_value=all object shape, where sys_id is an object', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ result: [kbRecord(SYS_ID_A, 'published')] }))
+
+    const list = await servicenowConnector.listDocuments('key', { ...KB_CONFIG })
+
+    expect(lastRequestUrl().searchParams.get('sysparm_display_value')).toBe('all')
+    expect(list.documents).toHaveLength(1)
+    expect(list.documents[0].externalId).toBe(SYS_ID_A)
+    expect(list.documents[0].title).toBe(`Article ${SYS_ID_A.slice(0, 4)}`)
+    expect(list.documents[0].sourceUrl).toBe(`${INSTANCE_URL}/kb_view.do?sys_kb_id=${SYS_ID_A}`)
+    expect(list.documents[0].metadata.workflowState).toBe('published')
+  })
+
+  it('still accepts the plain-string shape', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        result: [kbRecordPlain(SYS_ID_A, 'published'), kbRecordPlain(SYS_ID_B, 'retired')],
+      })
+    )
+
+    const list = await servicenowConnector.listDocuments('key', { ...KB_CONFIG })
+
+    expect(list.documents.map((doc) => doc.externalId)).toEqual([SYS_ID_A])
+    expect(list.documents[0].title).toBe(`Article ${SYS_ID_A.slice(0, 4)}`)
+  })
+
+  it('skips records whose sys_id object carries no usable value', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        result: [
+          { ...kbRecord(SYS_ID_A, 'published'), sys_id: { display_value: null, value: '' } },
+          kbRecord(SYS_ID_B, 'published'),
+        ],
+      })
+    )
+
+    const list = await servicenowConnector.listDocuments('key', { ...KB_CONFIG })
+
+    expect(list.documents.map((doc) => doc.externalId)).toEqual([SYS_ID_B])
+  })
+
   it('drops retired KB records and keeps every other state', async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({
@@ -200,12 +254,17 @@ describe('servicenowConnector.listDocuments', () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({
         result: [
-          { sys_id: SYS_ID_A, number: 'INC001', short_description: 'Down', state: '7' },
           {
-            sys_id: SYS_ID_B,
-            number: 'INC002',
-            short_description: 'Up',
-            workflow_state: 'retired',
+            sys_id: field(SYS_ID_A),
+            number: field('INC001'),
+            short_description: field('Down'),
+            state: { display_value: 'Closed', value: '7' },
+          },
+          {
+            sys_id: field(SYS_ID_B),
+            number: field('INC002'),
+            short_description: field('Up'),
+            workflow_state: field('retired'),
           },
         ],
       })
@@ -280,7 +339,17 @@ describe('servicenowConnector.getDocument', () => {
     const doc = await servicenowConnector.getDocument('key', { ...KB_CONFIG }, SYS_ID_A)
 
     expect(doc?.externalId).toBe(SYS_ID_A)
+    expect(doc?.sourceUrl).toBe(`${INSTANCE_URL}/kb_view.do?sys_kb_id=${SYS_ID_A}`)
     expect(lastRequestUrl().pathname).toBe(`/api/now/table/kb_knowledge/${SYS_ID_A}`)
+    expect(lastRequestUrl().searchParams.get('sysparm_display_value')).toBe('all')
+  })
+
+  it('hydrates an article returned in the plain-string shape', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ result: kbRecordPlain(SYS_ID_A, 'published') }))
+
+    const doc = await servicenowConnector.getDocument('key', { ...KB_CONFIG }, SYS_ID_A)
+
+    expect(doc?.externalId).toBe(SYS_ID_A)
   })
 
   it('rejects a malformed sys_id without issuing a request', async () => {

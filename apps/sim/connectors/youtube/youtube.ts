@@ -25,7 +25,7 @@ const SHORTS_MAX_DURATION_SECONDS = 60
  * These differ for hand-curated playlists, so only `videoPublishedAt` is used for the
  * change-detection hash (it matches `videos.list` `snippet.publishedAt`).
  */
-export interface PlaylistItem {
+interface PlaylistItem {
   contentDetails?: { videoId?: string; videoPublishedAt?: string }
   snippet?: {
     title?: string
@@ -34,6 +34,7 @@ export interface PlaylistItem {
     videoOwnerChannelTitle?: string
     resourceId?: { videoId?: string }
   }
+  status?: { privacyStatus?: string }
 }
 
 /**
@@ -217,11 +218,9 @@ function itemToStub(item: PlaylistItem): ExternalDocument | null {
 }
 
 /**
- * `videos.list` part sets used by this connector. The full set hydrates a document; the
- * id-only set is the cheapest way to ask "do these videos still exist?".
+ * `videos.list` part set used to hydrate a full document.
  */
 const VIDEO_PART_FULL = 'snippet,contentDetails,status'
-const VIDEO_PART_ID_ONLY = 'id'
 
 /** Documented `kind` of a `videos.list` response body. */
 const VIDEO_LIST_KIND = 'youtube#videoListResponse'
@@ -252,12 +251,11 @@ interface VideoListResponse {
 async function fetchVideoList(
   apiKey: string,
   videoIds: string[],
-  part: string,
   retryOptions?: Parameters<typeof fetchWithRetry>[2]
 ): Promise<VideoListResponse> {
-  const url = `${YOUTUBE_API_BASE}/videos?part=${encodeURIComponent(part)}&id=${encodeURIComponent(
-    videoIds.join(',')
-  )}&key=${encodeURIComponent(apiKey)}`
+  const url = `${YOUTUBE_API_BASE}/videos?part=${encodeURIComponent(
+    VIDEO_PART_FULL
+  )}&id=${encodeURIComponent(videoIds.join(','))}&key=${encodeURIComponent(apiKey)}`
 
   const response = await fetchWithRetry(
     url,
@@ -269,7 +267,6 @@ async function fetchVideoList(
     const errorText = await response.text().catch(() => '')
     logger.error('Failed to batch-fetch YouTube videos', {
       count: videoIds.length,
-      part,
       status: response.status,
       error: errorText.slice(0, 500),
     })
@@ -299,7 +296,7 @@ async function fetchVideoList(
  * partial response as untrusted is impossible without a completeness guarantee the API
  * does not provide.
  */
-export function readTrustedVideoItems(
+function readTrustedVideoItems(
   data: VideoListResponse,
   requestedIds: readonly string[]
 ): VideoItem[] | null {
@@ -325,8 +322,10 @@ export function readTrustedVideoItems(
  * Batch-fetches full video resources for the given IDs, keyed by video ID.
  *
  * Returns null when the response is untrusted (see `readTrustedVideoItems`) so the caller
- * can fail open instead of treating every ID as gone. Videos that are private, deleted,
- * or region-blocked are absent from a trusted response.
+ * can fail open instead of treating every ID as gone. Videos that are private or deleted
+ * are absent from a trusted response; region-restricted videos are NOT — an ID-filtered
+ * `videos.list` returns them normally, carrying their
+ * `contentDetails.regionRestriction.allowed` / `.blocked` country lists.
  */
 async function fetchVideosByIds(
   apiKey: string,
@@ -336,7 +335,7 @@ async function fetchVideosByIds(
   const result = new Map<string, VideoItem>()
   if (videoIds.length === 0) return result
 
-  const data = await fetchVideoList(apiKey, videoIds, VIDEO_PART_FULL, retryOptions)
+  const data = await fetchVideoList(apiKey, videoIds, retryOptions)
   const items = readTrustedVideoItems(data, videoIds)
   if (!items) return null
 
@@ -347,60 +346,50 @@ async function fetchVideosByIds(
 }
 
 /**
- * Batch-resolves which of the given video IDs still exist, via a lightweight
- * `videos.list?part=id` call (flat 1 quota unit, up to 50 IDs per call — a full
- * `playlistItems.list` page).
- *
- * Returns null when the response is untrusted, which callers read as "availability is
- * unknown, keep everything".
+ * The `playlistItem.status.privacyStatus` value that marks the referenced video as no
+ * longer retrievable. The YouTube Data API v3 discovery document defines
+ * `PlaylistItemStatus.privacyStatus` as a closed enum of exactly `public`, `unlisted`,
+ * and `private` — there is no `privacyStatusUnspecified` member — and documents the field
+ * as the privacy the uploading channel set on the video via `videos.insert`/`videos.update`.
+ * `private` is therefore an explicit, positive, API-asserted statement about the video,
+ * not an inference.
  */
-async function fetchAvailableVideoIds(
-  apiKey: string,
-  videoIds: string[],
-  retryOptions?: Parameters<typeof fetchWithRetry>[2]
-): Promise<Set<string> | null> {
-  if (videoIds.length === 0) return new Set<string>()
-
-  const data = await fetchVideoList(apiKey, videoIds, VIDEO_PART_ID_ONLY, retryOptions)
-  const items = readTrustedVideoItems(data, videoIds)
-  if (!items) return null
-
-  const result = new Set<string>()
-  for (const item of items) {
-    if (item.id) result.add(item.id)
-  }
-  return result
-}
+const PLAYLIST_ITEM_PRIVATE_STATUS = 'private'
 
 /**
- * Keeps only playlist items whose video is still available.
+ * Decides whether a playlist item's referenced video is explicitly gone.
  *
  * A playlist item is a resource independent of the video it points at: when the video is
- * deleted or made private, `playlistItems.list` keeps returning a placeholder item
- * ("Deleted video" / "Private video") with the same `contentDetails.videoId`, and the API
- * exposes no request parameter to exclude them. Left in the listing, those placeholders
- * keep the stored document's externalId present on every full sync, so deletion
- * reconciliation (which hard-deletes only documents ABSENT from the listing) never purges
- * it — and hydration cannot clean it up either, since `videos.list` omits the video and
- * `getDocument` returns null, which the sync engine treats as last-known-good.
+ * deleted or made private, `playlistItems.list` keeps returning a placeholder item with
+ * the same `contentDetails.videoId`, and the API exposes no request parameter to exclude
+ * them. Left in the listing, those placeholders keep the stored document's externalId
+ * present on every full sync, so deletion reconciliation (which hard-deletes only
+ * documents ABSENT from the listing) never purges it — and hydration cannot clean it up
+ * either, since `videos.list` omits the video and `getDocument` returns null, which the
+ * sync engine treats as last-known-good.
  *
- * Availability is therefore established positively, from a `videos.list` membership check:
- * an item is dropped only when its video ID is explicitly absent from a trusted response.
- * A null set means the membership check could not be trusted, and every item is kept —
- * keeping a stale placeholder is recoverable, hard-deleting a live document (and its
- * `userExcluded` flag) is not.
+ * Exclusion is therefore driven ONLY by the explicit `status.privacyStatus` field on the
+ * `status` part of the same `playlistItems.list` call (a `list` call costs a flat 1 quota
+ * unit regardless of how many parts it requests, so this signal is free). An item is
+ * dropped only when that field is exactly the documented value `private`. A missing,
+ * empty, or unrecognized value keeps the item, as do `public` and `unlisted` — matching
+ * `videoToDocument`, which already refuses to hydrate anything outside those two.
+ *
+ * Signals deliberately NOT used: the `snippet.title`/`snippet.description` placeholders
+ * ("Deleted video" / "This video is unavailable") are undocumented and localized, so
+ * matching them would silently stop purging for non-English callers and could match a
+ * real video so titled; `contentDetails.videoPublishedAt` absence is likewise
+ * undocumented; and absence from a `videos.list` response is an inference from silence,
+ * which would turn any partially-degraded 200 into a hard delete of live documents.
  */
-export function filterAvailableItems<T extends PlaylistItem>(
-  items: T[],
-  availableVideoIds: ReadonlySet<string> | null
-): T[] {
-  if (!availableVideoIds) return items
-  return items.filter((item) => availableVideoIds.has(getVideoId(item)))
+function isPlaylistItemPrivate(item: PlaylistItem): boolean {
+  return item.status?.privacyStatus === PLAYLIST_ITEM_PRIVATE_STATUS
 }
 
 /**
  * Builds the full document for a video, combining title and description as plain-text
- * content. Returns null for unlisted/private/deleted videos, and (when configured) for
+ * content. Returns null for videos whose `privacyStatus` is neither `public` nor
+ * `unlisted`, and (when configured) for
  * Shorts shorter than 60 seconds.
  *
  * Captions/transcripts are intentionally not fetched: `captions.download` requires OAuth
@@ -489,8 +478,13 @@ export const youtubeConnector: ConnectorConfig = {
     const remaining = maxVideos > 0 ? maxVideos - previouslyFetched : 0
     const effectivePageSize = maxVideos > 0 ? Math.min(PAGE_SIZE, remaining) : PAGE_SIZE
 
+    /**
+     * `status` is requested so `isPlaylistItemPrivate` has an explicit signal to read. A
+     * `list` call costs a flat 1 quota unit regardless of the number of parts, so this
+     * adds no quota and no extra request.
+     */
     const queryParams = new URLSearchParams({
-      part: 'snippet,contentDetails',
+      part: 'snippet,contentDetails,status',
       playlistId,
       maxResults: String(effectivePageSize),
       key: apiKey,
@@ -525,6 +519,8 @@ export const youtubeConnector: ConnectorConfig = {
 
     for (const item of items) {
       if (!getVideoId(item)) continue
+
+      if (isPlaylistItemPrivate(item)) continue
 
       if (publishedAfter != null) {
         const videoPublishedAt = item.contentDetails?.videoPublishedAt
@@ -573,8 +569,12 @@ export const youtubeConnector: ConnectorConfig = {
       } else {
         for (const item of keptItems) {
           /**
-           * Absent from a trusted `videos.list` => private/deleted/region-blocked. Drop it
-           * instead of emitting a stub that would re-hydrate to null on every sync.
+           * This branch cannot emit a document without the hydrated video, since the
+           * Shorts decision needs `contentDetails.duration`. An item absent from a trusted
+           * `videos.list` is skipped because there is nothing to build from — emitting a
+           * stub instead would re-hydrate to null on every sync. Deletion is never
+           * inferred from that absence: items whose video is explicitly gone were already
+           * removed above by `isPlaylistItemPrivate`.
            */
           const video = videoMap.get(getVideoId(item))
           if (!video) continue
@@ -582,22 +582,8 @@ export const youtubeConnector: ConnectorConfig = {
           if (doc) documents.push(doc)
         }
       }
-    } else if (keptItems.length > 0) {
-      /**
-       * Placeholder items for deleted/private videos stay in `playlistItems.list` forever
-       * and would pin the stored document against deletion reconciliation. Resolve which
-       * videos still exist with one batched `videos.list?part=id` call (1 quota unit per
-       * page) and emit stubs only for those — mirroring the drop the excludeShorts branch
-       * above already performs. An untrusted response keeps every item (fail open).
-       */
-      const availableVideoIds = await fetchAvailableVideoIds(apiKey, keptItems.map(getVideoId))
-      if (!availableVideoIds) {
-        logger.warn('Untrusted videos.list response; keeping all playlist items for this page', {
-          playlistId,
-          count: keptItems.length,
-        })
-      }
-      for (const item of filterAvailableItems(keptItems, availableVideoIds)) {
+    } else {
+      for (const item of keptItems) {
         const stub = itemToStub(item)
         if (stub) documents.push(stub)
       }
@@ -615,9 +601,9 @@ export const youtubeConnector: ConnectorConfig = {
 
     /**
      * Pagination is driven exclusively by the `playlistItems.list` cursor, never by how
-     * many documents survived availability filtering. A page whose items are ALL
-     * unavailable therefore emits zero documents while still advancing to the next page
-     * and reporting `hasMore` truthfully, so it can neither wedge nor truncate the sync.
+     * many documents survived filtering. A page whose items are ALL private therefore
+     * emits zero documents while still advancing to the next page and reporting `hasMore`
+     * truthfully, so it can neither wedge nor truncate the sync.
      */
     const nextPageToken = data.nextPageToken as string | undefined
 
@@ -664,7 +650,8 @@ export const youtubeConnector: ConnectorConfig = {
       const items = (data.items ?? []) as VideoItem[]
       const video = items[0]
 
-      // An empty items array means the video is deleted, private, or region-blocked.
+      // An empty items array means the video is deleted or private. Region-restricted
+      // videos are still returned here, with contentDetails.regionRestriction populated.
       if (!video) return null
 
       return videoToDocument(video, excludeShorts)

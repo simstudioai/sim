@@ -14,6 +14,7 @@ import {
 const DELETED_ITEMS_ID = 'deleted-items-id'
 const DELETED_SUBFOLDER_ID = 'deleted-subfolder-id'
 const INBOX_ID = 'inbox-id'
+const JUNK_EMAIL_ID = 'junk-email-id'
 
 interface JsonResponseInit {
   status?: number
@@ -109,7 +110,7 @@ describe('isAllMailSync', () => {
 })
 
 describe('DELETED_ITEMS_FOLDER', () => {
-  it('excludes Deleted Items only, never Junk Email', () => {
+  it('pins the well-known folder name interpolated into the Graph URL', () => {
     expect(DELETED_ITEMS_FOLDER).toBe('deleteditems')
   })
 })
@@ -194,6 +195,29 @@ describe('listDocuments folder exclusion', () => {
     )
 
     expect(result.documents.map((d) => d.externalId)).toEqual(['live'])
+  })
+
+  it('keeps junk mail, which is a spam classification rather than a deletion', async () => {
+    routeFetch([
+      deletedItemsRoute,
+      childFoldersRoute,
+      [
+        /\/me\/messages\?/,
+        () =>
+          jsonResponse({
+            value: [
+              message({ id: 'm1', conversationId: 'live', parentFolderId: INBOX_ID }),
+              message({ id: 'm2', conversationId: 'junked', parentFolderId: JUNK_EMAIL_ID }),
+            ],
+          }),
+      ],
+    ])
+
+    const result = await outlookConnector.listDocuments('token', { folder: 'all' }, undefined, {})
+
+    expect(result.documents.map((d) => d.externalId).sort()).toEqual(['junked', 'live'])
+    const requested = fetchMock.mock.calls.map((call) => String(call[0]))
+    expect(requested.some((url) => url.includes('junkemail'))).toBe(false)
   })
 
   it('keeps every conversation when the Deleted Items lookup fails with a non-2xx', async () => {
