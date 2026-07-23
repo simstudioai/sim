@@ -245,4 +245,46 @@ describe('preserveConfluenceCallouts', () => {
     const result = preserveConfluenceCallouts(html)
     expect(result).toContain('Do NOT use this form.')
   })
+
+  it.concurrent(
+    'labels a nested panel-in-panel with both its own and its parent label (nesting regression)',
+    () => {
+      const html =
+        '<div class="panel"><div class="panelHeader"><b>Outer</b></div><div class="panelContent">' +
+        '<div class="panel"><div class="panelHeader"><b>Inner</b></div>' +
+        '<div class="panelContent"><p>inner body</p></div></div>' +
+        '</div></div>'
+      const result = preserveConfluenceCallouts(html)
+      expect(result).toContain('[CALLOUT: Outer]')
+      expect(result).toContain('[CALLOUT: Inner] inner body')
+    }
+  )
+
+  it.concurrent(
+    'labels a nested info-macro inside a panel with its own type instead of dropping it',
+    () => {
+      const html =
+        '<div class="panel"><div class="panelContent">' +
+        '<div class="confluence-information-macro confluence-information-macro-warning">' +
+        '<div class="confluence-information-macro-body"><p>Do not use this.</p></div></div>' +
+        '</div></div>'
+      const result = preserveConfluenceCallouts(html)
+      expect(result).toContain('[WARNING] Do not use this.')
+    }
+  )
+
+  it.concurrent(
+    "does not let an untitled outer panel adopt a nested panel's header as its own",
+    () => {
+      const html =
+        '<div class="panel"><div class="panelContent">' +
+        '<div class="panel"><div class="panelHeader"><b>Inner title</b></div>' +
+        '<div class="panelContent"><p>inner body</p></div></div>' +
+        '</div></div>'
+      const result = preserveConfluenceCallouts(html)
+      // The outer panel has no header of its own — it must fall back to a
+      // bare [CALLOUT], not steal "Inner title" from the nested panel.
+      expect(result).toContain('[CALLOUT] [CALLOUT: Inner title] inner body')
+    }
+  )
 })

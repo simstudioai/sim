@@ -98,6 +98,9 @@ function extractBlockJoinedText($: cheerio.CheerioAPI, $el: cheerio.Cheerio<any>
   return parts.join(' ').trim()
 }
 
+/** Matches either flavor of panel/macro this function rewrites. */
+const MACRO_SELECTOR = 'div.confluence-information-macro, div.panel'
+
 /**
  * Confluence's rendered `view` HTML wraps Info/Note/Warning/Tip macros in
  * `confluence-information-macro confluence-information-macro-{type}` divs, and
@@ -108,31 +111,49 @@ function extractBlockJoinedText($: cheerio.CheerioAPI, $el: cheerio.Cheerio<any>
  * would erase any newline-based separation too. Each detected panel is rewritten
  * into a single bracketed label plus its own text so the callout semantic
  * survives both the tag strip and the whitespace collapse.
+ *
+ * A panel can itself contain another panel or macro (e.g. a nested Note inside
+ * a Warning panel). Processing matches in document order — outermost first —
+ * would read a not-yet-converted nested macro as plain body text before it
+ * ever got its own label, silently dropping the inner callout's semantic, and
+ * `.find('.panelHeader')` would then risk pulling a nested panel's header up
+ * as if it were the outer panel's own title. Converting only "leaf" macros
+ * (ones with no remaining nested macro/panel inside them) and repeating until
+ * none are left processes innermost-first, so a nested macro is already a
+ * bracketed `<p>` by the time its parent's body/header text is read — at which
+ * point it correctly reads as plain text carrying its own label.
  */
 export function preserveConfluenceCallouts(html: string): string {
   if (!html) return html
 
   const $ = cheerio.load(html)
 
-  $('div.confluence-information-macro').each((_, el) => {
-    const $el = $(el)
-    const type = ($el.attr('class') ?? '')
-      .match(/confluence-information-macro-(\w+)/)?.[1]
-      ?.toLowerCase()
-    const label = (type && CALLOUT_LABELS[type]) || CALLOUT_LABELS.information
-    const macroBody = $el.find('.confluence-information-macro-body').first()
-    const body = extractBlockJoinedText($, macroBody.length > 0 ? macroBody : $el)
-    $el.replaceWith($('<p></p>').text(`${label} ${body}`))
-  })
+  let progressed = true
+  while (progressed) {
+    progressed = false
+    const leaves = $(MACRO_SELECTOR).filter((_, el) => $(el).find(MACRO_SELECTOR).length === 0)
+    if (leaves.length === 0) break
 
-  $('div.panel').each((_, el) => {
-    const $el = $(el)
-    const headerText = extractBlockJoinedText($, $el.find('.panelHeader').first())
-    const panelContent = $el.find('.panelContent').first()
-    const bodyText = extractBlockJoinedText($, panelContent.length > 0 ? panelContent : $el)
-    const label = headerText ? `[CALLOUT: ${headerText}]` : '[CALLOUT]'
-    $el.replaceWith($('<p></p>').text(`${label} ${bodyText}`))
-  })
+    leaves.each((_, el) => {
+      const $el = $(el)
+      if ($el.hasClass('confluence-information-macro')) {
+        const type = ($el.attr('class') ?? '')
+          .match(/confluence-information-macro-(\w+)/)?.[1]
+          ?.toLowerCase()
+        const label = (type && CALLOUT_LABELS[type]) || CALLOUT_LABELS.information
+        const macroBody = $el.find('.confluence-information-macro-body').first()
+        const body = extractBlockJoinedText($, macroBody.length > 0 ? macroBody : $el)
+        $el.replaceWith($('<p></p>').text(`${label} ${body}`))
+      } else {
+        const headerText = extractBlockJoinedText($, $el.find('.panelHeader').first())
+        const panelContent = $el.find('.panelContent').first()
+        const bodyText = extractBlockJoinedText($, panelContent.length > 0 ? panelContent : $el)
+        const label = headerText ? `[CALLOUT: ${headerText}]` : '[CALLOUT]'
+        $el.replaceWith($('<p></p>').text(`${label} ${bodyText}`))
+      }
+      progressed = true
+    })
+  }
 
   return $.html()
 }
