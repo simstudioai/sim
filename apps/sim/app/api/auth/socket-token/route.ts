@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { headers } from 'next/headers'
 import { type NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth, getSession } from '@/lib/auth'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -20,6 +20,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     refillIntervalMs: 60_000,
   })
   if (rateLimited) return rateLimited
+
+  // Gate socket-token minting through the enforcing getSession chokepoint so a
+  // member blocked by the org IP allowlist can't obtain a socket token in the
+  // first place — making the app the primary socket gate (same cache and
+  // ~60s propagation as every other surface). `generateOneTimeToken` uses
+  // Better Auth's internal session middleware, which does not run the
+  // customSession network-policy check, so this explicit call is required.
+  const session = await getSession()
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
 
   try {
     const hdrs = await headers()
