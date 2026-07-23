@@ -130,7 +130,7 @@ const ToolbarItem = memo(function ToolbarItem({
       onKeyDown={handleKeyDown}
     >
       <div
-        className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+        className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
         style={{ background: item.bgColor }}
       >
         {Icon && (
