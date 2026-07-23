@@ -6,6 +6,7 @@ import {
   HexSimple,
   Key,
   KeySquare,
+  ListFilter,
   Lock,
   LogIn,
   Palette,
@@ -43,6 +44,7 @@ export type OrganizationSettingsSection =
   | 'audit-logs'
   | 'sso'
   | 'sessions'
+  | 'network'
   | 'data-retention'
   | 'data-drains'
   | 'whitelabeling'
@@ -97,6 +99,7 @@ export type UnifiedSettingsSection =
   | 'inbox'
   | 'admin'
   | 'sessions'
+  | 'network'
   | 'data-retention'
   | 'data-drains'
   | 'mothership'
@@ -171,6 +174,7 @@ const SETTINGS_SELF_HOSTED_OVERRIDES = {
   dataDrains: isTruthy(getEnv('NEXT_PUBLIC_DATA_DRAINS_ENABLED')),
   dataRetention: isTruthy(getEnv('NEXT_PUBLIC_DATA_RETENTION_ENABLED')),
   inbox: isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED')),
+  networkPolicy: isTruthy(getEnv('NEXT_PUBLIC_NETWORK_POLICY_ENABLED')),
   sessionPolicies: isTruthy(getEnv('NEXT_PUBLIC_SESSION_POLICIES_ENABLED')),
   sso: isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')),
   whitelabeling: isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED')),
@@ -558,6 +562,22 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
+    label: 'IP access',
+    icon: ListFilter,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/ip-access',
+    unified: {
+      id: 'network',
+      description: 'Restrict sign-in and API access to allowed IP ranges.',
+      group: 'enterprise',
+      requiresHosted: true,
+      requiresEnterprise: true,
+      selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.networkPolicy,
+    },
+    planes: {
+      organization: { id: 'network', group: 'security', order: 6 },
+    },
+  },
+  {
     label: 'Data retention',
     icon: Database,
     docsLink: 'https://docs.sim.ai/platform/enterprise/data-retention',
@@ -571,7 +591,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.dataRetention,
     },
     planes: {
-      organization: { id: 'data-retention', group: 'enterprise', order: 6 },
+      organization: { id: 'data-retention', group: 'enterprise', order: 7 },
     },
   },
   {
@@ -587,7 +607,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.dataDrains,
     },
     planes: {
-      organization: { id: 'data-drains', group: 'enterprise', order: 7 },
+      organization: { id: 'data-drains', group: 'enterprise', order: 8 },
     },
   },
   {
@@ -603,7 +623,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.whitelabeling,
     },
     planes: {
-      organization: { id: 'whitelabeling', group: 'enterprise', order: 8 },
+      organization: { id: 'whitelabeling', group: 'enterprise', order: 9 },
     },
   },
   {
@@ -740,6 +760,7 @@ export function getOrganizationSettingsFeatures(
       'audit-logs': SETTINGS_SELF_HOSTED_OVERRIDES.auditLogs,
       sso: SETTINGS_SELF_HOSTED_OVERRIDES.sso,
       sessions: SETTINGS_SELF_HOSTED_OVERRIDES.sessionPolicies,
+      network: SETTINGS_SELF_HOSTED_OVERRIDES.networkPolicy,
       'data-retention': SETTINGS_SELF_HOSTED_OVERRIDES.dataRetention,
       'data-drains': SETTINGS_SELF_HOSTED_OVERRIDES.dataDrains,
       whitelabeling: SETTINGS_SELF_HOSTED_OVERRIDES.whitelabeling,

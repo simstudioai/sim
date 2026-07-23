@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import type { Socket } from 'socket.io'
 import { ANONYMOUS_USER, ANONYMOUS_USER_ID, auth } from '@/auth'
 import { isAuthDisabled } from '@/env'
+import { isSocketAllowedByNetworkPolicy } from '@/middleware/network-policy'
 
 const logger = createLogger('SocketAuth')
 
@@ -64,6 +65,14 @@ export async function authenticateSocket(socket: AuthenticatedSocket, next: (err
       if (!session?.user?.id) {
         logger.warn(`Socket ${socket.id} rejected: Invalid token - no user found`)
         return next(new Error('Invalid session'))
+      }
+
+      const networkAllowed = await isSocketAllowedByNetworkPolicy(session.user.id, socket.handshake)
+      if (!networkAllowed) {
+        logger.warn(`Socket ${socket.id} rejected by org network policy`, {
+          userId: session.user.id,
+        })
+        return next(new Error('Access restricted by your organization network policy'))
       }
 
       // Store user info in socket for later use

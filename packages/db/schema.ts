@@ -1245,6 +1245,21 @@ export interface SessionPolicySettings {
   idleTimeoutHours?: number | null
 }
 
+/**
+ * Org-level network policy (enterprise). Absent or disabled = no
+ * restriction. When enabled, sign-in, session validation, and API-key
+ * authentication for org members require the client IP to fall inside
+ * `cidrs` (bare IPs or CIDR ranges, IPv4/IPv6). Enforced against the
+ * trusted-proxy-resolved client IP; `securityPolicyVersion` invalidates
+ * cached session cookies org-wide when the policy changes.
+ */
+export interface NetworkPolicySettings {
+  ipAllowlist?: {
+    enabled: boolean
+    cidrs: string[]
+  } | null
+}
+
 export const organization = pgTable('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -1252,6 +1267,7 @@ export const organization = pgTable('organization', {
   logo: text('logo'),
   metadata: json('metadata'),
   sessionPolicySettings: json('session_policy_settings').$type<SessionPolicySettings>(),
+  networkPolicySettings: json('network_policy_settings').$type<NetworkPolicySettings>(),
   /**
    * Monotonic counter embedded in the Better Auth cookie-cache version for
    * this org's members. Bumped on any security-policy change or org-wide

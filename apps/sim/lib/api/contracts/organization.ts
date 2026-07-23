@@ -1,3 +1,4 @@
+import { isValidCidrEntry } from '@sim/platform-authz/network'
 import { z } from 'zod'
 import {
   type PiiRedactionSettings,
@@ -199,6 +200,57 @@ export const revokeOrganizationSessionsResponseSchema = z.object({
   data: z.object({
     revokedSessions: z.number().int().min(0),
   }),
+})
+
+export const MAX_IP_ALLOWLIST_ENTRIES = 200
+
+export const updateOrganizationNetworkPolicyBodySchema = z.object({
+  ipAllowlist: z
+    .object({
+      enabled: z.boolean(),
+      cidrs: z
+        .array(
+          z
+            .string()
+            .trim()
+            .min(1, 'Allowlist entries cannot be empty')
+            .max(128, 'Allowlist entries cannot exceed 128 characters')
+            .refine(isValidCidrEntry, {
+              message:
+                'Each entry must be a valid IPv4/IPv6 address or CIDR range, optionally labelled (e.g. 10.0.0.0/16 # Frankfurt VPN)',
+            })
+        )
+        .max(MAX_IP_ALLOWLIST_ENTRIES, `At most ${MAX_IP_ALLOWLIST_ENTRIES} allowlist entries`),
+    })
+    .superRefine((value, ctx) => {
+      if (value.enabled && value.cidrs.length === 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['cidrs'],
+          message: 'Add at least one IP or CIDR range before enabling the allowlist',
+        })
+      }
+    }),
+})
+
+export type UpdateOrganizationNetworkPolicyBody = z.input<
+  typeof updateOrganizationNetworkPolicyBodySchema
+>
+
+const organizationNetworkPolicyDataSchema = z.object({
+  isEnterprise: z.boolean(),
+  configured: z.object({
+    enabled: z.boolean(),
+    cidrs: z.array(z.string()),
+  }),
+  callerIp: z.string().nullable(),
+})
+
+export type OrganizationNetworkPolicy = z.output<typeof organizationNetworkPolicyDataSchema>
+
+export const organizationNetworkPolicyResponseSchema = z.object({
+  success: z.boolean(),
+  data: organizationNetworkPolicyDataSchema,
 })
 
 export const updateOrganizationWhitelabelBodySchema = z.object({
@@ -568,6 +620,27 @@ export const updateOrganizationSessionPolicyContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: organizationSessionPolicyResponseSchema,
+  },
+})
+
+export const getOrganizationNetworkPolicyContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/network-policy',
+  params: organizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: organizationNetworkPolicyResponseSchema,
+  },
+})
+
+export const updateOrganizationNetworkPolicyContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/organizations/[id]/network-policy',
+  params: organizationParamsSchema,
+  body: updateOrganizationNetworkPolicyBodySchema,
+  response: {
+    mode: 'json',
+    schema: organizationNetworkPolicyResponseSchema,
   },
 })
 

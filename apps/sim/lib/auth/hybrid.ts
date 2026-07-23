@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
 import { verifyInternalToken } from '@/lib/auth/internal'
+import { enforceOrgNetworkPolicy, getTrustedClientIp } from '@/lib/auth/network-policy'
 
 const logger = createLogger('HybridAuth')
 
@@ -192,6 +193,12 @@ export async function checkHybridAuth(
       const apiKeyHeader = request.headers.get(API_KEY_HEADER) ?? ''
       const result = await authenticateApiKeyFromHeader(apiKeyHeader)
       if (result.success) {
+        const network = await enforceOrgNetworkPolicy(result.userId, () =>
+          getTrustedClientIp(request)
+        )
+        if (!network.allowed) {
+          return { success: false, error: network.reason }
+        }
         await updateApiKeyLastUsed(result.keyId!)
         return {
           success: true,
@@ -208,6 +215,8 @@ export async function checkHybridAuth(
       }
     }
 
+    // Org network policy for sessions is enforced inside getSession itself
+    // (a denied member resolves as signed out), so no re-check here.
     const session = await getSession()
     if (session?.user?.id) {
       return {

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
+import { enforceOrgNetworkPolicy, getTrustedClientIp } from '@/lib/auth/network-policy'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('V1Auth')
@@ -40,6 +41,17 @@ export async function authenticateV1Request(request: NextRequest): Promise<AuthR
       return {
         authenticated: false,
         error: result.error || 'Invalid API key',
+      }
+    }
+
+    // Org IP allowlist applies to API-key auth on the public v1 surface too,
+    // mirroring the legacy hybrid-auth path — otherwise a member under an IP
+    // restriction could bypass it by calling v1 instead.
+    const network = await enforceOrgNetworkPolicy(result.userId, () => getTrustedClientIp(request))
+    if (!network.allowed) {
+      return {
+        authenticated: false,
+        error: network.reason,
       }
     }
 

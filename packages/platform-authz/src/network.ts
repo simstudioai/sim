@@ -1,0 +1,239 @@
+/**
+ * Dependency-free IP / CIDR matching for org network policies.
+ *
+ * Shared by the Next.js app (auth-time enforcement, contract validation) and
+ * the realtime Socket.IO server (handshake enforcement), so it must not
+ * import Node-, Next-, or DB-specific modules.
+ *
+ * Supported entry forms: bare IPv4 (`192.0.2.10`), IPv4 CIDR
+ * (`10.0.0.0/16`), bare IPv6 (`2001:db8::1`), IPv6 CIDR (`2001:db8::/48`).
+ * Matching never throws: malformed entries and unparseable client addresses
+ * simply do not match.
+ */
+
+/** Parses an IPv4 address to a 32-bit unsigned integer, or null. */
+function parseIpv4(address: string): number | null {
+  const parts = address.split('.')
+  if (parts.length !== 4) return null
+  let value = 0
+  for (const part of parts) {
+    if (!/^\d{1,3}$/.test(part)) return null
+    const octet = Number(part)
+    if (octet > 255) return null
+    value = value * 256 + octet
+  }
+  return value >>> 0
+}
+
+/** Parses an IPv6 address to a 128-bit value as a bigint, or null. */
+function parseIpv6(address: string): bigint | null {
+  let host = address
+  // Embedded IPv4 tail (e.g. ::ffff:192.0.2.10) → expand to two groups.
+  const v4Tail = host.match(/^(.*:)(\d{1,3}(?:\.\d{1,3}){3})$/)
+  if (v4Tail) {
+    const v4 = parseIpv4(v4Tail[2])
+    if (v4 === null) return null
+    host = `${v4Tail[1]}${((v4 >>> 16) & 0xffff).toString(16)}:${(v4 & 0xffff).toString(16)}`
+  }
+
+  const doubleColonSplits = host.split('::')
+  if (doubleColonSplits.length > 2) return null
+
+  const parseGroups = (segment: string): number[] | null => {
+    if (segment === '') return []
+    const groups = segment.split(':')
+    const parsed: number[] = []
+    for (const group of groups) {
+      if (!/^[0-9a-fA-F]{1,4}$/.test(group)) return null
+      parsed.push(Number.parseInt(group, 16))
+    }
+    return parsed
+  }
+
+  let groups: number[]
+  if (doubleColonSplits.length === 2) {
+    const head = parseGroups(doubleColonSplits[0])
+    const tail = parseGroups(doubleColonSplits[1])
+    if (!head || !tail || head.length + tail.length > 7) return null
+    groups = [...head, ...new Array(8 - head.length - tail.length).fill(0), ...tail]
+  } else {
+    const all = parseGroups(host)
+    if (!all || all.length !== 8) return null
+    groups = all
+  }
+
+  let value = 0n
+  for (const group of groups) {
+    value = (value << 16n) | BigInt(group)
+  }
+  return value
+}
+
+interface ParsedCidr {
+  kind: 'v4' | 'v6'
+  value: number | bigint
+  prefix: number
+}
+
+/**
+ * Strips a trailing `# label` comment from an allowlist entry — per-entry
+ * labels ("10.0.0.0/16 # Frankfurt VPN") document ranges without affecting
+ * matching.
+ */
+function stripEntryLabel(entry: string): string {
+  const hashIndex = entry.indexOf('#')
+  return (hashIndex === -1 ? entry : entry.slice(0, hashIndex)).trim()
+}
+
+/**
+ * IPv4-mapped IPv6 range is `::ffff:0:0/96` — the low 32 bits are the IPv4
+ * address and the 96 bits above them equal `0x…0000ffff`. Detecting this on
+ * the PARSED numeric value (not the string) canonicalizes every textual form
+ * of a mapped address identically — compressed (`::ffff:192.0.2.5`), expanded
+ * (`0:0:0:0:0:ffff:192.0.2.5`), and hex (`::ffff:c000:0205`) all parse to the
+ * same bigint — so entries and client addresses land in the same family
+ * bucket regardless of how they were written.
+ */
+const IPV4_MAPPED_PREFIX = 0xffffn
+
+function mappedV6ToIpv4(value: bigint): number | null {
+  return value >> 32n === IPV4_MAPPED_PREFIX ? Number(value & 0xffffffffn) : null
+}
+
+/** Parses an allowlist entry (bare IP or CIDR, optional label), or null when malformed. */
+function parseCidr(entry: string): ParsedCidr | null {
+  const [host, prefixPart, ...rest] = stripEntryLabel(entry).split('/')
+  if (rest.length > 0) return null
+
+  const v4 = parseIpv4(host)
+  if (v4 !== null) {
+    const prefix = prefixPart === undefined ? 32 : Number(prefixPart)
+    if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) return null
+    return { kind: 'v4', value: v4, prefix }
+  }
+
+  const v6 = parseIpv6(host)
+  if (v6 !== null) {
+    // Canonicalize an IPv4-mapped IPv6 host to IPv4 (any textual form) so it
+    // shares a bucket with the mapped client addresses isAddressAllowed also
+    // demotes. A prefix on the mapped form addresses the full 128-bit space,
+    // so its meaningful range is the low 32 bits (>= /96); demote it by 96.
+    const mapped = mappedV6ToIpv4(v6)
+    if (mapped !== null) {
+      if (prefixPart === undefined) return { kind: 'v4', value: mapped, prefix: 32 }
+      const mappedPrefix = Number(prefixPart)
+      if (!Number.isInteger(mappedPrefix) || mappedPrefix < 96 || mappedPrefix > 128) return null
+      return { kind: 'v4', value: mapped, prefix: mappedPrefix - 96 }
+    }
+
+    const prefix = prefixPart === undefined ? 128 : Number(prefixPart)
+    if (!Number.isInteger(prefix) || prefix < 0 || prefix > 128) return null
+    return { kind: 'v6', value: v6, prefix }
+  }
+
+  return null
+}
+
+/**
+ * True when `entry` is a well-formed allowlist entry: a bare IP or CIDR,
+ * optionally followed by a `# label` comment.
+ */
+export function isValidCidrEntry(entry: string): boolean {
+  return parseCidr(entry) !== null
+}
+
+/**
+ * Compiled allowlist for O(entries) matching without re-parsing per request.
+ * Malformed entries are dropped at compile time (report them at save time
+ * with {@link isValidCidrEntry} instead).
+ */
+export interface CompiledAllowlist {
+  v4: Array<{ network: number; mask: number }>
+  v6: Array<{ network: bigint; prefix: number }>
+}
+
+export function compileAllowlist(entries: readonly string[]): CompiledAllowlist {
+  const compiled: CompiledAllowlist = { v4: [], v6: [] }
+  for (const entry of entries) {
+    const parsed = parseCidr(entry)
+    if (!parsed) continue
+    if (parsed.kind === 'v4') {
+      const mask = parsed.prefix === 0 ? 0 : (0xffffffff << (32 - parsed.prefix)) >>> 0
+      compiled.v4.push({ network: ((parsed.value as number) & mask) >>> 0, mask })
+    } else {
+      compiled.v6.push({ network: parsed.value as bigint, prefix: parsed.prefix })
+    }
+  }
+  return compiled
+}
+
+function matchV4(v4: number, allowlist: CompiledAllowlist): boolean {
+  return allowlist.v4.some((entry) => (v4 & entry.mask) >>> 0 === entry.network)
+}
+
+/**
+ * True when `address` (an IPv4 or IPv6 client address, no CIDR suffix) is
+ * inside the compiled allowlist. IPv4-mapped IPv6 addresses — in any textual
+ * form (`::ffff:a.b.c.d`, `0:0:0:0:0:ffff:a.b.c.d`, `::ffff:hhhh:hhhh`) —
+ * match against the v4 entries, since they canonicalize to the same value.
+ * Unparseable addresses never match.
+ */
+export function isAddressAllowed(address: string, allowlist: CompiledAllowlist): boolean {
+  const trimmed = address.trim()
+
+  const v4 = parseIpv4(trimmed)
+  if (v4 !== null) return matchV4(v4, allowlist)
+
+  const v6 = parseIpv6(trimmed)
+  if (v6 === null) return false
+
+  // A mapped IPv6 client is checked against the v4 entries (the parser
+  // canonicalizes every textual form to the same value); only genuine IPv6
+  // falls through to the v6 entries.
+  const mapped = mappedV6ToIpv4(v6)
+  if (mapped !== null) return matchV4(mapped, allowlist)
+
+  return allowlist.v6.some((entry) => {
+    if (entry.prefix === 0) return true
+    const shift = BigInt(128 - entry.prefix)
+    return v6 >> shift === entry.network >> shift
+  })
+}
+
+/**
+ * Parses a comma-separated `AUTH_TRUSTED_PROXIES` value into proxy entries.
+ * Shared by every consumer of Better Auth's IP resolver so the platform has
+ * exactly one trusted-proxy configuration semantics.
+ */
+export function parseTrustedProxies(raw: string | undefined): string[] {
+  return (raw ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
+/**
+ * Builds the `advanced.ipAddress` options object Better Auth's `getIp`
+ * expects from a parsed trusted-proxy list, for NETWORK-POLICY resolution.
+ *
+ * `ipv6Subnet: 128` overrides Better Auth's `/64` default so IPv6 client
+ * addresses are matched at full host precision — the allowlist supports exact
+ * IPv6 hosts and `/128` entries, and without this every IPv6 address would be
+ * masked to its `/64` and could never match a more specific entry. This
+ * options object is passed only to the network-policy `getIp` calls; Better
+ * Auth's own session-IP and rate-limit keying (configured on the auth
+ * instance) keep the `/64` default, so IPv6 rate-limit collapsing is
+ * unaffected.
+ */
+export function buildIpResolutionOptions(trustedProxies: readonly string[]): {
+  advanced: { ipAddress: { trustedProxies?: string[]; ipv6Subnet: number } }
+} {
+  return {
+    advanced: {
+      ipAddress: {
+        ipv6Subnet: 128,
+        ...(trustedProxies.length > 0 ? { trustedProxies: [...trustedProxies] } : {}),
+      },
+    },
+  }
+}
