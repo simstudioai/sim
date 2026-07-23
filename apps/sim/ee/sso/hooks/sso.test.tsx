@@ -15,8 +15,8 @@ vi.mock('@/lib/api/client/request', () => ({
   requestJson: mockRequestJson,
 }))
 
-import { listSsoProvidersContract } from '@/lib/api/contracts/auth'
-import { useSSOProviders } from '@/ee/sso/hooks/sso'
+import { listSsoProvidersContract, updateSsoProviderContract } from '@/lib/api/contracts/auth'
+import { useSSOProviders, useUpdateSSOProvider } from '@/ee/sso/hooks/sso'
 
 interface SsoProvidersResponse {
   providers: Array<{
@@ -50,6 +50,32 @@ function SsoProbe({ organizationId }: { organizationId: string }) {
       <span>{provider?.domain ?? ''}</span>
       {provider && <button type='button'>Edit SSO</button>}
     </div>
+  )
+}
+
+function UpdateProbe() {
+  const update = useUpdateSSOProvider()
+  return (
+    <button
+      type='button'
+      onClick={() =>
+        update.mutate({
+          id: 'row-1',
+          organizationId: 'org-a',
+          body: {
+            issuer: 'https://idp.example.com',
+            domain: 'org-a.example.com',
+            mapping: { id: 'sub', email: 'email', name: 'name', image: 'picture' },
+            clientId: 'client',
+            clientSecret: 'secret',
+            scopes: ['openid'],
+            pkce: true,
+          },
+        })
+      }
+    >
+      Update
+    </button>
   )
 }
 
@@ -118,5 +144,38 @@ describe('useSSOProviders identity transitions', () => {
       listSsoProvidersContract,
       expect.objectContaining({ query: { organizationId: 'org-b' } })
     )
+  })
+
+  it('uses the PATCH contract and invalidates provider and organization caches', async () => {
+    mockRequestJson.mockResolvedValue({
+      success: true,
+      providerId: 'provider-a',
+      providerType: 'oidc',
+      domainVerified: false,
+      message: 'updated',
+    })
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <UpdateProbe />
+        </QueryClientProvider>
+      )
+    })
+
+    act(() => {
+      container.querySelector('button')?.click()
+    })
+    await flushQueries()
+
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      updateSsoProviderContract,
+      expect.objectContaining({ params: { id: 'row-1' } })
+    )
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['sso', 'providers'] })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['organizations', 'detail', 'org-a'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['organizations', 'list'] })
   })
 })

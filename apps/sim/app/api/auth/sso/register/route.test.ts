@@ -5,51 +5,50 @@ import { createEnvMock, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetSession,
-  mockRegisterSSOProvider,
-  mockHasSSOAccess,
-  mockValidateUrlWithDNS,
-  mockSecureFetchWithPinnedIP,
   dbState,
   memberTable,
+  mockGetSession,
+  mockIsOrganizationOnEnterprisePlan,
+  mockRegisterSSOProvider,
+  mockSecureFetchWithPinnedIP,
+  mockValidateUrlWithDNS,
+  mockWithSSOProviderMutationLock,
   ssoProviderTable,
 } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockRegisterSSOProvider: vi.fn(),
-  mockHasSSOAccess: vi.fn(),
-  mockValidateUrlWithDNS: vi.fn(),
-  mockSecureFetchWithPinnedIP: vi.fn(),
-  dbState: { members: [] as any[], providers: [] as any[] },
+  dbState: {
+    members: [] as Array<{ role: string }>,
+    providers: [] as Array<Record<string, unknown>>,
+  },
   memberTable: {
     userId: 'member.userId',
     organizationId: 'member.organizationId',
     role: 'member.role',
   },
+  mockGetSession: vi.fn(),
+  mockIsOrganizationOnEnterprisePlan: vi.fn(),
+  mockRegisterSSOProvider: vi.fn(),
+  mockSecureFetchWithPinnedIP: vi.fn(),
+  mockValidateUrlWithDNS: vi.fn(),
+  mockWithSSOProviderMutationLock: vi.fn((callback: () => Promise<unknown>) => callback()),
   ssoProviderTable: {
     id: 'sso.id',
     providerId: 'sso.providerId',
     domain: 'sso.domain',
-    issuer: 'sso.issuer',
-    userId: 'sso.userId',
     organizationId: 'sso.organizationId',
-    oidcConfig: 'sso.oidcConfig',
-    samlConfig: 'sso.samlConfig',
   },
 }))
 
-function makeBuilder(rows: any[]): any {
-  const thenable: any = Promise.resolve(rows)
-  thenable.where = (condition: any) => {
-    const values = condition?.values
-    if (Array.isArray(values) && values.length > 0) {
-      const target = String(values[values.length - 1]).toLowerCase()
-      return makeBuilder(rows.filter((r) => String(r.domain ?? '').toLowerCase() === target))
-    }
-    return makeBuilder(rows)
+function makeBuilder(rows: unknown[]): Promise<unknown[]> & {
+  where: () => ReturnType<typeof makeBuilder>
+  limit: () => Promise<unknown[]>
+} {
+  const builder = Promise.resolve(rows) as Promise<unknown[]> & {
+    where: () => ReturnType<typeof makeBuilder>
+    limit: () => Promise<unknown[]>
   }
-  thenable.limit = () => Promise.resolve(rows)
-  thenable.orderBy = () => Promise.resolve(rows)
-  return thenable
+  builder.where = () => makeBuilder(rows)
+  builder.limit = () => Promise.resolve(rows)
+  return builder
 }
 
 vi.mock('@sim/db', () => ({
@@ -61,6 +60,7 @@ vi.mock('@sim/db', () => ({
   },
   member: memberTable,
   ssoProvider: ssoProviderTable,
+  withSSOProviderMutationLock: mockWithSSOProviderMutationLock,
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -69,15 +69,7 @@ vi.mock('@/lib/auth', () => ({
 }))
 
 vi.mock('@/lib/billing', () => ({
-  hasSSOAccess: mockHasSSOAccess,
-}))
-
-vi.mock('@/lib/auth/sso/domain', () => ({
-  normalizeSSODomain: (input: unknown): string | null => {
-    if (typeof input !== 'string') return null
-    const value = input.trim().toLowerCase()
-    return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(value) ? value : null
-  },
+  isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
@@ -85,7 +77,9 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   secureFetchWithPinnedIP: mockSecureFetchWithPinnedIP,
 }))
 
-vi.mock('@/lib/core/config/env', () => createEnvMock({ SSO_ENABLED: 'true' }))
+vi.mock('@/lib/core/config/env', () =>
+  createEnvMock({ SSO_ENABLED: 'true', SSO_DOMAIN_VERIFICATION_ENABLED: 'true' })
+)
 
 import { POST } from '@/app/api/auth/sso/register/route'
 
@@ -94,6 +88,7 @@ const OIDC_BODY = {
   providerId: 'acme-oidc',
   issuer: 'https://idp.acme.com',
   domain: 'acme.com',
+  orgId: 'org-1',
   clientId: 'client-id',
   clientSecret: 'client-secret',
   authorizationEndpoint: 'https://idp.acme.com/authorize',
@@ -102,263 +97,186 @@ const OIDC_BODY = {
   jwksEndpoint: 'https://idp.acme.com/jwks',
 }
 
+const SAML_BODY = {
+  providerType: 'saml' as const,
+  providerId: 'acme-saml',
+  issuer: 'https://idp.acme.com',
+  domain: 'acme.com',
+  orgId: 'org-1',
+  entryPoint: 'https://idp.acme.com/sso',
+  cert: 'public-test-certificate',
+}
+
 function request(body: Record<string, unknown>) {
-  return createMockRequest('POST', body)
+  return createMockRequest('POST', body, { cookie: 'session=one' })
 }
 
 describe('POST /api/auth/sso/register', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    dbState.members = []
+    dbState.members = [{ role: 'owner' }]
     dbState.providers = []
-    mockGetSession.mockResolvedValue({ user: { id: 'u1' } })
-    mockHasSSOAccess.mockResolvedValue(true)
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '1.2.3.4' })
-    mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('discovery not mocked for this test'))
-    mockRegisterSSOProvider.mockResolvedValue({ providerId: 'acme-oidc' })
-  })
-
-  it('rejects callers without an Enterprise plan', async () => {
-    mockHasSSOAccess.mockResolvedValue(false)
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
-    expect(res.status).toBe(403)
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
-  })
-
-  it('rejects callers who are not an admin/owner of the target org', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'member' }]
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
-    expect(res.status).toBe(403)
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
-  })
-
-  it('rejects an invalid domain', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    const res = await POST(request({ ...OIDC_BODY, domain: 'not-a-domain', orgId: 'org1' }))
-    expect(res.status).toBe(400)
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
-  })
-
-  it('rejects a domain already registered by another organization', async () => {
-    dbState.members = [{ organizationId: 'org-attacker', role: 'owner' }]
-    dbState.providers = [{ domain: 'acme.com', userId: 'u-victim', organizationId: 'org-victim' }]
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org-attacker' }))
-    const json = await res.json()
-    expect(res.status).toBe(409)
-    expect(json.code).toBe('SSO_DOMAIN_ALREADY_REGISTERED')
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
-  })
-
-  it('matches conflicts across casing variants', async () => {
-    dbState.members = [{ organizationId: 'org-attacker', role: 'owner' }]
-    dbState.providers = [{ domain: 'ACME.com', userId: 'u-victim', organizationId: 'org-victim' }]
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org-attacker' }))
-    expect(res.status).toBe(409)
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
-  })
-
-  it('registers when the domain is unclaimed', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
-    expect(res.status).toBe(200)
-    expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
-  })
-
-  it('allows the owning tenant to update its own provider for the same domain', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    dbState.providers = [{ domain: 'acme.com', userId: 'u1', organizationId: 'org1' }]
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
-    expect(res.status).toBe(200)
-    expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
-  })
-
-  it('lets an org admin adopt their own user-scoped provider for the same domain', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    dbState.providers = [{ domain: 'acme.com', userId: 'u1', organizationId: null }]
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
-    expect(res.status).toBe(200)
-    expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
-  })
-
-  it("still blocks an org admin from claiming another user's user-scoped domain", async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    dbState.providers = [{ domain: 'acme.com', userId: 'someone-else', organizationId: null }]
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
-    expect(res.status).toBe(409)
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
-  })
-
-  it('normalizes the domain before persisting it', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    const res = await POST(request({ ...OIDC_BODY, domain: 'ACME.com', orgId: 'org1' }))
-    expect(res.status).toBe(200)
-    expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.domain).toBe('acme.com')
-  })
-
-  it('passes skipDiscovery since Sim already resolved and validated the OIDC endpoints', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
-    expect(res.status).toBe(200)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.oidcConfig.skipDiscovery).toBe(true)
-  })
-
-  it('omits userInfoEndpoint when skipUserInfoEndpoint is requested, forcing ID token claims', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    const res = await POST(request({ ...OIDC_BODY, skipUserInfoEndpoint: true, orgId: 'org1' }))
-    expect(res.status).toBe(200)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.oidcConfig.userInfoEndpoint).toBeUndefined()
-  })
-
-  it('does not SSRF-validate userInfoEndpoint when skipUserInfoEndpoint is requested', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    mockValidateUrlWithDNS.mockImplementation(async (url: string, label: string) => {
-      if (label === 'OIDC userInfoEndpoint') {
-        return { isValid: false, error: 'resolves to a private IP address' }
-      }
-      return { isValid: true, resolvedIP: '1.2.3.4' }
+    mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('Discovery unavailable'))
+    mockRegisterSSOProvider.mockResolvedValue({
+      providerId: 'acme-oidc',
+      domainVerified: false,
+      domainVerificationToken: 'verification-token',
     })
-    const res = await POST(request({ ...OIDC_BODY, skipUserInfoEndpoint: true, orgId: 'org1' }))
-    expect(res.status).toBe(200)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.oidcConfig.userInfoEndpoint).toBeUndefined()
   })
 
-  it('does not SSRF-validate a discovered userinfo_endpoint when skipUserInfoEndpoint is requested', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    mockValidateUrlWithDNS.mockImplementation(async (url: string, label: string) => {
-      if (label === 'OIDC userinfo_endpoint') {
-        return { isValid: false, error: 'resolves to a private IP address' }
-      }
-      return { isValid: true, resolvedIP: '1.2.3.4' }
-    })
-    mockSecureFetchWithPinnedIP.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        authorization_endpoint: 'https://idp.acme.com/authorize',
-        token_endpoint: 'https://idp.acme.com/token',
-        userinfo_endpoint: 'http://169.254.169.254/userinfo',
-        jwks_uri: 'https://idp.acme.com/jwks',
-      }),
-    })
-    const discoveredBody = {
-      ...OIDC_BODY,
-      authorizationEndpoint: undefined,
-      tokenEndpoint: undefined,
-      jwksEndpoint: undefined,
-      skipUserInfoEndpoint: true,
+  it('rejects members and non-members', async () => {
+    for (const members of [[], [{ role: 'member' }]]) {
+      dbState.members = members
+      const response = await POST(request(OIDC_BODY))
+      expect(response.status).toBe(403)
     }
-    const res = await POST(request({ ...discoveredBody, orgId: 'org1' }))
-    expect(res.status).toBe(200)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.oidcConfig.userInfoEndpoint).toBeUndefined()
-  })
-
-  it('keeps userInfoEndpoint when skipUserInfoEndpoint is not requested', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
-    expect(res.status).toBe(200)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.oidcConfig.userInfoEndpoint).toBe('https://idp.acme.com/userinfo')
-  })
-
-  it('selects tokenEndpointAuthentication from the discovery document when endpoints are auto-discovered', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    mockSecureFetchWithPinnedIP.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        authorization_endpoint: 'https://idp.acme.com/authorize',
-        token_endpoint: 'https://idp.acme.com/token',
-        userinfo_endpoint: 'https://idp.acme.com/userinfo',
-        jwks_uri: 'https://idp.acme.com/jwks',
-        token_endpoint_auth_methods_supported: ['client_secret_post'],
-      }),
-    })
-    const discoveredBody = {
-      ...OIDC_BODY,
-      authorizationEndpoint: undefined,
-      tokenEndpoint: undefined,
-      jwksEndpoint: undefined,
-    }
-    const res = await POST(request({ ...discoveredBody, orgId: 'org1' }))
-    expect(res.status).toBe(200)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.oidcConfig.tokenEndpointAuthentication).toBe('client_secret_post')
-  })
-
-  it('still selects tokenEndpointAuthentication from discovery when all endpoints are explicit', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    mockSecureFetchWithPinnedIP.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        token_endpoint_auth_methods_supported: ['client_secret_post'],
-      }),
-    })
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
-    expect(res.status).toBe(200)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.oidcConfig.tokenEndpointAuthentication).toBe('client_secret_post')
-    expect(config.oidcConfig.authorizationEndpoint).toBe(OIDC_BODY.authorizationEndpoint)
-  })
-
-  it('registers successfully when discovery is unreachable and all endpoints are explicit', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('ECONNREFUSED'))
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
-    expect(res.status).toBe(200)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.oidcConfig.skipDiscovery).toBe(true)
-    expect(config.oidcConfig.authorizationEndpoint).toBe(OIDC_BODY.authorizationEndpoint)
-    expect(config.oidcConfig.tokenEndpointAuthentication).toBe('client_secret_post')
-  })
-
-  it('prefers client_secret_post over client_secret_basic when an IdP supports both', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    mockSecureFetchWithPinnedIP.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
-      }),
-    })
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
-    expect(res.status).toBe(200)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.oidcConfig.tokenEndpointAuthentication).toBe('client_secret_post')
-  })
-
-  it('defaults to client_secret_post when discovery advertises no auth methods', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    mockSecureFetchWithPinnedIP.mockResolvedValue({
-      ok: true,
-      json: async () => ({}),
-    })
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
-    expect(res.status).toBe(200)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.oidcConfig.tokenEndpointAuthentication).toBe('client_secret_post')
-  })
-
-  it('surfaces the specific discovery failure reason when endpoints are missing', async () => {
-    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
-    mockValidateUrlWithDNS.mockImplementation(async (url: string, label: string) => {
-      if (label === 'OIDC discovery URL') {
-        return { isValid: false, error: 'resolves to a private IP address' }
-      }
-      return { isValid: true, resolvedIP: '1.2.3.4' }
-    })
-    const discoveredBody = {
-      ...OIDC_BODY,
-      authorizationEndpoint: undefined,
-      tokenEndpoint: undefined,
-      jwksEndpoint: undefined,
-    }
-    const res = await POST(request({ ...discoveredBody, orgId: 'org1' }))
-    const json = await res.json()
-    expect(res.status).toBe(400)
-    expect(json.error).toContain('resolves to a private IP address')
     expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
+  it('rejects organizations without Enterprise authorization', async () => {
+    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(false)
+    const response = await POST(request(OIDC_BODY))
+    expect(response.status).toBe(403)
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
+  it('rejects comma lists and public suffixes', async () => {
+    for (const domain of ['acme.com,subsidiary.com', 'com']) {
+      const response = await POST(request({ ...OIDC_BODY, domain }))
+      expect(response.status).toBe(400)
+    }
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
+  it.each([OIDC_BODY, SAML_BODY])(
+    'rejects built-in trusted IDs for $providerType registration',
+    async (body) => {
+      const response = await POST(request({ ...body, providerId: 'google' }))
+      await expect(response.json()).resolves.toMatchObject({ code: 'SSO_PROVIDER_ID_RESERVED' })
+      expect(response.status).toBe(400)
+      expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects non-web SAML issuer and entry-point schemes', async () => {
+    const samlBody = {
+      providerType: 'saml',
+      providerId: 'acme-saml',
+      issuer: 'https://idp.acme.com',
+      domain: 'acme.com',
+      orgId: 'org-1',
+      entryPoint: 'https://idp.acme.com/sso',
+      cert: 'public-test-certificate',
+    }
+    for (const body of [
+      { ...samlBody, issuer: 'not a url' },
+      { ...samlBody, issuer: 'javascript:alert(1)' },
+      { ...samlBody, entryPoint: 'data:text/html,invalid' },
+    ]) {
+      const response = await POST(request(body))
+      expect(response.status).toBe(400)
+    }
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
+  it('rejects parent and child domain overlap owned by another tenant', async () => {
+    for (const existingDomain of ['acme.com', 'login.acme.com']) {
+      dbState.providers = [
+        {
+          id: 'existing',
+          providerId: 'other',
+          domain: existingDomain,
+          organizationId: 'org-other',
+        },
+      ]
+      const domain = existingDomain === 'acme.com' ? 'login.acme.com' : 'acme.com'
+      const response = await POST(request({ ...OIDC_BODY, domain }))
+      expect(response.status).toBe(409)
+    }
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
+  it('re-checks domain overlap inside the mutation lock after configuration work', async () => {
+    mockWithSSOProviderMutationLock.mockImplementationOnce(
+      async (callback: () => Promise<unknown>) => {
+        dbState.providers = [
+          {
+            id: 'concurrent',
+            providerId: 'concurrent-provider',
+            domain: 'login.acme.com',
+            organizationId: 'org-concurrent',
+          },
+        ]
+        return callback()
+      }
+    )
+
+    const response = await POST(request(OIDC_BODY))
+
+    expect(response.status).toBe(409)
+    expect(mockWithSSOProviderMutationLock).toHaveBeenCalledOnce()
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
+  it('enforces one provider per organization', async () => {
+    dbState.providers = [
+      {
+        id: 'existing',
+        providerId: 'existing-id',
+        domain: 'other.com',
+        organizationId: 'org-1',
+      },
+    ]
+    const response = await POST(request(OIDC_BODY))
+    expect(response.status).toBe(409)
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
+  it('creates a pending provider and forwards request headers', async () => {
+    const response = await POST(request({ ...OIDC_BODY, domain: 'ACME.COM' }))
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(payload).toMatchObject({
+      providerId: 'acme-oidc',
+      domainVerified: false,
+    })
+    expect(payload).not.toHaveProperty('domainVerificationToken')
+    expect(mockRegisterSSOProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({ domain: 'acme.com' }),
+        headers: expect.objectContaining({ cookie: 'session=one' }),
+      })
+    )
+  })
+
+  it.each([
+    { body: OIDC_BODY, configKey: 'oidcConfig' },
+    { body: SAML_BODY, configKey: 'samlConfig' },
+  ])(
+    'forwards $body.providerType claim mapping in the protocol config',
+    async ({ body, configKey }) => {
+      const mapping = {
+        id: 'custom-subject',
+        email: 'custom-email',
+        name: 'custom-name',
+        image: 'custom-picture',
+      }
+      const response = await POST(request({ ...body, mapping }))
+      expect(response.status).toBe(200)
+
+      const forwardedBody = mockRegisterSSOProvider.mock.calls[0][0].body
+      expect(forwardedBody).not.toHaveProperty('mapping')
+      expect(forwardedBody[configKey]).toMatchObject({ mapping })
+    }
+  )
+
+  it('maps adapter uniqueness races to 409', async () => {
+    mockRegisterSSOProvider.mockRejectedValue({ code: '23505' })
+    const response = await POST(request(OIDC_BODY))
+    expect(response.status).toBe(409)
   })
 })

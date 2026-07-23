@@ -4,6 +4,7 @@ import type { E2eRuntimeSecrets } from './runtime-secrets'
 
 export const E2E_PROFILE = 'hosted-billing-chromium'
 export const E2E_HOST = 'e2e.sim.ai'
+export const E2E_MCP_HOST = 'mcp.e2e.sim.ai'
 export const E2E_ORIGIN = `http://${E2E_HOST}:3000`
 export const E2E_SOCKET_ORIGIN = `http://${E2E_HOST}:3002`
 
@@ -29,6 +30,10 @@ const APP_REQUIRED_KEYS = [
   'ADMIN_API_KEY',
   'BILLING_ENABLED',
   'NEXT_PUBLIC_BILLING_ENABLED',
+  'SSO_ENABLED',
+  'SSO_DOMAIN_VERIFICATION_ENABLED',
+  'NEXT_PUBLIC_SSO_ENABLED',
+  'ALLOWED_MCP_DOMAINS',
   'STRIPE_SECRET_KEY',
   'STRIPE_API_BASE_URL',
   'TELEMETRY_ENDPOINT',
@@ -75,10 +80,15 @@ const ALLOWED_SENSITIVE_KEYS = new Set([
   'STRIPE_WEBHOOK_SECRET',
 ])
 
+export function isHostedProfileSensitiveKey(key: string): boolean {
+  return ALLOWED_SENSITIVE_KEYS.has(key)
+}
+
 export interface HostedBillingProfileOptions {
   runId: string
   databaseUrl: string
   stripeApiBaseUrl: string
+  mcpServerUrl: string
   runtimeHomeDirectory: string
   setupHomeDirectory: string
   authCaptureHomeDirectory: string
@@ -106,6 +116,7 @@ export function createHostedBillingProfile({
   runId,
   databaseUrl,
   stripeApiBaseUrl,
+  mcpServerUrl,
   runtimeHomeDirectory,
   setupHomeDirectory,
   authCaptureHomeDirectory,
@@ -114,6 +125,7 @@ export function createHostedBillingProfile({
   runtimeSecrets,
   ci,
 }: HostedBillingProfileOptions): HostedBillingProfile {
+  validateMcpServerUrl(mcpServerUrl)
   const values: Record<string, string> = {
     NODE_ENV: 'production',
     NODE_OPTIONS: '--no-warnings --max-old-space-size=8192 --dns-result-order=ipv4first',
@@ -140,6 +152,10 @@ export function createHostedBillingProfile({
     ADMIN_API_KEY: runtimeSecrets.adminApiKey,
     BILLING_ENABLED: 'true',
     NEXT_PUBLIC_BILLING_ENABLED: 'true',
+    SSO_ENABLED: 'true',
+    SSO_DOMAIN_VERIFICATION_ENABLED: 'true',
+    NEXT_PUBLIC_SSO_ENABLED: 'true',
+    ALLOWED_MCP_DOMAINS: E2E_MCP_HOST,
     EMAIL_VERIFICATION_ENABLED: 'false',
     EMAIL_PASSWORD_SIGNUP_ENABLED: 'true',
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: 'true',
@@ -291,6 +307,7 @@ export function createHostedBillingProfile({
             'E2E_BASE_URL',
             'CI',
           ]),
+          E2E_MCP_SERVER_URL: mcpServerUrl,
           HOME: playwrightHomeDirectory,
         },
         [
@@ -300,6 +317,7 @@ export function createHostedBillingProfile({
           'E2E_PROFILE',
           'E2E_RUN_ID',
           'E2E_BASE_URL',
+          'E2E_MCP_SERVER_URL',
         ],
         false
       ),
@@ -345,5 +363,19 @@ function validateProfileValues(values: Record<string, string>): void {
   const stripeUrl = new URL(values.STRIPE_API_BASE_URL)
   if (stripeUrl.hostname !== '127.0.0.1') {
     throw new Error('E2E Stripe API must use numeric IPv4 loopback 127.0.0.1')
+  }
+}
+
+function validateMcpServerUrl(value: string): void {
+  const url = new URL(value)
+  if (
+    url.protocol !== 'http:' ||
+    url.hostname !== E2E_MCP_HOST ||
+    url.pathname !== '/mcp' ||
+    url.search ||
+    url.hash ||
+    !url.port
+  ) {
+    throw new Error(`E2E MCP server URL must be http://${E2E_MCP_HOST}:<port>/mcp`)
   }
 }

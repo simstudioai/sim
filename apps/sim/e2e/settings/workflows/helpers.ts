@@ -1,11 +1,22 @@
 import { randomUUID } from 'node:crypto'
+import { writeFileSync } from 'node:fs'
+import path from 'node:path'
 import type { APIRequestContext, BrowserContext, Locator, Page, Response } from '@playwright/test'
 import { z } from 'zod'
 import {
+  type ListMcpServersResponse,
+  listMcpServersContract,
+  type McpServer,
+} from '@/lib/api/contracts/mcp'
+import {
+  type OrganizationDataRetention,
+  type OrganizationRetentionValues,
   type OrganizationRoster,
+  organizationDataRetentionResponseSchema,
   organizationRosterSchema,
   type RosterMember,
   type RosterPendingInvitation,
+  type UpdateOrganizationDataRetentionBody,
 } from '@/lib/api/contracts/organization'
 import type { ScenarioManifest } from '../../fixtures/e2e-world'
 import { absoluteE2eUrl } from '../navigation/contract-resolver'
@@ -29,6 +40,25 @@ const permissionGroupListSchema = z.object({
     })
   ),
 })
+
+const ssoProviderListSchema = z.object({
+  providers: z.array(
+    z.object({
+      id: z.string().optional(),
+      providerId: z.string().optional(),
+      domain: z.string().nullable(),
+      issuer: z.string().nullable().optional(),
+      samlConfig: z.string().nullable().optional(),
+      organizationId: z.string().nullable().optional(),
+      providerType: z.enum(['oidc', 'saml']).optional(),
+      domainVerified: z.boolean().optional(),
+      isCreator: z.boolean().optional(),
+      canManageVerification: z.boolean().optional(),
+    })
+  ),
+})
+
+export type SsoProviderListEntry = z.infer<typeof ssoProviderListSchema>['providers'][number]
 
 export interface PrimaryWorldIds {
   teamOrganizationId: string
@@ -66,6 +96,27 @@ export function uniqueWorkflowName(label: string): string {
   return `e2e-${label}-${randomUUID()}`
 }
 
+export function workflowResourcePrefix(manifest: ScenarioManifest, label: string): string {
+  const prefix = manifest.worlds['settings-primary']?.namespace.prefix
+  if (!prefix) throw new Error('Missing settings-primary workflow namespace')
+  return `${prefix}-${label}`
+}
+
+export function uniqueRunPrefixedName(manifest: ScenarioManifest, label: string): string {
+  return `${workflowResourcePrefix(manifest, label)}-${randomUUID()}`
+}
+
+export function uniqueSsoProviderId(manifest: ScenarioManifest): {
+  providerId: string
+  providerPrefix: string
+} {
+  const providerPrefix = workflowResourcePrefix(manifest, 'sso').slice(0, 35).replace(/-+$/, '')
+  return {
+    providerId: `${providerPrefix}-${randomUUID().replace(/-/g, '').slice(0, 8)}`,
+    providerPrefix,
+  }
+}
+
 export async function newPersonaPage(
   contextForPersona: (personaKey: string) => Promise<BrowserContext>,
   personaKey: string
@@ -98,16 +149,48 @@ export async function expectAccessControlReady(page: Page): Promise<Locator> {
   return region
 }
 
+export async function expectSsoReady(page: Page): Promise<Locator> {
+  const region = page.getByRole('region', { name: 'SSO settings' })
+  await expect(region).toHaveAttribute('aria-busy', 'false')
+  await expect(region).toHaveAttribute('data-sso-state', 'ready')
+  return region
+}
+
+export async function expectDataRetentionReady(page: Page): Promise<Locator> {
+  const region = page.getByRole('region', { name: 'Data retention settings' })
+  await expect(region).toHaveAttribute('aria-busy', 'false')
+  await expect(region).toHaveAttribute('data-retention-state', 'ready')
+  return region
+}
+
+export async function expectMcpReady(page: Page): Promise<Locator> {
+  const region = page.getByRole('region', { name: 'MCP servers data' })
+  await expect(region).toHaveAttribute('aria-busy', 'false')
+  await expect(region).toHaveAttribute('data-mcp-state', 'ready')
+  return region
+}
+
 export function waitForSameOriginResponse(
   page: Page,
   method: string,
-  pathname: string
+  pathname: string,
+  expectedSearchParams?: Record<string, string>
 ): Promise<Response> {
   const origin = new URL(absoluteE2eUrl('/')).origin
   return page.waitForResponse((response) => {
     const url = new URL(response.url())
+    if (
+      url.origin !== origin ||
+      url.pathname !== pathname ||
+      response.request().method() !== method
+    ) {
+      return false
+    }
+    if (!expectedSearchParams) return true
+    const expectedEntries = Object.entries(expectedSearchParams)
     return (
-      url.origin === origin && url.pathname === pathname && response.request().method() === method
+      url.searchParams.size === expectedEntries.length &&
+      expectedEntries.every(([key, value]) => url.searchParams.get(key) === value)
     )
   })
 }
@@ -126,6 +209,144 @@ export async function selectDropdownOption(
 ): Promise<void> {
   await scope.getByRole('button', { name: currentLabel, exact: true }).click()
   await scope.page().getByRole('menuitem', { name: nextLabel, exact: true }).click()
+}
+
+export async function selectLabeledOption(
+  scope: Locator,
+  controlName: string,
+  optionName: string
+): Promise<void> {
+  await scope.getByLabel(controlName, { exact: true }).click()
+  await scope.page().getByRole('menuitem', { name: optionName, exact: true }).click()
+}
+
+export async function listSsoProviders(
+  request: APIRequestContext,
+  organizationId: string
+): Promise<SsoProviderListEntry[]> {
+  const response = await request.get('/api/auth/sso/providers', {
+    params: { organizationId },
+  })
+  expect(response.status()).toBe(200)
+  return ssoProviderListSchema.parse(await response.json()).providers
+}
+
+export async function deleteRunPrefixedSsoProviders(
+  request: APIRequestContext,
+  organizationId: string,
+  providerPrefix: string
+): Promise<void> {
+  const providers = await listSsoProviders(request, organizationId)
+  for (const provider of providers) {
+    if (!provider.providerId?.startsWith(providerPrefix) || !provider.id) continue
+    const response = await request.delete(
+      `/api/auth/sso/providers/${encodeURIComponent(provider.id)}`
+    )
+    if (response.status() !== 200 && response.status() !== 404) {
+      throw new Error(`SSO provider cleanup failed with ${response.status()}`)
+    }
+  }
+  expect(
+    (await listSsoProviders(request, organizationId)).some(({ providerId }) =>
+      providerId?.startsWith(providerPrefix)
+    )
+  ).toBe(false)
+}
+
+export async function getOrganizationRetention(
+  request: APIRequestContext,
+  organizationId: string
+): Promise<OrganizationDataRetention> {
+  const response = await request.get(
+    `/api/organizations/${encodeURIComponent(organizationId)}/data-retention`
+  )
+  expect(response.status()).toBe(200)
+  return organizationDataRetentionResponseSchema.parse(await response.json()).data
+}
+
+export async function putOrganizationRetention(
+  request: APIRequestContext,
+  organizationId: string,
+  body: UpdateOrganizationDataRetentionBody
+): Promise<OrganizationDataRetention> {
+  expect(body).not.toHaveProperty('piiRedaction')
+  const response = await request.put(
+    `/api/organizations/${encodeURIComponent(organizationId)}/data-retention`,
+    { data: body }
+  )
+  expect(response.status()).toBe(200)
+  return organizationDataRetentionResponseSchema.parse(await response.json()).data
+}
+
+export async function restoreOrganizationRetention(
+  request: APIRequestContext,
+  organizationId: string,
+  snapshot: OrganizationRetentionValues
+): Promise<void> {
+  if (snapshot.retentionOverrides === null) {
+    throw new Error('E2E retention restoration requires a concrete override snapshot')
+  }
+  const body: UpdateOrganizationDataRetentionBody = {
+    logRetentionHours: snapshot.logRetentionHours,
+    softDeleteRetentionHours: snapshot.softDeleteRetentionHours,
+    taskCleanupHours: snapshot.taskCleanupHours,
+    retentionOverrides: structuredClone(snapshot.retentionOverrides),
+  }
+  const restored = await putOrganizationRetention(request, organizationId, body)
+  expect(restored.configured).toEqual(snapshot)
+}
+
+export async function listMcpServers(
+  request: APIRequestContext,
+  workspaceId: string
+): Promise<McpServer[]> {
+  const response = await request.get('/api/mcp/servers', { params: { workspaceId } })
+  expect(response.status()).toBe(200)
+  const parsed = listMcpServersContract.response.schema.parse(
+    await response.json()
+  ) as ListMcpServersResponse
+  return parsed.data.servers
+}
+
+export async function deleteMcpServer(
+  request: APIRequestContext,
+  workspaceId: string,
+  serverId: string
+): Promise<void> {
+  const response = await request.delete('/api/mcp/servers', {
+    params: { workspaceId, serverId },
+  })
+  if (response.status() !== 200 && response.status() !== 404) {
+    throw new Error(`MCP server cleanup failed with ${response.status()}`)
+  }
+}
+
+export async function deleteRunPrefixedMcpServers(
+  request: APIRequestContext,
+  workspaceId: string,
+  namePrefix: string
+): Promise<void> {
+  for (const server of await listMcpServers(request, workspaceId)) {
+    if (server.name.startsWith(namePrefix)) {
+      await deleteMcpServer(request, workspaceId, server.id)
+    }
+  }
+  expect(
+    (await listMcpServers(request, workspaceId)).some(({ name }) => name.startsWith(namePrefix))
+  ).toBe(false)
+}
+
+export function writeMcpWorkflowCompleteMarker(): void {
+  const markerDirectory = process.env.E2E_MARKER_DIR
+  const runId = process.env.E2E_RUN_ID
+  if (!markerDirectory || !runId) {
+    throw new Error('Missing MCP workflow marker environment')
+  }
+  writeFileSync(
+    path.join(markerDirectory, 'mcp-workflow-complete.json'),
+    `${JSON.stringify({ runId, completedAt: new Date().toISOString() })}\n`,
+    { mode: 0o600 }
+  )
 }
 
 export async function getOrganizationRoster(

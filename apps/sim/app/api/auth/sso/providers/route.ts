@@ -1,10 +1,15 @@
-import { db, member, ssoProvider } from '@sim/db'
+import { db, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listSsoProvidersContract } from '@/lib/api/contracts/auth'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import {
+  authorizeOrganizationSSOAdmin,
+  ssoManagementErrorResponse,
+} from '@/lib/auth/sso/management'
+import { env, isTruthy } from '@/lib/core/config/env'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -32,18 +37,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
       let verifiedOrganizationId: string | null = null
       if (organizationId) {
-        const [membership] = await db
-          .select({ organizationId: member.organizationId, role: member.role })
-          .from(member)
-          .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
-          .limit(1)
-        if (!membership) {
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-        }
-        if (membership.role !== 'owner' && membership.role !== 'admin') {
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-        }
-        verifiedOrganizationId = membership.organizationId
+        await authorizeOrganizationSSOAdmin(userId, organizationId)
+        verifiedOrganizationId = organizationId
       }
 
       const whereClause = verifiedOrganizationId
@@ -60,11 +55,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           samlConfig: ssoProvider.samlConfig,
           userId: ssoProvider.userId,
           organizationId: ssoProvider.organizationId,
+          domainVerified: ssoProvider.domainVerified,
         })
         .from(ssoProvider)
         .where(whereClause)
 
       providers = results.map((provider) => {
+        const { userId: creatorUserId, ...publicProvider } = provider
         let oidcConfig = provider.oidcConfig
         if (oidcConfig) {
           try {
@@ -76,9 +73,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           }
         }
         return {
-          ...provider,
+          ...publicProvider,
+          domainVerified: isTruthy(env.SSO_DOMAIN_VERIFICATION_ENABLED)
+            ? provider.domainVerified
+            : true,
           oidcConfig,
           providerType: (provider.samlConfig ? 'saml' : 'oidc') as 'oidc' | 'saml',
+          isCreator: creatorUserId === userId,
+          canManageVerification: creatorUserId === userId,
         }
       })
     } else {
@@ -101,6 +103,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ providers })
   } catch (error) {
+    const managedResponse = ssoManagementErrorResponse(error)
+    if (managedResponse) return managedResponse
     logger.error('Failed to fetch SSO providers', { error })
     return NextResponse.json({ error: 'Failed to fetch SSO providers' }, { status: 500 })
   }

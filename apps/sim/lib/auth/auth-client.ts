@@ -10,6 +10,7 @@ import {
 } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 import type { auth } from '@/lib/auth'
+import { SSO_DOMAIN_VERIFICATION_OPTIONS } from '@/lib/auth/sso/config'
 import { env } from '@/lib/core/config/env'
 import { isBillingEnabled, isOrganizationsEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl, getBrowserOrigin } from '@/lib/core/utils/urls'
@@ -34,7 +35,7 @@ export const client = createAuthClient({
         ]
       : []),
     ...(isOrganizationsEnabled ? [organizationClient()] : []),
-    ...(env.NEXT_PUBLIC_SSO_ENABLED ? [ssoClient()] : []),
+    ...(env.NEXT_PUBLIC_SSO_ENABLED ? [ssoClient(SSO_DOMAIN_VERIFICATION_OPTIONS)] : []),
   ],
 })
 

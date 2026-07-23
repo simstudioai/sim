@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
 
 /**
- * Direct Database SSO Registration Script (Better Auth Best Practice)
+ * Audited Direct Database SSO Registration Script
  *
  * This script bypasses the authentication requirement by directly inserting
- * SSO provider records into the database, following the exact same logic
- * as Better Auth's registerSSOProvider endpoint.
+ * SSO provider records into the database while enforcing Sim's organization,
+ * domain, provider-ID, verification-reset, and account-link invariants.
  *
  * Usage: bun run packages/db/scripts/register-sso-provider.ts
  *
@@ -16,6 +16,7 @@
  *   SSO_ISSUER=https://your-idp-url
  *   SSO_DOMAIN=your-email-domain.com
  *   SSO_USER_EMAIL=admin@yourdomain.com (must be existing user)
+ *   SSO_ORGANIZATION_ID=your-organization-id (user must be an owner/admin)
  *
  * OIDC Providers:
  *   SSO_OIDC_CLIENT_ID=your_client_id
@@ -40,10 +41,13 @@
 
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { ssoProvider, user } from '../schema'
+import { parse as parseDomain } from 'tldts'
+import { member, organization, ssoProvider, user } from '../schema'
+import { ssoDomainsOverlap } from '../sso-domain'
+import { SSO_PROVIDER_MUTATION_LOCK_KEY } from '../sso-lock'
 
 interface SSOMapping {
   id: string
@@ -162,7 +166,30 @@ interface SSOProviderData {
   samlConfig?: string
   userId: string
   providerId: string
-  organizationId?: string
+  organizationId: string
+  domainVerified: boolean
+}
+
+const RESERVED_PROVIDER_IDS = new Set(['google', 'github', 'email-password'])
+
+function normalizeProviderId(value: string): string | null {
+  const normalized = value.trim().toLowerCase()
+  return normalized.length <= 44 &&
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(normalized) &&
+    !RESERVED_PROVIDER_IDS.has(normalized)
+    ? normalized
+    : null
+}
+
+function normalizeDomain(value: string): string | null {
+  const normalized = value.trim().toLowerCase().replace(/\.$/, '')
+  const parsed = parseDomain(normalized, { allowPrivateDomains: true, validateHostname: true })
+  return parsed.hostname === normalized &&
+    parsed.publicSuffix &&
+    parsed.publicSuffix !== normalized &&
+    !normalized.includes(',')
+    ? normalized
+    : null
 }
 
 function buildSSOConfigFromEnv(): SSOProviderConfig | null {
@@ -172,16 +199,23 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
   const providerId = process.env.SSO_PROVIDER_ID
   const issuer = process.env.SSO_ISSUER
   const domain = process.env.SSO_DOMAIN
-  const providerType = process.env.SSO_PROVIDER_TYPE as 'oidc' | 'saml'
+  const providerType = process.env.SSO_PROVIDER_TYPE
 
-  if (!providerId || !issuer || !domain || !providerType) {
+  const normalizedProviderId = providerId ? normalizeProviderId(providerId) : null
+  const normalizedDomain = domain ? normalizeDomain(domain) : null
+  if (
+    !normalizedProviderId ||
+    !issuer ||
+    !normalizedDomain ||
+    (providerType !== 'oidc' && providerType !== 'saml')
+  ) {
     return null
   }
 
   const config: SSOProviderConfig = {
-    providerId,
+    providerId: normalizedProviderId,
     issuer,
-    domain,
+    domain: normalizedDomain,
     providerType,
   }
 
@@ -339,6 +373,7 @@ function getExampleEnvVars(
     SSO_PROVIDER_ID: provider || (providerType === 'oidc' ? 'okta' : 'adfs'),
     SSO_DOMAIN: 'yourcompany.com',
     SSO_USER_EMAIL: 'admin@yourcompany.com',
+    SSO_ORGANIZATION_ID: 'your-organization-id',
   }
 
   if (providerType === 'oidc') {
@@ -410,6 +445,34 @@ async function getAdminUser(): Promise<{ id: string; email: string } | null> {
   }
 }
 
+async function getAuditedOrganization(userId: string): Promise<string | null> {
+  const organizationId = process.env.SSO_ORGANIZATION_ID?.trim()
+  if (!organizationId) {
+    logger.error('SSO_ORGANIZATION_ID is required; user-scoped SSO providers are unsupported')
+    return null
+  }
+
+  const [organizationRow, membership] = await Promise.all([
+    db
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.id, organizationId)),
+    db
+      .select({ role: member.role })
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId))),
+  ])
+  if (organizationRow.length === 0) {
+    logger.error(`Organization '${organizationId}' does not exist`)
+    return null
+  }
+  if (!membership.some(({ role }) => role === 'owner' || role === 'admin')) {
+    logger.error('SSO_USER_EMAIL must be an owner or admin of SSO_ORGANIZATION_ID')
+    return null
+  }
+  return organizationId
+}
+
 async function registerSSOProvider(): Promise<boolean> {
   try {
     const ssoConfig = buildSSOConfigFromEnv()
@@ -438,6 +501,10 @@ async function registerSSOProvider(): Promise<boolean> {
     if (!adminUser) {
       return false
     }
+    const organizationId = await getAuditedOrganization(adminUser.id)
+    if (!organizationId) {
+      return false
+    }
 
     logger.info('Registering SSO provider directly in database...', {
       providerId: ssoConfig.providerId,
@@ -447,7 +514,8 @@ async function registerSSOProvider(): Promise<boolean> {
     })
 
     try {
-      new URL(ssoConfig.issuer)
+      const issuer = new URL(ssoConfig.issuer)
+      if (!['http:', 'https:'].includes(issuer.protocol)) throw new Error('Unsupported protocol')
     } catch {
       logger.error('Invalid issuer. Must be a valid URL:', ssoConfig.issuer)
       return false
@@ -560,23 +628,14 @@ async function registerSSOProvider(): Promise<boolean> {
       }
     }
 
-    const existingProviders = await db
-      .select()
-      .from(ssoProvider)
-      .where(eq(ssoProvider.providerId, ssoConfig.providerId))
-
-    if (existingProviders.length > 0) {
-      logger.warn(`SSO provider with ID '${ssoConfig.providerId}' already exists`)
-      logger.info('Updating existing provider...')
-    }
-
     const providerData: SSOProviderData = {
       id: generateId(),
       issuer: ssoConfig.issuer,
       domain: ssoConfig.domain,
       userId: adminUser.id,
       providerId: ssoConfig.providerId,
-      organizationId: process.env.SSO_ORGANIZATION_ID || undefined,
+      organizationId,
+      domainVerified: false,
     }
 
     if (ssoConfig.providerType === 'oidc' && ssoConfig.oidcConfig) {
@@ -625,21 +684,32 @@ async function registerSSOProvider(): Promise<boolean> {
       providerData.samlConfig = JSON.stringify(samlConfig)
     }
 
-    if (existingProviders.length > 0) {
-      await db
-        .update(ssoProvider)
-        .set({
-          issuer: providerData.issuer,
-          domain: providerData.domain,
-          oidcConfig: providerData.oidcConfig,
-          samlConfig: providerData.samlConfig,
-          userId: providerData.userId,
-          organizationId: providerData.organizationId,
-        })
-        .where(eq(ssoProvider.providerId, ssoConfig.providerId))
-    } else {
-      await db.insert(ssoProvider).values(providerData)
-    }
+    const inserted = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${SSO_PROVIDER_MUTATION_LOCK_KEY}::bigint)`)
+      const allProviders = await tx.select().from(ssoProvider)
+      if (allProviders.some((provider) => provider.providerId === ssoConfig.providerId)) {
+        logger.error(
+          'The provider ID already exists. Direct script updates are intentionally unsupported; use the guarded Settings API.'
+        )
+        return false
+      }
+      if (
+        allProviders.some(
+          (provider) =>
+            provider.organizationId === organizationId ||
+            ssoDomainsOverlap(provider.domain, ssoConfig.domain)
+        )
+      ) {
+        logger.error(
+          'The organization already has a provider or its domain overlaps another provider'
+        )
+        return false
+      }
+
+      await tx.insert(ssoProvider).values(providerData)
+      return true
+    })
+    if (!inserted) return false
 
     logger.info('✅ SSO provider registered successfully in database!', {
       providerId: ssoConfig.providerId,
@@ -648,7 +718,13 @@ async function registerSSOProvider(): Promise<boolean> {
       id: providerData.id,
     })
 
-    logger.info('🔗 Users can now sign in using SSO')
+    if (process.env.SSO_DOMAIN_VERIFICATION_ENABLED === 'true') {
+      logger.info('🔐 Provider created pending DNS domain verification in the Settings UI')
+    } else {
+      logger.info(
+        '🔗 Users can now sign in using SSO (domain verification enforcement is disabled)'
+      )
+    }
 
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL || process.env.BETTER_AUTH_URL || 'https://your-domain.com'
@@ -678,10 +754,10 @@ async function registerSSOProvider(): Promise<boolean> {
 }
 
 async function main() {
-  console.log('🔐 Direct Database SSO Registration Script (Better Auth Best Practice)')
+  console.log('🔐 Audited Direct Database SSO Registration Script')
   console.log('====================================================================')
   console.log('This script directly inserts SSO provider records into the database.')
-  console.log("It follows Better Auth's exact registerSSOProvider logic.\n")
+  console.log('It enforces the same organization and identity invariants as Sim management APIs.\n')
 
   const success = await registerSSOProvider()
 

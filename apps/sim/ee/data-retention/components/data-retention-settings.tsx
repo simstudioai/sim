@@ -20,7 +20,6 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { ArrowRight, Plus } from 'lucide-react'
 import { CustomPatternsEditor } from '@/components/pii/custom-patterns-editor'
-import type { UpdateOrganizationDataRetentionBody } from '@/lib/api/contracts/organization'
 import type { RetentionOverride } from '@/lib/api/contracts/primitives'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import {
@@ -47,6 +46,10 @@ import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/comp
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
+import {
+  buildDataRetentionUpdateSettings,
+  resolveDataRetentionState,
+} from '@/ee/data-retention/components/data-retention-state'
 import {
   useOrganizationRetention,
   useUpdateOrganizationRetention,
@@ -228,13 +231,19 @@ function dayValueLabel(days: string): string {
 }
 
 interface RetentionSelectProps {
+  ariaLabel: string
   value: string
   onChange: (value: string) => void
   /** Prepend an "Inherit from organization" option (workspace-override fields). */
   allowInherit?: boolean
 }
 
-function RetentionSelect({ value, onChange, allowInherit = false }: RetentionSelectProps) {
+function RetentionSelect({
+  ariaLabel,
+  value,
+  onChange,
+  allowInherit = false,
+}: RetentionSelectProps) {
   const base = DAY_OPTIONS.map((o) => ({ value: o.value, label: o.label }))
   const withInherit = allowInherit
     ? [{ value: INHERIT, label: 'Inherit from organization' }, ...base]
@@ -244,7 +253,15 @@ function RetentionSelect({ value, onChange, allowInherit = false }: RetentionSel
     ? withInherit
     : [...withInherit, { value, label: `${value} days (custom)` }]
 
-  return <ChipSelect value={value} onChange={onChange} options={options} align='start' />
+  return (
+    <ChipSelect
+      aria-label={ariaLabel}
+      value={value}
+      onChange={onChange}
+      options={options}
+      align='start'
+    />
+  )
 }
 
 interface EntityCheckboxGridProps {
@@ -420,6 +437,7 @@ interface PolicyDetailProps {
   isNew: boolean
   changed: boolean
   isSaving: boolean
+  actionsEnabled: boolean
   piiEnabled: boolean
   piiGranularEnabled: boolean
   canRemove: boolean
@@ -436,6 +454,7 @@ function PolicyDetail({
   isNew,
   changed,
   isSaving,
+  actionsEnabled,
   piiEnabled,
   piiGranularEnabled,
   canRemove,
@@ -485,7 +504,7 @@ function PolicyDetail({
             saving: isSaving,
             onSave,
             onDiscard,
-            saveDisabled: !isOrg && draft.workspaceIds.length === 0,
+            saveDisabled: !actionsEnabled || (!isOrg && draft.workspaceIds.length === 0),
           }),
           ...(canRemove
             ? [
@@ -493,7 +512,7 @@ function PolicyDetail({
                   text: 'Remove override',
                   variant: 'destructive',
                   onSelect: () => setShowRemoveConfirm(true),
-                  disabled: isSaving,
+                  disabled: !actionsEnabled || isSaving,
                 } satisfies SettingsAction,
               ]
             : []),
@@ -525,6 +544,7 @@ function PolicyDetail({
             <div className='flex items-center justify-between gap-3'>
               <span className='text-[var(--text-muted)] text-small'>Log retention</span>
               <RetentionSelect
+                ariaLabel={`${isOrg ? 'Organization' : 'Workspace override'} log retention`}
                 allowInherit={!isOrg}
                 value={draft.logDays}
                 onChange={(logDays) => onChange({ ...draft, logDays })}
@@ -533,6 +553,7 @@ function PolicyDetail({
             <div className='flex items-center justify-between gap-3'>
               <span className='text-[var(--text-muted)] text-small'>Soft deletion cleanup</span>
               <RetentionSelect
+                ariaLabel={`${isOrg ? 'Organization' : 'Workspace override'} soft deletion cleanup`}
                 allowInherit={!isOrg}
                 value={draft.softDeleteDays}
                 onChange={(softDeleteDays) => onChange({ ...draft, softDeleteDays })}
@@ -541,6 +562,7 @@ function PolicyDetail({
             <div className='flex items-center justify-between gap-3'>
               <span className='text-[var(--text-muted)] text-small'>Task cleanup</span>
               <RetentionSelect
+                ariaLabel={`${isOrg ? 'Organization' : 'Workspace override'} task cleanup`}
                 allowInherit={!isOrg}
                 value={draft.taskCleanupDays}
                 onChange={(taskCleanupDays) => onChange({ ...draft, taskCleanupDays })}
@@ -664,9 +686,20 @@ interface DataRetentionSettingsProps {
 }
 
 export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSettingsProps) {
-  const { data, isLoading: retentionLoading } = useOrganizationRetention(orgId)
+  const retentionQuery = useOrganizationRetention(orgId)
+  const { data } = retentionQuery
   const updateMutation = useUpdateOrganizationRetention()
-  const { data: workspaces } = useWorkspacesQuery(Boolean(orgId))
+  const workspacesQuery = useWorkspacesQuery(Boolean(orgId))
+  const workspaces = workspacesQuery.data
+  const dataState = resolveDataRetentionState({
+    retentionSuccess: retentionQuery.isSuccess,
+    retentionError: retentionQuery.isError,
+    retentionPlaceholder: retentionQuery.isPlaceholderData,
+    workspacesSuccess: workspacesQuery.isSuccess,
+    workspacesError: workspacesQuery.isError,
+    workspacesPlaceholder: workspacesQuery.isPlaceholderData,
+  })
+  const actionsEnabled = dataState === 'ready'
   const workspaceOptions = (workspaces ?? [])
     .filter((w) => w.organizationId === orgId)
     .map((w) => ({ value: w.id, label: w.name }))
@@ -686,7 +719,7 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
   const hydratedOrgRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!data || !orgId || hydratedOrgRef.current === orgId) return
+    if (dataState !== 'ready' || !data || !orgId || hydratedOrgRef.current === orgId) return
     setLogDays(hoursToDisplayDays(data.effective.logRetentionHours))
     setSoftDeleteDays(hoursToDisplayDays(data.effective.softDeleteRetentionHours))
     setTaskCleanupDays(hoursToDisplayDays(data.effective.taskCleanupHours))
@@ -707,12 +740,16 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
     )
     setOverrides(data.configured.retentionOverrides ?? [])
     hydratedOrgRef.current = orgId
-  }, [data, orgId])
+  }, [data, dataState, orgId])
 
   const editingChanged =
     editing !== null &&
     normalizePolicyDraft(editing.draft) !== normalizePolicyDraft(editing.original)
   const guard = useSettingsUnsavedGuard({ isDirty: editingChanged })
+
+  useEffect(() => {
+    if (dataState !== 'ready') guard.setShowUnsavedModal(false)
+  }, [dataState, guard.setShowUnsavedModal])
 
   const overrideWorkspaceIds = Array.from(
     new Set([
@@ -757,11 +794,7 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
     return parts.join(' · ')
   }
 
-  /**
-   * Persist a full snapshot of org hours + PII rules + retention overrides in
-   * one PUT. The route replaces each provided key, so always sending the whole
-   * state keeps the three editable surfaces consistent.
-   */
+  /** Persist the complete editable snapshot, including PII only when enabled. */
   async function persistSnapshot(next: {
     logDays: string
     softDeleteDays: string
@@ -770,29 +803,32 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
     piiOverrides: PiiOverride[]
     overrides: RetentionOverride[]
   }) {
-    if (!orgId) return
-    const settings: UpdateOrganizationDataRetentionBody = {
-      logRetentionHours: daysToHours(next.logDays),
-      softDeleteRetentionHours: daysToHours(next.softDeleteDays),
-      taskCleanupHours: daysToHours(next.taskCleanupDays),
-      retentionOverrides: next.overrides,
+    if (!orgId || dataState !== 'ready') {
+      throw new Error('Data retention settings are not ready')
     }
-    if (piiEnabled) {
-      const rules: { id: string; workspaceId: string | null; stages: PiiStages }[] =
-        next.piiOverrides.map((p) => ({
-          id: p.id,
-          workspaceId: p.workspaceId,
-          stages: withSyncedEnabled(p.stages),
-        }))
-      if (next.defaultPii) {
-        rules.unshift({
-          id: next.defaultPii.id,
-          workspaceId: null,
-          stages: withSyncedEnabled(next.defaultPii.stages),
-        })
-      }
-      settings.piiRedaction = { rules }
+    const rules: { id: string; workspaceId: string | null; stages: PiiStages }[] =
+      next.piiOverrides.map((p) => ({
+        id: p.id,
+        workspaceId: p.workspaceId,
+        stages: withSyncedEnabled(p.stages),
+      }))
+    if (next.defaultPii) {
+      rules.unshift({
+        id: next.defaultPii.id,
+        workspaceId: null,
+        stages: withSyncedEnabled(next.defaultPii.stages),
+      })
     }
+    const settings = buildDataRetentionUpdateSettings(
+      {
+        logRetentionHours: daysToHours(next.logDays),
+        softDeleteRetentionHours: daysToHours(next.softDeleteDays),
+        taskCleanupHours: daysToHours(next.taskCleanupDays),
+        retentionOverrides: next.overrides,
+        piiRedaction: { rules },
+      },
+      piiEnabled
+    )
     await updateMutation.mutateAsync({ orgId, settings })
     setLogDays(next.logDays)
     setSoftDeleteDays(next.softDeleteDays)
@@ -859,7 +895,7 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
   }
 
   async function savePolicy() {
-    if (!editing) return
+    if (!editing || dataState !== 'ready') return
     const draft = editing.draft
     try {
       if (draft.isOrgDefault) {
@@ -912,7 +948,7 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
   }
 
   async function removeCurrentOverride() {
-    if (!editing || editing.draft.isOrgDefault) return
+    if (!editing || editing.draft.isOrgDefault || dataState !== 'ready') return
     const idSet = new Set(editing.original.workspaceIds)
     try {
       await persistSnapshot({
@@ -929,26 +965,37 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
     }
   }
 
-  if (retentionLoading) return null
+  if (dataState === 'loading') {
+    return <section aria-label='Data retention settings' aria-busy data-retention-state='loading' />
+  }
 
-  if (!data) {
-    return <SettingsEmptyState>Failed to load data retention settings.</SettingsEmptyState>
+  if (dataState === 'error' || !data) {
+    return (
+      <section aria-label='Data retention settings' aria-busy={false} data-retention-state='error'>
+        <SettingsEmptyState>Failed to load data retention settings.</SettingsEmptyState>
+      </section>
+    )
   }
 
   if (isBillingEnabled && !data.isEnterprise) {
     return (
-      <SettingsEmptyState>Data retention is available on Enterprise plans only.</SettingsEmptyState>
+      <section aria-label='Data retention settings' aria-busy={false} data-retention-state='ready'>
+        <SettingsEmptyState>
+          Data retention is available on Enterprise plans only.
+        </SettingsEmptyState>
+      </section>
     )
   }
 
   return (
-    <>
+    <section aria-label='Data retention settings' aria-busy={false} data-retention-state='ready'>
       {editing ? (
         <PolicyDetail
           draft={editing.draft}
           isNew={editing.isNew}
           changed={editingChanged}
           isSaving={updateMutation.isPending}
+          actionsEnabled={actionsEnabled}
           piiEnabled={piiEnabled}
           piiGranularEnabled={piiGranularEnabled}
           canRemove={!editing.draft.isOrgDefault && !editing.isNew}
@@ -967,7 +1014,7 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
               icon: Plus,
               variant: 'primary',
               onSelect: openAddOverride,
-              disabled: freeWorkspaces.length === 0,
+              disabled: !actionsEnabled || freeWorkspaces.length === 0,
             },
           ]}
         >
@@ -975,6 +1022,8 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
             <div className='-mx-2 flex flex-col gap-y-0.5'>
               <button
                 type='button'
+                aria-label='Edit organization retention policy'
+                disabled={!actionsEnabled}
                 onClick={openEditOrg}
                 className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
               >
@@ -995,6 +1044,8 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
                 <button
                   key={workspaceId}
                   type='button'
+                  aria-label={`Edit retention policy for ${workspaceName(workspaceId)}`}
+                  disabled={!actionsEnabled}
                   onClick={() => openEditOverride(workspaceId)}
                   className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                 >
@@ -1018,6 +1069,6 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
         onOpenChange={guard.setShowUnsavedModal}
         onDiscard={guard.confirmDiscard}
       />
-    </>
+    </section>
   )
 }

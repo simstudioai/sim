@@ -21,7 +21,7 @@ function assertWorkflowArtifactPolicy(testInfo: TestInfo): void {
   const { trace, screenshot, video } = testInfo.project.use
   if (trace !== 'off' || screenshot !== 'only-on-failure' || video !== 'off') {
     throw new Error(
-      'People workflows must disable trace/video while retaining failure-only screenshots'
+      'Settings workflows must disable trace/video while retaining failure-only screenshots'
     )
   }
 }

@@ -4,6 +4,7 @@ import {
   invitation,
   invitationWorkspaceGrant,
   member,
+  organization,
   permissionGroup,
   permissionGroupMember,
   permissionGroupWorkspace,
@@ -47,6 +48,10 @@ import type { ResolvedScenario, ScenarioSubscription } from '../fixtures/scenari
 import { expectedUsageLimit, initialSubscriptionStatus } from '../fixtures/scenario-billing'
 import { validateScenario, validateScenarioSet } from '../fixtures/validate-scenario'
 import { createSettingsPersonaScenarios } from '../settings/personas'
+import {
+  assertSettingsPrimaryRetentionBaseline,
+  SETTINGS_PRIMARY_RETENTION_BASELINE,
+} from '../support/data-retention'
 import { writeSyntheticSecretCanary } from '../support/leak-canary'
 import { assertSafeSeedEnvironment } from '../support/seed-safety'
 
@@ -97,6 +102,7 @@ async function main(): Promise<void> {
       ownerClients,
       attemptCounts
     )
+    await postProvisionSettingsPrimaryRetention(world)
     await lapsePlannedSubscriptions(world)
     await createGrantsAndPermissionGroups(world, adminClient, ownerClients)
     await arrangePlatformAdminsAndInvitations(world)
@@ -237,6 +243,29 @@ async function createScenarioWorkspaces(
     assertCreatedWorkspace(world, workspace, created)
     world.records.workspaces.set(workspace.key, { id: created.id, name: created.name })
   }
+}
+
+async function postProvisionSettingsPrimaryRetention(world: E2EWorld): Promise<void> {
+  if (world.scenario.definition.namespace.world !== 'settings-primary') return
+  const enterpriseOrganization = required(
+    world.records.organizations,
+    'enterprise-organization',
+    'retention organization'
+  )
+  required(world.records.workspaces, 'enterprise-workspace', 'retention workspace')
+  const [updated] = await db
+    .update(organization)
+    .set({
+      dataRetentionSettings: structuredClone(SETTINGS_PRIMARY_RETENTION_BASELINE),
+      updatedAt: new Date(),
+    })
+    .where(eq(organization.id, enterpriseOrganization.id))
+    .returning({ dataRetentionSettings: organization.dataRetentionSettings })
+  if (!updated) throw new Error('Unable to post-provision the settings-primary retention baseline')
+  assertSettingsPrimaryRetentionBaseline(
+    updated.dataRetentionSettings,
+    'Post-provisioned settings-primary retention settings'
+  )
 }
 
 async function lapsePlannedSubscriptions(world: E2EWorld): Promise<void> {
@@ -674,6 +703,15 @@ async function assertWorkflowPersonaInvariants(world: E2EWorld): Promise<void> {
     world.records.workspaces,
     'enterprise-workspace',
     'workflow workspace'
+  )
+  const [retentionOrganization] = await db
+    .select({ dataRetentionSettings: organization.dataRetentionSettings })
+    .from(organization)
+    .where(eq(organization.id, enterpriseOrganization.id))
+    .limit(1)
+  assertSettingsPrimaryRetentionBaseline(
+    retentionOrganization?.dataRetentionSettings,
+    'Trusted settings-primary retention invariant'
   )
 
   const teamMembers = await db

@@ -316,8 +316,8 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Configure E2E hostname
-        run: echo "127.0.0.1 e2e.sim.ai" | sudo tee -a /etc/hosts
+      - name: Configure E2E hostnames
+        run: echo "127.0.0.1 e2e.sim.ai mcp.e2e.sim.ai" | sudo tee -a /etc/hosts
 
       - name: Install Chromium
         working-directory: apps/sim
