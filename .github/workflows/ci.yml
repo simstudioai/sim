@@ -116,14 +116,12 @@ jobs:
                 elif any($t[]; .conclusion != null and .conclusion != "success") then "failed"
                 else "pending" end' 2>/dev/null || echo pending)"
               if [ "$STATE" = "nojobs" ]; then
-                RUN_STATE="$(printf '%s' "$RUN_JSON" | jq -r '.workflow_runs[0] | if .status == "completed" then .conclusion else "pending" end' 2>/dev/null || echo pending)"
-                if [ "$RUN_STATE" = "success" ]; then
-                  STATE="success"
-                elif [ "$RUN_STATE" != "pending" ]; then
-                  STATE="failed"
-                else
-                  STATE="pending"
-                fi
+                # Fail closed: no jobs matching the "Test and Build /" prefix
+                # means the reusable-workflow job name changed (or tests were
+                # skipped) — never infer coverage from the overall run
+                # conclusion. Update the prefix here if test-build is renamed.
+                echo "Push run ${RUN_ID} has no 'Test and Build /' jobs — running tests in this PR run (update the prefix if the job was renamed)."
+                break
               fi
               if [ "$STATE" = "success" ]; then
                 # (3) Re-verify merge-tree equivalence against the LIVE base

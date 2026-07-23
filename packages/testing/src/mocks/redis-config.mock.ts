@@ -1,14 +1,45 @@
 import { vi } from 'vitest'
+import { envMockFns } from './env.mock'
 
-function getRedisConnectionDefaultsImpl(_url?: string): {
+/**
+ * Mirrors the real `resolveRedisTlsOptions`: `rediss://` URLs targeting a raw
+ * IPv4 host require `REDIS_TLS_SERVERNAME` (cert hostname verification cannot
+ * match an IP) and yield a `tls.servername`; DNS hosts and plain `redis://`
+ * URLs add no TLS options.
+ */
+function resolveTlsOptionsImpl(url: string | undefined): { servername: string } | undefined {
+  if (!url) return undefined
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return undefined
+  }
+  if (parsed.protocol !== 'rediss:') return undefined
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(parsed.hostname)) return undefined
+  const servername = envMockFns.getEnv('REDIS_TLS_SERVERNAME')
+  if (!servername) {
+    throw new Error(
+      'REDIS_TLS_SERVERNAME must be set when REDIS_URL targets an IP over rediss://. ' +
+        'TLS cert hostname verification cannot match an IP — set REDIS_TLS_SERVERNAME ' +
+        'to the DNS name the cert was issued for (the ElastiCache primary endpoint).'
+    )
+  }
+  return { servername }
+}
+
+function getRedisConnectionDefaultsImpl(url?: string): {
   keepAlive: number
   connectTimeout: number
   enableOfflineQueue: boolean
+  tls?: { servername: string }
 } {
+  const tls = resolveTlsOptionsImpl(url)
   return {
     keepAlive: 1000,
     connectTimeout: 10000,
     enableOfflineQueue: true,
+    ...(tls ? { tls } : {}),
   }
 }
 
