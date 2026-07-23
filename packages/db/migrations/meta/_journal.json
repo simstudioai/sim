@@ -1849,13 +1849,6 @@
       "when": 1784680777879,
       "tag": "0264_fat_ikaris",
       "breakpoints": true
-    },
-    {
-      "idx": 265,
-      "version": "7",
-      "when": 1784748426641,
-      "tag": "0265_safe_famine",
-      "breakpoints": true
     }
   ]
 }
