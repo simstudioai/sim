@@ -23,6 +23,7 @@
  * Exits non-zero if any case fails, so it can be wired to a schedule later.
  */
 
+import { getErrorMessage } from '@sim/utils/errors'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { executeInSandbox, executeShellInSandbox } from '@/lib/execution/remote-sandbox'
 
@@ -179,7 +180,7 @@ async function main() {
       }
     } catch (error) {
       console.log(`FAIL  ${testCase.name}`)
-      console.log(`      threw: ${error instanceof Error ? error.message : String(error)}`)
+      console.log(`      threw: ${getErrorMessage(error)}`)
       failed++
     }
   }
@@ -192,6 +193,6 @@ async function main() {
 }
 
 main().catch((error: unknown) => {
-  console.error('harness error:', error instanceof Error ? error.message : error)
+  console.error('harness error:', getErrorMessage(error))
   process.exit(1)
 })

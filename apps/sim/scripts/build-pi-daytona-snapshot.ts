@@ -24,6 +24,7 @@
  */
 
 import { Daytona, Image } from '@daytonaio/sdk'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   PI_APT,
   PI_NODE_MAJOR,
@@ -96,6 +97,6 @@ async function main() {
 }
 
 main().catch((error: unknown) => {
-  console.error('Build failed:', error instanceof Error ? error.message : error)
+  console.error('Build failed:', getErrorMessage(error))
   process.exit(1)
 })
