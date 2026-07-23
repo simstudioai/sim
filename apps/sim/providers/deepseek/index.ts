@@ -355,7 +355,16 @@ export const deepseekProvider: ProviderConfig = {
           const executionResults = await Promise.allSettled(toolExecutionPromises)
 
           const assistantMessage = currentResponse.choices[0]?.message
-          const assistantHistory: Record<string, unknown> = {
+          const assistantHistory: {
+            role: string
+            content: string | null
+            tool_calls: Array<{
+              id: string
+              type: string
+              function: { name: string; arguments: string }
+            }>
+            reasoning_content?: string
+          } = {
             role: 'assistant',
             content: null,
             tool_calls: toolCallsInResponse.map((tc) => ({
@@ -374,9 +383,7 @@ export const deepseekProvider: ProviderConfig = {
               assistantHistory.reasoning_content = reasoningContent
             }
           }
-          currentMessages.push(
-            assistantHistory as OpenAI.Chat.Completions.ChatCompletionMessageParam
-          )
+          currentMessages.push(assistantHistory)
 
           for (const settledResult of executionResults) {
             if (settledResult.status === 'rejected' || !settledResult.value) continue

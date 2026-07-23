@@ -60,6 +60,8 @@ interface AssembledToolUse {
   inputJson: string
 }
 
+type ToolUseInput = NonNullable<ToolUseBlock['input']>
+
 function isAbortError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
   const name = (error as { name?: string }).name
@@ -77,12 +79,12 @@ function settleOpenTools(
   openTools.clear()
 }
 
-function parseToolInput(inputJson: string): Record<string, unknown> {
+function parseToolInput(inputJson: string): Record<string, ToolUseInput> {
   if (!inputJson.trim()) return {}
   try {
     const parsed = JSON.parse(inputJson)
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
+      ? (parsed as Record<string, ToolUseInput>)
       : {}
   } catch {
     return {}
@@ -268,7 +270,7 @@ export function createBedrockStreamingToolLoopStream(
             content = drained.text
           }
 
-          const assembledToolUses: ToolUseBlock[] = drained.toolUses.map((t) => ({
+          const assembledToolUses = drained.toolUses.map((t) => ({
             toolUseId: t.toolUseId,
             name: t.name,
             input: parseToolInput(t.inputJson),
@@ -281,7 +283,7 @@ export function createBedrockStreamingToolLoopStream(
                 ? assembledToolUses.map((t) => ({
                     id: t.toolUseId || '',
                     name: t.name || '',
-                    arguments: (t.input as Record<string, unknown>) || {},
+                    arguments: t.input,
                   }))
                 : undefined,
             finishReason: drained.stopReason,
@@ -318,7 +320,7 @@ export function createBedrockStreamingToolLoopStream(
             assembledToolUses.map(async (toolUse) => {
               const toolCallStartTime = Date.now()
               const toolName = toolUse.name || ''
-              const toolArgs = (toolUse.input as Record<string, unknown>) || {}
+              const toolArgs: Record<string, unknown> = toolUse.input
               const toolUseId = toolUse.toolUseId || generateToolUseId(toolName)
 
               try {

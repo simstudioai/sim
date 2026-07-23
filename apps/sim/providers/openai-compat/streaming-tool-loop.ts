@@ -242,7 +242,10 @@ export function createOpenAICompatStreamingToolLoopStream(
             usedForcedTools = tracked.usedForcedTools
           }
 
-          const assistantHistory: Record<string, unknown> = {
+          const assistantHistory: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam & {
+            reasoning_content?: string
+            reasoning?: string
+          } = {
             role: 'assistant',
             content: textToFlush || null,
             tool_calls: pendingTools,
@@ -255,9 +258,7 @@ export function createOpenAICompatStreamingToolLoopStream(
               assistantHistory.reasoning = turnReasoning
             }
           }
-          currentMessages.push(
-            assistantHistory as OpenAI.Chat.Completions.ChatCompletionMessageParam
-          )
+          currentMessages.push(assistantHistory)
 
           const toolsStartTime = Date.now()
           const orderedResults = await Promise.all(

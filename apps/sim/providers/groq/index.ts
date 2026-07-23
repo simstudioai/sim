@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { Groq } from 'groq-sdk'
+import type { ChatCompletionCreateParamsStreaming as GroqChatCompletionCreateParamsStreaming } from 'groq-sdk/resources/chat/completions'
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -160,10 +162,16 @@ export const groqProvider: ProviderConfig = {
             request,
             basePayload: payload,
             messages: formattedMessages as any,
-            createStream: async (params, options) =>
-              groq.chat.completions.create({ ...params, stream: true }, options) as any,
-            createBlocking: async (params, options) =>
-              groq.chat.completions.create({ ...params, stream: false }, options) as any,
+            createStream: async (params, options) => {
+              // double-cast-allowed: groq-sdk chat params are wire-compatible with the OpenAI-typed payload built by the shared compat tool loop
+              const groqParams = {
+                ...params,
+                stream: true,
+              } as unknown as GroqChatCompletionCreateParamsStreaming
+              const stream = await groq.chat.completions.create(groqParams, options)
+              // double-cast-allowed: groq-sdk stream chunks are wire-compatible with the OpenAI ChatCompletionChunk shape the shared compat loop consumes
+              return stream as unknown as AsyncIterable<ChatCompletionChunk>
+            },
             logger,
             timeSegments,
             forcedTools,
