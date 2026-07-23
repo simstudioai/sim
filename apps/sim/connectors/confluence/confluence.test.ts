@@ -287,4 +287,14 @@ describe('preserveConfluenceCallouts', () => {
       expect(result).toContain('[CALLOUT] [CALLOUT: Inner title] inner body')
     }
   )
+
+  it.concurrent('does not fuse text on either side of a <br> line break', () => {
+    const html =
+      '<div class="confluence-information-macro confluence-information-macro-warning">' +
+      '<div class="confluence-information-macro-body"><p>Do NOT use this form for:<br>GitLab</p></div>' +
+      '</div>'
+    const result = preserveConfluenceCallouts(html)
+    expect(result).not.toContain('for:GitLab')
+    expect(result).toContain('[WARNING] Do NOT use this form for: GitLab')
+  })
 })
