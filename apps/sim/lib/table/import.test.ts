@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { Readable } from 'node:stream'
+import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it } from 'vitest'
 import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
 import {
@@ -522,7 +523,7 @@ describe('import', () => {
       })
       const { stream } = await sniffCsvDelimiterFromStream(source)
       stream.destroy()
-      await new Promise((resolve) => setTimeout(resolve, 20))
+      await sleep(20)
       expect(destroyed).toBe(true)
     })
 
