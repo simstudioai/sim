@@ -81,22 +81,37 @@ export function decodeCsvText(input: Buffer | Uint8Array | string): string {
 
 /**
  * Sniffs the field separator by trial-parsing the sample with each candidate and
- * keeping the one that yields the most columns.
+ * keeping the one whose column count is most *consistent* across rows.
  *
  * A real parse (rather than counting raw characters) is what makes this safe on
  * files whose quoted cells contain other candidates — `alarms.csv` exports a
  * semicolon-separated file whose `raw_text` cells are full of commas and
- * newlines, and a naive frequency count picks the comma. Ties are broken by how
- * consistently the records match the header width, then by candidate order, so a
- * genuinely single-column file falls back to `fallback` rather than latching onto
- * a separator that appears inside its values.
+ * newlines, and a naive frequency count picks the comma.
+ *
+ * Ranking is **consistency first, then column count**. The true delimiter yields
+ * a uniform column count across every row; a spurious one (e.g. a comma that
+ * happens to appear in an unquoted header of a semicolon file) produces a wide
+ * first row but ragged data rows. Ranking on column count alone would wrongly
+ * prefer that wide-but-inconsistent split, so consistency dominates and column
+ * count only breaks ties. The per-candidate column count is the *modal* (most
+ * common) row width, so one stray ragged row doesn't distort it. A single-column
+ * file (no candidate reaches two columns) falls back to `fallback`.
+ *
+ * All callers funnel through here, so the sample is prepared identically for
+ * every import path: a possibly-partial trailing line (from slicing a fixed byte
+ * window out of a larger file) is dropped before parsing so a mid-record cut
+ * can't skew the counts.
  */
 export async function detectCsvDelimiter(
   input: Buffer | Uint8Array | string,
   fallback: CsvDelimiter = ','
 ): Promise<CsvDelimiter> {
   const { parse } = await import('csv-parse/sync')
-  const text = decodeCsvText(input)
+  const decoded = decodeCsvText(input)
+  // Drop a partial final line when the sample is a prefix of a larger file; keep the
+  // whole thing when it's a single line (no newline) so a tiny full file still parses.
+  const lastNewline = decoded.lastIndexOf('\n')
+  const text = lastNewline > 0 ? decoded.slice(0, lastNewline + 1) : decoded
   if (text.trim() === '') return fallback
 
   let best: { delimiter: CsvDelimiter; fields: number; consistency: number } | null = null
@@ -118,16 +133,28 @@ export async function detectCsvDelimiter(
     }
 
     if (records.length === 0) continue
-    const fields = records[0].length
+
+    // Modal row width: the most frequent column count, tie-broken toward the wider one.
+    const widthCounts = new Map<number, number>()
+    for (const record of records) {
+      widthCounts.set(record.length, (widthCounts.get(record.length) ?? 0) + 1)
+    }
+    let fields = 0
+    let modalFreq = 0
+    for (const [width, freq] of widthCounts) {
+      if (freq > modalFreq || (freq === modalFreq && width > fields)) {
+        fields = width
+        modalFreq = freq
+      }
+    }
     if (fields < 2) continue
 
-    const matching = records.reduce((n, r) => (r.length === fields ? n + 1 : n), 0)
-    const consistency = matching / records.length
+    const consistency = modalFreq / records.length
 
     if (
       !best ||
-      fields > best.fields ||
-      (fields === best.fields && consistency > best.consistency)
+      consistency > best.consistency ||
+      (consistency === best.consistency && fields > best.fields)
     ) {
       best = { delimiter, fields, consistency }
     }

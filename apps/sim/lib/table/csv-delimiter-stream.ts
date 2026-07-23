@@ -18,9 +18,13 @@ export interface SniffedCsvStream {
  * Reads the head of a CSV/TSV stream, sniffs its field separator, then returns a
  * stream that replays the buffered head followed by the untouched remainder.
  *
- * Only {@link CSV_DELIMITER_SNIFF_BYTES} are ever held in memory, so this stays
- * safe on multi-GB imports. The buffered head is trimmed to its last newline
- * before sniffing so a mid-record cut can't skew the column counts.
+ * Memory is bounded: it buffers only the source chunks needed to reach the
+ * {@link CSV_DELIMITER_SNIFF_BYTES} window (one chunk past it, at worst), and the
+ * detection sample it copies is capped at exactly that window regardless of how
+ * large a single upstream chunk is. Those buffered chunks are then replayed
+ * *by reference* — never re-copied — so a multi-GB import stays O(sniff window)
+ * plus the single in-flight chunk. {@link detectCsvDelimiter} drops any partial
+ * trailing line, so no newline trimming is needed here.
  */
 export async function sniffCsvDelimiterFromStream(
   source: Readable,
@@ -42,18 +46,15 @@ export async function sniffCsvDelimiterFromStream(
     size += chunk.length
   }
 
-  const head = Buffer.concat(chunks)
-  let sample = head
-  if (!exhausted) {
-    const lastNewline = head.lastIndexOf(0x0a)
-    if (lastNewline > 0) sample = head.subarray(0, lastNewline + 1)
-  }
-
+  // Copy at most the sniff window for detection — `Buffer.concat`'s length arg truncates,
+  // so an oversized final chunk can't inflate this allocation past CSV_DELIMITER_SNIFF_BYTES.
+  const sample = Buffer.concat(chunks, Math.min(size, CSV_DELIMITER_SNIFF_BYTES))
   const delimiter = await detectCsvDelimiter(sample, fallback)
 
   const stream = Readable.from(
     (async function* replay() {
-      if (head.length > 0) yield head
+      // Replay the already-read chunks by reference (no re-copy), then drain the rest.
+      for (const chunk of chunks) yield chunk
       if (exhausted) return
       while (true) {
         const next = await reader.next()

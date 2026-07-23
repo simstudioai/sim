@@ -376,6 +376,23 @@ describe('import', () => {
       expect(await detectCsvDelimiter('text\n"hello, world"\n', ';')).toBe(';')
     })
 
+    it('prefers the consistent delimiter over one that only widens the header row', async () => {
+      // The header splits into more fields on comma, but only semicolon yields a uniform
+      // column count across the data rows — consistency must win over raw field count.
+      expect(await detectCsvDelimiter('a,b;c,d;e,f\n1;2;3\n4;5;6\n')).toBe(';')
+    })
+
+    it('detects the real delimiter when the header itself has quoted commas', async () => {
+      const csv = '"last, first";age;city\n"Doe, John";30;NYC\n"Roe, Jane";25;LA\n'
+      expect(await detectCsvDelimiter(csv)).toBe(';')
+    })
+
+    it('drops a partial trailing line so a mid-record byte cut cannot skew detection', async () => {
+      // Simulates a fixed byte-window slice that ends mid-record; the last (partial) line
+      // is ignored, so the complete rows above still drive the result.
+      expect(await detectCsvDelimiter('a;b;c\n1;2;3\n4;5;')).toBe(';')
+    })
+
     it('returns the fallback for empty input', async () => {
       expect(await detectCsvDelimiter('', ';')).toBe(';')
     })
@@ -401,6 +418,18 @@ describe('import', () => {
 
     it('handles a file smaller than the sniff window (exhausted during sniff)', async () => {
       const full = Buffer.from('a;b;c\n1;2;3\n')
+      const { delimiter, stream } = await sniffCsvDelimiterFromStream(Readable.from([full]))
+      expect(delimiter).toBe(';')
+      expect((await collect(stream)).equals(full)).toBe(true)
+    })
+
+    it('detects and replays exactly when a single chunk far exceeds the sniff window', async () => {
+      // One >1 MiB chunk arrives before the size check — detection must still cap its copy
+      // and the replay must emit the original bytes unchanged.
+      const rows = ['a;b;c']
+      for (let i = 0; i < 40000; i++) rows.push(`${i};${'x'.repeat(20)};y`)
+      const full = Buffer.from(`${rows.join('\n')}\n`)
+      expect(full.length).toBeGreaterThan(1024 * 1024)
       const { delimiter, stream } = await sniffCsvDelimiterFromStream(Readable.from([full]))
       expect(delimiter).toBe(';')
       expect((await collect(stream)).equals(full)).toBe(true)
