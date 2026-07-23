@@ -373,7 +373,8 @@ function main(): void {
       closeFocusedBrowserTab,
       toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
       signOut: () => void signOutFromMenu(),
-      checkForUpdates: () => checkForUpdatesInteractive({ getWindow: getMainWindow, events }),
+      checkForUpdates: () =>
+        checkForUpdatesInteractive({ getWindow: getMainWindow, events, handle: updater }),
     })
     launcherShortcut.apply(config.get('launcherShortcut'))
     if (config.get('trayEnabled') ?? true) {

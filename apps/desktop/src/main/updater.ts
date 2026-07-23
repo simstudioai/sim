@@ -167,11 +167,16 @@ export interface UpdaterHandle {
   getState(): DesktopUpdateState
   /**
    * Renderer-initiated advance: checks for an update, or starts the download
-   * when one is already known to be available (auto-download off).
+   * when one is already known to be available (auto-download off / manual).
    */
   check(): void
-  /** Quit and install a downloaded update. No-op unless state is `ready`. */
+  /**
+   * Quit and install a downloaded update (`ready`), or open the manual
+   * download for an `available` update on a shell that can't self-update.
+   */
   install(): void
+  /** Main-process state subscription (menu feedback). Returns unsubscribe. */
+  onState(callback: (state: DesktopUpdateState) => void): () => void
 }
 
 const NOOP_UPDATER_HANDLE: UpdaterHandle = {
@@ -179,6 +184,7 @@ const NOOP_UPDATER_HANDLE: UpdaterHandle = {
   getState: () => ({ status: 'idle' }),
   check: () => {},
   install: () => {},
+  onState: () => () => {},
 }
 
 /** True when candidate is strictly newer than current. */
@@ -249,9 +255,13 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
 
   const currentVersion = app.getVersion()
   let state: DesktopUpdateState = { status: 'idle' }
+  const listeners = new Set<(state: DesktopUpdateState) => void>()
   const setState = (next: DesktopUpdateState) => {
     state = next
     deps.onStateChange?.(next)
+    for (const listener of listeners) {
+      listener(next)
+    }
   }
 
   const buildAutoEngine = (): UpdateEngine | null => {
@@ -491,14 +501,26 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         engine.advance()
       }
     },
+    onState(callback) {
+      listeners.add(callback)
+      return () => {
+        listeners.delete(callback)
+      }
+    },
   }
 }
 
+const INTERACTIVE_CHECK_TIMEOUT_MS = 30_000
+
 /**
- * Menu-triggered manual check with user-visible feedback. Uses whatever feed
- * initUpdater configured on the electron-updater singleton.
+ * Menu-triggered manual check with user-visible feedback. A thin dialog layer
+ * over the updater handle — it drives whichever pipeline initUpdater selected
+ * (electron-updater or the manual feed poll), so a shell that can't
+ * self-update gets a working "Download" dialog instead of a Squirrel error.
  */
-export function checkForUpdatesInteractive(deps: Pick<UpdaterDeps, 'getWindow' | 'events'>): void {
+export function checkForUpdatesInteractive(
+  deps: Pick<UpdaterDeps, 'getWindow' | 'events'> & { handle: UpdaterHandle | null }
+): void {
   if (!app.isPackaged) {
     void dialog.showMessageBox({
       type: 'info',
@@ -506,26 +528,88 @@ export function checkForUpdatesInteractive(deps: Pick<UpdaterDeps, 'getWindow' |
     })
     return
   }
+  const handle = deps.handle
+  if (!handle) {
+    return
+  }
   deps.events.record('update_check', { manual: true })
-  try {
-    const { autoUpdater } = require('electron-updater') as typeof import('electron-updater')
-    void autoUpdater
-      .checkForUpdates()
-      .then((result) => {
-        if (!result || result.updateInfo.version === app.getVersion()) {
-          void dialog.showMessageBox({ type: 'info', message: 'Sim is up to date' })
-        }
-      })
-      .catch((error) => {
-        // Surface network/manifest/cert failures instead of silently swallowing.
-        logger.error('Manual update check failed', { error })
-        void dialog.showMessageBox({
+
+  const showDialog = (options: Electron.MessageBoxOptions) => {
+    const win = deps.getWindow()
+    return win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options)
+  }
+
+  const settle = (state: DesktopUpdateState) => {
+    switch (state.status) {
+      case 'available': {
+        const label = state.version ? `Sim ${state.version} is available` : 'An update is available'
+        void showDialog({
+          type: 'info',
+          buttons: ['Download', 'Later'],
+          defaultId: 0,
+          cancelId: 1,
+          message: label,
+          detail: state.manual
+            ? 'This build updates manually: the download opens in your browser, then replace the installed app.'
+            : 'The update downloads in the background and installs when you restart.',
+        }).then(({ response }) => {
+          if (response !== 0) {
+            return
+          }
+          if (state.manual) {
+            handle.install()
+          } else {
+            handle.check()
+          }
+        })
+        return
+      }
+      case 'downloading':
+        void showDialog({
+          type: 'info',
+          message: state.version ? `Downloading Sim ${state.version}…` : 'Downloading update…',
+          detail: 'You will be prompted to restart when it is ready.',
+        })
+        return
+      case 'ready':
+        // The download pipeline already shows its own restart prompt.
+        return
+      case 'error':
+        void showDialog({
           type: 'error',
           message: 'Could not check for updates',
           detail: 'Something went wrong reaching the update server. Try again later.',
         })
-      })
-  } catch (error) {
-    logger.error('Manual update check threw synchronously', { error })
+        return
+      default:
+        void showDialog({ type: 'info', message: 'Sim is up to date' })
+    }
   }
+
+  const initial = handle.getState()
+  // Already mid-pipeline (or an update already found): report it directly
+  // instead of advancing the pipeline behind a "check" click.
+  if (initial.status !== 'idle' && initial.status !== 'checking' && initial.status !== 'error') {
+    settle(initial)
+    return
+  }
+
+  let settled = false
+  const finish = (state: DesktopUpdateState) => {
+    if (settled) {
+      return
+    }
+    settled = true
+    clearTimeout(timeout)
+    unsubscribe()
+    settle(state)
+  }
+  const unsubscribe = handle.onState((state) => {
+    if (state.status === 'checking') {
+      return
+    }
+    finish(state)
+  })
+  const timeout = setTimeout(() => finish(handle.getState()), INTERACTIVE_CHECK_TIMEOUT_MS)
+  handle.check()
 }

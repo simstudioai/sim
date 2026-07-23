@@ -18,6 +18,7 @@ const autoUpdaterMock = {
 
 import { app, dialog, shell } from 'electron'
 import {
+  checkForUpdatesInteractive,
   feedUrlForOrigin,
   initUpdater,
   isDowngrade,
@@ -237,21 +238,21 @@ describe('initUpdater state machine', () => {
   })
 })
 
+function manifest(version: string): string {
+  return [
+    `version: ${version}`,
+    'files:',
+    `  - url: https://github.com/simstudioai/sim/releases/download/v${version}/Sim-${version}-universal-mac.zip`,
+    '    sha512: abc',
+    `  - url: https://github.com/simstudioai/sim/releases/download/v${version}/Sim-${version}-universal.dmg`,
+    '    sha512: def',
+    `path: https://github.com/simstudioai/sim/releases/download/v${version}/Sim-${version}-universal-mac.zip`,
+    "releaseDate: '2026-07-23T00:00:00.000Z'",
+  ].join('\n')
+}
+
 describe('initUpdater manual mode (no Developer ID signature)', () => {
   const events = { record: vi.fn(), filePath: '/tmp/desktop-events.log' }
-
-  function manifest(version: string): string {
-    return [
-      `version: ${version}`,
-      'files:',
-      `  - url: https://github.com/simstudioai/sim/releases/download/v${version}/Sim-${version}-universal-mac.zip`,
-      '    sha512: abc',
-      `  - url: https://github.com/simstudioai/sim/releases/download/v${version}/Sim-${version}-universal.dmg`,
-      '    sha512: def',
-      `path: https://github.com/simstudioai/sim/releases/download/v${version}/Sim-${version}-universal-mac.zip`,
-      "releaseDate: '2026-07-23T00:00:00.000Z'",
-    ].join('\n')
-  }
 
   async function createManualUpdater(fetchManifest: (url: string) => Promise<string | null>) {
     const states: DesktopUpdateState[] = []
@@ -328,5 +329,70 @@ describe('initUpdater manual mode (no Developer ID signature)', () => {
     await createManualUpdater(fetchManifest)
     await vi.advanceTimersByTimeAsync(10_000)
     expect(fetchManifest).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('checkForUpdatesInteractive', () => {
+  const events = { record: vi.fn(), filePath: '/tmp/desktop-events.log' }
+
+  async function manualHandle(version: string) {
+    const handle = initUpdater({
+      getWindow: () => null,
+      events,
+      appOrigin: () => 'https://www.dev.sim.ai',
+      canSelfUpdate: async () => false,
+      fetchManifest: async () => manifest(version),
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    return handle
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    ;(app as unknown as { isPackaged: boolean }).isPackaged = true
+    events.record.mockClear()
+    vi.mocked(dialog.showMessageBox).mockClear()
+    vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 1, checkboxChecked: false })
+    vi.mocked(shell.openExternal).mockClear()
+  })
+
+  afterEach(() => {
+    ;(app as unknown as { isPackaged: boolean }).isPackaged = false
+    vi.useRealTimers()
+  })
+
+  it('offers the manual download and opens it on Download', async () => {
+    const handle = await manualHandle('9.9.9')
+    vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 0, checkboxChecked: false })
+
+    checkForUpdatesInteractive({ getWindow: () => null, events, handle })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(dialog.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Sim 9.9.9 is available' })
+    )
+    expect(shell.openExternal).toHaveBeenCalledWith(
+      'https://github.com/simstudioai/sim/releases/download/v9.9.9/Sim-9.9.9-universal.dmg'
+    )
+  })
+
+  it('reports up to date when the feed has nothing newer', async () => {
+    const handle = await manualHandle(app.getVersion())
+
+    checkForUpdatesInteractive({ getWindow: () => null, events, handle })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(dialog.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Sim is up to date' })
+    )
+    expect(shell.openExternal).not.toHaveBeenCalled()
+  })
+
+  it('only explains packaged-build updates when unpackaged', async () => {
+    ;(app as unknown as { isPackaged: boolean }).isPackaged = false
+    checkForUpdatesInteractive({ getWindow: () => null, events, handle: null })
+    expect(dialog.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Updates are only available in packaged builds' })
+    )
   })
 })
