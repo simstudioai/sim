@@ -7,6 +7,25 @@ import { normalizeFileInput } from '@/blocks/utils'
 import type { SlackResponse } from '@/tools/slack/types'
 import { getTrigger } from '@/triggers'
 
+/**
+ * Scopes added for the native Sim Slack app trigger (`slack_oauth`): the shared
+ * app's `app_mention`, assistant-thread, and DM events don't deliver without
+ * them. Advertised by `slack_v2` and the trigger only — the legacy block has no
+ * feature that needs them, and listing them there would flag every existing
+ * Slack credential as missing scopes and prompt a reconnect.
+ *
+ * This only controls what each picker *advertises* and treats as missing. The
+ * authorization request itself is provider-wide
+ * (`getCanonicalScopesForProvider('slack')`), so any reconnect grants the full
+ * set regardless of which block started it.
+ */
+const SLACK_V2_ONLY_SCOPES = new Set(['app_mentions:read', 'assistant:write', 'im:history'])
+
+/** Slack scopes the legacy v1 block advertises — the set from before the trigger expansion. */
+const SLACK_V1_ADVERTISED_SCOPES = getScopesForService('slack').filter(
+  (scope) => !SLACK_V2_ONLY_SCOPES.has(scope)
+)
+
 export const SlackBlock: BlockConfig<SlackResponse> = {
   type: 'slack',
   name: 'Slack',
@@ -107,7 +126,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'slack',
-      requiredScopes: getScopesForService('slack'),
+      requiredScopes: SLACK_V1_ADVERTISED_SCOPES,
       placeholder: 'Select Slack workspace',
       dependsOn: ['authMethod'],
       condition: {
@@ -2642,6 +2661,9 @@ function adaptSubBlockForV2(sb: SubBlockConfig): SubBlockConfig {
       ...rest,
       credentialKind: 'any',
       placeholder: 'Select Slack account or bot',
+      // Full set, unlike v1: v2 hosts the native Sim app trigger, whose events
+      // need the mention/assistant/DM scopes.
+      requiredScopes: getScopesForService('slack'),
       credentialLabels: {
         oauthGroup: 'Sim app',
         oauthConnect: 'Connect the Sim app',
