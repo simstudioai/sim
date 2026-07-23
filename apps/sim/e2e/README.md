@@ -57,9 +57,7 @@ Stripe fake and realtime, builds and starts Next.js, seeds the validated persona
 world through production APIs plus narrow trusted arrangements, captures each
 persona through the real login UI, runs Playwright on Node 22, then stops
 services and drops only that guarded database.
-Server telemetry currently shares the strict loopback Stripe-fake process; the
-generic modular fake-service refactor remains scoped to the roadmap's
-`e2e/06b-enterprise-integrations` phase.
+Server telemetry shares the strict loopback Stripe-fake process.
 An exclusive checkout-level orchestrator lock prevents concurrent runs from
 racing on `.next`, the shared build cache, or the fixed app/realtime ports. The
 lock records managed process groups, so recovery from an uncatchable
@@ -104,7 +102,7 @@ bun run test:e2e -- --reuse-build --project=hosted-billing-chromium-navigation
 
 ## Settings navigation contracts
 
-Step 3 owns three literal acceptance datasets in
+The navigation suite owns three literal acceptance datasets in
 `e2e/settings/navigation/contracts.ts`: canonical sidebar sections, special
 route outcomes, and representative persona visibility. They are intentionally
 independent of production navigation metadata. When product copy, routes, or
@@ -120,13 +118,7 @@ bun run test:e2e -- --reuse-build \
 ```
 
 The complete navigation project includes foundation safety and unauthenticated
-smoke coverage. On the Step 3 reference run, one worker completed its 123 tests
-in 1.7 minutes and the cache-hit orchestrator in 5 minutes 10 seconds. Two
-workers completed the same retry-free project in 55.3 seconds and the
-cache-hit orchestrator in 4 minutes 25 seconds, so the project retains two
-workers. Foundation coverage passed in both measurements. The final
-post-review dependency chain passed all 139 navigation, workflow, persona, and
-isolation tests in 1.3 minutes of Playwright time.
+smoke coverage.
 
 The full chain's isolated browser contexts share a loopback address, so the E2E
 app raises Better Auth's generic request ceiling without disabling its limiter.
@@ -136,9 +128,10 @@ Better Auth's defaults.
 
 ## Settings authorization contracts
 
-Step 4 owns literal direct-route access, entitlement, and mutation-control
-datasets in `e2e/settings/authorization/contracts.ts`. Existing Step 3
-navigation positives are referenced by stable contract IDs instead of rerun.
+The authorization suite owns literal direct-route access, entitlement, and
+mutation-control datasets in `e2e/settings/authorization/contracts.ts`.
+Existing navigation positives are referenced by stable contract IDs instead of
+being rerun.
 The browser specs cover the remaining account, organization, and workspace
 denials, paid Billing readiness, role-scoped mutation chrome, and shared
 unsaved-change behavior.
@@ -159,21 +152,16 @@ invoice-list shape used by paid settings pages: an existing fake customer,
 Stripe list and rejects all extra or malformed request shapes.
 
 Unsaved-change coverage intentionally stops at settings sidebar navigation,
-the app's Settings Back action, and native `beforeunload`. Toolbar history and
-credential, fork, or custom-block detail guards belong to later roadmap steps.
-On the Step 4 reference run, two workers completed all 84 retry-free
-authorization tests in 1.2 minutes and the cache-hit orchestrator in 4 minutes
-42 seconds. The final dependency chain passed all 223 navigation,
-authorization, workflow, persona, and isolation tests in 2.4 minutes of
-Playwright time; the clean-build orchestrator completed in 8 minutes 25
-seconds.
+the app's Settings Back action, and native `beforeunload`. Credential detail
+specs add in-app and popstate guards. Toolbar history and fork or custom-block
+detail guards remain outside the current browser contract.
 
 ## Settings credential workflows
 
-Step 5 owns real Secrets and personal/workspace API-key mutations under
-`e2e/settings/credentials`. It references Step 4's canonical permission-group
-and mutation-control proof IDs instead of rerunning those browser cases. Secret
-sharing and membership changes remain in Step 6.
+The credentials suite owns real Secrets and personal/workspace API-key
+mutations under `e2e/settings/credentials`. It references canonical
+permission-group and mutation-control proof IDs instead of rerunning those
+browser cases.
 
 Run only the credential workflows during local iteration:
 
@@ -187,7 +175,8 @@ Credential tests use one worker and unique resources with same-test cleanup.
 The API-key policy case resets and verifies
 `allowPersonalApiKeys=true` before and after its assertions; unrelated Secrets
 tests do not mutate that shared setting. This policy also affects runtime API-key
-authentication, whose direct coverage remains outside the Step 5 browser scope.
+authentication, whose direct coverage remains outside the credentials browser
+scope.
 
 The credentials project deliberately disables traces, screenshots, videos, and
 test-authored attachments. Playwright reports action arguments, traces include
@@ -207,17 +196,11 @@ key and versioned E2E runtime-secret patterns. ZIP entries and names are scanned
 independently, and a detected leak reports only sanitized artifact identifiers
 before diagnostics are scrubbed.
 
-On the Step 5 reference run, the single credentials worker completed all 13
-retry-free tests in 29.4 seconds. The final cache-hit dependency chain completed
-all 237 tests in 2.9 minutes of Playwright time and the orchestrator in 6 minutes
-26 seconds.
-
 ## People and access-control workflows
 
-Step 6 owns real workspace-invitation, organization-invitation, member-role,
-member-removal, and Enterprise permission-group lifecycles under
-`e2e/settings/workflows`. SSO, retention, and MCP integration CRUD remain in
-Step 6b.
+The workflows suite owns real workspace-invitation, organization-invitation,
+member-role, member-removal, and Enterprise permission-group lifecycles under
+`e2e/settings/workflows`.
 
 Run only these workflows during local iteration:
 
@@ -259,7 +242,7 @@ Read-authority readiness again.
 
 ## Enterprise integration workflows
 
-Step 6b adds independent SAML, data-retention, and MCP lifecycles to the same
+Independent SAML, data-retention, and MCP lifecycles run in the same
 single-worker workflows project. Each case uses `enterpriseOrganizationAdmin`
 in `settings-primary`, registers LIFO cleanup before its first mutation, and
 uses the authenticated persona request context for same-origin discovery and
@@ -370,8 +353,8 @@ bun run test:e2e -- --reuse-build \
   e2e/settings/workflows/mcp.spec.ts
 ```
 
-For the Step 6b repeatability gate, run all three twice in one orchestrated
-single-worker stack. Retries are already fixed to zero by the runner:
+To check repeatability, run all three twice in one orchestrated single-worker
+stack. Retries are fixed to zero by the runner:
 
 ```bash
 bun run test:e2e -- --reuse-build \
@@ -393,9 +376,9 @@ multi-gigabyte copying, and cache population; only an explicit `--reuse-build`
 request pays those costs. Cache restore also removes abandoned temporary stores
 from interrupted writes before accepting a hit. `--skip-build` remains unsupported.
 
-Keep-stack/rerun supervision is intentionally unavailable. The initial safety
-experiment requires descriptor ownership, mutation observation, state snapshots,
-and teardown to ship as one unit; until all of those are proven, each invocation
+Keep-stack/rerun supervision is intentionally unavailable. A safe implementation
+requires descriptor ownership, mutation observation, state snapshots, and
+teardown to ship as one unit; until all of those are proven, each invocation
 uses the normal one-shot lifecycle.
 
 Do not invoke `playwright test` directly. Raw Playwright bypasses environment,
@@ -409,15 +392,14 @@ the dedicated two-worker cross-world isolation project. Project dependencies
 serialize navigation, authorization, credentials, workflows, and persona
 contracts before the isolation project opens its two-worker pool.
 
+Browser specs must not use `test.only`, unexplained skips, arbitrary browser
+sleeps, CSS-class assertions, shared mutable fixtures, test-local environment
+bypasses, retry overrides, or worker overrides. Sensitive artifact suppression
+must have a security reason and corresponding safety coverage.
+
 ## Stability gate and required CI
 
-The current integrated source discovers 262 tests: 133 navigation/foundation,
-88 authorization, 13 credentials, 11 workflows, 15 persona contracts, and 2
-two-worker isolation tests. The six tests added after the frozen Step 7 gate
-cover the organization/workspace Session policies routes and their direct
-authorization/entitlement negatives.
-
-Retries remain fixed at zero while the suite is stabilized. The final gate is
+Retries remain fixed at zero. The stability gate is
 five Playwright executions per test against one healthy production stack, not
 five builds or five CI workflows. For an unscoped `--repeat-each`, the
 orchestrator runs each canonical project sequentially with dependencies
@@ -429,20 +411,6 @@ rm -rf e2e/.cache/builds
 bun run test:e2e -- --reuse-build
 bun run test:e2e -- --reuse-build --repeat-each=5
 ```
-
-Final Step 7 local evidence (2026-07-23):
-
-- The clean cache-miss chain stored verified build
-  `f4a8f018238f3c0a27a10f8ec7a0e656c9d11acdd10024777e2b4206519dcbef`
-  and passed all 256 tests in 7 minutes 39 seconds end to end.
-- The cache-hit two-repeat qualification executed 512 tests across all six
-  projects and passed in 9 minutes 4 seconds.
-- The definitive cache-hit five-repeat gate executed 655 navigation, 420
-  authorization, 65 credentials, 55 workflow, 75 persona-contract, and 10
-  isolation tests: 1,280 retry-free executions in 20 minutes 39 seconds.
-- Both repeated chains used one guarded database/seed/auth-capture/app/realtime
-  lifecycle. Their leak markers were written only after safe scanning; Stripe
-  and MCP fake logs contained no unexpected requests.
 
 The first command must record a verified cache miss, build, and store. Make no
 tracked or untracked source change under the hashed app/package trees before
@@ -459,17 +427,13 @@ leave those PRs permanently blocked. This intentionally spends the full CI
 cost on every PR to a protected target. Failure diagnostics upload only after
 the leak-scan marker is present.
 
-If retries are ever introduced after stabilization, the only sanctioned policy
-is `retries: 1` together with Playwright `failOnFlakyTests: true`. The retry may
-collect diagnostics and classify the flake, but the required check must still
-fail.
+If retries are ever introduced, the only sanctioned policy is `retries: 1`
+together with Playwright `failOnFlakyTests: true`. The retry may collect
+diagnostics and classify the flake, but the required check must still fail.
 
-The temporary `e2e/settings-playwright` PR target remains until the Step 7
-branch has merged into it. Remove that target only in the umbrella PR to
-`staging`, observe the exact `Test and Build / Settings E2E` context on the
-latest staging and main PR commits, and only then configure it as required for
-each protected branch. Those branch-protection changes are manual repository
-operations.
+Observe the exact `Test and Build / Settings E2E` context on the latest staging
+and main PR commits before configuring it as required for each protected branch.
+Those branch-protection changes are manual repository operations.
 
 ## Adding another browser suite
 
@@ -482,8 +446,19 @@ Join an existing Playwright project only when the new suite has the same
 deployment profile, process topology, isolation requirements, mutation
 coupling, worker budget, artifact policy, and CI cadence. Otherwise add a
 separate project/job with an explicit worker/shard and diagnostics policy.
-Self-hosted, billing-disabled, and cross-browser profiles remain later nightly
-coverage; they are not hidden variants of the hosted Chromium acceptance gate.
+
+## Coverage boundaries
+
+The required suite is the hosted, billing-enabled Chromium acceptance gate. It
+does not claim real payment execution, real email delivery, live SSO login or
+TXT verification, destructive fork synchronization, self-hosted behavior,
+billing-disabled behavior, or cross-browser coverage. Add those as explicit
+profiles or manual release checks rather than hidden variants of this gate.
+
+Production SSO quiescence, migration approval, domain-ownership backfill and
+read-back, live TXT proof, and branch-protection configuration remain manual
+operational gates. Their absence from browser automation is intentional and
+must not be mistaken for evidence that the operation is unnecessary.
 
 ## Diagnostics
 

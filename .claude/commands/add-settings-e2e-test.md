@@ -13,11 +13,9 @@ or spec owns the behavior.
 
 1. `apps/sim/e2e/MAINTENANCE.md` — change type to contract/spec ownership.
 2. `apps/sim/e2e/README.md` — orchestrator, project boundaries, focused commands,
-   diagnostics, and CI policy.
-3. `apps/sim/e2e/STABILIZATION.md` — non-waivable acceptance and security
-   boundaries.
+   diagnostics, acceptance and security boundaries, and CI policy.
 
-Those files are canonical. This skill is the authoring procedure, not a second
+Both files are canonical. This skill is the authoring procedure, not a second
 copy of their inventories or commands. If this procedure ever conflicts with a
 canonical document, the canonical document wins.
 

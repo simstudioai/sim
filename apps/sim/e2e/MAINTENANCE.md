@@ -111,6 +111,6 @@ commands and project boundaries are maintained in:
 - [Enterprise integration workflows](README.md#enterprise-integration-workflows)
 
 Run browser tests only through `bun run test:e2e`; the operational and safety
-requirements live in [README.md](README.md). The acceptance crosswalk and
-milestone boundaries live in [STABILIZATION.md](STABILIZATION.md). Required CI
-remains the authoritative complete-suite gate.
+requirements, acceptance boundaries, and CI policy live in
+[README.md](README.md). Required CI remains the authoritative complete-suite
+gate.

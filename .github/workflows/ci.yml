@@ -19,7 +19,7 @@ on:
   push:
     branches: [main, staging, dev]
   pull_request:
-    branches: [main, staging, dev, e2e/settings-playwright]
+    branches: [main, staging, dev]
 
 concurrency:
   group: ci-${{ github.ref }}
