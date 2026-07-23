@@ -19,6 +19,31 @@ const CALLOUT_LABELS: Record<string, string> = {
 }
 
 /**
+ * Selectors for elements whose own text is a natural word-boundary unit —
+ * paragraphs, list items, headings, table cells, quotes. Cheerio's `.text()`
+ * concatenates every descendant text node with no separator at all, so pulling
+ * a macro body's text in one call fuses adjacent blocks together (e.g. a
+ * `<p>...for:</p>` immediately followed by `<li>GitLab</li>` becomes
+ * `for:GitLab`, corrupting the very word boundaries RAG chunking depends on).
+ * Extracting block-by-block and joining with a single space keeps each block's
+ * text intact and separated, matching how `htmlToPlainText` already treats the
+ * rest of the page.
+ */
+const BLOCK_TEXT_SELECTOR = 'p, li, h1, h2, h3, h4, h5, h6, td, th, blockquote, pre'
+
+function extractBlockJoinedText($: cheerio.CheerioAPI, $el: cheerio.Cheerio<any>): string {
+  const blocks = $el.find(BLOCK_TEXT_SELECTOR)
+  if (blocks.length === 0) {
+    return $el.text().trim()
+  }
+  return blocks
+    .map((_, block) => $(block).text().trim())
+    .get()
+    .filter(Boolean)
+    .join(' ')
+}
+
+/**
  * Confluence's rendered `view` HTML wraps Info/Note/Warning/Tip macros in
  * `confluence-information-macro confluence-information-macro-{type}` divs, and
  * the customizable Panel macro in `.panel` > `.panelHeader` + `.panelContent`
@@ -40,15 +65,16 @@ export function preserveConfluenceCallouts(html: string): string {
       .match(/confluence-information-macro-(\w+)/)?.[1]
       ?.toLowerCase()
     const label = (type && CALLOUT_LABELS[type]) || CALLOUT_LABELS.information
-    const body =
-      $el.find('.confluence-information-macro-body').first().text().trim() || $el.text().trim()
+    const macroBody = $el.find('.confluence-information-macro-body').first()
+    const body = extractBlockJoinedText($, macroBody.length > 0 ? macroBody : $el)
     $el.replaceWith($('<p></p>').text(`${label} ${body}`))
   })
 
   $('div.panel').each((_, el) => {
     const $el = $(el)
     const headerText = $el.find('.panelHeader').first().text().trim()
-    const bodyText = $el.find('.panelContent').first().text().trim() || $el.text().trim()
+    const panelContent = $el.find('.panelContent').first()
+    const bodyText = extractBlockJoinedText($, panelContent.length > 0 ? panelContent : $el)
     const label = headerText ? `[CALLOUT: ${headerText}]` : '[CALLOUT]'
     $el.replaceWith($('<p></p>').text(`${label} ${bodyText}`))
   })

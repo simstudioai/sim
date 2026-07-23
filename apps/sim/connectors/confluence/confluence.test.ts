@@ -129,9 +129,38 @@ describe('preserveConfluenceCallouts', () => {
         '</div>\n\n' +
         '<p>Trailing paragraph.</p>'
       const plainText = htmlToPlainText(preserveConfluenceCallouts(html))
-      expect(plainText).toContain('[WARNING] Do NOT use this form for:GitLab')
+      expect(plainText).toContain('[WARNING] Do NOT use this form for: GitLab')
       expect(plainText).toContain('Intro paragraph.')
       expect(plainText).toContain('Trailing paragraph.')
+    }
+  )
+
+  it.concurrent(
+    'does not fuse adjacent paragraph and list-item text together (word-boundary regression)',
+    () => {
+      const html =
+        '<div class="confluence-information-macro confluence-information-macro-warning">' +
+        '<div class="confluence-information-macro-body">' +
+        '<p>Do NOT use this form for:</p>' +
+        '<ul><li>GitLab</li><li>ServiceNow</li></ul>' +
+        '</div></div>'
+      const result = preserveConfluenceCallouts(html)
+      expect(result).not.toContain('for:GitLab')
+      expect(result).not.toContain('GitLabServiceNow')
+      expect(result).toContain('Do NOT use this form for: GitLab ServiceNow')
+    }
+  )
+
+  it.concurrent(
+    'preserves word boundaries across multiple paragraphs in a generic Panel macro',
+    () => {
+      const html =
+        '<div class="panel"><div class="panelContent">' +
+        '<p>First sentence.</p><p>Second sentence.</p>' +
+        '</div></div>'
+      const result = preserveConfluenceCallouts(html)
+      expect(result).toContain('First sentence. Second sentence.')
+      expect(result).not.toContain('sentence.Second')
     }
   )
 })
