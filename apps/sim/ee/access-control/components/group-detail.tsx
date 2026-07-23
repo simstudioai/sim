@@ -766,7 +766,7 @@ function BlockToolRow({
         </button>
         {/* Outside the button: an Info trigger is itself a button and cannot nest. */}
         {block.description && (
-          <Info side='top' className='flex-shrink-0'>
+          <Info side='top' className={cn('flex-shrink-0', !isBlockAllowed && 'opacity-60')}>
             {block.description}
           </Info>
         )}
@@ -824,14 +824,14 @@ export function GroupDetail({
    */
   const [viewingGroup, setViewingGroup] = useState<PermissionGroup>(group)
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig>({ ...group.config })
-  const [editingName, setEditingName] = useState(group.name)
+  const [editingName, setEditingName] = useState(group.name.trim())
   const [editingDescription, setEditingDescription] = useState((group.description ?? '').trim())
   const prevGroupIdRef = useRef(group.id)
   if (prevGroupIdRef.current !== group.id) {
     prevGroupIdRef.current = group.id
     setViewingGroup(group)
     setEditingConfig({ ...group.config })
-    setEditingName(group.name)
+    setEditingName(group.name.trim())
     setEditingDescription((group.description ?? '').trim())
   }
 
@@ -954,14 +954,14 @@ export function GroupDetail({
     return JSON.stringify(viewingGroup.config) !== JSON.stringify(editingConfig)
   }, [viewingGroup.config, editingConfig])
 
+  // Both buffers are seeded trimmed and compared against a trimmed baseline. The
+  // contract trims name and description on write, but a row stored before those
+  // schemas gained `.trim()` (or written straight to the API) can still carry
+  // padding — compared raw it would open dirty with no way to clear it, since
+  // Discard restores the same padded value.
   const trimmedName = editingName.trim()
   const trimmedDescription = editingDescription.trim()
-  const nameChanged = trimmedName !== viewingGroup.name
-  // `name` is trimmed by its contract schema, but a description stored before
-  // description trimming was added (or written straight to the API) can still
-  // carry padding. The buffer is
-  // seeded trimmed and compared against a trimmed baseline, so such a row opens
-  // clean instead of being dirty with no way to clear it.
+  const nameChanged = trimmedName !== viewingGroup.name.trim()
   const descriptionChanged = trimmedDescription !== (viewingGroup.description ?? '').trim()
   const hasChanges = hasConfigChanges || nameChanged || descriptionChanged
 
@@ -1353,7 +1353,7 @@ export function GroupDetail({
 
   const handleDiscardConfig = () => {
     setEditingConfig({ ...viewingGroup.config })
-    setEditingName(viewingGroup.name)
+    setEditingName(viewingGroup.name.trim())
     setEditingDescription((viewingGroup.description ?? '').trim())
   }
 
