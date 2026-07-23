@@ -9,6 +9,7 @@
  * serves buffered reads, and settles the reader when the source is destroyed without an error.
  */
 import { Readable } from 'node:stream'
+import { gzipSync } from 'node:zlib'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAgent, mockUndiciRequest } = vi.hoisted(() => {
@@ -178,6 +179,27 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
     expect(Buffer.from(first.value!).toString()).toBe('AB') // copy is unaffected
     source.push(null)
     await reader.read()
+  })
+
+  it('decodes a gzip Content-Encoding body and strips the framing headers (fetch parity)', async () => {
+    const gzipped = gzipSync(Buffer.from(JSON.stringify({ ok: true, msg: 'compressed' })))
+    const source = new Readable({ read() {} })
+    source.push(gzipped)
+    source.push(null)
+    mockUndiciRequest.mockResolvedValueOnce(
+      undiciReply(
+        200,
+        { 'content-type': 'application/json', 'content-encoding': 'gzip', 'content-length': '40' },
+        source
+      )
+    )
+    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+
+    const response = await fetch('https://mcp.example.com/data', { method: 'GET' })
+
+    expect(await response.json()).toEqual({ ok: true, msg: 'compressed' })
+    expect(response.headers.get('content-encoding')).toBeNull()
+    expect(response.headers.get('content-length')).toBeNull()
   })
 
   it('rejects the reader when the source is destroyed without an error (abort/reset)', async () => {

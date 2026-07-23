@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream'
+import zlib from 'node:zlib'
 import dns from 'dns/promises'
 import http from 'http'
 import https from 'https'
@@ -677,6 +678,28 @@ function toUndiciRequestBody(
 }
 
 /**
+ * Decompression transform for a `Content-Encoding`, or `null` to pass the body through.
+ * `undici.fetch` decodes the body automatically; `undici.request` does not, so this restores
+ * fetch parity for gzip/deflate/br responses (common behind CDNs). Unknown/absent encodings
+ * pass through untouched.
+ */
+function contentEncodingDecoder(
+  encoding: string
+): zlib.Gunzip | zlib.Inflate | zlib.BrotliDecompress | null {
+  switch (encoding) {
+    case 'gzip':
+    case 'x-gzip':
+      return zlib.createGunzip()
+    case 'deflate':
+      return zlib.createInflate()
+    case 'br':
+      return zlib.createBrotliDecompress()
+    default:
+      return null
+  }
+}
+
+/**
  * Bridges an undici `request()` Node `Readable` into a WHATWG `ReadableStream` for a
  * `Response` body. Node's built-in `Readable.toWeb` is NOT used: its adapter throws an
  * unhandled `ERR_INVALID_STATE` ("Controller is already closed") when the web stream is
@@ -811,8 +834,32 @@ async function undiciRequestAsResponse(
   // 204/205/304 carry no body; `new Response` rejects a non-null body for them. Drain
   // undici's (empty) stream so its socket returns to the Agent pool instead of leaking.
   const isNullBody = statusCode === 204 || statusCode === 205 || statusCode === 304
-  if (isNullBody) body.resume()
-  const response = new Response(isNullBody ? null : nodeReadableToWebStream(body), {
+  if (isNullBody) {
+    body.resume()
+    const response = new Response(null, { status: statusCode, headers: responseHeaders })
+    Object.defineProperty(response, 'url', { value: url, configurable: true })
+    return response
+  }
+
+  // Decode Content-Encoding like `fetch` does (`request()` returns raw bytes). `maxResponseSize`
+  // still caps the compressed wire bytes on `body`; forward its errors into the decoder so the
+  // cap and any socket reset still surface as a stream error, and tear the source down when the
+  // decoded stream ends or is cancelled so the socket can't leak.
+  const contentEncoding = String(headers['content-encoding'] ?? '')
+    .toLowerCase()
+    .trim()
+  const decoder = contentEncodingDecoder(contentEncoding)
+  let bodyStream: Readable = body
+  if (decoder) {
+    body.once('error', (err) => decoder.destroy(err))
+    decoder.once('close', () => body.destroy())
+    bodyStream = body.pipe(decoder)
+    // The bridged body is now decoded; drop framing headers that would misdescribe it.
+    responseHeaders.delete('content-encoding')
+    responseHeaders.delete('content-length')
+  }
+
+  const response = new Response(nodeReadableToWebStream(bodyStream), {
     status: statusCode,
     headers: responseHeaders,
   })
