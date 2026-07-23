@@ -54,11 +54,10 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
       ))}
       <Button
         variant='ghost'
-        size='sm'
         onClick={add}
-        className='mt-1 self-start px-2 py-1 text-[var(--text-secondary)] text-xs'
+        className='mt-1 h-7 w-full justify-start gap-1.5 border border-[var(--border-1)] border-dashed text-[var(--text-muted)] text-small'
       >
-        <Plus className='mr-1 size-[10px]' />
+        <Plus className='size-[14px]' />
         Add option
       </Button>
     </div>
