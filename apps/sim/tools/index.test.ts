@@ -11,10 +11,15 @@ import {
   createExecutionContext,
   createMockFetch,
   type ExecutionContext,
+  environmentUtilsMockFns,
   inputValidationMock,
   inputValidationMockFns,
   type MockFetchResponse,
   resetEnvFlagsMock,
+  resetEnvironmentUtilsMock,
+  resetEnvMock,
+  resetUrlsMock,
+  setEnv,
   setEnvFlags,
 } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
@@ -23,7 +28,6 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 
 // Hoisted mock state - these are available to vi.mock factories
 const {
-  mockEnv,
   mockGetBYOKKey,
   mockGetToolAsync,
   mockRateLimiterFns,
@@ -32,9 +36,7 @@ const {
   mockGetCustomToolByIdOrTitle,
   mockGenerateInternalToken,
   mockResolveWorkspaceFileReference,
-  mockGetEffectiveDecryptedEnv,
 } = vi.hoisted(() => ({
-  mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:3000' } as Record<string, string | undefined>,
   mockGetBYOKKey: vi.fn(),
   mockGetToolAsync: vi.fn(),
   mockRateLimiterFns: {
@@ -47,24 +49,11 @@ const {
   mockGetCustomToolByIdOrTitle: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
-  mockGetEffectiveDecryptedEnv: vi.fn(),
 }))
 
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
 const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
-
-// Use the real urls module so it reads the file-local env mock below
-vi.unmock('@/lib/core/utils/urls')
-
-// Mock env config to control hosted key availability
-vi.mock('@/lib/core/config/env', () => ({
-  env: new Proxy({} as Record<string, string | undefined>, {
-    get: (_target, prop: string) => mockEnv[prop],
-  }),
-  getEnv: (key: string) => mockEnv[key],
-  isTruthy: (val: unknown) => val === true || val === 'true' || val === '1',
-  isFalsy: (val: unknown) => val === false || val === 'false' || val === '0',
-}))
+const mockGetEffectiveDecryptedEnv = environmentUtilsMockFns.mockGetEffectiveDecryptedEnv
 
 // Mock getBYOKKey
 vi.mock('@/lib/api-key/byok', () => ({
@@ -100,10 +89,6 @@ vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock
 
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
-}))
-
-vi.mock('@/lib/environment/utils', () => ({
-  getEffectiveDecryptedEnv: (...args: unknown[]) => mockGetEffectiveDecryptedEnv(...args),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
@@ -405,10 +390,19 @@ vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQu
 
 beforeEach(() => {
   vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
+  // Suites below call vi.resetAllMocks(), which wipes the shared env/urls mock
+  // implementations — restore their defaults and re-pin the base URL each test.
+  resetEnvMock()
+  resetUrlsMock()
+  resetEnvironmentUtilsMock()
+  setEnv({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
 })
 
 afterAll(() => {
   vi.mocked(getQueryClientModule.getQueryClient).mockRestore()
+  resetEnvMock()
+  resetUrlsMock()
+  resetEnvironmentUtilsMock()
 })
 
 /**
@@ -2553,7 +2547,7 @@ describe('Rate Limiting and Retry Logic', () => {
     })
     vi.clearAllMocks()
     setEnvFlags({ isHosted: true })
-    mockEnv.TEST_HOSTED_KEY = 'test-hosted-api-key'
+    setEnv({ TEST_HOSTED_KEY: 'test-hosted-api-key' })
     mockGetBYOKKey.mockResolvedValue(null)
     // Set up throttler mock defaults
     mockRateLimiterFns.acquireKey.mockResolvedValue({
@@ -2571,7 +2565,7 @@ describe('Rate Limiting and Retry Logic', () => {
     vi.resetAllMocks()
     cleanupEnvVars()
     setEnvFlags({ isHosted: false })
-    mockEnv.TEST_HOSTED_KEY = undefined
+    setEnv({ TEST_HOSTED_KEY: undefined })
   })
 
   it('should retry on 429 rate limit errors with exponential backoff', async () => {
@@ -2937,7 +2931,7 @@ describe('Cost Field Handling', () => {
     })
     vi.clearAllMocks()
     setEnvFlags({ isHosted: true })
-    mockEnv.TEST_HOSTED_KEY = 'test-hosted-api-key'
+    setEnv({ TEST_HOSTED_KEY: 'test-hosted-api-key' })
     mockGetBYOKKey.mockResolvedValue(null)
     // Set up throttler mock defaults
     mockRateLimiterFns.acquireKey.mockResolvedValue({
@@ -2954,7 +2948,7 @@ describe('Cost Field Handling', () => {
     vi.resetAllMocks()
     cleanupEnvVars()
     setEnvFlags({ isHosted: false })
-    mockEnv.TEST_HOSTED_KEY = undefined
+    setEnv({ TEST_HOSTED_KEY: undefined })
   })
 
   it('should add cost to output when using hosted key with per_request pricing', async () => {

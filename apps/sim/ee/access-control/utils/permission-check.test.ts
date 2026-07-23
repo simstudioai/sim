@@ -9,14 +9,14 @@ import {
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { getBlock } from '@/blocks/registry'
 
 const {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   mockIsOrganizationOnEnterprisePlan,
   mockGetWorkspaceWithOwner,
   mockGetProviderFromModel,
-  mockGetBlock,
 } = vi.hoisted(() => ({
   DEFAULT_PERMISSION_GROUP_CONFIG: {
     allowedIntegrations: null,
@@ -47,7 +47,6 @@ const {
   mockIsOrganizationOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
   mockGetWorkspaceWithOwner: vi.fn<() => Promise<{ organizationId: string | null } | null>>(),
   mockGetProviderFromModel: vi.fn<(model: string) => string>(),
-  mockGetBlock: vi.fn<(type: string) => { hideFromToolbar?: boolean } | undefined>(),
 }))
 
 vi.mock('@/lib/billing', () => ({
@@ -68,11 +67,6 @@ vi.mock('@/lib/permission-groups/types', () => ({
 
 vi.mock('@/providers/utils', () => ({
   getProviderFromModel: mockGetProviderFromModel,
-}))
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: mockGetBlock,
-  getAllBlocks: vi.fn(() => []),
 }))
 
 import {
@@ -127,6 +121,15 @@ function queueGroupResolution(
 }
 
 afterAll(resetDbChainMock)
+
+/** The global registry mock's getBlock, driven per-test in this suite. */
+const mockGetBlock = getBlock as Mock
+
+const defaultGetBlockImpl = mockGetBlock.getMockImplementation()
+
+afterAll(() => {
+  mockGetBlock.mockImplementation(defaultGetBlockImpl as () => unknown)
+})
 
 /**
  * Default every block to non-legacy. `vi.clearAllMocks()` (used by the

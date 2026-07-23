@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { dbChainMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { drizzleOrmMock } from '@sim/testing/mocks'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -44,8 +44,6 @@ const {
   })),
   mockTask: vi.fn((config: unknown) => config),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
 

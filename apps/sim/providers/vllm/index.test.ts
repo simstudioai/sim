@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCreate,
@@ -14,7 +15,6 @@ const {
   mockValidateUrlWithDNS,
   mockCreatePinnedFetch,
   pinnedFetchFn,
-  envState,
 } = vi.hoisted(() => {
   const openAIArgs: Array<Record<string, unknown>> = []
   const mockCreate = vi.fn()
@@ -36,15 +36,10 @@ const {
     mockValidateUrlWithDNS: vi.fn(),
     mockCreatePinnedFetch: vi.fn(() => pinnedFetchFn),
     pinnedFetchFn,
-    envState: {
-      VLLM_BASE_URL: 'http://localhost:8000',
-      VLLM_API_KEY: undefined as string | undefined,
-    },
   }
 })
 
 vi.mock('openai', () => ({ default: mockOpenAI }))
-vi.mock('@/lib/core/config/env', () => ({ env: envState }))
 vi.mock('@/lib/core/security/input-validation.server', () => ({
   validateUrlWithDNS: mockValidateUrlWithDNS,
   createPinnedFetch: mockCreatePinnedFetch,
@@ -115,13 +110,14 @@ const toolCall = (id: string, name: string, args = '{}'): ToolCall => ({
 /** Payload passed to the Nth `chat.completions.create` call. */
 const createPayload = (callIndex: number) => mockCreate.mock.calls[callIndex][0]
 
+afterAll(resetEnvMock)
+
 describe('vllmProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearProviderClientCacheForTests()
     openAIArgs.length = 0
-    envState.VLLM_BASE_URL = 'http://localhost:8000'
-    envState.VLLM_API_KEY = undefined
+    setEnv({ VLLM_BASE_URL: 'http://localhost:8000', VLLM_API_KEY: undefined })
     mockPrepareTools.mockReturnValue({
       tools: [{ type: 'function', function: { name: 'myTool' } }],
       toolChoice: 'auto',
@@ -386,7 +382,7 @@ describe('vllmProvider', () => {
   })
 
   it('throws when no base URL is configured', async () => {
-    envState.VLLM_BASE_URL = ''
+    setEnv({ VLLM_BASE_URL: '' })
 
     await expect(
       vllmProvider.executeRequest({

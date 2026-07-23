@@ -33,8 +33,6 @@ const {
   mockSelectRowsByIdChunks: vi.fn(async () => [] as unknown[]),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
-
 vi.mock('@/lib/cleanup/batch-delete', () => ({
   batchDeleteByWorkspaceAndTimestamp: mockBatchDeleteByWorkspaceAndTimestamp,
   chunkedBatchDelete: mockChunkedBatchDelete,
