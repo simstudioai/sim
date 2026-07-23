@@ -37,6 +37,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
@@ -91,13 +92,12 @@ const ALL_CHAT_DEPLOY_AUTH_TYPES: ShareAuthType[] = CHAT_DEPLOY_AUTH_TYPE_OPTION
   (o) => o.value
 )
 
-/** Narrows an allow/deny list to entries that are currently on or off. */
 type StatusFilter = 'all' | 'enabled' | 'disabled'
 
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'enabled', label: 'Enabled' },
-  { value: 'disabled', label: 'Disabled' },
+  { value: 'all', label: 'Show all' },
+  { value: 'enabled', label: 'Show enabled' },
+  { value: 'disabled', label: 'Show disabled' },
 ]
 
 function matchesStatusFilter(filter: StatusFilter, enabled: boolean) {
@@ -535,7 +535,7 @@ function BlockToolRow({
           onClick={() => isBlockAllowed && isExpandable && setExpanded((prev) => !prev)}
           disabled={!isBlockAllowed || !isExpandable}
           className={cn(
-            'flex min-w-0 items-center gap-2 text-left',
+            'flex min-w-0 flex-1 items-center gap-2 text-left',
             isBlockAllowed && isExpandable ? 'cursor-pointer' : 'cursor-default',
             !isBlockAllowed && 'opacity-60'
           )}
@@ -547,9 +547,11 @@ function BlockToolRow({
             </ChipTag>
           )}
         </button>
-        <Info side='top' className='flex-shrink-0'>
-          {block.description}
-        </Info>
+        {block.description && (
+          <Info side='top' className='flex-shrink-0'>
+            {block.description}
+          </Info>
+        )}
         {isBlockAllowed && isExpandable && (
           <ChevronDown
             className={cn(
@@ -863,6 +865,23 @@ export function GroupDetail({
       features: platformCategories[category] ?? [],
     }))
   }, [platformCategories])
+
+  /**
+   * Chat and Files render as standalone sections (a toggle plus its nested
+   * auth-mode dropdown) rather than as `platformFeatures` rows, so they need the
+   * tab's search + status filter applied by hand — otherwise they'd be the only
+   * Platform controls that ignore both.
+   */
+  const platformSectionVisible = (label: string, enabled: boolean) => {
+    const search = platformSearchTerm.trim().toLowerCase()
+    if (search && !label.toLowerCase().includes(search)) return false
+    return matchesStatusFilter(platformStatusFilter, enabled)
+  }
+
+  const showChatSection = platformSectionVisible('Chat', !editingConfig.hideDeployChatbot)
+  const showFilesSection = platformSectionVisible('Files', !editingConfig.disablePublicFileSharing)
+  const hasPlatformMatches =
+    platformCategorySections.length > 0 || showChatSection || showFilesSection
 
   const hasConfigChanges = useMemo(() => {
     return JSON.stringify(viewingGroup.config) !== JSON.stringify(editingConfig)
@@ -1185,7 +1204,7 @@ export function GroupDetail({
     if (!trimmedName) return
     const nextDescription = trimmedDescription || null
     try {
-      await updatePermissionGroup.mutateAsync({
+      const result = await updatePermissionGroup.mutateAsync({
         id: viewingGroup.id,
         organizationId,
         ...(hasConfigChanges && { config: editingConfig }),
@@ -1194,14 +1213,18 @@ export function GroupDetail({
           description: nextDescription,
         }),
       })
+      // Reconcile from the server's copy, like the scope/default writes do, so a
+      // server-side normalization can't leave the dirty check comparing against a
+      // baseline that was never persisted. The editing buffers are deliberately
+      // left alone: edits made while the save was in flight stay, and correctly
+      // re-mark the form dirty.
+      const saved = result.permissionGroup
       setViewingGroup((prev) => ({
         ...prev,
-        config: editingConfig,
-        name: trimmedName,
-        description: nextDescription,
+        config: saved.config,
+        name: saved.name,
+        description: saved.description,
       }))
-      setEditingName(trimmedName)
-      setEditingDescription(trimmedDescription)
     } catch (error) {
       logger.error('Failed to save permission group', error)
       toast.error("Couldn't save changes", {
@@ -1406,8 +1429,12 @@ export function GroupDetail({
                     placeholder='e.g., Marketing Team'
                     maxLength={100}
                     error={!trimmedName}
-                    className='max-w-[320px]'
                   />
+                  {!trimmedName && (
+                    <p className='mt-1.5 text-[var(--text-error)] text-caption'>
+                      Name is required.
+                    </p>
+                  )}
                 </SettingRow>
                 <SettingRow label='Description'>
                   <ChipInput
@@ -1552,29 +1579,36 @@ export function GroupDetail({
                 onChange={(value) => setProviderStatusFilter(value as StatusFilter)}
                 options={STATUS_FILTER_OPTIONS}
                 matchTriggerWidth={false}
-                className='flex-shrink-0'
+                className='w-[140px] flex-shrink-0'
               />
               <Chip
                 onClick={() => setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)}
+                disabled={filteredProviders.length === 0}
               >
                 {filteredProvidersAllAllowed ? 'Deselect All' : 'Select All'}
               </Chip>
             </div>
-            <div className='flex flex-col gap-0.5'>
-              {filteredProviders.map((providerId) => (
-                <ProviderRow
-                  key={providerId}
-                  providerId={providerId}
-                  isProviderAllowed={isProviderAllowed(providerId)}
-                  onToggleProvider={() => toggleProvider(providerId)}
-                  deniedCount={deniedCountByProvider[providerId] ?? 0}
-                  workspaceId={workspaceId}
-                  isAllowed={isModelAllowed}
-                  onToggle={toggleModel}
-                  onSetDenied={setModelsDenied}
-                />
-              ))}
-            </div>
+            {filteredProviders.length === 0 ? (
+              <SettingsEmptyState variant='inline'>
+                No providers match your filters.
+              </SettingsEmptyState>
+            ) : (
+              <div className='flex flex-col gap-0.5'>
+                {filteredProviders.map((providerId) => (
+                  <ProviderRow
+                    key={providerId}
+                    providerId={providerId}
+                    isProviderAllowed={isProviderAllowed(providerId)}
+                    onToggleProvider={() => toggleProvider(providerId)}
+                    deniedCount={deniedCountByProvider[providerId] ?? 0}
+                    workspaceId={workspaceId}
+                    isAllowed={isModelAllowed}
+                    onToggle={toggleModel}
+                    onSetDenied={setModelsDenied}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1593,9 +1627,15 @@ export function GroupDetail({
                 onChange={(value) => setBlockStatusFilter(value as StatusFilter)}
                 options={STATUS_FILTER_OPTIONS}
                 matchTriggerWidth={false}
-                className='flex-shrink-0'
+                flush
+                className='w-[140px] flex-shrink-0'
               />
             </div>
+            {filteredCoreBlocks.length === 0 && filteredToolBlocks.length === 0 && (
+              <SettingsEmptyState variant='inline'>
+                No blocks match your filters.
+              </SettingsEmptyState>
+            )}
             {filteredCoreBlocks.length > 0 && (
               <SettingsSection
                 label='Core Blocks'
@@ -1613,10 +1653,13 @@ export function GroupDetail({
                     const BlockIcon = block.icon
                     const checkboxId = `block-${block.type}`
                     return (
-                      <div key={block.type} className='flex items-center gap-1.5'>
+                      <div
+                        key={block.type}
+                        className='flex items-center gap-1.5 rounded-md pr-2 transition-colors hover-hover:bg-[var(--surface-active)]'
+                      >
                         <label
                           htmlFor={checkboxId}
-                          className='flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                          className='flex min-w-0 flex-1 cursor-pointer items-center gap-2 py-[5px] pl-2'
                         >
                           <Checkbox
                             id={checkboxId}
@@ -1631,9 +1674,11 @@ export function GroupDetail({
                           </div>
                           <span className='truncate font-medium text-sm'>{block.name}</span>
                         </label>
-                        <Info side='top' className='flex-shrink-0'>
-                          {block.description}
-                        </Info>
+                        {block.description && (
+                          <Info side='top' className='flex-shrink-0'>
+                            {block.description}
+                          </Info>
+                        )}
                       </div>
                     )
                   })}
@@ -1692,7 +1737,7 @@ export function GroupDetail({
                 onChange={(value) => setPlatformStatusFilter(value as StatusFilter)}
                 options={STATUS_FILTER_OPTIONS}
                 matchTriggerWidth={false}
-                className='flex-shrink-0'
+                className='w-[140px] flex-shrink-0'
               />
               <Chip
                 onClick={() =>
@@ -1703,6 +1748,7 @@ export function GroupDetail({
                     ),
                   }))
                 }
+                disabled={filteredPlatformFeatures.length === 0}
               >
                 {platformAllVisible ? 'Deselect All' : 'Select All'}
               </Chip>
@@ -1728,94 +1774,105 @@ export function GroupDetail({
                         />
                         <span className='font-normal text-sm'>{feature.label}</span>
                       </label>
-                      <Info side='top'>{feature.hint}</Info>
+                      <Info side='top' className='flex-shrink-0'>
+                        {feature.hint}
+                      </Info>
                     </div>
                   ))}
                 </div>
               </SettingsSection>
             ))}
-            <SettingsSection label='Chat'>
-              <div className='flex flex-col gap-1.5'>
-                <label
-                  htmlFor='hide-deploy-chatbot'
-                  className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
-                >
-                  <Checkbox
-                    id='hide-deploy-chatbot'
-                    checked={!editingConfig.hideDeployChatbot}
-                    onCheckedChange={(checked) =>
-                      setEditingConfig((prev) => ({
-                        ...prev,
-                        hideDeployChatbot: checked !== true,
-                      }))
-                    }
-                  />
-                  <span className='font-normal text-sm'>Chat Deployment</span>
-                </label>
-                <div
-                  className={cn(
-                    'flex flex-col gap-1.5 px-2 pt-1',
-                    editingConfig.hideDeployChatbot && 'opacity-50'
-                  )}
-                >
-                  <span className='text-[var(--text-secondary)] text-xs'>
-                    Auth modes chat deployments may use
-                  </span>
-                  <ChipDropdown
-                    multiple
-                    showAllOption={false}
-                    allLabel='None'
-                    value={chatDeployAuthValue}
-                    onChange={setChatDeployAuthTypes}
-                    options={CHAT_DEPLOY_AUTH_TYPE_OPTIONS}
-                    disabled={editingConfig.hideDeployChatbot}
-                    matchTriggerWidth={false}
-                    className='w-[200px]'
-                  />
+            {showChatSection && (
+              <SettingsSection label='Chat'>
+                <div className='flex flex-col gap-1.5'>
+                  <label
+                    htmlFor='hide-deploy-chatbot'
+                    className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                  >
+                    <Checkbox
+                      id='hide-deploy-chatbot'
+                      checked={!editingConfig.hideDeployChatbot}
+                      onCheckedChange={(checked) =>
+                        setEditingConfig((prev) => ({
+                          ...prev,
+                          hideDeployChatbot: checked !== true,
+                        }))
+                      }
+                    />
+                    <span className='font-normal text-sm'>Deployment</span>
+                  </label>
+                  <div
+                    className={cn(
+                      'flex flex-col gap-1.5 px-2 pt-1',
+                      editingConfig.hideDeployChatbot && 'opacity-50'
+                    )}
+                  >
+                    <span className='text-[var(--text-muted)] text-caption'>
+                      Auth modes chat deployments may use
+                    </span>
+                    <ChipDropdown
+                      multiple
+                      showAllOption={false}
+                      allLabel='None'
+                      value={chatDeployAuthValue}
+                      onChange={setChatDeployAuthTypes}
+                      options={CHAT_DEPLOY_AUTH_TYPE_OPTIONS}
+                      disabled={editingConfig.hideDeployChatbot}
+                      matchTriggerWidth={false}
+                      className='w-[200px]'
+                    />
+                  </div>
                 </div>
-              </div>
-            </SettingsSection>
-            <SettingsSection label='Files'>
-              <div className='flex flex-col gap-1.5'>
-                <label
-                  htmlFor='disable-public-file-sharing'
-                  className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
-                >
-                  <Checkbox
-                    id='disable-public-file-sharing'
-                    checked={!editingConfig.disablePublicFileSharing}
-                    onCheckedChange={(checked) =>
-                      setEditingConfig((prev) => ({
-                        ...prev,
-                        disablePublicFileSharing: checked !== true,
-                      }))
-                    }
-                  />
-                  <span className='font-normal text-sm'>Public Sharing</span>
-                </label>
-                <div
-                  className={cn(
-                    'flex flex-col gap-1.5 px-2 pt-1',
-                    editingConfig.disablePublicFileSharing && 'opacity-50'
-                  )}
-                >
-                  <span className='text-[var(--text-secondary)] text-xs'>
-                    Auth modes public file-share links may use
-                  </span>
-                  <ChipDropdown
-                    multiple
-                    showAllOption={false}
-                    allLabel='None'
-                    value={fileShareAuthValue}
-                    onChange={setFileShareAuthTypes}
-                    options={FILE_SHARE_AUTH_TYPE_OPTIONS}
-                    disabled={editingConfig.disablePublicFileSharing}
-                    matchTriggerWidth={false}
-                    className='w-[200px]'
-                  />
+              </SettingsSection>
+            )}
+            {showFilesSection && (
+              <SettingsSection label='Files'>
+                <div className='flex flex-col gap-1.5'>
+                  <label
+                    htmlFor='disable-public-file-sharing'
+                    className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                  >
+                    <Checkbox
+                      id='disable-public-file-sharing'
+                      checked={!editingConfig.disablePublicFileSharing}
+                      onCheckedChange={(checked) =>
+                        setEditingConfig((prev) => ({
+                          ...prev,
+                          disablePublicFileSharing: checked !== true,
+                        }))
+                      }
+                    />
+                    <span className='font-normal text-sm'>Public Sharing</span>
+                  </label>
+                  <div
+                    className={cn(
+                      'flex flex-col gap-1.5 px-2 pt-1',
+                      editingConfig.disablePublicFileSharing && 'opacity-50'
+                    )}
+                  >
+                    <span className='text-[var(--text-muted)] text-caption'>
+                      Auth modes public file-share links may use
+                    </span>
+                    <ChipDropdown
+                      multiple
+                      showAllOption={false}
+                      allLabel='None'
+                      value={fileShareAuthValue}
+                      onChange={setFileShareAuthTypes}
+                      options={FILE_SHARE_AUTH_TYPE_OPTIONS}
+                      disabled={editingConfig.disablePublicFileSharing}
+                      matchTriggerWidth={false}
+                      className='w-[200px]'
+                    />
+                  </div>
                 </div>
-              </div>
-            </SettingsSection>
+              </SettingsSection>
+            )}
+            {!hasPlatformMatches && (
+              <SettingsEmptyState variant='inline'>
+                No features match your filters.
+              </SettingsEmptyState>
+            )}
           </div>
         )}
       </SettingsPanel>
