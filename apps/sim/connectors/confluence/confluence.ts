@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import * as cheerio from 'cheerio'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -7,6 +8,155 @@ import { htmlToPlainText, joinTagArray, parseMultiValue, parseTagDate } from '@/
 import { getConfluenceCloudId, normalizeConfluenceDomainHost } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceConnector')
+
+/** Label prefixes for Confluence's built-in Info/Note/Warning/Tip macros, by their rendered CSS suffix. */
+const CALLOUT_LABELS: Record<string, string> = {
+  information: '[INFO]',
+  note: '[NOTE]',
+  warning: '[WARNING]',
+  tip: '[TIP]',
+  error: '[ERROR]',
+}
+
+/**
+ * Inline formatting tags whose text flows directly into their surrounding
+ * sentence with no implied word break — e.g. `un<b>believe</b>able` must stay
+ * `unbelievable`, and `Hello<b>!</b>` must stay `Hello!`, not gain an
+ * artificial space. Anything not in this set (p, li, td, div, headings, br,
+ * etc.) is treated as a block boundary that always implies a break, even when
+ * the source HTML has no literal whitespace there.
+ */
+const INLINE_FORMATTING_TAGS = new Set([
+  'b',
+  'strong',
+  'i',
+  'em',
+  'u',
+  's',
+  'strike',
+  'del',
+  'ins',
+  'sup',
+  'sub',
+  'small',
+  'mark',
+  'code',
+  'span',
+  'a',
+  'abbr',
+  'cite',
+  'q',
+  'kbd',
+  'var',
+  'samp',
+  'time',
+])
+
+/**
+ * Cheerio's `.text()` concatenates every descendant text node with no
+ * separator at all, so pulling a macro body's text in one call fuses adjacent
+ * blocks together (e.g. a `<p>...for:</p>` immediately followed by
+ * `<li>GitLab</li>` becomes `for:GitLab`, corrupting the very word boundaries
+ * RAG chunking depends on). Simply joining every text node with a space isn't
+ * right either — that would corrupt genuinely inline-formatted text the same
+ * way. This walks the DOM, accumulating text through inline tags without a
+ * separator (preserving exact source adjacency) and flushing to a new segment
+ * at every other tag boundary (a block always implies a break, regardless of
+ * source whitespace) — matching how `html-parser.ts` already walks HTML for a
+ * related reason elsewhere in this codebase, extended with the inline/block
+ * distinction real Confluence rich text requires.
+ */
+function extractBlockJoinedText($: cheerio.CheerioAPI, $el: cheerio.Cheerio<any>): string {
+  const parts: string[] = []
+  let current = ''
+
+  const flush = () => {
+    const text = current.trim()
+    if (text) parts.push(text)
+    current = ''
+  }
+
+  const visit = ($node: cheerio.Cheerio<any>) => {
+    $node.contents().each((_, child) => {
+      if (child.type === 'text') {
+        current += $(child).text()
+      } else if (child.type === 'tag') {
+        const tag = child.tagName?.toLowerCase()
+        if (tag && INLINE_FORMATTING_TAGS.has(tag)) {
+          visit($(child))
+        } else {
+          flush()
+          visit($(child))
+          flush()
+        }
+      }
+    })
+  }
+
+  visit($el)
+  flush()
+  return parts.join(' ').trim()
+}
+
+/** Matches either flavor of panel/macro this function rewrites. */
+const MACRO_SELECTOR = 'div.confluence-information-macro, div.panel'
+
+/**
+ * Confluence's rendered `view` HTML wraps Info/Note/Warning/Tip macros in
+ * `confluence-information-macro confluence-information-macro-{type}` divs, and
+ * the customizable Panel macro in `.panel` > `.panelHeader` + `.panelContent`
+ * divs. `htmlToPlainText`'s blind tag-stripping discards the divs' classes along
+ * with the tags, so a red "do not use" warning panel becomes indistinguishable
+ * from a plain paragraph once flattened — and its trailing whitespace collapse
+ * would erase any newline-based separation too. Each detected panel is rewritten
+ * into a single bracketed label plus its own text so the callout semantic
+ * survives both the tag strip and the whitespace collapse.
+ *
+ * A panel can itself contain another panel or macro (e.g. a nested Note inside
+ * a Warning panel). Processing matches in document order — outermost first —
+ * would read a not-yet-converted nested macro as plain body text before it
+ * ever got its own label, silently dropping the inner callout's semantic, and
+ * `.find('.panelHeader')` would then risk pulling a nested panel's header up
+ * as if it were the outer panel's own title. Converting only "leaf" macros
+ * (ones with no remaining nested macro/panel inside them) and repeating until
+ * none are left processes innermost-first, so a nested macro is already a
+ * bracketed `<p>` by the time its parent's body/header text is read — at which
+ * point it correctly reads as plain text carrying its own label.
+ */
+export function preserveConfluenceCallouts(html: string): string {
+  if (!html) return html
+
+  const $ = cheerio.load(html)
+
+  let progressed = true
+  while (progressed) {
+    progressed = false
+    const leaves = $(MACRO_SELECTOR).filter((_, el) => $(el).find(MACRO_SELECTOR).length === 0)
+    if (leaves.length === 0) break
+
+    leaves.each((_, el) => {
+      const $el = $(el)
+      if ($el.hasClass('confluence-information-macro')) {
+        const type = ($el.attr('class') ?? '')
+          .match(/confluence-information-macro-(\w+)/)?.[1]
+          ?.toLowerCase()
+        const label = (type && CALLOUT_LABELS[type]) || CALLOUT_LABELS.information
+        const macroBody = $el.find('.confluence-information-macro-body').first()
+        const body = extractBlockJoinedText($, macroBody.length > 0 ? macroBody : $el)
+        $el.replaceWith($('<p></p>').text(`${label} ${body}`))
+      } else {
+        const headerText = extractBlockJoinedText($, $el.find('.panelHeader').first())
+        const panelContent = $el.find('.panelContent').first()
+        const bodyText = extractBlockJoinedText($, panelContent.length > 0 ? panelContent : $el)
+        const label = headerText ? `[CALLOUT: ${headerText}]` : '[CALLOUT]'
+        $el.replaceWith($('<p></p>').text(`${label} ${bodyText}`))
+      }
+      progressed = true
+    })
+  }
+
+  return $.html()
+}
 
 /**
  * Escapes a value for use inside CQL double-quoted strings.
@@ -108,10 +258,12 @@ async function fetchLabelsForPages(
  * invalidates every previously-synced Confluence document so a one-time
  * re-hydration picks up content newly reachable by the current extraction
  * (e.g. the switch from `storage` to rendered `view`, which expands Include
- * Page / Excerpt macros). Without it, already-indexed pages whose version is
- * unchanged classify as `unchanged` and keep their stale (empty) content.
+ * Page / Excerpt macros; or `preserveConfluenceCallouts`, which stops
+ * flattening panel/info/note/warning/tip macros into indistinguishable plain
+ * text). Without it, already-indexed pages whose version is unchanged
+ * classify as `unchanged` and keep their stale (pre-fix) content.
  */
-const CONTENT_REPRESENTATION = 'view'
+const CONTENT_REPRESENTATION = 'view-callouts'
 
 /**
  * Produces a canonical metadata stub with a deterministic contentHash that
@@ -288,7 +440,7 @@ export const confluenceConnector: ConnectorConfig = {
     const body = page.body as Record<string, unknown> | undefined
     const view = body?.view as Record<string, unknown> | undefined
     const rawContent = (view?.value as string) || ''
-    const plainText = htmlToPlainText(rawContent)
+    const plainText = htmlToPlainText(preserveConfluenceCallouts(rawContent))
 
     const labelMap = await fetchLabelsForPages(cloudId, accessToken, [String(page.id)])
     const labels = labelMap.get(String(page.id)) ?? []
