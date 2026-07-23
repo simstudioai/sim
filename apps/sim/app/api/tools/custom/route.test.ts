@@ -6,7 +6,6 @@
 import {
   authMockFns,
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   hybridAuthMockFns,
   permissionsMock,
@@ -82,8 +81,6 @@ const sampleTools = [
     updatedAt: '2023-02-02T00:00:00.000Z',
   },
 ]
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 

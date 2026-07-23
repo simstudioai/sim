@@ -4,7 +4,6 @@
 import {
   auditMock,
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
@@ -17,7 +16,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const mockCheckAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseAccess
 const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWriteAccess
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 vi.mock('@sim/audit', () => auditMock)
 

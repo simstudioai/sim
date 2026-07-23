@@ -1,28 +1,22 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { authMockFns, createMockRequest, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockAuthorizeWorkflow, mockGetWorkflowReferences } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockAuthorizeWorkflow: vi.fn(),
+const { mockGetWorkflowReferences } = vi.hoisted(() => ({
   mockGetWorkflowReferences: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
-
-vi.mock('@sim/platform-authz/workflow', () => ({
-  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflow,
-}))
+const mockAuthorizeWorkflow = workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 
 vi.mock('@/lib/workflows/references/operations', () => ({
   getWorkflowReferences: mockGetWorkflowReferences,
 }))
 
 import { GET } from '@/app/api/workflows/[id]/references/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const REFERENCES = {
   callers: [{ id: 'b', name: 'B', cycle: false, children: [] }],

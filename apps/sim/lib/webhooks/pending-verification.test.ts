@@ -1,11 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
-
+import { redisConfigMockFns } from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   clearPendingWebhookVerification,
   getPendingWebhookVerification,

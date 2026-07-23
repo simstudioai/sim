@@ -3,13 +3,17 @@ import {
   databaseMock,
   drizzleOrmMock,
   envFlagsMock,
+  environmentUtilsMock,
+  envMock,
   hybridAuthMock,
   loggerMock,
+  redisConfigMock,
   requestUtilsMock,
   schemaMock,
   setupGlobalFetchMock,
   setupGlobalStorageMocks,
   terminalConsoleMock,
+  urlsMock,
   workflowAuthzMock,
 } from '@sim/testing'
 import { afterAll, vi } from 'vitest'
@@ -27,6 +31,10 @@ vi.mock('@/lib/auth', () => authMock)
 vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
+vi.mock('@/lib/core/config/env', () => envMock)
+vi.mock('@/lib/core/utils/urls', () => urlsMock)
+vi.mock('@/lib/core/config/redis', () => redisConfigMock)
+vi.mock('@/lib/environment/utils', () => environmentUtilsMock)
 
 vi.mock('@/stores/console/store', () => ({
   useConsoleStore: {

@@ -1,13 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  dbChainMock,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -31,8 +25,6 @@ vi.mock('@sim/audit', () => ({
   AuditResourceType: { SUBSCRIPTION: 'subscription' },
   recordAudit: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@sim/utils/id', () => ({ generateId: vi.fn(() => 'generated-id') }))
 vi.mock('@/lib/billing/organizations/membership', () => ({

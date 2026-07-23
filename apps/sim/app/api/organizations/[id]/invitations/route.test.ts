@@ -4,17 +4,15 @@
 import { member, organization, permissions, user, workspace } from '@sim/db/schema'
 import {
   auditMock,
+  authMockFns,
   createMockRequest,
   createSession,
-  dbChainMock,
-  loggerMock,
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetSession,
   mockValidateInvitationsAllowed,
   mockValidateSeatAvailability,
   mockCreatePendingInvitation,
@@ -22,7 +20,6 @@ const {
   mockCancelPendingInvitation,
   mockGrantWorkspaceAccessDirectly,
 } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
   mockValidateInvitationsAllowed: vi.fn(),
   mockValidateSeatAvailability: vi.fn(),
   mockCreatePendingInvitation: vi.fn(),
@@ -31,15 +28,7 @@ const {
   mockGrantWorkspaceAccessDirectly: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
-
-vi.mock('@sim/logger', () => loggerMock)
-
 vi.mock('@sim/audit', () => auditMock)
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
 
 vi.mock('@/lib/billing/validation/seat-management', () => ({
   validateBulkInvitations: vi.fn(),
@@ -74,6 +63,8 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
 }))
 
 import { POST } from '@/app/api/organizations/[id]/invitations/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 /** Queues the caller's admin-role check followed by the org-name lookup. */
 function queueOwnerAndOrg() {

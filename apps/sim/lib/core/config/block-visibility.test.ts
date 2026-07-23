@@ -1,26 +1,20 @@
 /**
  * @vitest-environment node
  */
-import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { envFlagsMockFns, resetEnvFlagsMock, resetEnvMock, setEnv, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
+const { mockFetch, mockIsPlatformAdmin } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockIsPlatformAdmin: vi.fn(),
-  envRef: {
-    APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
-    APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
-  },
 }))
+
+beforeAll(() => {
+  setEnv({ APPCONFIG_APPLICATION: 'sim-staging', APPCONFIG_ENVIRONMENT: 'staging' })
+})
 
 vi.mock('@/lib/core/config/appconfig', () => ({
   fetchAppConfigProfile: mockFetch,
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  get env() {
-    return envRef
-  },
 }))
 
 vi.mock('@/lib/permissions/super-user', () => ({
@@ -35,7 +29,10 @@ function withAppConfig(doc: unknown) {
   mockFetch.mockImplementation((_ids, parse) => Promise.resolve(parse(doc)))
 }
 
-afterAll(resetEnvFlagsMock)
+afterAll(() => {
+  resetEnvFlagsMock()
+  resetEnvMock()
+})
 
 describe('getBlockVisibility', () => {
   beforeEach(() => {

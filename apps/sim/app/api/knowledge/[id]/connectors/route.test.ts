@@ -5,7 +5,6 @@ import {
   auditMock,
   authOAuthUtilsMock,
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
@@ -32,7 +31,6 @@ const {
 
 const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWriteAccess
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)

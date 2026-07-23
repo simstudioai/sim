@@ -1,5 +1,5 @@
 import { user } from '@sim/db/schema'
-import { dbChainMock, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getMothershipBaseURL,
@@ -16,7 +16,6 @@ const { envMock } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/api/contracts', () => ({
   mothershipEnvironmentSchema: {
     safeParse: (value: unknown) =>

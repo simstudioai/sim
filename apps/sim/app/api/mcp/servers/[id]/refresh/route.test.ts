@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,8 +9,6 @@ const { mockClearCache, mockDiscoverServerTools } = vi.hoisted(() => ({
   mockClearCache: vi.fn(),
   mockDiscoverServerTools: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/core/utils/with-route-handler', () => ({
   withRouteHandler: (handler: unknown) => handler,

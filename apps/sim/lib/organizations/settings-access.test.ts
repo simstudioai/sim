@@ -2,11 +2,8 @@
  * @vitest-environment node
  */
 import { member } from '@sim/db/schema'
-import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => dbChainMock)
-
 import {
   canOpenOrganizationSettingsSection,
   getOrganizationSettingsAccess,

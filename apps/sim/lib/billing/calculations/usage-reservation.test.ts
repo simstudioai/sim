@@ -1,11 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { redisConfigMock, redisConfigMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { redisConfigMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
-
 import {
   releaseExecutionSlot,
   reserveExecutionSlot,

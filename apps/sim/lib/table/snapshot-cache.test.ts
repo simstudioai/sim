@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSelectExportRowPage, mockCreateMultipartUpload, mockHeadObject, mockDeleteFile } =
@@ -12,7 +12,6 @@ const { mockSelectExportRowPage, mockCreateMultipartUpload, mockHeadObject, mock
     mockDeleteFile: vi.fn(),
   }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/table/jobs/service', () => ({ selectExportRowPage: mockSelectExportRowPage }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({
   createMultipartUpload: mockCreateMultipartUpload,

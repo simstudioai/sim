@@ -9,7 +9,7 @@
  */
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { dbChainMock, dbChainMockFns, loggerMock, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -60,7 +60,6 @@ const {
   }
 })
 
-vi.mock('@sim/logger', () => loggerMock)
 vi.mock('@/lib/mcp/connection-pool', () => ({
   mcpConnectionPool: { acquire: mockAcquire, evictServer: vi.fn() },
 }))
@@ -87,7 +86,6 @@ const SERVER_ROW = {
   updatedAt: new Date('2026-01-01T00:00:00Z'),
 }
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/mcp/domain-check', () => ({
   isMcpDomainAllowed: () => true,
   validateMcpDomain: () => {},

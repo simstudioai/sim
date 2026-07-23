@@ -3,17 +3,9 @@
  *
  * @vitest-environment node
  */
-import {
-  copilotHttpMock,
-  copilotHttpMockFns,
-  dbChainMock,
-  dbChainMockFns,
-  resetDbChainMock,
-} from '@sim/testing'
+import { copilotHttpMock, copilotHttpMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
 

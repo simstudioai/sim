@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCreate, mockExecuteTool } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
@@ -20,9 +21,11 @@ vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: { LITELLM_BASE_URL: 'http://litellm.test', LITELLM_API_KEY: '' },
-}))
+beforeAll(() => {
+  setEnv({ LITELLM_BASE_URL: 'http://litellm.test', LITELLM_API_KEY: '' })
+})
+
+afterAll(resetEnvMock)
 
 vi.mock('@/stores/providers', () => ({
   useProvidersStore: { getState: () => ({ setProviderModels: vi.fn() }) },

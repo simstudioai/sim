@@ -4,23 +4,20 @@
 import { member, subscription } from '@sim/db/schema'
 import {
   auditMock,
+  authMockFns,
   createSession,
-  dbChainMock,
-  loggerMock,
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetSession,
   mockSetActiveOrganizationForCurrentSession,
   mockCreateOrganizationForTeamPlan,
   mockEnsureOrganizationForTeamSubscription,
   mockAttachOwnedWorkspacesToOrganization,
   WorkspaceOrganizationMembershipConflictError,
 } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
   mockSetActiveOrganizationForCurrentSession: vi.fn().mockResolvedValue(undefined),
   mockCreateOrganizationForTeamPlan: vi.fn(),
   mockEnsureOrganizationForTeamSubscription: vi.fn(),
@@ -28,15 +25,7 @@ const {
   WorkspaceOrganizationMembershipConflictError: class WorkspaceOrganizationMembershipConflictError extends Error {},
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
-
-vi.mock('@sim/logger', () => loggerMock)
-
 vi.mock('@sim/audit', () => auditMock)
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
 
 vi.mock('@/lib/auth/active-organization', () => ({
   setActiveOrganizationForCurrentSession: mockSetActiveOrganizationForCurrentSession,
@@ -66,6 +55,8 @@ vi.mock('@/lib/workspaces/organization-workspaces', () => ({
 }))
 
 import { POST } from '@/app/api/organizations/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 afterAll(resetDbChainMock)
 

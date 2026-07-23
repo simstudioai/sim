@@ -7,7 +7,6 @@
  * including access checks, document processing, and embedding generation.
  */
 import {
-  dbChainMock,
   dbChainMockFns,
   defaultMockEnv,
   queueTableRows,
@@ -125,8 +124,6 @@ function createEmbeddingFetchMock() {
 }
 
 vi.stubGlobal('fetch', createEmbeddingFetchMock())
-
-vi.mock('@sim/db', () => dbChainMock)
 
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'

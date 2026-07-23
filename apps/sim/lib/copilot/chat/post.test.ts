@@ -4,10 +4,11 @@
 
 import {
   authMockFns,
-  dbChainMock,
+  environmentUtilsMockFns,
   permissionsMock,
   permissionsMockFns,
   resetDbChainMock,
+  resetEnvironmentUtilsMock,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
@@ -17,8 +18,9 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const resolveWorkflowIdForUser = workflowsUtilsMockFns.mockResolveWorkflowIdForUser
 const getUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
+const getEffectiveDecryptedEnv = environmentUtilsMockFns.mockGetEffectiveDecryptedEnv
+
 const {
-  getEffectiveDecryptedEnv,
   generateWorkspaceSnapshot,
   processContextsServer,
   resolveActiveResourceContext,
@@ -33,7 +35,6 @@ const {
   appendCopilotChatMessages,
   mockPublishStatusChanged,
 } = vi.hoisted(() => ({
-  getEffectiveDecryptedEnv: vi.fn(),
   generateWorkspaceSnapshot: vi.fn(),
   processContextsServer: vi.fn(),
   resolveActiveResourceContext: vi.fn(),
@@ -69,10 +70,6 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution,
-}))
-
-vi.mock('@/lib/environment/utils', () => ({
-  getEffectiveDecryptedEnv,
 }))
 
 vi.mock('@/lib/copilot/chat/workspace-context', () => ({
@@ -117,13 +114,12 @@ vi.mock('@/lib/copilot/chat-status', () => ({
   },
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
-
 import { handleUnifiedChatPost } from './post'
 
 describe('handleUnifiedChatPost', () => {
   afterAll(() => {
     resetDbChainMock()
+    resetEnvironmentUtilsMock()
   })
 
   beforeEach(() => {

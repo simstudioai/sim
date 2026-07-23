@@ -9,7 +9,6 @@ const { mockSetForkLockTimeout, mockAcquireForkEdgeLock } = vi.hoisted(() => ({
   mockAcquireForkEdgeLock: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
   setForkLockTimeout: mockSetForkLockTimeout,
   acquireForkEdgeLock: mockAcquireForkEdgeLock,

@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 
 import { organization, workspace } from '@sim/db/schema'
-import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkspaceMoveError } from '@/lib/workspaces/admin-move'
@@ -26,14 +26,10 @@ const {
   changeWorkspaceStoragePayerInTx: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@sim/audit', () => ({
   AuditAction: { WORKSPACE_UPDATED: 'workspace.updated', INVITATION_UPDATED: 'invitation.updated' },
   AuditResourceType: { WORKSPACE: 'workspace' },
   recordAudit,
-}))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }))
 vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: vi.fn(),

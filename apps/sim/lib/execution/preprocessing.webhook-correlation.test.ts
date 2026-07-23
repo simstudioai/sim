@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 
-import { loggingSessionMock } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
+import { loggingSessionMock, workflowAuthzMockFns } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockResolveSystemBillingAttribution } = vi.hoisted(() => ({
   mockResolveSystemBillingAttribution: vi.fn(),
@@ -29,17 +29,21 @@ vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
 }))
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
-vi.mock('@sim/platform-authz/workflow', () => ({
-  getActiveWorkflowRecord: vi.fn().mockResolvedValue({
-    id: 'workflow-1',
-    workspaceId: 'workspace-1',
-    isDeployed: true,
-  }),
-}))
-
 import { preprocessExecution } from './preprocessing'
 
 describe('preprocessExecution webhook correlation logging', () => {
+  beforeEach(() => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValue({
+      id: 'workflow-1',
+      workspaceId: 'workspace-1',
+      isDeployed: true,
+    })
+  })
+
+  afterAll(() => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockReset()
+  })
+
   it('preserves webhook correlation when logging preprocessing failures', async () => {
     mockResolveSystemBillingAttribution.mockRejectedValueOnce(
       new Error('Unable to resolve billing payer')

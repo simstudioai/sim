@@ -2,9 +2,7 @@
  * @vitest-environment node
  */
 import {
-  dbChainMock,
   dbChainMockFns,
-  hybridAuthMock,
   hybridAuthMockFns,
   McpOauthRedirectRequiredMock,
   mcpOauthMock,
@@ -12,19 +10,10 @@ import {
   permissionsMock,
   permissionsMockFns,
   resetDbChainMock,
-  schemaMock,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db', () => dbChainMock)
-vi.mock('@sim/db/schema', () => schemaMock)
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  eq: vi.fn(),
-  isNull: vi.fn(),
-}))
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
 

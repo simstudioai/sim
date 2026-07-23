@@ -7,7 +7,6 @@ import {
   auditMock,
   authMockFns,
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   type MockUser,
   permissionsMock,
@@ -49,7 +48,6 @@ vi.mock('@sim/logger', () => ({
   getRequestContext: () => undefined,
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 

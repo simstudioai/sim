@@ -7,13 +7,10 @@ import {
   auditMock,
   authMockFns,
   createMockRequest,
-  dbChainMock,
   knowledgeApiUtilsMock,
   resetDbChainMock,
 } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@sim/audit', () => auditMock)
 

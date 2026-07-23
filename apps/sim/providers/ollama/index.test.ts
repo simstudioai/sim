@@ -38,7 +38,6 @@ vi.mock('openai', () => {
   return { default: OpenAI }
 })
 
-vi.mock('@/lib/core/utils/urls', () => ({ getOllamaUrl: () => 'http://localhost:11434' }))
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
 vi.mock('@/providers/attachments', () => ({
   formatMessagesForProvider: (messages: unknown) => messages,

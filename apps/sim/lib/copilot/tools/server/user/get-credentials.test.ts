@@ -6,27 +6,28 @@
  */
 
 import { account, user } from '@sim/db/schema'
-import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  environmentUtilsMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvironmentUtilsMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const SECRET_ACCESS_TOKEN = 'ya29.a0SECRET_GOOGLE_BEARER_TOKEN_DO_NOT_LEAK'
 
-const { getAllOAuthServicesMock, getPersonalAndWorkspaceEnvMock, decodeJwtMock } = vi.hoisted(
-  () => ({
-    getAllOAuthServicesMock: vi.fn(),
-    getPersonalAndWorkspaceEnvMock: vi.fn(),
-    decodeJwtMock: vi.fn(),
-  })
-)
+const { getAllOAuthServicesMock, decodeJwtMock } = vi.hoisted(() => ({
+  getAllOAuthServicesMock: vi.fn(),
+  decodeJwtMock: vi.fn(),
+}))
 
-vi.mock('@sim/db', () => dbChainMock)
+const getPersonalAndWorkspaceEnvMock = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
+
+afterAll(resetEnvironmentUtilsMock)
 
 vi.mock('@/lib/oauth', () => ({
   getAllOAuthServices: getAllOAuthServicesMock,
-}))
-
-vi.mock('@/lib/environment/utils', () => ({
-  getPersonalAndWorkspaceEnv: getPersonalAndWorkspaceEnvMock,
 }))
 
 vi.mock('jose', () => ({

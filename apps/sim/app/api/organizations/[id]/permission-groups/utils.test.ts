@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
-import { dbChainMock, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockIsOrganizationAdminOrOwner, mockIsOrganizationOnEnterprisePlan } = vi.hoisted(() => ({
@@ -17,8 +17,6 @@ vi.mock('@/lib/billing', () => ({
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   isOrganizationAdminOrOwner: mockIsOrganizationAdminOrOwner,
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 import {
   authorizeOrgAccessControl,

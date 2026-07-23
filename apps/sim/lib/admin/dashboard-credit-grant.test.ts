@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { member, organization, subscription, user, userStats, workspace } from '@sim/db/schema'
-import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -24,7 +24,6 @@ vi.mock('@sim/audit', () => ({
   AuditResourceType: { BILLING: 'billing' },
   recordAudit: mocks.recordAudit,
 }))
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/core/idempotency/transaction', () => ({
   executeTransactionallyIdempotent: async (
     _tx: unknown,

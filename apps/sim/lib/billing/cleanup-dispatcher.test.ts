@@ -1,20 +1,13 @@
 /**
  * @vitest-environment node
  */
-import {
-  dbChainMock,
-  dbChainMockFns,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  setEnvFlags,
-} from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockIsTriggerAvailable } = vi.hoisted(() => ({
   mockIsTriggerAvailable: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/billing/core/billing', () => ({ getOrganizationSubscription: vi.fn() }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   getHighestPriorityPersonalSubscription: vi.fn(),

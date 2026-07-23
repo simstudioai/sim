@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetPlanByName, mockResolveDefaultPaymentMethod, stripeMock } = vi.hoisted(() => {
@@ -17,8 +17,6 @@ const { mockGetPlanByName, mockResolveDefaultPaymentMethod, stripeMock } = vi.ho
     stripeMock,
   }
 })
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/stripe-client', () => ({
   requireStripeClient: () => stripeMock,

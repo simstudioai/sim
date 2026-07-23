@@ -1,5 +1,4 @@
 import {
-  dbChainMock,
   queueTableRows,
   resetDbChainMock,
   resetEnvFlagsMock,
@@ -91,8 +90,6 @@ vi.mock('@/executor/utils/http', () => ({
     }
   }),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 /** Connected MCP servers every workspace-server lookup in this suite resolves. */
 const MCP_SERVER_ROWS = [

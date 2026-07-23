@@ -1,12 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  redisConfigMockFns,
+  resetDbChainMock,
+  resetRedisConfigMock,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  acquireLockMock,
   assertBillingAttributionSnapshotMock,
   dueRowsLimitMock,
   enqueueOrStartResumeMock,
@@ -17,12 +21,10 @@ const {
   lteMock,
   preprocessExecutionMock,
   processQueuedResumesMock,
-  releaseLockMock,
   setAutomaticResumeWaitingMock,
   setNextResumeAtMock,
   sqlMock,
 } = vi.hoisted(() => ({
-  acquireLockMock: vi.fn(),
   assertBillingAttributionSnapshotMock: vi.fn((value: unknown) => value),
   dueRowsLimitMock: vi.fn(),
   enqueueOrStartResumeMock: vi.fn(),
@@ -33,7 +35,6 @@ const {
   lteMock: vi.fn(),
   preprocessExecutionMock: vi.fn(),
   processQueuedResumesMock: vi.fn(),
-  releaseLockMock: vi.fn(),
   setAutomaticResumeWaitingMock: vi.fn(),
   setNextResumeAtMock: vi.fn(),
   sqlMock: vi.fn((strings: TemplateStringsArray) =>
@@ -41,21 +42,8 @@ const {
   ),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
-
-vi.mock('@sim/db/schema', () => ({
-  pausedExecutions: {
-    id: 'id',
-    executionId: 'executionId',
-    workflowId: 'workflowId',
-    pausePoints: 'pausePoints',
-    metadata: 'metadata',
-    executionSnapshot: 'executionSnapshot',
-    status: 'status',
-    nextResumeAt: 'nextResumeAt',
-    automaticResumeRetryCount: 'automaticResumeRetryCount',
-  },
-}))
+const acquireLockMock = redisConfigMockFns.mockAcquireLock
+const releaseLockMock = redisConfigMockFns.mockReleaseLock
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
@@ -72,11 +60,6 @@ vi.mock('@/lib/auth/internal', () => ({
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionSnapshot: assertBillingAttributionSnapshotMock,
-}))
-
-vi.mock('@/lib/core/config/redis', () => ({
-  acquireLock: acquireLockMock,
-  releaseLock: releaseLockMock,
 }))
 
 vi.mock('@/lib/execution/preprocessing', () => ({
@@ -217,6 +200,7 @@ describe('time-pause resume admission', () => {
 
   afterAll(() => {
     resetDbChainMock()
+    resetRedisConfigMock()
   })
 
   it('keeps a timed pause unclaimed, records why, and schedules automatic retry', async () => {

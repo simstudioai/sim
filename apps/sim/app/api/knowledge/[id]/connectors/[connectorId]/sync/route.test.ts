@@ -4,7 +4,6 @@
 import {
   auditMock,
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
@@ -21,7 +20,6 @@ const { mockDispatchSync, mockResolveBillingAttribution } = vi.hoisted(() => ({
 
 const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWriteAccess
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   requireBillingAttributionHeader: vi.fn(),

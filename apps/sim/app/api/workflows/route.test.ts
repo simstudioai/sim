@@ -4,7 +4,6 @@
 import {
   auditMock,
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   hybridAuthMockFns,
   permissionsMock,
@@ -24,8 +23,6 @@ const { mockWorkflowCreated } = vi.hoisted(() => ({
 }))
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@sim/audit', () => auditMock)
 

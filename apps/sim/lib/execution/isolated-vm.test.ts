@@ -2,12 +2,7 @@
  * @vitest-environment node
  */
 import { EventEmitter } from 'node:events'
-import {
-  inputValidationMock,
-  inputValidationMockFns,
-  redisConfigMock,
-  redisConfigMockFns,
-} from '@sim/testing'
+import { inputValidationMock, inputValidationMockFns, redisConfigMockFns } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type MockProc = EventEmitter & {
@@ -204,7 +199,6 @@ vi.mock('@/lib/core/utils/logging', () => ({
 vi.mock('@/lib/core/config/env', () => ({
   env: mockEnv,
 }))
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 vi.mock('node:child_process', () => ({
   execSync: mockExecSync,
   spawn: mockSpawn,

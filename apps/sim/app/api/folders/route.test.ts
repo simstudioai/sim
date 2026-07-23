@@ -11,7 +11,6 @@ import {
   permissionsMockFns,
   workflowAuthzMockFns,
 } from '@sim/testing'
-import { drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockLogger } = vi.hoisted(() => {
@@ -32,10 +31,6 @@ const { mockLogger } = vi.hoisted(() => {
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('drizzle-orm', () => ({
-  ...drizzleOrmMock,
-  min: vi.fn((field) => ({ type: 'min', field })),
-}))
 vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue(mockLogger),
   runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),

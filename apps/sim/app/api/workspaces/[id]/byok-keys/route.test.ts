@@ -3,6 +3,7 @@
  */
 import {
   auditMock,
+  authMockFns,
   createMockRequest,
   dbChainMockFns,
   queueTableRows,
@@ -11,25 +12,15 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetSession,
-  mockGetUserEntityPermissions,
-  mockGetWorkspaceById,
-  mockEncryptSecret,
-  mockDecryptSecret,
-} = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-  mockGetWorkspaceById: vi.fn(),
-  mockEncryptSecret: vi.fn(),
-  mockDecryptSecret: vi.fn(),
-}))
+const { mockGetUserEntityPermissions, mockGetWorkspaceById, mockEncryptSecret, mockDecryptSecret } =
+  vi.hoisted(() => ({
+    mockGetUserEntityPermissions: vi.fn(),
+    mockGetWorkspaceById: vi.fn(),
+    mockEncryptSecret: vi.fn(),
+    mockDecryptSecret: vi.fn(),
+  }))
 
 vi.mock('@sim/audit', () => auditMock)
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
 
 vi.mock('@/lib/core/security/encryption', () => ({
   encryptSecret: mockEncryptSecret,
@@ -46,6 +37,8 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 import { DELETE, GET, POST } from '@/app/api/workspaces/[id]/byok-keys/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const WORKSPACE_ID = 'workspace-1'
 const routeContext = { params: Promise.resolve({ id: WORKSPACE_ID }) }

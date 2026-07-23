@@ -2,14 +2,12 @@
  * @vitest-environment node
  */
 import { knowledgeBase, workflow, workflowBlocks, workflowDeploymentVersion } from '@sim/db/schema'
-import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockInvalidateDeployedStateCache } = vi.hoisted(() => ({
   mockInvalidateDeployedStateCache: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   invalidateDeployedStateCache: mockInvalidateDeployedStateCache,

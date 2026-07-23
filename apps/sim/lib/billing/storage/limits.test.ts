@@ -2,20 +2,21 @@
  * @vitest-environment node
  */
 import {
-  dbChainMock,
   dbChainMockFns,
+  envMockFns,
   resetDbChainMock,
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
+
+const mockGetEnv = envMockFns.getEnv
+
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockEq, mockGetHighestPrioritySubscription } = vi.hoisted(() => ({
   mockEq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
   mockGetHighestPrioritySubscription: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@sim/db/schema', () => ({
   organization: {
@@ -34,14 +35,6 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('@/lib/billing/core/subscription', () => ({
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-}))
-
-const { mockGetEnv } = vi.hoisted(() => ({
-  mockGetEnv: vi.fn((_variable: string): string | undefined => undefined),
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  getEnv: mockGetEnv,
 }))
 
 import type { StorageBillingContext } from '@/lib/billing/storage/context'

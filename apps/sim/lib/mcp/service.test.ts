@@ -3,7 +3,7 @@
  */
 
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
-import { dbChainMock, dbChainMockFns, loggerMock, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, loggerMock, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -72,8 +72,6 @@ const {
     mockIsDomainAllowed: vi.fn(() => true),
   }
 })
-
-vi.mock('@sim/db', () => dbChainMock)
 
 /**
  * Routes every select chain to `mockGetWorkspaceServersRows`: `where(...)`

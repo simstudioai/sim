@@ -8,7 +8,7 @@
  * raw `fetch`.
  */
 
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const BLOCKED_ENDPOINT = 'http://169.254.170.2/v2/credentials/'
@@ -49,7 +49,6 @@ vi.mock('@/lib/mcp/oauth/storage', () => ({
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: mockDecryptSecret,
 }))
-vi.mock('@sim/db', () => dbChainMock)
 
 import { revokeMcpOauthTokens } from './revoke'
 

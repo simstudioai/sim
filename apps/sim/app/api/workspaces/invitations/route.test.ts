@@ -3,7 +3,6 @@
  */
 import {
   auditMock,
-  authMock,
   authMockFns,
   createMockRequest,
   permissionsMock,
@@ -34,8 +33,6 @@ const {
   mockCancelPendingInvitation: vi.fn(),
   mockFindPendingGrantForWorkspaceEmail: vi.fn(),
 }))
-
-vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 

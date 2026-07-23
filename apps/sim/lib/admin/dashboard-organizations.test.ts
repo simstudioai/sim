@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 
 import { member, organization, permissions, subscription } from '@sim/db/schema'
-import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('drizzle-orm')
@@ -15,7 +15,6 @@ vi.mock('@sim/audit', () => ({
   AuditResourceType: {},
   recordAudit: vi.fn(),
 }))
-vi.mock('@sim/db', () => dbChainMock)
 /**
  * Cuts the import chain dashboard.ts -> admin-move.ts -> invitations/core ->
  * lib/auth/auth.ts. The auth module throws at import time when another suite

@@ -8,7 +8,9 @@ import {
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
+  resetEnvMock,
   schemaMock,
+  setEnv,
   workflowAuthzMockFns,
   workflowsUtilsMock,
 } from '@sim/testing'
@@ -17,13 +19,6 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 
 const { mockGetAccessibleCopilotChat } = vi.hoisted(() => ({
   mockGetAccessibleCopilotChat: vi.fn(),
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: vi.fn(() => 'http://localhost:3000'),
-  getInternalApiBaseUrl: vi.fn(() => 'http://localhost:3000'),
-  getBaseDomain: vi.fn(() => 'localhost:3000'),
-  getEmailDomain: vi.fn(() => 'localhost:3000'),
 }))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
@@ -39,6 +34,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    setEnv({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
 
     authMockFns.mockGetSession.mockResolvedValue(null)
 
@@ -79,6 +75,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
   afterAll(() => {
     resetDbChainMock()
+    resetEnvMock()
   })
 
   /** Helper to set authenticated state */

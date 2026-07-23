@@ -2,11 +2,9 @@
  * @vitest-environment node
  */
 import { copilotChats } from '@sim/db/schema'
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 const { mockGetChatStreamLockOwners } = vi.hoisted(() => ({
   mockGetChatStreamLockOwners: vi.fn(),

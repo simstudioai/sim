@@ -3,11 +3,8 @@
  */
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { RowExecutionMetadata } from '@/lib/table/types'
-
-vi.mock('@sim/db', () => dbChainMock)
-
 import { writeExecutionsPatch } from '@/lib/table/rows/executions'
+import type { RowExecutionMetadata } from '@/lib/table/types'
 
 const EXECUTION_STATE: RowExecutionMetadata = {
   status: 'running',
