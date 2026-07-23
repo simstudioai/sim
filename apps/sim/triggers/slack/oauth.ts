@@ -1,52 +1,13 @@
 import { SlackIcon } from '@/components/icons'
-import { getProviderIdFromServiceId, getScopesForService } from '@/lib/oauth/utils'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
-import {
-  fetchOAuthCredentials,
-  OAUTH_CREDENTIAL_LIST_STALE_TIME,
-  oauthCredentialKeys,
-} from '@/hooks/queries/oauth/oauth-credentials'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { getScopesForService } from '@/lib/oauth/utils'
 import {
   SLACK_ALL_EVENT_OPTIONS,
-  SLACK_SIM_EVENT_OPTIONS,
   SLACK_SOURCE_OPTIONS,
   SLACK_THREAD_OPTIONS,
   SLACK_TRIGGER_OUTPUTS,
   slackEventsSupportingFilter,
 } from '@/triggers/slack/shared'
 import type { TriggerConfig } from '@/triggers/types'
-
-const SLACK_PROVIDER_ID = getProviderIdFromServiceId('slack')
-
-/**
- * Event options for the picker, narrowed to what the selected credential can
- * actually receive: a native Sim-app OAuth account is limited to the events the
- * shared app subscribes to, while a reusable custom bot generates its own
- * manifest and can use any event. Resolved from the credential list the picker
- * already warmed, so this reads the cache without a refetch in the common case.
- */
-async function fetchSlackEventOptions(blockId: string) {
-  const credentialId = useSubBlockStore.getState().getValue(blockId, 'customBotCredential')
-  if (typeof credentialId !== 'string' || !credentialId) return [...SLACK_ALL_EVENT_OPTIONS]
-
-  const registry = useWorkflowRegistry.getState()
-  const workspaceId = registry.hydration.workspaceId ?? undefined
-  const workflowId = registry.activeWorkflowId ?? undefined
-
-  const credentials = await getQueryClient().fetchQuery({
-    queryKey: oauthCredentialKeys.list(SLACK_PROVIDER_ID, workspaceId, workflowId),
-    queryFn: ({ signal }) =>
-      fetchOAuthCredentials({ providerId: SLACK_PROVIDER_ID, workspaceId, workflowId }, signal),
-    staleTime: OAUTH_CREDENTIAL_LIST_STALE_TIME,
-  })
-
-  const selected = credentials.find((cred) => cred.id === credentialId)
-  return selected && selected.type !== 'service_account'
-    ? [...SLACK_SIM_EVENT_OPTIONS]
-    : [...SLACK_ALL_EVENT_OPTIONS]
-}
 
 // Filter sub-block gating is derived from the catalog's `filters` field so the
 // UI conditions and the ingest route share one source of truth.
@@ -69,7 +30,10 @@ const OWN_MESSAGE_EVENTS = ['message', 'app_mention', 'reaction_added', 'reactio
  *   credentialId`) to one shared ingest URL verified with the bot's own signing
  *   secret, so many triggers on the same bot share a single Request URL.
  * - Native Sim app: events route by Slack `team_id` on the official shared app
- *   (derived at deploy time via `auth.test`, no path or app setup).
+ *   (derived at deploy time via `auth.test`, no path or app setup). Only the
+ *   events the shared app subscribes to are usable; the deploy path enforces
+ *   that (`SIM_SUBSCRIBED_EVENTS`), so the event picker offers every event
+ *   rather than mutating its option set with the selected credential.
  *
  * The trigger is only reachable through the preview-gated `slack_v2` block, so
  * the native Sim-app mode inherits that gate — no separate env flag.
@@ -93,8 +57,6 @@ export const slackOAuthTrigger: TriggerConfig = {
         'The single Slack event this trigger fires on. Add another trigger block for another event.',
       required: true,
       mode: 'trigger',
-      dependsOn: ['customBotCredential'],
-      fetchOptions: fetchSlackEventOptions,
     },
     {
       id: 'customBotCredential',

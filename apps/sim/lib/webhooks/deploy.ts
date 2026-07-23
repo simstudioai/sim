@@ -469,8 +469,40 @@ export async function resolveWebhookConfigForBlock(input: {
       providerConfig.credentialId = slackCredentialId
       if (botCredential.botUserId) providerConfig.bot_user_id = botCredential.botUserId
     } else {
-      // Native Sim app: an OAuth-connected account. The app only subscribes to a
-      // fixed event set, so reject anything outside it before deriving routing.
+      // getSlackBotCredential also returns null for a custom bot credential that
+      // was deleted or lost its stored secrets. Name that case so the error
+      // directs the user to reconnect the bot rather than mislabeling it an OAuth
+      // account below.
+      const resolvedKind = await resolveOAuthAccountId(slackCredentialId)
+      if (resolvedKind?.credentialType === 'service_account') {
+        return {
+          success: false,
+          error: {
+            message: 'The selected Slack bot credential is missing or invalid. Reconnect it.',
+            status: 400,
+          },
+        }
+      }
+      // Native Sim app: a workspace OAuth Slack credential. Resolve it through the
+      // same workspace/provider-scoped lookup the generic credential path uses, so
+      // a pasted foreign or other-tenant credential id can't bind here and the
+      // canonical id is what routing and runtime token resolution key on.
+      const workflowWorkspace =
+        typeof input.workflow.workspaceId === 'string' ? input.workflow.workspaceId : undefined
+      const resolvedCredentialId = workflowWorkspace
+        ? await resolveTriggerCredentialId(slackCredentialId, workflowWorkspace, 'slack')
+        : null
+      if (!resolvedCredentialId) {
+        return {
+          success: false,
+          error: {
+            message: 'The selected Slack credential is not available in this workspace.',
+            status: 400,
+          },
+        }
+      }
+      // The shared app only subscribes to a fixed event set; reject anything
+      // outside it before deriving routing.
       const eventType =
         typeof providerConfig.eventType === 'string' ? providerConfig.eventType : null
       if (!eventType || !SIM_SUBSCRIBED_EVENTS.includes(eventType)) {
@@ -487,7 +519,7 @@ export async function resolveWebhookConfigForBlock(input: {
       // shared workspace a teammate can deploy a trigger wired to someone else's
       // Slack account.
       let tokenOwnerUserId = input.userId
-      const resolvedAccount = await resolveOAuthAccountId(slackCredentialId)
+      const resolvedAccount = await resolveOAuthAccountId(resolvedCredentialId)
       if (resolvedAccount?.accountId) {
         const [owner] = await db
           .select({ userId: account.userId })
@@ -497,7 +529,7 @@ export async function resolveWebhookConfigForBlock(input: {
         if (owner?.userId) tokenOwnerUserId = owner.userId
       }
       const botToken = await refreshAccessTokenIfNeeded(
-        slackCredentialId,
+        resolvedCredentialId,
         tokenOwnerUserId,
         input.requestId
       )
@@ -529,6 +561,9 @@ export async function resolveWebhookConfigForBlock(input: {
       }
       effectiveProvider = 'slack_app'
       effectivePath = null
+      // Runtime token resolution and credential-disconnect cleanup key native
+      // (`slack_app`) rows on providerConfig.credentialId.
+      providerConfig.credentialId = resolvedCredentialId
     }
   }
 

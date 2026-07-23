@@ -278,8 +278,37 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     expect(result?.error?.message).toContain('not available in this workspace')
   })
 
+  it('rejects a deleted or secretless custom bot credential as an invalid bot', async () => {
+    mockGetSlackBotCredential.mockResolvedValue(null)
+    mockResolveOAuthAccountId.mockResolvedValue({ credentialType: 'service_account' })
+
+    const result = await resolveSlack({ eventType: 'message', customBotCredential: 'cred_bot_x' })
+
+    expect(result?.success).toBe(false)
+    if (result?.success) throw new Error('expected failure')
+    expect(result?.error?.status).toBe(400)
+    expect(result?.error?.message).toContain('bot credential is missing or invalid')
+    expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
+  })
+
+  it('rejects an OAuth credential not resolvable in the workflow workspace', async () => {
+    mockGetSlackBotCredential.mockResolvedValue(null)
+    mockResolveOAuthAccountId.mockResolvedValue({ accountId: 'acct-1' })
+    // No credential row queued → resolveTriggerCredentialId returns null.
+
+    const result = await resolveSlack({ eventType: 'message', customBotCredential: 'cred_foreign' })
+
+    expect(result?.success).toBe(false)
+    if (result?.success) throw new Error('expected failure')
+    expect(result?.error?.status).toBe(400)
+    expect(result?.error?.message).toContain('not available in this workspace')
+    expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
+  })
+
   it('rejects a non-simSubscribed event on the native Sim app (OAuth account)', async () => {
     mockGetSlackBotCredential.mockResolvedValue(null)
+    mockResolveOAuthAccountId.mockResolvedValue({ accountId: 'acct-1' })
+    queueTableRows(credential, [{ id: 'cred_oauth_1' }])
 
     const result = await resolveSlack({
       eventType: 'file_shared',
@@ -296,6 +325,7 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
   it('routes an OAuth account by team_id on the slack_app provider', async () => {
     mockGetSlackBotCredential.mockResolvedValue(null)
     mockResolveOAuthAccountId.mockResolvedValue({ accountId: 'acct-1' })
+    queueTableRows(credential, [{ id: 'cred_oauth_1' }])
     queueTableRows(account, [{ userId: 'owner-1' }])
     mockRefreshAccessTokenIfNeeded.mockResolvedValue('xoxb-token')
     mockFetchSlackTeamId.mockResolvedValue({ teamId: 'T123', userId: 'UBOT' })
@@ -308,6 +338,8 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     expect(result.config.routingKey).toBe('T123')
     expect(result.config.triggerPath).toBeNull()
     expect(result.config.providerConfig.bot_user_id).toBe('UBOT')
+    // Runtime token resolution + disconnect cleanup key slack_app rows on this.
+    expect(result.config.providerConfig.credentialId).toBe('cred_oauth_1')
     // Owner's token, not the deploying actor's.
     expect(mockRefreshAccessTokenIfNeeded).toHaveBeenCalledWith('cred_oauth_1', 'owner-1', 'req-1')
   })
@@ -315,6 +347,7 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
   it('fails when the connected Slack account token cannot be resolved', async () => {
     mockGetSlackBotCredential.mockResolvedValue(null)
     mockResolveOAuthAccountId.mockResolvedValue({ accountId: '' })
+    queueTableRows(credential, [{ id: 'cred_oauth_1' }])
     mockRefreshAccessTokenIfNeeded.mockResolvedValue(null)
 
     const result = await resolveSlack({ eventType: 'message', customBotCredential: 'cred_oauth_1' })
