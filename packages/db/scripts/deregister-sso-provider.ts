@@ -16,10 +16,11 @@
  */
 
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gt, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { account, member, ssoProvider, user } from '../schema'
+import { account, member, ssoProvider, user, verification } from '../schema'
+import { SSO_CALLBACK_INTENT_PREFIX, SSO_PROVIDER_MUTATION_LOCK_KEY } from '../sso-lock'
 
 const logger = {
   info: (message: string, meta?: any) => {
@@ -105,36 +106,56 @@ async function deregisterSSOProvider(): Promise<boolean> {
       return false
     }
 
-    const providers = await db
-      .select()
-      .from(ssoProvider)
-      .where(
-        and(
-          eq(ssoProvider.organizationId, organizationId),
-          eq(ssoProvider.providerId, specificProviderId)
+    const deleted = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${SSO_PROVIDER_MUTATION_LOCK_KEY}::bigint)`)
+      const providers = await tx
+        .select()
+        .from(ssoProvider)
+        .where(
+          and(
+            eq(ssoProvider.organizationId, organizationId),
+            eq(ssoProvider.providerId, specificProviderId)
+          )
         )
-      )
 
-    if (providers.length === 0) {
-      logger.warn(
-        `Provider '${specificProviderId}' was not found in organization '${organizationId}'`
-      )
-      return false
-    }
+      if (providers.length === 0) {
+        logger.warn(
+          `Provider '${specificProviderId}' was not found in organization '${organizationId}'`
+        )
+        return false
+      }
 
-    const linkedAccounts = await db
-      .select({ id: account.id })
-      .from(account)
-      .where(eq(account.providerId, specificProviderId))
-      .limit(1)
-    if (linkedAccounts.length > 0) {
-      logger.error(
-        'Refusing to delete a provider with Better Auth account links; migrate links and sessions first'
-      )
-      return false
-    }
+      const [activeCallback] = await tx
+        .select({ id: verification.id })
+        .from(verification)
+        .where(
+          and(
+            eq(verification.identifier, `${SSO_CALLBACK_INTENT_PREFIX}${specificProviderId}`),
+            gt(verification.expiresAt, new Date())
+          )
+        )
+        .limit(1)
+      if (activeCallback) {
+        logger.error('Refusing to delete a provider while an SSO callback is in progress')
+        return false
+      }
 
-    await db.delete(ssoProvider).where(eq(ssoProvider.id, providers[0].id))
+      const linkedAccounts = await tx
+        .select({ id: account.id })
+        .from(account)
+        .where(eq(account.providerId, specificProviderId))
+        .limit(1)
+      if (linkedAccounts.length > 0) {
+        logger.error(
+          'Refusing to delete a provider with Better Auth account links; migrate links and sessions first'
+        )
+        return false
+      }
+
+      await tx.delete(ssoProvider).where(eq(ssoProvider.id, providers[0].id))
+      return true
+    })
+    if (!deleted) return false
     logger.info(
       `✅ Successfully deleted SSO provider '${specificProviderId}' from organization '${organizationId}'`
     )

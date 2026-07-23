@@ -41,11 +41,12 @@
 
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { parse as parseDomain } from 'tldts'
 import { member, organization, ssoProvider, user } from '../schema'
+import { SSO_PROVIDER_MUTATION_LOCK_KEY } from '../sso-lock'
 
 interface SSOMapping {
   id: string
@@ -630,31 +631,6 @@ async function registerSSOProvider(): Promise<boolean> {
       }
     }
 
-    const allProviders = await db.select().from(ssoProvider)
-    const existingProviders = allProviders.filter(
-      (provider) => provider.providerId === ssoConfig.providerId
-    )
-    const existingProvider = existingProviders[0]
-    if (existingProvider) {
-      logger.error(
-        'The provider ID already exists. Direct script updates are intentionally unsupported; use the guarded Settings API.'
-      )
-      return false
-    }
-    if (
-      allProviders.some(
-        (provider) =>
-          provider.id !== existingProvider?.id &&
-          (provider.organizationId === organizationId ||
-            domainsOverlap(provider.domain, ssoConfig.domain))
-      )
-    ) {
-      logger.error(
-        'The organization already has a provider or its domain overlaps another provider'
-      )
-      return false
-    }
-
     const providerData: SSOProviderData = {
       id: generateId(),
       issuer: ssoConfig.issuer,
@@ -711,7 +687,32 @@ async function registerSSOProvider(): Promise<boolean> {
       providerData.samlConfig = JSON.stringify(samlConfig)
     }
 
-    await db.insert(ssoProvider).values(providerData)
+    const inserted = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${SSO_PROVIDER_MUTATION_LOCK_KEY}::bigint)`)
+      const allProviders = await tx.select().from(ssoProvider)
+      if (allProviders.some((provider) => provider.providerId === ssoConfig.providerId)) {
+        logger.error(
+          'The provider ID already exists. Direct script updates are intentionally unsupported; use the guarded Settings API.'
+        )
+        return false
+      }
+      if (
+        allProviders.some(
+          (provider) =>
+            provider.organizationId === organizationId ||
+            domainsOverlap(provider.domain, ssoConfig.domain)
+        )
+      ) {
+        logger.error(
+          'The organization already has a provider or its domain overlaps another provider'
+        )
+        return false
+      }
+
+      await tx.insert(ssoProvider).values(providerData)
+      return true
+    })
+    if (!inserted) return false
 
     logger.info('✅ SSO provider registered successfully in database!', {
       providerId: ssoConfig.providerId,

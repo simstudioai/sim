@@ -13,11 +13,13 @@ const handlerMocks = vi.hoisted(() => ({
     session: { id: 'anon-session' },
   })),
   isAuthDisabled: false,
-  withSSOProviderMutationLock: vi.fn((callback: () => Promise<unknown>) => callback()),
+  withSSOCallbackIntent: vi.fn((_providerId: string, callback: () => Promise<unknown>) =>
+    callback()
+  ),
 }))
 
-vi.mock('@sim/db', () => ({
-  withSSOProviderMutationLock: handlerMocks.withSSOProviderMutationLock,
+vi.mock('@/lib/auth/sso/callback-intent', () => ({
+  withSSOCallbackIntent: handlerMocks.withSSOCallbackIntent,
 }))
 
 vi.mock('better-auth/next-js', () => ({
@@ -182,10 +184,10 @@ describe('auth catch-all route SSO mutations', () => {
     const res = await POST(req as any)
     expect(res.status).toBe(200)
     expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
-    expect(handlerMocks.withSSOProviderMutationLock).not.toHaveBeenCalled()
+    expect(handlerMocks.withSSOCallbackIntent).not.toHaveBeenCalled()
   })
 
-  it('serializes OIDC GET callbacks with provider mutations', async () => {
+  it('registers an intent around OIDC GET callbacks', async () => {
     const { NextResponse } = await import('next/server')
     handlerMocks.betterAuthGET.mockResolvedValueOnce(new NextResponse(null, { status: 302 }) as any)
     const req = createMockRequest(
@@ -198,11 +200,11 @@ describe('auth catch-all route SSO mutations', () => {
     const res = await GET(req as any)
 
     expect(res.status).toBe(302)
-    expect(handlerMocks.withSSOProviderMutationLock).toHaveBeenCalledTimes(1)
+    expect(handlerMocks.withSSOCallbackIntent).toHaveBeenCalledWith('acme', expect.any(Function))
     expect(handlerMocks.betterAuthGET).toHaveBeenCalledTimes(1)
   })
 
-  it('serializes SAML POST callbacks with provider mutations', async () => {
+  it('registers an intent around SAML POST callbacks', async () => {
     const { NextResponse } = await import('next/server')
     handlerMocks.betterAuthPOST.mockResolvedValueOnce(
       new NextResponse(null, { status: 302 }) as any
@@ -217,7 +219,7 @@ describe('auth catch-all route SSO mutations', () => {
     const res = await POST(req as any)
 
     expect(res.status).toBe(302)
-    expect(handlerMocks.withSSOProviderMutationLock).toHaveBeenCalledTimes(1)
+    expect(handlerMocks.withSSOCallbackIntent).toHaveBeenCalledWith('acme', expect.any(Function))
     expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
   })
 })

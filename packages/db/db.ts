@@ -2,6 +2,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { resolveDbUrl } from './connection-url'
 import * as schema from './schema'
+import { SSO_PROVIDER_MUTATION_LOCK_KEY } from './sso-lock'
 import { instrumentPoolClient } from './tx-tripwire'
 
 /**
@@ -47,7 +48,6 @@ const postgresClient = instrumentPoolClient(
 
 export const db = drizzle(postgresClient, { schema })
 
-const SSO_PROVIDER_MUTATION_LOCK_KEY = 4_961_002_271n
 let ssoProviderMutationTail = Promise.resolve()
 
 /**

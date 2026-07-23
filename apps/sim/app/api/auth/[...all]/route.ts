@@ -1,8 +1,8 @@
-import { withSSOProviderMutationLock } from '@sim/db'
 import { toNextJsHandler } from 'better-auth/next-js'
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
+import { withSSOCallbackIntent } from '@/lib/auth/sso/callback-intent'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -27,8 +27,21 @@ function isBlockedOrganizationMutationPath(path: string): boolean {
   return path.startsWith('organization/') && !SAFE_ORGANIZATION_POST_PATHS.has(path)
 }
 
-function isSSOCallbackPath(path: string): boolean {
-  return path.startsWith('sso/callback/') || path.startsWith('sso/saml2/callback/')
+function getSSOCallbackProviderId(path: string): string | null {
+  const prefix = path.startsWith('sso/callback/')
+    ? 'sso/callback/'
+    : path.startsWith('sso/saml2/callback/')
+      ? 'sso/saml2/callback/'
+      : null
+  if (!prefix) return null
+
+  const encodedProviderId = path.slice(prefix.length).split('/')[0]
+  if (!encodedProviderId) return null
+  try {
+    return decodeURIComponent(encodedProviderId)
+  } catch {
+    return null
+  }
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -39,8 +52,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(createAnonymousSession())
   }
 
-  return isSSOCallbackPath(path)
-    ? withSSOProviderMutationLock(() => betterAuthGET(request))
+  const callbackProviderId = getSSOCallbackProviderId(path)
+  return callbackProviderId
+    ? withSSOCallbackIntent(callbackProviderId, () => betterAuthGET(request))
     : betterAuthGET(request)
 })
 
@@ -61,7 +75,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
-  return isSSOCallbackPath(path)
-    ? withSSOProviderMutationLock(() => betterAuthPOST(request))
+  const callbackProviderId = getSSOCallbackProviderId(path)
+  return callbackProviderId
+    ? withSSOCallbackIntent(callbackProviderId, () => betterAuthPOST(request))
     : betterAuthPOST(request)
 })
