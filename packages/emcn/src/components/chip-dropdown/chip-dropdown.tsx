@@ -71,6 +71,13 @@ interface ChipDropdownBaseProps extends VariantProps<typeof chipVariants> {
   leftIcon?: ChipIcon
   /** Forwarded class for the trigger button. */
   className?: string
+  /**
+   * Accessible name for the trigger. Use when the visible label sits outside
+   * the component (a field label above it) rather than in the selected value.
+   */
+  'aria-label'?: string
+  /** Id of the element naming the trigger. Pair with a visible field label. */
+  'aria-labelledby'?: string
 }
 
 /**
@@ -168,6 +175,8 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       active,
       fullWidth,
       flush,
+      'aria-label': ariaLabel,
+      'aria-labelledby': ariaLabelledBy,
     } = props
 
     const isMultiple = props.multiple === true
@@ -287,6 +296,8 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             ref={ref}
             type='button'
             disabled={disabled}
+            aria-label={ariaLabel}
+            aria-labelledby={ariaLabelledBy}
             className={cn(
               chipVariants({ variant, active, fullWidth, flush }),
               hasTriggerBorder && TRIGGER_BORDER_CLASS,
