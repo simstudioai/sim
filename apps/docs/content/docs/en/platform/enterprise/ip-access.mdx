@@ -3,6 +3,7 @@ title: IP Access
 description: Restrict sign-in and API access to your organization's allowed IP ranges
 ---
 
+import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 
 IP Access lets organization owners and admins on Enterprise plans restrict where members can use Sim from. When the allowlist is enabled, sign-in, session use, API-key requests, and live collaboration connections are only accepted from the listed addresses.
@@ -30,6 +31,22 @@ Deployed chats, public form shares, webhooks, and scheduled executions are **not
 
 Policy changes and denied access attempts are recorded in the [audit log](/platform/enterprise/audit-logs) — denials include the member and the blocked address, throttled per member so a polling client cannot flood the log.
 
+IPv6 addresses are matched at full precision, so you can allow an exact host (`2001:db8::1`) or a subnet (`2001:db8::/64`). Because IPv6 clients often rotate within their `/64`, allowing the `/64` is usually the more robust choice.
+
+---
+
+## Self-hosting
+
+<Callout type="warning">
+  IP access fails **closed**: when a policy is active and Sim cannot determine a trustworthy client address, the request is denied. A misconfigured proxy chain will therefore lock out your organization. Configure the two settings below before enabling a policy.
+</Callout>
+
+- **`AUTH_TRUSTED_PROXIES`** — the reverse-proxy IPs or CIDR ranges in front of Sim (your load balancer / ingress), comma-separated, for example `AUTH_TRUSTED_PROXIES=10.0.0.0/16`. Sim walks the `x-forwarded-for` chain right to left, skips these trusted hops, and uses the first untrusted address as the client IP — so forwarded headers cannot be forged. If this is unset (or wrong) behind a multi-hop proxy, no client address can be derived and every request is denied while a policy is active. The settings page's lockout guard also refuses to *enable* a policy when your own address is unresolvable, which is the first symptom of a missing value.
+- **`NODE_ENV=production`** — outside production, the auth layer resolves every client to `127.0.0.1`, so an allowlist that does not contain `127.0.0.1` would deny everyone. Run production deployments with `NODE_ENV=production`.
+- **`DISABLE_ORG_IP_ALLOWLIST=true`** — the break-glass. Setting it (read at request time, no restart needed) skips IP-allowlist enforcement across the app and realtime processes, restoring access if a policy or proxy misconfiguration locks the organization out. Remove it once the allowlist is corrected.
+
+Enforcement reads the compiled policy from a short-lived in-process cache, so a policy change (or a plan change) takes effect within about a minute across the fleet. If the database is briefly unreachable the policy resolver **fails open** (allows the request) rather than locking the whole organization out of the product on a transient blip — the primary boundary (an active policy that rejects an address) stays fail-closed.
+
 ---
 
 ## FAQ
@@ -44,7 +61,7 @@ Policy changes and denied access attempts are recorded in the [audit log](/platf
     {
       question: 'Can I lock myself out?',
       answer:
-        'Not in a single save — the settings page rejects any list that excludes your current IP. If your network changes afterwards, another admin on an allowed network (or Sim support) can update the list.',
+        'Not in a single save — the settings page rejects any list that excludes your current IP. If your network changes afterwards, another admin on an allowed network can update the list. Self-hosted operators can set DISABLE_ORG_IP_ALLOWLIST=true as a break-glass to restore access (see Self-hosting above).',
     },
     {
       question: 'Does this affect deployed chats and webhooks?',

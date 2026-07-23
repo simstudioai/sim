@@ -675,11 +675,16 @@ export const auth = betterAuth({
           }
 
           // Org IP allowlists must block session establishment, not just
-          // later requests. `session.ipAddress` is Better Auth's
-          // trusted-proxy-resolved client address. Thrown APIErrors must
-          // propagate — deliberately outside the try below.
+          // later requests. Resolve the client IP the same way the request
+          // path does (full-precision, via getTrustedClientIp) rather than
+          // Better Auth's `session.ipAddress`, which is masked to /64 for
+          // rate-limit keying and would reject exact IPv6 hosts. Thrown
+          // APIErrors must propagate — deliberately outside the try below.
           if (!session.impersonatedBy) {
-            const network = await enforceOrgNetworkPolicy(session.userId, () => session.ipAddress)
+            const signInHeaders = await headers()
+            const network = await enforceOrgNetworkPolicy(session.userId, () =>
+              getTrustedClientIp(new Request('http://localhost/', { headers: signInHeaders }))
+            )
             if (!network.allowed) {
               logger.warn('Blocking session creation by org network policy', {
                 userId: session.userId,

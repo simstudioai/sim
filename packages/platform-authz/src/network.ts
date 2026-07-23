@@ -214,14 +214,26 @@ export function parseTrustedProxies(raw: string | undefined): string[] {
 
 /**
  * Builds the `advanced.ipAddress` options object Better Auth's `getIp`
- * expects from a parsed trusted-proxy list.
+ * expects from a parsed trusted-proxy list, for NETWORK-POLICY resolution.
+ *
+ * `ipv6Subnet: 128` overrides Better Auth's `/64` default so IPv6 client
+ * addresses are matched at full host precision — the allowlist supports exact
+ * IPv6 hosts and `/128` entries, and without this every IPv6 address would be
+ * masked to its `/64` and could never match a more specific entry. This
+ * options object is passed only to the network-policy `getIp` calls; Better
+ * Auth's own session-IP and rate-limit keying (configured on the auth
+ * instance) keep the `/64` default, so IPv6 rate-limit collapsing is
+ * unaffected.
  */
 export function buildIpResolutionOptions(trustedProxies: readonly string[]): {
-  advanced: { ipAddress: { trustedProxies?: string[] } }
+  advanced: { ipAddress: { trustedProxies?: string[]; ipv6Subnet: number } }
 } {
   return {
     advanced: {
-      ipAddress: trustedProxies.length > 0 ? { trustedProxies: [...trustedProxies] } : {},
+      ipAddress: {
+        ipv6Subnet: 128,
+        ...(trustedProxies.length > 0 ? { trustedProxies: [...trustedProxies] } : {}),
+      },
     },
   }
 }
