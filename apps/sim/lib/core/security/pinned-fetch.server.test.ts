@@ -176,6 +176,34 @@ describe('createPinnedFetch', () => {
     expect(await response.text()).toBe('mcp')
   })
 
+  it('follows a redirect that stays on the pinned private IP (self-hosted MCP alias)', async () => {
+    mockUndiciRequest
+      .mockResolvedValueOnce(
+        undiciReply(301, { location: 'http://10.0.0.5:3000/mcp/' }, byteStream(''))
+      )
+      .mockResolvedValueOnce(undiciReply(200, {}, byteStream('mcp')))
+    const pinned = createPinnedFetch('10.0.0.5')
+
+    const response = await pinned('http://10.0.0.5:3000/mcp', { method: 'GET' })
+
+    expect(mockUndiciRequest).toHaveBeenCalledTimes(2)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('mcp')
+  })
+
+  it('STILL blocks a redirect to a different private IP (no metadata-IP escape)', async () => {
+    mockUndiciRequest.mockResolvedValueOnce(
+      undiciReply(302, { location: 'http://169.254.169.254/latest/meta-data/' }, byteStream(''))
+    )
+    const pinned = createPinnedFetch('10.0.0.5')
+
+    await expect(pinned('http://10.0.0.5:3000/mcp', { method: 'GET' })).rejects.toThrow(
+      /private or reserved/
+    )
+    // The initial request happened; the redirect to the metadata IP was refused.
+    expect(mockUndiciRequest).toHaveBeenCalledTimes(1)
+  })
+
   it('reuses one dispatcher across all calls of a single instance', async () => {
     const pinned = createPinnedFetch('203.0.113.10')
     await pinned('https://example.com/a')

@@ -543,7 +543,7 @@ const MAX_GUARDED_REDIRECTS = 5
  * a 3xx to `http://169.254.169.254/` would otherwise connect directly. Hostname
  * targets are covered by {@link createSsrfGuardedLookup} at connect time.
  */
-function assertGuardedRedirectTarget(url: URL): void {
+function assertGuardedRedirectTarget(url: URL, allowedPinnedIp?: string): void {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new Error(`Blocked by SSRF policy: redirect to unsupported protocol ${url.protocol}`)
   }
@@ -552,6 +552,16 @@ function assertGuardedRedirectTarget(url: URL): void {
       ? url.hostname.slice(1, -1)
       : url.hostname
   if (ipaddr.isValid(host) && isPrivateOrReservedIP(host)) {
+    // The pinned-private carve-out permits exactly its own validated IP as a target (a
+    // self-hosted MCP on a private IP, or a same-host redirect that stays on it) — but nothing
+    // else private (a redirect to e.g. the cloud metadata IP is still blocked).
+    if (
+      allowedPinnedIp &&
+      ipaddr.isValid(allowedPinnedIp) &&
+      ipaddr.process(host).toString() === ipaddr.process(allowedPinnedIp).toString()
+    ) {
+      return
+    }
     throw new Error('Blocked by SSRF policy: redirect to a private or reserved address')
   }
 }
@@ -568,15 +578,14 @@ export async function followRedirectsGuarded(
   rawFetch: (url: string, init: UndiciRequestInit) => Promise<Response>,
   input: string,
   init: UndiciRequestInit,
-  options?: { validateInitialTarget?: boolean }
+  options?: { allowRedirectToIp?: string }
 ): Promise<Response> {
   let currentUrl = new URL(input)
-  // The initial URL gets the same IP-literal check as redirect hops, so the exported
-  // guard is self-contained even when a caller skips its own up-front validation. The
-  // pinned-private MCP carve-out opts out (`validateInitialTarget: false`): its caller has
-  // already validated the URL and legitimately targets a private IP (a self-hosted server
-  // configured with an IP-literal URL). Redirect HOPS below are always validated regardless.
-  if (options?.validateInitialTarget !== false) assertGuardedRedirectTarget(currentUrl)
+  // The initial URL gets the same IP-literal check as redirect hops, so the exported guard is
+  // self-contained even when a caller skips its own up-front validation. `allowRedirectToIp`
+  // (the pinned-private MCP carve-out's validated IP) permits that one private target — both the
+  // initial URL and any hop that stays on it — while everything else private stays blocked.
+  assertGuardedRedirectTarget(currentUrl, options?.allowRedirectToIp)
   let method = (init.method ?? 'GET').toUpperCase()
   let body = init.body
   let headers = init.headers
@@ -604,7 +613,7 @@ export async function followRedirectsGuarded(
       throw new Error(`Blocked by SSRF policy: more than ${MAX_GUARDED_REDIRECTS} redirects`)
     }
     const nextUrl = new URL(location, currentUrl)
-    assertGuardedRedirectTarget(nextUrl)
+    assertGuardedRedirectTarget(nextUrl, options?.allowRedirectToIp)
     // Per the fetch spec: 303 (and 301/302 on POST) switch to a bodyless GET, dropping
     // the entity headers that described the removed body (a retained Content-Length /
     // Content-Type on a bodyless GET is malformed and undici rejects it).
@@ -1033,11 +1042,11 @@ export function createPinnedFetchWithDispatcher(
       }
       return response
     }
-    // The pinned fetch's caller has already validated the target (and the private carve-out
-    // legitimately pins to a private IP), so skip re-validating the initial URL — otherwise a
-    // self-hosted MCP configured with a private IP-literal URL would be blocked by its own
-    // transport. Redirect hops are still validated inside the follower.
-    return followRedirectsGuarded(rawFetch, target, undiciInit, { validateInitialTarget: false })
+    // Permit this pinned IP as a redirect/initial target even when it's private (the
+    // self-hosted MCP carve-out on a private/loopback IP, and same-host redirects that stay on
+    // it) — otherwise the guarded policy would block a self-hosted server reaching itself. Any
+    // OTHER private target (e.g. a redirect to the cloud metadata IP) is still blocked.
+    return followRedirectsGuarded(rawFetch, target, undiciInit, { allowRedirectToIp: resolvedIP })
   }
 
   return { fetch: pinned, dispatcher }
