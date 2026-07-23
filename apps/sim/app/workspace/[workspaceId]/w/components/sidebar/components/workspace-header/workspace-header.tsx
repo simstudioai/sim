@@ -19,6 +19,7 @@ import {
 } from '@sim/emcn'
 import { ManageWorkspace, PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { MoreHorizontal } from 'lucide-react'
 import { useActiveOrganization } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
@@ -29,7 +30,13 @@ import {
   type CreateWorkspaceTarget,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
-import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
+import { ViewInvitationsMenuItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-menu-item'
+import { ViewInvitationsModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-modal'
+import {
+  type Workspace,
+  type WorkspaceCreationPolicy,
+  workspaceKeys,
+} from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -132,6 +139,7 @@ function WorkspaceHeaderImpl({
 }: WorkspaceHeaderProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+  const [isViewInvitationsOpen, setIsViewInvitationsOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
@@ -158,6 +166,7 @@ function WorkspaceHeaderImpl({
 
   const { data: viewerActiveOrganization } = useActiveOrganization()
   const { navigateToSettings } = useSettingsNavigation()
+  const queryClient = useQueryClient()
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
   const isWorkspaceReady = !isWorkspacesLoading && activeWorkspaceFull !== null
@@ -359,6 +368,13 @@ function WorkspaceHeaderImpl({
               (isContextMenuOpen || isContextMenuOpeningRef.current || editingWorkspaceId)
             ) {
               return
+            }
+            if (open) {
+              // The workspace list is mounted app-wide, so it never refetches
+              // on its own (no focus refetch). Opening the switcher is the
+              // "user is looking" moment: refetch when stale so workspaces
+              // the user was auto-added to appear without a page refresh.
+              void queryClient.refetchQueries({ queryKey: workspaceKeys.lists(), stale: true })
             }
             setIsWorkspaceMenuOpen(open)
           }}
@@ -618,6 +634,12 @@ function WorkspaceHeaderImpl({
                     Invite teammates
                   </Chip>
                 </DisabledReasonTooltip>
+                <ViewInvitationsMenuItem
+                  onOpen={() => {
+                    setIsWorkspaceMenuOpen(false)
+                    setIsViewInvitationsOpen(true)
+                  }}
+                />
                 <DisabledReasonTooltip reason={inviteDisabledReason}>
                   <Chip
                     leftIcon={ManageWorkspace}
@@ -726,6 +748,7 @@ function WorkspaceHeaderImpl({
         inviteDisabledReason={inviteDisabledReason}
         organizationId={activeWorkspaceFull?.organizationId ?? null}
       />
+      <ViewInvitationsModal open={isViewInvitationsOpen} onOpenChange={setIsViewInvitationsOpen} />
       <DeleteModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}

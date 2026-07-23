@@ -2,11 +2,15 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
+  acceptInvitationContract,
   type BatchInvitationResult as BatchInvitationResultContract,
   batchWorkspaceInvitationsContract,
   cancelInvitationContract,
+  type InvitationDetails,
+  listMyInvitationsContract,
   listWorkspaceInvitationsContract,
   type PendingInvitationRow,
+  rejectInvitationContract,
   removeWorkspaceMemberContract,
   resendInvitationContract,
 } from '@/lib/api/contracts/invitations'
@@ -19,6 +23,7 @@ export const invitationKeys = {
   all: ['invitations'] as const,
   lists: () => [...invitationKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...invitationKeys.lists(), workspaceId] as const,
+  mine: () => [...invitationKeys.all, 'mine'] as const,
 }
 
 export const WORKSPACE_INVITATION_LIST_STALE_TIME = 30 * 1000
@@ -65,6 +70,59 @@ export function usePendingInvitations(workspaceId: string | undefined) {
     enabled: Boolean(workspaceId),
     staleTime: WORKSPACE_INVITATION_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
+  })
+}
+
+export const MY_INVITATIONS_STALE_TIME = 30 * 1000
+
+async function fetchMyPendingInvitations(signal?: AbortSignal): Promise<InvitationDetails[]> {
+  const data = await requestJson(listMyInvitationsContract, { signal })
+  return data.invitations
+}
+
+/**
+ * Pending invitations addressed to the signed-in account, for the workspace
+ * switcher's Invitations section. Mounted inside the dropdown content, so it
+ * fetches when the menu opens (and re-fetches on open once stale).
+ */
+export function useMyPendingInvitations() {
+  return useQuery({
+    queryKey: invitationKeys.mine(),
+    queryFn: ({ signal }) => fetchMyPendingInvitations(signal),
+    staleTime: MY_INVITATIONS_STALE_TIME,
+  })
+}
+
+/**
+ * Accepts one of the session user's pending invitations in-app. No token —
+ * acceptance is bound to the session email, which is exactly what makes this
+ * path immune to the wrong-browser-account problem of the email link.
+ */
+export function useAcceptMyInvitation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ invitationId }: { invitationId: string }) =>
+      requestJson(acceptInvitationContract, { params: { id: invitationId }, body: {} }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invitationKeys.mine() })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.all })
+      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
+    },
+  })
+}
+
+/** Declines one of the session user's pending invitations in-app. */
+export function useDeclineMyInvitation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ invitationId }: { invitationId: string }) =>
+      requestJson(rejectInvitationContract, { params: { id: invitationId }, body: {} }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invitationKeys.mine() })
+    },
   })
 }
 

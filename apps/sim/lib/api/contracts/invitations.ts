@@ -155,6 +155,17 @@ export const getInvitationContract = defineRouteContract({
   },
 })
 
+export const listMyInvitationsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/invitations',
+  response: {
+    mode: 'json',
+    schema: z.object({
+      invitations: z.array(invitationDetailsSchema),
+    }),
+  },
+})
+
 export const acceptInvitationContract = defineRouteContract({
   method: 'POST',
   path: '/api/invitations/[id]/accept',

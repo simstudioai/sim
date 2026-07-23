@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 965,
-  zodRoutes: 965,
+  totalRoutes: 966,
+  zodRoutes: 966,
   nonZodRoutes: 0,
 } as const
 
@@ -32,6 +32,9 @@ const BOUNDARY_POLICY_BASELINE = {
 
 const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/demo-requests/route.ts',
+  // Input-less session-bound GET: nothing to validate; response is
+  // contract-typed via `satisfies InvitationDetails` in the route.
+  'apps/sim/app/api/invitations/route.ts',
   'apps/sim/app/api/logs/export/route.ts',
   'apps/sim/app/api/tools/docusign/route.ts',
   // Better Auth handles its own validation for the catch-all route below.
