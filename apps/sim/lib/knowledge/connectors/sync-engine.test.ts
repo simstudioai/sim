@@ -76,6 +76,61 @@ describe('shouldReconcileDeletions', () => {
   })
 })
 
+describe('shouldRunIncrementalSync', () => {
+  const lastSyncAt = '2026-07-01T00:00:00.000Z'
+
+  it('runs incrementally when everything is eligible', async () => {
+    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(
+      shouldRunIncrementalSync(true, 'incremental', undefined, undefined, false, lastSyncAt)
+    ).toBe(true)
+  })
+
+  it('never runs incrementally when the connector does not support it', async () => {
+    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(
+      shouldRunIncrementalSync(false, 'incremental', undefined, undefined, false, lastSyncAt)
+    ).toBe(false)
+  })
+
+  it('never runs incrementally when the connector is configured for full syncs', async () => {
+    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldRunIncrementalSync(true, 'full', undefined, undefined, false, lastSyncAt)).toBe(
+      false
+    )
+  })
+
+  it('never runs incrementally on a forced fullSync or rehydrate', async () => {
+    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldRunIncrementalSync(true, 'incremental', true, undefined, false, lastSyncAt)).toBe(
+      false
+    )
+    expect(shouldRunIncrementalSync(true, 'incremental', undefined, true, false, lastSyncAt)).toBe(
+      false
+    )
+  })
+
+  it('never runs incrementally before the first sync', async () => {
+    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldRunIncrementalSync(true, 'incremental', undefined, undefined, false, null)).toBe(
+      false
+    )
+  })
+
+  it('forces a full listing whenever pending-removal documents exist, so they get a resurrect-or-confirm decision', async () => {
+    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(
+      shouldRunIncrementalSync(true, 'incremental', undefined, undefined, true, lastSyncAt)
+    ).toBe(false)
+  })
+})
+
 describe('partitionSyncReconciliation', () => {
   const live = (id: string, externalId: string | null = id) => ({ id, externalId })
   const noFailures = new Set<string>()

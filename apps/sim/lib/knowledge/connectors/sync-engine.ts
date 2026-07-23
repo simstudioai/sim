@@ -244,6 +244,35 @@ export function shouldReconcileDeletions(
   return !syncContext?.listingCapped || Boolean(fullSync)
 }
 
+/**
+ * Decides whether a sync should use the connector's incremental listing.
+ *
+ * A pending-removal document only surfaces in an incremental listing if its
+ * content changed since last sync — an unchanged-but-still-present document
+ * never appears in an incremental delta at all, so it could never be
+ * resurrected and would stay tombstoned indefinitely on a connector that runs
+ * incrementally from here on. `hasTombstonedDocs` forces a full listing
+ * whenever any pending-removal document exists for this connector, so every
+ * one of them gets a real resurrect-or-confirm decision on this sync.
+ */
+export function shouldRunIncrementalSync(
+  supportsIncrementalSync: boolean | undefined,
+  syncMode: string | null | undefined,
+  fullSync: boolean | undefined,
+  rehydrate: boolean | undefined,
+  hasTombstonedDocs: boolean,
+  lastSyncAt: string | Date | null | undefined
+): boolean {
+  return Boolean(
+    supportsIncrementalSync &&
+      syncMode !== 'full' &&
+      !fullSync &&
+      !hasTombstonedDocs &&
+      !rehydrate &&
+      lastSyncAt != null
+  )
+}
+
 /** A stored document's identity, as read back for reconciliation. */
 type ReconciliationDoc = { id: string; externalId: string | null }
 
@@ -487,18 +516,33 @@ export async function executeSync(
     let hasMore = true
     const syncContext: Record<string, unknown> = { syncRunId: generateId() }
 
+    const hasTombstonedDocs = await db
+      .select({ id: document.id })
+      .from(document)
+      .where(
+        and(
+          eq(document.connectorId, connectorId),
+          isNull(document.archivedAt),
+          isNotNull(document.deletedAt)
+        )
+      )
+      .limit(1)
+      .then((rows) => rows.length > 0)
+
     /**
      * Determine if this sync should be incremental. A `rehydrate` request forces a
      * full listing too: re-hydration must see *every* document (a container page can
      * be unchanged itself yet transclude a page that changed), and an incremental
      * listing would omit those unchanged containers, so they'd never be re-fetched.
      */
-    const isIncremental =
-      connectorConfig.supportsIncrementalSync &&
-      connector.syncMode !== 'full' &&
-      !options?.fullSync &&
-      !options?.rehydrate &&
-      connector.lastSyncAt != null
+    const isIncremental = shouldRunIncrementalSync(
+      connectorConfig.supportsIncrementalSync,
+      connector.syncMode,
+      options?.fullSync,
+      options?.rehydrate,
+      hasTombstonedDocs,
+      connector.lastSyncAt
+    )
     const lastSyncAt =
       isIncremental && connector.lastSyncAt ? new Date(connector.lastSyncAt) : undefined
 
