@@ -24,7 +24,8 @@ export const incidentioConnectorMeta: ConnectorMeta = {
       required: false,
       mode: 'advanced',
       options: [
-        { label: 'All', id: '' },
+        { label: 'All except canceled (default)', id: '' },
+        { label: 'All (including canceled)', id: 'all' },
         { label: 'Live (active)', id: 'live' },
         { label: 'Paused', id: 'paused' },
         { label: 'Closed', id: 'closed' },
@@ -35,7 +36,7 @@ export const incidentioConnectorMeta: ConnectorMeta = {
         { label: 'Canceled', id: 'canceled' },
       ],
       description:
-        'Only sync incidents in this status category. Leave as All to sync every category.',
+        'Only sync incidents in this status category. The default skips canceled incidents, which is how incident.io hides an incident since it has no delete. Choose "All (including canceled)" to sync every category.',
     },
     {
       id: 'mode',

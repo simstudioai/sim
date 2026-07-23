@@ -30,6 +30,64 @@ const NUMERIC_ID_PATTERN = /^\d+$/
 const KB_CATEGORY_DISALLOWED = /[\^"'`\u0000-\u001f\u007f]/
 const VALID_WORKFLOW_STATES = new Set(['published', 'draft', 'review', 'retired', 'outdated'])
 
+/**
+ * The single KB workflow state that means "removed from view".
+ *
+ * `retired` is the documented end of a knowledge article's lifecycle: the row is
+ * never deleted from `kb_knowledge`, it just stops appearing in knowledge search
+ * and portal views. It is therefore the only state safe to drop implicitly.
+ *
+ * `outdated` is deliberately NOT in this set. It marks a superseded version when
+ * a new version is published, but ServiceNow also moves an article to `outdated`
+ * once it passes its `valid_to` date — and that record is still the latest
+ * version of the article, not a historical snapshot. Excluding `outdated` would
+ * therefore make deletion reconciliation hard-delete live customer content.
+ */
+const REMOVED_FROM_VIEW_KB_WORKFLOW_STATE = 'retired'
+
+/**
+ * Decides whether a `kb_knowledge` record should be ingested.
+ *
+ * `GET /api/now/table/kb_knowledge` applies no implicit state filter, so retired
+ * articles keep appearing in every full listing, keep getting upserted, and
+ * never fall out via deletion reconciliation (which removes only documents
+ * absent from the listing). This guard drops them.
+ *
+ * The implicit exclusion applies ONLY when the connector config leaves
+ * `workflowState` unset. Any explicit selection — including `all` ("All States")
+ * and `retired` itself — is the user's stated intent and is honoured verbatim,
+ * with no client-side filtering layered on top of the server-side
+ * `sysparm_query` clause built by {@link buildKBQuery}.
+ *
+ * Fail-open by design: only an EXPLICIT `retired` state excludes a record. A
+ * missing, empty, non-string or unrecognised state (`pending retirement`, a
+ * customer-defined state) is kept, because a wrongful exclusion would make
+ * reconciliation hard-delete a still-current article. For the same reason the
+ * exclusion is applied client-side rather than as an encoded-query `!=` clause:
+ * ServiceNow's negative operators have inconsistently reported behaviour for
+ * empty field values, and a server-side filter that silently dropped rows with
+ * no `workflow_state` would purge them.
+ *
+ * Known and accepted consequence: no `latest=true` filter is applied, so when an
+ * instance runs the knowledge versioning plugin, superseded versions are still
+ * ingested as separate documents (each prior version is its own `kb_knowledge`
+ * row with its own sys_id). Filtering on `latest` is not safe generally —
+ * instances without versioning enabled do not populate the field reliably, and a
+ * missing/false value there would purge current articles.
+ */
+export function shouldIngestKBArticle(
+  article: Record<string, unknown>,
+  configuredWorkflowState?: unknown
+): boolean {
+  if (typeof configuredWorkflowState === 'string' && configuredWorkflowState.trim()) {
+    return true
+  }
+
+  const state = rawValue(article.workflow_state)?.trim().toLowerCase()
+  if (!state) return true
+  return state !== REMOVED_FROM_VIEW_KB_WORKFLOW_STATE
+}
+
 interface ServiceNowRecord {
   sys_id: string
   sys_updated_on?: string
@@ -438,7 +496,7 @@ export const servicenowConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     cursor?: string,
-    _syncContext?: Record<string, unknown>
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const instanceUrl = resolveServiceNowInstanceUrl(sourceConfig.instanceUrl as string)
     const contentType = (sourceConfig.contentType as string) || 'kb_knowledge'
@@ -448,6 +506,13 @@ export const servicenowConnector: ConnectorConfig = {
     const offset = cursor ? Number(cursor) : 0
     const remaining = maxItems - offset
     if (remaining <= 0) {
+      /**
+       * The `maxItems` cap stopped this listing before the table was exhausted,
+       * so it does not represent the full source set. Flagging it keeps the sync
+       * engine's deletion reconciliation from reading the missing tail as
+       * "deleted at the source" and hard-deleting those documents.
+       */
+      if (syncContext) syncContext.listingCapped = true
       return { documents: [], hasMore: false }
     }
 
@@ -489,6 +554,17 @@ export const servicenowConnector: ConnectorConfig = {
         continue
       }
 
+      /**
+       * Retired articles are dropped here, not via the encoded query, so records
+       * with no `workflow_state` are never lost to ServiceNow's
+       * negative-operator semantics. Paging stays derived from the API result
+       * count (see `serviceNowApiGet`), never from the post-filter document
+       * count, so filtering never shifts the offset window.
+       */
+      if (isKB && !shouldIngestKBArticle(record, sourceConfig.workflowState)) {
+        continue
+      }
+
       const doc = isKB
         ? kbArticleToDocument(record, instanceUrl)
         : incidentToDocument(record, instanceUrl)
@@ -500,6 +576,15 @@ export const servicenowConnector: ConnectorConfig = {
 
     const hasMore = nextOffset !== undefined && nextOffset < maxItems
     const nextCursor = hasMore ? String(nextOffset) : undefined
+
+    /**
+     * More records exist past the `maxItems` cap. See the `remaining <= 0`
+     * branch above — the listing is knowingly incomplete, so reconciliation
+     * must not treat the untraversed tail as removed at the source.
+     */
+    if (nextOffset !== undefined && !hasMore && syncContext) {
+      syncContext.listingCapped = true
+    }
 
     logger.info('Fetched ServiceNow documents', {
       count: documents.length,
@@ -514,6 +599,15 @@ export const servicenowConnector: ConnectorConfig = {
     }
   },
 
+  /**
+   * Fetches one record by sys_id.
+   *
+   * No `workflow_state` guard is applied here on purpose. The sync engine calls
+   * this only to hydrate content for documents that `listDocuments` already
+   * admitted (and only for `contentDeferred` entries, which this connector never
+   * emits), so a second filter would be unreachable today and, if it ever became
+   * reachable, could only turn an already-selected document into a skip.
+   */
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,

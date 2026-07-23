@@ -25,7 +25,7 @@ const SHORTS_MAX_DURATION_SECONDS = 60
  * These differ for hand-curated playlists, so only `videoPublishedAt` is used for the
  * change-detection hash (it matches `videos.list` `snippet.publishedAt`).
  */
-interface PlaylistItem {
+export interface PlaylistItem {
   contentDetails?: { videoId?: string; videoPublishedAt?: string }
   snippet?: {
     title?: string
@@ -217,21 +217,45 @@ function itemToStub(item: PlaylistItem): ExternalDocument | null {
 }
 
 /**
- * Batch-fetches full video resources for the given IDs via `videos.list`.
+ * `videos.list` part sets used by this connector. The full set hydrates a document; the
+ * id-only set is the cheapest way to ask "do these videos still exist?".
+ */
+const VIDEO_PART_FULL = 'snippet,contentDetails,status'
+const VIDEO_PART_ID_ONLY = 'id'
+
+/** Documented `kind` of a `videos.list` response body. */
+const VIDEO_LIST_KIND = 'youtube#videoListResponse'
+
+/**
+ * Untyped `videos.list` response envelope. The payload is validated by
+ * `readTrustedVideoItems` before any field is consumed.
+ */
+interface VideoListResponse {
+  kind?: unknown
+  items?: unknown
+}
+
+/**
+ * Issues a single `videos.list` call for the given IDs and part set.
  *
  * `videos.list` accepts up to 50 comma-separated IDs and costs a flat 1 quota unit per
- * call regardless of ID count, so a single call covers a full `playlistItems.list` page.
- * Videos that are private, deleted, or region-blocked are simply absent from the response.
+ * call regardless of ID count or part set, so one call covers a full
+ * `playlistItems.list` page. `maxResults` is explicitly unsupported alongside `id`, so an
+ * ID-filtered response is never paginated.
+ *
+ * A non-OK response throws. That deliberately aborts the whole sync: `runConnectorSync`
+ * pushes listing pages inside its try block and reaches deletion reconciliation only
+ * after the pagination loop completes, so an aborted listing performs no reconciliation
+ * and deletes nothing (the failure path only records the error and backs the connector
+ * off). Failing loud is therefore strictly safer than returning a partial listing.
  */
-async function fetchVideosByIds(
+async function fetchVideoList(
   apiKey: string,
   videoIds: string[],
+  part: string,
   retryOptions?: Parameters<typeof fetchWithRetry>[2]
-): Promise<Map<string, VideoItem>> {
-  const result = new Map<string, VideoItem>()
-  if (videoIds.length === 0) return result
-
-  const url = `${YOUTUBE_API_BASE}/videos?part=snippet,contentDetails,status&id=${encodeURIComponent(
+): Promise<VideoListResponse> {
+  const url = `${YOUTUBE_API_BASE}/videos?part=${encodeURIComponent(part)}&id=${encodeURIComponent(
     videoIds.join(',')
   )}&key=${encodeURIComponent(apiKey)}`
 
@@ -245,18 +269,133 @@ async function fetchVideosByIds(
     const errorText = await response.text().catch(() => '')
     logger.error('Failed to batch-fetch YouTube videos', {
       count: videoIds.length,
+      part,
       status: response.status,
       error: errorText.slice(0, 500),
     })
     throw new Error(`Failed to batch-fetch YouTube videos: ${response.status}`)
   }
 
-  const data = await response.json()
-  const items = (data.items ?? []) as VideoItem[]
+  return (await response.json()) as VideoListResponse
+}
+
+/**
+ * Narrows a `videos.list` payload to its item array, or returns null when the response
+ * cannot be trusted as a complete answer to the request that was made.
+ *
+ * The YouTube reference documents neither that every requested existing ID is returned
+ * nor how a partially-degraded batch is signalled, so absence from the response is only
+ * ever read as "this video is gone" when the payload is unambiguous. A response is
+ * rejected as untrusted when:
+ * - `kind` is present and is not `youtube#videoListResponse` (not a video listing)
+ * - `items` is missing or is not an array (malformed envelope)
+ * - `items` is empty while IDs were requested — indistinguishable from a degraded 200,
+ *   and reading it literally would drop an entire page at once
+ * - any entry is not an object, lacks a non-empty string `id`, or carries an `id` that
+ *   was never requested (the body does not correspond to this request)
+ *
+ * Callers fail open on null. The residual exposure is a well-formed response that omits
+ * only *some* still-live IDs; that cannot be detected from the payload, and treating a
+ * partial response as untrusted is impossible without a completeness guarantee the API
+ * does not provide.
+ */
+export function readTrustedVideoItems(
+  data: VideoListResponse,
+  requestedIds: readonly string[]
+): VideoItem[] | null {
+  if (typeof data.kind === 'string' && data.kind !== VIDEO_LIST_KIND) return null
+  if (!Array.isArray(data.items)) return null
+
+  const entries = data.items as unknown[]
+  if (requestedIds.length > 0 && entries.length === 0) return null
+
+  const requested = new Set(requestedIds)
+  const result: VideoItem[] = []
+  for (const entry of entries) {
+    if (typeof entry !== 'object' || entry === null) return null
+    const id = (entry as { id?: unknown }).id
+    if (typeof id !== 'string' || !id) return null
+    if (!requested.has(id)) return null
+    result.push(entry as VideoItem)
+  }
+  return result
+}
+
+/**
+ * Batch-fetches full video resources for the given IDs, keyed by video ID.
+ *
+ * Returns null when the response is untrusted (see `readTrustedVideoItems`) so the caller
+ * can fail open instead of treating every ID as gone. Videos that are private, deleted,
+ * or region-blocked are absent from a trusted response.
+ */
+async function fetchVideosByIds(
+  apiKey: string,
+  videoIds: string[],
+  retryOptions?: Parameters<typeof fetchWithRetry>[2]
+): Promise<Map<string, VideoItem> | null> {
+  const result = new Map<string, VideoItem>()
+  if (videoIds.length === 0) return result
+
+  const data = await fetchVideoList(apiKey, videoIds, VIDEO_PART_FULL, retryOptions)
+  const items = readTrustedVideoItems(data, videoIds)
+  if (!items) return null
+
   for (const item of items) {
     if (item.id) result.set(item.id, item)
   }
   return result
+}
+
+/**
+ * Batch-resolves which of the given video IDs still exist, via a lightweight
+ * `videos.list?part=id` call (flat 1 quota unit, up to 50 IDs per call — a full
+ * `playlistItems.list` page).
+ *
+ * Returns null when the response is untrusted, which callers read as "availability is
+ * unknown, keep everything".
+ */
+async function fetchAvailableVideoIds(
+  apiKey: string,
+  videoIds: string[],
+  retryOptions?: Parameters<typeof fetchWithRetry>[2]
+): Promise<Set<string> | null> {
+  if (videoIds.length === 0) return new Set<string>()
+
+  const data = await fetchVideoList(apiKey, videoIds, VIDEO_PART_ID_ONLY, retryOptions)
+  const items = readTrustedVideoItems(data, videoIds)
+  if (!items) return null
+
+  const result = new Set<string>()
+  for (const item of items) {
+    if (item.id) result.add(item.id)
+  }
+  return result
+}
+
+/**
+ * Keeps only playlist items whose video is still available.
+ *
+ * A playlist item is a resource independent of the video it points at: when the video is
+ * deleted or made private, `playlistItems.list` keeps returning a placeholder item
+ * ("Deleted video" / "Private video") with the same `contentDetails.videoId`, and the API
+ * exposes no request parameter to exclude them. Left in the listing, those placeholders
+ * keep the stored document's externalId present on every full sync, so deletion
+ * reconciliation (which hard-deletes only documents ABSENT from the listing) never purges
+ * it — and hydration cannot clean it up either, since `videos.list` omits the video and
+ * `getDocument` returns null, which the sync engine treats as last-known-good.
+ *
+ * Availability is therefore established positively, from a `videos.list` membership check:
+ * an item is dropped only when its video ID is explicitly absent from a trusted response.
+ * A null set means the membership check could not be trusted, and every item is kept —
+ * keeping a stale placeholder is recoverable, hard-deleting a live document (and its
+ * `userExcluded` flag) is not.
+ */
+export function filterAvailableItems<T extends PlaylistItem>(
+  items: T[],
+  availableVideoIds: ReadonlySet<string> | null
+): T[] {
+  if (!availableVideoIds) return items
+  return items.filter((item) => availableVideoIds.has(getVideoId(item)))
 }
 
 /**
@@ -408,23 +547,57 @@ export const youtubeConnector: ConnectorConfig = {
     let documents: ExternalDocument[] = []
 
     if (excludeShorts && keptItems.length > 0) {
-      // When excluding Shorts we must know each video's duration, which is not exposed on
-      // `playlistItems.list`. Resolve it here with a single batched `videos.list` call
-      // (1 quota unit per page) and emit FULLY-HYDRATED documents. This is deliberate:
-      // emitting deferred stubs for Shorts would make every excluded Short re-list as a
-      // brand-new doc on every sync (it is never persisted), re-hydrating to null forever.
-      // Filtering at listing time bounds the cost to one batched call per page per sync.
+      /**
+       * When excluding Shorts we must know each video's duration, which is not exposed on
+       * `playlistItems.list`. Resolve it here with a single batched `videos.list` call
+       * (1 quota unit per page) and emit FULLY-HYDRATED documents. This is deliberate:
+       * emitting deferred stubs for Shorts would make every excluded Short re-list as a
+       * brand-new doc on every sync (it is never persisted), re-hydrating to null forever.
+       * Filtering at listing time bounds the cost to one batched call per page per sync.
+       *
+       * An untrusted response cannot be read as "every video on this page is gone", and
+       * durations are unavailable without it, so the page emits nothing and the listing is
+       * marked truncated — which blocks deletion reconciliation for this sync absolutely.
+       * Pagination still advances on the real `playlistItems` cursor.
+       */
       const videoMap = await fetchVideosByIds(apiKey, keptItems.map(getVideoId))
-      for (const item of keptItems) {
-        const video = videoMap.get(getVideoId(item))
-        // Absent from `videos.list` => private/deleted/region-blocked. Drop it instead of
-        // emitting a stub that would re-hydrate to null on every sync.
-        if (!video) continue
-        const doc = videoToDocument(video, true)
-        if (doc) documents.push(doc)
+      if (!videoMap) {
+        logger.warn('Untrusted videos.list response; skipping page and blocking reconciliation', {
+          playlistId,
+          count: keptItems.length,
+        })
+        if (syncContext) {
+          syncContext.listingCapped = true
+          syncContext.listingTruncated = true
+        }
+      } else {
+        for (const item of keptItems) {
+          /**
+           * Absent from a trusted `videos.list` => private/deleted/region-blocked. Drop it
+           * instead of emitting a stub that would re-hydrate to null on every sync.
+           */
+          const video = videoMap.get(getVideoId(item))
+          if (!video) continue
+          const doc = videoToDocument(video, true)
+          if (doc) documents.push(doc)
+        }
       }
-    } else {
-      for (const item of keptItems) {
+    } else if (keptItems.length > 0) {
+      /**
+       * Placeholder items for deleted/private videos stay in `playlistItems.list` forever
+       * and would pin the stored document against deletion reconciliation. Resolve which
+       * videos still exist with one batched `videos.list?part=id` call (1 quota unit per
+       * page) and emit stubs only for those — mirroring the drop the excludeShorts branch
+       * above already performs. An untrusted response keeps every item (fail open).
+       */
+      const availableVideoIds = await fetchAvailableVideoIds(apiKey, keptItems.map(getVideoId))
+      if (!availableVideoIds) {
+        logger.warn('Untrusted videos.list response; keeping all playlist items for this page', {
+          playlistId,
+          count: keptItems.length,
+        })
+      }
+      for (const item of filterAvailableItems(keptItems, availableVideoIds)) {
         const stub = itemToStub(item)
         if (stub) documents.push(stub)
       }
@@ -440,6 +613,12 @@ export const youtubeConnector: ConnectorConfig = {
       if (syncContext) syncContext.totalDocsFetched = maxVideos
     }
 
+    /**
+     * Pagination is driven exclusively by the `playlistItems.list` cursor, never by how
+     * many documents survived availability filtering. A page whose items are ALL
+     * unavailable therefore emits zero documents while still advancing to the next page
+     * and reporting `hasMore` truthfully, so it can neither wedge nor truncate the sync.
+     */
     const nextPageToken = data.nextPageToken as string | undefined
 
     // When the `maxVideos` cap stops the listing before the source is exhausted, mark the
