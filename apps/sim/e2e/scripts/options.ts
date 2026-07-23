@@ -4,14 +4,15 @@ const CREDENTIALS_PROJECT = 'hosted-billing-chromium-credentials'
 const WORKFLOWS_PROJECT = 'hosted-billing-chromium-workflows'
 const PERSONAS_PROJECT = 'hosted-billing-chromium-personas'
 const PERSONA_ISOLATION_PROJECT = 'hosted-billing-chromium-persona-isolation'
-const E2E_PROJECTS = new Set([
+export const E2E_PROJECT_NAMES = [
   NAVIGATION_PROJECT,
   AUTHORIZATION_PROJECT,
   CREDENTIALS_PROJECT,
   WORKFLOWS_PROJECT,
   PERSONAS_PROJECT,
   PERSONA_ISOLATION_PROJECT,
-])
+] as const
+const E2E_PROJECTS = new Set<string>(E2E_PROJECT_NAMES)
 const FORBIDDEN_OPTIONS = [
   '--config',
   '-c',
@@ -35,6 +36,7 @@ const SAFE_VALUE_OPTIONS = new Set(['--grep', '--grep-invert', '--repeat-each', 
 export interface E2eRunOptions {
   playwrightArgs: string[]
   reuseBuild: boolean
+  repeatAllProjects?: boolean
 }
 
 export function parseRunOptions(
@@ -97,7 +99,35 @@ export function parseRunOptions(
     )
   }
 
-  return { playwrightArgs, reuseBuild }
+  const hasRepeatEach = hasOption(playwrightArgs, '--repeat-each')
+  if (hasRepeatEach && projects.length > 1) {
+    throw new Error('--repeat-each accepts at most one explicit project')
+  }
+  const repeatAllProjects = hasRepeatEach && projects.length === 0
+  if (
+    repeatAllProjects &&
+    (hasOption(playwrightArgs, '--grep') ||
+      hasOption(playwrightArgs, '--grep-invert') ||
+      hasOption(playwrightArgs, '-g') ||
+      getPositionalArgs(playwrightArgs).length > 0)
+  ) {
+    throw new Error('Unscoped --repeat-each must run the complete suite without test filters')
+  }
+
+  return {
+    playwrightArgs,
+    reuseBuild,
+    ...(repeatAllProjects ? { repeatAllProjects: true } : {}),
+  }
+}
+
+export function buildPlaywrightInvocations(options: E2eRunOptions): string[][] {
+  if (!options.repeatAllProjects) return [options.playwrightArgs]
+  return E2E_PROJECT_NAMES.map((project) => [
+    ...options.playwrightArgs,
+    `--project=${project}`,
+    '--no-deps',
+  ])
 }
 
 function assertSupportedPlaywrightArgs(args: string[]): void {
@@ -130,4 +160,17 @@ function hasOption(args: string[], name: string): boolean {
 
 function getEqualsOptionValues(args: string[], name: string): string[] {
   return args.filter((arg) => arg.startsWith(`${name}=`)).map((arg) => arg.slice(name.length + 1))
+}
+
+function getPositionalArgs(args: string[]): string[] {
+  const positional: string[] = []
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index]
+    if (!argument.startsWith('-')) {
+      positional.push(argument)
+      continue
+    }
+    if (SAFE_VALUE_OPTIONS.has(argument)) index += 1
+  }
+  return positional
 }

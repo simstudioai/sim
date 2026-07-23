@@ -59,7 +59,7 @@ import {
   startApp,
   startRealtime,
 } from '../support/stack'
-import { parseRunOptions } from './options'
+import { buildPlaywrightInvocations, parseRunOptions } from './options'
 
 const DEFAULT_ADMIN_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:5432/postgres'
 
@@ -404,14 +404,22 @@ async function main(): Promise<void> {
       markerDirectory,
       manifestPath
     )
-    await runPlaywright(
-      {
-        nodeExecutable,
-        env: playwrightEnvironment,
-        logsDirectory,
-      },
-      options.playwrightArgs
-    )
+    const playwrightInvocations = buildPlaywrightInvocations(options)
+    for (const [index, playwrightArgs] of playwrightInvocations.entries()) {
+      if (playwrightInvocations.length > 1) {
+        console.log(
+          `Playwright repeat gate ${index + 1}/${playwrightInvocations.length}: ${playwrightArgs.find((argument) => argument.startsWith('--project='))}`
+        )
+      }
+      await runPlaywright(
+        {
+          nodeExecutable,
+          env: playwrightEnvironment,
+          logsDirectory,
+        },
+        playwrightArgs
+      )
+    }
     const provisioning = await inspectFoundationUsers(runDatabase.url, runId)
     assertAuthenticatedSmokeEffectsIfPresent(
       stripeFake,

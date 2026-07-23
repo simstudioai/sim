@@ -11,6 +11,11 @@ import {
 } from './helpers'
 import { expect, test } from './workflow-test'
 
+// SSO registration and verification responses can contain certificates and
+// verification values. The workflow deliberately proves behavior without
+// retaining Playwright's network-bearing trace artifact.
+test.use({ trace: 'off' })
+
 test('SAML provider lifecycle stays pending and uses scoped management APIs', async ({
   contextForPersona,
   personaManifest,

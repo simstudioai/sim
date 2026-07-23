@@ -410,20 +410,33 @@ async function recordProductionPermissionIds(world: E2EWorld): Promise<void> {
 }
 
 async function assertTrustedWorldInvariants(world: E2EWorld): Promise<void> {
+  const workspaceIds = [...world.records.workspaces.values()].map(({ id }) => id)
+  const persistedWorkspaceHosts = new Map(
+    (
+      await db
+        .select({ id: workspace.id, organizationId: workspace.organizationId })
+        .from(workspace)
+        .where(inArray(workspace.id, workspaceIds))
+    ).map((row) => [row.id, row])
+  )
+  if (persistedWorkspaceHosts.size !== workspaceIds.length) {
+    throw new Error('Every scenario workspace must remain persisted')
+  }
+
   for (const persona of world.scenario.definition.personas) {
     const userId = required(world.records.users, persona.userKey, 'invariant user').id
     for (const expectation of persona.workspaces) {
       if (expectation.access === 'none') continue
-      const workspaceDefinition = required(
-        world.scenario.workspacesByKey,
-        expectation.workspaceKey,
-        'invariant workspace definition'
-      )
       const workspaceId = required(
         world.records.workspaces,
         expectation.workspaceKey,
         'invariant workspace'
       ).id
+      const persistedWorkspace = required(
+        persistedWorkspaceHosts,
+        workspaceId,
+        'persisted invariant workspace'
+      )
       if (expectation.roleSource === 'org-admin') {
         const explicitRows = await db
           .select({ id: permissions.id })
@@ -443,17 +456,17 @@ async function assertTrustedWorldInvariants(world: E2EWorld): Promise<void> {
       }
       if (
         expectation.hostContext.hostMembership === 'external' &&
-        workspaceDefinition.organizationKey
+        persistedWorkspace.organizationId
       ) {
-        const organizationId = required(
-          world.records.organizations,
-          workspaceDefinition.organizationKey,
-          'external host organization'
-        ).id
         const memberships = await db
           .select({ id: member.id })
           .from(member)
-          .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
+          .where(
+            and(
+              eq(member.userId, userId),
+              eq(member.organizationId, persistedWorkspace.organizationId)
+            )
+          )
         if (memberships.length !== 0) {
           throw new Error(
             `External workspace persona unexpectedly received host membership: ${persona.key}`

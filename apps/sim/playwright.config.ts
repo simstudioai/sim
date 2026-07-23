@@ -13,7 +13,7 @@ export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.spec.ts',
   fullyParallel: true,
-  forbidOnly: isCI,
+  forbidOnly: true,
   retries: 0,
   workers: 2,
   timeout: 60_000,
@@ -72,11 +72,6 @@ export default defineConfig({
       dependencies: ['hosted-billing-chromium-credentials'],
       fullyParallel: false,
       workers: 1,
-      use: {
-        trace: 'off',
-        screenshot: 'only-on-failure',
-        video: 'off',
-      },
     },
     {
       name: 'hosted-billing-chromium-personas',

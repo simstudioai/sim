@@ -52,6 +52,25 @@ spec:
               cd /app/packages/db
               export DATABASE_URL="{{ include "sim.databaseUrl" . }}"
               bun run db:migrate
+          env:
+            - name: SSO_PROVIDER_WRITES_QUIESCED
+              {{- if .Values.migrations.ssoPreflight.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.migrations.ssoPreflight.existingSecret | quote }}
+                  key: {{ .Values.migrations.ssoPreflight.providerWritesQuiescedKey | quote }}
+              {{- else }}
+              value: {{ .Values.migrations.ssoPreflight.providerWritesQuiesced | quote }}
+              {{- end }}
+            - name: SSO_AUDIT_APPROVED_PROVIDER_IDS
+              {{- if .Values.migrations.ssoPreflight.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.migrations.ssoPreflight.existingSecret | quote }}
+                  key: {{ .Values.migrations.ssoPreflight.auditApprovedProviderIdsKey | quote }}
+              {{- else }}
+              value: {{ .Values.migrations.ssoPreflight.auditApprovedProviderIds | quote }}
+              {{- end }}
           envFrom:
             {{- if .Values.postgresql.enabled }}
             - secretRef:

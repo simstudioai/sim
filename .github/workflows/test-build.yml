@@ -261,10 +261,11 @@ jobs:
         run: bunx turbo run build --filter=sim
 
   settings-e2e:
-    name: Settings E2E (informational)
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    name: Settings E2E
+    # The production Next build peaks above the free GitHub runner's memory
+    # ceiling. Keep the break-glass provider predicate aligned with Build App.
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
     timeout-minutes: 45
-    continue-on-error: true
 
     services:
       postgres:
@@ -295,26 +296,35 @@ jobs:
         with:
           node-version: 22
 
-      - name: Mount Bun cache (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      - name: Mount Bun cache
+        uses: ./.github/actions/cache-mount
         with:
+          provider: ${{ vars.CI_PROVIDER }}
           key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ~/.bun/install/cache
 
-      - name: Mount node_modules (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      - name: Mount node_modules
+        uses: ./.github/actions/cache-mount
         with:
+          provider: ${{ vars.CI_PROVIDER }}
           key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./node_modules
 
-      - name: Mount Playwright browsers (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      - name: Mount Playwright browsers
+        uses: ./.github/actions/cache-mount
         with:
+          provider: ${{ vars.CI_PROVIDER }}
           key: ${{ github.repository }}-playwright-browsers-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ~/.cache/ms-playwright
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Rehearse SSO migration hardening
+        working-directory: packages/db
+        env:
+          E2E_PG_ADMIN_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/postgres'
+        run: bun run db:rehearse-sso-migration
 
       - name: Configure E2E hostnames
         run: echo "127.0.0.1 e2e.sim.ai mcp.e2e.sim.ai" | sudo tee -a /etc/hosts
@@ -323,7 +333,7 @@ jobs:
         working-directory: apps/sim
         run: bun run test:e2e:install-browsers -- --with-deps
 
-      - name: Run settings E2E foundation
+      - name: Run complete settings E2E suite
         timeout-minutes: 40
         working-directory: apps/sim
         env:

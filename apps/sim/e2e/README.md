@@ -40,7 +40,7 @@ per-run pgvector database.
    bun run test:e2e:install-browsers
    ```
 
-## Run the foundation
+## Run the complete suite
 
 From `apps/sim`:
 
@@ -235,12 +235,13 @@ Member rows are accessible groups named by email, nested under count-free
 and Access Control expose fail-closed loading/error/ready states; tests do not
 locate mutable count text.
 
-Traces and video are disabled for the workflows project because the Teammates
-API necessarily returns pending invitation tokens to the application. Tests
-never parse that token-bearing response, invoke Copy invite link, or issue an
-extra workspace-invitation list request. Token-free organization rosters are
-used for safe invitation IDs, kinds, roles, and grants. Failure-only screenshots
-remain enabled because invitation tokens are never rendered.
+The people workflow disables traces because the Teammates API necessarily
+returns pending invitation tokens to the application. Tests never parse that
+token-bearing response, invoke Copy invite link, or issue an extra
+workspace-invitation list request. Token-free organization rosters are used for
+safe invitation IDs, kinds, roles, and grants. Failure-only screenshots remain
+enabled because invitation tokens are never rendered. Other workflow files keep
+failure traces unless they carry a documented sensitive boundary.
 
 Invitations exercise the real mail-rendering path. The hermetic app and build
 environments expose none of the Resend, SES, SMTP, Azure ACS, or Gmail provider
@@ -273,21 +274,48 @@ bodies must never be attached to reports or copied into logs.
 
 Better Auth native domain verification is controlled independently by
 `SSO_DOMAIN_VERIFICATION_ENABLED` and defaults off for upgrades and self-hosted
-deployments. It must not be enabled in a hosted environment until the SSO schema
-migration has landed separately and
-`SSO_AUDIT_APPROVED_PROVIDER_IDS=reviewed-provider-ids bun run --cwd packages/db db:audit-sso-providers`
-passes. The command validates every provider row and reports linked-user and
-active-session counts; the approval list records each operator decision to
-retain those links/sessions. Unapproved links must be migrated or removed and
-their sessions revoked before the provider is approved. Only explicitly approved existing providers
-may be backfilled as verified; unknown rows remain inactive, with link/session
-disposition documented before enabling the flag. SSO writes must be quiesced
-across that interval and the audit rerun immediately before the flag changes.
-The hermetic profile sets it to true. Legacy user-scoped
-provider rows must be assigned to an audited organization or removed before the
-migration; its check constraints and preflight reject them. Providers with
-linked Better Auth accounts cannot change issuer/domain or be deleted until an
-operator completes the documented account-link and session migration.
+deployments. Migration 0266 has a one-shot legacy-data gate: when the migration
+is not yet journaled and the legacy provider table exists, the migration
+process acquires the SSO mutation advisory lock, requires
+`SSO_PROVIDER_WRITES_QUIESCED=true` even if that table is empty, and runs the
+public-suffix/account-link audit before applying schema changes.
+The flag is an operator acknowledgement, not a lock: the old deployment must
+actually have SSO/provider mutation traffic disabled from audit through
+migration because it may not participate in the advisory-lock protocol.
+
+Configure `SSO_PROVIDER_WRITES_QUIESCED` and
+`SSO_AUDIT_APPROVED_PROVIDER_IDS` independently in the protected staging and
+production GitHub environments whose databases predate 0266. The development
+migration job currently uses `db:push`, not the versioned `migrate.ts` path, so
+it does not execute this one-shot gate; audit, repair, or reset persistent
+legacy development data before that schema push. The approval list records
+only explicit retain-or-migrate decisions for existing Better Auth account
+links and sessions. Unapproved links must be migrated or removed and their
+sessions revoked. Legacy user-scoped providers must be assigned to an audited
+organization or removed. The blocking gate stops after 0266 is journaled;
+later SSO audits are operator reports and do not block unrelated migrations
+merely because healthy providers have linked users or the public suffix list
+changed.
+
+Domain ownership is a separate decision. After 0266, backfill only providers
+whose ownership evidence was independently approved, perform the update
+transactionally, and read it back. Keep unknown rows at `domain_verified=false`.
+Successful live TXT verification is still required before enabling
+`SSO_DOMAIN_VERIFICATION_ENABLED`; neither linked-account approval nor migration
+success proves domain ownership. The hermetic profile sets verification to true
+only for its isolated world. Providers with linked Better Auth accounts cannot
+change issuer/domain or be deleted until an operator completes the documented
+account-link and session migration.
+
+Rehearse the legacy audit, empty-table quiescence block, linked-account
+approval, migration constraints/indexes/default, and post-0266 short-circuit
+against the local pgvector instance:
+
+```bash
+E2E_PG_ADMIN_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres \
+  bun run --cwd packages/db db:rehearse-sso-migration
+```
+
 Better Auth 1.6.13 does not honor explicit `requestSignUp`
 for SAML callbacks, so implicit signup remains enabled only behind the
 verified-domain gate to preserve intended JIT organization provisioning;
@@ -377,6 +405,80 @@ Sharding is supported only for the navigation project. The runner rejects
 the dedicated two-worker cross-world isolation project. Project dependencies
 serialize navigation, authorization, credentials, workflows, and persona
 contracts before the isolation project opens its two-worker pool.
+
+## Stability gate and required CI
+
+The Step 7 source discovers 256 tests: 131 navigation/foundation, 84
+authorization, 13 credentials, 11 workflows, 15 persona contracts, and 2
+two-worker isolation tests.
+
+Retries remain fixed at zero while the suite is stabilized. The final gate is
+five Playwright executions per test against one healthy production stack, not
+five builds or five CI workflows. For an unscoped `--repeat-each`, the
+orchestrator runs each canonical project sequentially with dependencies
+suppressed after it has established their canonical order. Playwright otherwise
+repeats the terminal project but runs dependency projects only once:
+
+```bash
+rm -rf e2e/.cache/builds
+bun run test:e2e -- --reuse-build
+bun run test:e2e -- --reuse-build --repeat-each=5
+```
+
+Final Step 7 local evidence (2026-07-23):
+
+- The clean cache-miss chain stored verified build
+  `f4a8f018238f3c0a27a10f8ec7a0e656c9d11acdd10024777e2b4206519dcbef`
+  and passed all 256 tests in 7 minutes 39 seconds end to end.
+- The cache-hit two-repeat qualification executed 512 tests across all six
+  projects and passed in 9 minutes 4 seconds.
+- The definitive cache-hit five-repeat gate executed 655 navigation, 420
+  authorization, 65 credentials, 55 workflow, 75 persona-contract, and 10
+  isolation tests: 1,280 retry-free executions in 20 minutes 39 seconds.
+- Both repeated chains used one guarded database/seed/auth-capture/app/realtime
+  lifecycle. Their leak markers were written only after safe scanning; Stripe
+  and MCP fake logs contained no unexpected requests.
+
+The first command must record a verified cache miss, build, and store. Make no
+tracked or untracked source change under the hashed app/package trees before
+the second command; it must hit the same source/profile/`BUILD_ID`, then create
+a new guarded database, seed/auth state, and app/realtime boot for all five
+repetitions. A failure invalidates the gate: fix the cause, rerun focused proof,
+then restart the complete gate from repetition one. Do not substitute retries.
+
+Ordinary PR CI runs the complete suite once. `Settings E2E` is a blocking job
+on the same Blacksmith/GitHub provider switch as the production app build; the
+GitHub fallback uses the paid high-memory runner. Pull-request workflows do not
+ignore Markdown or docs-only changes because a missing required context would
+leave those PRs permanently blocked. This intentionally spends the full CI
+cost on every PR to a protected target. Failure diagnostics upload only after
+the leak-scan marker is present.
+
+If retries are ever introduced after stabilization, the only sanctioned policy
+is `retries: 1` together with Playwright `failOnFlakyTests: true`. The retry may
+collect diagnostics and classify the flake, but the required check must still
+fail.
+
+The temporary `e2e/settings-playwright` PR target remains until the Step 7
+branch has merged into it. Remove that target only in the umbrella PR to
+`staging`, observe the exact `Test and Build / Settings E2E` context on the
+latest staging and main PR commits, and only then configure it as required for
+each protected branch. Those branch-protection changes are manual repository
+operations.
+
+## Adding another browser suite
+
+Create feature tests under `e2e/<feature>/` and compose their scenario from the
+existing `E2EWorld` factories. Reuse a deployment profile, Better Auth storage
+states, external fakes, browser-network guard, cleanup registry, diagnostics,
+and one-shot lifecycle instead of copying the harness.
+
+Join an existing Playwright project only when the new suite has the same
+deployment profile, process topology, isolation requirements, mutation
+coupling, worker budget, artifact policy, and CI cadence. Otherwise add a
+separate project/job with an explicit worker/shard and diagnostics policy.
+Self-hosted, billing-disabled, and cross-browser profiles remain later nightly
+coverage; they are not hidden variants of the hosted Chromium acceptance gate.
 
 ## Diagnostics
 

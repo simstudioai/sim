@@ -3,8 +3,9 @@ import { createServer } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { loadEnvConfig } from '@next/env'
-import { expect, test } from '@playwright/test'
-import { parseRunOptions } from '../scripts/options'
+import { expect, type Page, test } from '@playwright/test'
+import { buildPlaywrightInvocations, parseRunOptions } from '../scripts/options'
+import { captureSafeAuthFailureScreenshot } from '../support/auth-capture-diagnostics'
 import {
   assertLoopbackPostgresUrl,
   assertSafeDatabaseName,
@@ -190,6 +191,71 @@ test.describe('foundation safety guards', () => {
     }
   })
 
+  test('token-bearing workflow files explicitly disable network traces', () => {
+    for (const relativePath of [
+      'e2e/settings/workflows/people.spec.ts',
+      'e2e/settings/workflows/sso.spec.ts',
+    ]) {
+      const source = readFileSync(path.join(process.cwd(), relativePath), 'utf8')
+      expect(source).toContain("test.use({ trace: 'off' })")
+    }
+  })
+
+  test('auth diagnostics prove native password fields safe before screenshots', async () => {
+    const submittedPassword = 'synthetic-password'
+    const runCase = async ({
+      values,
+      fillFails = false,
+      clearPersists = false,
+    }: {
+      values: string[]
+      fillFails?: boolean
+      clearPersists?: boolean
+    }) => {
+      const currentValues = [...values]
+      let screenshots = 0
+      const page = {
+        locator: () => ({
+          count: async () => currentValues.length,
+          nth: (index: number) => ({
+            fill: async (value: string) => {
+              if (fillFails) throw new Error('page closed')
+              if (!clearPersists) currentValues[index] = value
+            },
+            inputValue: async () => currentValues[index],
+          }),
+        }),
+        screenshot: async () => {
+          screenshots += 1
+        },
+      } as unknown as Page
+      const safe = await captureSafeAuthFailureScreenshot(
+        page,
+        '/tmp/auth-failure.png',
+        submittedPassword
+      )
+      return { safe, screenshots }
+    }
+
+    await expect(runCase({ values: [] })).resolves.toEqual({ safe: true, screenshots: 1 })
+    await expect(runCase({ values: [submittedPassword] })).resolves.toEqual({
+      safe: true,
+      screenshots: 1,
+    })
+    await expect(runCase({ values: ['email@example.com', submittedPassword] })).resolves.toEqual({
+      safe: true,
+      screenshots: 1,
+    })
+    await expect(runCase({ values: [submittedPassword], fillFails: true })).resolves.toEqual({
+      safe: false,
+      screenshots: 0,
+    })
+    await expect(runCase({ values: [submittedPassword], clearPersists: true })).resolves.toEqual({
+      safe: false,
+      screenshots: 0,
+    })
+  })
+
   test('database guards reject shared or remote targets', () => {
     expect(() => assertSafeDatabaseName('simstudio')).toThrow()
     expect(() => assertSafeDatabaseName('sim_e2e_valid_run')).not.toThrow()
@@ -290,6 +356,15 @@ test.describe('foundation safety guards', () => {
   })
 
   test('repeat-each can increase coverage without weakening orchestration', () => {
+    expect(buildPlaywrightInvocations(parseRunOptions(['--repeat-each=5']))).toEqual([
+      ['--repeat-each=5', '--project=hosted-billing-chromium-navigation', '--no-deps'],
+      ['--repeat-each=5', '--project=hosted-billing-chromium-authorization', '--no-deps'],
+      ['--repeat-each=5', '--project=hosted-billing-chromium-credentials', '--no-deps'],
+      ['--repeat-each=5', '--project=hosted-billing-chromium-workflows', '--no-deps'],
+      ['--repeat-each=5', '--project=hosted-billing-chromium-personas', '--no-deps'],
+      ['--repeat-each=5', '--project=hosted-billing-chromium-persona-isolation', '--no-deps'],
+    ])
+    expect(buildPlaywrightInvocations(parseRunOptions(['--repeat-each', '2']))).toHaveLength(6)
     expect(
       parseRunOptions(
         ['--project=hosted-billing-chromium-workflows', '--no-deps', '--repeat-each=2'],
@@ -299,6 +374,20 @@ test.describe('foundation safety guards', () => {
     expect(() =>
       parseRunOptions(['--project=hosted-billing-chromium-workflows', '--repeat-each'])
     ).toThrow(/requires a value/)
+    expect(() =>
+      parseRunOptions([
+        '--project=hosted-billing-chromium-navigation',
+        '--project=hosted-billing-chromium-authorization',
+        '--repeat-each=2',
+      ])
+    ).toThrow(/at most one explicit project/)
+    for (const filteredRepeat of [
+      ['--repeat-each=2', '--grep=workspace'],
+      ['--repeat-each=2', '-g', 'workspace'],
+      ['--repeat-each=2', 'e2e/settings'],
+    ]) {
+      expect(() => parseRunOptions(filteredRepeat)).toThrow(/complete suite without test filters/)
+    }
   })
 
   test('Playwright CLI arguments cannot override orchestration invariants', () => {

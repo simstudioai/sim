@@ -1,9 +1,9 @@
 import { openai } from '@ai-sdk/openai'
 import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage } from 'ai'
 import { sql } from 'drizzle-orm'
-import { z } from 'zod'
 import { db, docsEmbeddings } from '@/lib/db'
 import { generateSearchEmbedding } from '@/lib/embeddings'
+import { searchDocsInputSchema } from '@/lib/search-tool-schema'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -332,9 +332,7 @@ export async function POST(req: Request) {
       searchDocs: tool({
         description:
           'Search the Sim documentation for relevant content. Use this before answering any question about Sim.',
-        inputSchema: z.object({
-          query: z.string().describe('A focused natural-language search query.'),
-        }),
+        inputSchema: searchDocsInputSchema,
         execute: async ({ query }) => searchDocs(query, locale),
       }),
     },

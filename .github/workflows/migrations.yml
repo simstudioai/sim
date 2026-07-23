@@ -26,6 +26,7 @@ jobs:
     name: Apply Database Migrations
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 45
+    environment: ${{ inputs.environment }}
 
     steps:
       - name: Checkout code
@@ -62,6 +63,10 @@ jobs:
           DATABASE_URL: ${{ inputs.environment == 'production' && secrets.DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_DATABASE_URL || inputs.environment == 'dev' && secrets.DEV_DATABASE_URL || '' }}
           MIGRATION_DATABASE_URL: ${{ inputs.environment == 'production' && secrets.MIGRATION_DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_MIGRATION_DATABASE_URL || '' }}
           ENVIRONMENT: ${{ inputs.environment }}
+          # One-shot migration 0266 inputs. Configure them independently in
+          # each protected GitHub environment before its first rollout.
+          SSO_PROVIDER_WRITES_QUIESCED: ${{ secrets.SSO_PROVIDER_WRITES_QUIESCED }}
+          SSO_AUDIT_APPROVED_PROVIDER_IDS: ${{ secrets.SSO_AUDIT_APPROVED_PROVIDER_IDS }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "ERROR: no database URL secret resolved for environment '${ENVIRONMENT}'" >&2

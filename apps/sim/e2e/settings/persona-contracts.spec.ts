@@ -48,6 +48,20 @@ for (const personaKey of SETTINGS_PERSONA_KEYS) {
       role: persona.expectedPlatformRole,
     })
     expect(session.session?.activeOrganizationId ?? null).toBe(persona.expectedActiveOrganizationId)
+    if (personaKey === 'freeOrganizationAdmin') {
+      const organizationId = persona.expectedActiveOrganizationId
+      if (!organizationId) throw new Error('Free organization admin has no active organization')
+      const rosterResponse = await context.request.get(
+        `/api/organizations/${encodeURIComponent(organizationId)}/roster`
+      )
+      expect(rosterResponse.status()).toBe(200)
+      const roster = (await rosterResponse.json()) as {
+        data?: { members?: Array<{ userId?: string; role?: string }> }
+      }
+      expect(roster.data?.members).toContainEqual(
+        expect.objectContaining({ userId: persona.userId, role: 'admin' })
+      )
+    }
     const settingsResponse = await context.request.get('/api/users/me/settings')
     expect(settingsResponse.status()).toBe(200)
     const userSettings = (await settingsResponse.json()) as {

@@ -19,9 +19,9 @@ export { expect } from '@playwright/test'
 
 function assertWorkflowArtifactPolicy(testInfo: TestInfo): void {
   const { trace, screenshot, video } = testInfo.project.use
-  if (trace !== 'off' || screenshot !== 'only-on-failure' || video !== 'off') {
+  if (trace !== 'retain-on-failure' || screenshot !== 'only-on-failure' || video !== 'off') {
     throw new Error(
-      'Settings workflows must disable trace/video while retaining failure-only screenshots'
+      'Settings workflows must retain failure traces/screenshots and keep video disabled by default'
     )
   }
 }

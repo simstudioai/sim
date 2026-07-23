@@ -549,6 +549,18 @@ migrations:
     tag: ""
     digest: ""
     pullPolicy: IfNotPresent
+
+  # One-shot pre-0266 SSO migration gate. Established databases must quiesce
+  # provider writes and set providerWritesQuiesced to "true" for that rollout.
+  # auditApprovedProviderIds is a comma-separated retain/migrate decision for
+  # providers with existing Better Auth account links or active sessions.
+  ssoPreflight:
+    providerWritesQuiesced: ""
+    auditApprovedProviderIds: ""
+    # Optional Secret-backed mode. When set, both values above are ignored.
+    existingSecret: ""
+    providerWritesQuiescedKey: SSO_PROVIDER_WRITES_QUIESCED
+    auditApprovedProviderIdsKey: SSO_AUDIT_APPROVED_PROVIDER_IDS
   
   # Resource limits and requests
   resources:
