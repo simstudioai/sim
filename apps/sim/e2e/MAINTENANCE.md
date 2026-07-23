@@ -5,6 +5,10 @@ organization, or workspace settings surface. The browser datasets are literal
 acceptance contracts, intentionally independent of production navigation and
 authorization implementations.
 
+For the step-by-step authoring workflow, invoke `/add-settings-e2e-test`; its
+canonical source from the repository root is
+`.agents/skills/add-settings-e2e-test/SKILL.md`.
+
 ## Decision rule
 
 - An intended observable contract change requires the product code and the
