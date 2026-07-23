@@ -22,6 +22,7 @@ import type {
   ColumnDefinition,
   JsonValue,
   RowData,
+  SelectOption,
   TableSchema,
   ValidationResult,
 } from '@/lib/table/types'
@@ -296,11 +297,12 @@ function optionIds(column: ColumnDefinition): Set<string> {
 /**
  * Resolves a raw cell value to a declared option id, accepting either the
  * stable id or (tolerant for tool/import writes) the option's display name.
- * Returns null when no option matches.
+ * Returns null when no option matches. Exported so the column-type-conversion
+ * path can gate a `select`/`multiselect` change on whether existing values
+ * actually fit the target option set.
  */
-function resolveOptionId(value: JsonValue, column: ColumnDefinition): string | null {
+export function resolveSelectOptionId(value: JsonValue, options: SelectOption[]): string | null {
   if (typeof value !== 'string') return null
-  const options = column.options ?? []
   const byId = options.find((o) => o.id === value)
   if (byId) return byId.id
   const byName =
@@ -358,14 +360,14 @@ function coerceValueToColumnType(
       return { ok: false }
     }
     case 'select': {
-      const id = resolveOptionId(value, column)
+      const id = resolveSelectOptionId(value, column.options ?? [])
       return id !== null ? { ok: true, value: id } : { ok: false }
     }
     case 'multiselect': {
       const raw = Array.isArray(value) ? value : [value]
       const ids: string[] = []
       for (const entry of raw) {
-        const id = resolveOptionId(entry, column)
+        const id = resolveSelectOptionId(entry, column.options ?? [])
         if (id !== null && !ids.includes(id)) ids.push(id)
       }
       return { ok: true, value: ids }

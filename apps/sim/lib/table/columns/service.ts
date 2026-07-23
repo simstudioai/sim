@@ -20,6 +20,7 @@ import { withLockedTable } from '@/lib/table/service'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
 import type {
   DeleteColumnData,
+  JsonValue,
   RenameColumnData,
   RowData,
   SelectOption,
@@ -30,7 +31,7 @@ import type {
   UpdateColumnOptionsData,
   UpdateColumnTypeData,
 } from '@/lib/table/types'
-import { validateColumnDefinition } from '@/lib/table/validation'
+import { resolveSelectOptionId, validateColumnDefinition } from '@/lib/table/validation'
 import { assertValidSchema, stripGroupDeps } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableColumnService')
@@ -513,13 +514,17 @@ export async function updateColumnType(
         )
       )
 
+    // Options the column will carry after the change — a `select`/`multiselect`
+    // value is only compatible if it resolves against this set.
+    const targetOptions = data.options ?? column.options ?? []
+
     let incompatibleCount = 0
     for (const row of rows) {
       const rowData = row.data as RowData
       const value = rowData[columnKey]
       if (value === null || value === undefined) continue
 
-      if (!isValueCompatibleWithType(value, data.newType)) {
+      if (!isValueCompatibleWithType(value, data.newType, targetOptions)) {
         incompatibleCount++
       }
     }
@@ -696,22 +701,28 @@ export async function updateColumnOptions(
 }
 
 /**
- * Checks if a value is compatible with a target column type.
+ * Checks if a value is compatible with a target column type. For
+ * `select`/`multiselect`, `targetOptions` is the option set the column will
+ * carry after the change: a value is compatible only if every part of it
+ * resolves to one of those options (by id or name). This blocks a conversion
+ * that would otherwise strand or silently drop values on the next row write.
  */
 function isValueCompatibleWithType(
   value: unknown,
-  targetType: (typeof COLUMN_TYPES)[number]
+  targetType: (typeof COLUMN_TYPES)[number],
+  targetOptions: SelectOption[] = []
 ): boolean {
-  if (value === null || value === undefined) return true
+  if (value === null || value === undefined || value === '') return true
 
   switch (targetType) {
     case 'string':
       return true
     case 'select':
-    case 'multiselect':
-      // Stored values are option-id strings (or arrays of them). Existing data
-      // is preserved on conversion; unmatched ids render as a fallback pill.
-      return true
+      return resolveSelectOptionId(value as JsonValue, targetOptions) !== null
+    case 'multiselect': {
+      const parts = Array.isArray(value) ? value : [value]
+      return parts.every((v) => resolveSelectOptionId(v as JsonValue, targetOptions) !== null)
+    }
     case 'number': {
       if (typeof value === 'number') return Number.isFinite(value)
       if (typeof value === 'string') {

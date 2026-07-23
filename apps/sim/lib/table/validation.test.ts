@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
 import {
   coerceRowToSchema,
+  resolveSelectOptionId,
   validateColumnDefinition,
   validateRowAgainstSchema,
 } from '@/lib/table/validation'
@@ -118,6 +119,22 @@ describe('coerceRowToSchema — multiselect', () => {
     const data: RowData = { col_tags: 'opt_a' as unknown as string[] }
     coerceRowToSchema(data, schemaWith(multiselectColumn))
     expect(data.col_tags).toEqual(['opt_a'])
+  })
+})
+
+describe('resolveSelectOptionId', () => {
+  const options = selectColumn.options ?? []
+
+  it('resolves a stable id', () => {
+    expect(resolveSelectOptionId('opt_open', options)).toBe('opt_open')
+  })
+
+  it('resolves a display name (case-insensitively)', () => {
+    expect(resolveSelectOptionId('closed', options)).toBe('opt_closed')
+  })
+
+  it('returns null for an unknown value (drives the type-conversion compatibility gate)', () => {
+    expect(resolveSelectOptionId('nope', options)).toBeNull()
   })
 })
 

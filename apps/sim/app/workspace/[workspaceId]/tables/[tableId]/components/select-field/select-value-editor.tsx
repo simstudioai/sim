@@ -62,12 +62,14 @@ export function SelectValueEditor({
     )
   }
 
-  // Always offer a "None" entry so any single-select cell can be cleared from
-  // its own dropdown, regardless of the column's required flag.
-  const singleOptions = [
-    { value: CLEAR_VALUE, label: <span className='text-[var(--text-muted)]'>None</span> },
-    ...options,
-  ]
+  // Offer a "None" entry to clear the cell — except on a required column, where
+  // clearing to null can never be committed (required validation rejects it).
+  const singleOptions = column.required
+    ? options
+    : [
+        { value: CLEAR_VALUE, label: <span className='text-[var(--text-muted)]'>None</span> },
+        ...options,
+      ]
 
   return (
     <ChipDropdown

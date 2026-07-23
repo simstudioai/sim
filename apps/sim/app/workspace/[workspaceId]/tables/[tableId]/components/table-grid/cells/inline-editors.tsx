@@ -326,14 +326,26 @@ function InlineTextEditor({
 
 /**
  * Inline editor for `select`/`multiselect` columns — opens the option dropdown
- * immediately and commits the chosen ids when the menu closes.
+ * immediately and commits the chosen ids when the menu closes. Escape discards
+ * the draft (matching the text/date inline editors) rather than committing it.
  */
-function InlineSelectEditor({ value, column, onSave }: InlineEditorProps) {
+function InlineSelectEditor({ value, column, onSave, onCancel }: InlineEditorProps) {
   const initial: string | string[] | null =
     column.type === 'multiselect' ? toSelectedIds(value) : (toSelectedIds(value)[0] ?? null)
   const [draft, setDraft] = useState<string | string[] | null>(initial)
   const latestRef = useRef(draft)
   const doneRef = useRef(false)
+  const cancelledRef = useRef(false)
+
+  // Escape closes the Radix menu (firing `onOpenChange(false)`), which would
+  // otherwise commit. Capture it first so the close handler cancels instead.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cancelledRef.current = true
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [])
 
   const handleChange = useCallback((next: string | string[] | null) => {
     setDraft(next)
@@ -344,9 +356,10 @@ function InlineSelectEditor({ value, column, onSave }: InlineEditorProps) {
     (open: boolean) => {
       if (open || doneRef.current) return
       doneRef.current = true
-      onSave(latestRef.current, 'enter')
+      if (cancelledRef.current) onCancel()
+      else onSave(latestRef.current, 'enter')
     },
-    [onSave]
+    [onSave, onCancel]
   )
 
   return (
