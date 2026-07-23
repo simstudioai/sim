@@ -619,11 +619,15 @@ export async function executeSync(
 
     const seenExternalIds = new Set<string>()
     /**
-     * externalIds whose content update was attempted but failed (hydration
-     * error, or the write itself rejected) — as opposed to `docsFailed` counts
-     * elsewhere, this specifically excludes them from resurrection below: a
-     * tombstoned document whose refresh failed must stay tombstoned rather
-     * than come back visible while still serving stale pre-tombstone content.
+     * externalIds whose content was never verified as current: a hydration
+     * error, a rejected write, or a fulfilled-but-unusable hydration (skipped
+     * as oversized, or an empty re-fetch) that falls back to keeping the
+     * stored content as last-known-good. That fallback is fine for an
+     * already-visible document, but for a tombstoned one it means we still
+     * don't have confirmed-current content — so this excludes them from
+     * resurrection below: a tombstoned document whose refresh didn't actually
+     * land must stay tombstoned rather than come back visible while still
+     * serving stale pre-tombstone content.
      */
     const failedExternalIds = new Set<string>()
 
@@ -710,15 +714,21 @@ export async function executeSync(
                 })
               } else if (op.type === 'update') {
                 // Already-indexed file is kept as last-known-good (not downgraded), so it
-                // counts as unchanged rather than slipping past every result counter.
+                // counts as unchanged rather than slipping past every result counter. Not a
+                // verified refresh, though — see failedExternalIds below.
                 result.docsUnchanged++
+                failedExternalIds.add(op.extDoc.externalId)
               }
               return null
             }
             if (!fullDoc?.content.trim()) {
               // An empty re-fetch leaves an already-indexed update as last-known-good; count
-              // it as unchanged so the totals still reconcile with documents seen.
-              if (op.type === 'update') result.docsUnchanged++
+              // it as unchanged so the totals still reconcile with documents seen. Not a
+              // verified refresh, though — see failedExternalIds below.
+              if (op.type === 'update') {
+                result.docsUnchanged++
+                failedExternalIds.add(op.extDoc.externalId)
+              }
               return null
             }
             const hydratedHash = fullDoc.contentHash ?? op.extDoc.contentHash
