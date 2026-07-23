@@ -90,6 +90,22 @@ function parseCidr(entry: string): ParsedCidr | null {
   const [host, prefixPart, ...rest] = stripEntryLabel(entry).split('/')
   if (rest.length > 0) return null
 
+  // An IPv4-mapped IPv6 host (`::ffff:a.b.c.d`) is canonicalized to IPv4 so it
+  // lands in the same family bucket as the client addresses isAddressAllowed
+  // demotes — otherwise a mapped-form entry compiles into the v6 list and a
+  // mapped client, demoted to v4, would never match it. A prefix on the
+  // mapped form addresses the full 128-bit space, so its meaningful range is
+  // the low 32 bits (>= /96); demote it by 96.
+  const mappedV4 = host.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i)
+  if (mappedV4) {
+    const v4Mapped = parseIpv4(mappedV4[1])
+    if (v4Mapped === null) return null
+    if (prefixPart === undefined) return { kind: 'v4', value: v4Mapped, prefix: 32 }
+    const mappedPrefix = Number(prefixPart)
+    if (!Number.isInteger(mappedPrefix) || mappedPrefix < 96 || mappedPrefix > 128) return null
+    return { kind: 'v4', value: v4Mapped, prefix: mappedPrefix - 96 }
+  }
+
   const v4 = parseIpv4(host)
   if (v4 !== null) {
     const prefix = prefixPart === undefined ? 32 : Number(prefixPart)

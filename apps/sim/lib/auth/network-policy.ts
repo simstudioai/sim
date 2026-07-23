@@ -14,13 +14,13 @@ import {
 import { eq } from 'drizzle-orm'
 import { getMemberOrganizationId } from '@/lib/auth/security-policy'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { env } from '@/lib/core/config/env'
+import { env, isTruthy } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('NetworkPolicy')
 
 /** How long a compiled org network policy is served from process memory. */
-export const NETWORK_POLICY_CACHE_TTL_MS = 60 * 1000
+const NETWORK_POLICY_CACHE_TTL_MS = 60 * 1000
 
 interface ResolvedNetworkPolicy {
   /** Compiled allowlist, or null when no restriction applies. */
@@ -59,7 +59,7 @@ export function getTrustedClientIp(request: Request): string | null {
  * lock an entire org out of the product; the realtime handshake makes the
  * opposite call because denying one socket is cheap.
  */
-export async function getNetworkPolicy(
+async function getNetworkPolicy(
   organizationId: string | null | undefined
 ): Promise<ResolvedNetworkPolicy> {
   if (!organizationId) return NO_POLICY
@@ -119,11 +119,24 @@ const DENIED: NetworkPolicyDecision = {
  * enough for a security team to see who is being blocked and from where.
  */
 const DENIAL_AUDIT_WINDOW_MS = 5 * 60 * 1000
+const DENIAL_AUDIT_MAX_TRACKED = 10_000
 const lastDenialAuditAt = new Map<string, number>()
+
+/** Test-only: clears the denial-audit throttle so suites don't cross-pollute. */
+export function __resetDenialAuditThrottle(): void {
+  lastDenialAuditAt.clear()
+}
 
 function recordDenialAudit(userId: string, organizationId: string, clientIp: string | null): void {
   const last = lastDenialAuditAt.get(userId)
   if (last && Date.now() - last < DENIAL_AUDIT_WINDOW_MS) return
+  // Bound the throttle map: on overflow, drop the oldest-inserted key (Map
+  // preserves insertion order). Denied users are all authenticated, so this
+  // is a slow ceiling, not an attacker-inflatable one.
+  if (lastDenialAuditAt.size >= DENIAL_AUDIT_MAX_TRACKED) {
+    const oldest = lastDenialAuditAt.keys().next().value
+    if (oldest !== undefined) lastDenialAuditAt.delete(oldest)
+  }
   lastDenialAuditAt.set(userId, Date.now())
   recordAudit({
     workspaceId: null,
@@ -153,7 +166,7 @@ export async function enforceOrgNetworkPolicy(
   userId: string | null | undefined,
   resolveClientIp: () => string | null | undefined
 ): Promise<NetworkPolicyDecision> {
-  if (env.DISABLE_ORG_IP_ALLOWLIST) return ALLOWED
+  if (isTruthy(env.DISABLE_ORG_IP_ALLOWLIST)) return ALLOWED
 
   const organizationId = await getMemberOrganizationId(userId)
   if (!organizationId) return ALLOWED

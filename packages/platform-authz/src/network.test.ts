@@ -15,6 +15,7 @@ describe('isValidCidrEntry', () => {
     ' 10.0.0.0/24 ',
     '10.0.0.0/16 # Frankfurt VPN',
     '203.0.113.7 #office',
+    '::ffff:10.0.0.0/120',
   ])('accepts %s', (entry) => {
     expect(isValidCidrEntry(entry)).toBe(true)
   })
@@ -34,6 +35,7 @@ describe('isValidCidrEntry', () => {
     'fe80::%eth0',
     '# label only',
     'banana # labelled garbage',
+    '::ffff:10.0.0.0/24',
   ])('rejects %s', (entry) => {
     expect(isValidCidrEntry(entry)).toBe(false)
   })
@@ -79,6 +81,15 @@ describe('isAddressAllowed', () => {
     expect(compiled.v4).toHaveLength(1)
     expect(isAddressAllowed('10.0.0.1', compiled)).toBe(true)
     expect(isAddressAllowed('203.0.113.7', compiled)).toBe(false)
+  })
+
+  it('matches an IPv4-mapped-IPv6 CIDR entry against demoted mapped clients', () => {
+    const mapped = compileAllowlist(['::ffff:10.0.0.0/120'])
+    expect(mapped.v4).toHaveLength(1)
+    expect(mapped.v6).toHaveLength(0)
+    expect(isAddressAllowed('::ffff:10.0.0.5', mapped)).toBe(true)
+    expect(isAddressAllowed('10.0.0.5', mapped)).toBe(true)
+    expect(isAddressAllowed('::ffff:10.0.1.5', mapped)).toBe(false)
   })
 
   it('labels never affect matching', () => {

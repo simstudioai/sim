@@ -1,4 +1,5 @@
 import { getIp } from '@better-auth/core/utils/ip'
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -72,23 +73,45 @@ async function getOrgAllowlist(organizationId: string): Promise<CompiledAllowlis
 
 interface HandshakeLike {
   headers: Record<string, string | string[] | undefined>
-  address: string
+}
+
+/**
+ * Per-member throttle for socket-denial audit events (this is a separate
+ * process from the app, so it keeps its own map) — one event per member per
+ * window is enough to show who is blocked without a reconnect loop flooding
+ * the log.
+ */
+const DENIAL_AUDIT_WINDOW_MS = 5 * 60 * 1000
+const lastDenialAuditAt = new Map<string, number>()
+
+function recordSocketDenial(userId: string, organizationId: string, clientIp: string | null): void {
+  const last = lastDenialAuditAt.get(userId)
+  if (last && Date.now() - last < DENIAL_AUDIT_WINDOW_MS) return
+  lastDenialAuditAt.set(userId, Date.now())
+  recordAudit({
+    workspaceId: null,
+    actorId: userId,
+    action: AuditAction.ORG_IP_ACCESS_DENIED,
+    resourceType: AuditResourceType.ORGANIZATION,
+    resourceId: organizationId,
+    description: clientIp
+      ? `Denied realtime connection from ${clientIp} by the IP allowlist`
+      : 'Denied realtime connection by the IP allowlist (client IP unresolvable)',
+    metadata: { clientIp, surface: 'realtime' },
+  })
 }
 
 /**
  * Socket-handshake counterpart of the app's org IP-allowlist enforcement.
  * Resolves the client IP with Better Auth's trusted-proxy resolver from the
- * handshake headers (falling back to the socket peer address when no
- * forwarding headers are present), then checks the member org's allowlist.
- * Fail-closed like the app side: an active policy with an unresolvable
- * client IP denies the connection.
+ * handshake headers, then checks the member org's allowlist. Shares the
+ * app's posture: fail-closed on an unresolvable client IP (active policy +
+ * no derivable trusted IP → deny), fail-open on an unexpected/DB error.
  *
  * Plan gating is intentionally absent here — `apps/realtime` cannot import
- * billing code, and over-denial is the safe direction for a security
- * control (the app-side check makes the opposite, fail-open call on DB
- * errors because a blip must not lock an org out of the product). A
- * downgraded org's stored-but-enabled policy therefore keeps gating sockets
- * until the org disables it; the app is the sole writer of the settings.
+ * billing code. A downgraded org's stored-but-enabled policy therefore keeps
+ * gating sockets until the org disables it (the app is the sole writer of
+ * the settings), which is the safe direction for a security control.
  */
 export async function isSocketAllowedByNetworkPolicy(
   userId: string,
@@ -109,20 +132,33 @@ export async function isSocketAllowedByNetworkPolicy(
       if (typeof value === 'string') headers.set(key, value)
       else if (Array.isArray(value)) headers.set(key, value.join(', '))
     }
-    const clientIp =
-      getIp(new Request('http://socket.internal/', { headers }), IP_RESOLUTION_OPTIONS) ??
-      (handshake.address || null)
+    // Trust only the trusted-proxy-resolved address — the same resolution the
+    // app uses. No fallback to the raw socket peer: matching the app's
+    // fail-closed-on-unresolvable-IP behavior is more important than salvaging
+    // a direct-connect address the app-side check would never have accepted.
+    const clientIp = getIp(
+      new Request('http://socket.internal/', { headers }),
+      IP_RESOLUTION_OPTIONS
+    )
 
     if (!clientIp) {
       logger.warn('Denying socket: network policy active but client IP unresolvable', {
         userId,
         organizationId,
       })
+      recordSocketDenial(userId, organizationId, null)
       return false
     }
-    return isAddressAllowed(clientIp, allowlist)
+    if (!isAddressAllowed(clientIp, allowlist)) {
+      recordSocketDenial(userId, organizationId, clientIp)
+      return false
+    }
+    return true
   } catch (error) {
-    logger.error('Network policy check failed; denying socket', { userId, error })
-    return false
+    // Fail OPEN on an unexpected/DB error, matching the app-side network-policy
+    // loader — a transient blip must not lock members out of collaboration.
+    // The primary boundary (policy loaded, IP not allowed) stays fail-closed.
+    logger.error('Network policy check failed; allowing socket', { userId, error })
+    return true
   }
 }
