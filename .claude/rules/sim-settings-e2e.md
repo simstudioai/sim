@@ -1,0 +1,17 @@
+---
+paths:
+  - "apps/sim/**"
+  - "packages/platform-authz/src/workspace.ts"
+  - "packages/platform-authz/src/predicates.ts"
+---
+
+# Settings E2E Maintenance
+
+When a change can affect observable settings routes, copy, visibility,
+authorization, entitlements, mutations, or persisted workflows, read
+`apps/sim/e2e/MAINTENANCE.md` before finishing and assess every applicable
+literal Playwright contract.
+
+Keep acceptance expectations independent of production navigation and
+authorization implementations. Behavior-preserving refactors need focused
+verification, not artificial contract edits.

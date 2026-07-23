@@ -1,20 +1,29 @@
 ---
 paths:
+  - "apps/sim/app/account/settings/**"
+  - "apps/sim/app/organization/*/settings/**"
   - "apps/sim/app/workspace/*/settings/**"
+  - "apps/sim/components/settings/**"
   - "apps/sim/ee/**/components/**"
 ---
 
 # Settings Pages
 
-The Next.js `settings/[section]/layout.tsx` owns all settings page chrome via
-`SettingsHeaderShell` — a fixed header bar (a left back chip + right-aligned
-action chips), a scroll region, and a centered `max-w-[48rem]` content column led
-by a **title + description from navigation metadata**. The chrome stays mounted
-across section navigation (it never re-renders or re-lays-out). Each section
-renders through the **`SettingsPanel`** registrar
-(`@/app/workspace/[workspaceId]/settings/components/settings-panel`), which feeds
-the shell its header data and renders only the section body. Sections supply
-**data**, never chrome.
+All three settings planes share `SettingsHeaderShell` and the canonical
+`SettingsPanel` implementation in `@/components/settings/settings-panel`, but
+their chrome is mounted at different boundaries:
+
+- Account and organization `settings/layout.tsx` mount
+  `StandaloneSettingsShell`, which owns their sidebar, header shell, section
+  provider, and unload guard.
+- Workspace `settings/[section]/layout.tsx` mounts the persistent header shell;
+  the outer workspace `settings/layout.tsx` owns its unload guard.
+
+The active shell owns the fixed header bar (a left back chip + right-aligned
+action chips), scroll region, and centered `max-w-[48rem]` content column led by
+a **title + description from the shared settings registry**. Each section
+renders only its body through `SettingsPanel`; sections supply **data**, never
+chrome.
 
 Do NOT hand-roll any of these in a settings page — they are owned by the layout
 shell (fed through `SettingsPanel`):
@@ -29,6 +38,8 @@ shell (fed through `SettingsPanel`):
 ## Canonical page shape
 
 ```tsx
+// Established section-component import; this compatibility barrel re-exports
+// the canonical @/components/settings/settings-panel implementation.
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 
 return (
@@ -80,21 +91,29 @@ return (
 - `scrollContainerRef?: React.Ref<HTMLDivElement>` — forwards a ref to the scroll
   region (e.g. programmatic scroll-to-bottom).
 
-## Title + description live in navigation metadata
+## Title + description live in the shared settings registry
 
-`apps/sim/app/workspace/[workspaceId]/settings/navigation.ts` is the single source
-of truth. Every `NavigationItem` carries a one-line `description`; `SettingsPanel`
-resolves both via `getSettingsSectionMeta(section)` and the
-`SettingsSectionProvider` the settings shell wraps around the active section.
+`apps/sim/components/settings/navigation.ts` is the single source of truth.
+Each `SettingsSectionRegistryEntry` owns a `unified` projection with the default
+description and gating metadata plus optional account, organization, and
+workspace plane projections. Account and organization shells provide `plane`
+and `section`, so the shared `SettingsPanel` resolves metadata with
+`getSettingsSectionMeta(plane, section)`. The workspace adapter at
+`app/workspace/[workspaceId]/settings/navigation.ts` resolves the mandatory
+unified projection with its one-argument `getSettingsSectionMeta(section)` and
+the workspace renderer passes that metadata to `SettingsSectionProvider`.
 
 Adding a new settings page:
 
-1. Add the `SettingsSection` id + a `NavigationItem` (with `label` **and**
-   `description`) in `navigation.ts`. Keep descriptions verb-first, one line,
-   ~40–55 chars, in the product voice (see `.claude/rules/constitution.md`).
-2. Render the component inside the shell's `effectiveSection` switch in
-   `settings/[section]/settings.tsx`.
-3. Build the component body inside `<SettingsPanel>` — no shell, no title block.
+Follow the procedure in `.claude/skills/add-settings-page/SKILL.md`. The
+non-negotiable architecture invariants are:
+
+- Every registry entry has a mandatory unified projection, workspace renderer,
+  and server-side direct-route outcome.
+- Every optional account, organization, or workspace plane projection has its
+  corresponding renderer and access/feature gate.
+- The component body uses `SettingsPanel`; associated unit tests and every
+  applicable literal browser contract change in the same PR.
 
 ## Text-scale tokens (no literal pixel sizes)
 
@@ -187,8 +206,9 @@ changes" modal:
     (from `@/app/workspace/[workspaceId]/components/credential-detail`). The
     in-view header **Discard** chip (via `SaveDiscardActions onDiscard`) is a
     *reset to original* — distinct from the back-confirm's discard, which leaves.
-- **`useSettingsBeforeUnload`** is mounted **once** in the settings shell
-  (`settings/[section]/settings.tsx`) — never add a per-page `beforeunload`.
+- **`useSettingsBeforeUnload`** is mounted once per active shell boundary:
+  workspace `settings/layout.tsx` and `StandaloneSettingsShell` for account or
+  organization. Never add a per-page `beforeunload`.
 - **Dirty *computation* stays local** (shapes differ: field-compare vs
   normalize+stringify) — only how dirty is *consumed* is shared. Derive it (a
   `const`/`useMemo`), never store it in `useState`.
@@ -218,9 +238,9 @@ exception — it lives outside `[section]` and keeps its own `CredentialDetailLa
 A settings page is design-system-clean when:
 
 - [ ] Its main return is a `<SettingsPanel>` (or `<>…<SettingsPanel>…</>` with modal siblings) — no hand-rolled shell/header/scroll/column.
-- [ ] It renders **no** hand-rolled `<h1>`/description title block — the title comes from nav metadata.
+- [ ] It renders **no** hand-rolled `<h1>`/description title block — the title comes from the shared settings registry.
 - [ ] Header chips are in `actions`; a standalone search is in the `search` prop.
-- [ ] Its `NavigationItem` has an accurate, consistent-length `description`.
+- [ ] Its `SettingsSectionRegistryEntry` has an accurate, consistent-length `unified.description` and only the plane projections it supports.
 - [ ] Detail sub-views and entitlement/loading gates keep their own chrome (intentional).
 - [ ] If it has editable state: Save/Discard go through `SaveDiscardActions`, dirty is wired via `useSettingsUnsavedGuard` (called before any early-return gate), and there is **no** hand-rolled Save button / `beforeunload` / "Unsaved changes" modal.
 - [ ] No business logic, handlers, or conditional rendering changed by the migration.
