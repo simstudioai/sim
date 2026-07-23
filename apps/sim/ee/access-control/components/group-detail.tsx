@@ -749,19 +749,20 @@ function BlockToolRow({
               {deniedCount} blocked
             </ChipTag>
           )}
+          {isBlockAllowed && isExpandable && (
+            <ChevronDown
+              className={cn(
+                'ml-auto size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
+                expanded && 'rotate-180'
+              )}
+            />
+          )}
         </button>
+        {/* Outside the button: an Info trigger is itself a button and cannot nest. */}
         {block.description && (
           <Info side='top' className='flex-shrink-0'>
             {block.description}
           </Info>
-        )}
-        {isBlockAllowed && isExpandable && (
-          <ChevronDown
-            className={cn(
-              'ml-auto size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
-              expanded && 'rotate-180'
-            )}
-          />
         )}
       </div>
       {expanded && isBlockAllowed && isExpandable && (
