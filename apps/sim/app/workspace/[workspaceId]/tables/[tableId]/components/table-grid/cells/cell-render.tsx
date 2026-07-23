@@ -2,8 +2,7 @@
 
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { Badge, Checkbox, cn, comboboxVariants, Tooltip } from '@sim/emcn'
-import { ChevronDown } from '@sim/emcn/icons'
+import { Badge, Checkbox, cn, Tooltip } from '@sim/emcn'
 import { parse } from 'tldts'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import type { RowExecutionMetadata, SelectOption } from '@/lib/table'
@@ -355,31 +354,17 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
       )
 
     case 'select':
-      // Render the combobox chrome (border + chevron) so the cell reads as a
-      // dropdown, reusing emcn's `comboboxVariants` — compacted to the row's
-      // 22px height. Pills stay visible while editing (the inline editor overlays
-      // an invisible trigger and portals its menu below); the chevron flips open.
+      // Chip-only view: just the option pills. Pills stay visible while editing —
+      // the inline editor overlays an invisible trigger and portals its menu
+      // below, so the cell keeps showing the current selection.
       return (
-        <div
-          className={cn(
-            comboboxVariants({ size: 'sm' }),
-            'h-full items-center justify-between gap-1 py-0'
+        <span className='flex min-w-0 items-center gap-1 overflow-hidden'>
+          {kind.options.length > 0 ? (
+            kind.options.map((option) => <SelectPill key={option.id} option={option} />)
+          ) : (
+            <span className='text-[var(--text-muted)] text-small'>None</span>
           )}
-        >
-          <span className='flex min-w-0 flex-1 items-center gap-1 overflow-hidden'>
-            {kind.options.length > 0 ? (
-              kind.options.map((option) => <SelectPill key={option.id} option={option} />)
-            ) : (
-              <span className='text-[var(--text-muted)]'>None</span>
-            )}
-          </span>
-          <ChevronDown
-            className={cn(
-              'ml-1 size-3.5 shrink-0 opacity-50 transition-transform',
-              isEditing && 'rotate-180'
-            )}
-          />
-        </div>
+        </span>
       )
 
     case 'json':
