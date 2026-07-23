@@ -78,6 +78,14 @@ export interface LocalFilesystemMount {
   id: string
   name: string
   uri: string
+  /**
+   * Human-readable host path of the granted directory (home-relative, e.g.
+   * `~/Documents/Notes`), for display in trusted desktop UI such as the
+   * settings page. Optional so a newer web deployment remains compatible with
+   * older installed shells. Never forward this to the copilot backend — tool
+   * results must stay limited to opaque `localfs://` URIs.
+   */
+  path?: string
   /** True when the encrypted grant will be restored after restarting the desktop app. */
   remembered: boolean
 }

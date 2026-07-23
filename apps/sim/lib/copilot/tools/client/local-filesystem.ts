@@ -82,6 +82,30 @@ function successfulData(response: LocalFilesystemResponse): LocalFilesystemData 
   return response.data
 }
 
+/**
+ * Mount objects carry a human-readable host `path` for trusted desktop UI
+ * (the Desktop settings page). Tool results are forwarded to the copilot
+ * backend, which must only ever see display names and opaque localfs:// URIs,
+ * so the host path is dropped here before the completion report.
+ */
+function withoutHostPaths(data: LocalFilesystemData): LocalFilesystemData {
+  if ('mount' in data) {
+    return {
+      ...data,
+      mount: data.mount ? omitPath(data.mount) : data.mount,
+    }
+  }
+  if ('mounts' in data) {
+    return { ...data, mounts: data.mounts.map(omitPath) }
+  }
+  return data
+}
+
+function omitPath<T extends { path?: string }>(mount: T): Omit<T, 'path'> {
+  const { path: _path, ...rest } = mount
+  return rest
+}
+
 async function stageLocalFile(
   args: Record<string, unknown>,
   context: LocalFilesystemExecutionContext
@@ -149,7 +173,9 @@ async function execute(
   if (toolName === LOCAL_FILESYSTEM_TOOL_NAMES.stageFile) {
     return stageLocalFile(args, context)
   }
-  return successfulData(await bridge().localFilesystem(requestForTool(toolName, args)))
+  return withoutHostPaths(
+    successfulData(await bridge().localFilesystem(requestForTool(toolName, args)))
+  )
 }
 
 export function executeLocalFilesystemTool(

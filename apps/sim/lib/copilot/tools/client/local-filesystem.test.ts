@@ -44,7 +44,7 @@ describe('executeLocalFilesystemTool', () => {
     mockReportCompletion.mockResolvedValue(undefined)
   })
 
-  it('executes read-only tools through the desktop bridge and reports the result', async () => {
+  it('executes read-only tools through the desktop bridge and strips host paths from the result', async () => {
     localFilesystem.mockResolvedValue({
       ok: true,
       data: {
@@ -53,6 +53,7 @@ describe('executeLocalFilesystemTool', () => {
             id: 'mount-1',
             name: 'project',
             uri: 'localfs://mount-1/',
+            path: '~/code/project',
             remembered: true,
           },
         ],
@@ -75,6 +76,41 @@ describe('executeLocalFilesystemTool', () => {
               remembered: true,
             },
           ],
+        }
+      )
+    })
+  })
+
+  it('strips the host path from a fresh mount_directory grant before reporting it', async () => {
+    localFilesystem.mockResolvedValue({
+      ok: true,
+      data: {
+        mount: {
+          id: 'mount-2',
+          name: 'Desktop',
+          uri: 'localfs://mount-2/',
+          path: '~/Desktop',
+          remembered: true,
+        },
+        cancelled: false,
+      },
+    })
+
+    executeLocalFilesystemTool('tool-mount', 'local_mount_directory', {}, { workspaceId: 'ws-1' })
+
+    await vi.waitFor(() => {
+      expect(mockReportCompletion).toHaveBeenCalledWith(
+        'tool-mount',
+        'success',
+        'Local filesystem tool completed.',
+        {
+          mount: {
+            id: 'mount-2',
+            name: 'Desktop',
+            uri: 'localfs://mount-2/',
+            remembered: true,
+          },
+          cancelled: false,
         }
       )
     })

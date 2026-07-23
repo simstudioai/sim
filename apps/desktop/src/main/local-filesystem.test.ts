@@ -55,10 +55,12 @@ describe('LocalFilesystemService', () => {
     })
   })
 
-  it('returns an opaque mount URI and never exposes the host path', async () => {
+  it('returns an opaque mount URI plus a display path for trusted UI', async () => {
     const granted = await mount(service)
     expect(granted.uri).toMatch(/^localfs:\/\/[^/]+\/$/)
-    expect(JSON.stringify(granted)).not.toContain(root)
+    // The tmp root is outside the home directory, so the display path is the
+    // canonical absolute path; paths under home render home-relative.
+    expect(granted.path).toBe(await realpath(root))
 
     const listData = dataOf(await service.handle({ operation: 'list_mounts' }))
     expect(listData).toEqual({ mounts: [granted] })

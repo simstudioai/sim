@@ -1,4 +1,5 @@
 import { lstat, readdir, readFile, realpath, stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { basename, isAbsolute, resolve, sep } from 'node:path'
 import type {
   LocalFilesystemData,
@@ -92,6 +93,20 @@ function encodeUriPath(relativePath: string): string {
 function localUri(mountId: string, relativePath = ''): string {
   const encodedPath = encodeUriPath(relativePath)
   return `localfs://${mountId}/${encodedPath}`
+}
+
+/**
+ * Home-relative display form of a granted directory's host path
+ * (`/Users/me/Documents/Notes` -> `~/Documents/Notes`). Shown only in trusted
+ * desktop UI; agent tool results stay limited to opaque localfs:// URIs.
+ */
+function displayPath(rootPath: string): string {
+  const home = homedir()
+  if (rootPath === home) return '~'
+  if (home && rootPath.startsWith(`${home}${sep}`)) {
+    return `~${rootPath.slice(home.length)}`
+  }
+  return rootPath
 }
 
 function parsePositiveInteger(value: unknown, name: string, fallback: number, max: number): number {
@@ -342,6 +357,7 @@ export class LocalFilesystemService {
       id: mount.id,
       name: mount.name,
       uri: mount.uri,
+      path: displayPath(mount.rootPath),
       remembered: mount.remembered,
     }
   }
