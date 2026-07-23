@@ -76,8 +76,15 @@ interface ChipDropdownBaseProps extends VariantProps<typeof chipVariants> {
    * the component (a field label above it) rather than in the selected value.
    */
   'aria-label'?: string
-  /** Id of the element naming the trigger. Pair with a visible field label. */
+  /**
+   * Ids of the elements naming the trigger. Because `aria-labelledby` REPLACES
+   * the name derived from the trigger's contents, include the trigger's own id
+   * alongside the external label's — `\`${labelId} ${triggerId}\`` — or the
+   * selected value is dropped from the accessible name.
+   */
   'aria-labelledby'?: string
+  /** Id for the trigger button. Needed to reference it from `aria-labelledby`. */
+  id?: string
 }
 
 /**
@@ -177,6 +184,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       flush,
       'aria-label': ariaLabel,
       'aria-labelledby': ariaLabelledBy,
+      id,
     } = props
 
     const isMultiple = props.multiple === true
@@ -294,6 +302,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
         <DropdownMenuTrigger asChild disabled={disabled}>
           <button
             ref={ref}
+            id={id}
             type='button'
             disabled={disabled}
             aria-label={ariaLabel}

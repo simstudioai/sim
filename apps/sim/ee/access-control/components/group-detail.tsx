@@ -135,22 +135,28 @@ interface AuthModeFieldProps {
 
 /**
  * The allowed-auth-modes multi-select nested under a platform toggle. Dims and
- * disables together with the toggle that owns it. The left padding lines the
- * sub-label up with its parent's label text (row gutter + checkbox + gap), so
- * the field reads as subordinate to the toggle rather than as a sibling row.
+ * disables together with the toggle that owns it. The left padding lines both
+ * children up with the parent's label text — row gutter (8) + checkbox (16) +
+ * gap (8) = 32 — so the field reads as subordinate rather than as a sibling row.
+ * The dropdown is `flush` so its own `mx-0.5` doesn't push it 2px past the
+ * caption above it.
  */
 function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFieldProps) {
   const labelId = useId()
+  const triggerId = useId()
   return (
-    <div className={cn('flex flex-col gap-1.5 pt-1 pr-2 pb-2 pl-[30px]', disabled && 'opacity-50')}>
+    <div className={cn('flex flex-col gap-1.5 pt-1 pr-2 pb-2 pl-8', disabled && 'opacity-50')}>
       <span id={labelId} className='text-[var(--text-muted)] text-caption'>
         {label}
       </span>
       <ChipDropdown
         multiple
+        flush
         showAllOption={false}
-        allLabel='None'
-        aria-labelledby={labelId}
+        id={triggerId}
+        // Both ids: `aria-labelledby` replaces the content-derived name, so
+        // naming it with the label alone would drop the selected value.
+        aria-labelledby={`${labelId} ${triggerId}`}
         value={value}
         onChange={onChange}
         options={options}
@@ -906,19 +912,21 @@ export function GroupDetail({
     return map
   }, [allBlocks])
 
-  const filteredPlatformFeatures = useMemo(() => {
+  const searchedPlatformFeatures = useMemo(() => {
     const search = platformSearchTerm.trim().toLowerCase()
-    return PLATFORM_FEATURES.filter((f) => {
-      if (
-        search &&
-        !f.label.toLowerCase().includes(search) &&
-        !f.category.toLowerCase().includes(search)
-      ) {
-        return false
-      }
-      return matchesStatusFilter(platformStatusFilter, !editingConfig[f.configKey])
-    })
-  }, [platformSearchTerm, platformStatusFilter, editingConfig])
+    if (!search) return PLATFORM_FEATURES
+    return PLATFORM_FEATURES.filter(
+      (f) => f.label.toLowerCase().includes(search) || f.category.toLowerCase().includes(search)
+    )
+  }, [platformSearchTerm])
+
+  /** Split from the search pass for the same reason as the provider and block lists. */
+  const filteredPlatformFeatures = useMemo(() => {
+    if (platformStatusFilter === 'all') return searchedPlatformFeatures
+    return searchedPlatformFeatures.filter((f) =>
+      matchesStatusFilter(platformStatusFilter, !editingConfig[f.configKey])
+    )
+  }, [searchedPlatformFeatures, platformStatusFilter, editingConfig])
 
   const platformCategories = useMemo(() => {
     const categories: Record<string, typeof PLATFORM_FEATURES> = {}
@@ -949,8 +957,9 @@ export function GroupDetail({
   const trimmedName = editingName.trim()
   const trimmedDescription = editingDescription.trim()
   const nameChanged = trimmedName !== viewingGroup.name
-  // `name` is trimmed by its contract schema, but a description stored before this
-  // PR (or written straight to the API) can still carry padding. The buffer is
+  // `name` is trimmed by its contract schema, but a description stored before
+  // description trimming was added (or written straight to the API) can still
+  // carry padding. The buffer is
   // seeded trimmed and compared against a trimmed baseline, so such a row opens
   // clean instead of being dirty with no way to clear it.
   const descriptionChanged = trimmedDescription !== (viewingGroup.description ?? '').trim()
@@ -1843,10 +1852,10 @@ export function GroupDetail({
                 <div className='flex flex-col gap-0.5'>
                   {features.map((feature) => (
                     <div key={feature.id} className='flex flex-col'>
-                      <div className='flex items-center gap-1.5'>
+                      <div className='flex items-center gap-1.5 rounded-md pr-2 transition-colors hover-hover:bg-[var(--surface-active)]'>
                         <label
                           htmlFor={feature.id}
-                          className='flex flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                          className='flex flex-1 cursor-pointer items-center gap-2 py-[5px] pl-2'
                         >
                           <Checkbox
                             id={feature.id}
