@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { cn, toast, useToast } from '@sim/emcn'
 import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -2525,8 +2526,9 @@ export function TableGrid({
         } catch (error) {
           // Rejects if the row load failed or the payload is too large for the
           // clipboard — either way nothing landed, so report a plain failure
-          // rather than implying a size cap was hit.
-          logger.error(`Failed to ${verbLower} rows`, { error })
+          // rather than implying a size cap was hit. Log the message explicitly:
+          // a DOMException (e.g. lost transient activation) serializes to `{}`.
+          logger.error(`Failed to ${verbLower} rows`, { error: getErrorMessage(error) })
           dismissToastRef.current(loadingToastId)
           toast.error(`Failed to ${verbLower} — please try again`)
           return
