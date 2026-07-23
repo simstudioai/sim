@@ -244,45 +244,51 @@ export function shouldReconcileDeletions(
   return !syncContext?.listingCapped || Boolean(fullSync)
 }
 
-/**
- * Decides whether a zero-document listing should skip deletion reconciliation.
- *
- * An empty listing is normally indistinguishable from a provider outage, so
- * reconciliation is skipped by default rather than risk wiping a knowledge base on
- * a bad response. A connector can set `sourceConfirmedEmpty` on `syncContext` to
- * vouch that it verified the empty result directly against the source — not
- * merely an empty listing page — e.g. a single-resource connector confirming its
- * one source item was trashed/removed via a dedicated metadata lookup.
- */
-export function shouldSkipEmptyListing(
-  externalDocsCount: number,
-  existingDocsCount: number,
-  fullSync: boolean | undefined,
-  syncContext: Record<string, unknown> | undefined
-): boolean {
-  if (externalDocsCount !== 0 || existingDocsCount === 0 || fullSync) return false
-  return !syncContext?.sourceConfirmedEmpty
-}
+/** A stored document's identity, as read back for reconciliation. */
+type ReconciliationDoc = { id: string; externalId: string | null }
 
 /**
- * Decides whether a deletion should be blocked by the mass-deletion safety
- * threshold (more than half of existing documents, over 5) instead of proceeding.
+ * Partitions a connector's stored documents against the current listing into
+ * the three reconciliation actions.
  *
- * This guards against a connector-side bug or transient glitch producing a
- * listing that looks mostly empty. `sourceConfirmedEmpty` bypasses it the same
- * way it bypasses `shouldSkipEmptyListing` — the connector positively verified
- * the deletion against the source rather than merely inferring it from a
- * listing, so the extra caution this threshold provides doesn't apply.
+ * A document absent from a normal (non-fullSync) listing is never purged
+ * immediately — an empty or shrunken listing can equally mean a transient
+ * source outage, and a single bad observation must never cause an
+ * irreversible mass deletion. It is instead marked pending-removal
+ * (`softDeleteIds`), and only becomes eligible for hard deletion
+ * (`hardDeleteIds`) once a *later* sync confirms it's still absent — i.e. it
+ * was already pending-removal (`tombstonedDocs`) coming into this sync. A
+ * document that reappears while pending-removal is resurrected
+ * (`resurrectIds`) regardless of `fullSync`, since presence — unlike absence —
+ * is trustworthy evidence even from a partial listing.
+ *
+ * A forced `fullSync` is an explicit request to reconcile right now: it skips
+ * the grace period and purges everything absent in one pass.
  */
-export function exceedsDeletionSafetyThreshold(
-  removedCount: number,
-  existingCount: number,
-  fullSync: boolean | undefined,
-  syncContext: Record<string, unknown> | undefined
-): boolean {
-  if (fullSync || syncContext?.sourceConfirmedEmpty) return false
-  const deletionRatio = existingCount > 0 ? removedCount / existingCount : 0
-  return deletionRatio > 0.5 && removedCount > 5
+export function partitionSyncReconciliation(
+  existingDocs: ReconciliationDoc[],
+  tombstonedDocs: ReconciliationDoc[],
+  seenExternalIds: Set<string>,
+  fullSync: boolean | undefined
+): { resurrectIds: string[]; softDeleteIds: string[]; hardDeleteIds: string[] } {
+  const resurrectIds = tombstonedDocs
+    .filter((d) => d.externalId && seenExternalIds.has(d.externalId))
+    .map((d) => d.id)
+  const liveMissingIds = existingDocs
+    .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
+    .map((d) => d.id)
+  const tombstonedStillMissingIds = tombstonedDocs
+    .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
+    .map((d) => d.id)
+
+  if (fullSync) {
+    return {
+      resurrectIds,
+      softDeleteIds: [],
+      hardDeleteIds: [...liveMissingIds, ...tombstonedStillMissingIds],
+    }
+  }
+  return { resurrectIds, softDeleteIds: liveMissingIds, hardDeleteIds: tombstonedStillMissingIds }
 }
 
 /**
@@ -548,7 +554,7 @@ export async function executeSync(
       connectorId,
     })
 
-    const [existingDocs, excludedDocs] = await Promise.all([
+    const [existingDocs, tombstonedDocs, excludedDocs] = await Promise.all([
       db
         .select({
           id: document.id,
@@ -561,6 +567,25 @@ export async function executeSync(
             eq(document.connectorId, connectorId),
             isNull(document.archivedAt),
             isNull(document.deletedAt)
+          )
+        ),
+      // Docs already marked pending-removal by a prior sync's reconciliation (see
+      // shouldReconcileDeletions below): absent from the source once, not yet
+      // absent twice in a row. Included in classification so a document that
+      // reappears is recognized as existing (resurrected) rather than re-added
+      // as a duplicate.
+      db
+        .select({
+          id: document.id,
+          externalId: document.externalId,
+          contentHash: document.contentHash,
+        })
+        .from(document)
+        .where(
+          and(
+            eq(document.connectorId, connectorId),
+            isNull(document.archivedAt),
+            isNotNull(document.deletedAt)
           )
         ),
       db
@@ -578,45 +603,10 @@ export async function executeSync(
 
     const excludedExternalIds = new Set(excludedDocs.map((d) => d.externalId).filter(Boolean))
 
-    if (
-      shouldSkipEmptyListing(
-        externalDocs.length,
-        existingDocs.length,
-        options?.fullSync,
-        syncContext
-      )
-    ) {
-      logger.warn(
-        `Source returned 0 documents but ${existingDocs.length} exist — skipping reconciliation`,
-        { connectorId }
-      )
-
-      await completeSyncLog(syncLogId, 'completed', result)
-
-      const now = new Date()
-      await db
-        .update(knowledgeConnector)
-        .set({
-          status: 'active',
-          lastSyncAt: now,
-          lastSyncError: null,
-          nextSyncAt: calculateNextSyncTime(connector.syncIntervalMinutes),
-          consecutiveFailures: 0,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(knowledgeConnector.id, connectorId),
-            isNull(knowledgeConnector.archivedAt),
-            isNull(knowledgeConnector.deletedAt)
-          )
-        )
-
-      return result
-    }
-
-    const existingByExternalId = new Map(
-      existingDocs.filter((d) => d.externalId !== null).map((d) => [d.externalId!, d])
+    const priorByExternalId = new Map(
+      [...existingDocs, ...tombstonedDocs]
+        .filter((d) => d.externalId !== null)
+        .map((d) => [d.externalId!, d])
     )
 
     const seenExternalIds = new Set<string>()
@@ -631,7 +621,7 @@ export async function executeSync(
         continue
       }
 
-      const existing = existingByExternalId.get(extDoc.externalId)
+      const existing = priorByExternalId.get(extDoc.externalId)
       const classification = classifyExternalDoc(extDoc, existing, forceRehydrate)
 
       switch (classification.type) {
@@ -725,7 +715,7 @@ export async function executeSync(
             if (
               op.type === 'update' &&
               !forceRehydrate &&
-              existingByExternalId.get(op.extDoc.externalId)?.contentHash === hydratedHash
+              priorByExternalId.get(op.extDoc.externalId)?.contentHash === hydratedHash
             ) {
               result.docsUnchanged++
               return null
@@ -841,31 +831,40 @@ export async function executeSync(
       }
     }
 
-    if (shouldReconcileDeletions(isIncremental, syncContext, options?.fullSync)) {
-      const removedIds = existingDocs
-        .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
-        .map((d) => d.id)
+    const { resurrectIds, softDeleteIds, hardDeleteIds } = partitionSyncReconciliation(
+      existingDocs,
+      tombstonedDocs,
+      seenExternalIds,
+      options?.fullSync
+    )
 
-      if (removedIds.length > 0) {
-        if (
-          exceedsDeletionSafetyThreshold(
-            removedIds.length,
-            existingDocs.length,
-            options?.fullSync,
-            syncContext
-          )
-        ) {
-          logger.warn(
-            `Skipping deletion of ${removedIds.length}/${existingDocs.length} docs — exceeds safety threshold. Trigger a full sync to force cleanup.`,
-            {
-              connectorId,
-              deletionRatio: Math.round((removedIds.length / existingDocs.length) * 100),
-            }
-          )
-        } else {
-          await hardDeleteDocuments(removedIds, syncLogId)
-          result.docsDeleted += removedIds.length
-        }
+    /**
+     * A document reappearing at the source is trustworthy evidence on its own —
+     * unlike absence, presence never depends on the listing being complete — so
+     * resurrection runs unconditionally, even on an incremental or otherwise
+     * gated sync.
+     */
+    if (resurrectIds.length > 0) {
+      await db.update(document).set({ deletedAt: null }).where(inArray(document.id, resurrectIds))
+      logger.info(`Resurrected ${resurrectIds.length} documents that reappeared at the source`, {
+        connectorId,
+      })
+    }
+
+    if (shouldReconcileDeletions(isIncremental, syncContext, options?.fullSync)) {
+      if (softDeleteIds.length > 0) {
+        await db
+          .update(document)
+          .set({ deletedAt: new Date() })
+          .where(inArray(document.id, softDeleteIds))
+        logger.info(
+          `Marked ${softDeleteIds.length} documents pending removal — absent from source, confirming on next sync`,
+          { connectorId }
+        )
+      }
+      if (hardDeleteIds.length > 0) {
+        await hardDeleteDocuments(hardDeleteIds, syncLogId)
+        result.docsDeleted += hardDeleteIds.length
       }
     }
 
