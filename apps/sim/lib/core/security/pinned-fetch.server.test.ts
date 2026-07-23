@@ -151,6 +151,19 @@ describe('createPinnedFetch', () => {
     expect(await response.text()).toBe('done')
   })
 
+  it('does NOT block a private IP-literal URL (self-hosted-private MCP carve-out)', async () => {
+    mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, byteStream('mcp')))
+    const pinned = createPinnedFetch('10.0.0.5')
+
+    // A self-hosted MCP configured with a private IP-literal URL must still connect — the old
+    // undici.fetch path never ran the SSRF initial-target check that would otherwise block it.
+    const response = await pinned('http://10.0.0.5:3000/mcp', { method: 'POST', body: '{}' })
+
+    expect(mockUndiciRequest).toHaveBeenCalledTimes(1)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('mcp')
+  })
+
   it('reuses one dispatcher across all calls of a single instance', async () => {
     const pinned = createPinnedFetch('203.0.113.10')
     await pinned('https://example.com/a')

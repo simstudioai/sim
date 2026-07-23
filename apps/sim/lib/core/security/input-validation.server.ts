@@ -567,12 +567,16 @@ function assertGuardedRedirectTarget(url: URL): void {
 export async function followRedirectsGuarded(
   rawFetch: (url: string, init: UndiciRequestInit) => Promise<Response>,
   input: string,
-  init: UndiciRequestInit
+  init: UndiciRequestInit,
+  options?: { validateInitialTarget?: boolean }
 ): Promise<Response> {
   let currentUrl = new URL(input)
   // The initial URL gets the same IP-literal check as redirect hops, so the exported
-  // guard is self-contained even when a caller skips its own up-front validation.
-  assertGuardedRedirectTarget(currentUrl)
+  // guard is self-contained even when a caller skips its own up-front validation. The
+  // pinned-private MCP carve-out opts out (`validateInitialTarget: false`): its caller has
+  // already validated the URL and legitimately targets a private IP (a self-hosted server
+  // configured with an IP-literal URL). Redirect HOPS below are always validated regardless.
+  if (options?.validateInitialTarget !== false) assertGuardedRedirectTarget(currentUrl)
   let method = (init.method ?? 'GET').toUpperCase()
   let body = init.body
   let headers = init.headers
@@ -1026,7 +1030,11 @@ export function createPinnedFetchWithDispatcher(
       }
       return response
     }
-    return followRedirectsGuarded(rawFetch, target, undiciInit)
+    // The pinned fetch's caller has already validated the target (and the private carve-out
+    // legitimately pins to a private IP), so skip re-validating the initial URL — otherwise a
+    // self-hosted MCP configured with a private IP-literal URL would be blocked by its own
+    // transport. Redirect hops are still validated inside the follower.
+    return followRedirectsGuarded(rawFetch, target, undiciInit, { validateInitialTarget: false })
   }
 
   return { fetch: pinned, dispatcher }
