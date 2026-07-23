@@ -1,8 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { resetEnvFlagsMock } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetApiKeyWithBYOK, mockExecuteRequest } = vi.hoisted(() => ({
   mockGetApiKeyWithBYOK: vi.fn(),
@@ -62,8 +61,6 @@ function makeAnthropicResponse(): ProviderResponse {
     },
   }
 }
-
-afterAll(resetEnvFlagsMock)
 
 describe('executeProviderRequest — BYOK regression', () => {
   beforeEach(() => {

@@ -54,8 +54,7 @@ describe('checkBillingBlocked', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    setEnvFlags({ isHosted: true })
-    setEnvFlags({ isBillingEnabled: true })
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
     dbChainMockFns.limit.mockResolvedValue([{ blocked: false, blockedReason: null }])
   })
 
@@ -73,8 +72,7 @@ describe('checkBillingEntityBlocked', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    setEnvFlags({ isHosted: true })
-    setEnvFlags({ isBillingEnabled: true })
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mockIsOrganizationBillingBlocked.mockResolvedValue(false)
     dbChainMockFns.limit.mockResolvedValue([])
   })
@@ -113,8 +111,7 @@ describe('checkOrganizationMemberUsageLimit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    setEnvFlags({ isHosted: true })
-    setEnvFlags({ isBillingEnabled: true })
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mockGetOrgMemberUsageLimit.mockResolvedValue(2)
     mockGetOrgMemberUsageForBillingPeriod.mockResolvedValue(1)
   })

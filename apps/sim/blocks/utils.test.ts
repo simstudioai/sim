@@ -88,9 +88,7 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    setEnvFlags({ isHosted: false })
-    setEnvFlags({ isAzureConfigured: false })
-    setEnvFlags({ isOllamaConfigured: false })
+    setEnvFlags({ isHosted: false, isAzureConfigured: false, isOllamaConfigured: false })
     mockProviders.value = {
       base: { models: [], isLoading: false },
       ollama: { models: [], isLoading: false },
@@ -265,8 +263,7 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
 
   describe('self-hosted without OLLAMA_URL', () => {
     it('requires API key for any model (Ollama models cannot appear without OLLAMA_URL)', () => {
-      setEnvFlags({ isHosted: false })
-      setEnvFlags({ isOllamaConfigured: false })
+      setEnvFlags({ isHosted: false, isOllamaConfigured: false })
       expect(evaluateCondition('llama3:latest')).toBe(true)
       expect(evaluateCondition('mistral:latest')).toBe(true)
       expect(evaluateCondition('gpt-4o')).toBe(true)

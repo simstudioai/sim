@@ -7,7 +7,6 @@ import {
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
-  resetEnvFlagsMock,
   schemaMock,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,8 +29,6 @@ vi.mock('@/lib/core/config/env', () => ({
 import { getActivelyBannedUserIds, isBanActive, isEmailBlocked } from '@/lib/auth/ban'
 
 afterAll(resetDbChainMock)
-
-afterAll(resetEnvFlagsMock)
 
 describe('isBanActive', () => {
   it('returns true for a permanent ban', () => {

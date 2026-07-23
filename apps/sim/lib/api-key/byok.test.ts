@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock, resetEnvFlagsMock } from '@sim/testing'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDecryptSecret } = vi.hoisted(() => ({
@@ -51,8 +51,6 @@ const uniqueWorkspaceId = () => `workspace-${++testIndex}`
 const storedKey = (id: string) => ({ id, encryptedApiKey: `encrypted-${id}` })
 
 afterAll(resetDbChainMock)
-
-afterAll(resetEnvFlagsMock)
 
 describe('getBYOKKey', () => {
   beforeEach(() => {

@@ -9,13 +9,7 @@
  */
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import {
-  dbChainMock,
-  dbChainMockFns,
-  loggerMock,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-} from '@sim/testing'
+import { dbChainMock, dbChainMockFns, loggerMock, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -114,8 +108,6 @@ vi.mock('@/lib/mcp/storage', () => ({
 }))
 
 import { mcpService } from '@/lib/mcp/service'
-
-afterAll(resetEnvFlagsMock)
 
 describe('McpService connection reuse wiring', () => {
   beforeEach(() => {

@@ -147,8 +147,7 @@ const KEYLESS_UPDATE_COST_BODY = {
 describe('POST /api/billing/update-cost — workspaceId attribution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    setEnvFlags({ isBillingEnabled: true })
-    setEnvFlags({ isCopilotBillingProtocolRequired: false })
+    setEnvFlags({ isBillingEnabled: true, isCopilotBillingProtocolRequired: false })
     mockCheckInternalApiKey.mockReturnValue({ success: true })
     mockRecordCumulativeUsage.mockResolvedValue({ billed: true, delta: 0.5, total: 0.5 })
     mockCheckAndBillOverageThreshold.mockResolvedValue(undefined)
