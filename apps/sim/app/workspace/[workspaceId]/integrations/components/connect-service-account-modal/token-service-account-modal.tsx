@@ -12,9 +12,10 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isApiClientError } from '@/lib/api/client/errors'
-import type {
-  TokenServiceAccountDescriptor,
-  TokenServiceAccountField,
+import {
+  getTokenServiceAccountErrorMessage,
+  type TokenServiceAccountDescriptor,
+  type TokenServiceAccountField,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   useCreateWorkspaceCredential,
@@ -22,33 +23,6 @@ import {
 } from '@/hooks/queries/credentials'
 
 const logger = createLogger('TokenServiceAccountModal')
-
-const FALLBACK_ERROR_MESSAGE = "We couldn't add this credential. Try again in a moment."
-
-/**
- * Maps server `error.code` values from token service-account verification to
- * user-facing messages, personalized with the provider's own token noun.
- */
-function messageForTokenAccountError(
-  err: unknown,
-  descriptor: TokenServiceAccountDescriptor
-): string {
-  if (isApiClientError(err) && err.code) {
-    switch (err.code) {
-      case 'invalid_credentials':
-        return `We couldn't authenticate with that ${descriptor.tokenNoun}. Double-check it in ${descriptor.serviceLabel} and try again.`
-      case 'site_not_found':
-        return "We couldn't find an account at that domain. Check the spelling and try again."
-      case 'provider_unavailable':
-        return `We couldn't reach ${descriptor.serviceLabel} to verify these credentials. Try again in a moment.`
-      case 'duplicate_display_name':
-        return 'A credential with that name already exists in this workspace.'
-      default:
-        return FALLBACK_ERROR_MESSAGE
-    }
-  }
-  return FALLBACK_ERROR_MESSAGE
-}
 
 function normalizeDomainInput(raw: string): string {
   return raw
@@ -154,7 +128,8 @@ export function TokenServiceAccountModal({
       }
       onOpenChange(false)
     } catch (err: unknown) {
-      setError(messageForTokenAccountError(err, descriptor))
+      const code = isApiClientError(err) ? err.code : undefined
+      setError(getTokenServiceAccountErrorMessage(descriptor, code))
       logger.error(`Failed to add ${descriptor.serviceLabel} service account credential`, err)
     }
   }
