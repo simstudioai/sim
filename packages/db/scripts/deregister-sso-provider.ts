@@ -16,11 +16,15 @@
  */
 
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, gt, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { account, member, ssoProvider, user, verification } from '../schema'
-import { SSO_CALLBACK_INTENT_PREFIX, SSO_PROVIDER_MUTATION_LOCK_KEY } from '../sso-lock'
+import {
+  SSO_CALLBACK_INTENT_PREFIX,
+  SSO_DOMAIN_VERIFICATION_INTENT_PREFIX,
+  SSO_PROVIDER_MUTATION_LOCK_KEY,
+} from '../sso-lock'
 
 const logger = {
   info: (message: string, meta?: any) => {
@@ -130,13 +134,16 @@ async function deregisterSSOProvider(): Promise<boolean> {
         .from(verification)
         .where(
           and(
-            eq(verification.identifier, `${SSO_CALLBACK_INTENT_PREFIX}${specificProviderId}`),
+            inArray(verification.identifier, [
+              `${SSO_CALLBACK_INTENT_PREFIX}${specificProviderId}`,
+              `${SSO_DOMAIN_VERIFICATION_INTENT_PREFIX}${specificProviderId}`,
+            ]),
             gt(verification.expiresAt, new Date())
           )
         )
         .limit(1)
       if (activeCallback) {
-        logger.error('Refusing to delete a provider while an SSO callback is in progress')
+        logger.error('Refusing to delete a provider while an SSO operation is in progress')
         return false
       }
 

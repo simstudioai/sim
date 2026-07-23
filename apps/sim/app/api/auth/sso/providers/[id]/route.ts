@@ -6,7 +6,6 @@ import { NextResponse } from 'next/server'
 import { deleteSsoProviderContract, updateSsoProviderContract } from '@/lib/api/contracts/auth'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth'
-import { assertNoActiveSSOCallbacks } from '@/lib/auth/sso/callback-intent'
 import {
   assertSSOProviderAvailable,
   assertSSOProviderHasNoAccountLinks,
@@ -17,6 +16,7 @@ import {
   SSOManagementError,
   ssoManagementErrorResponse,
 } from '@/lib/auth/sso/management'
+import { assertNoActiveSSOProviderOperations } from '@/lib/auth/sso/provider-operation-intent'
 import { env, isTruthy } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -93,7 +93,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
 
       const currentDomain = requireNormalizedSSODomain(body.domain, currentProvider.domain)
       if (currentDomain !== currentProvider.domain || body.issuer !== currentProvider.issuer) {
-        await assertNoActiveSSOCallbacks(currentProvider.providerId)
+        await assertNoActiveSSOProviderOperations(currentProvider.providerId)
         await assertSSOProviderHasNoAccountLinks(currentProvider.providerId)
       }
       await assertSSOProviderAvailable({
@@ -158,7 +158,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
       const currentProvider = await getManagedSSOProvider(parsed.data.params.id, session.user.id, {
         requireEnterprise: false,
       })
-      await assertNoActiveSSOCallbacks(currentProvider.providerId)
+      await assertNoActiveSSOProviderOperations(currentProvider.providerId)
       await assertSSOProviderHasNoAccountLinks(currentProvider.providerId)
       await auth.api.deleteSSOProvider({
         body: { providerId: currentProvider.providerId },

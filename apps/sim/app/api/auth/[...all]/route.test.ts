@@ -18,7 +18,7 @@ const handlerMocks = vi.hoisted(() => ({
   ),
 }))
 
-vi.mock('@/lib/auth/sso/callback-intent', () => ({
+vi.mock('@/lib/auth/sso/provider-operation-intent', () => ({
   withSSOCallbackIntent: handlerMocks.withSSOCallbackIntent,
 }))
 

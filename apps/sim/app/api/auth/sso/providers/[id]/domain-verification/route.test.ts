@@ -11,6 +11,7 @@ const {
   mockIsOrganizationOnEnterprisePlan,
   mockRequestDomainVerification,
   mockVerifyDomain,
+  mockWithSSODomainVerificationIntent,
   mockWithSSOProviderMutationLock,
   ssoProviderTable,
 } = vi.hoisted(() => ({
@@ -27,6 +28,9 @@ const {
   mockIsOrganizationOnEnterprisePlan: vi.fn(),
   mockRequestDomainVerification: vi.fn(),
   mockVerifyDomain: vi.fn(),
+  mockWithSSODomainVerificationIntent: vi.fn(
+    (_provider: unknown, callback: () => Promise<unknown>) => callback()
+  ),
   mockWithSSOProviderMutationLock: vi.fn((callback: () => Promise<unknown>) => callback()),
   ssoProviderTable: {
     id: 'sso.id',
@@ -74,6 +78,10 @@ vi.mock('@/lib/auth', () => ({
       verifyDomain: mockVerifyDomain,
     },
   },
+}))
+
+vi.mock('@/lib/auth/sso/provider-operation-intent', () => ({
+  withSSODomainVerificationIntent: mockWithSSODomainVerificationIntent,
 }))
 
 vi.mock('@/lib/billing', () => ({
@@ -156,6 +164,10 @@ describe('SSO domain verification façades', () => {
     expect(mockVerifyDomain).toHaveBeenCalledWith(
       expect.objectContaining({ body: { providerId: 'acme-saml' } })
     )
-    expect(mockWithSSOProviderMutationLock).toHaveBeenCalledOnce()
+    expect(mockWithSSODomainVerificationIntent).toHaveBeenCalledWith(
+      { id: 'row-1', providerId: 'acme-saml' },
+      expect.any(Function)
+    )
+    expect(mockWithSSOProviderMutationLock).not.toHaveBeenCalled()
   })
 })

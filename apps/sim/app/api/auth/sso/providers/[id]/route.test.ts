@@ -11,7 +11,7 @@ const {
   mockDeleteSSOProvider,
   mockGetSession,
   mockIsOrganizationOnEnterprisePlan,
-  mockAssertNoActiveSSOCallbacks,
+  mockAssertNoActiveSSOProviderOperations,
   mockUpdateSSOProvider,
   mockWithSSOProviderMutationLock,
   ssoProviderTable,
@@ -33,7 +33,7 @@ const {
   mockDeleteSSOProvider: vi.fn(),
   mockGetSession: vi.fn(),
   mockIsOrganizationOnEnterprisePlan: vi.fn(),
-  mockAssertNoActiveSSOCallbacks: vi.fn(),
+  mockAssertNoActiveSSOProviderOperations: vi.fn(),
   mockUpdateSSOProvider: vi.fn(),
   mockWithSSOProviderMutationLock: vi.fn((callback: () => Promise<unknown>) => callback()),
   ssoProviderTable: {
@@ -91,8 +91,8 @@ vi.mock('@/lib/auth', () => ({
   },
 }))
 
-vi.mock('@/lib/auth/sso/callback-intent', () => ({
-  assertNoActiveSSOCallbacks: mockAssertNoActiveSSOCallbacks,
+vi.mock('@/lib/auth/sso/provider-operation-intent', () => ({
+  assertNoActiveSSOProviderOperations: mockAssertNoActiveSSOProviderOperations,
 }))
 
 vi.mock('@/lib/billing', () => ({
@@ -175,7 +175,7 @@ describe('/api/auth/sso/providers/[id]', () => {
         }),
       })
     )
-    expect(mockAssertNoActiveSSOCallbacks).toHaveBeenCalledWith('acme-saml')
+    expect(mockAssertNoActiveSSOProviderOperations).toHaveBeenCalledWith('acme-saml')
   })
 
   it('re-checks domain overlap inside the mutation lock before updating', async () => {
@@ -206,18 +206,18 @@ describe('/api/auth/sso/providers/[id]', () => {
   })
 
   it('rejects an identity update while an SSO callback is in progress', async () => {
-    mockAssertNoActiveSSOCallbacks.mockRejectedValueOnce(
+    mockAssertNoActiveSSOProviderOperations.mockRejectedValueOnce(
       new SSOManagementError(
-        'An SSO sign-in is currently completing for this provider. Try again shortly.',
+        'An SSO operation is currently completing for this provider. Try again shortly.',
         409,
-        'SSO_CALLBACK_IN_PROGRESS'
+        'SSO_OPERATION_IN_PROGRESS'
       )
     )
 
     const response = await PATCH(createMockRequest('PATCH', SAML_UPDATE), context)
 
     expect(response.status).toBe(409)
-    await expect(response.json()).resolves.toMatchObject({ code: 'SSO_CALLBACK_IN_PROGRESS' })
+    await expect(response.json()).resolves.toMatchObject({ code: 'SSO_OPERATION_IN_PROGRESS' })
     expect(mockUpdateSSOProvider).not.toHaveBeenCalled()
   })
 
@@ -300,7 +300,7 @@ describe('/api/auth/sso/providers/[id]', () => {
     expect(mockDeleteSSOProvider).toHaveBeenCalledWith(
       expect.objectContaining({ body: { providerId: 'acme-saml' } })
     )
-    expect(mockAssertNoActiveSSOCallbacks).toHaveBeenCalledWith('acme-saml')
+    expect(mockAssertNoActiveSSOProviderOperations).toHaveBeenCalledWith('acme-saml')
   })
 
   it('does not delete by stale provider ID when the row disappears before lock acquisition', async () => {

@@ -36,6 +36,7 @@ vi.mock('@sim/db', () => ({
   account: {},
   member: {},
   SSO_CALLBACK_INTENT_PREFIX: 'sso-callback-intent:',
+  SSO_DOMAIN_VERIFICATION_INTENT_PREFIX: 'sso-domain-verification-intent:',
   ssoProvider: state.ssoProviderTable,
   verification: state.verificationTable,
   withSSOProviderMutationLock: state.withLock,
@@ -77,9 +78,13 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
 }))
 vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://app.example.com' }))
 
-import { assertNoActiveSSOCallbacks, withSSOCallbackIntent } from '@/lib/auth/sso/callback-intent'
+import {
+  assertNoActiveSSOProviderOperations,
+  withSSOCallbackIntent,
+  withSSODomainVerificationIntent,
+} from '@/lib/auth/sso/provider-operation-intent'
 
-describe('SSO callback intents', () => {
+describe('SSO provider operation intents', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     state.deleteCalls = 0
@@ -106,7 +111,7 @@ describe('SSO callback intents', () => {
     expect(state.withLock).toHaveBeenCalledOnce()
   })
 
-  it('does not register an intent for an unknown provider', async () => {
+  it('does not register a callback intent for an unknown provider', async () => {
     state.providerExists = false
 
     await withSSOCallbackIntent('missing', async () => {
@@ -114,11 +119,34 @@ describe('SSO callback intents', () => {
     })
   })
 
-  it('blocks identity mutations while an unexpired callback intent exists', async () => {
+  it('releases the mutation lock before DNS verification work', async () => {
+    await withSSODomainVerificationIntent({ id: 'provider-row', providerId: 'acme' }, async () => {
+      expect(state.lockDepth).toBe(0)
+      expect(state.intents).toEqual([{ id: 'intent-1' }])
+    })
+
+    expect(state.intents).toEqual([])
+  })
+
+  it('rejects domain verification if the expected provider disappeared', async () => {
+    state.providerExists = false
+
+    await expect(
+      withSSODomainVerificationIntent(
+        { id: 'provider-row', providerId: 'acme' },
+        async () => undefined
+      )
+    ).rejects.toMatchObject({
+      code: 'SSO_PROVIDER_CHANGED',
+      status: 409,
+    })
+  })
+
+  it('blocks identity mutations while an unexpired operation intent exists', async () => {
     state.intents = [{ id: 'active-intent' }]
 
-    await expect(assertNoActiveSSOCallbacks('acme')).rejects.toMatchObject({
-      code: 'SSO_CALLBACK_IN_PROGRESS',
+    await expect(assertNoActiveSSOProviderOperations('acme')).rejects.toMatchObject({
+      code: 'SSO_OPERATION_IN_PROGRESS',
       status: 409,
     })
   })

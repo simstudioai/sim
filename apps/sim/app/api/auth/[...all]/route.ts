@@ -2,7 +2,7 @@ import { toNextJsHandler } from 'better-auth/next-js'
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
-import { withSSOCallbackIntent } from '@/lib/auth/sso/callback-intent'
+import { withSSOCallbackIntent } from '@/lib/auth/sso/provider-operation-intent'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 

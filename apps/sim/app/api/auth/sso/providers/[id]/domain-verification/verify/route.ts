@@ -1,4 +1,3 @@
-import { withSSOProviderMutationLock } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
@@ -11,6 +10,7 @@ import {
   getManagedSSOProvider,
   ssoManagementErrorResponse,
 } from '@/lib/auth/sso/management'
+import { withSSODomainVerificationIntent } from '@/lib/auth/sso/provider-operation-intent'
 import { env, isTruthy } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -34,15 +34,17 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
     const parsed = await parseRequest(verifySsoDomainContract, request, context)
     if (!parsed.success) return parsed.response
 
-    await withSSOProviderMutationLock(async () => {
-      const provider = await getManagedSSOProvider(parsed.data.params.id, session.user.id, {
-        requireCreator: true,
-      })
-      return auth.api.verifyDomain({
-        body: { providerId: provider.providerId },
-        headers: collectAuthHeaders(request),
-      })
+    const provider = await getManagedSSOProvider(parsed.data.params.id, session.user.id, {
+      requireCreator: true,
     })
+    await withSSODomainVerificationIntent(
+      { id: provider.id, providerId: provider.providerId },
+      () =>
+        auth.api.verifyDomain({
+          body: { providerId: provider.providerId },
+          headers: collectAuthHeaders(request),
+        })
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {
