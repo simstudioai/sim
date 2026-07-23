@@ -329,6 +329,26 @@ export function partitionSyncReconciliation(
 }
 
 /**
+ * Re-filters the three reconciliation ID lists against a fresh ownership
+ * snapshot taken under the connector's `FOR UPDATE` lock, dropping any
+ * document a concurrent "delete connector, keep documents" request already
+ * detached (its `connectorId` no longer matches) since the lists were first
+ * computed.
+ */
+export function filterStillOwnedReconciliationIds(
+  resurrectIds: string[],
+  softDeleteIds: string[],
+  hardDeleteIds: string[],
+  stillOwnedIds: Set<string>
+): { resurrectIds: string[]; softDeleteIds: string[]; hardDeleteIds: string[] } {
+  return {
+    resurrectIds: resurrectIds.filter((id) => stillOwnedIds.has(id)),
+    softDeleteIds: softDeleteIds.filter((id) => stillOwnedIds.has(id)),
+    hardDeleteIds: hardDeleteIds.filter((id) => stillOwnedIds.has(id)),
+  }
+}
+
+/**
  * Resolves tag values from connector metadata using the connector's mapTags function.
  * Translates semantic keys returned by mapTags to actual DB slots using the
  * tagSlotMapping stored in sourceConfig during connector creation.
@@ -516,6 +536,10 @@ export async function executeSync(
     let hasMore = true
     const syncContext: Record<string, unknown> = { syncRunId: generateId() }
 
+    // Shared cutoff for both the tombstone-retry bound below and the stuck-document
+    // retry near the end of this sync — same RETRY_WINDOW_DAYS window, one computation.
+    const retryCutoff = new Date(Date.now() - RETRY_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+
     /**
      * Bounded to the same retry window as the stuck-document retry below: a
      * document whose refresh keeps failing every sync (e.g. permanently
@@ -543,7 +567,7 @@ export async function executeSync(
           eq(document.connectorId, connectorId),
           isNull(document.archivedAt),
           isNotNull(document.deletedAt),
-          gt(document.deletedAt, new Date(Date.now() - RETRY_WINDOW_DAYS * 24 * 60 * 60 * 1000))
+          gt(document.deletedAt, retryCutoff)
         )
       )
       .limit(1)
@@ -991,9 +1015,15 @@ export async function executeSync(
           ).map((d) => d.id)
         )
 
-        safeResurrectIds = resurrectIds.filter((id) => stillOwned.has(id))
-        safeSoftDeleteIds = gatedSoftDeleteIds.filter((id) => stillOwned.has(id))
-        safeHardDeleteIds = gatedHardDeleteIds.filter((id) => stillOwned.has(id))
+        const stillOwnedResult = filterStillOwnedReconciliationIds(
+          resurrectIds,
+          gatedSoftDeleteIds,
+          gatedHardDeleteIds,
+          stillOwned
+        )
+        safeResurrectIds = stillOwnedResult.resurrectIds
+        safeSoftDeleteIds = stillOwnedResult.softDeleteIds
+        safeHardDeleteIds = stillOwnedResult.hardDeleteIds
 
         /**
          * A document reappearing at the source is trustworthy evidence on its
@@ -1055,7 +1085,6 @@ export async function executeSync(
     // abandoned (e.g. the Trigger.dev task process exited before processing completed).
     // Documents uploaded more than RETRY_WINDOW_DAYS ago are not retried.
     const staleProcessingCutoff = new Date(Date.now() - STALE_PROCESSING_MINUTES * 60 * 1000)
-    const retryCutoff = new Date(Date.now() - RETRY_WINDOW_DAYS * 24 * 60 * 60 * 1000)
     const stuckDocs = await db
       .select({
         id: document.id,

@@ -277,6 +277,38 @@ describe('partitionSyncReconciliation', () => {
   })
 })
 
+describe('filterStillOwnedReconciliationIds', () => {
+  it('keeps ids present in the ownership snapshot', async () => {
+    const { filterStillOwnedReconciliationIds } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    const result = filterStillOwnedReconciliationIds(['a'], ['b'], ['c'], new Set(['a', 'b', 'c']))
+
+    expect(result).toEqual({ resurrectIds: ['a'], softDeleteIds: ['b'], hardDeleteIds: ['c'] })
+  })
+
+  it('drops ids a concurrent connector-delete already detached', async () => {
+    const { filterStillOwnedReconciliationIds } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    const result = filterStillOwnedReconciliationIds(['a'], ['b'], ['c'], new Set(['a']))
+
+    expect(result).toEqual({ resurrectIds: ['a'], softDeleteIds: [], hardDeleteIds: [] })
+  })
+
+  it('returns all-empty lists when nothing is still owned', async () => {
+    const { filterStillOwnedReconciliationIds } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    const result = filterStillOwnedReconciliationIds(['a'], ['b'], ['c'], new Set())
+
+    expect(result).toEqual({ resurrectIds: [], softDeleteIds: [], hardDeleteIds: [] })
+  })
+})
+
 describe('resolveTagMapping', () => {
   beforeEach(() => {
     vi.clearAllMocks()
