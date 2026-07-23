@@ -110,6 +110,15 @@ describe('preserveConfluenceCallouts', () => {
     expect(result).toContain('GitLab access requests go to the private channel instead.')
   })
 
+  it.concurrent('preserves word boundaries in a rich, multi-node Panel header', () => {
+    const html =
+      '<div class="panel"><div class="panelHeader"><b>Warning:</b><span>Do not use</span></div>' +
+      '<div class="panelContent"><p>See replacement form.</p></div></div>'
+    const result = preserveConfluenceCallouts(html)
+    expect(result).not.toContain('Warning:Do')
+    expect(result).toContain('[CALLOUT: Warning: Do not use]')
+  })
+
   it.concurrent('falls back to a bare CALLOUT label when a Panel macro has no header text', () => {
     const html =
       '<div class="panel"><div class="panelContent"><p>Untitled panel body.</p></div></div>'

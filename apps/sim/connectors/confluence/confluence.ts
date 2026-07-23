@@ -78,7 +78,7 @@ export function preserveConfluenceCallouts(html: string): string {
 
   $('div.panel').each((_, el) => {
     const $el = $(el)
-    const headerText = $el.find('.panelHeader').first().text().trim()
+    const headerText = extractBlockJoinedText($, $el.find('.panelHeader').first())
     const panelContent = $el.find('.panelContent').first()
     const bodyText = extractBlockJoinedText($, panelContent.length > 0 ? panelContent : $el)
     const label = headerText ? `[CALLOUT: ${headerText}]` : '[CALLOUT]'
