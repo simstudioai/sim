@@ -4,6 +4,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { parse as parseDomain } from 'tldts'
 import { account, session, ssoProvider } from '../schema'
+import { ssoDomainsOverlap } from '../sso-domain'
 
 const connectionString = process.env.POSTGRES_URL ?? process.env.DATABASE_URL
 if (!connectionString) {
@@ -29,10 +30,6 @@ function isRegistrableDomain(value: string): boolean {
     Boolean(parsed.publicSuffix) &&
     parsed.publicSuffix !== value
   )
-}
-
-function domainsOverlap(left: string, right: string): boolean {
-  return left === right || left.endsWith(`.${right}`) || right.endsWith(`.${left}`)
 }
 
 const client = postgres(connectionString, {
@@ -98,7 +95,7 @@ try {
       if (left.organizationId && left.organizationId === right.organizationId) {
         findings.push(`organization ${left.organizationId} owns multiple providers`)
       }
-      if (domainsOverlap(left.domain, right.domain)) {
+      if (ssoDomainsOverlap(left.domain, right.domain)) {
         findings.push(`overlapping domains: ${left.domain} and ${right.domain}`)
       }
     }

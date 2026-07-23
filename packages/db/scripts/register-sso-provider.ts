@@ -46,6 +46,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { parse as parseDomain } from 'tldts'
 import { member, organization, ssoProvider, user } from '../schema'
+import { ssoDomainsOverlap } from '../sso-domain'
 import { SSO_PROVIDER_MUTATION_LOCK_KEY } from '../sso-lock'
 
 interface SSOMapping {
@@ -189,10 +190,6 @@ function normalizeDomain(value: string): string | null {
     !normalized.includes(',')
     ? normalized
     : null
-}
-
-function domainsOverlap(left: string, right: string): boolean {
-  return left === right || left.endsWith(`.${right}`) || right.endsWith(`.${left}`)
 }
 
 function buildSSOConfigFromEnv(): SSOProviderConfig | null {
@@ -700,7 +697,7 @@ async function registerSSOProvider(): Promise<boolean> {
         allProviders.some(
           (provider) =>
             provider.organizationId === organizationId ||
-            domainsOverlap(provider.domain, ssoConfig.domain)
+            ssoDomainsOverlap(provider.domain, ssoConfig.domain)
         )
       ) {
         logger.error(
