@@ -344,7 +344,7 @@ function InlineTextEditor({
  * the text/date inline editors.
  */
 function InlineSelectEditor({ value, column, onSave, onCancel }: InlineEditorProps) {
-  const isMulti = column.type === 'multiselect'
+  const isMulti = !!column.multiple
   const allOptions = column.options ?? []
   const [draft, setDraft] = useState<string[]>(() => toSelectedIds(value))
   const [open, setOpen] = useState(true)
@@ -430,7 +430,7 @@ export function InlineEditor(props: InlineEditorProps) {
   if (props.column.type === 'date') {
     return <InlineDateEditor {...props} />
   }
-  if (props.column.type === 'select' || props.column.type === 'multiselect') {
+  if (props.column.type === 'select') {
     return <InlineSelectEditor {...props} />
   }
   return <InlineTextEditor {...props} />

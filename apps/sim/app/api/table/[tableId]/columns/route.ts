@@ -135,12 +135,18 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
           columnName: updates.name ?? validated.columnName,
           newType: updates.type as NonNullable<typeof updates.type>,
           ...(updates.options !== undefined ? { options: updates.options } : {}),
+          ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
         },
         requestId
       )
-    } else if (updates.options !== undefined) {
+    } else if (updates.options !== undefined || updates.multiple !== undefined) {
       updatedTable = await updateColumnOptions(
-        { tableId, columnName: updates.name ?? validated.columnName, options: updates.options },
+        {
+          tableId,
+          columnName: updates.name ?? validated.columnName,
+          options: updates.options ?? currentColumn?.options ?? [],
+          ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
+        },
         requestId
       )
     }

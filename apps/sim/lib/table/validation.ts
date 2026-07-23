@@ -265,21 +265,18 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
           errors.push(`${column.name} must be valid JSON`)
         }
         break
-      case 'select':
-        if (typeof value !== 'string' || !optionIds(column).has(value)) {
-          errors.push(`${column.name} must be one of the defined options`)
-        }
-        break
-      case 'multiselect': {
-        if (!Array.isArray(value)) {
-          errors.push(`${column.name} must be a list of options`)
-        } else {
-          const ids = optionIds(column)
-          if (!value.every((v) => typeof v === 'string' && ids.has(v))) {
+      case 'select': {
+        const ids = optionIds(column)
+        if (column.multiple) {
+          if (!Array.isArray(value)) {
+            errors.push(`${column.name} must be a list of options`)
+          } else if (!value.every((v) => typeof v === 'string' && ids.has(v))) {
             errors.push(`${column.name} must only contain defined options`)
           } else if (column.required && value.length === 0) {
             errors.push(`Missing required field: ${column.name}`)
           }
+        } else if (typeof value !== 'string' || !ids.has(value)) {
+          errors.push(`${column.name} must be one of the defined options`)
         }
         break
       }
@@ -360,17 +357,21 @@ function coerceValueToColumnType(
       return { ok: false }
     }
     case 'select': {
-      const id = resolveSelectOptionId(value, column.options ?? [])
-      return id !== null ? { ok: true, value: id } : { ok: false }
-    }
-    case 'multiselect': {
-      const raw = Array.isArray(value) ? value : [value]
-      const ids: string[] = []
-      for (const entry of raw) {
-        const id = resolveSelectOptionId(entry, column.options ?? [])
-        if (id !== null && !ids.includes(id)) ids.push(id)
+      const options = column.options ?? []
+      if (column.multiple) {
+        const raw = Array.isArray(value) ? value : [value]
+        const ids: string[] = []
+        for (const entry of raw) {
+          const id = resolveSelectOptionId(entry, options)
+          if (id !== null && !ids.includes(id)) ids.push(id)
+        }
+        return { ok: true, value: ids }
       }
-      return { ok: true, value: ids }
+      // Single: tolerate an array (e.g. right after a multiple→single toggle) by
+      // resolving its first element so the value isn't dropped wholesale.
+      const single = Array.isArray(value) ? value[0] : value
+      const id = single === undefined ? null : resolveSelectOptionId(single, options)
+      return id !== null ? { ok: true, value: id } : { ok: false }
     }
     default:
       return { ok: true, value }
@@ -751,7 +752,7 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
     )
   }
 
-  if (column.type === 'select' || column.type === 'multiselect') {
+  if (column.type === 'select') {
     errors.push(...validateSelectOptions(column))
   } else if (column.options !== undefined) {
     errors.push(`Column "${column.name}" cannot define options for type "${column.type}"`)
@@ -760,7 +761,7 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
   return { valid: errors.length === 0, errors }
 }
 
-/** Validates the option set declared on a `select`/`multiselect` column. */
+/** Validates the option set declared on a `select` column. */
 function validateSelectOptions(column: ColumnDefinition): string[] {
   const errors: string[] = []
   const options = column.options

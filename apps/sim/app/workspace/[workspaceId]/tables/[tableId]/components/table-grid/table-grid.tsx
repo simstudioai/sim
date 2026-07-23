@@ -1447,7 +1447,7 @@ export function TableGrid({
           }
         } else if (column.type === 'date') {
           text = storageToDisplay(String(val), { seconds: true })
-        } else if (column.type === 'select' || column.type === 'multiselect') {
+        } else if (column.type === 'select') {
           // Cells store option ids; measure the rendered pill labels instead so
           // auto-fit doesn't size the column to opaque ids.
           text = resolveSelectOptions(column, val)
@@ -2029,9 +2029,9 @@ export function TableGrid({
         return
       }
 
-      // Select/multiselect: open the inline option dropdown when editable; never
-      // the big text popover. Read-only cells do nothing (like booleans).
-      if (column?.type === 'select' || column?.type === 'multiselect') {
+      // Select: open the inline option dropdown when editable; never the big
+      // text popover. Read-only cells do nothing (like booleans).
+      if (column?.type === 'select') {
         if (canEditRef.current) {
           setEditingCell({ rowId, columnName })
           setInitialCharacter(null)

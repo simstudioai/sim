@@ -148,15 +148,7 @@ export function getTablePlanLimits(): TablePlanLimitsByPlan {
   }
 }
 
-export const COLUMN_TYPES = [
-  'string',
-  'number',
-  'boolean',
-  'date',
-  'json',
-  'select',
-  'multiselect',
-] as const
+export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json', 'select'] as const
 
 /**
  * Fixed, theme-aware palette for `select`/`multiselect` options. Each token maps

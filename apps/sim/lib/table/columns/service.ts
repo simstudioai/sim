@@ -55,6 +55,7 @@ export async function addTableColumn(
     unique?: boolean
     position?: number
     options?: SelectOption[]
+    multiple?: boolean
   },
   requestId: string
 ): Promise<TableDefinition> {
@@ -97,6 +98,7 @@ export async function addTableColumn(
       required: column.required ?? false,
       unique: column.unique ?? false,
       ...(column.options ? { options: column.options } : {}),
+      ...(column.multiple ? { multiple: true } : {}),
     }
 
     const columnValidation = validateColumnDefinition(newColumn)
@@ -514,9 +516,11 @@ export async function updateColumnType(
         )
       )
 
-    // Options the column will carry after the change — a `select`/`multiselect`
-    // value is only compatible if it resolves against this set.
+    // Options the column will carry after the change — a `select` value is only
+    // compatible if it resolves against this set.
+    const isSelectType = data.newType === 'select'
     const targetOptions = data.options ?? column.options ?? []
+    const targetMultiple = data.multiple ?? column.multiple
 
     let incompatibleCount = 0
     for (const row of rows) {
@@ -535,13 +539,17 @@ export async function updateColumnType(
       )
     }
 
-    const isSelectType = data.newType === 'select' || data.newType === 'multiselect'
     const updatedColumns = schema.columns.map((c, i) => {
       if (i !== columnIndex) return c
-      // Drop any prior options, then re-add when the target type uses them.
-      const { options: _prevOptions, ...rest } = c
+      // Drop any prior select config, then re-add when the target type uses it.
+      const { options: _prevOptions, multiple: _prevMultiple, ...rest } = c
       return isSelectType
-        ? { ...rest, type: data.newType, options: data.options ?? c.options }
+        ? {
+            ...rest,
+            type: data.newType,
+            options: data.options ?? c.options,
+            ...(targetMultiple ? { multiple: true } : {}),
+          }
         : { ...rest, type: data.newType }
     })
 
@@ -657,9 +665,10 @@ export async function updateColumnConstraints(
 }
 
 /**
- * Updates the option set of a `select`/`multiselect` column without changing its
- * type. Existing cell values are left untouched — ids that no longer match an
- * option render as a neutral fallback pill until reassigned.
+ * Updates the option set (and optional single/multi mode) of a `select` column
+ * without changing its type. Existing cell values are left untouched — ids that
+ * no longer match an option render as a neutral fallback pill until reassigned;
+ * a single↔multi toggle is reconciled lazily on the next row write.
  */
 export async function updateColumnOptions(
   data: UpdateColumnOptionsData,
@@ -673,11 +682,16 @@ export async function updateColumnOptions(
     }
 
     const column = schema.columns[columnIndex]
-    if (column.type !== 'select' && column.type !== 'multiselect') {
+    if (column.type !== 'select') {
       throw new Error(`Cannot set options on column "${column.name}" of type "${column.type}"`)
     }
 
-    const updatedColumn = { ...column, options: data.options }
+    const { multiple: _prevMultiple, ...columnRest } = column
+    const updatedColumn = {
+      ...columnRest,
+      options: data.options,
+      ...((data.multiple ?? column.multiple) ? { multiple: true } : {}),
+    }
     const columnValidation = validateColumnDefinition(updatedColumn)
     if (!columnValidation.valid) {
       throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
@@ -701,11 +715,11 @@ export async function updateColumnOptions(
 }
 
 /**
- * Checks if a value is compatible with a target column type. For
- * `select`/`multiselect`, `targetOptions` is the option set the column will
- * carry after the change: a value is compatible only if every part of it
- * resolves to one of those options (by id or name). This blocks a conversion
- * that would otherwise strand or silently drop values on the next row write.
+ * Checks if a value is compatible with a target column type. For `select`,
+ * `targetOptions` is the option set the column will carry after the change: a
+ * value is compatible only if every part of it resolves to one of those options
+ * (by id or name). This blocks a conversion that would otherwise strand or
+ * silently drop values on the next row write.
  */
 function isValueCompatibleWithType(
   value: unknown,
@@ -717,9 +731,8 @@ function isValueCompatibleWithType(
   switch (targetType) {
     case 'string':
       return true
-    case 'select':
-      return resolveSelectOptionId(value as JsonValue, targetOptions) !== null
-    case 'multiselect': {
+    case 'select': {
+      // Single or multi, every part of the value must resolve to an option.
       const parts = Array.isArray(value) ? value : [value]
       return parts.every((v) => resolveSelectOptionId(v as JsonValue, targetOptions) !== null)
     }

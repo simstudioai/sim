@@ -30,10 +30,10 @@ export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
  */
 export const columnTypeSchema = z.enum(COLUMN_TYPES)
 
-/** Fixed palette token for a `select`/`multiselect` option. */
+/** Fixed palette token for a `select` option. */
 export const selectColorSchema = z.enum(SELECT_COLORS)
 
-/** One choice in a `select`/`multiselect` column. `id` is the stable cell key. */
+/** One choice in a `select` column. `id` is the stable cell key. */
 export const selectOptionSchema = z.object({
   id: z.string().min(1, 'Option id is required'),
   name: z
@@ -48,16 +48,15 @@ export const selectOptionsSchema = z
   .max(MAX_SELECT_OPTIONS, `A select column cannot have more than ${MAX_SELECT_OPTIONS} options`)
 
 /**
- * Cross-field rule: `select`/`multiselect` columns must declare a non-empty
- * option set; other types must not carry options. Skipped when `type` is absent
- * (an options-only update on an existing select column).
+ * Cross-field rule: a `select` column must declare a non-empty option set;
+ * other types must not carry options. Skipped when `type` is absent (an
+ * options-only update on an existing select column).
  */
 function refineColumnOptions(
   data: { type?: (typeof COLUMN_TYPES)[number]; options?: z.infer<typeof selectOptionsSchema> },
   ctx: z.RefinementCtx
 ): void {
-  const isSelect = data.type === 'select' || data.type === 'multiselect'
-  if (isSelect) {
+  if (data.type === 'select') {
     if (!data.options || data.options.length === 0) {
       ctx.addIssue({
         code: 'custom',
@@ -69,7 +68,7 @@ function refineColumnOptions(
     ctx.addIssue({
       code: 'custom',
       path: ['options'],
-      message: 'options are only allowed on select or multiselect columns',
+      message: 'options are only allowed on select columns',
     })
   }
 }
@@ -138,8 +137,10 @@ export const tableColumnSchema = z
     unique: z.boolean().optional().default(false),
     /** Set when the column is a workflow group's output. */
     workflowGroupId: z.string().optional(),
-    /** Declared options for a `select`/`multiselect` column. */
+    /** Declared options for a `select` column. */
     options: selectOptionsSchema.optional(),
+    /** A `select` column that accepts multiple options per cell. */
+    multiple: z.boolean().optional(),
   })
   .superRefine(refineColumnOptions)
 
@@ -177,6 +178,7 @@ export const createTableColumnBodySchema = z.object({
       unique: z.boolean().optional(),
       position: z.number().int().min(0).optional(),
       options: selectOptionsSchema.optional(),
+      multiple: z.boolean().optional(),
     })
     .superRefine(refineColumnOptions),
 })
@@ -191,6 +193,7 @@ export const updateTableColumnBodySchema = z.object({
       required: z.boolean().optional(),
       unique: z.boolean().optional(),
       options: selectOptionsSchema.optional(),
+      multiple: z.boolean().optional(),
     })
     .superRefine(refineColumnOptions),
 })

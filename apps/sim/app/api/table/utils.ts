@@ -280,5 +280,6 @@ export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
     unique: col.unique ?? false,
     ...(col.workflowGroupId ? { workflowGroupId: col.workflowGroupId } : {}),
     ...(col.options ? { options: col.options } : {}),
+    ...(col.multiple ? { multiple: true } : {}),
   }
 }

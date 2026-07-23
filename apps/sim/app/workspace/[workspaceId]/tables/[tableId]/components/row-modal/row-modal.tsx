@@ -276,7 +276,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
     )
   }
 
-  if (column.type === 'select' || column.type === 'multiselect') {
+  if (column.type === 'select') {
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
         <SelectValueEditor column={column} value={value} onChange={onChange} fullWidth />

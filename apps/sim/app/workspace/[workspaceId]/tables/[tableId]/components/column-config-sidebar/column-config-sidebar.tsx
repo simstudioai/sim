@@ -16,7 +16,7 @@ import { PLAIN_COLUMN_TYPE_OPTIONS } from './column-types'
 
 /** Whether a column type carries an option set. */
 function isSelectType(type: ColumnDefinition['type']): boolean {
-  return type === 'select' || type === 'multiselect'
+  return type === 'select'
 }
 
 function optionsEqual(a: SelectOption[], b: SelectOption[]): boolean {
@@ -107,6 +107,9 @@ function ColumnConfigBody({
   const [optionsInput, setOptionsInput] = useState<SelectOption[]>(() =>
     config.mode === 'edit' ? (existingColumn?.options ?? []) : []
   )
+  const [multipleInput, setMultipleInput] = useState<boolean>(() =>
+    config.mode === 'edit' ? !!existingColumn?.multiple : false
+  )
   const [showValidation, setShowValidation] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
@@ -143,8 +146,10 @@ function ColumnConfigBody({
         await addColumn.mutateAsync({
           name: trimmedName,
           type: typeInput,
-          ...(uniqueInput ? { unique: true } : {}),
+          // Select columns don't expose a unique constraint.
+          ...(!wantsOptions && uniqueInput ? { unique: true } : {}),
           ...(wantsOptions ? { options: trimmedOptions } : {}),
+          ...(wantsOptions && multipleInput ? { multiple: true } : {}),
         })
         toast.success(`Added "${trimmedName}"`)
         onClose()
@@ -155,20 +160,24 @@ function ColumnConfigBody({
       // name to detect an actual rename.
       const renamed = trimmedName !== (existingColumn?.name ?? config.columnName)
       const typeChanged = !!existingColumn && existingColumn.type !== typeInput
-      const uniqueChanged = !!existingColumn && !!existingColumn.unique !== uniqueInput
+      const uniqueChanged =
+        !wantsOptions && !!existingColumn && !!existingColumn.unique !== uniqueInput
       const optionsChanged =
         wantsOptions && !optionsEqual(existingColumn?.options ?? [], trimmedOptions)
+      const multipleChanged = wantsOptions && !!existingColumn?.multiple !== multipleInput
 
       const updates: {
         name?: string
         type?: ColumnDefinition['type']
         unique?: boolean
         options?: SelectOption[]
+        multiple?: boolean
       } = {
         ...(renamed ? { name: trimmedName } : {}),
         ...(typeChanged ? { type: typeInput } : {}),
         ...(uniqueChanged ? { unique: uniqueInput } : {}),
         ...(wantsOptions && (typeChanged || optionsChanged) ? { options: trimmedOptions } : {}),
+        ...(wantsOptions && (typeChanged || multipleChanged) ? { multiple: multipleInput } : {}),
       }
       if (Object.keys(updates).length === 0) {
         onClose()
@@ -262,20 +271,34 @@ function ColumnConfigBody({
               />
               {optionsError && <FieldError message={optionsError} />}
             </div>
+            <FieldDivider />
+            <div className='flex items-center justify-between pl-0.5'>
+              <Label htmlFor='column-sidebar-multiple'>Allow multiple</Label>
+              <Switch
+                id='column-sidebar-multiple'
+                checked={multipleInput}
+                onCheckedChange={(v) => setMultipleInput(!!v)}
+              />
+            </div>
           </>
         )}
 
-        <FieldDivider />
-        <div className='flex flex-col gap-[9.5px]'>
-          <div className='flex items-center justify-between pl-0.5'>
-            <Label htmlFor='column-sidebar-unique'>Unique</Label>
-            <Switch
-              id='column-sidebar-unique'
-              checked={uniqueInput}
-              onCheckedChange={(v) => setUniqueInput(!!v)}
-            />
-          </div>
-        </div>
+        {/* Select columns don't expose a unique constraint. */}
+        {!wantsOptions && (
+          <>
+            <FieldDivider />
+            <div className='flex flex-col gap-[9.5px]'>
+              <div className='flex items-center justify-between pl-0.5'>
+                <Label htmlFor='column-sidebar-unique'>Unique</Label>
+                <Switch
+                  id='column-sidebar-unique'
+                  checked={uniqueInput}
+                  onCheckedChange={(v) => setUniqueInput(!!v)}
+                />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className='flex items-center justify-end gap-2 border-[var(--border)] border-t px-2 py-3'>

@@ -1,7 +1,6 @@
 import type React from 'react'
 import {
   Calendar as CalendarIcon,
-  ClipboardList,
   PlayOutline,
   TagIcon,
   TypeBoolean,
@@ -31,7 +30,6 @@ export const COLUMN_TYPE_OPTIONS: ColumnTypeOption[] = [
   { type: 'date', label: 'Date', icon: CalendarIcon },
   { type: 'json', label: 'JSON', icon: TypeJson },
   { type: 'select', label: 'Select', icon: TagIcon },
-  { type: 'multiselect', label: 'Multi-select', icon: ClipboardList },
   { type: 'workflow', label: 'Workflow', icon: PlayOutline },
 ]
 

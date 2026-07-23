@@ -29,7 +29,7 @@ export function SelectValueEditor({
   fullWidth,
   align = 'start',
 }: SelectValueEditorProps) {
-  const isMulti = column.type === 'multiselect'
+  const isMulti = !!column.multiple
   const options = useMemo(
     () =>
       (column.options ?? []).map((option) => ({

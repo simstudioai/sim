@@ -4,7 +4,6 @@ import type React from 'react'
 import { Tooltip } from '@sim/emcn'
 import {
   Calendar as CalendarIcon,
-  ClipboardList,
   PlayOutline,
   TagIcon,
   TypeBoolean,
@@ -22,7 +21,6 @@ export const COLUMN_TYPE_ICONS: Record<string, React.ElementType> = {
   date: CalendarIcon,
   json: TypeJson,
   select: TagIcon,
-  multiselect: ClipboardList,
 }
 
 interface ColumnTypeIconProps {

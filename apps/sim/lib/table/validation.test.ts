@@ -23,7 +23,8 @@ const selectColumn: ColumnDefinition = {
 const multiselectColumn: ColumnDefinition = {
   id: 'col_tags',
   name: 'tags',
-  type: 'multiselect',
+  type: 'select',
+  multiple: true,
   options: [
     { id: 'opt_a', name: 'Alpha', color: 'blue' },
     { id: 'opt_b', name: 'Beta', color: 'purple' },

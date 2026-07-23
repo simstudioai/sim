@@ -56,10 +56,12 @@ export interface ColumnDefinition {
    */
   workflowGroupId?: string
   /**
-   * Declared options for a `select`/`multiselect` column. Cells store option
-   * ids (a single id for `select`, an array of ids for `multiselect`).
+   * Declared options for a `select` column. Cells store option ids — a single
+   * id when `multiple` is falsy, an array of ids when `multiple` is true.
    */
   options?: SelectOption[]
+  /** When true, a `select` column accepts several options per cell (string[]). */
+  multiple?: boolean
 }
 
 /** One group output → one plain column. */
@@ -659,14 +661,18 @@ export interface UpdateColumnTypeData {
   tableId: string
   columnName: string
   newType: (typeof COLUMN_TYPES)[number]
-  /** Options to set when changing to a `select`/`multiselect` type. */
+  /** Options to set when changing to a `select` type. */
   options?: SelectOption[]
+  /** Whether the `select` column accepts multiple options per cell. */
+  multiple?: boolean
 }
 
 export interface UpdateColumnOptionsData {
   tableId: string
   columnName: string
   options: SelectOption[]
+  /** Toggle single/multi selection alongside the options update. */
+  multiple?: boolean
 }
 
 export interface UpdateColumnConstraintsData {
