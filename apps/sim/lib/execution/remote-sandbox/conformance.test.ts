@@ -410,4 +410,20 @@ describe('provider selection', () => {
     // Callbacks still fire for live streaming.
     expect(streamedOut.join('')).toContain('__BASE_SHA__=abc123')
   })
+
+  it('enforces the timeout on a hung streaming command', async () => {
+    useProvider('daytona')
+    // runAsync returns immediately, so a never-resolving log stream must be
+    // bounded by the timeout rather than awaited forever.
+    mockGetSessionCommandLogs.mockReturnValue(new Promise<void>(() => {}))
+
+    const result = await withPiSandbox((runner) =>
+      runner.run('hang forever', { timeoutMs: 20, onStdout: () => {} })
+    )
+
+    expect(result.exitCode).toBe(124)
+    expect(result.stderr).toContain('timed out')
+    // The session is deleted to terminate the still-running command.
+    expect(mockDeleteSession).toHaveBeenCalled()
+  })
 })

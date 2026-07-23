@@ -1616,12 +1616,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
-    // Sandbox file mounts and sandboxPath exports only exist in the E2B
-    // runtime; isolated-vm has no filesystem. Silently dropping a declared
+    // Sandbox file mounts and sandboxPath exports only exist in the remote
+    // sandbox runtime; isolated-vm has no filesystem. Silently dropping a declared
     // sandbox input/output here produced "export succeeded" responses with
     // zero bytes written, so refuse the call instead. The remediation depends
     // on WHY this call runs in isolated-vm — "switch to python" is a dead end
-    // when E2B is disabled or the call is a custom tool.
+    // when no remote sandbox is enabled or the call is a custom tool.
     if (
       !useRemoteSandbox &&
       (outputSandboxPaths.length > 0 || outputSandboxPath || _sandboxFiles?.length)
@@ -1630,7 +1630,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         ? "No remote code sandbox is enabled on this deployment, so there is no sandbox filesystem for any language. Pass input data via params and return output as the code's return value with outputs.files[].path (no sandboxPath)."
         : isCustomTool
           ? "custom tools always run in the isolated JavaScript VM, which has no sandbox filesystem. Pass input data via params and return output as the code's return value."
-          : 'plain JavaScript runs in the isolated VM, which has no sandbox filesystem. Use language "python" so the code runs in the E2B sandbox, or drop sandboxPath and return the file content as the code\'s return value with outputs.files[].path.'
+          : 'plain JavaScript runs in the isolated VM, which has no sandbox filesystem. Use language "python" so the code runs in the remote sandbox, or drop sandboxPath and return the file content as the code\'s return value with outputs.files[].path.'
       return functionJsonResponse(
         {
           success: false,

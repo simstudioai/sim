@@ -130,6 +130,10 @@ class DaytonaSandboxHandle implements SandboxHandle {
   ): Promise<SandboxCommandResult> {
     const sessionId = `sim-${generateShortId(12)}`
     await this.sandbox.process.createSession(sessionId)
+    // Declared outside the try so the catch can return whatever streamed before a
+    // failure, rather than blanking the output.
+    let stdout = ''
+    let stderr = ''
     try {
       let script = command
       if (options.envs && Object.keys(options.envs).length > 0) {
@@ -152,24 +156,46 @@ class DaytonaSandboxHandle implements SandboxHandle {
       // and format failures from stderr, so returning empty strings here would
       // both break marker extraction and blank out error messages even though
       // the callbacks fired correctly.
-      let stdout = ''
-      let stderr = ''
-      await this.sandbox.process.getSessionCommandLogs(
-        sessionId,
-        commandId,
-        (chunk: string) => {
-          stdout += chunk
-          options.onStdout?.(chunk)
-        },
-        (chunk: string) => {
-          stderr += chunk
-          options.onStderr?.(chunk)
+      const streamed = this.sandbox.process
+        .getSessionCommandLogs(
+          sessionId,
+          commandId,
+          (chunk: string) => {
+            stdout += chunk
+            options.onStdout?.(chunk)
+          },
+          (chunk: string) => {
+            stderr += chunk
+            options.onStderr?.(chunk)
+          }
+        )
+        .then(() => 'done' as const)
+
+      // `runAsync: true` returns immediately, so the timeout must be enforced here
+      // — otherwise a hung command streams forever, unlike E2B's commands.run
+      // which honors timeoutMs for the whole run. On timeout, the finally's
+      // deleteSession terminates the still-running command.
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const timedOut = new Promise<'timeout'>((resolve) => {
+        timer = setTimeout(() => resolve('timeout'), options.timeoutMs)
+      })
+      try {
+        const outcome = await Promise.race([streamed, timedOut])
+        if (outcome === 'timeout') {
+          return {
+            stdout,
+            stderr: stderr || `Command timed out after ${options.timeoutMs}ms`,
+            exitCode: 124,
+          }
         }
-      )
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
+
       const finished = await this.sandbox.process.getSessionCommand(sessionId, commandId)
       return { stdout, stderr, exitCode: finished.exitCode ?? 0 }
     } catch (error) {
-      return { stdout: '', stderr: getErrorMessage(error), exitCode: 1 }
+      return { stdout, stderr, exitCode: 1 }
     } finally {
       try {
         await this.sandbox.process.deleteSession(sessionId)

@@ -211,7 +211,7 @@ export async function compileDocForWrite(args: {
       ok: false,
       message: isDocSandboxEnabled
         ? 'Excel (.xlsx) generation is currently behind the mothership-beta feature flag and is not available.'
-        : 'Excel (.xlsx) generation requires the E2B document sandbox, which is not enabled in this environment.',
+        : 'Excel (.xlsx) generation requires the document sandbox, which is not enabled in this environment.',
     }
   }
 
