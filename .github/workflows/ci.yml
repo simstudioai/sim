@@ -34,135 +34,9 @@ permissions:
   contents: read
 
 jobs:
-  # Promotion PRs (staging→main etc.) double-run the test suite: every commit
-  # on staging/main already gets a push-event run of the exact same test-build,
-  # and the pull_request "synchronize" run for the open release PR re-runs it on
-  # the same sha seconds later (~39 duplicate runs / 5 days measured Jul 2026).
-  # This gate skips the PR run's test-build ONLY when it can prove the identical
-  # work already passed elsewhere:
-  #   1. the PR base adds no file changes over the merge base with the head sha
-  #      (compare head...base has an empty diff), so the merge result's tree is
-  #      identical to the head tree the push run tested. Plain ancestry is not
-  #      enough of a check here: main's merge-only ruleset leaves merge commits
-  #      on main that staging lacks, so main...staging is permanently
-  #      "diverged" — but those merge commits carry no tree delta. A real
-  #      hotfix landed directly on the base makes the diff non-empty and we
-  #      run tests here;
-  #   2. the push-event CI run at the same head sha finished its test jobs with
-  #      conclusion success (polled, since push + PR runs start simultaneously).
-  # Fail-open by construction: any API error, timeout, missing run, or push-run
-  # failure leaves covered=false and the PR run tests normally, so the PR check
-  # is green only if tests passed either here or on the identical tree. Not a
-  # workflow-level filter on purpose — a job-level skip still reports a
-  # (successful) check context. NOTE: when test-build is skipped, its nested
-  # "Test and Build / ..." contexts are not created; verified 2026-07-22 that
-  # no required status checks are configured on main/staging (rulesets contain
-  # only pull_request/deletion/non_fast_forward). If required checks are ever
-  # added, require the caller "Test and Build" context, not the nested ones.
-  # dev is excluded: push runs on dev skip test-build, so dev-headed PRs have
-  # no push-run coverage to reuse.
-  dedup-promotion:
-    name: Dedup Promotion PR
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 15
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      contains(fromJSON('["main", "staging"]'), github.event.pull_request.head.ref)
-    permissions:
-      contents: read
-      actions: read
-    outputs:
-      covered: ${{ steps.probe.outputs.covered }}
-    steps:
-      - name: Probe for a passing push run at the same sha
-        id: probe
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-        run: |
-          COVERED=false
-
-          # (1) Merge-tree equivalence: compare head...base diffs the merge
-          # base against the base tip. An empty diff means the base contributes
-          # nothing beyond what head already contains (merge commits only), so
-          # the PR merge tree equals the head tree the push run tested. Any
-          # error yields "unknown" and we run the tests.
-          BASE_DELTA="$(gh api "repos/${REPO}/compare/${HEAD_SHA}...${BASE_SHA}" --jq '.files | length' 2>/dev/null || echo unknown)"
-          if [ "$BASE_DELTA" != "0" ]; then
-            echo "Base tip changes ${BASE_DELTA} file(s) over the merge base; merge tree differs from head — running tests in this PR run."
-            echo "covered=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # (2) Poll the push-event CI run's test jobs (they start seconds after
-          # this run and take ~4 min). Any conclusion other than success, or
-          # deadline expiry, falls through to covered=false.
-          DEADLINE=$((SECONDS + 600))
-          while [ "$SECONDS" -lt "$DEADLINE" ]; do
-            RUN_JSON="$(gh api "repos/${REPO}/actions/workflows/ci.yml/runs?event=push&head_sha=${HEAD_SHA}&per_page=5" 2>/dev/null || echo '')"
-            RUN_ID="$(printf '%s' "$RUN_JSON" | jq -r '.workflow_runs[0].id // empty' 2>/dev/null || echo '')"
-            if [ -n "$RUN_ID" ]; then
-              # Jobs from the reusable test-build workflow are prefixed
-              # "Test and Build /". If that name ever changes, fall back to the
-              # overall run conclusion (stricter, still correct).
-              STATE="$(gh api "repos/${REPO}/actions/runs/${RUN_ID}/jobs?per_page=100" --jq '
-                [.jobs[] | select(.name | startswith("Test and Build /"))] as $t |
-                if ($t | length) == 0 then "nojobs"
-                elif all($t[]; .conclusion == "success") then "success"
-                elif any($t[]; .conclusion != null and .conclusion != "success") then "failed"
-                else "pending" end' 2>/dev/null || echo pending)"
-              if [ "$STATE" = "nojobs" ]; then
-                # Nested reusable-workflow jobs appear only after the caller
-                # starts, so an in-progress run with no "Test and Build /"
-                # jobs yet just needs another poll. Once the run has
-                # COMPLETED without them, fail closed: the job was renamed or
-                # tests were skipped — never infer coverage from the overall
-                # run conclusion. Update the prefix here on a rename.
-                RUN_STATUS="$(printf '%s' "$RUN_JSON" | jq -r '.workflow_runs[0].status // "unknown"' 2>/dev/null || echo unknown)"
-                if [ "$RUN_STATUS" = "completed" ]; then
-                  echo "Push run ${RUN_ID} completed with no 'Test and Build /' jobs — running tests in this PR run (update the prefix if the job was renamed)."
-                  break
-                fi
-                STATE="pending"
-              fi
-              if [ "$STATE" = "success" ]; then
-                # (3) Re-verify merge-tree equivalence against the LIVE base
-                # tip at decision time: the base branch may have gained real
-                # commits during the poll, in which case the frozen BASE_SHA
-                # check from step (1) is stale and the skip would be unsound.
-                # Any error yields "unknown" and we run the tests.
-                LIVE_DELTA="$(gh api "repos/${REPO}/compare/${HEAD_SHA}...heads/${BASE_REF}" --jq '.files | length' 2>/dev/null || echo unknown)"
-                if [ "$LIVE_DELTA" = "0" ]; then
-                  COVERED=true
-                  echo "Push run ${RUN_ID} passed its test jobs for ${HEAD_SHA} and the live base tip still adds no file changes — skipping duplicate test-build."
-                else
-                  echo "Base branch moved during the poll (live delta: ${LIVE_DELTA}) — running tests in this PR run."
-                fi
-                break
-              elif [ "$STATE" = "failed" ]; then
-                echo "Push run ${RUN_ID} did not pass (state: ${STATE}) — running tests in this PR run."
-                break
-              fi
-            fi
-            sleep 20
-          done
-
-          echo "covered=${COVERED}" >> "$GITHUB_OUTPUT"
-
   test-build:
     name: Test and Build
-    needs: [dedup-promotion]
-    # !cancelled(): dedup-promotion is skipped on every non-promotion event and
-    # a skipped need would otherwise skip this job too. covered != 'true' is
-    # fail-open — empty (skipped/failed probe) means run the tests.
-    if: >-
-      !cancelled() &&
-      (github.ref != 'refs/heads/dev' || github.event_name == 'pull_request') &&
-      needs.dedup-promotion.outputs.covered != 'true'
+    if: github.ref != 'refs/heads/dev' || github.event_name == 'pull_request'
     uses: ./.github/workflows/test-build.yml
     secrets: inherit
 
@@ -202,10 +76,10 @@ jobs:
   migrate:
     name: Migrate DB
     needs: [test-build]
-    # !cancelled() + explicit result check: test-build's needs chain contains
-    # the (push-skipped) dedup-promotion job, and a skipped transitive ancestor
-    # fails the implicit success() and would cascade-skip the whole deploy
-    # chain (migrate -> promote-images -> CodeDeploy).
+    # Explicit need results instead of the implicit success(): a skipped job
+    # anywhere in the transitive needs chain silently fails implicit success()
+    # and cascade-skips the deploy chain (migrate -> promote-images ->
+    # CodeDeploy) — this bit us on 2026-07-23. State requirements explicitly.
     if: >-
       !cancelled() &&
       needs.test-build.result == 'success' &&
@@ -436,8 +310,7 @@ jobs:
   promote-images:
     name: Promote Images
     needs: [migrate, build-amd64]
-    # Explicit results: see migrate's comment — the implicit success() fails
-    # on the skipped dedup-promotion ancestor.
+    # Explicit results: see migrate's comment.
     if: >-
       !cancelled() &&
       needs.migrate.result == 'success' &&
