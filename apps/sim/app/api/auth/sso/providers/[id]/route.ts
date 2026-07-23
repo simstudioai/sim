@@ -77,6 +77,19 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
         throw new SSOManagementError('Provider type cannot be changed', 400, 'SSO_TYPE_IMMUTABLE')
       }
 
+      const configurationSourceChanged =
+        currentProvider.issuer !== provider.issuer ||
+        currentProvider.domain !== provider.domain ||
+        currentProvider.oidcConfig !== provider.oidcConfig ||
+        currentProvider.samlConfig !== provider.samlConfig
+      if (configurationSourceChanged) {
+        throw new SSOManagementError(
+          'The SSO provider changed while this update was being prepared. Reload and try again.',
+          409,
+          'SSO_PROVIDER_CHANGED'
+        )
+      }
+
       const currentDomain = requireNormalizedSSODomain(body.domain, currentProvider.domain)
       if (currentDomain !== currentProvider.domain || body.issuer !== currentProvider.issuer) {
         await assertSSOProviderHasNoAccountLinks(currentProvider.providerId)
@@ -88,27 +101,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
         excludeRowId: currentProvider.id,
       })
 
-      const configurationSourceChanged =
-        currentProvider.issuer !== provider.issuer ||
-        currentProvider.domain !== provider.domain ||
-        currentProvider.oidcConfig !== provider.oidcConfig ||
-        currentProvider.samlConfig !== provider.samlConfig
-      const currentProviderConfig = configurationSourceChanged
-        ? await buildSSOProviderConfiguration(
-            { ...body, domain: currentDomain },
-            {
-              providerId: currentProvider.providerId,
-              existingConfig: currentIsSamlProvider
-                ? currentProvider.samlConfig
-                : currentProvider.oidcConfig,
-              existingIssuer: currentProvider.issuer,
-              existingDomain: currentProvider.domain,
-            }
-          )
-        : { ...providerConfig, domain: currentDomain }
-
       const updated = await auth.api.updateSSOProvider({
-        body: currentProviderConfig,
+        body: { ...providerConfig, domain: currentDomain },
         headers: collectAuthHeaders(request),
       })
       return {
@@ -158,16 +152,16 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
     const parsed = await parseRequest(deleteSsoProviderContract, request, context)
     if (!parsed.success) return parsed.response
 
-    const provider = await getManagedSSOProvider(parsed.data.params.id, session.user.id, {
-      requireEnterprise: false,
-    })
-    await assertSSOProviderHasNoAccountLinks(provider.providerId)
-    await withSSOProviderMutationLock(async () => {
-      await assertSSOProviderHasNoAccountLinks(provider.providerId)
-      return auth.api.deleteSSOProvider({
-        body: { providerId: provider.providerId },
+    const provider = await withSSOProviderMutationLock(async () => {
+      const currentProvider = await getManagedSSOProvider(parsed.data.params.id, session.user.id, {
+        requireEnterprise: false,
+      })
+      await assertSSOProviderHasNoAccountLinks(currentProvider.providerId)
+      await auth.api.deleteSSOProvider({
+        body: { providerId: currentProvider.providerId },
         headers: collectAuthHeaders(request),
       })
+      return currentProvider
     })
 
     logger.info('SSO provider deleted', {

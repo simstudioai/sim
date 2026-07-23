@@ -197,7 +197,7 @@ describe('/api/auth/sso/providers/[id]', () => {
     expect(mockUpdateSSOProvider).not.toHaveBeenCalled()
   })
 
-  it('recomputes the identity guard from the provider row loaded inside the lock', async () => {
+  it('rejects a stale update when the provider changes before lock acquisition', async () => {
     mockWithSSOProviderMutationLock.mockImplementationOnce(
       async (callback: () => Promise<unknown>) => {
         dbState.providers = [
@@ -207,7 +207,6 @@ describe('/api/auth/sso/providers/[id]', () => {
             domain: 'concurrent.example.com',
           },
         ]
-        dbState.accounts = [{ id: 'concurrent-link' }]
         return callback()
       }
     )
@@ -222,6 +221,7 @@ describe('/api/auth/sso/providers/[id]', () => {
     )
 
     expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({ code: 'SSO_PROVIDER_CHANGED' })
     expect(mockUpdateSSOProvider).not.toHaveBeenCalled()
   })
 
@@ -276,6 +276,20 @@ describe('/api/auth/sso/providers/[id]', () => {
     expect(mockDeleteSSOProvider).toHaveBeenCalledWith(
       expect.objectContaining({ body: { providerId: 'acme-saml' } })
     )
+  })
+
+  it('does not delete by stale provider ID when the row disappears before lock acquisition', async () => {
+    mockWithSSOProviderMutationLock.mockImplementationOnce(
+      async (callback: () => Promise<unknown>) => {
+        dbState.providers = []
+        return callback()
+      }
+    )
+
+    const response = await DELETE(createMockRequest('DELETE'), context)
+
+    expect(response.status).toBe(404)
+    expect(mockDeleteSSOProvider).not.toHaveBeenCalled()
   })
 
   it('allows administrator cleanup after the organization loses Enterprise', async () => {
