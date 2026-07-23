@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import * as cheerio from 'cheerio'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -7,6 +8,53 @@ import { htmlToPlainText, joinTagArray, parseMultiValue, parseTagDate } from '@/
 import { getConfluenceCloudId, normalizeConfluenceDomainHost } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceConnector')
+
+/** Label prefixes for Confluence's built-in Info/Note/Warning/Tip macros, by their rendered CSS suffix. */
+const CALLOUT_LABELS: Record<string, string> = {
+  information: '[INFO]',
+  note: '[NOTE]',
+  warning: '[WARNING]',
+  tip: '[TIP]',
+  error: '[ERROR]',
+}
+
+/**
+ * Confluence's rendered `view` HTML wraps Info/Note/Warning/Tip macros in
+ * `confluence-information-macro confluence-information-macro-{type}` divs, and
+ * the customizable Panel macro in `.panel` > `.panelHeader` + `.panelContent`
+ * divs. `htmlToPlainText`'s blind tag-stripping discards the divs' classes along
+ * with the tags, so a red "do not use" warning panel becomes indistinguishable
+ * from a plain paragraph once flattened — and its trailing whitespace collapse
+ * would erase any newline-based separation too. Each detected panel is rewritten
+ * into a single bracketed label plus its own text so the callout semantic
+ * survives both the tag strip and the whitespace collapse.
+ */
+export function preserveConfluenceCallouts(html: string): string {
+  if (!html) return html
+
+  const $ = cheerio.load(html)
+
+  $('div.confluence-information-macro').each((_, el) => {
+    const $el = $(el)
+    const type = ($el.attr('class') ?? '')
+      .match(/confluence-information-macro-(\w+)/)?.[1]
+      ?.toLowerCase()
+    const label = (type && CALLOUT_LABELS[type]) || CALLOUT_LABELS.information
+    const body =
+      $el.find('.confluence-information-macro-body').first().text().trim() || $el.text().trim()
+    $el.replaceWith($('<p></p>').text(`${label} ${body}`))
+  })
+
+  $('div.panel').each((_, el) => {
+    const $el = $(el)
+    const headerText = $el.find('.panelHeader').first().text().trim()
+    const bodyText = $el.find('.panelContent').first().text().trim() || $el.text().trim()
+    const label = headerText ? `[CALLOUT: ${headerText}]` : '[CALLOUT]'
+    $el.replaceWith($('<p></p>').text(`${label} ${bodyText}`))
+  })
+
+  return $.html()
+}
 
 /**
  * Escapes a value for use inside CQL double-quoted strings.
@@ -108,10 +156,12 @@ async function fetchLabelsForPages(
  * invalidates every previously-synced Confluence document so a one-time
  * re-hydration picks up content newly reachable by the current extraction
  * (e.g. the switch from `storage` to rendered `view`, which expands Include
- * Page / Excerpt macros). Without it, already-indexed pages whose version is
- * unchanged classify as `unchanged` and keep their stale (empty) content.
+ * Page / Excerpt macros; or `preserveConfluenceCallouts`, which stops
+ * flattening panel/info/note/warning/tip macros into indistinguishable plain
+ * text). Without it, already-indexed pages whose version is unchanged
+ * classify as `unchanged` and keep their stale (pre-fix) content.
  */
-const CONTENT_REPRESENTATION = 'view'
+const CONTENT_REPRESENTATION = 'view-callouts'
 
 /**
  * Produces a canonical metadata stub with a deterministic contentHash that
@@ -288,7 +338,7 @@ export const confluenceConnector: ConnectorConfig = {
     const body = page.body as Record<string, unknown> | undefined
     const view = body?.view as Record<string, unknown> | undefined
     const rawContent = (view?.value as string) || ''
-    const plainText = htmlToPlainText(rawContent)
+    const plainText = htmlToPlainText(preserveConfluenceCallouts(rawContent))
 
     const labelMap = await fetchLabelsForPages(cloudId, accessToken, [String(page.id)])
     const labels = labelMap.get(String(page.id)) ?? []
