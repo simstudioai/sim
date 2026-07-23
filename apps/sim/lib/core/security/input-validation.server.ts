@@ -638,7 +638,9 @@ function toUndiciRequestHeaders(
     }
     return record
   }
-  const iterableHeaders = headers as unknown as {
+  // Single cast (no `as unknown`): the optional `forEach` is satisfiable by both a plain
+  // record (absent) and a `Headers` instance (present), so it detects the iterable form.
+  const iterableHeaders = headers as {
     forEach?: (cb: (value: string, key: string) => void) => void
   }
   if (typeof iterableHeaders.forEach === 'function') {
