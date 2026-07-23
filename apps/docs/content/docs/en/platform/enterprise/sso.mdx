@@ -281,8 +281,8 @@ Self-hosted deployments use environment variables instead of the billing/plan ch
 SSO_ENABLED=true
 NEXT_PUBLIC_SSO_ENABLED=true
 
-# Enable only after the SSO schema migration, provider audit, and approved
-# domain-verification backfill described below.
+# Enable only after the one-shot pre-migration audit, schema migration,
+# separately approved domain-ownership backfill, and live TXT check below.
 SSO_DOMAIN_VERIFICATION_ENABLED=false
 
 # Required if you want users auto-added to your organization on first SSO sign-in
@@ -307,21 +307,53 @@ SSO_TRUSTED_PROVIDER_IDS=custom-oidc,partner-saml
 </Callout>
 
 <Callout type="warning">
-  For upgrades, leave domain verification disabled until the database migration
-  has landed and
-  `SSO_AUDIT_APPROVED_PROVIDER_IDS=reviewed-provider-ids bun run --cwd packages/db db:audit-sso-providers`
-  passes. The approval list records the providers whose existing account links
-  and active sessions operators chose to retain; omit a provider until its
-  links are migrated or removed and its sessions are revoked. The audit reports
-  linked-user and active-session counts and requires one owner organization and
-  one registrable domain per provider.
-  Remediate legacy user-scoped, public-suffix, duplicate, or overlapping rows;
-  explicitly backfill `domain_verified` only for domains your operators have
-  verified; quiesce SSO writes and rerun the audit immediately before enabling
-  the flag. Internal pseudo-domains are not eligible for verified-domain
-  enforcement. Existing internal-domain providers can remain unchanged while
-  the flag is off, but must move to a registrable domain before activation.
+  Migration 0266 runs a one-shot legacy-provider audit before changing the
+  schema. If the legacy provider table exists, disable SSO/provider mutations
+  and keep them disabled through migration, then set
+  `SSO_PROVIDER_WRITES_QUIESCED=true` even when the table is empty. Provide
+  `SSO_AUDIT_APPROVED_PROVIDER_IDS` only for providers whose existing account
+  links and active sessions operators chose to retain. Omit a provider until
+  its links are migrated or removed and its sessions are revoked.
+  Remediate user-scoped, public-suffix, unknown-suffix, duplicate, or
+  overlapping rows before retrying. The quiescence flag is an acknowledgement,
+  not a technical lock against an older running application.
+
+  Account/session approval does not prove domain ownership. After migration,
+  transactionally backfill `domain_verified` only for domains supported by
+  independently reviewed ownership evidence, read the values back, and keep
+  unknown rows false. Complete a live TXT verification before enabling
+  `SSO_DOMAIN_VERIFICATION_ENABLED`. Internal pseudo-domains are not eligible
+  for verified-domain enforcement.
 </Callout>
+
+For the first 0266 upgrade with Docker Compose, set the one-shot migration
+inputs in the Compose environment while writes are actually disabled:
+
+```bash
+export SSO_PROVIDER_WRITES_QUIESCED=true
+export SSO_AUDIT_APPROVED_PROVIDER_IDS=reviewed-provider-ids
+docker compose -f docker-compose.prod.yml up
+```
+
+For Helm, use inline migration values or a dedicated Secret:
+
+```yaml
+migrations:
+  ssoPreflight:
+    providerWritesQuiesced: "true"
+    auditApprovedProviderIds: "reviewed-provider-ids"
+    # Or set existingSecret to a Secret containing
+    # SSO_PROVIDER_WRITES_QUIESCED and SSO_AUDIT_APPROVED_PROVIDER_IDS.
+```
+
+Secret-backed keys are optional at Kubernetes pod admission so removing retired
+one-shot keys cannot block deployments after 0266. A pending 0266 migration
+still fails closed unless `SSO_PROVIDER_WRITES_QUIESCED` resolves to `true`;
+`SSO_AUDIT_APPROVED_PROVIDER_IDS` may be absent when no linked providers require
+an explicit approval.
+
+Remove the one-shot values after 0266 is journaled. Do not leave provider writes
+disabled or interpret the flag itself as quiescence.
 
 You can register providers through the **Settings UI** (same as cloud) or by running the registration script directly against your database.
 

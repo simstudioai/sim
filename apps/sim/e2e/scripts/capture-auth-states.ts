@@ -9,6 +9,7 @@ import {
   scenarioManifestSchema,
   writeJsonAtomic,
 } from '../fixtures/e2e-world'
+import { captureSafeAuthFailureScreenshot } from '../support/auth-capture-diagnostics'
 import { installBrowserNetworkGuard } from '../support/browser-network'
 
 const baseUrl = requiredEnv('E2E_BASE_URL')
@@ -97,16 +98,11 @@ async function main(): Promise<void> {
           throw new Error(`Storage state permissions are not private for persona: ${personaKey}`)
         }
       } catch (error) {
-        await page
-          .getByRole('textbox', { name: 'Password' })
-          .fill('')
-          .catch(() => {})
-        await page
-          .screenshot({
-            path: path.join(screenshotsDirectory, `${personaKey}.failure.png`),
-            fullPage: true,
-          })
-          .catch(() => {})
+        await captureSafeAuthFailureScreenshot(
+          page,
+          path.join(screenshotsDirectory, `${personaKey}.failure.png`),
+          login.password
+        )
         failures.push(error)
       }
       try {

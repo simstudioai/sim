@@ -114,7 +114,7 @@ test('access contracts declare every required Step 4 gate axis', () => {
   expectSections(
     accessGateCases.filter(
       ({ caseId }) =>
-        caseId.startsWith('organization-lapsed-owner-') && caseId.endsWith('-plan-denied')
+        caseId.startsWith('organization-lapsed-admin-') && caseId.endsWith('-plan-denied')
     ),
     ['access-control', 'audit-logs', 'sso', 'data-retention', 'data-drains', 'whitelabeling']
   )
@@ -153,8 +153,8 @@ test('access contracts declare every required Step 4 gate axis', () => {
     'account-personal-paid-billing',
     'account-non-platform-admin-denied',
     'account-non-platform-mothership-denied',
-    'organization-lapsed-owner-members',
-    'organization-lapsed-owner-billing',
+    'organization-lapsed-admin-members',
+    'organization-lapsed-admin-billing',
     'organization-team-owner-billing',
     'workspace-foreign-access-denied',
     'workspace-external-admin-organization-denied',

@@ -24,7 +24,7 @@ export const SETTINGS_PERSONA_KEYS = [
   'teamWorkflowMember',
   'enterpriseOrganizationAdmin',
   'enterpriseWorkflowMember',
-  'freeOrganizationOwner',
+  'freeOrganizationAdmin',
   'permissionGroupRestricted',
   'platformAdmin',
 ] as const
@@ -60,6 +60,7 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
     'enterprise-organization-admin',
     'enterprise-workflow-member',
     'free-organization-owner',
+    'free-organization-admin',
     'permission-group-restricted',
     'platform-admin',
   ] as const
@@ -104,6 +105,7 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
     membership('enterprise-organization', 'enterprise-workflow-member', 'member'),
     membership('enterprise-organization', 'permission-group-restricted', 'member'),
     membership('lapsed-organization', 'free-organization-owner', 'owner'),
+    membership('lapsed-organization', 'free-organization-admin', 'admin'),
   ] as const
 
   const subscriptions = [
@@ -150,7 +152,7 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
       plan: 'team_6000',
       status: 'lapsed',
       billingReference: { kind: 'organization', organizationKey: 'lapsed-organization' },
-      seats: 1,
+      seats: 2,
       ...HOSTED_BILLING,
     },
   ] as const
@@ -216,6 +218,7 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
     grant('team-workspace', 'team-workflow-member', 'read'),
     grant('enterprise-workspace', 'permission-group-restricted', 'read'),
     grant('enterprise-workspace', 'enterprise-workflow-member', 'read'),
+    grant('lapsed-organization-workspace', 'free-organization-admin', 'admin'),
   ] as const
 
   const permissionGroups = [
@@ -315,8 +318,16 @@ export function createPrimarySettingsScenario(namespace: ScenarioNamespace): Sce
         false
       ),
     ]),
-    persona(namespace, 'freeOrganizationOwner', 'free-organization-owner', [
-      expected('lapsed-organization-workspace', 'admin', 'owner', 'owner', 'user', 'free', true),
+    persona(namespace, 'freeOrganizationAdmin', 'free-organization-admin', [
+      expected(
+        'lapsed-organization-workspace',
+        'admin',
+        'explicit',
+        'external',
+        'user',
+        'free',
+        false
+      ),
     ]),
     persona(
       namespace,

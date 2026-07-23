@@ -260,11 +260,11 @@ export const accessGateCases: readonly AccessGateCase[] = [
     outcome: { kind: 'organization-unavailable', title: 'Settings unavailable' },
   },
   {
-    caseId: 'organization-lapsed-owner-members',
+    caseId: 'organization-lapsed-admin-members',
     plane: 'organization',
     pathTemplate: '/organization/{organizationId}/settings/members',
     driver: {
-      personaKey: 'freeOrganizationOwner',
+      personaKey: 'freeOrganizationAdmin',
       binding: {
         worldKey: 'settings-primary',
         resourceKind: 'organization',
@@ -279,11 +279,11 @@ export const accessGateCases: readonly AccessGateCase[] = [
     },
   },
   {
-    caseId: 'organization-lapsed-owner-billing',
+    caseId: 'organization-lapsed-admin-billing',
     plane: 'organization',
     pathTemplate: '/organization/{organizationId}/settings/billing',
     driver: {
-      personaKey: 'freeOrganizationOwner',
+      personaKey: 'freeOrganizationAdmin',
       binding: {
         worldKey: 'settings-primary',
         resourceKind: 'organization',
@@ -330,11 +330,11 @@ export const accessGateCases: readonly AccessGateCase[] = [
   ].map(
     ([section, label]) =>
       ({
-        caseId: `organization-lapsed-owner-${section}-plan-denied`,
+        caseId: `organization-lapsed-admin-${section}-plan-denied`,
         plane: 'organization',
         pathTemplate: `/organization/{organizationId}/settings/${section}`,
         driver: {
-          personaKey: 'freeOrganizationOwner',
+          personaKey: 'freeOrganizationAdmin',
           binding: {
             worldKey: 'settings-primary',
             resourceKind: 'organization',

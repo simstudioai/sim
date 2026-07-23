@@ -113,7 +113,7 @@ const enterpriseOrganization = primaryOrganization(
   'enterpriseOrganizationAdmin',
   'enterprise-organization'
 )
-const lapsedOrganization = primaryOrganization('freeOrganizationOwner', 'lapsed-organization')
+const lapsedOrganization = primaryOrganization('freeOrganizationAdmin', 'lapsed-organization')
 const foreignEnterpriseOrganization = primaryOrganization(
   'personalFreeOwner',
   'enterprise-organization'
@@ -916,15 +916,14 @@ export const personaVisibilityCases = [
     representativeLabel: 'Access control',
   },
   {
-    caseId: 'workspace-free-organization-owner',
+    caseId: 'workspace-free-organization-admin',
     plane: 'workspace',
-    driver: primaryWorkspace('freeOrganizationOwner', 'lapsed-organization-workspace'),
+    driver: primaryWorkspace('freeOrganizationAdmin', 'lapsed-organization-workspace'),
     expectedVisibleSectionIds: [
       'general',
       'secrets',
       'custom-tools',
       'mcp',
-      'billing',
       'teammates',
       'apikeys',
       'workflow-mcp-servers',
@@ -938,7 +937,6 @@ export const personaVisibilityCases = [
       'Secrets',
       'Custom tools',
       'MCP tools',
-      'Billing',
       'Teammates',
       'Sim API keys',
       'MCP servers',
@@ -947,8 +945,8 @@ export const personaVisibilityCases = [
       'Sim mailer',
       'Recently deleted',
     ],
-    importantHiddenSectionIds: ['organization', 'access-control', 'admin'],
-    importantHiddenLabels: ['Organization', 'Access control', 'Admin'],
+    importantHiddenSectionIds: ['billing', 'organization', 'access-control', 'admin'],
+    importantHiddenLabels: ['Billing', 'Organization', 'Access control', 'Admin'],
     representativeSectionId: 'secrets',
     representativeLabel: 'Secrets',
   },

@@ -17,6 +17,11 @@ import {
 } from './helpers'
 import { expect, test } from './workflow-test'
 
+// Workspace invitation responses contain bearer tokens even though the tests
+// never inspect them. Keep Playwright's network-bearing trace artifact off for
+// this file; failure screenshots remain safe because tokens are never rendered.
+test.use({ trace: 'off' })
+
 test('workspace invitation can be sent as Read and revoked without exposing its token', async ({
   contextForPersona,
   personaManifest,

@@ -665,7 +665,18 @@ function validatePersonaWorkspaceExpectation(
   subscriptionsByKey: ReadonlyMap<ResourceKey, ScenarioSubscription>,
   issues: string[]
 ): void {
-  const actual = deriveWorkspaceAccess(definition, user.key, workspace)
+  const declaredSubscription = workspace.subscriptionKey
+    ? subscriptionsByKey.get(workspace.subscriptionKey)
+    : undefined
+  const entitledSubscription = [...subscriptionsByKey.values()].find(
+    (candidate) =>
+      isEntitledSubscription(candidate) &&
+      billingReferenceKey(candidate) === payerReferenceKey(workspace)
+  )
+  const organizationWillDetach = Boolean(
+    workspace.organizationKey && declaredSubscription?.status === 'lapsed' && !entitledSubscription
+  )
+  const actual = deriveWorkspaceAccess(definition, user.key, workspace, !organizationWillDetach)
   if (expected.access !== actual.access || expected.roleSource !== actual.roleSource) {
     issues.push(
       `persona "${personaKey}" has incoherent access/roleSource for workspace "${workspace.key}"`
@@ -681,24 +692,13 @@ function validatePersonaWorkspaceExpectation(
       `persona "${personaKey}" owner/admin expectation for "${workspace.key}" is below admin`
     )
   }
-  const declaredSubscription = workspace.subscriptionKey
-    ? subscriptionsByKey.get(workspace.subscriptionKey)
-    : undefined
-  const entitledSubscription = [...subscriptionsByKey.values()].find(
-    (candidate) =>
-      isEntitledSubscription(candidate) &&
-      billingReferenceKey(candidate) === payerReferenceKey(workspace)
-  )
   const actualPlan = entitledSubscription?.plan ?? 'free'
   const actualMembership = actual.isOwner
     ? 'owner'
     : actual.organizationRole
       ? 'member'
       : 'external'
-  const actualPayerScope =
-    workspace.organizationKey && declaredSubscription?.status === 'lapsed'
-      ? 'user'
-      : workspace.payer.kind
+  const actualPayerScope = organizationWillDetach ? 'user' : workspace.payer.kind
   if (
     expected.hostContext.isOwner !== actual.isOwner ||
     expected.hostContext.hostMembership !== actualMembership ||
@@ -714,7 +714,8 @@ function validatePersonaWorkspaceExpectation(
 function deriveWorkspaceAccess(
   definition: ScenarioDefinition,
   userKey: ResourceKey,
-  workspace: ScenarioWorkspace
+  workspace: ScenarioWorkspace,
+  includeOrganizationMembership = true
 ): {
   access: ExpectedWorkspaceAccess
   roleSource: 'owner' | 'explicit' | 'org-admin' | 'none'
@@ -722,9 +723,10 @@ function deriveWorkspaceAccess(
   organizationRole?: OrganizationRole
 } {
   const isOwner = workspace.ownerUserKey === userKey
-  const organizationRole = workspace.organizationKey
-    ? membershipFor(definition, workspace.organizationKey, userKey)?.role
-    : undefined
+  const organizationRole =
+    includeOrganizationMembership && workspace.organizationKey
+      ? membershipFor(definition, workspace.organizationKey, userKey)?.role
+      : undefined
   if (isOwner) return { access: 'admin', roleSource: 'owner', isOwner, organizationRole }
   if (organizationRole === 'owner' || organizationRole === 'admin') {
     return { access: 'admin', roleSource: 'org-admin', isOwner, organizationRole }

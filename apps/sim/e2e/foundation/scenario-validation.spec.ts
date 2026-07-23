@@ -81,10 +81,21 @@ test.describe('pure scenario validation', () => {
       seats: 4,
       enterprise: { seats: 4 },
     })
-    expect(workspaceExpectation(primary, 'freeOrganizationOwner').hostContext).toMatchObject({
-      payerScope: 'user',
-      plan: 'free',
+    expect(workspaceExpectation(primary, 'freeOrganizationAdmin')).toMatchObject({
+      access: 'admin',
+      roleSource: 'explicit',
+      hostContext: {
+        hostMembership: 'external',
+        payerScope: 'user',
+        plan: 'free',
+        isOwner: false,
+      },
     })
+    expect(
+      scenarios.primary.organizationMemberships.find(
+        ({ userKey }) => userKey === 'free-organization-admin'
+      )?.role
+    ).toBe('admin')
     expect(primary.subscriptionsByKey.get('lapsed-team-subscription')?.status).toBe('lapsed')
 
     const restricted = primary.personasByKey.get('permissionGroupRestricted')
@@ -256,21 +267,26 @@ test.describe('pure scenario validation', () => {
         : workspace
     )
     scenario.personas = scenario.personas.map((persona) =>
-      persona.key === 'freeOrganizationOwner'
+      persona.key === 'freeOrganizationAdmin'
         ? {
             ...persona,
-            workspaces: persona.workspaces.map((expectation) => ({
-              ...expectation,
-              hostContext: {
-                ...expectation.hostContext,
-                payerScope: 'organization',
-                plan: 'team_6000',
-              },
-            })),
+            workspaces: persona.workspaces.map((workspace) =>
+              workspace.workspaceKey === 'lapsed-organization-workspace'
+                ? {
+                    ...workspace,
+                    roleSource: 'org-admin' as const,
+                    hostContext: {
+                      ...workspace.hostContext,
+                      hostMembership: 'member' as const,
+                      payerScope: 'organization' as const,
+                      plan: 'team_6000' as const,
+                    },
+                  }
+                : workspace
+            ),
           }
         : persona
     )
-
     const resolved = validateScenario(scenario)
     if (lapsed.billingReference.kind !== 'organization') {
       throw new Error('Expected an organization subscription')

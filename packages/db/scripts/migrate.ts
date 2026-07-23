@@ -5,6 +5,13 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres from 'postgres'
 import { runScriptMigrations } from '../script-migrations/index'
+import { SSO_PROVIDER_MUTATION_LOCK_KEY } from '../sso-lock'
+import {
+  auditSSOProviderSnapshot,
+  isSSOHardeningMigrationApplied,
+  loadLegacySSOProviderAuditSnapshot,
+  parseApprovedSSOProviderIds,
+} from '../sso-provider-audit'
 
 /**
  * Concurrent-index convention: plain `CREATE INDEX` write-blocks large/hot
@@ -62,6 +69,8 @@ const client = postgres(url, {
 const MIGRATION_LOCK_KEY = 4_961_002_270n
 const LOCK_ACQUIRE_DEADLINE_MS = 30 * 60_000
 const LOCK_RETRY_INTERVAL_MS = 5_000
+const SSO_LOCK_ACQUIRE_DEADLINE_MS = 5 * 60_000
+const SSO_LOCK_RETRY_INTERVAL_MS = 1_000
 
 /**
  * Max time a migration statement may queue for a table lock (SQLSTATE 55P03 on
@@ -105,17 +114,20 @@ function isTransientConnectError(error: unknown): boolean {
 
 /** Backend pid of the lock-holding session; a change means the lock was lost. */
 let lockSessionPid = 0
+let ssoMutationLockHeld = false
 
 try {
   await connectWithRetry()
   await acquireMigrationLock()
   try {
+    await runPendingSSOHardeningAudit()
     await runMigrationsWithRetry()
     console.log('Migrations applied successfully.')
     await assertLockSessionHeld()
     await runScriptMigrations(client)
     await warnOnInvalidIndexes()
   } finally {
+    await releaseSSOMutationLock()
     await releaseMigrationLock()
   }
 } catch (error) {
@@ -195,6 +207,87 @@ async function assertLockSessionHeld(): Promise<void> {
       `Database session changed mid-run (backend pid ${lockSessionPid} -> ${pid}); ` +
         'the migration advisory lock was lost. Aborting so a fresh runner can retry safely.'
     )
+  }
+}
+
+/**
+ * Migration 0266 strengthens legacy SSO rows using public-suffix validation
+ * that cannot be expressed by its SQL checks. Run that audit exactly once,
+ * while 0266 is still absent from drizzle's journal.
+ *
+ * The advisory lock serializes writers that use the hardened application and
+ * scripts. It cannot stop an older deployment that does not participate, so a
+ * non-empty legacy table also requires an explicit operator acknowledgement
+ * that SSO/provider writes are quiesced for the audit-to-migration interval.
+ */
+async function runPendingSSOHardeningAudit(): Promise<void> {
+  if (await isSSOHardeningMigrationApplied(client)) return
+
+  const [{ table_exists: tableExists }] = await client<
+    Array<{ table_exists: boolean }>
+  >`SELECT to_regclass('public.sso_provider') IS NOT NULL AS table_exists`
+  if (!tableExists) {
+    console.log('SSO migration preflight: no legacy provider table exists.')
+    return
+  }
+
+  await acquireSSOMutationLock()
+  const snapshot = await loadLegacySSOProviderAuditSnapshot(client)
+  if (process.env.SSO_PROVIDER_WRITES_QUIESCED !== 'true') {
+    const environment = process.env.ENVIRONMENT || 'unknown'
+    throw new Error(
+      `SSO migration preflight blocked for ${environment}: set ` +
+        'SSO_PROVIDER_WRITES_QUIESCED=true only after disabling provider mutations ' +
+        'and keep them quiesced until migration 0266 completes'
+    )
+  }
+
+  const result = auditSSOProviderSnapshot(
+    snapshot,
+    parseApprovedSSOProviderIds(process.env.SSO_AUDIT_APPROVED_PROVIDER_IDS)
+  )
+  for (const link of result.links) {
+    console.log(
+      `SSO migration preflight: ${link.providerId} has ${link.linkedUserCount} linked user(s) ` +
+        `and ${link.activeSessionCount} active session(s).`
+    )
+  }
+  if (result.findings.length > 0) {
+    throw new Error(`SSO migration preflight failed:\n- ${result.findings.join('\n- ')}`)
+  }
+  console.log(`SSO migration preflight passed (${result.providerCount} provider rows checked).`)
+}
+
+async function acquireSSOMutationLock(): Promise<void> {
+  const deadline = Date.now() + SSO_LOCK_ACQUIRE_DEADLINE_MS
+  while (true) {
+    const [{ acquired }] = await client<
+      Array<{ acquired: boolean }>
+    >`SELECT pg_try_advisory_lock(${SSO_PROVIDER_MUTATION_LOCK_KEY}) AS acquired`
+    if (acquired) {
+      ssoMutationLockHeld = true
+      return
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(
+        'Timed out acquiring the SSO mutation advisory lock; verify that provider writes are quiesced and no SSO mutation transaction is wedged'
+      )
+    }
+    await sleep(SSO_LOCK_RETRY_INTERVAL_MS)
+  }
+}
+
+async function releaseSSOMutationLock(): Promise<void> {
+  if (!ssoMutationLockHeld) return
+  try {
+    await client`SELECT pg_advisory_unlock(${SSO_PROVIDER_MUTATION_LOCK_KEY})`
+  } catch (unlockError) {
+    console.error(
+      'WARN: SSO mutation advisory unlock failed; the session lock will auto-release on disconnect.',
+      unlockError
+    )
+  } finally {
+    ssoMutationLockHeld = false
   }
 }
 
