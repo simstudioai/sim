@@ -254,14 +254,12 @@ export async function parseCsvBuffer(
   const text = decodeCsvText(input)
 
   let headers: string[] = []
+  const options = csvParseOptions(delimiter, (h) => {
+    headers = h
+  })
   // double-cast-allowed: shared csvParseOptions() loses the `columns` literal that drives
   // csv-parse's record-vs-string[][] overload, but `columns` is always set so records are objects
-  const parsed = parse(
-    text,
-    csvParseOptions(delimiter, (h) => {
-      headers = h
-    })
-  ) as unknown as Record<string, unknown>[]
+  const parsed = parse(text, options) as unknown as Record<string, unknown>[]
 
   if (parsed.length === 0) {
     throw new Error('CSV file has no data rows')

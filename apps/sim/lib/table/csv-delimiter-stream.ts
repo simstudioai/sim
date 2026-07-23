@@ -48,12 +48,11 @@ export async function sniffCsvDelimiterFromStream(
 
   // Copy at most the sniff window for detection — `Buffer.concat`'s length arg truncates,
   // so an oversized final chunk can't inflate this allocation past CSV_DELIMITER_SNIFF_BYTES.
-  // `exhausted` means the whole file fit in the window, so its last row must count even
-  // without a trailing newline; otherwise the sample is a prefix and its tail may be partial.
-  const capped = Math.min(size, CSV_DELIMITER_SNIFF_BYTES)
-  const sample = Buffer.concat(chunks, capped)
-  const complete = exhausted && size <= CSV_DELIMITER_SNIFF_BYTES
-  const delimiter = await detectCsvDelimiter(sample, fallback, { complete })
+  const sample = Buffer.concat(chunks, Math.min(size, CSV_DELIMITER_SNIFF_BYTES))
+  // `exhausted` (the loop stopped on end-of-stream, never on the size cap) means the whole file
+  // fit in the window, so its last row must count even without a trailing newline. Otherwise the
+  // sample is a truncated prefix whose final line may be partial and should be dropped.
+  const delimiter = await detectCsvDelimiter(sample, fallback, { complete: exhausted })
 
   const stream = Readable.from(
     (async function* replay() {
