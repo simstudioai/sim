@@ -689,14 +689,16 @@ export async function executeSync(
     const seenExternalIds = new Set<string>()
     /**
      * externalIds whose content was never verified as current: a hydration
-     * error, a rejected write, or a fulfilled-but-unusable hydration (skipped
-     * as oversized, or an empty re-fetch) that falls back to keeping the
-     * stored content as last-known-good. That fallback is fine for an
-     * already-visible document, but for a tombstoned one it means we still
-     * don't have confirmed-current content — so this excludes them from
-     * resurrection below: a tombstoned document whose refresh didn't actually
-     * land must stay tombstoned rather than come back visible while still
-     * serving stale pre-tombstone content.
+     * error, a rejected write, a fulfilled-but-unusable hydration (skipped as
+     * oversized, or an empty re-fetch), a listing-time skippedReason
+     * short-circuit, or empty non-deferred content (`drop`) — all fall back to
+     * either keeping the stored content as last-known-good or discarding the
+     * listing entry outright, without ever comparing or refreshing content.
+     * That's fine for an already-visible document, but for a tombstoned one it
+     * means we still don't have confirmed-current content — so this excludes
+     * them from resurrection below: a tombstoned document whose refresh didn't
+     * actually land must stay tombstoned rather than come back visible while
+     * still serving stale pre-tombstone content.
      */
     const failedExternalIds = new Set<string>()
 
@@ -718,6 +720,10 @@ export async function executeSync(
           pendingOps.push({ type: 'skip', extDoc })
           break
         case 'drop':
+          // Empty, non-deferred content is never usable. If this was a
+          // reappearing tombstoned document, its content was never verified as
+          // current — see failedExternalIds below.
+          if (existing) failedExternalIds.add(extDoc.externalId)
           logger.info(`Skipping empty document: ${extDoc.title}`, {
             externalId: extDoc.externalId,
           })
@@ -729,6 +735,12 @@ export async function executeSync(
           pendingOps.push({ type: 'update', existingId: classification.existingId, extDoc })
           break
         case 'unchanged':
+          // A listing-time skippedReason short-circuits classification before
+          // the hash comparison, so this is "kept as last-known-good", not a
+          // verified-unchanged match — same as the deferred-hydration
+          // equivalent above. A genuine hash match never sets skippedReason,
+          // so this only fires for the short-circuited case.
+          if (extDoc.skippedReason && existing) failedExternalIds.add(extDoc.externalId)
           result.docsUnchanged++
           break
       }
@@ -1019,7 +1031,11 @@ export async function executeSync(
       )
     }
     if (safeHardDeleteIds.length > 0) {
-      await hardDeleteDocuments(safeHardDeleteIds, syncLogId)
+      // Re-verifies connectorId once more at the moment of the actual delete
+      // query — the FOR UPDATE lock above only covers the window up to its
+      // own commit; this closes the remaining gap between that commit and
+      // this call.
+      await hardDeleteDocuments(safeHardDeleteIds, syncLogId, connectorId)
       result.docsDeleted += safeHardDeleteIds.length
     }
 
@@ -1166,7 +1182,8 @@ export async function executeSync(
 
         await hardDeleteDocuments(
           connectorDocs.map((doc) => doc.id),
-          syncLogId
+          syncLogId,
+          connectorId
         )
 
         await completeSyncLog(syncLogId, 'failed', result, 'Connector deleted during sync')
