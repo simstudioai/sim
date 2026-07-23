@@ -102,17 +102,17 @@ describe('permissionGroupFullConfigSchema key order', () => {
       allowedIntegrations: ['slack'],
       hideCopilot: true,
     })
-    const overWire = permissionGroupFullConfigSchema.parse(JSON.parse(JSON.stringify(stored)))
+    const overWire = permissionGroupFullConfigSchema.parse(structuredClone(stored))
     expect(JSON.stringify(overWire)).toBe(JSON.stringify(stored))
   })
 
   it('keeps an edited client buffer comparable to the server echo', () => {
     const fromList = permissionGroupFullConfigSchema.parse(
-      JSON.parse(JSON.stringify(parsePermissionGroupConfig(DEFAULT_PERMISSION_GROUP_CONFIG)))
+      structuredClone(parsePermissionGroupConfig(DEFAULT_PERMISSION_GROUP_CONFIG))
     )
     const edited = { ...fromList, hideDeployChatbot: true, deniedTools: ['slack_canvas'] }
     const serverEcho = permissionGroupFullConfigSchema.parse(
-      JSON.parse(JSON.stringify(parsePermissionGroupConfig(edited)))
+      structuredClone(parsePermissionGroupConfig(edited))
     )
     expect(JSON.stringify(serverEcho)).toBe(JSON.stringify(edited))
   })
