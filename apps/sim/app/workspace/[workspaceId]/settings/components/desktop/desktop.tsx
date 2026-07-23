@@ -4,24 +4,17 @@ import { useCallback, useEffect, useState } from 'react'
 import type {
   DesktopPreferenceKey,
   DesktopPreferences,
+  DesktopUpdateState,
   LocalFilesystemMount,
   LocalFilesystemResponse,
 } from '@sim/desktop-bridge'
-import {
-  Chip,
-  ChipConfirmModal,
-  Label,
-  Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableRow,
-  toast,
-} from '@sim/emcn'
+import { Chip, ChipConfirmModal, Label, Switch, toast } from '@sim/emcn'
+import { Folder } from '@sim/emcn/icons'
 import { useParams, useRouter } from 'next/navigation'
-import { getDesktopBridge } from '@/lib/desktop'
+import { getDesktopBridge, getDesktopShellVersion, getDesktopUpdates } from '@/lib/desktop'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 function getMounts(response: LocalFilesystemResponse): LocalFilesystemMount[] | null {
@@ -38,15 +31,41 @@ interface PreferenceRowProps {
 
 function PreferenceRow({ id, label, checked, disabled, onCheckedChange }: PreferenceRowProps) {
   return (
-    <TableRow>
-      <TableCell>
-        <Label htmlFor={id}>{label}</Label>
-      </TableCell>
-      <TableCell>
-        <Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
-      </TableCell>
-    </TableRow>
+    <div className='flex items-center justify-between'>
+      <Label htmlFor={id}>{label}</Label>
+      <Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
+    </div>
   )
+}
+
+interface UpdateChip {
+  label: string
+  disabled?: boolean
+  onClick: () => void
+}
+
+/** The Updates section's single action, driven by the shell update pipeline. */
+function updateChipFor(state: DesktopUpdateState): UpdateChip {
+  const updates = getDesktopUpdates()
+  const check = () => updates?.check()
+  switch (state.status) {
+    case 'checking':
+      return { label: 'Checking...', disabled: true, onClick: () => {} }
+    case 'available':
+      return { label: 'Download update', onClick: check }
+    case 'downloading':
+      return {
+        label: state.percent !== undefined ? `Downloading ${state.percent}%` : 'Downloading...',
+        disabled: true,
+        onClick: () => {},
+      }
+    case 'ready':
+      return { label: 'Restart to update', onClick: () => updates?.install() }
+    case 'error':
+      return { label: 'Try again', onClick: check }
+    default:
+      return { label: 'Check for updates', onClick: check }
+  }
 }
 
 export function Desktop() {
@@ -58,6 +77,9 @@ export function Desktop() {
   const [pendingPreference, setPendingPreference] = useState<DesktopPreferenceKey | null>(null)
   const [mountToForget, setMountToForget] = useState<LocalFilesystemMount | null>(null)
   const [mountMutationPending, setMountMutationPending] = useState(false)
+  const [updateState, setUpdateState] = useState<DesktopUpdateState>({ status: 'idle' })
+  const [hasUpdatesSurface, setHasUpdatesSurface] = useState(false)
+  const [shellVersion, setShellVersion] = useState<string | undefined>(undefined)
 
   const refreshMounts = useCallback(async () => {
     const bridge = getDesktopBridge()
@@ -81,6 +103,19 @@ export function Desktop() {
       .then(([nextPreferences]) => setPreferences(nextPreferences))
       .catch(() => toast.error('Could not load desktop settings'))
   }, [refreshMounts, router, workspaceId])
+
+  useEffect(() => {
+    setShellVersion(getDesktopShellVersion())
+    const updates = getDesktopUpdates()
+    if (!updates) return
+    setHasUpdatesSurface(true)
+    const unsubscribe = updates.onState(setUpdateState)
+    void updates
+      .getState()
+      .then(setUpdateState)
+      .catch(() => {})
+    return unsubscribe
+  }, [])
 
   const updatePreference = useCallback(async (key: DesktopPreferenceKey, value: boolean) => {
     const settings = getDesktopBridge()?.settings
@@ -142,53 +177,83 @@ export function Desktop() {
     <>
       <SettingsPanel>
         <SettingsSection label='Notifications'>
-          <Table>
-            <TableBody>
-              <PreferenceRow
-                id='desktop-notifications'
-                label='Enable desktop notifications'
-                checked={preferences.notificationsEnabled}
-                disabled={pendingPreference !== null}
-                onCheckedChange={(checked) =>
-                  void updatePreference('notificationsEnabled', checked)
-                }
-              />
-              <PreferenceRow
-                id='desktop-notification-sounds'
-                label='Play notification sounds'
-                checked={preferences.notificationSounds}
-                disabled={notificationsDisabled || pendingPreference !== null}
-                onCheckedChange={(checked) => void updatePreference('notificationSounds', checked)}
-              />
-              <PreferenceRow
-                id='desktop-notifications-unfocused'
-                label="Notify only when Sim isn't focused"
-                checked={preferences.notificationsOnlyWhenUnfocused}
-                disabled={notificationsDisabled || pendingPreference !== null}
-                onCheckedChange={(checked) =>
-                  void updatePreference('notificationsOnlyWhenUnfocused', checked)
-                }
-              />
-            </TableBody>
-          </Table>
+          <div className='flex flex-col gap-3'>
+            <PreferenceRow
+              id='desktop-notifications'
+              label='Enable desktop notifications'
+              checked={preferences.notificationsEnabled}
+              disabled={pendingPreference !== null}
+              onCheckedChange={(checked) => void updatePreference('notificationsEnabled', checked)}
+            />
+            <PreferenceRow
+              id='desktop-notification-sounds'
+              label='Play notification sounds'
+              checked={preferences.notificationSounds}
+              disabled={notificationsDisabled || pendingPreference !== null}
+              onCheckedChange={(checked) => void updatePreference('notificationSounds', checked)}
+            />
+            <PreferenceRow
+              id='desktop-notifications-unfocused'
+              label="Notify only when Sim isn't focused"
+              checked={preferences.notificationsOnlyWhenUnfocused}
+              disabled={notificationsDisabled || pendingPreference !== null}
+              onCheckedChange={(checked) =>
+                void updatePreference('notificationsOnlyWhenUnfocused', checked)
+              }
+            />
+          </div>
         </SettingsSection>
 
         <SettingsSection label='App behavior'>
-          <Table>
-            <TableBody>
-              <PreferenceRow
-                id='desktop-launch-at-login'
-                label='Launch Sim at login'
-                checked={preferences.launchAtLogin}
-                disabled={pendingPreference !== null}
-                onCheckedChange={(checked) => void updatePreference('launchAtLogin', checked)}
-              />
-            </TableBody>
-          </Table>
+          <div className='flex flex-col gap-3'>
+            <PreferenceRow
+              id='desktop-launch-at-login'
+              label='Launch Sim at login'
+              checked={preferences.launchAtLogin}
+              disabled={pendingPreference !== null}
+              onCheckedChange={(checked) => void updatePreference('launchAtLogin', checked)}
+            />
+          </div>
         </SettingsSection>
 
         <SettingsSection
-          label='Files'
+          label='Updates'
+          action={
+            hasUpdatesSurface
+              ? (() => {
+                  const chip = updateChipFor(updateState)
+                  return (
+                    <Chip onClick={chip.onClick} disabled={chip.disabled}>
+                      {chip.label}
+                    </Chip>
+                  )
+                })()
+              : undefined
+          }
+        >
+          <div className='flex flex-col gap-3'>
+            <PreferenceRow
+              id='desktop-auto-download-updates'
+              label='Automatically download updates'
+              checked={preferences.autoDownloadUpdates}
+              disabled={pendingPreference !== null}
+              onCheckedChange={(checked) => void updatePreference('autoDownloadUpdates', checked)}
+            />
+            {shellVersion && (
+              <div className='flex items-center justify-between'>
+                <Label>Version</Label>
+                <span className='text-[var(--text-muted)] text-caption'>
+                  {updateState.status === 'ready' && updateState.version
+                    ? `${shellVersion} → ${updateState.version} on restart`
+                    : shellVersion}
+                </span>
+              </div>
+            )}
+          </div>
+        </SettingsSection>
+
+        <SettingsSection
+          label='Local folders'
           action={
             <Chip onClick={() => void addFolder()} disabled={mountMutationPending}>
               Add folder
@@ -196,36 +261,31 @@ export function Desktop() {
           }
         >
           {mounts.length === 0 ? (
-            <SettingsEmptyState variant='inline'>No folders added.</SettingsEmptyState>
+            <SettingsEmptyState variant='inline'>
+              No folder access granted. Chat can only read folders you add here.
+            </SettingsEmptyState>
           ) : (
-            <Table>
-              <TableBody>
-                {mounts.map((mount) => (
-                  <TableRow key={mount.id}>
-                    <TableCell>{mount.name}</TableCell>
-                    <TableCell>{mount.uri}</TableCell>
-                    <TableCell>
+            <div className='flex flex-col gap-2'>
+              {mounts.map((mount) => (
+                <SettingsResourceRow
+                  key={mount.id}
+                  icon={<Folder />}
+                  title={mount.name}
+                  description='Read-only access for Mothership'
+                  trailing={
+                    <div className='flex flex-shrink-0 items-center gap-2'>
+                      {!mount.remembered && (
+                        <span className='text-[var(--text-muted)] text-caption'>
+                          Until app restarts
+                        </span>
+                      )}
                       <Chip onClick={() => setMountToForget(mount)}>Revoke</Chip>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </div>
+                  }
+                />
+              ))}
+            </div>
           )}
-        </SettingsSection>
-
-        <SettingsSection label='Updates'>
-          <Table>
-            <TableBody>
-              <PreferenceRow
-                id='desktop-auto-download-updates'
-                label='Automatically download updates'
-                checked={preferences.autoDownloadUpdates}
-                disabled={pendingPreference !== null}
-                onCheckedChange={(checked) => void updatePreference('autoDownloadUpdates', checked)}
-              />
-            </TableBody>
-          </Table>
         </SettingsSection>
       </SettingsPanel>
 
@@ -233,7 +293,11 @@ export function Desktop() {
         open={mountToForget !== null}
         onOpenChange={(open) => !open && setMountToForget(null)}
         title='Revoke folder access'
-        text={`Sim will no longer be able to access ${mountToForget?.name ?? 'this folder'}.`}
+        text={[
+          'Sim will no longer be able to read ',
+          { text: mountToForget?.name ?? 'this folder', bold: true },
+          '. You can grant access again at any time.',
+        ]}
         confirm={{
           label: 'Revoke access',
           pending: mountMutationPending,

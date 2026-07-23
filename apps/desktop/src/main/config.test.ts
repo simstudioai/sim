@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  APP_NAME_FOR_CHANNEL,
+  channelForOrigin,
   createConfigStore,
   DEFAULT_ORIGIN,
   isSafeInternalPath,
@@ -125,5 +127,28 @@ describe('createConfigStore', () => {
       SIM_DESKTOP_ORIGIN: 'http://evil.example',
     })
     expect(store.getOrigin()).toBe(DEFAULT_ORIGIN)
+  })
+})
+
+describe('channelForOrigin', () => {
+  it('maps each environment origin to its channel', () => {
+    expect(channelForOrigin('https://sim.ai')).toBe('prod')
+    expect(channelForOrigin('https://www.sim.ai')).toBe('prod')
+    expect(channelForOrigin('https://www.dev.sim.ai')).toBe('dev')
+    expect(channelForOrigin('https://dev.sim.ai')).toBe('dev')
+    expect(channelForOrigin('https://www.staging.sim.ai')).toBe('staging')
+    expect(channelForOrigin('http://localhost:3000')).toBe('local')
+    expect(channelForOrigin('http://127.0.0.1:3000')).toBe('local')
+  })
+
+  it('treats self-hosted and garbage origins as prod', () => {
+    expect(channelForOrigin('https://sim.mycompany.com')).toBe('prod')
+    expect(channelForOrigin('not a url')).toBe('prod')
+  })
+
+  it('gives every channel a distinct app identity, prod keeping the plain name', () => {
+    expect(APP_NAME_FOR_CHANNEL.prod).toBe('Sim')
+    const names = Object.values(APP_NAME_FOR_CHANNEL)
+    expect(new Set(names).size).toBe(names.length)
   })
 })

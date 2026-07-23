@@ -137,19 +137,17 @@ Good fits for the bridge: OS notifications + dock badge on workflow completion, 
 
 ### Local filesystem access
 
-The main Copilot agent can inspect a user-selected local directory in the desktop app through request-local client tools (`local_mount_directory`, `local_list_mounts`, `local_list`, `local_glob`, `local_read`, `local_grep`, `local_stat`, and `local_forget_mount`). This capability is:
+Copilot can inspect user-selected local directories through the ordinary VFS tools. Granted folders appear beneath the top-level `user-local/` namespace, and `glob`, `grep`, and `read` are routed to Electron only when their path/pattern is explicitly scoped there. This capability is:
 
-- **Explicit and read-only:** the native folder picker creates the grant; there are no write/delete/execute operations.
+- **Explicit and read-only:** only a user click may open the native folder picker or revoke a grant; model tool calls cannot do either. There are no write/delete/execute/upload operations.
 - **Remembered securely:** grants are encrypted in Electron's private app data with OS-backed `safeStorage` and restored with the same opaque URI after a normal app restart. (A security-scoped bookmark is stored alongside each grant, but it is a no-op in the current Developer ID build — only the macOS App Sandbox consumes it — and is kept purely for forward-compatibility should a sandboxed/MAS build ever ship.) There is no plaintext fallback: when secure storage is unavailable, the returned mount has `remembered: false` and lasts only for that app session.
-- **Revocable:** `local_forget_mount` removes one grant. All grants are removed on explicit sign-out or server-origin change so another Sim account or server cannot inherit them. Normal app quit only releases active OS handles and keeps the encrypted grants.
-- **Opaque:** renderer and model see only `localfs://<mount-id>/...` URIs. Electron resolves every URI, checks lexical and realpath containment, and refuses symlink escapes.
-- **Desktop-only:** the web app advertises these request-local tools only when `window.simDesktop.localFilesystem` is present. They are available directly to the main agent and are not added to subagent allowlists.
+- **Revocable:** Desktop settings removes one grant. All grants are removed on explicit sign-out or server-origin change so another Sim account or server cannot inherit them. Normal app quit only releases active OS handles and keeps the encrypted grants.
+- **Opaque:** the model sees canonical paths such as `user-local/Project--<mount-id>/README.md`, never host paths or internal `localfs://` URIs. Electron resolves every request, checks lexical and realpath containment, and refuses symlink escapes.
+- **Desktop-only:** the web app advertises `desktopCapabilities.localFilesystem` only when the Electron bridge is present. Mothership adds the `user-local/` prompt surface and per-call client routing only for that capability, including delegated and resumed work.
+- **Bound to a live Copilot call:** before a native read/search or browser action, Electron asks the authenticated Sim origin for the pending tool-call record. Local requests must exactly match its persisted operation, path, and options; browser actions run with the persisted arguments rather than renderer-supplied ones. Completed, failed, and aborted runs are rejected.
+- **Abort-aware and bounded:** stop/cancel propagates to active native scans and reads. File size, aggregate grep bytes, line, result, traversal-depth, and scan-count limits remain enforced in Electron, and unsafe regular expressions are rejected before execution.
 
-Server-side tools cannot consume a `localfs://` URI. `local_stage_file` reads the granted file in Electron and uploads its bytes as a normal chat upload, returning `uploads/...` plus the collision-safe `fileName`. The agent then calls `materialize_file(fileName)` to promote it to durable `files/...` before passing that path to tools such as `function_execute` or `generate_image`:
-
-```text
-localfs://... → local_stage_file → uploads/... → materialize_file → files/... → server tool
-```
+Raw local file bytes are never exposed through the preload bridge and cannot be staged or uploaded by a model. Bounded text read/search results are returned to the active Copilot request; a user must use the normal attachment UI when they want the file itself to leave the device.
 
 ## Auto-update, channels, rollout, rollback
 

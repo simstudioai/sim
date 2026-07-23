@@ -235,7 +235,7 @@ describe('buildCopilotRequestPayload', () => {
     )
   })
 
-  it('advertises desktop local filesystem tools only for capable requests', async () => {
+  it('advertises desktop capabilities without adding parallel local_* tool schemas', async () => {
     const capablePayload = await buildCopilotRequestPayload(
       {
         message: 'inspect my local project',
@@ -248,10 +248,10 @@ describe('buildCopilotRequestPayload', () => {
       },
       { selectedModel: '' }
     )
-    const capableTools = capablePayload.mothershipTools as Array<{ name: string }>
-    expect(capableTools.map((tool) => tool.name)).toEqual(
-      expect.arrayContaining(['local_mount_directory', 'local_read', 'local_stage_file'])
-    )
+    expect(capablePayload).toMatchObject({
+      desktopCapabilities: { localFilesystem: true },
+    })
+    expect(capablePayload).not.toHaveProperty('mothershipTools')
 
     const browserPayload = await buildCopilotRequestPayload(
       {
@@ -265,6 +265,7 @@ describe('buildCopilotRequestPayload', () => {
       { selectedModel: '' }
     )
     expect(browserPayload).not.toHaveProperty('mothershipTools')
+    expect(browserPayload).not.toHaveProperty('desktopCapabilities')
   })
 
   it('passes user metadata through to the Go request payload', async () => {

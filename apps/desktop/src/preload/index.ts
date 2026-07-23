@@ -16,6 +16,7 @@ import type {
   DesktopOAuthConnectScope,
   DesktopPreferenceKey,
   DesktopPreferences,
+  DesktopUpdateState,
   DesktopWindowState,
   LocalFilesystemRequest,
   LocalFilesystemResponse,
@@ -23,11 +24,25 @@ import type {
 } from '@sim/desktop-bridge'
 import { contextBridge, ipcRenderer } from 'electron'
 
+const VERSION_ARG_PREFIX = '--sim-desktop-version='
+
+/**
+ * The shell version injected by the main process as a preload argv flag (see
+ * createSecureWebPreferences). Read synchronously so the web app's minimum
+ * shell version gate has it at first paint.
+ */
+function shellVersion(): string | undefined {
+  const arg = process.argv.find((value) => value.startsWith(VERSION_ARG_PREFIX))
+  const version = arg?.slice(VERSION_ARG_PREFIX.length)
+  return version || undefined
+}
+
 /**
  * The narrow bridge exposed to pages. Every channel is validated and gated in
  * the main process — nothing here grants page code any privilege by itself.
  */
 const api: SimDesktopApi = {
+  ...(shellVersion() ? { version: shellVersion() } : {}),
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('desktop:open-external', url),
   beginOAuthConnect: (providerId: string, scope?: DesktopOAuthConnectScope): Promise<boolean> =>
     ipcRenderer.invoke('desktop:oauth-connect', providerId, scope),
@@ -67,6 +82,22 @@ const api: SimDesktopApi = {
     notify: (payload: DesktopNotificationPayload): Promise<boolean> =>
       ipcRenderer.invoke('desktop:settings:notify', payload),
   },
+  updates: {
+    getState: (): Promise<DesktopUpdateState> => ipcRenderer.invoke('desktop:updates:get-state'),
+    check: (): void => {
+      ipcRenderer.send('desktop:updates:check')
+    },
+    install: (): void => {
+      ipcRenderer.send('desktop:updates:install')
+    },
+    onState: (callback: (state: DesktopUpdateState) => void): (() => void) => {
+      const listener = (_event: unknown, state: DesktopUpdateState) => callback(state)
+      ipcRenderer.on('desktop:updates:state', listener)
+      return () => {
+        ipcRenderer.removeListener('desktop:updates:state', listener)
+      }
+    },
+  },
   launcher: {
     openChat: (target: { workspaceId: string; chatId?: string }): void => {
       ipcRenderer.send('launcher:open-chat', target)
@@ -90,10 +121,11 @@ const api: SimDesktopApi = {
   },
   browserAgent: {
     executeTool: (
+      toolCallId: string,
       tool: BrowserToolName,
       params: Record<string, unknown>
     ): Promise<BrowserToolResponse> =>
-      ipcRenderer.invoke('browser-agent:execute-tool', tool, params),
+      ipcRenderer.invoke('browser-agent:execute-tool', toolCallId, tool, params),
     panelAction: (action: BrowserPanelAction): void => {
       ipcRenderer.send('browser-agent:panel-action', action)
     },

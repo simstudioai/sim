@@ -8,7 +8,13 @@ import { LocalFilesystemService } from '@/main/local-filesystem'
 
 const APP = 'https://sim.ai'
 
-type Handler = (event: { senderFrame: { url: string } | null }, ...args: unknown[]) => unknown
+type Handler = (
+  event: {
+    senderFrame: { url: string; executeJavaScript?: (source: string) => Promise<unknown> } | null
+    sender?: { session: { fetch: (url: string, init?: RequestInit) => Promise<Response> } }
+  },
+  ...args: unknown[]
+) => unknown
 
 function collectHandlers() {
   const invoke = new Map<string, Handler>()
@@ -24,6 +30,18 @@ function collectHandlers() {
 
 const fileEvent = { senderFrame: { url: 'file:///app/static/offline.html' } }
 const appEvent = { senderFrame: { url: `${APP}/workspace/ws1` } }
+const activeAppEvent = {
+  senderFrame: {
+    url: `${APP}/workspace/ws1`,
+    executeJavaScript: vi.fn(async () => true),
+  },
+}
+const inactiveAppEvent = {
+  senderFrame: {
+    url: `${APP}/workspace/ws1`,
+    executeJavaScript: vi.fn(async () => false),
+  },
+}
 const evilEvent = { senderFrame: { url: 'https://evil.example/page' } }
 
 describe('registerIpcHandlers', () => {
@@ -54,6 +72,11 @@ describe('registerIpcHandlers', () => {
         applySystemPreferences: vi.fn(),
       },
       getWindowState: vi.fn(() => ({ isFullScreen: true })),
+      updates: {
+        getState: vi.fn(() => ({ status: 'ready' as const, version: '1.2.3' })),
+        check: vi.fn(),
+        install: vi.fn(),
+      },
       launcher: {
         openChat: vi.fn(),
         openApp: vi.fn(),
@@ -95,6 +118,23 @@ describe('registerIpcHandlers', () => {
     expect(await handler?.(appEvent, 'slack', 'not-an-object')).toBe(false)
   })
 
+  it('restricts the updates surface to the app origin', async () => {
+    const { invoke, on } = collectHandlers()
+    const getState = invoke.get('desktop:updates:get-state')
+    expect(await getState?.(evilEvent)).toEqual({ status: 'idle' })
+    expect(await getState?.(appEvent)).toEqual({ status: 'ready', version: '1.2.3' })
+
+    on.get('desktop:updates:check')?.(evilEvent)
+    on.get('desktop:updates:install')?.(evilEvent)
+    expect(deps.updates.check).not.toHaveBeenCalled()
+    expect(deps.updates.install).not.toHaveBeenCalled()
+
+    on.get('desktop:updates:check')?.(appEvent)
+    on.get('desktop:updates:install')?.(appEvent)
+    expect(deps.updates.check).toHaveBeenCalledTimes(1)
+    expect(deps.updates.install).toHaveBeenCalledTimes(1)
+  })
+
   it('restricts local filesystem access to the app origin', async () => {
     const { invoke } = collectHandlers()
     expect(
@@ -103,6 +143,69 @@ describe('registerIpcHandlers', () => {
     expect(
       await invoke.get('desktop:local-filesystem')?.(appEvent, { operation: 'list_mounts' })
     ).toEqual({ ok: true, data: { mounts: [] } })
+  })
+
+  it('requires an active user gesture for granting or revoking folder access', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('desktop:local-filesystem')
+
+    expect(await handler?.(inactiveAppEvent, { operation: 'mount_directory' })).toMatchObject({
+      ok: false,
+      code: 'ACCESS_DENIED',
+      error: expect.stringContaining('explicit user click'),
+    })
+    expect(await handler?.(activeAppEvent, { operation: 'mount_directory' })).toMatchObject({
+      ok: true,
+      data: { cancelled: true, mount: null },
+    })
+  })
+
+  it('requires server authorization for every privileged filesystem tool request', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('desktop:local-filesystem')
+    const handle = vi.spyOn(deps.localFilesystem, 'handle')
+
+    expect(
+      await handler?.(appEvent, {
+        operation: 'read',
+        uri: 'localfs://mount-1/README.md',
+        requestId: 'tool-1',
+      })
+    ).toMatchObject({
+      ok: false,
+      code: 'ACCESS_DENIED',
+      error: expect.stringContaining('authorized pending Copilot tool call'),
+    })
+    expect(handle).not.toHaveBeenCalled()
+
+    const fetchAuthorization = vi.fn(async () =>
+      Response.json({
+        toolName: 'read',
+        args: { path: 'user-local/Project--mount-1/README.md' },
+      })
+    )
+    const authorizedEvent = {
+      senderFrame: { url: `${APP}/workspace/ws1` },
+      sender: { session: { fetch: fetchAuthorization } },
+    }
+    vi.spyOn(deps.localFilesystem, 'isAuthorizedClientToolRequest').mockReturnValueOnce(true)
+    handle.mockResolvedValueOnce({ ok: true, data: { forgotten: false } })
+
+    await expect(
+      handler?.(authorizedEvent, {
+        operation: 'read',
+        uri: 'localfs://mount-1/README.md',
+        requestId: 'tool-1',
+      })
+    ).resolves.toEqual({ ok: true, data: { forgotten: false } })
+    expect(fetchAuthorization).toHaveBeenCalledWith(
+      `${APP}/api/desktop/tool/authorize`,
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        body: JSON.stringify({ toolCallId: 'tool-1' }),
+      })
+    )
   })
 
   it('restricts desktop settings to the app origin and validates mutations', async () => {
@@ -171,21 +274,50 @@ describe('registerIpcHandlers', () => {
     const { invoke } = collectHandlers()
     const handler = invoke.get('browser-agent:execute-tool')
 
-    expect(await handler?.(evilEvent, 'browser_navigate', { url: 'https://x.dev' })).toMatchObject({
+    expect(
+      await handler?.(evilEvent, 'tool-1', 'browser_navigate', { url: 'https://x.dev' })
+    ).toMatchObject({
       ok: false,
       error: expect.stringContaining('not allowed'),
     })
-    expect(await handler?.(fileEvent, 'browser_navigate', {})).toMatchObject({ ok: false })
-    expect(await handler?.(appEvent, 'not_a_browser_tool', {})).toMatchObject({
+    expect(await handler?.(fileEvent, 'tool-1', 'browser_navigate', {})).toMatchObject({
       ok: false,
-      error: expect.stringContaining('Unknown browser tool'),
     })
-    // Allowed sender + known tool reaches the driver (which reports its own
-    // tool-level failure since no browser session exists in this test).
-    expect(await handler?.(appEvent, 'browser_snapshot', {})).toMatchObject({
+    expect(await handler?.(appEvent, 'tool-1', 'browser_snapshot', {})).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('authorized pending Copilot tool call'),
+    })
+
+    const fetchAuthorization = vi.fn(async () =>
+      Response.json({ toolName: 'browser_snapshot', args: {} })
+    )
+    const authorizedEvent = {
+      senderFrame: { url: `${APP}/workspace/ws1` },
+      sender: { session: { fetch: fetchAuthorization } },
+    }
+    // The server-persisted name must match the renderer's requested name.
+    expect(
+      await handler?.(authorizedEvent, 'tool-1', 'browser_navigate', {
+        url: 'https://evil.example',
+      })
+    ).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('authorized pending Copilot tool call'),
+    })
+    // An authorized call reaches the driver with the server-persisted args
+    // (which reports its own tool-level failure because no session exists).
+    expect(
+      await handler?.(authorizedEvent, 'tool-1', 'browser_snapshot', {
+        ignored: 'renderer cannot choose params',
+      })
+    ).toMatchObject({
       ok: false,
       error: expect.stringContaining('No page is open yet'),
     })
+    expect(fetchAuthorization).toHaveBeenCalledWith(
+      `${APP}/api/desktop/tool/authorize`,
+      expect.objectContaining({ body: JSON.stringify({ toolCallId: 'tool-1' }) })
+    )
   })
 
   it('ignores browser-agent panel actions from outside the app origin', () => {

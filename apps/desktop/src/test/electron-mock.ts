@@ -239,6 +239,7 @@ export class BrowserWindow {
   destroy = vi.fn()
   restore = vi.fn()
   setPosition = vi.fn()
+  setTitle = vi.fn()
   setVisibleOnAllWorkspaces = vi.fn()
   setAlwaysOnTop = vi.fn()
   getSize = vi.fn(() => [1180, 850])

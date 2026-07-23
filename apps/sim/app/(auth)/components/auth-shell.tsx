@@ -30,6 +30,9 @@ export function AuthShell({ children, footer, reserveDesktopTitleBar = false }: 
         reserveDesktopTitleBar ? 'desktop-title-bar-page' : 'min-h-screen'
       )}
     >
+      {reserveDesktopTitleBar && (
+        <div aria-hidden className='desktop-login-window-drag-region desktop-window-drag-region' />
+      )}
       <header>
         <nav className='mx-auto flex w-full max-w-[1446px] items-center px-12 py-4 max-sm:px-5 max-lg:px-8'>
           <Link href='/' aria-label='Sim home' className='flex h-[30px] items-center'>

@@ -44,7 +44,7 @@ describe('executeBrowserToolOnClient', () => {
     executeBrowserToolOnClient(toolCallId, 'browser_snapshot', {})
     await flush()
 
-    expect(mockExecuteBrowserTool).toHaveBeenCalledWith('browser_snapshot', {}, 30_000)
+    expect(mockExecuteBrowserTool).toHaveBeenCalledWith(toolCallId, 'browser_snapshot', {}, 30_000)
     expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
       text: 'page content',
     })
@@ -75,6 +75,7 @@ describe('executeBrowserToolOnClient', () => {
     await flush()
 
     expect(mockExecuteBrowserTool).toHaveBeenCalledWith(
+      toolCallId,
       'browser_navigate',
       { url: 'https://example.com' },
       45_000

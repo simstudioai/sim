@@ -179,6 +179,7 @@ const ChatMessageSchema = z.object({
   desktopCapabilities: z
     .object({
       localFilesystem: z.boolean().optional(),
+      browser: z.boolean().optional(),
     })
     .optional(),
   browserCapable: z.boolean().optional(),
@@ -1085,7 +1086,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 workspaceContext,
                 vfs,
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
-                browserCapable: body.browserCapable === true,
+                browserCapable:
+                  body.desktopCapabilities?.browser === true || body.browserCapable === true,
               })
             : branch.buildPayload({
                 message: body.message,
@@ -1102,7 +1104,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 workspaceContext,
                 vfs,
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
-                browserCapable: body.browserCapable === true,
+                browserCapable:
+                  body.desktopCapabilities?.browser === true || body.browserCapable === true,
               })
         },
         activeOtelRoot.context

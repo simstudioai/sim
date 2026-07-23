@@ -16,7 +16,7 @@ import { processSSEStream } from '@/lib/copilot/request/go/parser'
 import { parsePersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import { executeBrowserToolOnClient } from '@/lib/copilot/tools/client/browser-tool-execution'
 import { executeLocalFilesystemTool } from '@/lib/copilot/tools/client/local-filesystem'
-import { isLocalFilesystemToolName } from '@/lib/copilot/tools/local-filesystem'
+import { isDesktopFilesystemToolCall } from '@/lib/copilot/tools/local-filesystem'
 import { getDesktopChatCapabilities } from '@/lib/desktop'
 
 const logger = createLogger('LauncherChat')
@@ -129,7 +129,7 @@ export function useLauncherChat() {
         executeBrowserToolOnClient(toolCallId, toolName, args, eventTs)
         return true
       }
-      if (isLocalFilesystemToolName(toolName)) {
+      if (isDesktopFilesystemToolCall(toolName, args)) {
         dispatchedToolIdsRef.current.add(toolCallId)
         executeLocalFilesystemTool(toolCallId, toolName, args, {
           workspaceId,

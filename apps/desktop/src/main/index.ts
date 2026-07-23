@@ -7,7 +7,13 @@ import {
   closeFocusedTab as closeFocusedBrowserTab,
   setPanelBounds as setBrowserAgentPanelBounds,
 } from '@/main/browser-agent/session'
-import { createConfigStore, partitionForOrigin } from '@/main/config'
+import {
+  APP_NAME_FOR_CHANNEL,
+  channelForOrigin,
+  createConfigStore,
+  DEFAULT_ORIGIN,
+  partitionForOrigin,
+} from '@/main/config'
 import { attachContextMenu } from '@/main/context-menu'
 import { attachCspFallback } from '@/main/csp'
 import { createDesktopSettingsService } from '@/main/desktop-settings'
@@ -336,6 +342,11 @@ function main(): void {
       settings: desktopSettings,
       getWindowState: () => ({ isFullScreen: getMainWindow()?.isFullScreen() ?? false }),
       beginOAuthConnect: (providerId, scope) => connectFlow.beginConnectHandoff(providerId, scope),
+      updates: {
+        getState: () => updater?.getState() ?? { status: 'idle' },
+        check: () => updater?.check(),
+        install: () => updater?.install(),
+      },
       launcher: {
         openChat: (target) => {
           launcher.hide()
@@ -376,7 +387,11 @@ function main(): void {
     updater = initUpdater({
       getWindow: getMainWindow,
       events,
+      appOrigin,
       autoDownload: () => config.get('autoDownloadUpdates') ?? true,
+      onStateChange: (state) => {
+        getMainWindow()?.webContents.send('desktop:updates:state', state)
+      },
     })
     desktopSettings.applySystemPreferences()
 
@@ -393,7 +408,10 @@ function main(): void {
 // Identity and userData must be set before the single-instance lock, which
 // writes its lock file into userData. Setting them here (not inside main)
 // keeps the SIM_DESKTOP_ORIGIN/USER_DATA test overrides isolated per instance.
-app.setName('Sim')
+// The name follows the build's channel ("Sim", "Sim Dev", …) so one developer
+// can run one install per environment side by side — separate settings,
+// sessions, locks, and update feeds.
+app.setName(APP_NAME_FOR_CHANNEL[channelForOrigin(DEFAULT_ORIGIN)])
 if (process.env.SIM_DESKTOP_USER_DATA) {
   app.setPath('userData', process.env.SIM_DESKTOP_USER_DATA)
 }

@@ -13,6 +13,7 @@ const DEFAULT_WIDTH = 1360
 const DEFAULT_HEIGHT = 860
 const MIN_WIDTH = 800
 const MIN_HEIGHT = 600
+const WINDOW_TITLE = 'Sim'
 const BOUNDS_SAVE_DELAY_MS = 400
 const ROUTE_SAVE_DELAY_MS = 500
 
@@ -27,7 +28,8 @@ const THEME_PROBE_SCRIPT = `(() => {
 /**
  * The hardened webPreferences shared by the main window and any child window.
  * The preload injects nothing into the page; it only exposes a whitelisted
- * IPC bridge.
+ * IPC bridge. The shell version rides in as a preload argv flag so the web
+ * app can enforce its minimum shell version without an IPC round-trip.
  */
 export function createSecureWebPreferences(
   partition: string,
@@ -44,6 +46,7 @@ export function createSecureWebPreferences(
     spellcheck: true,
     partition,
     preload: preloadPath,
+    additionalArguments: [`--sim-desktop-version=${app.getVersion()}`],
   }
 }
 
@@ -196,6 +199,8 @@ export interface CreateMainWindowDeps {
   isPackaged: boolean
   onClosed: () => void
   onFullScreenChange?: (isFullScreen: boolean) => void
+  /** Injectable for platform-specific window behavior tests. */
+  platform?: NodeJS.Platform
 }
 
 /**
@@ -205,8 +210,9 @@ export interface CreateMainWindowDeps {
  */
 export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
   const bounds = sanitizeBounds(deps.config.get('windowBounds'))
+  const platform = deps.platform ?? process.platform
   const win = new BrowserWindow({
-    title: 'Sim',
+    title: WINDOW_TITLE,
     width: bounds?.width ?? DEFAULT_WIDTH,
     height: bounds?.height ?? DEFAULT_HEIGHT,
     x: bounds?.x,
@@ -216,7 +222,7 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
     // No separate title bar: the page renders full-bleed to the window's top
     // edge with the traffic lights inset over it (Codex-style). Position is
     // explicit so the web app can reserve a matching top-left area.
-    ...(process.platform === 'darwin'
+    ...(platform === 'darwin'
       ? {
           titleBarStyle: 'hiddenInset' as const,
           trafficLightPosition: { x: 12, y: 12 },
@@ -246,8 +252,24 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
   }
   win.on('resize', persistBounds)
   win.on('move', persistBounds)
-  win.on('enter-full-screen', () => deps.onFullScreenChange?.(true))
-  win.on('leave-full-screen', () => deps.onFullScreenChange?.(false))
+  win.on('enter-full-screen', () => {
+    if (platform === 'darwin') {
+      win.setTitle('')
+    }
+    deps.onFullScreenChange?.(true)
+  })
+  win.on('leave-full-screen', () => {
+    if (platform === 'darwin') {
+      win.setTitle(WINDOW_TITLE)
+    }
+    deps.onFullScreenChange?.(false)
+  })
+  win.on('page-title-updated', (event) => {
+    if (platform === 'darwin' && win.isFullScreen()) {
+      event.preventDefault()
+      win.setTitle('')
+    }
+  })
 
   win.webContents.on('will-prevent-unload', (event) => {
     const choice = dialog.showMessageBoxSync(win, {

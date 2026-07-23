@@ -18,6 +18,14 @@ on:
         required: false
         type: boolean
         default: true
+      sign:
+        description: Sign and notarize with the Apple Developer identity. When
+          false (prerelease testing before the signing secrets exist) the build
+          is packaged unsigned; installed shells detect this and offer manual
+          downloads instead of Squirrel installs.
+        required: false
+        type: boolean
+        default: true
   workflow_dispatch:
     inputs:
       version:
@@ -29,6 +37,11 @@ on:
         required: false
         type: boolean
         default: false
+      sign:
+        description: Sign and notarize with the Apple Developer identity
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -78,11 +91,39 @@ jobs:
             exit 1
           fi
 
+      # Prerelease versions carry their environment in the tag: -alpha.N is a
+      # dev build, -beta.N a staging build. The channel decides the app's
+      # identity (name/bundle id — a separate app per environment, installable
+      # side by side) and the default origin baked into the bundle, which in
+      # turn selects the update feed the installed app polls.
+      - name: Resolve channel identity
+        id: channel
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          case "$VERSION" in
+            *-alpha.*)
+              NAME='Sim Dev'; APP_ID=ai.sim.desktop.dev; ORIGIN=https://www.dev.sim.ai ;;
+            *-beta.*)
+              NAME='Sim Staging'; APP_ID=ai.sim.desktop.staging; ORIGIN=https://www.staging.sim.ai ;;
+            *)
+              NAME='Sim'; APP_ID=ai.sim.desktop; ORIGIN='' ;;
+          esac
+          {
+            echo "name=$NAME"
+            echo "app_id=$APP_ID"
+            echo "origin=$ORIGIN"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building $NAME ($APP_ID) default origin: ${ORIGIN:-production}"
+
       - name: Bundle main and preload
         working-directory: apps/desktop
+        env:
+          SIM_DESKTOP_DEFAULT_ORIGIN: ${{ steps.channel.outputs.origin }}
         run: bun run build
 
       - name: Write App Store Connect API key
+        if: ${{ inputs.sign }}
         env:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
@@ -91,6 +132,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP/appstoreconnect/AuthKey.p8"
 
       - name: Package, sign, and notarize
+        if: ${{ inputs.sign }}
         working-directory: apps/desktop
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -101,9 +143,28 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: bunx electron-builder --mac --publish never
+          PRODUCT_NAME: ${{ steps.channel.outputs.name }}
+          APP_ID: ${{ steps.channel.outputs.app_id }}
+        run: >
+          bunx electron-builder --mac --publish never
+          -c.productName="$PRODUCT_NAME" -c.appId="$APP_ID"
+
+      # Unsigned prerelease path: no Developer ID, no notarization. The
+      # binaries end up ad-hoc/linker-signed, which runs locally but gets
+      # quarantined when downloaded — fine for testing the update pipeline.
+      - name: Package unsigned
+        if: ${{ !inputs.sign }}
+        working-directory: apps/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          PRODUCT_NAME: ${{ steps.channel.outputs.name }}
+          APP_ID: ${{ steps.channel.outputs.app_id }}
+        run: >
+          bunx electron-builder --mac --publish never -c.mac.notarize=false
+          -c.productName="$PRODUCT_NAME" -c.appId="$APP_ID"
 
       - name: Validate signature and notarization
+        if: ${{ inputs.sign }}
         run: |
           DMG="$(ls apps/desktop/release/*.dmg | head -1)"
           xcrun stapler validate "$DMG"

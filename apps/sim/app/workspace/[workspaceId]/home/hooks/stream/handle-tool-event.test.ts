@@ -118,6 +118,38 @@ describe('tool events (dispatch → model + side effects)', () => {
     expect(startClientLocalFilesystemTool).toHaveBeenCalledWith('local-1', 'local_list_mounts', {})
   })
 
+  it('routes an ordinary read call to the desktop only for an explicit user-local path', () => {
+    const startClientLocalFilesystemTool = vi.fn()
+    const ctx = createStreamLoopContext(makeStreamLoopDeps({ startClientLocalFilesystemTool }))
+    dispatchStreamEvent(
+      ctx,
+      toolEnv({
+        phase: 'call',
+        executor: 'client',
+        mode: 'async',
+        toolCallId: 'local-read',
+        toolName: 'read',
+        arguments: { path: 'user-local/Project--mount-1/README.md' },
+      })
+    )
+    dispatchStreamEvent(
+      ctx,
+      toolEnv({
+        phase: 'call',
+        executor: 'sim',
+        mode: 'async',
+        toolCallId: 'workspace-read',
+        toolName: 'read',
+        arguments: { path: 'WORKSPACE.md' },
+      })
+    )
+
+    expect(startClientLocalFilesystemTool).toHaveBeenCalledTimes(1)
+    expect(startClientLocalFilesystemTool).toHaveBeenCalledWith('local-read', 'read', {
+      path: 'user-local/Project--mount-1/README.md',
+    })
+  })
+
   it('settles a file-write row on its own result, independent of a streaming preview session', () => {
     const previewSessionsRef = ref<Record<string, FilePreviewSession>>({})
     const ctx = createStreamLoopContext(makeStreamLoopDeps({ previewSessionsRef }))

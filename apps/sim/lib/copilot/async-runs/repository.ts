@@ -188,7 +188,11 @@ export async function getRunSegment(runId: string) {
     { [TraceAttr.RunId]: runId },
     async () => {
       const [run] = await db
-        .select({ id: copilotRuns.id, userId: copilotRuns.userId })
+        .select({
+          id: copilotRuns.id,
+          userId: copilotRuns.userId,
+          status: copilotRuns.status,
+        })
         .from(copilotRuns)
         .where(eq(copilotRuns.id, runId))
         .limit(1)
@@ -373,6 +377,43 @@ async function markAsyncToolStatus(
 
 export async function markAsyncToolRunning(toolCallId: string, claimedBy: string) {
   return markAsyncToolStatus(toolCallId, 'running', { claimedBy })
+}
+
+/**
+ * Atomically claims a pending client tool exactly once. Native browser actions
+ * use this before crossing the Electron boundary so a replayed renderer event
+ * cannot click, type, submit, or navigate twice.
+ */
+export async function claimPendingAsyncToolCall(toolCallId: string, claimedBy: string) {
+  return withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolStatus]: ASYNC_TOOL_STATUS.running,
+      [TraceAttr.CopilotAsyncToolClaimedBy]: claimedBy,
+    },
+    async () => {
+      const now = new Date()
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          status: ASYNC_TOOL_STATUS.running,
+          claimedBy,
+          claimedAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending)
+          )
+        )
+        .returning()
+      return row ?? null
+    }
+  )
 }
 
 export async function completeAsyncToolCall(input: {

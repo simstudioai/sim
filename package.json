@@ -34,6 +34,8 @@
     "check:bare-icons": "bun run scripts/check-bare-icons.ts",
     "check:icon-paths": "bun run scripts/check-icon-paths.ts",
     "check:migrations": "bun run scripts/check-migrations-safety.ts",
+    "check:desktop-bridge": "bun run scripts/check-desktop-bridge-contract.ts --check",
+    "desktop-bridge-contract:update": "bun run scripts/check-desktop-bridge-contract.ts --update",
     "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",
     "mship-contracts:check": "bun run scripts/sync-mothership-stream-contract.ts --check",
     "billing-protocol-contract:generate": "bun run scripts/sync-billing-protocol-contract.ts",

@@ -9,7 +9,7 @@ import {
   extractResourcesFromToolResult,
   isResourceToolName,
 } from '@/lib/copilot/resources/extraction'
-import { isLocalFilesystemToolName } from '@/lib/copilot/tools/local-filesystem'
+import { isDesktopFilesystemToolCall } from '@/lib/copilot/tools/local-filesystem'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
@@ -189,12 +189,12 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
       deps.startClientWorkflowTool(rawId, name, args ?? {})
     }
   }
-  if (isLocalFilesystemToolName(name) && !isPartial) {
+  const localFilesystemArgs = payload.arguments as Record<string, unknown> | undefined
+  if (isDesktopFilesystemToolCall(name, localFilesystemArgs) && !isPartial) {
     const shouldStartLocalFilesystemTool =
       node?.kind === 'tool' && node.status === 'running' && !node.result
     if (shouldStartLocalFilesystemTool) {
-      const args = payload.arguments as Record<string, unknown> | undefined
-      deps.startClientLocalFilesystemTool(rawId, name, args ?? {})
+      deps.startClientLocalFilesystemTool(rawId, name, localFilesystemArgs ?? {})
     }
   }
   if (isBrowserToolName(name) && !isPartial) {

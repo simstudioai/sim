@@ -13,6 +13,11 @@ files:
 
 asar: true
 
+# Space-free regardless of productName ("Sim Dev" etc.): GitHub rewrites
+# asset names containing spaces, which would desync the electron-updater
+# manifest from the uploaded files.
+artifactName: "Sim-${version}-${arch}.${ext}"
+
 electronFuses:
   runAsNode: false
   enableCookieEncryption: true

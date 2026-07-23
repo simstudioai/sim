@@ -55,10 +55,10 @@ describe('LocalFilesystemService', () => {
     })
   })
 
-  it('returns an opaque mount URI and never exposes the host path', async () => {
+  it('returns opaque mount metadata without exposing the host path', async () => {
     const granted = await mount(service)
     expect(granted.uri).toMatch(/^localfs:\/\/[^/]+\/$/)
-    expect(JSON.stringify(granted)).not.toContain(root)
+    expect(granted).not.toHaveProperty('path')
 
     const listData = dataOf(await service.handle({ operation: 'list_mounts' }))
     expect(listData).toEqual({ mounts: [granted] })
@@ -99,13 +99,188 @@ describe('LocalFilesystemService', () => {
       })
     )
     expect(grepData).toMatchObject({
-      matches: [{ line: 1, column: 14, text: 'export const answer = 42' }],
+      matches: [{ line: 1, text: 'export const answer = 42' }],
     })
 
     const statData = dataOf(
       await service.handle({ operation: 'stat', uri: `${granted.uri}src/index.ts` })
     )
     expect(statData).toMatchObject({ name: 'index.ts', kind: 'file' })
+  })
+
+  it('supports the normal VFS grep regex and output modes', async () => {
+    const granted = await mount(service)
+
+    const content = dataOf(
+      await service.handle({
+        operation: 'grep',
+        uri: granted.uri,
+        pattern: 'hello|answer\\s*=\\s*42',
+        outputMode: 'content',
+        caseSensitive: true,
+        maxResults: 10,
+      })
+    )
+    expect(content).toMatchObject({
+      matches: [
+        { uri: `${granted.uri}README.md`, line: 1, text: 'hello world' },
+        { uri: `${granted.uri}src/index.ts`, line: 1, text: 'export const answer = 42' },
+      ],
+    })
+
+    const files = dataOf(
+      await service.handle({
+        operation: 'grep',
+        uri: granted.uri,
+        pattern: 'second line',
+        outputMode: 'files_with_matches',
+      })
+    )
+    expect(files).toEqual({ files: [`${granted.uri}README.md`], truncated: false })
+
+    const counts = dataOf(
+      await service.handle({
+        operation: 'grep',
+        uri: `${granted.uri}README.md`,
+        pattern: 'line',
+        outputMode: 'count',
+      })
+    )
+    expect(counts).toEqual({
+      counts: [{ uri: `${granted.uri}README.md`, count: 1 }],
+      truncated: false,
+    })
+  })
+
+  it('rejects grep regexes with catastrophic-backtracking risk', async () => {
+    const granted = await mount(service)
+    await expect(
+      service.handle({
+        operation: 'grep',
+        uri: granted.uri,
+        pattern: '(a+)+$',
+      })
+    ).resolves.toMatchObject({
+      ok: false,
+      code: 'INVALID_REQUEST',
+      error: expect.stringContaining('catastrophic backtracking'),
+    })
+  })
+
+  it('cancels a native scan by request id', async () => {
+    const granted = await mount(service)
+    for (let index = 0; index < 200; index++) {
+      await writeFile(join(root, `file-${index}.txt`), `line ${index}\n`)
+    }
+
+    const pending = service.handle({
+      operation: 'grep',
+      uri: granted.uri,
+      pattern: 'never-matches',
+      requestId: 'tool-abort',
+    })
+    const cancelled = dataOf(await service.handle({ operation: 'cancel', requestId: 'tool-abort' }))
+    expect(cancelled).toEqual({ cancelled: true })
+    await expect(pending).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
+  })
+
+  it('does not expose a raw-byte read operation', async () => {
+    const granted = await mount(service)
+    await expect(
+      service.handle({ operation: 'read_file_bytes', uri: `${granted.uri}README.md` })
+    ).resolves.toMatchObject({ ok: false, code: 'INVALID_REQUEST' })
+  })
+
+  it('binds privileged client reads and searches to server-persisted tool args', async () => {
+    const granted = await mount(service)
+    const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`
+
+    expect(
+      service.isAuthorizedClientToolRequest(
+        {
+          operation: 'read',
+          uri: `${granted.uri}README.md`,
+          startLine: 3,
+          lineCount: 25,
+          requestId: 'read-tool',
+        },
+        {
+          toolName: 'read',
+          args: { path: `${vfsRoot}/README.md`, offset: 2, limit: 25 },
+        }
+      )
+    ).toBe(true)
+    expect(
+      service.isAuthorizedClientToolRequest(
+        {
+          operation: 'read',
+          uri: `${granted.uri}src/index.ts`,
+          startLine: 3,
+          lineCount: 25,
+          requestId: 'read-tool',
+        },
+        {
+          toolName: 'read',
+          args: { path: `${vfsRoot}/README.md`, offset: 2, limit: 25 },
+        }
+      )
+    ).toBe(false)
+
+    expect(
+      service.isAuthorizedClientToolRequest(
+        {
+          operation: 'glob',
+          uri: granted.uri,
+          pattern: `${vfsRoot}/**/*.ts`,
+          pathPrefix: vfsRoot,
+          requestId: 'glob-tool',
+        },
+        { toolName: 'glob', args: { pattern: `${vfsRoot}/**/*.ts` } }
+      )
+    ).toBe(true)
+
+    const grepAuthorization = {
+      toolName: 'grep',
+      args: {
+        path: 'user-local',
+        pattern: 'TODO',
+        ignoreCase: true,
+        output_mode: 'files_with_matches',
+        maxResults: 20,
+      },
+    }
+    expect(
+      service.isAuthorizedClientToolRequest(
+        {
+          operation: 'grep',
+          uri: granted.uri,
+          pattern: 'TODO',
+          caseSensitive: false,
+          outputMode: 'files_with_matches',
+          lineNumbers: true,
+          context: 0,
+          maxResults: 20,
+          requestId: 'grep-tool',
+        },
+        grepAuthorization
+      )
+    ).toBe(true)
+    expect(
+      service.isAuthorizedClientToolRequest(
+        {
+          operation: 'grep',
+          uri: granted.uri,
+          pattern: 'PASSWORD',
+          caseSensitive: false,
+          outputMode: 'files_with_matches',
+          lineNumbers: true,
+          context: 0,
+          maxResults: 20,
+          requestId: 'grep-tool',
+        },
+        grepAuthorization
+      )
+    ).toBe(false)
   })
 
   it('rejects unknown mounts and symlinks that escape the selected directory', async () => {

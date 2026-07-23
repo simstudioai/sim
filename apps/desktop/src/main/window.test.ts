@@ -2,8 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
+import { BrowserWindow } from 'electron'
+import type { ConfigStore } from '@/main/config'
+import type { EventRecorder } from '@/main/observability'
 import {
   backgroundColorFor,
+  createMainWindow,
   createSecureWebPreferences,
   resolvePermission,
   sanitizeBounds,
@@ -98,5 +102,71 @@ describe('createSecureWebPreferences', () => {
 
   it('enables DevTools only for unpackaged builds', () => {
     expect(createSecureWebPreferences('persist:sim', '/p', false).devTools).toBe(true)
+  })
+
+  it('passes the shell version to the preload as an argv flag', () => {
+    expect(createSecureWebPreferences('persist:sim', '/p', true).additionalArguments).toEqual([
+      '--sim-desktop-version=1.0.0',
+    ])
+  })
+})
+
+describe('createMainWindow', () => {
+  it('keeps the native macOS fullscreen titlebar blank', () => {
+    const config = {
+      filePath: '/tmp/settings.json',
+      getOrigin: vi.fn(() => APP),
+      setOrigin: vi.fn(),
+      get: vi.fn(() => undefined),
+      set: vi.fn(),
+    } as unknown as ConfigStore
+    const events = {
+      filePath: '/tmp/events.jsonl',
+      record: vi.fn(),
+    } satisfies EventRecorder
+
+    const win = createMainWindow({
+      config,
+      events,
+      appOrigin: () => APP,
+      partition: 'persist:sim',
+      preloadPath: '/tmp/preload.cjs',
+      isPackaged: false,
+      onClosed: vi.fn(),
+      platform: 'darwin',
+    })
+
+    const MockBrowserWindow = BrowserWindow as typeof BrowserWindow & {
+      lastOptions?: Record<string, unknown>
+    }
+    const windowEventCalls = vi.mocked(win.on).mock.calls as unknown as Array<
+      [string, (...args: unknown[]) => unknown]
+    >
+
+    expect(MockBrowserWindow.lastOptions?.title).toBe('Sim')
+
+    const pageTitleHandler = windowEventCalls.find(
+      ([event]) => event === 'page-title-updated'
+    )?.[1] as ((event: { preventDefault: () => void }) => void) | undefined
+    const enterFullscreenHandler = windowEventCalls.find(
+      ([event]) => event === 'enter-full-screen'
+    )?.[1] as (() => void) | undefined
+    const leaveFullscreenHandler = windowEventCalls.find(
+      ([event]) => event === 'leave-full-screen'
+    )?.[1] as (() => void) | undefined
+
+    enterFullscreenHandler?.()
+    expect(win.setTitle).toHaveBeenLastCalledWith('')
+
+    vi.mocked(win.isFullScreen).mockReturnValue(true)
+    const event = { preventDefault: vi.fn() }
+    pageTitleHandler?.(event)
+
+    expect(pageTitleHandler).toBeTypeOf('function')
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+    expect(win.setTitle).toHaveBeenLastCalledWith('')
+
+    leaveFullscreenHandler?.()
+    expect(win.setTitle).toHaveBeenLastCalledWith('Sim')
   })
 })
