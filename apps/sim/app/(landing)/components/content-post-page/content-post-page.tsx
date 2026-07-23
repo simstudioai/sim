@@ -85,7 +85,7 @@ export function ContentPostPage({
                 {post.description}
               </p>
             </div>
-            <div className='mt-6 flex items-center gap-6'>
+            <div className='mt-6 flex flex-wrap items-center gap-x-6 gap-y-2'>
               <div className='flex items-center gap-2'>
                 <time
                   className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em]'
