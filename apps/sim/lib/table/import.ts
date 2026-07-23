@@ -127,20 +127,24 @@ export function decodeCsvText(input: Buffer | Uint8Array | string): string {
  * produce a valid table.
  *
  * All callers funnel through here, so the sample is prepared identically for
- * every import path: a possibly-partial trailing line (from slicing a fixed byte
- * window out of a larger file) is dropped before parsing so a mid-record cut
- * can't skew the counts.
+ * every import path: when the sample is a prefix sliced out of a larger file, a
+ * possibly-partial trailing line is dropped before parsing so a mid-record cut
+ * can't skew the counts. Pass `complete: true` when the sample is the entire file
+ * (nothing was sliced off) so a final row with no trailing newline still counts —
+ * dropping it would silently discard the only distinguishing data row of a tiny
+ * file and let a header-widening separator win.
  */
 export async function detectCsvDelimiter(
   input: Buffer | Uint8Array | string,
-  fallback: CsvDelimiter = ','
+  fallback: CsvDelimiter = ',',
+  { complete = false }: { complete?: boolean } = {}
 ): Promise<CsvDelimiter> {
   const { parse } = await import('csv-parse/sync')
   const decoded = decodeCsvText(input)
-  // Drop a partial final line when the sample is a prefix of a larger file; keep the
-  // whole thing when it's a single line (no newline) so a tiny full file still parses.
+  // Drop a partial final line only when the sample is a truncated prefix; keep every row when
+  // the sample is the whole file (or a single line) so a trailing-newline-less last row counts.
   const lastNewline = decoded.lastIndexOf('\n')
-  const text = lastNewline > 0 ? decoded.slice(0, lastNewline + 1) : decoded
+  const text = !complete && lastNewline > 0 ? decoded.slice(0, lastNewline + 1) : decoded
   if (text.trim() === '') return fallback
 
   let best: { delimiter: CsvDelimiter; fields: number; score: number } | null = null
@@ -648,7 +652,8 @@ export async function parseFileRows(
   if (ext === 'csv' || ext === 'tsv' || contentType === 'text/csv') {
     const delimiter = await detectCsvDelimiter(
       buffer.subarray(0, CSV_DELIMITER_SNIFF_BYTES),
-      ext === 'tsv' ? '\t' : ','
+      ext === 'tsv' ? '\t' : ',',
+      { complete: buffer.length <= CSV_DELIMITER_SNIFF_BYTES }
     )
     return parseCsvBuffer(buffer, delimiter)
   }

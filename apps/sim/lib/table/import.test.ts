@@ -426,6 +426,15 @@ describe('import', () => {
       expect(await detectCsvDelimiter('a;b;c\n1;2;3\n4;5;')).toBe(';')
     })
 
+    it('keeps the final row of a complete file that has no trailing newline', async () => {
+      // Without complete:true the trim would drop the only distinguishing data row, leaving the
+      // header alone and letting comma (which merely widens the header) win over semicolon.
+      const csv = 'a,b;c,d;e,f\n1;2;3'
+      expect(await detectCsvDelimiter(csv, ',', { complete: true })).toBe(';')
+      // A truncated prefix (complete:false, the default) still drops the partial tail.
+      expect(await detectCsvDelimiter(csv)).toBe(',')
+    })
+
     it('returns the fallback for empty input', async () => {
       expect(await detectCsvDelimiter('', ';')).toBe(';')
     })
@@ -451,6 +460,15 @@ describe('import', () => {
 
     it('handles a file smaller than the sniff window (exhausted during sniff)', async () => {
       const full = Buffer.from('a;b;c\n1;2;3\n')
+      const { delimiter, stream } = await sniffCsvDelimiterFromStream(Readable.from([full]))
+      expect(delimiter).toBe(';')
+      expect((await collect(stream)).equals(full)).toBe(true)
+    })
+
+    it('counts the final row of a fully-buffered file with no trailing newline', async () => {
+      // The whole file fits the sniff window (exhausted), so complete:true flows through and the
+      // last row is scored — semicolon must win despite comma widening the header row.
+      const full = Buffer.from('a,b;c,d;e,f\n1;2;3')
       const { delimiter, stream } = await sniffCsvDelimiterFromStream(Readable.from([full]))
       expect(delimiter).toBe(';')
       expect((await collect(stream)).equals(full)).toBe(true)

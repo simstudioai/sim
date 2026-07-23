@@ -127,9 +127,12 @@ async function parseCsvPreview(file: File, fallbackDelimiter: CsvDelimiter) {
     const lastNewline = bytes.lastIndexOf(0x0a)
     if (lastNewline > 0) bytes = bytes.subarray(0, lastNewline + 1)
   }
+  // The sniff sample is the whole file only when nothing was sliced off and it fits the window;
+  // otherwise it's a truncated prefix whose last line may be partial.
   const delimiter = await detectCsvDelimiter(
     bytes.subarray(0, CSV_DELIMITER_SNIFF_BYTES),
-    fallbackDelimiter
+    fallbackDelimiter,
+    { complete: !sliced && bytes.length <= CSV_DELIMITER_SNIFF_BYTES }
   )
   return parseCsvBuffer(bytes, delimiter)
 }
