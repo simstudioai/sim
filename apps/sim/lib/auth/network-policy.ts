@@ -97,7 +97,6 @@ export async function getNetworkPolicy(
   }
 }
 
-/** Drops the cached policy for an org so the next read is fresh. */
 export function invalidateNetworkPolicyCache(organizationId: string): void {
   policyCache.delete(organizationId)
 }
@@ -108,17 +107,6 @@ export interface NetworkPolicyDecision {
   reason?: string
 }
 
-/**
- * Enforces the member org's IP allowlist for a user. `resolveClientIp`
- * returns the trusted-proxy-resolved address ({@link getTrustedClientIp}
- * for requests, Better Auth's `session.ipAddress` at session creation).
- *
- * Fail-closed by design: when a policy is active and no trustworthy client
- * IP can be derived, access is denied — a spoofable or absent address must
- * not bypass a network restriction. `DISABLE_ORG_IP_ALLOWLIST` is the
- * break-glass for misconfigured proxy topologies. Non-members and orgs
- * without an active policy are always allowed.
- */
 const ALLOWED: NetworkPolicyDecision = { allowed: true }
 const DENIED: NetworkPolicyDecision = {
   allowed: false,
@@ -150,6 +138,17 @@ function recordDenialAudit(userId: string, organizationId: string, clientIp: str
   })
 }
 
+/**
+ * Enforces the member org's IP allowlist for a user. `resolveClientIp`
+ * returns the trusted-proxy-resolved address ({@link getTrustedClientIp}
+ * for requests, Better Auth's `session.ipAddress` at session creation).
+ *
+ * Fail-closed by design: when a policy is active and no trustworthy client
+ * IP can be derived, access is denied — a spoofable or absent address must
+ * not bypass a network restriction. `DISABLE_ORG_IP_ALLOWLIST` is the
+ * break-glass for misconfigured proxy topologies. Non-members and orgs
+ * without an active policy are always allowed.
+ */
 export async function enforceOrgNetworkPolicy(
   userId: string | null | undefined,
   resolveClientIp: () => string | null | undefined

@@ -3647,11 +3647,10 @@ async function getSessionImpl() {
     headers: hdrs,
   })
 
-  // Org IP allowlists are enforced at this chokepoint so EVERY
-  // session-authenticated request — the 180+ routes and layouts that call
-  // getSession directly, not just hybrid-auth routes — re-checks the policy.
-  // A denied member is treated as signed out. Impersonation sessions are
-  // platform tooling and exempt.
+  // Org IP allowlists are enforced at this chokepoint so every route and
+  // layout that calls getSession directly re-checks the policy, not just
+  // hybrid-auth routes. A denied member is treated as signed out.
+  // Impersonation sessions are platform tooling and exempt.
   const impersonatedBy = session
     ? (session.session as { impersonatedBy?: string | null }).impersonatedBy
     : null

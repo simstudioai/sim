@@ -125,7 +125,6 @@ export interface CompiledAllowlist {
   v6: Array<{ network: bigint; prefix: number }>
 }
 
-/** Compiles allowlist entries; malformed entries are silently skipped. */
 export function compileAllowlist(entries: readonly string[]): CompiledAllowlist {
   const compiled: CompiledAllowlist = { v4: [], v6: [] }
   for (const entry of entries) {
