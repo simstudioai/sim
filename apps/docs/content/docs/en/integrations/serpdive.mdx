@@ -1,0 +1,66 @@
+---
+title: SERPdive
+description: Search the web with SERPdive
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="serpdive"
+  color="#0A0F13"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SERPdive](https://serpdive.com) is a web search API built for AI agents. Instead of a list of links or short snippets, one call returns the extracted, answer-ready content of each source page, cleaned and sized for a context window.
+
+SERPdive gives your agents live web access without a scraping loop to maintain:
+
+- **Answer-ready content**: every result carries the readable content of the page, so the agent can quote and cite facts straight from the response.
+- **Two retrieval depths**: Mako returns the fact-carrying sentences of each source and is fast; Moby returns the full readable content of every page when whole-page context matters.
+- **Optional written answer**: the API can also return an answer built from the sources, concise on Mako and cited on Moby.
+- **Automatic localization**: the query's language decides where the search runs, so no country parameter is needed.
+
+Quality is measured, not asserted: on a [public, replayable 1,000-question benchmark](https://github.com/edendalexis/serpdive-benchmark) judged blind by an independent model, SERPdive runs at the same speed as Tavily, feeds the LLM **20.2% fewer tokens**, and wins **60.7% of decided quality duels** against Tavily's default search.
+
+Every account gets 1,000 free credits per month with no card.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate SERPdive into the workflow. Can search the web and return the extracted, answer-ready content of each source instead of links or snippets.
+
+
+
+## Actions
+
+### `serpdive_search`
+
+Search the web with SERPdive. Each result carries the extracted, answer-ready content of the page instead of a link or snippet, cleaned and sized for an LLM.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query, phrased as a question or topic, in any language \(e.g., "what changed in the latest Next.js release"\). Maximum 300 characters. |
+| `model` | string | No | Retrieval depth: mako \(1 credit\) returns the fact-carrying sentences of each source, moby \(1.5 credits\) returns the full readable content of every page \(e.g., "mako"\) |
+| `answer` | boolean | No | Also return a written answer built from the sources: concise on mako, detailed with citations on moby. No extra credits. |
+| `max_results` | number | No | Hard cap on delivered results, keeping the best-ranked ones \(1-10, e.g., 5\). Omit to get everything relevant. |
+| `apiKey` | string | Yes | SERPdive API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `query` | string | The search query that was executed |
+| `results` | array | Delivered sources, best first, each carrying the extracted content of the page |
+|   ↳ `url` | string | Result URL, tracking parameters stripped |
+|   ↳ `title` | string | Page title |
+|   ↳ `content` | string | Extracted, answer-ready content of the page |
+|   ↳ `date` | string | Publication date when known, ISO YYYY-MM-DD |
+| `answer` | string | Written answer built from the sources \(if requested\) |
+| `extra_info` | object | Structured direct-answer block \(weather, exchange rates, live scores...\) when the query has one |
+| `model` | string | The retrieval model that answered: mako or moby |
+| `response_time_ms` | number | Time taken for the search request in milliseconds |
+
+
