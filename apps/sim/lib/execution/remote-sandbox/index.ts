@@ -48,12 +48,15 @@ const DEFAULT_PROVIDER: SandboxProviderId = 'e2b'
  * `SANDBOX_PROVIDER` and redeploy; in-flight executions are unaffected.
  */
 function resolveProvider(): SandboxProvider {
-  const configured = env.SANDBOX_PROVIDER
+  // Normalize casing identically to env-flags' availability gate — otherwise a
+  // value like `Daytona` would pass the gate (which lowercases) but miss this
+  // lowercase-keyed map and throw at create time.
+  const configured = env.SANDBOX_PROVIDER?.toLowerCase()
   if (!configured) return PROVIDERS[DEFAULT_PROVIDER]
   const provider = PROVIDERS[configured as SandboxProviderId]
   if (!provider) {
     throw new Error(
-      `Unknown SANDBOX_PROVIDER "${configured}" (expected one of: ${Object.keys(PROVIDERS).join(', ')})`
+      `Unknown SANDBOX_PROVIDER "${env.SANDBOX_PROVIDER}" (expected one of: ${Object.keys(PROVIDERS).join(', ')})`
     )
   }
   return provider

@@ -335,6 +335,16 @@ describe('provider selection', () => {
     ).rejects.toThrow(/Unknown SANDBOX_PROVIDER "modal"/)
   })
 
+  it('resolves SANDBOX_PROVIDER case-insensitively', async () => {
+    mockEnv.SANDBOX_PROVIDER = 'Daytona'
+    stubCodeRun('daytona', `${SIM_RESULT_PREFIX}null`)
+
+    await executeInSandbox({ code: 'x', language: CodeLanguage.Python, timeoutMs: 1000 })
+
+    expect(mockDaytonaCreate).toHaveBeenCalledTimes(1)
+    expect(mockE2BCreate).not.toHaveBeenCalled()
+  })
+
   it('binds language at create time so JS never runs through the Python toolbox', async () => {
     useProvider('daytona')
     mockProcessCodeRun.mockResolvedValue({ result: `${SIM_RESULT_PREFIX}null`, exitCode: 0 })
