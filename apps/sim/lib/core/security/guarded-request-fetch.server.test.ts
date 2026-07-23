@@ -202,6 +202,21 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
     expect(response.headers.get('content-length')).toBeNull()
   })
 
+  it('rejects the reader (not crash) when Content-Encoding is gzip but the body is not', async () => {
+    const source = new Readable({ read() {} })
+    source.push(Buffer.from('this is definitely not gzip'))
+    source.push(null)
+    mockUndiciRequest.mockResolvedValueOnce(
+      undiciReply(200, { 'content-type': 'application/json', 'content-encoding': 'gzip' }, source)
+    )
+    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+
+    const response = await fetch('https://mcp.example.com/bad', { method: 'GET' })
+
+    // The zlib error must surface as a rejected read, never an unhandled 'error' event.
+    await expect(response.text()).rejects.toThrow()
+  })
+
   it('rejects the reader when the source is destroyed without an error (abort/reset)', async () => {
     const source = new Readable({ read() {} }) // stays open, never pushes
     mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, source))

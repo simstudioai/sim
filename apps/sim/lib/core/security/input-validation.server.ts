@@ -831,10 +831,12 @@ async function undiciRequestAsResponse(
     else if (value != null) responseHeaders.append(key, value)
   }
 
-  // 204/205/304 carry no body; `new Response` rejects a non-null body for them. Drain
-  // undici's (empty) stream so its socket returns to the Agent pool instead of leaking.
+  // Null-body statuses (204/205/304) can't carry a body; drain undici's (empty) stream so its
+  // socket returns to the pool. Attach an error listener first so a socket reset mid-drain
+  // surfaces as a handled event, not an unhandled 'error' that crashes the process.
   const isNullBody = statusCode === 204 || statusCode === 205 || statusCode === 304
   if (isNullBody) {
+    body.on('error', () => {})
     body.resume()
     const response = new Response(null, { status: statusCode, headers: responseHeaders })
     Object.defineProperty(response, 'url', { value: url, configurable: true })
@@ -842,32 +844,40 @@ async function undiciRequestAsResponse(
   }
 
   // Decode Content-Encoding like `fetch` does (`request()` returns raw bytes). `maxResponseSize`
-  // still caps the compressed wire bytes on `body`; forward its errors into the decoder so the
-  // cap and any socket reset still surface as a stream error, and tear the source down when the
-  // decoded stream ends or is cancelled so the socket can't leak.
+  // still caps the compressed wire bytes on `body`.
   const contentEncoding = String(headers['content-encoding'] ?? '')
     .toLowerCase()
     .trim()
   const decoder = contentEncodingDecoder(contentEncoding)
-  let bodyStream: Readable = body
   if (decoder) {
-    body.once('error', (err) => decoder.destroy(err))
-    decoder.once('close', () => body.destroy())
-    bodyStream = body.pipe(decoder)
     // The bridged body is now decoded; drop framing headers that would misdescribe it.
     responseHeaders.delete('content-encoding')
     responseHeaders.delete('content-length')
   }
+  // Build the bridge over the stream the consumer reads (the decoder when decoding).
+  // `nodeReadableToWebStream` attaches its `error` listener synchronously, so wiring the pipe
+  // AFTER it means a synchronous zlib error (e.g. a server mislabeling a non-gzip body as gzip)
+  // is caught and rejects the reader instead of taking down the process.
+  const webBody = nodeReadableToWebStream(decoder ?? body)
+  if (decoder) {
+    body.once('error', (err) => decoder.destroy(err)) // forward maxResponseSize / socket reset
+    decoder.once('close', () => body.destroy()) // tear the source down so the socket can't leak
+    body.pipe(decoder)
+  }
 
-  const response = new Response(nodeReadableToWebStream(bodyStream), {
-    status: statusCode,
-    headers: responseHeaders,
-  })
-  // undici.request never sets `url`; `fetch` did, and consumers rely on it (the MCP
-  // transport's response-cap wrapper copies it; the SDK resolves relative
-  // auth-metadata URLs against it). Preserve parity.
-  Object.defineProperty(response, 'url', { value: url, configurable: true })
-  return response
+  try {
+    const response = new Response(webBody, { status: statusCode, headers: responseHeaders })
+    // undici.request never sets `url`; `fetch` did, and consumers rely on it (the MCP
+    // transport's response-cap wrapper copies it; the SDK resolves relative
+    // auth-metadata URLs against it). Preserve parity.
+    Object.defineProperty(response, 'url', { value: url, configurable: true })
+    return response
+  } catch (err) {
+    // `new Response` rejects an out-of-range status (a 1xx undici shouldn't surface, but
+    // defensively): destroy the source so its socket can't leak, then rethrow.
+    body.destroy()
+    throw err
+  }
 }
 
 /**
