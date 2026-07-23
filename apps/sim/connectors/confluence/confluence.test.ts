@@ -163,4 +163,35 @@ describe('preserveConfluenceCallouts', () => {
       expect(result).not.toContain('sentence.Second')
     }
   )
+
+  it.concurrent(
+    'does not duplicate or fuse text from a nested list inside a callout body (nesting regression)',
+    () => {
+      const html =
+        '<div class="confluence-information-macro confluence-information-macro-note">' +
+        '<div class="confluence-information-macro-body">' +
+        '<ul><li>Outer item' +
+        '<ul><li>Nested item A</li><li>Nested item B</li></ul>' +
+        '</li><li>Outer item two</li></ul>' +
+        '</div></div>'
+      const result = preserveConfluenceCallouts(html)
+      // Each nested <li>'s text must appear exactly once, not duplicated by the
+      // outer <li> also being matched and its .text() recursing into it.
+      const occurrences = (result.match(/Nested item A/g) ?? []).length
+      expect(occurrences).toBe(1)
+      expect(result).not.toContain('Nested item ANested item B')
+      expect(result).toContain('Outer item Nested item A Nested item B Outer item two')
+    }
+  )
+
+  it.concurrent('does not fuse text from a blockquote nested inside a table cell', () => {
+    const html =
+      '<div class="panel"><div class="panelContent">' +
+      '<table><tr><td>Cell text<blockquote><p>quoted text</p></blockquote>after quote</td></tr></table>' +
+      '</div></div>'
+    const result = preserveConfluenceCallouts(html)
+    expect(result).not.toContain('quotedtext')
+    expect(result).not.toContain('textafter')
+    expect(result).toContain('Cell text quoted text after quote')
+  })
 })

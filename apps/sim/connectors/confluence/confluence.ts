@@ -19,28 +19,34 @@ const CALLOUT_LABELS: Record<string, string> = {
 }
 
 /**
- * Selectors for elements whose own text is a natural word-boundary unit —
- * paragraphs, list items, headings, table cells, quotes. Cheerio's `.text()`
- * concatenates every descendant text node with no separator at all, so pulling
- * a macro body's text in one call fuses adjacent blocks together (e.g. a
- * `<p>...for:</p>` immediately followed by `<li>GitLab</li>` becomes
- * `for:GitLab`, corrupting the very word boundaries RAG chunking depends on).
- * Extracting block-by-block and joining with a single space keeps each block's
- * text intact and separated, matching how `htmlToPlainText` already treats the
- * rest of the page.
+ * Cheerio's `.text()` concatenates every descendant text node with no
+ * separator at all, so pulling a macro body's text in one call fuses adjacent
+ * blocks together (e.g. a `<p>...for:</p>` immediately followed by
+ * `<li>GitLab</li>` becomes `for:GitLab`, corrupting the very word boundaries
+ * RAG chunking depends on). Selecting "block" elements and taking `.text()` on
+ * each independently isn't enough either — nested blocks (a `<li>` containing
+ * its own nested `<ul><li>`, a `<td>` containing a `<blockquote>`) still fuse
+ * together the same way, one level deeper, since a matched outer block's
+ * `.text()` recurses into and flattens its matched descendants too. Walking
+ * every text node individually and joining them all with a single space
+ * fixes both cases at once, with no double-counting, regardless of nesting
+ * depth — matching how `html-parser.ts` already walks HTML for the same
+ * reason elsewhere in this codebase.
  */
-const BLOCK_TEXT_SELECTOR = 'p, li, h1, h2, h3, h4, h5, h6, td, th, blockquote, pre'
-
 function extractBlockJoinedText($: cheerio.CheerioAPI, $el: cheerio.Cheerio<any>): string {
-  const blocks = $el.find(BLOCK_TEXT_SELECTOR)
-  if (blocks.length === 0) {
-    return $el.text().trim()
+  const parts: string[] = []
+  const visit = ($node: cheerio.Cheerio<any>) => {
+    $node.contents().each((_, child) => {
+      if (child.type === 'text') {
+        const text = $(child).text().trim()
+        if (text) parts.push(text)
+      } else if (child.type === 'tag') {
+        visit($(child))
+      }
+    })
   }
-  return blocks
-    .map((_, block) => $(block).text().trim())
-    .get()
-    .filter(Boolean)
-    .join(' ')
+  visit($el)
+  return parts.join(' ').trim()
 }
 
 /**
