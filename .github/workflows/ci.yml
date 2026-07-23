@@ -202,7 +202,13 @@ jobs:
   migrate:
     name: Migrate DB
     needs: [test-build]
+    # !cancelled() + explicit result check: test-build's needs chain contains
+    # the (push-skipped) dedup-promotion job, and a skipped transitive ancestor
+    # fails the implicit success() and would cascade-skip the whole deploy
+    # chain (migrate -> promote-images -> CodeDeploy).
     if: >-
+      !cancelled() &&
+      needs.test-build.result == 'success' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     uses: ./.github/workflows/migrations.yml
@@ -430,7 +436,12 @@ jobs:
   promote-images:
     name: Promote Images
     needs: [migrate, build-amd64]
+    # Explicit results: see migrate's comment — the implicit success() fails
+    # on the skipped dedup-promotion ancestor.
     if: >-
+      !cancelled() &&
+      needs.migrate.result == 'success' &&
+      needs.build-amd64.result == 'success' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
@@ -553,7 +564,13 @@ jobs:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
     needs: [promote-images, build-ghcr-arm64, detect-version]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Explicit results: see migrate's comment.
+    if: >-
+      !cancelled() &&
+      needs.promote-images.result == 'success' &&
+      needs.build-ghcr-arm64.result == 'success' &&
+      needs.detect-version.result == 'success' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
@@ -640,7 +657,12 @@ jobs:
   process-docs:
     name: Process Docs
     needs: [promote-images, check-docs-changes]
-    if: needs.check-docs-changes.outputs.docs_changed == 'true'
+    # Explicit results: see migrate's comment.
+    if: >-
+      !cancelled() &&
+      needs.promote-images.result == 'success' &&
+      needs.check-docs-changes.result == 'success' &&
+      needs.check-docs-changes.outputs.docs_changed == 'true'
     uses: ./.github/workflows/docs-embeddings.yml
     secrets: inherit
 
@@ -650,7 +672,12 @@ jobs:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
     needs: [create-ghcr-manifests, detect-version]
-    if: needs.detect-version.outputs.is_release == 'true'
+    # Explicit results: see migrate's comment.
+    if: >-
+      !cancelled() &&
+      needs.create-ghcr-manifests.result == 'success' &&
+      needs.detect-version.result == 'success' &&
+      needs.detect-version.outputs.is_release == 'true'
     permissions:
       contents: write
     steps:
