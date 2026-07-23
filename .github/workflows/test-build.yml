@@ -236,12 +236,6 @@ jobs:
           key: ${{ github.repository }}-turbo-cache-build-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./.turbo
 
-      # Keyed per commit so EVERY run saves its refreshed cache — a key without
-      # a unique suffix is written once and then frozen (GitHub caches are
-      # immutable per key; a primary-key hit skips the save), which left builds
-      # compiling against a cache stale since the last lockfile change. The
-      # restore-keys prefix match picks the most recently saved cache for this
-      # lockfile, falling back across lockfile changes.
       # Turbopack's persistent build cache (NEXT_TURBOPACK_BUILD_CACHE below)
       # writes ~5 GB into .next/cache — a sticky disk mounts it in ~1s where an
       # actions/cache round-trip would eat the warm-build win. Same event/fork
