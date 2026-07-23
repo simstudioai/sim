@@ -92,6 +92,30 @@ describe('isAddressAllowed', () => {
     expect(isAddressAllowed('::ffff:10.0.1.5', mapped)).toBe(false)
   })
 
+  it('canonicalizes every textual form of a mapped client to the v4 bucket', () => {
+    // A plain IPv4 entry must match a mapped client written in compressed,
+    // expanded, or hex form — all denote 192.0.2.5.
+    const v4entry = compileAllowlist(['192.0.2.0/24'])
+    expect(isAddressAllowed('::ffff:192.0.2.5', v4entry)).toBe(true)
+    expect(isAddressAllowed('0:0:0:0:0:ffff:192.0.2.5', v4entry)).toBe(true)
+    expect(isAddressAllowed('::ffff:c000:0205', v4entry)).toBe(true)
+    expect(isAddressAllowed('::ffff:192.0.3.5', v4entry)).toBe(false)
+
+    // And a mapped-form CIDR entry matches an expanded/hex mapped client.
+    const mappedEntry = compileAllowlist(['::ffff:192.0.2.0/120'])
+    expect(mappedEntry.v4).toHaveLength(1)
+    expect(isAddressAllowed('0:0:0:0:0:ffff:192.0.2.9', mappedEntry)).toBe(true)
+    expect(isAddressAllowed('::ffff:c000:0209', mappedEntry)).toBe(true)
+  })
+
+  it('does not treat genuine IPv6 in the ffff block boundary as mapped', () => {
+    // 0:0:0:0:1:ffff:... is NOT the ::ffff:0:0/96 mapped range.
+    const v6entry = compileAllowlist(['0:0:0:0:1:ffff::/96'])
+    expect(v6entry.v6).toHaveLength(1)
+    expect(isAddressAllowed('0:0:0:0:1:ffff:192.0.2.5', v6entry)).toBe(true)
+    expect(isAddressAllowed('192.0.2.5', v6entry)).toBe(false)
+  })
+
   it('labels never affect matching', () => {
     const labelled = compileAllowlist(['10.0.0.0/16 # Frankfurt VPN'])
     expect(isAddressAllowed('10.0.5.5', labelled)).toBe(true)

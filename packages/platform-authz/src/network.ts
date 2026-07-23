@@ -85,26 +85,25 @@ function stripEntryLabel(entry: string): string {
   return (hashIndex === -1 ? entry : entry.slice(0, hashIndex)).trim()
 }
 
+/**
+ * IPv4-mapped IPv6 range is `::ffff:0:0/96` — the low 32 bits are the IPv4
+ * address and the 96 bits above them equal `0x…0000ffff`. Detecting this on
+ * the PARSED numeric value (not the string) canonicalizes every textual form
+ * of a mapped address identically — compressed (`::ffff:192.0.2.5`), expanded
+ * (`0:0:0:0:0:ffff:192.0.2.5`), and hex (`::ffff:c000:0205`) all parse to the
+ * same bigint — so entries and client addresses land in the same family
+ * bucket regardless of how they were written.
+ */
+const IPV4_MAPPED_PREFIX = 0xffffn
+
+function mappedV6ToIpv4(value: bigint): number | null {
+  return value >> 32n === IPV4_MAPPED_PREFIX ? Number(value & 0xffffffffn) : null
+}
+
 /** Parses an allowlist entry (bare IP or CIDR, optional label), or null when malformed. */
 function parseCidr(entry: string): ParsedCidr | null {
   const [host, prefixPart, ...rest] = stripEntryLabel(entry).split('/')
   if (rest.length > 0) return null
-
-  // An IPv4-mapped IPv6 host (`::ffff:a.b.c.d`) is canonicalized to IPv4 so it
-  // lands in the same family bucket as the client addresses isAddressAllowed
-  // demotes — otherwise a mapped-form entry compiles into the v6 list and a
-  // mapped client, demoted to v4, would never match it. A prefix on the
-  // mapped form addresses the full 128-bit space, so its meaningful range is
-  // the low 32 bits (>= /96); demote it by 96.
-  const mappedV4 = host.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i)
-  if (mappedV4) {
-    const v4Mapped = parseIpv4(mappedV4[1])
-    if (v4Mapped === null) return null
-    if (prefixPart === undefined) return { kind: 'v4', value: v4Mapped, prefix: 32 }
-    const mappedPrefix = Number(prefixPart)
-    if (!Number.isInteger(mappedPrefix) || mappedPrefix < 96 || mappedPrefix > 128) return null
-    return { kind: 'v4', value: v4Mapped, prefix: mappedPrefix - 96 }
-  }
 
   const v4 = parseIpv4(host)
   if (v4 !== null) {
@@ -115,6 +114,18 @@ function parseCidr(entry: string): ParsedCidr | null {
 
   const v6 = parseIpv6(host)
   if (v6 !== null) {
+    // Canonicalize an IPv4-mapped IPv6 host to IPv4 (any textual form) so it
+    // shares a bucket with the mapped client addresses isAddressAllowed also
+    // demotes. A prefix on the mapped form addresses the full 128-bit space,
+    // so its meaningful range is the low 32 bits (>= /96); demote it by 96.
+    const mapped = mappedV6ToIpv4(v6)
+    if (mapped !== null) {
+      if (prefixPart === undefined) return { kind: 'v4', value: mapped, prefix: 32 }
+      const mappedPrefix = Number(prefixPart)
+      if (!Number.isInteger(mappedPrefix) || mappedPrefix < 96 || mappedPrefix > 128) return null
+      return { kind: 'v4', value: mapped, prefix: mappedPrefix - 96 }
+    }
+
     const prefix = prefixPart === undefined ? 128 : Number(prefixPart)
     if (!Number.isInteger(prefix) || prefix < 0 || prefix > 128) return null
     return { kind: 'v6', value: v6, prefix }
@@ -156,23 +167,32 @@ export function compileAllowlist(entries: readonly string[]): CompiledAllowlist 
   return compiled
 }
 
+function matchV4(v4: number, allowlist: CompiledAllowlist): boolean {
+  return allowlist.v4.some((entry) => (v4 & entry.mask) >>> 0 === entry.network)
+}
+
 /**
  * True when `address` (an IPv4 or IPv6 client address, no CIDR suffix) is
- * inside the compiled allowlist. IPv4-mapped IPv6 addresses
- * (`::ffff:a.b.c.d`) match against the v4 entries. Unparseable addresses
- * never match.
+ * inside the compiled allowlist. IPv4-mapped IPv6 addresses — in any textual
+ * form (`::ffff:a.b.c.d`, `0:0:0:0:0:ffff:a.b.c.d`, `::ffff:hhhh:hhhh`) —
+ * match against the v4 entries, since they canonicalize to the same value.
+ * Unparseable addresses never match.
  */
 export function isAddressAllowed(address: string, allowlist: CompiledAllowlist): boolean {
   const trimmed = address.trim()
 
-  const mapped = trimmed.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i)
-  const v4 = parseIpv4(mapped ? mapped[1] : trimmed)
-  if (v4 !== null) {
-    return allowlist.v4.some((entry) => (v4 & entry.mask) >>> 0 === entry.network)
-  }
+  const v4 = parseIpv4(trimmed)
+  if (v4 !== null) return matchV4(v4, allowlist)
 
   const v6 = parseIpv6(trimmed)
   if (v6 === null) return false
+
+  // A mapped IPv6 client is checked against the v4 entries (the parser
+  // canonicalizes every textual form to the same value); only genuine IPv6
+  // falls through to the v6 entries.
+  const mapped = mappedV6ToIpv4(v6)
+  if (mapped !== null) return matchV4(mapped, allowlist)
+
   return allowlist.v6.some((entry) => {
     if (entry.prefix === 0) return true
     const shift = BigInt(128 - entry.prefix)
