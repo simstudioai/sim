@@ -53,6 +53,9 @@ const {
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
 const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
 
+// Use the real urls module so it reads the file-local env mock below
+vi.unmock('@/lib/core/utils/urls')
+
 // Mock env config to control hosted key availability
 vi.mock('@/lib/core/config/env', () => ({
   env: new Proxy({} as Record<string, string | undefined>, {
