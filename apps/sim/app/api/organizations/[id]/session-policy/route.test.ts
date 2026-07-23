@@ -8,8 +8,10 @@ import {
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetSession, mockIsEnterprise, mockEagerClamp, mockRecordAudit } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
@@ -37,10 +39,6 @@ vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mockIsEnterprise,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isBillingEnabled: true,
-}))
-
 vi.mock('@sim/audit', () => ({
   recordAudit: mockRecordAudit,
   AuditAction: {
@@ -53,6 +51,12 @@ import { GET, PUT } from '@/app/api/organizations/[id]/session-policy/route'
 
 const ORG_ID = 'org-1'
 const routeContext = { params: Promise.resolve({ id: ORG_ID }) }
+
+beforeAll(() => {
+  setEnvFlags({ isBillingEnabled: true })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('session policy route', () => {
   beforeEach(() => {

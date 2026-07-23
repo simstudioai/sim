@@ -72,11 +72,6 @@ vi.mock('@/app/api/workflows/utils', () => ({
 
 vi.mock('@/lib/core/config/env', () => ({ env: { ELEVENLABS_API_KEY: 'test-key' } }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isBillingEnabled: false,
-  getCostMultiplier: () => 1,
-}))
-
 vi.mock('@/lib/core/rate-limiter', () => ({
   RateLimiter: class {
     checkRateLimitDirect = vi.fn().mockResolvedValue({ allowed: true })

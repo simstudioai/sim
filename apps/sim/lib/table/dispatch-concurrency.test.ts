@@ -1,11 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnv, mockFlags } = vi.hoisted(() => ({
+const { mockEnv } = vi.hoisted(() => ({
   mockEnv: {} as Record<string, string | undefined>,
-  mockFlags: { isBillingEnabled: true },
 }))
 
 vi.mock('@/lib/core/config/env', () => ({
@@ -25,21 +25,17 @@ vi.mock('@/lib/core/config/env', () => ({
   },
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return mockFlags.isBillingEnabled
-  },
-}))
-
 import {
   getMaxTableDispatchConcurrency,
   getTableDispatchConcurrency,
 } from '@/lib/table/dispatch-concurrency'
 
+afterAll(resetEnvFlagsMock)
+
 describe('getTableDispatchConcurrency', () => {
   beforeEach(() => {
     for (const key of Object.keys(mockEnv)) delete mockEnv[key]
-    mockFlags.isBillingEnabled = true
+    setEnvFlags({ isBillingEnabled: true })
   })
 
   it('resolves free vs paid defaults', () => {
@@ -60,7 +56,7 @@ describe('getTableDispatchConcurrency', () => {
   })
 
   it('uses the paid value when billing is disabled', () => {
-    mockFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
     expect(getTableDispatchConcurrency(null)).toBe(50)
 
     mockEnv.TABLE_DISPATCH_CONCURRENCY_PAID = '120'

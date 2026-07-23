@@ -1,8 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, urlsMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, dbChainMockFns, resetEnvFlagsMock, setEnvFlags, urlsMock } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetHighestPrioritySubscription,
@@ -55,14 +55,6 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isAccessControlEnabled: false,
-  isBillingEnabled: true,
-  isHosted: true,
-  isInboxEnabled: false,
-  isSsoEnabled: false,
-}))
-
 vi.mock('@/lib/core/utils/urls', () => urlsMock)
 
 import {
@@ -73,6 +65,12 @@ import {
   isWorkspaceOnEnterprisePlan,
   syncSubscriptionPlan,
 } from '@/lib/billing/core/subscription'
+
+beforeAll(() => {
+  setEnvFlags({ isBillingEnabled: true, isHosted: true })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('hasPaidSubscription', () => {
   beforeEach(() => {

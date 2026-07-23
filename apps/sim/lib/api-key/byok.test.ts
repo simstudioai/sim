@@ -22,10 +22,6 @@ vi.mock('@/lib/core/config/env', () => ({
   env: {},
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: false,
-}))
-
 vi.mock('@/providers/models', () => ({
   getProviderFileAttachment: vi
     .fn()

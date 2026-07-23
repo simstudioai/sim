@@ -2,8 +2,9 @@
  * @vitest-environment jsdom
  */
 import { act, type ChangeEventHandler, type ReactNode } from 'react'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockUseConfigureSSO, mockUseOrganizationBilling, mockUseSession, mockUseSSOProviders } =
   vi.hoisted(() => ({
@@ -48,10 +49,6 @@ vi.mock('@sim/emcn', () => ({
 
 vi.mock('@/lib/auth/auth-client', () => ({
   useSession: mockUseSession,
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isBillingEnabled: true,
 }))
 
 vi.mock(
@@ -129,6 +126,12 @@ function renderSso(organizationId: string) {
     root.render(<SSO organizationId={organizationId} />)
   })
 }
+
+beforeAll(() => {
+  setEnvFlags({ isBillingEnabled: true })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('SSO organization transitions', () => {
   beforeEach(() => {

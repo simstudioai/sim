@@ -6,33 +6,23 @@ import {
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
+  resetEnvFlagsMock,
   schemaMock,
+  setEnvFlags,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  billingFlag,
-  sendEmailSpy,
-  getEmailPreferencesMock,
-  renderMock,
-  subjectMock,
-  isOrgAdminRoleMock,
-} = vi.hoisted(() => ({
-  billingFlag: { enabled: true },
-  sendEmailSpy: vi.fn(() => Promise.resolve({ success: true })),
-  getEmailPreferencesMock: vi.fn(() => Promise.resolve(null as unknown)),
-  renderMock: vi.fn(() => Promise.resolve('<html></html>')),
-  subjectMock: vi.fn(() => 'Subject'),
-  isOrgAdminRoleMock: vi.fn(() => true),
-}))
+const { sendEmailSpy, getEmailPreferencesMock, renderMock, subjectMock, isOrgAdminRoleMock } =
+  vi.hoisted(() => ({
+    sendEmailSpy: vi.fn(() => Promise.resolve({ success: true })),
+    getEmailPreferencesMock: vi.fn(() => Promise.resolve(null as unknown)),
+    renderMock: vi.fn(() => Promise.resolve('<html></html>')),
+    subjectMock: vi.fn(() => 'Subject'),
+    isOrgAdminRoleMock: vi.fn(() => true),
+  }))
 
 vi.mock('@sim/db', () => dbChainMock)
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return billingFlag.enabled
-  },
-}))
 vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://app.sim.ai' }))
 vi.mock('@/lib/messaging/email/mailer', () => ({ sendEmail: sendEmailSpy }))
 vi.mock('@/lib/messaging/email/unsubscribe', () => ({
@@ -57,11 +47,13 @@ const baseUserParams = {
   userName: 'Ada',
 }
 
+afterAll(resetEnvFlagsMock)
+
 describe('maybeSendLimitThresholdEmail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    billingFlag.enabled = true
+    setEnvFlags({ isBillingEnabled: true })
     dbChainMockFns.returning.mockResolvedValue([{ id: 'u1' }])
     getEmailPreferencesMock.mockResolvedValue(null)
   })
@@ -134,7 +126,7 @@ describe('maybeSendLimitThresholdEmail', () => {
   })
 
   it('skips entirely when billing is disabled', async () => {
-    billingFlag.enabled = false
+    setEnvFlags({ isBillingEnabled: false })
     await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 5, limit: 5 })
     expect(dbChainMockFns.returning).not.toHaveBeenCalled()
     expect(sendEmailSpy).not.toHaveBeenCalled()

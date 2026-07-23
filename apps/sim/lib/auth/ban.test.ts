@@ -25,7 +25,6 @@ vi.mock('@/lib/core/config/env', () => ({
     return envRef
   },
 }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isAppConfigEnabled: false }))
 
 import { getActivelyBannedUserIds, isBanActive, isEmailBlocked } from '@/lib/auth/ban'
 

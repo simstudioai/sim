@@ -7,14 +7,15 @@ import {
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
+  resetEnvFlagsMock,
   schemaMock,
+  setEnvFlags,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSyncSubscriptionUsageLimits, enqueueMock, mockFeatureFlags } = vi.hoisted(() => ({
+const { mockSyncSubscriptionUsageLimits, enqueueMock } = vi.hoisted(() => ({
   mockSyncSubscriptionUsageLimits: vi.fn(),
   enqueueMock: vi.fn(),
-  mockFeatureFlags: { isBillingEnabled: true },
 }))
 
 vi.mock('@sim/db', () => dbChainMock)
@@ -30,12 +31,6 @@ vi.mock('@/lib/core/outbox/service', () => ({
 vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
   OUTBOX_EVENT_TYPES: {
     STRIPE_SYNC_SUBSCRIPTION_SEATS: 'stripe.sync-subscription-seats',
-  },
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return mockFeatureFlags.isBillingEnabled
   },
 }))
 
@@ -57,12 +52,14 @@ function queueReconcileReads(subscriptionRows: unknown[], memberCountRows: unkno
   queueTableRows(schemaMock.member, memberCountRows)
 }
 
+afterAll(resetEnvFlagsMock)
+
 describe('reconcileOrganizationSeats', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
     enqueueMock.mockResolvedValue('evt-1')
-    mockFeatureFlags.isBillingEnabled = true
+    setEnvFlags({ isBillingEnabled: true })
   })
 
   afterAll(() => {
@@ -201,7 +198,7 @@ describe('reconcileOrganizationSeats', () => {
   })
 
   it('no-ops when billing is disabled', async () => {
-    mockFeatureFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
 
     const result = await reconcileOrganizationSeats({
       organizationId: 'org-1',

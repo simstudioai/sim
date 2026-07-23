@@ -9,8 +9,6 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { env } from '@/lib/core/config/env'
 import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
 
-vi.mock('drizzle-orm')
-
 /**
  * Spy on the real documents/utils namespace instead of vi.mock: the shared
  * `@/lib/knowledge/embeddings` module may be cached bound to the real module,

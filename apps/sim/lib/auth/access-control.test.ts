@@ -1,10 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccessControlConfig } from '@/lib/auth/access-control'
 
-const { mockFetch, envRef, flagRef } = vi.hoisted(() => ({
+const { mockFetch, envRef } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   envRef: {
     APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
@@ -15,7 +16,6 @@ const { mockFetch, envRef, flagRef } = vi.hoisted(() => ({
     ALLOWED_LOGIN_DOMAINS: undefined as string | undefined,
     BLOCKED_EMAIL_MX_HOSTS: undefined as string | undefined,
   },
-  flagRef: { isAppConfigEnabled: false },
 }))
 
 vi.mock('@/lib/core/config/appconfig', () => ({
@@ -25,12 +25,6 @@ vi.mock('@/lib/core/config/appconfig', () => ({
 vi.mock('@/lib/core/config/env', () => ({
   get env() {
     return envRef
-  },
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isAppConfigEnabled() {
-    return flagRef.isAppConfigEnabled
   },
 }))
 
@@ -48,10 +42,12 @@ const empty: AccessControlConfig = {
   blockedEmailMxHosts: [],
 }
 
+afterAll(resetEnvFlagsMock)
+
 describe('getAccessControlConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    flagRef.isAppConfigEnabled = false
+    setEnvFlags({ isAppConfigEnabled: false })
     Object.assign(envRef, {
       BLOCKED_SIGNUP_DOMAINS: undefined,
       BLOCKED_EMAILS: undefined,
@@ -81,7 +77,7 @@ describe('getAccessControlConfig', () => {
 
   describe('AppConfig source (enabled)', () => {
     beforeEach(() => {
-      flagRef.isAppConfigEnabled = true
+      setEnvFlags({ isAppConfigEnabled: true })
     })
 
     it('reads the access-control profile and normalizes the payload', async () => {

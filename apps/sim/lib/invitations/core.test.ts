@@ -1,8 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { auditMock, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  auditMock,
+  dbChainMock,
+  dbChainMockFns,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockEnsureUserInOrganization,
@@ -16,7 +23,6 @@ const {
   mockSyncUsageLimitsFromSubscription,
   mockSyncWorkspaceEnvCredentials,
   mockIsWorkspaceOnEnterprisePlan,
-  mockFeatureFlags,
 } = vi.hoisted(() => ({
   mockEnsureUserInOrganization: vi.fn(),
   mockGetUserOrganization: vi.fn(),
@@ -29,7 +35,6 @@ const {
   mockSyncUsageLimitsFromSubscription: vi.fn(),
   mockSyncWorkspaceEnvCredentials: vi.fn(),
   mockIsWorkspaceOnEnterprisePlan: vi.fn(async () => true),
-  mockFeatureFlags: { isBillingEnabled: true },
 }))
 
 vi.mock('@sim/db', () => dbChainMock)
@@ -51,12 +56,6 @@ vi.mock('@/lib/billing/organizations/seats', () => ({
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return mockFeatureFlags.isBillingEnabled
-  },
 }))
 
 vi.mock('@/lib/auth/active-organization', () => ({
@@ -104,11 +103,13 @@ function executedSqlContaining(substring: string): boolean {
   })
 }
 
+afterAll(resetEnvFlagsMock)
+
 describe('acceptInvitation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockFeatureFlags.isBillingEnabled = true
+    setEnvFlags({ isBillingEnabled: true })
     mockGetUserOrganization.mockResolvedValue(null)
     mockGetWorkspaceWithOwner.mockResolvedValue(null)
     mockEnsureTeamOrganizationForAcceptance.mockResolvedValue({

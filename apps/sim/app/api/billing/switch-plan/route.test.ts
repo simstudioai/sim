@@ -1,8 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCanManageWorkspaceBilling,
@@ -48,10 +48,6 @@ vi.mock('@/lib/billing/workspace-permissions', () => ({
   canManageWorkspaceBilling: mockCanManageWorkspaceBilling,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isBillingEnabled: true,
-}))
-
 vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: vi.fn(),
 }))
@@ -61,6 +57,12 @@ vi.mock('@/lib/workspaces/host-context', () => ({
 }))
 
 import { POST } from '@/app/api/billing/switch-plan/route'
+
+beforeAll(() => {
+  setEnvFlags({ isBillingEnabled: true })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('POST /api/billing/switch-plan', () => {
   beforeEach(() => {

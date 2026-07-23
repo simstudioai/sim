@@ -61,7 +61,6 @@ const {
 })
 
 vi.mock('@sim/logger', () => loggerMock)
-vi.mock('@/lib/core/config/env-flags', () => ({ isTest: true }))
 vi.mock('@/lib/mcp/connection-pool', () => ({
   mcpConnectionPool: { acquire: mockAcquire, evictServer: vi.fn() },
 }))

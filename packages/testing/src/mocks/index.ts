@@ -53,7 +53,13 @@ export { encryptionMock, encryptionMockFns } from './encryption.mock'
 // Env mocks
 export { createEnvMock, createMockGetEnv, defaultMockEnv, envMock } from './env.mock'
 // Env flag mocks
-export { envFlagsMock } from './env-flags.mock'
+export {
+  type EnvFlagsMockState,
+  envFlagsMock,
+  envFlagsMockFns,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from './env-flags.mock'
 // Execution preprocessing mocks (for @/lib/execution/preprocessing)
 export {
   executionPreprocessingMock,

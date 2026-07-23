@@ -12,10 +12,6 @@ vi.mock('@/lib/core/config/env', () => ({
   getEnv: mockGetEnv,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isProd: false,
-}))
-
 import {
   getBrowserOrigin,
   getSocketUrl,

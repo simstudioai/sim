@@ -2,12 +2,17 @@
  * @vitest-environment node
  */
 import { permissionGroup } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  envFlagsMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   DEFAULT_PERMISSION_GROUP_CONFIG,
-  mockGetAllowedIntegrationsFromEnv,
   mockIsOrganizationOnEnterprisePlan,
   mockGetWorkspaceWithOwner,
   mockGetProviderFromModel,
@@ -39,7 +44,6 @@ const {
     hideDeployChatbot: false,
     allowedChatDeployAuthTypes: null,
   },
-  mockGetAllowedIntegrationsFromEnv: vi.fn<() => string[] | null>(),
   mockIsOrganizationOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
   mockGetWorkspaceWithOwner: vi.fn<() => Promise<{ organizationId: string | null } | null>>(),
   mockGetProviderFromModel: vi.fn<(model: string) => string>(),
@@ -52,14 +56,6 @@ vi.mock('@/lib/billing', () => ({
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  getAllowedIntegrationsFromEnv: mockGetAllowedIntegrationsFromEnv,
-  isAccessControlEnabled: true,
-  isHosted: true,
-  isInvitationsDisabled: false,
-  isPublicApiDisabled: false,
 }))
 
 vi.mock('@/lib/permission-groups/types', () => ({
@@ -140,6 +136,14 @@ afterAll(resetDbChainMock)
 beforeEach(() => {
   mockGetBlock.mockImplementation(() => undefined)
 })
+
+const mockGetAllowedIntegrationsFromEnv = envFlagsMockFns.getAllowedIntegrationsFromEnv
+
+beforeAll(() => {
+  setEnvFlags({ isAccessControlEnabled: true, isHosted: true })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('IntegrationNotAllowedError', () => {
   it.concurrent('creates error with correct name and message', () => {

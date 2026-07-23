@@ -1,12 +1,17 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEq, mockFlags, mockGetHighestPrioritySubscription } = vi.hoisted(() => ({
+const { mockEq, mockGetHighestPrioritySubscription } = vi.hoisted(() => ({
   mockEq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
-  mockFlags: { isBillingEnabled: true },
   mockGetHighestPrioritySubscription: vi.fn(),
 }))
 
@@ -39,12 +44,6 @@ vi.mock('@/lib/core/config/env', () => ({
   getEnv: mockGetEnv,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return mockFlags.isBillingEnabled
-  },
-}))
-
 import type { StorageBillingContext } from '@/lib/billing/storage/context'
 import {
   checkStorageQuota,
@@ -73,11 +72,13 @@ const USER_CONTEXT: StorageBillingContext = {
 
 const GIB = 1024 ** 3
 
+afterAll(resetEnvFlagsMock)
+
 describe('storage limits and quota', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockFlags.isBillingEnabled = true
+    setEnvFlags({ isBillingEnabled: true })
     mockGetEnv.mockReturnValue(undefined)
     dbChainMockFns.limit.mockResolvedValue([{ storageUsedBytes: 1024 }])
     mockGetHighestPrioritySubscription.mockResolvedValue(null)
@@ -147,7 +148,7 @@ describe('storage limits and quota', () => {
   })
 
   it('applies identical disabled-billing behavior without resolving context', async () => {
-    mockFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
 
     const expected = {
       allowed: true,
@@ -161,7 +162,7 @@ describe('storage limits and quota', () => {
   })
 
   it('opts into free-tier enforcement when FREE_STORAGE_LIMIT_GB is explicitly set', async () => {
-    mockFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
     mockGetEnv.mockImplementation((variable: string) =>
       variable === 'FREE_STORAGE_LIMIT_GB' ? '1' : undefined
     )

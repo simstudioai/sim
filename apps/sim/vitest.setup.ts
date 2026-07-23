@@ -2,6 +2,7 @@ import {
   authMock,
   databaseMock,
   drizzleOrmMock,
+  envFlagsMock,
   hybridAuthMock,
   loggerMock,
   requestUtilsMock,
@@ -25,6 +26,7 @@ vi.mock('@sim/platform-authz/workflow', () => workflowAuthzMock)
 vi.mock('@/lib/auth', () => authMock)
 vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
+vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 vi.mock('@/stores/console/store', () => ({
   useConsoleStore: {

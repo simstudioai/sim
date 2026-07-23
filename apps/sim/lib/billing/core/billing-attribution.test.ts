@@ -1,11 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockFlags,
   mockCheckBillingBlocked,
   mockCheckBillingEntityBlocked,
   mockCheckOrganizationMemberUsageLimit,
@@ -13,22 +18,12 @@ const {
   mockGetHighestPriorityPersonalSubscription,
   mockGetOrganizationSubscription,
 } = vi.hoisted(() => ({
-  mockFlags: { isBillingEnabled: true, isHosted: true },
   mockCheckBillingBlocked: vi.fn(),
   mockCheckBillingEntityBlocked: vi.fn(),
   mockCheckOrganizationMemberUsageLimit: vi.fn(),
   mockCheckUsageStatus: vi.fn(),
   mockGetHighestPriorityPersonalSubscription: vi.fn(),
   mockGetOrganizationSubscription: vi.fn(),
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return mockFlags.isBillingEnabled
-  },
-  get isHosted() {
-    return mockFlags.isHosted
-  },
 }))
 
 vi.mock('@sim/db', () => dbChainMock)
@@ -78,6 +73,8 @@ const ORG_SUBSCRIPTION = {
   periodStart: new Date('2026-07-01T00:00:00.000Z'),
   periodEnd: new Date('2026-08-01T00:00:00.000Z'),
 }
+
+afterAll(resetEnvFlagsMock)
 
 describe('resolveBillingAttribution', () => {
   beforeEach(() => {
@@ -480,8 +477,8 @@ describe('checkAttributedUsageLimits', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockFlags.isBillingEnabled = true
-    mockFlags.isHosted = true
+    setEnvFlags({ isBillingEnabled: true })
+    setEnvFlags({ isHosted: true })
     mockCheckBillingBlocked.mockResolvedValue({ blocked: false })
     mockCheckBillingEntityBlocked.mockResolvedValue({ blocked: false })
     mockCheckUsageStatus.mockResolvedValue({
@@ -522,7 +519,7 @@ describe('checkAttributedUsageLimits', () => {
   }
 
   it('skips hosted freezes and caps when billing is disabled', async () => {
-    mockFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
 
     await expect(checkAttributedUsageLimits(attribution)).resolves.toEqual({
       isExceeded: false,

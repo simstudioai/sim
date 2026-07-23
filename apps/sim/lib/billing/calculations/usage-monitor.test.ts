@@ -1,28 +1,23 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockFlags,
   mockGetOrgMemberUsageForBillingPeriod,
   mockGetOrgMemberUsageLimit,
   mockIsOrganizationBillingBlocked,
 } = vi.hoisted(() => ({
-  mockFlags: { isHosted: true, isBillingEnabled: true },
   mockGetOrgMemberUsageForBillingPeriod: vi.fn(),
   mockGetOrgMemberUsageLimit: vi.fn(),
   mockIsOrganizationBillingBlocked: vi.fn(),
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isHosted() {
-    return mockFlags.isHosted
-  },
-  get isBillingEnabled() {
-    return mockFlags.isBillingEnabled
-  },
 }))
 
 vi.mock('@sim/db', () => dbChainMock)
@@ -53,12 +48,13 @@ afterAll(() => {
   resetDbChainMock()
 })
 
+afterAll(resetEnvFlagsMock)
+
 describe('checkBillingBlocked', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockFlags.isHosted = true
-    mockFlags.isBillingEnabled = true
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
     dbChainMockFns.limit.mockResolvedValue([{ blocked: false, blockedReason: null }])
   })
 
@@ -76,8 +72,7 @@ describe('checkBillingEntityBlocked', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockFlags.isHosted = true
-    mockFlags.isBillingEnabled = true
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mockIsOrganizationBillingBlocked.mockResolvedValue(false)
     dbChainMockFns.limit.mockResolvedValue([])
   })
@@ -116,8 +111,7 @@ describe('checkOrganizationMemberUsageLimit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockFlags.isHosted = true
-    mockFlags.isBillingEnabled = true
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mockGetOrgMemberUsageLimit.mockResolvedValue(2)
     mockGetOrgMemberUsageForBillingPeriod.mockResolvedValue(1)
   })
@@ -139,14 +133,14 @@ describe('checkOrganizationMemberUsageLimit', () => {
   })
 
   it('no-ops when not hosted', async () => {
-    mockFlags.isHosted = false
+    setEnvFlags({ isHosted: false })
     const result = await checkOrganizationMemberUsageLimit('actor-1', 'org-1', billingPeriod)
     expect(result.isExceeded).toBe(false)
     expect(mockGetOrgMemberUsageLimit).not.toHaveBeenCalled()
   })
 
   it('no-ops when billing is disabled', async () => {
-    mockFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
     const result = await checkOrganizationMemberUsageLimit('actor-1', 'org-1', billingPeriod)
     expect(result.isExceeded).toBe(false)
     expect(mockGetOrgMemberUsageLimit).not.toHaveBeenCalled()

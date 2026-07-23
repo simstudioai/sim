@@ -1,8 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => dbChainMock)
 
@@ -19,7 +25,6 @@ vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mockIsEnterprise,
 }))
 vi.mock('@/lib/core/async-jobs', () => ({ getJobQueue: mockGetJobQueue }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isBillingEnabled: true }))
 
 import { dispatchDueDrains, reapOrphanedRuns } from '@/lib/data-drains/dispatcher'
 
@@ -35,6 +40,12 @@ beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
 })
+
+beforeAll(() => {
+  setEnvFlags({ isBillingEnabled: true })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('reapOrphanedRuns', () => {
   it('returns the count of rows updated to failed', async () => {
