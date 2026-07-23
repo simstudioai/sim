@@ -12,7 +12,7 @@ import {
   formatValueForInput,
   storageToDisplay,
 } from '../../../utils'
-import { SelectValueEditor } from '../../select-field'
+import { SelectValueEditor, toSelectedIds } from '../../select-field'
 import type { DisplayColumn } from '../types'
 
 interface ExpandedCellPopoverProps {
@@ -310,14 +310,13 @@ function ExpandedSelectEditor({
   onSave,
   onClose,
 }: ExpandedSelectEditorProps) {
+  // `toSelectedIds` normalizes both shapes — a single id string (normal right
+  // after a select→multiselect conversion, before the row is rewritten) and an
+  // array — so opening the popover never collapses a stored value to empty.
   const [draft, setDraft] = useState<string | string[] | null>(
     column.type === 'multiselect'
-      ? Array.isArray(initialValue)
-        ? (initialValue as string[])
-        : []
-      : typeof initialValue === 'string' && initialValue !== ''
-        ? initialValue
-        : null
+      ? toSelectedIds(initialValue)
+      : (toSelectedIds(initialValue)[0] ?? null)
   )
 
   const handleSave = () => {

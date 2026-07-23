@@ -18,6 +18,7 @@ import {
   updateColumnOptions,
   updateColumnType,
 } from '@/lib/table'
+import { columnMatchesRef } from '@/lib/table/column-keys'
 import { accessError, checkAccess, normalizeColumn, rootErrorMessage } from '@/app/api/table/utils'
 
 const logger = createLogger('TableColumnsAPI')
@@ -118,12 +119,21 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       )
     }
 
-    if (updates.type) {
+    // A payload that repeats the current type must not go through
+    // `updateColumnType` — it early-returns on an unchanged type and would drop
+    // any `options` alongside it. Only a real type change routes there; an
+    // unchanged type with options routes to the options-only update.
+    const currentColumn = table.schema.columns.find((c) =>
+      columnMatchesRef(c, validated.columnName)
+    )
+    const typeChanging = updates.type !== undefined && updates.type !== currentColumn?.type
+
+    if (typeChanging) {
       updatedTable = await updateColumnType(
         {
           tableId,
           columnName: updates.name ?? validated.columnName,
-          newType: updates.type,
+          newType: updates.type as NonNullable<typeof updates.type>,
           ...(updates.options !== undefined ? { options: updates.options } : {}),
         },
         requestId
