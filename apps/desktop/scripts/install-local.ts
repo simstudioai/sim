@@ -99,6 +99,13 @@ if (originFlags.length > 1) {
 
 console.log('• Packaging the app from the current checkout…')
 run('bun', ['run', 'build'])
+// electron-builder only writes the output dir for the CURRENT target/arch
+// (e.g. mac-arm64); other release dirs from older runs (a universal dmg
+// build, an Intel machine) would survive and win the pick below. Remove all
+// candidates first so the only app found is the one just built.
+for (const dir of RELEASE_DIRS) {
+  rmSync(dir, { recursive: true, force: true })
+}
 // Same as package:dir, minus trusted timestamps: codesign's --timestamp does
 // a network round trip to Apple PER FILE (hundreds inside the Electron
 // framework), which turns local signing into a multi-minute stall. Local
@@ -111,6 +118,13 @@ if (!builtApp) {
   console.error(`✖ No built app found under ${RELEASE_DIRS.join(', ')}`)
   process.exit(1)
 }
+
+// Without a Developer ID identity electron-builder skips signing entirely,
+// and its fuse-flip step invalidates Electron's shipped ad-hoc seal — Apple
+// silicon then SIGKILLs the binary at launch (Code Signature Invalid).
+// Re-seal the whole bundle ad-hoc; ditto below preserves the signature.
+console.log('• Ad-hoc signing the bundle…')
+run('codesign', ['--force', '--deep', '--sign', '-', builtApp])
 
 quitInstalledApp()
 
