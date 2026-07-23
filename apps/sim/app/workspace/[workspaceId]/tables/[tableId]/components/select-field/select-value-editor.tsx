@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { ChipDropdown } from '@sim/emcn'
 import type { ColumnDefinition } from '@/lib/table'
-import { SelectPill, toSelectedIds } from './select-pill'
+import { SelectPill, selectedOptionIds } from './select-pill'
 
 interface SelectValueEditorProps {
   column: ColumnDefinition
@@ -43,7 +43,7 @@ export function SelectValueEditor({
     return (
       <ChipDropdown
         multiple
-        value={toSelectedIds(value)}
+        value={selectedOptionIds(column, value)}
         // A required multiselect can't be emptied — ignore the toggle that would
         // remove the last option, since an empty selection can never be committed.
         onChange={(ids) => {
@@ -71,7 +71,7 @@ export function SelectValueEditor({
 
   return (
     <ChipDropdown
-      value={toSelectedIds(value)[0] ?? CLEAR_VALUE}
+      value={selectedOptionIds(column, value)[0] ?? CLEAR_VALUE}
       onChange={(id) => onChange(id === CLEAR_VALUE ? null : id)}
       options={singleOptions}
       placeholder='Select an option'

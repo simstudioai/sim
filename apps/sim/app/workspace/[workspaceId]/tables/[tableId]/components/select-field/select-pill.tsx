@@ -3,7 +3,7 @@
 import { Badge, cn } from '@sim/emcn'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'
 
-/** Reads the selected option ids from a stored cell value of either select type. */
+/** Reads the raw stored option ids from a cell value (single string or array). */
 export function toSelectedIds(value: unknown): string[] {
   if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string')
   if (typeof value === 'string' && value !== '') return [value]
@@ -11,16 +11,21 @@ export function toSelectedIds(value: unknown): string[] {
 }
 
 /**
- * Resolves the stored ids of a `select`/`multiselect` cell to their declared
- * options, preserving selection order. An id with no matching option (stale
- * after an option was deleted) resolves to a neutral gray fallback so the cell
- * never renders blank.
+ * Resolves a `select` cell's stored ids to their declared options, preserving
+ * selection order. An id with no matching option — stale after that option was
+ * deleted — is dropped, so the cell falls back to empty ("None") rather than
+ * showing an orphaned reference.
  */
 export function resolveSelectOptions(column: ColumnDefinition, value: unknown): SelectOption[] {
-  const options = column.options ?? []
-  return toSelectedIds(value).map(
-    (id) => options.find((o) => o.id === id) ?? { id, name: id, color: 'gray' }
-  )
+  const byId = new Map((column.options ?? []).map((o) => [o.id, o]))
+  return toSelectedIds(value)
+    .map((id) => byId.get(id))
+    .filter((o): o is SelectOption => o != null)
+}
+
+/** The still-valid option ids of a cell (orphaned/removed ids dropped). */
+export function selectedOptionIds(column: ColumnDefinition, value: unknown): string[] {
+  return resolveSelectOptions(column, value).map((o) => o.id)
 }
 
 interface SelectPillProps {

@@ -26,7 +26,7 @@ import {
   storageToDisplay,
   todayLocalCalendarDate,
 } from '../../../utils'
-import { SelectPill, toSelectedIds } from '../../select-field'
+import { SelectPill, selectedOptionIds } from '../../select-field'
 
 interface InlineEditorProps {
   value: unknown
@@ -346,7 +346,7 @@ function InlineTextEditor({
 function InlineSelectEditor({ value, column, onSave, onCancel }: InlineEditorProps) {
   const isMulti = !!column.multiple
   const allOptions = column.options ?? []
-  const [draft, setDraft] = useState<string[]>(() => toSelectedIds(value))
+  const [draft, setDraft] = useState<string[]>(() => selectedOptionIds(column, value))
   const [open, setOpen] = useState(true)
   const latestRef = useRef(draft)
   const doneRef = useRef(false)
