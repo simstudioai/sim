@@ -71,10 +71,6 @@ interface ChipDropdownBaseProps extends VariantProps<typeof chipVariants> {
   leftIcon?: ChipIcon
   /** Forwarded class for the trigger button. */
   className?: string
-  /** Open the menu on mount (e.g. an inline cell editor that should open immediately). */
-  defaultOpen?: boolean
-  /** Notified whenever the menu opens or closes. */
-  onOpenChange?: (open: boolean) => void
 }
 
 /**
@@ -172,8 +168,6 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       active,
       fullWidth,
       flush,
-      defaultOpen,
-      onOpenChange,
     } = props
 
     const isMultiple = props.multiple === true
@@ -191,14 +185,8 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
      */
     const insideModal = useContext(InsideModalContext)
 
-    const [open, setOpen] = useState(defaultOpen ?? false)
+    const [open, setOpen] = useState(false)
     const [search, setSearch] = useState('')
-
-    const handleOpenChange = (next: boolean) => {
-      setOpen(next)
-      if (!next) setSearch('')
-      onOpenChange?.(next)
-    }
     const searchable = isMultiple && props.searchable === true
     const searchPlaceholder = isMultiple ? (props.searchPlaceholder ?? 'Search...') : 'Search...'
     const allLabel = isMultiple ? (props.allLabel ?? 'All') : ''
@@ -271,8 +259,6 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
               )
             } else {
               props.onChange?.(option.value)
-              setOpen(false)
-              onOpenChange?.(false)
             }
           }}
         >
@@ -284,7 +270,18 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
     }
 
     return (
-      <DropdownMenu modal={insideModal} open={open} onOpenChange={handleOpenChange}>
+      <DropdownMenu
+        modal={insideModal}
+        {...(isMultiple
+          ? {
+              open,
+              onOpenChange: (next: boolean) => {
+                setOpen(next)
+                if (!next) setSearch('')
+              },
+            }
+          : {})}
+      >
         <DropdownMenuTrigger asChild disabled={disabled}>
           <button
             ref={ref}

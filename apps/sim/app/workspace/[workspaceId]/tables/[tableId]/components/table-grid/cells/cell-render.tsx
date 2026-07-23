@@ -354,13 +354,11 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
       )
 
     case 'select':
+      // Pills stay visible while editing — the inline editor overlays an
+      // invisible trigger and portals its menu below, so the cell keeps showing
+      // the current selection rather than going blank.
       return (
-        <span
-          className={cn(
-            'flex min-w-0 items-center gap-1 overflow-hidden',
-            isEditing && 'invisible'
-          )}
-        >
+        <span className='flex min-w-0 items-center gap-1 overflow-hidden'>
           {kind.options.length > 0 ? (
             kind.options.map((option) => <SelectPill key={option.id} option={option} />)
           ) : (

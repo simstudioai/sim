@@ -10,10 +10,6 @@ interface SelectValueEditorProps {
   value: unknown
   /** Single columns emit a string id or null; multiselect emits a string[]. */
   onChange: (next: string | string[] | null) => void
-  /** Open the menu on mount (inline cell editing). */
-  defaultOpen?: boolean
-  /** Fired whenever the menu opens or closes. */
-  onOpenChange?: (open: boolean) => void
   fullWidth?: boolean
   align?: 'start' | 'center' | 'end'
 }
@@ -21,16 +17,15 @@ interface SelectValueEditorProps {
 const CLEAR_VALUE = ''
 
 /**
- * Shared option picker for `select`/`multiselect` cells, used by the inline
- * editor, expanded popover, and row modal. Renders each option as its colored
- * pill and writes option ids back through `onChange`.
+ * Option picker for `select`/`multiselect` cells in a form context (the row
+ * modal) — a `ChipDropdown` pill that lists each option as its colored pill and
+ * writes option ids back through `onChange`. Inline grid editing uses a bare
+ * `DropdownMenu` instead (see `InlineSelectEditor`).
  */
 export function SelectValueEditor({
   column,
   value,
   onChange,
-  defaultOpen,
-  onOpenChange,
   fullWidth,
   align = 'start',
 }: SelectValueEditorProps) {
@@ -60,8 +55,6 @@ export function SelectValueEditor({
         placeholder='Select options'
         align={align}
         fullWidth={fullWidth}
-        defaultOpen={defaultOpen}
-        onOpenChange={onOpenChange}
         matchTriggerWidth={false}
       />
     )
@@ -84,8 +77,6 @@ export function SelectValueEditor({
       placeholder='Select an option'
       align={align}
       fullWidth={fullWidth}
-      defaultOpen={defaultOpen}
-      onOpenChange={onOpenChange}
       matchTriggerWidth={false}
     />
   )
