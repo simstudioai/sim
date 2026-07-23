@@ -135,7 +135,7 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
         return { success: false, message: `ffmpeg ${params.operation} produced no output` }
       }
 
-      const outputPath = outputFile?.path ?? `files/ffmpeg-${params.operation}.${result.ext}`
+      const outputPath = outputFile?.path || `files/ffmpeg-${params.operation}.${result.ext}`
       const mode = outputFile?.mode ?? 'create'
 
       assertServerToolNotAborted(context)
