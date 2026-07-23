@@ -53,6 +53,7 @@ import {
   useRemovePermissionGroupMember,
   useUpdatePermissionGroup,
 } from '@/ee/access-control/hooks/permission-groups'
+import { SettingRow } from '@/ee/components/setting-row'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
 import { useOrganizationRoster } from '@/hooks/queries/organization'
 import { useProviderModels } from '@/hooks/queries/providers'
@@ -89,6 +90,19 @@ const CHAT_DEPLOY_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] =
 const ALL_CHAT_DEPLOY_AUTH_TYPES: ShareAuthType[] = CHAT_DEPLOY_AUTH_TYPE_OPTIONS.map(
   (o) => o.value
 )
+
+/** Narrows an allow/deny list to entries that are currently on or off. */
+type StatusFilter = 'all' | 'enabled' | 'disabled'
+
+const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'enabled', label: 'Enabled' },
+  { value: 'disabled', label: 'Disabled' },
+]
+
+function matchesStatusFilter(filter: StatusFilter, enabled: boolean) {
+  return filter === 'all' || (filter === 'enabled') === enabled
+}
 
 interface OrganizationMemberOption {
   userId: string
@@ -521,7 +535,7 @@ function BlockToolRow({
           onClick={() => isBlockAllowed && isExpandable && setExpanded((prev) => !prev)}
           disabled={!isBlockAllowed || !isExpandable}
           className={cn(
-            'flex flex-1 items-center gap-2 text-left',
+            'flex min-w-0 items-center gap-2 text-left',
             isBlockAllowed && isExpandable ? 'cursor-pointer' : 'cursor-default',
             !isBlockAllowed && 'opacity-60'
           )}
@@ -532,15 +546,18 @@ function BlockToolRow({
               {deniedCount} blocked
             </ChipTag>
           )}
-          {isBlockAllowed && isExpandable && (
-            <ChevronDown
-              className={cn(
-                'ml-auto size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
-                expanded && 'rotate-180'
-              )}
-            />
-          )}
         </button>
+        <Info side='top' className='flex-shrink-0'>
+          {block.description}
+        </Info>
+        {isBlockAllowed && isExpandable && (
+          <ChevronDown
+            className={cn(
+              'ml-auto size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
+              expanded && 'rotate-180'
+            )}
+          />
+        )}
       </div>
       {expanded && isBlockAllowed && isExpandable && (
         <div className='border-[var(--border)] border-t px-2 pt-2 pb-3'>
@@ -595,11 +612,15 @@ export function GroupDetail({
    */
   const [viewingGroup, setViewingGroup] = useState<PermissionGroup>(group)
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig>({ ...group.config })
+  const [editingName, setEditingName] = useState(group.name)
+  const [editingDescription, setEditingDescription] = useState(group.description ?? '')
   const prevGroupIdRef = useRef(group.id)
   if (prevGroupIdRef.current !== group.id) {
     prevGroupIdRef.current = group.id
     setViewingGroup(group)
     setEditingConfig({ ...group.config })
+    setEditingName(group.name)
+    setEditingDescription(group.description ?? '')
   }
 
   /**
@@ -613,6 +634,9 @@ export function GroupDetail({
   const [providerSearchTerm, setProviderSearchTerm] = useState('')
   const [integrationSearchTerm, setIntegrationSearchTerm] = useState('')
   const [platformSearchTerm, setPlatformSearchTerm] = useState('')
+  const [providerStatusFilter, setProviderStatusFilter] = useState<StatusFilter>('all')
+  const [blockStatusFilter, setBlockStatusFilter] = useState<StatusFilter>('all')
+  const [platformStatusFilter, setPlatformStatusFilter] = useState<StatusFilter>('all')
 
   const [showAddMembersModal, setShowAddMembersModal] = useState(false)
   const [addMembersError, setAddMembersError] = useState<string | null>(null)
@@ -742,13 +766,6 @@ export function GroupDetail({
         hint: 'Hide the MCP server deployment option.',
       },
       {
-        id: 'hide-deploy-chatbot',
-        label: 'Chat',
-        category: 'Deploy Tabs',
-        configKey: 'hideDeployChatbot' as const,
-        hint: 'Hide the chatbot deployment option.',
-      },
-      {
         id: 'disable-mcp',
         label: 'MCP Tools',
         category: 'Tools',
@@ -802,12 +819,18 @@ export function GroupDetail({
   )
 
   const filteredPlatformFeatures = useMemo(() => {
-    if (!platformSearchTerm.trim()) return platformFeatures
-    const search = platformSearchTerm.toLowerCase()
-    return platformFeatures.filter(
-      (f) => f.label.toLowerCase().includes(search) || f.category.toLowerCase().includes(search)
-    )
-  }, [platformFeatures, platformSearchTerm])
+    const search = platformSearchTerm.trim().toLowerCase()
+    return platformFeatures.filter((f) => {
+      if (
+        search &&
+        !f.label.toLowerCase().includes(search) &&
+        !f.category.toLowerCase().includes(search)
+      ) {
+        return false
+      }
+      return matchesStatusFilter(platformStatusFilter, !editingConfig[f.configKey])
+    })
+  }, [platformFeatures, platformSearchTerm, platformStatusFilter, editingConfig])
 
   const platformCategories = useMemo(() => {
     const categories: Record<string, typeof platformFeatures> = {}
@@ -844,19 +867,37 @@ export function GroupDetail({
   const hasConfigChanges = useMemo(() => {
     return JSON.stringify(viewingGroup.config) !== JSON.stringify(editingConfig)
   }, [viewingGroup.config, editingConfig])
-  const guard = useSettingsUnsavedGuard({ isDirty: hasConfigChanges })
+
+  const trimmedName = editingName.trim()
+  const trimmedDescription = editingDescription.trim()
+  const hasDetailChanges =
+    trimmedName !== viewingGroup.name || trimmedDescription !== (viewingGroup.description ?? '')
+  const hasChanges = hasConfigChanges || hasDetailChanges
+
+  const guard = useSettingsUnsavedGuard({ isDirty: hasChanges })
 
   const filteredProviders = useMemo(() => {
-    if (!providerSearchTerm.trim()) return allProviderIds
-    const query = providerSearchTerm.toLowerCase()
-    return allProviderIds.filter((id) => id.toLowerCase().includes(query))
-  }, [allProviderIds, providerSearchTerm])
+    const query = providerSearchTerm.trim().toLowerCase()
+    const allowed = editingConfig.allowedModelProviders
+    return allProviderIds.filter((id) => {
+      if (query && !id.toLowerCase().includes(query)) return false
+      return matchesStatusFilter(providerStatusFilter, allowed === null || allowed.includes(id))
+    })
+  }, [
+    allProviderIds,
+    providerSearchTerm,
+    providerStatusFilter,
+    editingConfig.allowedModelProviders,
+  ])
 
   const filteredBlocks = useMemo(() => {
-    if (!integrationSearchTerm.trim()) return visibleBlocks
-    const query = integrationSearchTerm.toLowerCase()
-    return visibleBlocks.filter((b) => b.name.toLowerCase().includes(query))
-  }, [visibleBlocks, integrationSearchTerm])
+    const query = integrationSearchTerm.trim().toLowerCase()
+    const allowed = editingConfig.allowedIntegrations
+    return visibleBlocks.filter((b) => {
+      if (query && !b.name.toLowerCase().includes(query)) return false
+      return matchesStatusFilter(blockStatusFilter, allowed === null || allowed.includes(b.type))
+    })
+  }, [visibleBlocks, integrationSearchTerm, blockStatusFilter, editingConfig.allowedIntegrations])
 
   const filteredCoreBlocks = useMemo(
     () => filteredBlocks.filter((block) => block.category === 'blocks'),
@@ -1139,26 +1180,51 @@ export function GroupDetail({
     }))
   }, [])
 
-  /** Persists the editing buffer. */
+  /** Persists the editing buffer — name/description are only sent when they changed. */
   const handleSaveConfig = useCallback(async () => {
+    if (!trimmedName) return
+    const nextDescription = trimmedDescription || null
     try {
       await updatePermissionGroup.mutateAsync({
         id: viewingGroup.id,
         organizationId,
-        config: editingConfig,
+        ...(hasConfigChanges && { config: editingConfig }),
+        ...(trimmedName !== viewingGroup.name && { name: trimmedName }),
+        ...(trimmedDescription !== (viewingGroup.description ?? '') && {
+          description: nextDescription,
+        }),
       })
-      setViewingGroup((prev) => ({ ...prev, config: editingConfig }))
+      setViewingGroup((prev) => ({
+        ...prev,
+        config: editingConfig,
+        name: trimmedName,
+        description: nextDescription,
+      }))
+      setEditingName(trimmedName)
+      setEditingDescription(trimmedDescription)
     } catch (error) {
-      logger.error('Failed to update config', error)
+      logger.error('Failed to save permission group', error)
       toast.error("Couldn't save changes", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
       })
     }
-  }, [viewingGroup.id, editingConfig, organizationId, updatePermissionGroup])
+  }, [
+    viewingGroup.id,
+    viewingGroup.name,
+    viewingGroup.description,
+    editingConfig,
+    hasConfigChanges,
+    trimmedName,
+    trimmedDescription,
+    organizationId,
+    updatePermissionGroup,
+  ])
 
   const handleDiscardConfig = useCallback(() => {
     setEditingConfig({ ...viewingGroup.config })
-  }, [viewingGroup.config])
+    setEditingName(viewingGroup.name)
+    setEditingDescription(viewingGroup.description ?? '')
+  }, [viewingGroup.config, viewingGroup.name, viewingGroup.description])
 
   const handleBack = useCallback(() => {
     guard.guardBack(onBack)
@@ -1307,10 +1373,11 @@ export function GroupDetail({
         description={viewingGroup.description ?? undefined}
         actions={[
           ...saveDiscardActions({
-            dirty: hasConfigChanges,
+            dirty: hasChanges,
             saving: updatePermissionGroup.isPending,
             onSave: handleSaveConfig,
             onDiscard: handleDiscardConfig,
+            saveDisabled: !trimmedName,
           }),
           {
             text: deletePermissionGroup.isPending ? 'Deleting...' : 'Delete',
@@ -1330,6 +1397,29 @@ export function GroupDetail({
 
         {configTab === 'general' && (
           <>
+            <SettingsSection label='Details'>
+              <div className='flex flex-col gap-4'>
+                <SettingRow label='Name'>
+                  <ChipInput
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    placeholder='e.g., Marketing Team'
+                    maxLength={100}
+                    error={!trimmedName}
+                    className='max-w-[320px]'
+                  />
+                </SettingRow>
+                <SettingRow label='Description'>
+                  <ChipInput
+                    value={editingDescription}
+                    onChange={(e) => setEditingDescription(e.target.value)}
+                    placeholder='e.g., Limited access for marketing users'
+                    maxLength={500}
+                  />
+                </SettingRow>
+              </div>
+            </SettingsSection>
+
             <SettingsSection label='Default group'>
               <div className='flex items-center justify-between gap-3'>
                 <span className='text-[var(--text-muted)] text-small'>
@@ -1457,6 +1547,13 @@ export function GroupDetail({
                 onChange={(e) => setProviderSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
               />
+              <ChipDropdown
+                value={providerStatusFilter}
+                onChange={(value) => setProviderStatusFilter(value as StatusFilter)}
+                options={STATUS_FILTER_OPTIONS}
+                matchTriggerWidth={false}
+                className='flex-shrink-0'
+              />
               <Chip
                 onClick={() => setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)}
               >
@@ -1491,6 +1588,13 @@ export function GroupDetail({
                 onChange={(e) => setIntegrationSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
               />
+              <ChipDropdown
+                value={blockStatusFilter}
+                onChange={(value) => setBlockStatusFilter(value as StatusFilter)}
+                options={STATUS_FILTER_OPTIONS}
+                matchTriggerWidth={false}
+                className='flex-shrink-0'
+              />
             </div>
             {filteredCoreBlocks.length > 0 && (
               <SettingsSection
@@ -1509,24 +1613,28 @@ export function GroupDetail({
                     const BlockIcon = block.icon
                     const checkboxId = `block-${block.type}`
                     return (
-                      <label
-                        key={block.type}
-                        htmlFor={checkboxId}
-                        className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
-                      >
-                        <Checkbox
-                          id={checkboxId}
-                          checked={isIntegrationAllowed(block.type)}
-                          onCheckedChange={() => toggleIntegration(block.type)}
-                        />
-                        <div
-                          className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-                          style={{ background: block.bgColor }}
+                      <div key={block.type} className='flex items-center gap-1.5'>
+                        <label
+                          htmlFor={checkboxId}
+                          className='flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
                         >
-                          {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
-                        </div>
-                        <span className='truncate font-medium text-sm'>{block.name}</span>
-                      </label>
+                          <Checkbox
+                            id={checkboxId}
+                            checked={isIntegrationAllowed(block.type)}
+                            onCheckedChange={() => toggleIntegration(block.type)}
+                          />
+                          <div
+                            className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                            style={{ background: block.bgColor }}
+                          >
+                            {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
+                          </div>
+                          <span className='truncate font-medium text-sm'>{block.name}</span>
+                        </label>
+                        <Info side='top' className='flex-shrink-0'>
+                          {block.description}
+                        </Info>
+                      </div>
                     )
                   })}
                 </div>
@@ -1579,6 +1687,13 @@ export function GroupDetail({
                 onChange={(e) => setPlatformSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
               />
+              <ChipDropdown
+                value={platformStatusFilter}
+                onChange={(value) => setPlatformStatusFilter(value as StatusFilter)}
+                options={STATUS_FILTER_OPTIONS}
+                matchTriggerWidth={false}
+                className='flex-shrink-0'
+              />
               <Chip
                 onClick={() =>
                   setEditingConfig((prev) => ({
@@ -1620,26 +1735,44 @@ export function GroupDetail({
               </SettingsSection>
             ))}
             <SettingsSection label='Chat'>
-              <div
-                className={cn(
-                  'flex flex-col gap-1.5 px-2 pt-1',
-                  editingConfig.hideDeployChatbot && 'opacity-50'
-                )}
-              >
-                <span className='text-[var(--text-secondary)] text-xs'>
-                  Auth modes chat deployments may use
-                </span>
-                <ChipDropdown
-                  multiple
-                  showAllOption={false}
-                  allLabel='None'
-                  value={chatDeployAuthValue}
-                  onChange={setChatDeployAuthTypes}
-                  options={CHAT_DEPLOY_AUTH_TYPE_OPTIONS}
-                  disabled={editingConfig.hideDeployChatbot}
-                  matchTriggerWidth={false}
-                  className='w-[200px]'
-                />
+              <div className='flex flex-col gap-1.5'>
+                <label
+                  htmlFor='hide-deploy-chatbot'
+                  className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                >
+                  <Checkbox
+                    id='hide-deploy-chatbot'
+                    checked={!editingConfig.hideDeployChatbot}
+                    onCheckedChange={(checked) =>
+                      setEditingConfig((prev) => ({
+                        ...prev,
+                        hideDeployChatbot: checked !== true,
+                      }))
+                    }
+                  />
+                  <span className='font-normal text-sm'>Chat Deployment</span>
+                </label>
+                <div
+                  className={cn(
+                    'flex flex-col gap-1.5 px-2 pt-1',
+                    editingConfig.hideDeployChatbot && 'opacity-50'
+                  )}
+                >
+                  <span className='text-[var(--text-secondary)] text-xs'>
+                    Auth modes chat deployments may use
+                  </span>
+                  <ChipDropdown
+                    multiple
+                    showAllOption={false}
+                    allLabel='None'
+                    value={chatDeployAuthValue}
+                    onChange={setChatDeployAuthTypes}
+                    options={CHAT_DEPLOY_AUTH_TYPE_OPTIONS}
+                    disabled={editingConfig.hideDeployChatbot}
+                    matchTriggerWidth={false}
+                    className='w-[200px]'
+                  />
+                </div>
               </div>
             </SettingsSection>
             <SettingsSection label='Files'>
