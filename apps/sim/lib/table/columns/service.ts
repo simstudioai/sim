@@ -686,6 +686,38 @@ export async function updateColumnOptions(
       throw new Error(`Cannot set options on column "${column.name}" of type "${column.type}"`)
     }
 
+    // Switching multiple → single would silently drop all but the first option
+    // in any multi-valued cell — block it instead, mirroring the type-change
+    // compatibility guard.
+    const willBeMultiple = data.multiple ?? column.multiple
+    if (column.multiple && !willBeMultiple) {
+      const timeoutMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
+        baseMs: 60_000,
+        perRowMs: 2,
+      })
+      await setTableTxTimeouts(trx, { statementMs: timeoutMs, idleMs: timeoutMs })
+
+      const columnKey = getColumnId(column)
+      const rows = await trx
+        .select({ data: userTableRows.data })
+        .from(userTableRows)
+        .where(
+          and(eq(userTableRows.tableId, data.tableId), sql`${userTableRows.data} ? ${columnKey}`)
+        )
+
+      let multiValuedCount = 0
+      for (const row of rows) {
+        const value = (row.data as RowData)[columnKey]
+        if (Array.isArray(value) && value.length > 1) multiValuedCount++
+      }
+
+      if (multiValuedCount > 0) {
+        throw new Error(
+          `Cannot switch column "${column.name}" to single-select: ${multiValuedCount} row(s) have multiple options selected. Reduce them to one option first.`
+        )
+      }
+    }
+
     const { multiple: _prevMultiple, ...columnRest } = column
     const updatedColumn = {
       ...columnRest,
