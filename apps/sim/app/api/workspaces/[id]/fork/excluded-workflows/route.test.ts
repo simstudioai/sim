@@ -4,23 +4,16 @@
 import {
   auditMock,
   auditMockFns,
+  authMockFns,
   createMockRequest,
   dbChainMockFns,
   resetDbChainMock,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockAssertWorkspaceAdminAccess, mockCaptureServerEvent } = vi.hoisted(
-  () => ({
-    mockGetSession: vi.fn(),
-    mockAssertWorkspaceAdminAccess: vi.fn(),
-    mockCaptureServerEvent: vi.fn(),
-  })
-)
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
+const { mockAssertWorkspaceAdminAccess, mockCaptureServerEvent } = vi.hoisted(() => ({
+  mockAssertWorkspaceAdminAccess: vi.fn(),
+  mockCaptureServerEvent: vi.fn(),
 }))
 
 vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
@@ -34,6 +27,8 @@ vi.mock('@/lib/posthog/server', () => ({
 }))
 
 import { PUT } from '@/app/api/workspaces/[id]/fork/excluded-workflows/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const WORKSPACE_ID = 'workspace-1'
 const ADMIN_ID = 'user-1'

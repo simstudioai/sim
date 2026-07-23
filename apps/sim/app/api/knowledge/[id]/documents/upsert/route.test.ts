@@ -6,16 +6,12 @@
 import {
   auditMock,
   createMockRequest,
-  dbChainMock,
-  hybridAuthMock,
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
   resetDbChainMock,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db', () => dbChainMock)
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 vi.mock('@sim/audit', () => auditMock)
 

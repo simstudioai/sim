@@ -6,14 +6,14 @@
  * @vitest-environment node
  */
 import {
-  createEnvMock,
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
   knowledgeApiUtilsMockFns,
   resetDbChainMock,
+  resetEnvMock,
+  setEnv,
   workflowAuthzMockFns,
   workflowsUtilsMock,
 } from '@sim/testing'
@@ -39,23 +39,7 @@ const {
 
 const mockCheckKnowledgeBaseAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseAccess
 
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn().mockImplementation((...args) => ({ and: args })),
-  eq: vi.fn().mockImplementation((a, b) => ({ eq: [a, b] })),
-  inArray: vi.fn().mockImplementation((field, values) => ({ inArray: [field, values] })),
-  isNull: vi.fn().mockImplementation((arg) => ({ isNull: arg })),
-  sql: vi.fn().mockImplementation((strings, ...values) => ({
-    sql: strings,
-    values,
-    as: vi.fn().mockReturnValue({ sql: strings, values, alias: 'mocked_alias' }),
-  })),
-}))
-
-vi.mock('@sim/db', () => dbChainMock)
-
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
-
-vi.mock('@/lib/core/config/env', () => createEnvMock({ OPENAI_API_KEY: 'test-api-key' }))
 
 vi.mock('@/lib/documents/utils', () => ({
   retryWithExponentialBackoff: vi.fn().mockImplementation((fn) => fn()),
@@ -132,6 +116,7 @@ describe('Knowledge Search API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    setEnv({ OPENAI_API_KEY: 'test-api-key' })
 
     mockHandleTagOnlySearch.mockClear()
     mockHandleVectorOnlySearch.mockClear()
@@ -173,6 +158,7 @@ describe('Knowledge Search API Route', () => {
 
   afterAll(() => {
     resetDbChainMock()
+    resetEnvMock()
   })
 
   describe('POST /api/knowledge/search', () => {

@@ -3,6 +3,7 @@
  */
 import {
   auditMock,
+  authMockFns,
   createMockRequest,
   createSession,
   resetEnvFlagsMock,
@@ -11,24 +12,17 @@ import {
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetSession,
   mockIsOrganizationOwnerOrAdmin,
   mockGetOrgMemberUsageLimit,
   mockGetOrgMemberUsageForCurrentPeriod,
   mockSetOrgMemberUsageLimit,
   mockGetOrganizationSubscription,
 } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
   mockIsOrganizationOwnerOrAdmin: vi.fn(),
   mockGetOrgMemberUsageLimit: vi.fn(),
   mockGetOrgMemberUsageForCurrentPeriod: vi.fn(),
   mockSetOrgMemberUsageLimit: vi.fn(),
   mockGetOrganizationSubscription: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -48,6 +42,8 @@ vi.mock('@/lib/billing/core/billing', () => ({
 }))
 
 import { GET, PUT } from '@/app/api/organizations/[id]/members/[memberId]/usage-limit/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 afterAll(resetEnvFlagsMock)
 

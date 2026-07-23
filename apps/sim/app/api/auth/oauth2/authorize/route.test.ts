@@ -3,7 +3,6 @@
  */
 import {
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   resetDbChainMock,
   resetEnvMock,
@@ -22,8 +21,6 @@ const {
   mockCheckWorkspaceAccess: vi.fn(),
   mockGetCredentialActorContext: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/auth/auth', () => ({
   auth: { api: { oAuth2LinkAccount: mockOAuth2LinkAccount } },

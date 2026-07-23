@@ -4,14 +4,15 @@
  * @vitest-environment node
  */
 import {
-  dbChainMock,
   dbChainMockFns,
+  envMockFns,
   queueTableRows,
-  redisConfigMock,
   redisConfigMockFns,
   requestUtilsMockFns,
   resetDbChainMock,
+  resetEnvMock,
   schemaMock,
+  setEnv,
   workflowsApiUtilsMock,
   workflowsApiUtilsMockFns,
 } from '@sim/testing'
@@ -30,7 +31,6 @@ const {
   mockSetChatAuthCookie,
   mockGetStorageMethod,
   mockZodParse,
-  mockGetEnv,
 } = vi.hoisted(() => {
   const mockRedisSet = vi.fn()
   const mockRedisGet = vi.fn()
@@ -49,7 +49,6 @@ const {
   const mockSetChatAuthCookie = vi.fn()
   const mockGetStorageMethod = vi.fn()
   const mockZodParse = vi.fn()
-  const mockGetEnv = vi.fn()
 
   return {
     mockRedisSet,
@@ -63,17 +62,13 @@ const {
     mockSetChatAuthCookie,
     mockGetStorageMethod,
     mockZodParse,
-    mockGetEnv,
   }
 })
 
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+const mockGetEnv = envMockFns.getEnv
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
-
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/core/storage', () => ({
   getStorageMethod: mockGetStorageMethod,
@@ -114,16 +109,6 @@ vi.mock('@/app/api/chat/utils', () => ({
 }))
 
 vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: {
-    NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
-    NODE_ENV: 'test',
-  },
-  getEnv: mockGetEnv,
-  isTruthy: vi.fn().mockReturnValue(false),
-  isFalsy: vi.fn().mockReturnValue(true),
-}))
 
 vi.mock('zod', () => {
   class ZodError extends Error {
@@ -226,6 +211,7 @@ describe('Chat OTP API Route', () => {
 
     mockZodParse.mockImplementation((data: unknown) => data)
 
+    setEnv({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000', NODE_ENV: 'test' })
     mockGetEnv.mockReturnValue('http://localhost:3000')
   })
 
@@ -235,6 +221,7 @@ describe('Chat OTP API Route', () => {
 
   afterAll(() => {
     resetDbChainMock()
+    resetEnvMock()
   })
 
   describe('POST - Store OTP (Redis path)', () => {

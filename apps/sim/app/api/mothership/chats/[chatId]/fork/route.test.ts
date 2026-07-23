@@ -1,7 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { copilotHttpMock, copilotHttpMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  copilotHttpMock,
+  copilotHttpMockFns,
+  dbChainMockFns,
+  resetDbChainMock,
+  resetEnvMock,
+  setEnv,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -70,8 +77,6 @@ vi.mock('@/lib/copilot/server/agent-url', () => ({
   getMothershipSourceEnvHeaders: vi.fn().mockReturnValue({}),
 }))
 
-vi.mock('@/lib/core/config/env', () => ({ env: {} }))
-
 vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: mockCaptureServerEvent,
 }))
@@ -136,6 +141,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    setEnv({ COPILOT_API_KEY: undefined })
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
@@ -158,6 +164,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
 
   afterAll(() => {
     resetDbChainMock()
+    resetEnvMock()
   })
 
   it('rejects unauthenticated callers', async () => {

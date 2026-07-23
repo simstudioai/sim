@@ -2,13 +2,14 @@
  * @vitest-environment node
  */
 import {
-  createEnvMock,
   createMockRequest,
   dbChainMock,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
+  resetEnvMock,
   schemaMock,
+  setEnv,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -64,8 +65,6 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   secureFetchWithPinnedIP: mockSecureFetchWithPinnedIP,
 }))
 
-vi.mock('@/lib/core/config/env', () => createEnvMock({ SSO_ENABLED: 'true' }))
-
 import { POST } from '@/app/api/auth/sso/register/route'
 
 const OIDC_BODY = {
@@ -89,6 +88,7 @@ describe('POST /api/auth/sso/register', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    setEnv({ SSO_ENABLED: 'true' })
     mockGetSession.mockResolvedValue({ user: { id: 'u1' } })
     mockHasSSOAccess.mockResolvedValue(true)
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '1.2.3.4' })
@@ -98,6 +98,7 @@ describe('POST /api/auth/sso/register', () => {
 
   afterAll(() => {
     resetDbChainMock()
+    resetEnvMock()
   })
 
   it('rejects callers without an Enterprise plan', async () => {

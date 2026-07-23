@@ -1,26 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { authMockFns, createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCanManageWorkspaceBilling,
   mockGetEffectiveBillingStatus,
   mockGetOrganizationSubscription,
-  mockGetSession,
   mockGetWorkspaceHostContextForViewer,
 } = vi.hoisted(() => ({
   mockCanManageWorkspaceBilling: vi.fn(),
   mockGetEffectiveBillingStatus: vi.fn(),
   mockGetOrganizationSubscription: vi.fn(),
-  mockGetSession: vi.fn(),
   mockGetWorkspaceHostContextForViewer: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
 }))
 
 vi.mock('@/lib/billing/core/access', () => ({
@@ -57,6 +50,8 @@ vi.mock('@/lib/workspaces/host-context', () => ({
 }))
 
 import { POST } from '@/app/api/billing/switch-plan/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 beforeAll(() => {
   setEnvFlags({ isBillingEnabled: true })

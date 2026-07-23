@@ -2,16 +2,17 @@
  * @vitest-environment node
  */
 import {
+  authMockFns,
   createMockRequest,
-  dbChainMock,
   queueTableRows,
   resetDbChainMock,
+  resetEnvMock,
   schemaMock,
+  setEnv,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetSession,
   mockRecordUsage,
   mockCheckActorUsageLimits,
   mockVerifyWorkspaceMembership,
@@ -21,7 +22,6 @@ const {
   mockToBillingContext,
   mockCheckAndBillPayerOverageThreshold,
 } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
   mockRecordUsage: vi.fn(),
   mockCheckActorUsageLimits: vi.fn(),
   mockVerifyWorkspaceMembership: vi.fn(),
@@ -45,10 +45,6 @@ const SYSTEM_BILLING_ATTRIBUTION = {
   payerSubscription: null,
 }
 
-vi.mock('@sim/db', () => dbChainMock)
-
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
-
 vi.mock('@/lib/billing/core/usage-log', () => ({ recordUsage: mockRecordUsage }))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
@@ -70,8 +66,6 @@ vi.mock('@/app/api/workflows/utils', () => ({
   verifyWorkspaceMembership: mockVerifyWorkspaceMembership,
 }))
 
-vi.mock('@/lib/core/config/env', () => ({ env: { ELEVENLABS_API_KEY: 'test-key' } }))
-
 vi.mock('@/lib/core/rate-limiter', () => ({
   RateLimiter: class {
     checkRateLimitDirect = vi.fn().mockResolvedValue({ allowed: true })
@@ -81,6 +75,8 @@ vi.mock('@/lib/core/rate-limiter', () => ({
 vi.mock('@/lib/core/security/deployment', () => ({ validateAuthToken: vi.fn(() => false) }))
 
 import { POST } from '@/app/api/speech/token/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const publicChatRow = {
   id: 'chat-1',
@@ -94,6 +90,7 @@ const publicChatRow = {
 beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
+  setEnv({ ELEVENLABS_API_KEY: 'test-key' })
   mockGetSession.mockResolvedValue({ user: { id: 'member-1' } })
   mockRecordUsage.mockResolvedValue(undefined)
   mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
@@ -125,6 +122,7 @@ beforeEach(() => {
 
 afterAll(() => {
   resetDbChainMock()
+  resetEnvMock()
 })
 
 describe('POST /api/speech/token — usage attribution', () => {

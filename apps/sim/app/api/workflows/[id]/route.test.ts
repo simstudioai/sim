@@ -7,9 +7,7 @@
 
 import {
   auditMock,
-  dbChainMock,
   dbChainMockFns,
-  envMock,
   hybridAuthMockFns,
   resetDbChainMock,
   telemetryMock,
@@ -52,8 +50,6 @@ function mockGetSession(session: { user: { id: string } } | null) {
   }
 }
 
-vi.mock('@/lib/core/config/env', () => envMock)
-
 vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
 vi.mock('@sim/audit', () => auditMock)
@@ -63,8 +59,6 @@ vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
-
-vi.mock('@sim/db', () => dbChainMock)
 
 import { DELETE, GET, PUT } from './route'
 

@@ -5,7 +5,6 @@ import {
   auditMock,
   authOAuthUtilsMock,
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
@@ -24,7 +23,6 @@ const { mockHasWorkspaceLiveSyncAccess, mockValidateConfig } = vi.hoisted(() => 
 const mockCheckAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseAccess
 const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWriteAccess
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
 vi.mock('@/connectors/registry.server', () => ({

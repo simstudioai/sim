@@ -1,15 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, resetDbChainMock } from '@sim/testing'
+import { resetDbChainMock } from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockPerformDeleteMcpServer } = vi.hoisted(() => ({
   mockPerformDeleteMcpServer: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/mcp/middleware', () => ({
   getParsedBody: () => undefined,

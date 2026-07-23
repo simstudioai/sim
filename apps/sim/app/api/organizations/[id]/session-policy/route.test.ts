@@ -3,8 +3,8 @@
  */
 import { member, organization } from '@sim/db/schema'
 import {
+  authMockFns,
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
@@ -13,17 +13,10 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockIsEnterprise, mockEagerClamp, mockRecordAudit } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
+const { mockIsEnterprise, mockEagerClamp, mockRecordAudit } = vi.hoisted(() => ({
   mockIsEnterprise: vi.fn(),
   mockEagerClamp: vi.fn(),
   mockRecordAudit: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => dbChainMock)
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
 }))
 
 vi.mock('@/lib/auth/session-policy', () => ({
@@ -48,6 +41,8 @@ vi.mock('@sim/audit', () => ({
 }))
 
 import { GET, PUT } from '@/app/api/organizations/[id]/session-policy/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const ORG_ID = 'org-1'
 const routeContext = { params: Promise.resolve({ id: ORG_ID }) }

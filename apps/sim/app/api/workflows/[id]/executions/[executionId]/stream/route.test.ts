@@ -1,29 +1,17 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { authMockFns, createMockRequest, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionEventEntry } from '@/lib/execution/event-buffer'
 
-const {
-  mockAuthorizeWorkflowByWorkspacePermission,
-  mockGetSession,
-  mockReadExecutionEventsState,
-  mockReadExecutionMetaState,
-} = vi.hoisted(() => ({
-  mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
-  mockGetSession: vi.fn(),
+const { mockReadExecutionEventsState, mockReadExecutionMetaState } = vi.hoisted(() => ({
   mockReadExecutionEventsState: vi.fn(),
   mockReadExecutionMetaState: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
-
-vi.mock('@sim/platform-authz/workflow', () => ({
-  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
-}))
+const mockAuthorizeWorkflowByWorkspacePermission =
+  workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 
 vi.mock('@/lib/execution/event-buffer', () => ({
   readExecutionEventsState: mockReadExecutionEventsState,
@@ -31,6 +19,8 @@ vi.mock('@/lib/execution/event-buffer', () => ({
 }))
 
 import { GET } from './route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 function completedEntry(eventId: number): ExecutionEventEntry {
   return {

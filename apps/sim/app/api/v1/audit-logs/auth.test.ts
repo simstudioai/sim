@@ -1,20 +1,12 @@
 /**
  * @vitest-environment node
  */
-import {
-  dbChainMock,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockIsOrganizationBillingBlocked } = vi.hoisted(() => ({
   mockIsOrganizationBillingBlocked: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/core/access', () => ({
   isOrganizationBillingBlocked: mockIsOrganizationBillingBlocked,

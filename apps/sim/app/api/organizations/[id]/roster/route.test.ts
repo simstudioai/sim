@@ -9,30 +9,20 @@ import {
   workspace,
 } from '@sim/db/schema'
 import {
+  authMockFns,
   createMockRequest,
   createSession,
-  dbChainMock,
-  loggerMock,
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExpireStaleInvitations, mockGetSession } = vi.hoisted(() => ({
+const { mockExpireStaleInvitations } = vi.hoisted(() => ({
   mockExpireStaleInvitations: vi.fn(),
-  mockGetSession: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
-
-vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@sim/platform-authz/workspace', () => ({
   isOrgAdminRole: (role: string | null | undefined) => role === 'owner' || role === 'admin',
-}))
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
 }))
 
 vi.mock('@/lib/invitations/core', () => ({
@@ -40,6 +30,8 @@ vi.mock('@/lib/invitations/core', () => ({
 }))
 
 import { GET } from '@/app/api/organizations/[id]/roster/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const MEMBER_ROWS = [
   {
