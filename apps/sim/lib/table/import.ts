@@ -17,13 +17,38 @@ import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/tab
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
 
 /**
- * Single source of truth for the `csv-parse` options used by both the buffered
- * sync parser and the streaming parser. `columns: true` emits each record as an
- * object keyed by the (first-row) headers.
+ * Field separators we sniff for, in tie-break priority order. Semicolon files are
+ * the standard CSV export of European-locale Excel; pipe shows up in log exports.
  */
-export function csvParseOptions(delimiter = ','): CsvParseOptions {
+export const CSV_DELIMITER_CANDIDATES = [',', ';', '\t', '|'] as const
+
+export type CsvDelimiter = (typeof CSV_DELIMITER_CANDIDATES)[number]
+
+/**
+ * Bytes inspected when sniffing the delimiter. Read from the head of the file on
+ * every path (client preview, streamed upload, background worker) so all of them
+ * observe the same prefix and therefore agree on the result.
+ */
+export const CSV_DELIMITER_SNIFF_BYTES = 64 * 1024
+
+/**
+ * Single source of truth for the `csv-parse` options used by both the buffered
+ * sync parser and the streaming parser.
+ *
+ * `columns` is a function rather than `true` so the *actual header row* is
+ * captured. With `relax_column_count`, a record shorter than the header simply
+ * omits the trailing keys, so `Object.keys(records[0])` under-reports the schema
+ * whenever the first data row is ragged — the header callback is authoritative.
+ */
+export function csvParseOptions(
+  delimiter = ',',
+  onHeaders?: (headers: string[]) => void
+): CsvParseOptions {
   return {
-    columns: true,
+    columns: (header: string[]) => {
+      onHeaders?.(header)
+      return header
+    },
     skip_empty_lines: true,
     trim: true,
     relax_column_count: true,
@@ -40,9 +65,75 @@ export function csvParseOptions(delimiter = ','): CsvParseOptions {
  * file stream into it and iterate records with `for await`; backpressure flows
  * back to the source while each record is processed. Use this for HTTP uploads
  * so the file is never fully buffered in memory.
+ *
+ * `onHeaders` fires once, before the first record, with the full header row.
  */
-export function createCsvParser(delimiter = ','): Parser {
-  return parseCsvStream(csvParseOptions(delimiter))
+export function createCsvParser(delimiter = ',', onHeaders?: (headers: string[]) => void): Parser {
+  return parseCsvStream(csvParseOptions(delimiter, onHeaders))
+}
+
+/** Decodes CSV bytes as UTF-8, passing strings through unchanged. */
+export function decodeCsvText(input: Buffer | Uint8Array | string): string {
+  if (typeof input === 'string') return input
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(input)) return input.toString('utf-8')
+  return new TextDecoder('utf-8').decode(input as Uint8Array)
+}
+
+/**
+ * Sniffs the field separator by trial-parsing the sample with each candidate and
+ * keeping the one that yields the most columns.
+ *
+ * A real parse (rather than counting raw characters) is what makes this safe on
+ * files whose quoted cells contain other candidates — `alarms.csv` exports a
+ * semicolon-separated file whose `raw_text` cells are full of commas and
+ * newlines, and a naive frequency count picks the comma. Ties are broken by how
+ * consistently the records match the header width, then by candidate order, so a
+ * genuinely single-column file falls back to `fallback` rather than latching onto
+ * a separator that appears inside its values.
+ */
+export async function detectCsvDelimiter(
+  input: Buffer | Uint8Array | string,
+  fallback: CsvDelimiter = ','
+): Promise<CsvDelimiter> {
+  const { parse } = await import('csv-parse/sync')
+  const text = decodeCsvText(input)
+  if (text.trim() === '') return fallback
+
+  let best: { delimiter: CsvDelimiter; fields: number; consistency: number } | null = null
+
+  for (const delimiter of CSV_DELIMITER_CANDIDATES) {
+    let records: string[][]
+    try {
+      records = parse(text, {
+        columns: false,
+        skip_empty_lines: true,
+        relax_column_count: true,
+        relax_quotes: true,
+        skip_records_with_error: true,
+        bom: true,
+        delimiter,
+      }) as string[][]
+    } catch {
+      continue
+    }
+
+    if (records.length === 0) continue
+    const fields = records[0].length
+    if (fields < 2) continue
+
+    const matching = records.reduce((n, r) => (r.length === fields ? n + 1 : n), 0)
+    const consistency = matching / records.length
+
+    if (
+      !best ||
+      fields > best.fields ||
+      (fields === best.fields && consistency > best.consistency)
+    ) {
+      best = { delimiter, fields, consistency }
+    }
+  }
+
+  return best?.delimiter ?? fallback
 }
 
 /** Narrower type than `COLUMN_TYPES` used internally for coercion. */
@@ -103,24 +194,22 @@ export async function parseCsvBuffer(
 ): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
   const { parse } = await import('csv-parse/sync')
 
-  let text: string
-  if (typeof input === 'string') {
-    text = input
-  } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer(input)) {
-    text = input.toString('utf-8')
-  } else {
-    text = new TextDecoder('utf-8').decode(input as Uint8Array)
-  }
+  const text = decodeCsvText(input)
 
-  // double-cast-allowed: shared csvParseOptions() loses the `columns: true` literal that drives
-  // csv-parse's record-vs-string[][] overload, but `columns: true` is always set so records are objects
-  const parsed = parse(text, csvParseOptions(delimiter)) as unknown as Record<string, unknown>[]
+  let headers: string[] = []
+  // double-cast-allowed: shared csvParseOptions() loses the `columns` literal that drives
+  // csv-parse's record-vs-string[][] overload, but `columns` is always set so records are objects
+  const parsed = parse(
+    text,
+    csvParseOptions(delimiter, (h) => {
+      headers = h
+    })
+  ) as unknown as Record<string, unknown>[]
 
   if (parsed.length === 0) {
     throw new Error('CSV file has no data rows')
   }
 
-  const headers = Object.keys(parsed[0])
   if (headers.length === 0) {
     throw new Error('CSV file has no headers')
   }
@@ -504,7 +593,10 @@ export async function parseFileRows(
     return parseJsonRows(buffer)
   }
   if (ext === 'csv' || ext === 'tsv' || contentType === 'text/csv') {
-    const delimiter = ext === 'tsv' ? '\t' : ','
+    const delimiter = await detectCsvDelimiter(
+      buffer.subarray(0, CSV_DELIMITER_SNIFF_BYTES),
+      ext === 'tsv' ? '\t' : ','
+    )
     return parseCsvBuffer(buffer, delimiter)
   }
   throw new Error(`Unsupported file format: "${ext ?? fileName}". Supported: csv, tsv, json`)

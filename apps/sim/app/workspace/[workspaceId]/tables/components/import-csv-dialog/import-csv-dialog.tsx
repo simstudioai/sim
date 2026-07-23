@@ -25,7 +25,13 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES } from '@/lib/table/constants'
-import { buildAutoMapping, parseCsvBuffer } from '@/lib/table/import'
+import {
+  buildAutoMapping,
+  CSV_DELIMITER_SNIFF_BYTES,
+  type CsvDelimiter,
+  detectCsvDelimiter,
+  parseCsvBuffer,
+} from '@/lib/table/import'
 import type { TableDefinition } from '@/lib/table/types'
 import {
   type CsvImportMode,
@@ -107,8 +113,13 @@ interface ParsedCsv {
   sampleRows: Record<string, unknown>[]
 }
 
-/** Parses the head of a CSV/TSV for the mapping + sample, dropping any truncated final line. */
-async function parseCsvPreview(file: File, delimiter: ',' | '\t') {
+/**
+ * Parses the head of a CSV/TSV for the mapping + sample, dropping any truncated final line.
+ *
+ * The separator is sniffed from the same leading bytes the server sniffs, so the mapping shown
+ * here always matches the columns the import will actually produce.
+ */
+async function parseCsvPreview(file: File, fallbackDelimiter: CsvDelimiter) {
   const sliced = file.size > CSV_PREVIEW_BYTES
   const blob = sliced ? file.slice(0, CSV_PREVIEW_BYTES) : file
   let bytes = new Uint8Array(await blob.arrayBuffer())
@@ -116,6 +127,10 @@ async function parseCsvPreview(file: File, delimiter: ',' | '\t') {
     const lastNewline = bytes.lastIndexOf(0x0a)
     if (lastNewline > 0) bytes = bytes.subarray(0, lastNewline + 1)
   }
+  const delimiter = await detectCsvDelimiter(
+    bytes.subarray(0, CSV_DELIMITER_SNIFF_BYTES),
+    fallbackDelimiter
+  )
   return parseCsvBuffer(bytes, delimiter)
 }
 
@@ -180,8 +195,7 @@ export function ImportCsvDialog({
     setParsing(true)
     setParseError(null)
     try {
-      const delimiter: ',' | '\t' = ext === 'tsv' ? '\t' : ','
-      const { headers, rows } = await parseCsvPreview(file, delimiter)
+      const { headers, rows } = await parseCsvPreview(file, ext === 'tsv' ? '\t' : ',')
       const autoMapping = buildAutoMapping(headers, table.schema)
       setParsed({
         file,

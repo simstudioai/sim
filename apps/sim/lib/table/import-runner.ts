@@ -19,6 +19,7 @@ import {
 } from '@/lib/table'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { withGeneratedColumnIds } from '@/lib/table/column-keys'
+import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
 import { appendTableEvent } from '@/lib/table/events'
 import {
   addImportColumns,
@@ -103,6 +104,11 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // Stream the file rather than buffering it — a ~1M-row import must never be held in memory.
     source = await downloadFileStream({ key: fileKey, context: 'workspace' })
 
+    // The kickoff route's extension-derived delimiter is only the fallback — the separator is
+    // sniffed from the file's head so semicolon/pipe exports don't collapse into one column.
+    const sniffed = await sniffCsvDelimiterFromStream(source, delimiter)
+    const csvStream = sniffed.stream
+
     // Append must continue after the existing rows; create/replace start empty. Read once up
     // front (the import is the table's sole writer) and assign contiguous positions / threaded
     // order keys from it.
@@ -123,11 +129,14 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       },
     })
 
-    const parser = createCsvParser(delimiter)
+    let csvHeaders: string[] = []
+    const parser = createCsvParser(sniffed.delimiter, (headers) => {
+      csvHeaders = headers
+    })
     // `.pipe` doesn't forward source errors; forward so the iterator throws.
-    source.on('error', (err) => parser.destroy(err))
+    csvStream.on('error', (err) => parser.destroy(err))
     byteCounter.on('error', (err) => parser.destroy(err))
-    source.pipe(byteCounter).pipe(parser)
+    csvStream.pipe(byteCounter).pipe(parser)
 
     let schema: TableSchema | null = null
     let headerToColumn: Map<string, string> | null = null
@@ -142,7 +151,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
      * map onto the existing schema, optionally auto-creating `createColumns` first.
      */
     const resolveSetup = async () => {
-      const headers = Object.keys(sample[0])
+      const headers = csvHeaders
 
       if (mode === 'create') {
         const inferred = inferSchemaFromCsv(headers, sample)

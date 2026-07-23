@@ -3,6 +3,7 @@
  */
 import { Readable } from 'node:stream'
 import { describe, expect, it } from 'vitest'
+import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
 import {
   buildAutoMapping,
   CsvImportValidationError,
@@ -10,6 +11,7 @@ import {
   coerceValue,
   createCsvParser,
   csvParseOptions,
+  detectCsvDelimiter,
   inferColumnType,
   inferSchemaFromCsv,
   parseCsvBuffer,
@@ -316,8 +318,131 @@ describe('import', () => {
   })
 
   describe('csvParseOptions', () => {
-    it('sets columns, bom, and the delimiter', () => {
-      expect(csvParseOptions('\t')).toMatchObject({ columns: true, bom: true, delimiter: '\t' })
+    it('sets bom and the delimiter, with a header-capturing columns callback', () => {
+      const options = csvParseOptions('\t')
+      expect(options).toMatchObject({ bom: true, delimiter: '\t' })
+      expect(typeof options.columns).toBe('function')
+    })
+
+    it('invokes onHeaders with the full header row', () => {
+      let captured: string[] | null = null
+      const options = csvParseOptions(',', (h) => {
+        captured = h
+      })
+      // csv-parse calls the columns function with the parsed header array.
+      ;(options.columns as (h: string[]) => string[])(['a', 'b', 'c'])
+      expect(captured).toEqual(['a', 'b', 'c'])
+    })
+  })
+
+  describe('parseCsvBuffer header derivation', () => {
+    it('reports every header even when the first data row is ragged (short)', async () => {
+      // With relax_column_count a short first row omits trailing keys, so deriving
+      // headers from Object.keys(rows[0]) would drop c and d. The header callback fixes this.
+      const { headers } = await parseCsvBuffer('a,b,c,d\n1,2\n3,4,5,6\n')
+      expect(headers).toEqual(['a', 'b', 'c', 'd'])
+    })
+
+    it('feeds the full header set into inferSchemaFromCsv for a ragged file', async () => {
+      const { headers, rows } = await parseCsvBuffer('a,b,c\n1\n2,3,4\n')
+      const { columns } = inferSchemaFromCsv(headers, rows)
+      expect(columns.map((c) => c.name)).toEqual(['a', 'b', 'c'])
+    })
+  })
+
+  describe('detectCsvDelimiter', () => {
+    it('detects a comma-delimited file', async () => {
+      expect(await detectCsvDelimiter('a,b,c\n1,2,3\n')).toBe(',')
+    })
+
+    it('detects a semicolon-delimited file (European Excel export)', async () => {
+      expect(await detectCsvDelimiter('a;b;c\n1;2;3\n')).toBe(';')
+    })
+
+    it('detects tab and pipe delimiters', async () => {
+      expect(await detectCsvDelimiter('a\tb\tc\n1\t2\t3\n')).toBe('\t')
+      expect(await detectCsvDelimiter('a|b|c\n1|2|3\n')).toBe('|')
+    })
+
+    it('ignores delimiters that appear only inside quoted fields', async () => {
+      // Semicolon-separated, but the values are full of commas and newlines — a raw
+      // character-frequency count would wrongly pick the comma. A real parse does not.
+      const csv = 'id;body\n1;"hello, world\nsecond line"\n2;"a, b, c"\n'
+      expect(await detectCsvDelimiter(csv)).toBe(';')
+    })
+
+    it('falls back for a single-column file rather than latching onto in-value characters', async () => {
+      expect(await detectCsvDelimiter('text\n"hello, world"\n"a, b"\n')).toBe(',')
+      expect(await detectCsvDelimiter('text\n"hello, world"\n', ';')).toBe(';')
+    })
+
+    it('returns the fallback for empty input', async () => {
+      expect(await detectCsvDelimiter('', ';')).toBe(';')
+    })
+  })
+
+  describe('sniffCsvDelimiterFromStream', () => {
+    async function collect(stream: Readable): Promise<Buffer> {
+      const chunks: Buffer[] = []
+      for await (const chunk of stream) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array))
+      }
+      return Buffer.concat(chunks)
+    }
+
+    it('detects the delimiter and replays the full file byte-for-byte', async () => {
+      const rows = ['id;a;b;c']
+      for (let i = 0; i < 5000; i++) rows.push(`${i};"val, with comma";x;y`)
+      const full = Buffer.from(`${rows.join('\n')}\n`)
+      const { delimiter, stream } = await sniffCsvDelimiterFromStream(Readable.from([full]))
+      expect(delimiter).toBe(';')
+      expect((await collect(stream)).equals(full)).toBe(true)
+    })
+
+    it('handles a file smaller than the sniff window (exhausted during sniff)', async () => {
+      const full = Buffer.from('a;b;c\n1;2;3\n')
+      const { delimiter, stream } = await sniffCsvDelimiterFromStream(Readable.from([full]))
+      expect(delimiter).toBe(';')
+      expect((await collect(stream)).equals(full)).toBe(true)
+    })
+
+    it('reassembles data split across many small chunks', async () => {
+      const parts = ['na', 'me,ag', 'e\nfo', 'o,1\nba', 'r,2\n'].map((s) => Buffer.from(s))
+      const { delimiter, stream } = await sniffCsvDelimiterFromStream(Readable.from(parts))
+      expect(delimiter).toBe(',')
+      expect((await collect(stream)).equals(Buffer.concat(parts))).toBe(true)
+    })
+
+    it('destroys the source when the replay stream is destroyed early', async () => {
+      let destroyed = false
+      const pad = 'z'.repeat(290)
+      async function* infinite() {
+        let i = 0
+        while (true) yield Buffer.from(`r${i++};x;${pad}\n`)
+      }
+      const source = Readable.from(infinite())
+      source.on('close', () => {
+        destroyed = true
+      })
+      const { stream } = await sniffCsvDelimiterFromStream(source)
+      stream.destroy()
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(destroyed).toBe(true)
+    })
+
+    it('surfaces a source error that occurs during replay', async () => {
+      async function* failing() {
+        yield Buffer.from(`a;b;c\n${'1;2;3\n'.repeat(20000)}`)
+        throw new Error('storage read failed')
+      }
+      const { stream } = await sniffCsvDelimiterFromStream(Readable.from(failing()))
+      await expect(collect(stream)).rejects.toThrow(/storage read failed/)
+    })
+
+    it('returns the fallback for an empty stream', async () => {
+      const { delimiter, stream } = await sniffCsvDelimiterFromStream(Readable.from([]), ';')
+      expect(delimiter).toBe(';')
+      expect((await collect(stream)).length).toBe(0)
     })
   })
 })
