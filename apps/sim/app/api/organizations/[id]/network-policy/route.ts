@@ -208,7 +208,7 @@ export const PUT = withRouteHandler(
       success: true,
       data: {
         isEnterprise: true,
-        configured: normalizeConfigured(merged),
+        configured: { enabled: ipAllowlist.enabled, cidrs: ipAllowlist.cidrs },
         callerIp,
       },
     })

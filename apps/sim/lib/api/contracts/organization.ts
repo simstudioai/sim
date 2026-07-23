@@ -205,22 +205,32 @@ export const revokeOrganizationSessionsResponseSchema = z.object({
 export const MAX_IP_ALLOWLIST_ENTRIES = 200
 
 export const updateOrganizationNetworkPolicyBodySchema = z.object({
-  ipAllowlist: z.object({
-    enabled: z.boolean(),
-    cidrs: z
-      .array(
-        z
-          .string()
-          .trim()
-          .min(1, 'Allowlist entries cannot be empty')
-          .max(64, 'Allowlist entries cannot exceed 64 characters')
-          .refine(isValidCidrEntry, {
-            message:
-              'Each entry must be a valid IPv4/IPv6 address or CIDR range (e.g. 10.0.0.0/16)',
-          })
-      )
-      .max(MAX_IP_ALLOWLIST_ENTRIES, `At most ${MAX_IP_ALLOWLIST_ENTRIES} allowlist entries`),
-  }),
+  ipAllowlist: z
+    .object({
+      enabled: z.boolean(),
+      cidrs: z
+        .array(
+          z
+            .string()
+            .trim()
+            .min(1, 'Allowlist entries cannot be empty')
+            .max(128, 'Allowlist entries cannot exceed 128 characters')
+            .refine(isValidCidrEntry, {
+              message:
+                'Each entry must be a valid IPv4/IPv6 address or CIDR range, optionally labelled (e.g. 10.0.0.0/16 # Frankfurt VPN)',
+            })
+        )
+        .max(MAX_IP_ALLOWLIST_ENTRIES, `At most ${MAX_IP_ALLOWLIST_ENTRIES} allowlist entries`),
+    })
+    .superRefine((value, ctx) => {
+      if (value.enabled && value.cidrs.length === 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['cidrs'],
+          message: 'Add at least one IP or CIDR range before enabling the allowlist',
+        })
+      }
+    }),
 })
 
 export type UpdateOrganizationNetworkPolicyBody = z.input<

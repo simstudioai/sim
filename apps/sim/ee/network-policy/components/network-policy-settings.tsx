@@ -133,12 +133,12 @@ export function NetworkPolicySettings({ organizationId }: NetworkPolicySettingsP
             id='ip-allowlist-cidrs'
             value={cidrsText}
             onChange={(event) => setCidrsText(event.target.value)}
-            placeholder={'203.0.113.7\n10.0.0.0/16\n2001:db8::/48'}
+            placeholder={'203.0.113.7 # Office\n10.0.0.0/16 # Frankfurt VPN\n2001:db8::/48'}
             rows={8}
           />
           <p className='text-[var(--text-muted)] text-caption'>
-            One entry per line — IPv4/IPv6 addresses or CIDR ranges, up to{' '}
-            {MAX_IP_ALLOWLIST_ENTRIES} entries.
+            One entry per line — IPv4/IPv6 addresses or CIDR ranges with an optional {'# label'}, up
+            to {MAX_IP_ALLOWLIST_ENTRIES} entries.
             {data?.callerIp
               ? ` Your current IP is ${data.callerIp}; saving a list that excludes it is rejected.`
               : ''}

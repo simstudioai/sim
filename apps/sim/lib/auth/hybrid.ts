@@ -193,7 +193,9 @@ export async function checkHybridAuth(
       const apiKeyHeader = request.headers.get(API_KEY_HEADER) ?? ''
       const result = await authenticateApiKeyFromHeader(apiKeyHeader)
       if (result.success) {
-        const network = await enforceOrgNetworkPolicy(result.userId, getTrustedClientIp(request))
+        const network = await enforceOrgNetworkPolicy(result.userId, () =>
+          getTrustedClientIp(request)
+        )
         if (!network.allowed) {
           return { success: false, error: network.reason }
         }
@@ -213,12 +215,10 @@ export async function checkHybridAuth(
       }
     }
 
+    // Org network policy for sessions is enforced inside getSession itself
+    // (a denied member resolves as signed out), so no re-check here.
     const session = await getSession()
     if (session?.user?.id) {
-      const network = await enforceOrgNetworkPolicy(session.user.id, getTrustedClientIp(request))
-      if (!network.allowed) {
-        return { success: false, error: network.reason }
-      }
       return {
         success: true,
         userId: session.user.id,

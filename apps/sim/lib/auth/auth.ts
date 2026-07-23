@@ -6,6 +6,7 @@ import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { parseTrustedProxies } from '@sim/platform-authz/network'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
@@ -34,7 +35,7 @@ import {
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { getRequestedSignInProviderId, isSignInProviderAllowed } from '@/lib/auth/constants'
-import { enforceOrgNetworkPolicy } from '@/lib/auth/network-policy'
+import { enforceOrgNetworkPolicy, getTrustedClientIp } from '@/lib/auth/network-policy'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
@@ -202,10 +203,7 @@ if (validStripeKey) {
  * hops, and records the first untrusted address as the session client IP —
  * preventing header spoofing behind multi-hop proxies.
  */
-const trustedProxies = (env.AUTH_TRUSTED_PROXIES ?? '')
-  .split(',')
-  .map((entry) => entry.trim())
-  .filter(Boolean)
+const trustedProxies = parseTrustedProxies(env.AUTH_TRUSTED_PROXIES)
 
 export const auth = betterAuth({
   baseURL: getBaseUrl(),
@@ -667,7 +665,7 @@ export const auth = betterAuth({
           // trusted-proxy-resolved client address. Thrown APIErrors must
           // propagate — deliberately outside the try below.
           if (!session.impersonatedBy) {
-            const network = await enforceOrgNetworkPolicy(session.userId, session.ipAddress)
+            const network = await enforceOrgNetworkPolicy(session.userId, () => session.ipAddress)
             if (!network.allowed) {
               logger.warn('Blocking session creation by org network policy', {
                 userId: session.userId,
@@ -3645,9 +3643,29 @@ async function getSessionImpl() {
   }
 
   const hdrs = await headers()
-  return await auth.api.getSession({
+  const session = await auth.api.getSession({
     headers: hdrs,
   })
+
+  // Org IP allowlists are enforced at this chokepoint so EVERY
+  // session-authenticated request — the 180+ routes and layouts that call
+  // getSession directly, not just hybrid-auth routes — re-checks the policy.
+  // A denied member is treated as signed out. Impersonation sessions are
+  // platform tooling and exempt.
+  const impersonatedBy = session
+    ? (session.session as { impersonatedBy?: string | null }).impersonatedBy
+    : null
+  if (session?.user?.id && !impersonatedBy) {
+    const network = await enforceOrgNetworkPolicy(session.user.id, () =>
+      getTrustedClientIp(new Request('http://localhost/', { headers: hdrs }))
+    )
+    if (!network.allowed) {
+      logger.warn('Session denied by org network policy', { userId: session.user.id })
+      return null
+    }
+  }
+
+  return session
 }
 
 export const getSession = cache(getSessionImpl)

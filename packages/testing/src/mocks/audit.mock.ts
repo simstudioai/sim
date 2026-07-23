@@ -107,6 +107,7 @@ export const auditMock = {
     ORGANIZATION_UPDATED: 'organization.updated',
     ORGANIZATION_SESSION_POLICY_UPDATED: 'organization.session_policy.updated',
     ORGANIZATION_NETWORK_POLICY_UPDATED: 'organization.network_policy.updated',
+    ORG_IP_ACCESS_DENIED: 'organization.ip_access.denied',
     ORGANIZATION_SESSIONS_REVOKED: 'organization.sessions.revoked',
     ORG_MEMBER_ADDED: 'org_member.added',
     ORG_MEMBER_REMOVED: 'org_member.removed',

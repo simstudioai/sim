@@ -75,9 +75,19 @@ interface ParsedCidr {
   prefix: number
 }
 
-/** Parses an allowlist entry (bare IP or CIDR), or null when malformed. */
+/**
+ * Strips a trailing `# label` comment from an allowlist entry — per-entry
+ * labels ("10.0.0.0/16 # Frankfurt VPN") document ranges without affecting
+ * matching.
+ */
+function stripEntryLabel(entry: string): string {
+  const hashIndex = entry.indexOf('#')
+  return (hashIndex === -1 ? entry : entry.slice(0, hashIndex)).trim()
+}
+
+/** Parses an allowlist entry (bare IP or CIDR, optional label), or null when malformed. */
 function parseCidr(entry: string): ParsedCidr | null {
-  const [host, prefixPart, ...rest] = entry.trim().split('/')
+  const [host, prefixPart, ...rest] = stripEntryLabel(entry).split('/')
   if (rest.length > 0) return null
 
   const v4 = parseIpv4(host)
@@ -97,7 +107,10 @@ function parseCidr(entry: string): ParsedCidr | null {
   return null
 }
 
-/** True when `entry` is a well-formed bare IP or CIDR allowlist entry. */
+/**
+ * True when `entry` is a well-formed allowlist entry: a bare IP or CIDR,
+ * optionally followed by a `# label` comment.
+ */
 export function isValidCidrEntry(entry: string): boolean {
   return parseCidr(entry) !== null
 }
@@ -150,4 +163,30 @@ export function isAddressAllowed(address: string, allowlist: CompiledAllowlist):
     const shift = BigInt(128 - entry.prefix)
     return v6 >> shift === entry.network >> shift
   })
+}
+
+/**
+ * Parses a comma-separated `AUTH_TRUSTED_PROXIES` value into proxy entries.
+ * Shared by every consumer of Better Auth's IP resolver so the platform has
+ * exactly one trusted-proxy configuration semantics.
+ */
+export function parseTrustedProxies(raw: string | undefined): string[] {
+  return (raw ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
+/**
+ * Builds the `advanced.ipAddress` options object Better Auth's `getIp`
+ * expects from a parsed trusted-proxy list.
+ */
+export function buildIpResolutionOptions(trustedProxies: readonly string[]): {
+  advanced: { ipAddress: { trustedProxies?: string[] } }
+} {
+  return {
+    advanced: {
+      ipAddress: trustedProxies.length > 0 ? { trustedProxies: [...trustedProxies] } : {},
+    },
+  }
 }

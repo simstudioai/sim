@@ -13,6 +13,8 @@ describe('isValidCidrEntry', () => {
     '::/0',
     '::ffff:192.0.2.1',
     ' 10.0.0.0/24 ',
+    '10.0.0.0/16 # Frankfurt VPN',
+    '203.0.113.7 #office',
   ])('accepts %s', (entry) => {
     expect(isValidCidrEntry(entry)).toBe(true)
   })
@@ -30,6 +32,8 @@ describe('isValidCidrEntry', () => {
     '1:2:3:4:5:6:7:8:9',
     '10.0.0.0/1.5',
     'fe80::%eth0',
+    '# label only',
+    'banana # labelled garbage',
   ])('rejects %s', (entry) => {
     expect(isValidCidrEntry(entry)).toBe(false)
   })
@@ -75,6 +79,12 @@ describe('isAddressAllowed', () => {
     expect(compiled.v4).toHaveLength(1)
     expect(isAddressAllowed('10.0.0.1', compiled)).toBe(true)
     expect(isAddressAllowed('203.0.113.7', compiled)).toBe(false)
+  })
+
+  it('labels never affect matching', () => {
+    const labelled = compileAllowlist(['10.0.0.0/16 # Frankfurt VPN'])
+    expect(isAddressAllowed('10.0.5.5', labelled)).toBe(true)
+    expect(isAddressAllowed('11.0.0.1', labelled)).toBe(false)
   })
 
   it('never matches against an empty allowlist', () => {

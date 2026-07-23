@@ -3,9 +3,11 @@ import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
+  buildIpResolutionOptions,
   type CompiledAllowlist,
   compileAllowlist,
   isAddressAllowed,
+  parseTrustedProxies,
 } from '@sim/platform-authz/network'
 import { eq } from 'drizzle-orm'
 
@@ -22,23 +24,22 @@ interface CacheEntry {
 const policyCache = new Map<string, CacheEntry>()
 const membershipCache = new Map<string, { organizationId: string | null; fetchedAt: number }>()
 
-const trustedProxies = (process.env.AUTH_TRUSTED_PROXIES ?? '')
-  .split(',')
-  .map((entry) => entry.trim())
-  .filter(Boolean)
+const IP_RESOLUTION_OPTIONS = buildIpResolutionOptions(
+  parseTrustedProxies(process.env.AUTH_TRUSTED_PROXIES)
+)
 
-const IP_RESOLUTION_OPTIONS = {
-  advanced: {
-    ipAddress: trustedProxies.length > 0 ? { trustedProxies } : {},
-  },
-}
-
-const enforcementDisabled = process.env.DISABLE_ORG_IP_ALLOWLIST === 'true'
+/**
+ * Non-member results converge fast (matching the app-side membership cache)
+ * so a user who just joined an org through any path cannot dodge the policy
+ * for the full positive TTL.
+ */
+const NEGATIVE_MEMBERSHIP_CACHE_TTL_MS = 15 * 1000
 
 async function getMemberOrganizationId(userId: string): Promise<string | null> {
   const cached = membershipCache.get(userId)
-  if (cached && Date.now() - cached.fetchedAt < POLICY_CACHE_TTL_MS) {
-    return cached.organizationId
+  if (cached) {
+    const ttl = cached.organizationId ? POLICY_CACHE_TTL_MS : NEGATIVE_MEMBERSHIP_CACHE_TTL_MS
+    if (Date.now() - cached.fetchedAt < ttl) return cached.organizationId
   }
   const [row] = await db
     .select({ organizationId: member.organizationId })
@@ -83,15 +84,18 @@ interface HandshakeLike {
  * client IP denies the connection.
  *
  * Plan gating is intentionally absent here — `apps/realtime` cannot import
- * billing code. A downgraded org's stale policy denies sockets for at most
- * the policy-cache TTL beyond the app-side gate, and the app is the sole
- * writer of the settings.
+ * billing code, and over-denial is the safe direction for a security
+ * control (the app-side check makes the opposite, fail-open call on DB
+ * errors because a blip must not lock an org out of the product). A
+ * downgraded org's stored-but-enabled policy therefore keeps gating sockets
+ * until the org disables it; the app is the sole writer of the settings.
  */
 export async function isSocketAllowedByNetworkPolicy(
   userId: string,
   handshake: HandshakeLike
 ): Promise<boolean> {
-  if (enforcementDisabled) return true
+  // Read at call time so the break-glass works without a realtime restart.
+  if (process.env.DISABLE_ORG_IP_ALLOWLIST === 'true') return true
 
   try {
     const organizationId = await getMemberOrganizationId(userId)
