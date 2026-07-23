@@ -251,6 +251,20 @@ function cellToText(value: unknown): string {
 }
 
 /**
+ * Value-equality for a cell's stored value vs a pending edit. Primitives compare
+ * with `===`; arrays/objects (multiselect id arrays, json) compare structurally
+ * so a no-op edit — e.g. opening a multiselect and closing it unchanged — isn't
+ * treated as a change and doesn't write a row update or push an undo entry.
+ */
+function cellValuesEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
+    return JSON.stringify(a) === JSON.stringify(b)
+  }
+  return false
+}
+
+/**
  * Split updates into chunks bounded by the server batch-size limit, dispatching
  * up to 3 chunks concurrently. On the first chunk failure the remaining chunks
  * are not dispatched and the error is rethrown. There is no cross-chunk
@@ -2894,7 +2908,7 @@ export function TableGrid({
 
       const oldValue = row.data[columnName] ?? null
       const normalizedValue = value ?? null
-      const changed = oldValue !== normalizedValue
+      const changed = !cellValuesEqual(oldValue, normalizedValue)
 
       if (changed) {
         pushUndoRef.current({

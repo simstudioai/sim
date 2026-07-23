@@ -49,7 +49,12 @@ export function SelectValueEditor({
       <ChipDropdown
         multiple
         value={toSelectedIds(value)}
-        onChange={(ids) => onChange(ids)}
+        // A required multiselect can't be emptied — ignore the toggle that would
+        // remove the last option, since an empty selection can never be committed.
+        onChange={(ids) => {
+          if (column.required && ids.length === 0) return
+          onChange(ids)
+        }}
         options={options}
         showAllOption={false}
         placeholder='Select options'
