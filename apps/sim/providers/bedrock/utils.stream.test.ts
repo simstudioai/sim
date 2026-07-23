@@ -18,8 +18,8 @@ async function collectEvents(
   return events
 }
 
-describe('createReadableStreamFromBedrockStream (Step 9)', () => {
-  it('emits tool_call_start then text; no invented thinking', async () => {
+describe('createReadableStreamFromBedrockStream', () => {
+  it('emits text only — no tool events (never executed on this path) and no invented thinking', async () => {
     const onComplete = vi.fn()
     const stream = createReadableStreamFromBedrockStream(
       (async function* () {
@@ -41,11 +41,9 @@ describe('createReadableStreamFromBedrockStream (Step 9)', () => {
     )
 
     const events = await collectEvents(stream)
-    expect(events).toEqual([
-      { type: 'tool_call_start', id: 'tooluse_1', name: 'http_request' },
-      { type: 'text_delta', text: 'Done', turn: 'final' },
-    ])
+    expect(events).toEqual([{ type: 'text_delta', text: 'Done', turn: 'final' }])
     expect(events.some((e) => e.type === 'thinking_delta')).toBe(false)
+    expect(events.some((e) => e.type === 'tool_call_start')).toBe(false)
     expect(onComplete).toHaveBeenCalledWith('Done', { inputTokens: 2, outputTokens: 3 })
   })
 })

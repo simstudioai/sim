@@ -494,12 +494,10 @@ export function createReadableStreamFromResponses(
               return
             }
 
-            // Reasoning *summaries* only — never stream encrypted_content.
-            if (
-              eventType === 'response.reasoning_summary_text.delta' ||
-              eventType === 'response.reasoning_summary.delta' ||
-              eventType === 'response.reasoning.delta'
-            ) {
+            // Reasoning *summaries* only (`response.reasoning_summary_text.delta`
+            // per the Responses streaming reference) — never raw reasoning
+            // (`response.reasoning_text.delta`) and never encrypted_content.
+            if (eventType === 'response.reasoning_summary_text.delta') {
               let deltaText = ''
               const delta = event.delta as string | Record<string, unknown> | undefined
               if (typeof delta === 'string') {

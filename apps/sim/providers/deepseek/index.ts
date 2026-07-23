@@ -85,9 +85,15 @@ export const deepseekProvider: ProviderConfig = {
       if (request.temperature !== undefined) payload.temperature = request.temperature
       if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
-      // DeepSeek Think mode: reasoning_content streams when enabled (or inherent on reasoner).
+      /**
+       * DeepSeek Think mode: reasoning_content streams when enabled (or inherent
+       * on reasoner). The API default is enabled, so 'none' must explicitly send
+       * `disabled`; unset sends nothing to preserve the legacy request shape.
+       */
       if (request.thinkingLevel && request.thinkingLevel !== 'none') {
         payload.thinking = { type: 'enabled' }
+      } else if (request.thinkingLevel === 'none') {
+        payload.thinking = { type: 'disabled' }
       }
 
       let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
@@ -146,16 +152,21 @@ export const deepseekProvider: ProviderConfig = {
               providerName: 'Deepseek',
               request,
               basePayload: payload,
-              messages: formattedMessages as any,
+              // double-cast-allowed: formatMessagesForProvider returns loosely-typed provider messages that are wire-compatible with the OpenAI chat.completions message params the shared loop expects
+              messages:
+                formattedMessages as unknown as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
               createStream: async (params, options) =>
                 deepseek.chat.completions.create({ ...params, stream: true }, options),
-              createBlocking: async (params, options) =>
-                deepseek.chat.completions.create({ ...params, stream: false }, options),
               logger,
               timeSegments,
               forcedTools,
-              preserveAssistantReasoning:
-                !!request.thinkingLevel && request.thinkingLevel !== 'none',
+              /**
+               * DeepSeek requires reasoning_content passed back on tool-call
+               * turns whenever the API returns it (thinking defaults to enabled
+               * server-side); it is ignored on non-tool turns, so preserving
+               * unconditionally is always safe.
+               */
+              preserveAssistantReasoning: true,
               onComplete: (result) => {
                 output.content = result.content
                 output.tokens = result.tokens
@@ -376,7 +387,13 @@ export const deepseekProvider: ProviderConfig = {
               },
             })),
           }
-          if (request.thinkingLevel && request.thinkingLevel !== 'none' && assistantMessage) {
+          /**
+           * DeepSeek requires reasoning_content passed back on tool-call turns
+           * whenever the API returns it (thinking defaults to enabled
+           * server-side, so this applies even without an explicit thinking
+           * level); it is ignored on non-tool turns.
+           */
+          if (assistantMessage) {
             const reasoningContent = (assistantMessage as { reasoning_content?: string })
               .reasoning_content
             if (typeof reasoningContent === 'string' && reasoningContent.length > 0) {

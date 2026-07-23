@@ -85,10 +85,10 @@ describe('deepseekProvider thinking payload', () => {
     expect(payload.thinking).toEqual({ type: 'enabled' })
   })
 
-  it('omits thinking when thinkingLevel is none', async () => {
+  it('sets thinking: { type: disabled } when thinkingLevel is none (API default is enabled)', async () => {
     await deepseekProvider.executeRequest(request({ thinkingLevel: 'none' }))
     const payload = mockCreate.mock.calls[0][0]
-    expect(payload.thinking).toBeUndefined()
+    expect(payload.thinking).toEqual({ type: 'disabled' })
   })
 
   it('omits thinking when thinkingLevel is unset', async () => {

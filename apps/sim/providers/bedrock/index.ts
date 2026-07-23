@@ -348,7 +348,12 @@ export const bedrockProvider: ProviderConfig = {
       inferenceConfig.maxTokens = Number.parseInt(String(request.maxTokens))
     }
 
-    const shouldStreamToolCalls = request.streamToolCalls ?? false
+    /**
+     * The live tool loop cannot honor responseFormat — structured output on
+     * Bedrock rides a final forced `structured_output` tool call that only the
+     * silent loop performs — so those requests fall back to the silent path.
+     */
+    const shouldStreamToolCalls = (request.streamToolCalls ?? false) && !request.responseFormat
 
     if (request.stream && shouldStreamToolCalls && bedrockTools && bedrockTools.length > 0) {
       logger.info('Using streaming tool loop for Bedrock request')

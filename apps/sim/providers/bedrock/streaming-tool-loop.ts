@@ -1,8 +1,9 @@
 /**
- * Live Bedrock ConverseStream tool loop (Step 9).
+ * Live Bedrock ConverseStream tool loop.
  *
- * Capability-honest: text + tool_call_start/end only — no invented thinking.
- * Final-turn-only answer projection via `turn` tags. Abort → cancelled.
+ * Capability-honest: text + tool_call_start/end only — Sim does not request
+ * Bedrock reasoning, so no thinking is invented. Final-turn-only answer
+ * projection via `turn` tags. Abort → cancelled.
  */
 
 import {
@@ -19,25 +20,18 @@ import {
 } from '@aws-sdk/client-bedrock-runtime'
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import type { NormalizedBlockOutput } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { checkForForcedToolUsage, generateToolUseId } from '@/providers/bedrock/utils'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
+import {
+  isAbortError,
+  type StreamingToolLoopComplete,
+  settleOpenTools,
+} from '@/providers/streaming-tool-loop-shared'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
 import { calculateCost, prepareToolExecution, sumToolCosts } from '@/providers/utils'
 import { executeTool } from '@/tools'
-
-export interface BedrockStreamingToolLoopComplete {
-  content: string
-  tokens: { input: number; output: number; total: number }
-  cost: NormalizedBlockOutput['cost']
-  toolCalls?: { list: unknown[]; count: number }
-  modelTime: number
-  toolsTime: number
-  firstResponseTime: number
-  iterations: number
-}
 
 export interface CreateBedrockStreamingToolLoopStreamOptions {
   client: BedrockRuntimeClient
@@ -51,7 +45,7 @@ export interface CreateBedrockStreamingToolLoopStreamOptions {
   logger: Logger
   timeSegments: TimeSegment[]
   forcedTools?: string[]
-  onComplete: (result: BedrockStreamingToolLoopComplete) => void
+  onComplete: (result: StreamingToolLoopComplete) => void
 }
 
 interface AssembledToolUse {
@@ -61,23 +55,6 @@ interface AssembledToolUse {
 }
 
 type ToolUseInput = NonNullable<ToolUseBlock['input']>
-
-function isAbortError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-  const name = (error as { name?: string }).name
-  return name === 'AbortError' || name === 'APIUserAbortError'
-}
-
-function settleOpenTools(
-  controller: ReadableStreamDefaultController<AgentStreamEvent>,
-  openTools: Map<string, string>,
-  status: ToolCallEndStatus
-): void {
-  for (const [id, name] of openTools) {
-    controller.enqueue({ type: 'tool_call_end', id, name, status })
-  }
-  openTools.clear()
-}
 
 function parseToolInput(inputJson: string): Record<string, ToolUseInput> {
   if (!inputJson.trim()) return {}
@@ -196,6 +173,8 @@ export function createBedrockStreamingToolLoopStream(
 
       let content = ''
       let iterationCount = 0
+      let modelCalls = 0
+      let sawFinalTurn = false
       let modelTime = 0
       let toolsTime = 0
       let firstResponseTime = 0
@@ -240,6 +219,7 @@ export function createBedrockStreamingToolLoopStream(
           const modelEnd = Date.now()
           const thisModelTime = modelEnd - modelStart
           modelTime += thisModelTime
+          modelCalls++
           if (iterationCount === 0) {
             firstResponseTime = thisModelTime
           }
@@ -262,7 +242,22 @@ export function createBedrockStreamingToolLoopStream(
           costTotal += turnCost.total
           latestPricing = turnCost.pricing
 
-          const turnTag = drained.toolUses.length > 0 ? 'intermediate' : 'final'
+          /**
+           * Only execute tools when the model actually stopped to call them.
+           * On `max_tokens` / `malformed_tool_use` the accumulated input JSON
+           * is truncated and would parse to empty or partial arguments.
+           */
+          const toolsExecutable = drained.stopReason === 'tool_use'
+          if (drained.toolUses.length > 0 && !toolsExecutable) {
+            logger.warn('Skipping tool execution for incomplete turn', {
+              stopReason: drained.stopReason,
+              toolCount: drained.toolUses.length,
+            })
+            settleOpenTools(controller, openToolStarts, 'error')
+          }
+          const executableToolUses = toolsExecutable ? drained.toolUses : []
+
+          const turnTag = executableToolUses.length > 0 ? 'intermediate' : 'final'
           for (const chunk of drained.textChunks) {
             controller.enqueue({ type: 'text_delta', text: chunk, turn: turnTag })
           }
@@ -270,7 +265,7 @@ export function createBedrockStreamingToolLoopStream(
             content = drained.text
           }
 
-          const assembledToolUses = drained.toolUses.map((t) => ({
+          const assembledToolUses = executableToolUses.map((t) => ({
             toolUseId: t.toolUseId,
             name: t.name,
             input: parseToolInput(t.inputJson),
@@ -312,6 +307,7 @@ export function createBedrockStreamingToolLoopStream(
           }
 
           if (assembledToolUses.length === 0) {
+            sawFinalTurn = true
             break
           }
 
@@ -497,6 +493,15 @@ export function createBedrockStreamingToolLoopStream(
           iterationCount += 1
         }
 
+        /**
+         * MAX_TOOL_ITERATIONS exit: every turn was tagged intermediate, so the
+         * answer channel would otherwise be empty. Flush the last turn's text
+         * as the final answer so legacy consumers still receive content.
+         */
+        if (!sawFinalTurn && content) {
+          controller.enqueue({ type: 'text_delta', text: content, turn: 'final' })
+        }
+
         const toolCost = sumToolCosts(toolResults)
         onComplete({
           content,
@@ -513,7 +518,7 @@ export function createBedrockStreamingToolLoopStream(
           modelTime,
           toolsTime,
           firstResponseTime,
-          iterations: iterationCount + 1,
+          iterations: modelCalls,
         })
         controller.close()
       } catch (error) {

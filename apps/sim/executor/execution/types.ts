@@ -48,10 +48,17 @@ export interface ExecutionMetadata {
   correlation?: AsyncExecutionCorrelation
   executionMode?: 'sync' | 'stream' | 'async'
   /**
-   * Deployed-chat dual gate for thinking SSE. Persisted so HITL resume can
-   * re-enable thinking frames without hardcoding false.
+   * Deployed-chat thinking policy half of the SSE dual gate. Persisted so HITL
+   * resume can re-enable thinking frames without hardcoding false.
    */
   includeThinking?: boolean
+  /**
+   * Run-level agent-events opt-in. True only on surfaces that consume thinking
+   * and tool lifecycle events (canvas Run, dual-gated public chat). Enables the
+   * live streaming tool loops and provider thinking-summary requests; when
+   * unset, providers behave exactly as they did before agent events existed.
+   */
+  agentEvents?: boolean
 }
 
 export interface SerializableExecutionState {

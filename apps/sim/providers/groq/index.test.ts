@@ -89,8 +89,17 @@ describe('groqProvider reasoning payload', () => {
     expect(payload.reasoning_format).toBeUndefined()
   })
 
-  it('GPT-OSS defaults reasoning_effort to medium when unset', async () => {
+  it('GPT-OSS sends no reasoning params when effort and thinking are unset (legacy request shape)', async () => {
     await groqProvider.executeRequest(request({ model: 'groq/openai/gpt-oss-20b' }))
+    const payload = mockCreate.mock.calls[0][0]
+    expect(payload.include_reasoning).toBeUndefined()
+    expect(payload.reasoning_effort).toBeUndefined()
+  })
+
+  it('GPT-OSS defaults reasoning_effort to medium when only a thinking level is set', async () => {
+    await groqProvider.executeRequest(
+      request({ model: 'groq/openai/gpt-oss-20b', thinkingLevel: 'enabled' })
+    )
     const payload = mockCreate.mock.calls[0][0]
     expect(payload.include_reasoning).toBe(true)
     expect(payload.reasoning_effort).toBe('medium')
@@ -108,7 +117,7 @@ describe('groqProvider reasoning payload', () => {
     expect(payload.include_reasoning).toBeUndefined()
   })
 
-  it('Qwen omits reasoning_format when thinking is none', async () => {
+  it('Qwen disables reasoning via reasoning_effort none when thinking is none', async () => {
     await groqProvider.executeRequest(
       request({
         model: 'groq/qwen/qwen3.6-27b',
@@ -117,5 +126,6 @@ describe('groqProvider reasoning payload', () => {
     )
     const payload = mockCreate.mock.calls[0][0]
     expect(payload.reasoning_format).toBeUndefined()
+    expect(payload.reasoning_effort).toBe('none')
   })
 })

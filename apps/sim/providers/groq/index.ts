@@ -2,7 +2,10 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { Groq } from 'groq-sdk'
 import type { ChatCompletionCreateParamsStreaming as GroqChatCompletionCreateParamsStreaming } from 'groq-sdk/resources/chat/completions'
-import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import type {
+  ChatCompletionChunk,
+  ChatCompletionMessageParam,
+} from 'openai/resources/chat/completions'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -80,20 +83,25 @@ export const groqProvider: ProviderConfig = {
     if (request.temperature !== undefined) payload.temperature = request.temperature
     if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
 
-    // Groq reasoning: GPT-OSS uses include_reasoning + reasoning_effort;
-    // Qwen uses reasoning_format: parsed (compatible with tools).
+    /**
+     * Groq reasoning: GPT-OSS uses include_reasoning + reasoning_effort; Qwen
+     * uses reasoning_format: parsed (compatible with tools) and disables via
+     * reasoning_effort: none. Reasoning params are only sent when the user set
+     * a thinking level or an explicit effort — otherwise the request keeps the
+     * legacy shape (Groq's server defaults already match what would be sent).
+     */
     const groqModelId = payload.model as string
     const isGptOss = groqModelId.includes('gpt-oss')
     const isQwenReasoning = /qwen3/i.test(groqModelId)
-    if (isGptOss) {
-      const effort =
-        request.reasoningEffort && request.reasoningEffort !== 'auto'
-          ? request.reasoningEffort
-          : 'medium'
+    const hasExplicitEffort = Boolean(request.reasoningEffort && request.reasoningEffort !== 'auto')
+    const hasThinkingLevel = Boolean(request.thinkingLevel && request.thinkingLevel !== 'none')
+    if (isGptOss && (hasExplicitEffort || hasThinkingLevel)) {
       payload.include_reasoning = true
-      payload.reasoning_effort = effort
-    } else if (isQwenReasoning && request.thinkingLevel && request.thinkingLevel !== 'none') {
+      payload.reasoning_effort = hasExplicitEffort ? request.reasoningEffort : 'medium'
+    } else if (isQwenReasoning && hasThinkingLevel) {
       payload.reasoning_format = 'parsed'
+    } else if (isQwenReasoning && request.thinkingLevel === 'none') {
+      payload.reasoning_effort = 'none'
     }
 
     if (request.responseFormat) {
@@ -161,7 +169,8 @@ export const groqProvider: ProviderConfig = {
             providerName: 'Groq',
             request,
             basePayload: payload,
-            messages: formattedMessages as any,
+            // double-cast-allowed: formatMessagesForProvider returns loosely-typed provider messages that are wire-compatible with the OpenAI chat.completions message params the shared loop expects
+            messages: formattedMessages as unknown as ChatCompletionMessageParam[],
             createStream: async (params, options) => {
               // double-cast-allowed: groq-sdk chat params are wire-compatible with the OpenAI-typed payload built by the shared compat tool loop
               const groqParams = {

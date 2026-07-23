@@ -1835,6 +1835,8 @@ async function handleExecutePost(
             allowLargeValueWorkflowScope,
             callChain,
             executionMode: 'sync',
+            // Canvas execution-events runs are the primary agent-events surface.
+            agentEvents: true,
           }
 
           const sseExecutionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}

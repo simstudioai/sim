@@ -219,6 +219,9 @@ export const POST = withRouteHandler(
         const { createStreamingResponse, agentStreamProtocolResponseHeaders } = await import(
           '@/lib/workflows/streaming/streaming'
         )
+        const { shouldEmitAgentStreamEvents } = await import(
+          '@/lib/workflows/streaming/agent-stream-protocol'
+        )
         const { executeWorkflow } = await import('@/lib/workflows/executor/execute-workflow')
         const { SSE_HEADERS } = await import('@/lib/core/utils/sse')
 
@@ -275,6 +278,10 @@ export const POST = withRouteHandler(
         }
 
         const includeThinking = deployment.includeThinking ?? false
+        const agentEvents = shouldEmitAgentStreamEvents({
+          includeThinking,
+          requestHeaders: request.headers,
+        })
         const stream = await createStreamingResponse({
           requestId,
           streamConfig: {
@@ -307,6 +314,7 @@ export const POST = withRouteHandler(
                 executionMode: 'stream',
                 billingAttribution,
                 includeThinking,
+                agentEvents,
               },
               executionId
             ),

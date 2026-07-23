@@ -296,7 +296,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'http_request',
       { url: 'https://example.com' },
-      expect.objectContaining({ skipPostProcess: true })
+      expect.not.objectContaining({ skipPostProcess: true })
     )
   })
 })

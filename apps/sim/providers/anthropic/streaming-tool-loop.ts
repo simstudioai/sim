@@ -1,5 +1,5 @@
 /**
- * Live Anthropic streaming tool loop (Step 7).
+ * Live Anthropic streaming tool loop.
  *
  * Each model turn is streamed via `messages.stream` + `finalMessage()` so thinking
  * signatures round-trip correctly. Thinking and `tool_call_start` emit live;
@@ -12,10 +12,15 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import type { BlockTokens, IterationToolCall, NormalizedBlockOutput } from '@/executor/types'
+import type { BlockTokens, IterationToolCall } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { checkForForcedToolUsage } from '@/providers/anthropic/utils'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
+import {
+  isAbortError,
+  type StreamingToolLoopComplete,
+  settleOpenTools,
+} from '@/providers/streaming-tool-loop-shared'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
 import { calculateCost, prepareToolExecution, sumToolCosts } from '@/providers/utils'
@@ -31,17 +36,6 @@ export type AnthropicStreamingToolLoopPayload = Omit<
   output_config?: { effort: string }
 }
 
-export interface AnthropicStreamingToolLoopComplete {
-  content: string
-  tokens: { input: number; output: number; total: number }
-  cost: NormalizedBlockOutput['cost']
-  toolCalls?: { list: unknown[]; count: number }
-  modelTime: number
-  toolsTime: number
-  firstResponseTime: number
-  iterations: number
-}
-
 export interface CreateAnthropicStreamingToolLoopStreamOptions {
   anthropic: Anthropic
   payload: AnthropicStreamingToolLoopPayload
@@ -52,13 +46,7 @@ export interface CreateAnthropicStreamingToolLoopStreamOptions {
   timeSegments: TimeSegment[]
   /** Forced tool names from prepareToolsWithUsageControl (may be empty). */
   forcedTools?: string[]
-  onComplete: (result: AnthropicStreamingToolLoopComplete) => void
-}
-
-function isAbortError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-  const name = (error as { name?: string }).name
-  return name === 'AbortError' || name === 'APIUserAbortError'
+  onComplete: (result: StreamingToolLoopComplete) => void
 }
 
 function buildSegmentTokens(usage: Anthropic.Messages.Usage): BlockTokens {
@@ -124,17 +112,6 @@ function enrichModelSegment(
   })
 }
 
-function settleOpenTools(
-  controller: ReadableStreamDefaultController<AgentStreamEvent>,
-  openTools: Map<string, string>,
-  status: ToolCallEndStatus
-): void {
-  for (const [id, name] of openTools) {
-    controller.enqueue({ type: 'tool_call_end', id, name, status })
-  }
-  openTools.clear()
-}
-
 /**
  * Multi-turn Anthropic tool loop as an `agent-events-v1` object stream.
  */
@@ -153,6 +130,8 @@ export function createAnthropicStreamingToolLoopStream(
       let hasUsedForcedTool = false
       let content = ''
       let iterationCount = 0
+      let modelCalls = 0
+      let sawFinalTurn = false
       let modelTime = 0
       let toolsTime = 0
       let firstResponseTime = 0
@@ -202,10 +181,6 @@ export function createAnthropicStreamingToolLoopStream(
           }
 
           const modelStart = Date.now()
-          if (iterationCount === 0) {
-            // firstResponseTime set after first turn
-          }
-
           const messageStream = anthropic.messages.stream(
             turnPayload as Anthropic.Messages.MessageStreamParams,
             streamOptions
@@ -262,6 +237,7 @@ export function createAnthropicStreamingToolLoopStream(
             const modelEnd = Date.now()
             const thisModelTime = modelEnd - modelStart
             modelTime += thisModelTime
+            modelCalls++
             if (iterationCount === 0) {
               firstResponseTime = thisModelTime
             }
@@ -289,8 +265,23 @@ export function createAnthropicStreamingToolLoopStream(
             const toolUses = finalMessage.content.filter(
               (item): item is Anthropic.Messages.ToolUseBlock => item.type === 'tool_use'
             )
+            /**
+             * Only execute tools when the model actually stopped to call them.
+             * On `max_tokens` / `malformed_tool_use` the assembled inputs are
+             * truncated best-effort JSON — running tools on them would execute
+             * with wrong or partial arguments.
+             */
+            const toolsExecutable = finalMessage.stop_reason === 'tool_use'
+            if (toolUses.length > 0 && !toolsExecutable) {
+              logger.warn('Skipping tool execution for incomplete turn', {
+                stopReason: finalMessage.stop_reason,
+                toolCount: toolUses.length,
+              })
+              settleOpenTools(controller, openToolStarts, 'error')
+            }
+            const executableToolUses = toolsExecutable ? toolUses : []
 
-            const turnTag = toolUses.length > 0 ? 'intermediate' : 'final'
+            const turnTag = executableToolUses.length > 0 ? 'intermediate' : 'final'
             for (const chunk of textChunks) {
               controller.enqueue({ type: 'text_delta', text: chunk, turn: turnTag })
             }
@@ -298,18 +289,17 @@ export function createAnthropicStreamingToolLoopStream(
             if (textChunks.length === 0 && textContent && turnTag === 'final') {
               controller.enqueue({ type: 'text_delta', text: textContent, turn: 'final' })
             }
-            if (turnTag === 'final' && textContent) {
-              content = textContent
-            } else if (textContent) {
-              // Keep last intermediate text available if we hit max iterations mid-loop.
-              content = textContent
+            if (textChunks.length > 0 || textContent) {
+              // Streamed deltas are the answer bytes; fall back to assembled text.
+              // Intermediate text is kept so a MAX_TOOL_ITERATIONS exit still has content.
+              content = textChunks.length > 0 ? textChunks.join('') : textContent
             }
 
             enrichModelSegment(timeSegments, finalMessage, textContent, request.model)
 
             const forcedCheck = checkForForcedToolUsage(
               finalMessage,
-              turnPayload.tool_choice ?? originalToolChoice,
+              turnPayload.tool_choice,
               forcedToolNames,
               usedForcedTools
             )
@@ -318,7 +308,8 @@ export function createAnthropicStreamingToolLoopStream(
               usedForcedTools = forcedCheck.usedForcedTools
             }
 
-            if (toolUses.length === 0) {
+            if (executableToolUses.length === 0) {
+              sawFinalTurn = true
               break
             }
 
@@ -326,7 +317,7 @@ export function createAnthropicStreamingToolLoopStream(
 
             // Emit ends in completion order; keep Promise.all result order (= start order) for history.
             const orderedResults = await Promise.all(
-              toolUses.map(async (toolUse) => {
+              executableToolUses.map(async (toolUse) => {
                 const toolCallStartTime = Date.now()
                 const toolName = toolUse.name
                 const toolArgs = (toolUse.input ?? {}) as Record<string, unknown>
@@ -369,7 +360,6 @@ export function createAnthropicStreamingToolLoopStream(
                     request
                   )
                   const result = await executeTool(toolName, executionParams, {
-                    skipPostProcess: true,
                     signal: request.abortSignal,
                   })
                   const toolCallEndTime = Date.now()
@@ -523,6 +513,15 @@ export function createAnthropicStreamingToolLoopStream(
           }
         }
 
+        /**
+         * MAX_TOOL_ITERATIONS exit: every turn was tagged intermediate, so the
+         * answer channel would otherwise be empty. Flush the last turn's text
+         * as the final answer so legacy consumers still receive content.
+         */
+        if (!sawFinalTurn && content) {
+          controller.enqueue({ type: 'text_delta', text: content, turn: 'final' })
+        }
+
         const modelCost = calculateCost(request.model, tokens.input, tokens.output)
         const toolCostTotal = sumToolCosts(toolResults)
         const cost = {
@@ -541,7 +540,7 @@ export function createAnthropicStreamingToolLoopStream(
           modelTime,
           toolsTime,
           firstResponseTime,
-          iterations: iterationCount + 1,
+          iterations: modelCalls,
         })
 
         controller.close()

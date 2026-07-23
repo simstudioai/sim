@@ -1,10 +1,14 @@
 /**
- * Live Gemini streaming tool loop (Step 9).
+ * Live Gemini streaming tool loop.
  *
  * Each model turn uses generateContentStream. Thought parts → thinking_delta
- * live; functionCall parts → tool_call_start (with local ids when missing);
- * text buffered until the turn is classified intermediate vs final.
- * Tool ends emit in completion order; abort → cancelled.
+ * live; functionCall parts → tool_call_start (with local ids when the model
+ * omits them); text buffered until the turn is classified intermediate vs
+ * final. Tool ends emit in completion order; abort → cancelled.
+ *
+ * Function-call parts are echoed back into request history verbatim — Google
+ * requires signatures/ids to round-trip exactly as received, so local ids are
+ * used only for agent events and trace segments, never injected into history.
  */
 
 import {
@@ -19,7 +23,7 @@ import {
 } from '@google/genai'
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import type { IterationToolCall, NormalizedBlockOutput } from '@/executor/types'
+import type { IterationToolCall } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
   checkForForcedToolUsage,
@@ -28,6 +32,11 @@ import {
   ensureStructResponse,
 } from '@/providers/google/utils'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
+import {
+  isAbortError,
+  type StreamingToolLoopComplete,
+  settleOpenTools,
+} from '@/providers/streaming-tool-loop-shared'
 import { ensureToolCallId } from '@/providers/tool-call-id'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
@@ -40,17 +49,6 @@ import {
 import { executeTool } from '@/tools'
 import type { GeminiUsage } from './types'
 
-export interface GeminiStreamingToolLoopComplete {
-  content: string
-  tokens: { input: number; output: number; total: number }
-  cost: NormalizedBlockOutput['cost']
-  toolCalls?: { list: unknown[]; count: number }
-  modelTime: number
-  toolsTime: number
-  firstResponseTime: number
-  iterations: number
-}
-
 export interface CreateGeminiStreamingToolLoopStreamOptions {
   ai: GoogleGenAI
   model: string
@@ -61,24 +59,16 @@ export interface CreateGeminiStreamingToolLoopStreamOptions {
   timeSegments: TimeSegment[]
   forcedTools?: string[]
   toolConfig?: ToolConfig
-  onComplete: (result: GeminiStreamingToolLoopComplete) => void
+  onComplete: (result: StreamingToolLoopComplete) => void
 }
 
-function isAbortError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-  const name = (error as { name?: string }).name
-  return name === 'AbortError' || name === 'APIUserAbortError'
-}
-
-function settleOpenTools(
-  controller: ReadableStreamDefaultController<AgentStreamEvent>,
-  openTools: Map<string, string>,
-  status: ToolCallEndStatus
-): void {
-  for (const [id, name] of openTools) {
-    controller.enqueue({ type: 'tool_call_end', id, name, status })
-  }
-  openTools.clear()
+/**
+ * A streamed functionCall part paired with the execution-local id used on the
+ * agent-events stream. The part itself stays verbatim for history echo.
+ */
+interface StreamedFunctionCall {
+  part: Part
+  localId: string
 }
 
 function buildNextConfig(
@@ -122,7 +112,7 @@ async function drainGeminiTurn(
 ): Promise<{
   text: string
   thinking: string
-  functionCallParts: Part[]
+  functionCalls: StreamedFunctionCall[]
   usage: GeminiUsage
   textChunks: string[]
   finishReason?: string
@@ -130,7 +120,7 @@ async function drainGeminiTurn(
   let text = ''
   let thinking = ''
   const textChunks: string[] = []
-  const functionCallParts: Part[] = []
+  const functionCalls: StreamedFunctionCall[] = []
   const seenKeys = new Set<string>()
   let usage: GeminiUsage = { promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0 }
   let finishReason: string | undefined
@@ -157,19 +147,14 @@ async function drainGeminiTurn(
 
     for (const part of parts) {
       if (part.functionCall) {
-        const id = ensureToolCallId(part.functionCall.id, 'gemini')
+        const localId = ensureToolCallId(part.functionCall.id, 'gemini')
         const name = part.functionCall.name ?? ''
-        const key = id
-        if (!seenKeys.has(key) && name) {
-          seenKeys.add(key)
-          const normalized: Part = {
-            ...part,
-            functionCall: { ...part.functionCall, id },
-          }
-          functionCallParts.push(normalized)
-          if (!openTools.has(id)) {
-            openTools.set(id, name)
-            controller.enqueue({ type: 'tool_call_start', id, name })
+        if (!seenKeys.has(localId) && name) {
+          seenKeys.add(localId)
+          functionCalls.push({ part, localId })
+          if (!openTools.has(localId)) {
+            openTools.set(localId, name)
+            controller.enqueue({ type: 'tool_call_start', id: localId, name })
           }
         }
         continue
@@ -186,7 +171,7 @@ async function drainGeminiTurn(
     }
   }
 
-  return { text, thinking, functionCallParts, usage, textChunks, finishReason }
+  return { text, thinking, functionCalls, usage, textChunks, finishReason }
 }
 
 /**
@@ -215,6 +200,8 @@ export function createGeminiStreamingToolLoopStream(
 
       let content = ''
       let iterationCount = 0
+      let modelCalls = 0
+      let sawFinalTurn = false
       let modelTime = 0
       let toolsTime = 0
       let firstResponseTime = 0
@@ -255,6 +242,7 @@ export function createGeminiStreamingToolLoopStream(
           const modelEnd = Date.now()
           const thisModelTime = modelEnd - modelStart
           modelTime += thisModelTime
+          modelCalls++
           if (iterationCount === 0) {
             firstResponseTime = thisModelTime
           }
@@ -281,7 +269,7 @@ export function createGeminiStreamingToolLoopStream(
           costTotal += turnCost.total
           latestPricing = turnCost.pricing
 
-          const turnTag = drained.functionCallParts.length > 0 ? 'intermediate' : 'final'
+          const turnTag = drained.functionCalls.length > 0 ? 'intermediate' : 'final'
           for (const chunk of drained.textChunks) {
             controller.enqueue({ type: 'text_delta', text: chunk, turn: turnTag })
           }
@@ -289,14 +277,12 @@ export function createGeminiStreamingToolLoopStream(
             content = drained.text
           }
 
-          const toolCallsForEnrich: IterationToolCall[] = drained.functionCallParts
-            .filter((p): p is Part & { functionCall: NonNullable<Part['functionCall']> } =>
-              Boolean(p.functionCall)
-            )
-            .map((p) => ({
-              id: p.functionCall.id ?? '',
-              name: p.functionCall.name ?? '',
-              arguments: (p.functionCall.args ?? {}) as Record<string, unknown>,
+          const toolCallsForEnrich: IterationToolCall[] = drained.functionCalls
+            .filter((fc) => Boolean(fc.part.functionCall))
+            .map((fc) => ({
+              id: fc.localId,
+              name: fc.part.functionCall?.name ?? '',
+              arguments: (fc.part.functionCall?.args ?? {}) as Record<string, unknown>,
             }))
 
           enrichLastModelSegment(timeSegments, {
@@ -318,8 +304,8 @@ export function createGeminiStreamingToolLoopStream(
           })
 
           const forcedCheck = checkForForcedToolUsage(
-            drained.functionCallParts
-              .map((p) => p.functionCall)
+            drained.functionCalls
+              .map((fc) => fc.part.functionCall)
               .filter((fc): fc is NonNullable<typeof fc> => Boolean(fc)),
             currentToolConfig,
             forcedTools,
@@ -330,16 +316,17 @@ export function createGeminiStreamingToolLoopStream(
             currentToolConfig = forcedCheck.nextToolConfig
           }
 
-          if (drained.functionCallParts.length === 0) {
+          if (drained.functionCalls.length === 0) {
+            sawFinalTurn = true
             break
           }
 
           const toolsStartTime = Date.now()
 
           const orderedResults = await Promise.all(
-            drained.functionCallParts.map(async (part) => {
+            drained.functionCalls.map(async ({ part, localId }) => {
               const functionCall = part.functionCall!
-              const toolCallId = ensureToolCallId(functionCall.id, 'gemini')
+              const toolCallId = localId
               const toolName = functionCall.name ?? ''
               const toolArgs = (functionCall.args ?? {}) as Record<string, unknown>
               const toolCallStartTime = Date.now()
@@ -460,17 +447,17 @@ export function createGeminiStreamingToolLoopStream(
 
           toolsTime += Date.now() - toolsStartTime
 
-          const modelParts: Part[] = orderedResults.map((r) => ({
-            ...r.part,
-            functionCall: {
-              ...r.part.functionCall!,
-              id: r.toolCallId,
-            },
-          }))
+          /**
+           * Echo the model's functionCall parts verbatim (signatures and any
+           * model-provided ids must round-trip untouched). A functionResponse
+           * id is attached only when the model itself provided one.
+           */
+          const modelParts: Part[] = orderedResults.map((r) => r.part)
           const userParts: Part[] = orderedResults.map((r) => ({
             functionResponse: {
               name: r.toolName,
               response: r.resultContent,
+              ...(r.part.functionCall?.id ? { id: r.part.functionCall.id } : {}),
             },
           }))
 
@@ -506,6 +493,15 @@ export function createGeminiStreamingToolLoopStream(
           iterationCount += 1
         }
 
+        /**
+         * MAX_TOOL_ITERATIONS exit: every turn was tagged intermediate, so the
+         * answer channel would otherwise be empty. Flush the last turn's text
+         * as the final answer so legacy consumers still receive content.
+         */
+        if (!sawFinalTurn && content) {
+          controller.enqueue({ type: 'text_delta', text: content, turn: 'final' })
+        }
+
         const toolCost = sumToolCosts(toolResults)
         onComplete({
           content,
@@ -522,7 +518,7 @@ export function createGeminiStreamingToolLoopStream(
           modelTime,
           toolsTime,
           firstResponseTime,
-          iterations: iterationCount + 1,
+          iterations: modelCalls,
         })
         controller.close()
       } catch (error) {

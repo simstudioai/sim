@@ -1,5 +1,5 @@
 /**
- * Shared OpenAI Chat Completions streaming tool loop (Step 9).
+ * Shared OpenAI Chat Completions streaming tool loop.
  *
  * Capability-honest: reasoning deltas only when the vendor streams them.
  * Final-turn-only answer projection via `turn` tags. Tool ends in completion
@@ -15,13 +15,17 @@ import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
-import type { NormalizedBlockOutput } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
   createOpenAICompatibleAgentEventStream,
   type OpenAICompatAssembledToolCall,
 } from '@/providers/openai-compat/stream-events'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
+import {
+  isAbortError,
+  type StreamingToolLoopComplete,
+  settleOpenTools,
+} from '@/providers/streaming-tool-loop-shared'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
 import {
   calculateCost,
@@ -31,27 +35,10 @@ import {
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
 
-export interface OpenAICompatStreamingToolLoopComplete {
-  content: string
-  tokens: { input: number; output: number; total: number }
-  cost: NormalizedBlockOutput['cost']
-  toolCalls?: { list: unknown[]; count: number }
-  modelTime: number
-  toolsTime: number
-  firstResponseTime: number
-  iterations: number
-}
-
 export type OpenAICompatCreateCompletion = (
   params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
   options?: { signal?: AbortSignal }
 ) => Promise<AsyncIterable<ChatCompletionChunk>>
-
-/** @deprecated Prefer streamed tool-arg assembly; retained for callers that still pass it. */
-export type OpenAICompatCreateCompletionBlocking = (
-  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
-  options?: { signal?: AbortSignal }
-) => Promise<OpenAI.Chat.Completions.ChatCompletion>
 
 export interface CreateOpenAICompatStreamingToolLoopOptions {
   providerName: string
@@ -60,8 +47,6 @@ export interface CreateOpenAICompatStreamingToolLoopOptions {
   basePayload: Record<string, unknown>
   messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
   createStream: OpenAICompatCreateCompletion
-  /** Ignored — tool args come from streamed deltas. Kept for call-site compatibility. */
-  createBlocking?: OpenAICompatCreateCompletionBlocking
   logger: Logger
   timeSegments: TimeSegment[]
   forcedTools?: string[]
@@ -70,24 +55,7 @@ export interface CreateOpenAICompatStreamingToolLoopOptions {
    * during the tool loop (required by DeepSeek thinking + tools).
    */
   preserveAssistantReasoning?: boolean
-  onComplete: (result: OpenAICompatStreamingToolLoopComplete) => void
-}
-
-function isAbortError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-  const name = (error as { name?: string }).name
-  return name === 'AbortError' || name === 'APIUserAbortError'
-}
-
-function settleOpenTools(
-  controller: ReadableStreamDefaultController<AgentStreamEvent>,
-  openTools: Map<string, string>,
-  status: ToolCallEndStatus
-): void {
-  for (const [id, name] of openTools) {
-    controller.enqueue({ type: 'tool_call_end', id, name, status })
-  }
-  openTools.clear()
+  onComplete: (result: StreamingToolLoopComplete) => void
 }
 
 function nextForcedToolChoice(
@@ -123,6 +91,8 @@ export function createOpenAICompatStreamingToolLoopStream(
       const currentMessages = [...messages]
       let content = ''
       let iterationCount = 0
+      let modelCalls = 0
+      let sawFinalTurn = false
       let modelTime = 0
       let toolsTime = 0
       let firstResponseTime = 0
@@ -160,6 +130,7 @@ export function createOpenAICompatStreamingToolLoopStream(
           let turnContent = ''
           let turnReasoningContent = ''
           let turnReasoning = ''
+          let turnFinishReason: string | undefined
           let assembledTools: OpenAICompatAssembledToolCall[] = []
           const bufferedText: string[] = []
 
@@ -176,6 +147,7 @@ export function createOpenAICompatStreamingToolLoopStream(
               turnContent = result.content || ''
               turnReasoningContent = result.reasoning_content || ''
               turnReasoning = result.reasoning || ''
+              turnFinishReason = result.finishReason
               assembledTools = result.toolCalls ?? []
             },
           })
@@ -197,16 +169,33 @@ export function createOpenAICompatStreamingToolLoopStream(
             }
           }
 
-          const pendingTools = assembledTools.filter((tc) => tc.id && tc.function?.name)
+          /**
+           * Only execute tools when the turn completed normally. A `length`
+           * finish means the stream truncated mid-generation — assembled tool
+           * arguments would be partial JSON.
+           */
+          const toolsExecutable = turnFinishReason !== 'length'
+          const assembledPendingTools = assembledTools.filter((tc) => tc.id && tc.function?.name)
+          if (assembledPendingTools.length > 0 && !toolsExecutable) {
+            logger.warn('Skipping tool execution for truncated turn', {
+              finishReason: turnFinishReason,
+              toolCount: assembledPendingTools.length,
+            })
+            settleOpenTools(controller, openToolStarts, 'error')
+          }
+          const pendingTools = toolsExecutable ? assembledPendingTools : []
           const turnTag = pendingTools.length > 0 ? 'intermediate' : 'final'
           const textToFlush = turnContent || bufferedText.join('')
           if (textToFlush) {
             controller.enqueue({ type: 'text_delta', text: textToFlush, turn: turnTag })
+            // Keep the latest turn's text so a MAX_TOOL_ITERATIONS exit still has content.
+            content = textToFlush
           }
 
           const modelEnd = Date.now()
           const thisModelTime = modelEnd - modelStart
           modelTime += thisModelTime
+          modelCalls++
           if (iterationCount === 0) firstResponseTime = thisModelTime
           timeSegments.push({
             type: 'model',
@@ -221,7 +210,7 @@ export function createOpenAICompatStreamingToolLoopStream(
             turnUsage.total_tokens || turnUsage.prompt_tokens + turnUsage.completion_tokens
 
           if (pendingTools.length === 0) {
-            content = textToFlush || content
+            sawFinalTurn = true
             break
           }
 
@@ -310,7 +299,6 @@ export function createOpenAICompatStreamingToolLoopStream(
                   request
                 )
                 const result = await executeTool(toolName, executionParams, {
-                  skipPostProcess: true,
                   signal: request.abortSignal,
                 })
                 const toolCallEndTime = Date.now()
@@ -423,6 +411,15 @@ export function createOpenAICompatStreamingToolLoopStream(
           iterationCount++
         }
 
+        /**
+         * MAX_TOOL_ITERATIONS exit: every turn was tagged intermediate, so the
+         * answer channel would otherwise be empty. Flush the last turn's text
+         * as the final answer so legacy consumers still receive content.
+         */
+        if (!sawFinalTurn && content) {
+          controller.enqueue({ type: 'text_delta', text: content, turn: 'final' })
+        }
+
         const modelCost = calculateCost(request.model, tokens.input, tokens.output)
         const toolCostTotal = sumToolCosts(toolResults)
         onComplete({
@@ -439,7 +436,7 @@ export function createOpenAICompatStreamingToolLoopStream(
           modelTime,
           toolsTime,
           firstResponseTime,
-          iterations: iterationCount + 1,
+          iterations: modelCalls,
         })
         controller.close()
       } catch (error) {

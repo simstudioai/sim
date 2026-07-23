@@ -958,9 +958,10 @@ export async function executeGeminiRequest(
     }
 
     // Gemini 3.x takes thinkingLevel directly; Gemini 2.5-series rejects it and needs thinkingBudget.
-    // includeThoughts: true is required for thought parts to appear (Step 9 capability-honest).
+    // includeThoughts is required for thought parts to appear; it is requested
+    // only on agent-events runs so legacy runs keep the pre-agent-events payload.
     if (request.thinkingLevel && request.thinkingLevel !== 'none') {
-      const thinkingConfig: ThinkingConfig = { includeThoughts: true }
+      const thinkingConfig: ThinkingConfig = { includeThoughts: request.agentEvents === true }
       if (isGemini3Model(model)) {
         thinkingConfig.thinkingLevel = mapToThinkingLevel(request.thinkingLevel)
       } else {

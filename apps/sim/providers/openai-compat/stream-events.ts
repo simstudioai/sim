@@ -1,16 +1,19 @@
 /**
- * OpenAI Chat Completions → agent-events-v1 (Step 9).
+ * OpenAI Chat Completions → agent-events-v1.
  *
  * Capability-honest: emits `thinking_delta` only when the vendor streams a
  * reasoning field on the delta (`reasoning_content`, `reasoning`, etc.).
- * Non-reasoning models stay text-only. Tool_call starts emit when id+name known.
- * Tool-call argument deltas are accumulated for tool-loop history.
+ * Non-reasoning models stay text-only. Tool_call starts emit when a name is
+ * known (ids are synthesized when the vendor omits them, so the assembled
+ * request stays self-consistent). Tool-call argument deltas are accumulated
+ * for tool-loop history.
  */
 
 import { createLogger } from '@sim/logger'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import type { AgentStreamEvent, TextDeltaTurn } from '@/providers/stream-events'
+import { ensureToolCallId } from '@/providers/tool-call-id'
 
 export interface OpenAICompatAssembledToolCall {
   id: string
@@ -28,6 +31,8 @@ export interface OpenAICompatStreamComplete {
   usage: CompletionUsage
   /** Assembled when emitToolCallStarts is true (id + name + args). */
   toolCalls?: OpenAICompatAssembledToolCall[]
+  /** Last finish_reason observed on the stream (e.g. `tool_calls`, `stop`, `length`). */
+  finishReason?: string
 }
 
 export interface CreateOpenAICompatibleAgentEventStreamOptions {
@@ -95,6 +100,7 @@ export function createOpenAICompatibleAgentEventStream(
       let promptTokens = 0
       let completionTokens = 0
       let totalTokens = 0
+      let finishReason: string | undefined
       const seenToolIds = new Set<string>()
       const toolBuffers = new Map<
         number,
@@ -103,13 +109,24 @@ export function createOpenAICompatibleAgentEventStream(
 
       try {
         for await (const chunk of stream) {
-          if (chunk.usage) {
-            promptTokens = chunk.usage.prompt_tokens ?? 0
-            completionTokens = chunk.usage.completion_tokens ?? 0
-            totalTokens = chunk.usage.total_tokens ?? 0
+          /**
+           * Groq puts stream usage under `x_groq.usage` on the final chunk
+           * instead of the OpenAI `usage` field; accept either shape.
+           */
+          const usage =
+            chunk.usage ??
+            (chunk as { x_groq?: { usage?: CompletionUsage } }).x_groq?.usage ??
+            undefined
+          if (usage) {
+            promptTokens = usage.prompt_tokens ?? 0
+            completionTokens = usage.completion_tokens ?? 0
+            totalTokens = usage.total_tokens ?? 0
           }
 
           const choice = chunk.choices?.[0]
+          if (choice?.finish_reason) {
+            finishReason = choice.finish_reason
+          }
           const delta = choice?.delta as Record<string, unknown> | undefined
 
           const extracted = extractDeltaReasoning(delta)
@@ -144,6 +161,15 @@ export function createOpenAICompatibleAgentEventStream(
               }
               if (tc.id) buf.id = tc.id
               if (tc.function?.name) buf.name = tc.function.name
+              /**
+               * Some compat vendors stream tool calls without ids. Synthesize
+               * an execution-local id as soon as the name is known so the call
+               * is not dropped — the assembled request only needs ids that are
+               * self-consistent between `tool_calls` and `tool` messages.
+               */
+              if (!buf.id && buf.name) {
+                buf.id = ensureToolCallId(undefined, providerName.toLowerCase())
+              }
               if (typeof tc.function?.arguments === 'string') {
                 buf.args += tc.function.arguments
               }
@@ -184,6 +210,7 @@ export function createOpenAICompatibleAgentEventStream(
               total_tokens: totalTokens || promptTokens + completionTokens,
             },
             ...(toolCalls.length > 0 ? { toolCalls } : {}),
+            ...(finishReason ? { finishReason } : {}),
           })
         }
 

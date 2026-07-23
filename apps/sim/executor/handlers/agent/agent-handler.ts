@@ -46,6 +46,7 @@ import {
   shouldUseLargeFilePath,
   supportsFileAttachments,
 } from '@/providers/attachments'
+import { supportsStreamingToolCalls } from '@/providers/streaming-tool-loop-shared'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { filterSchemaForLLM, type ToolSchema } from '@/tools/params'
@@ -955,19 +956,18 @@ export class AgentBlockHandler implements BlockHandler {
       verbosity: inputs.verbosity,
       thinkingLevel: inputs.thinkingLevel,
       previousInteractionId: inputs.previousInteractionId,
-      // Live tool lifecycle on agent-events stream. Only providers with a real
-      // streaming tool loop (Step 7/9) — others still get agent-events on text
-      // streams without streamToolCalls.
+      /**
+       * Agent-events opt-in and live tool lifecycle. Both are gated on the
+       * run-level {@link ExecutionMetadata.agentEvents} flag so runs without an
+       * agent-events consumer keep the exact pre-agent-events provider
+       * behavior (legacy loops, unchanged request payloads).
+       */
+      agentEvents: streaming && ctx.metadata?.agentEvents === true,
       streamToolCalls:
         streaming &&
+        ctx.metadata?.agentEvents === true &&
         formattedTools.length > 0 &&
-        (providerId === 'anthropic' ||
-          providerId === 'azure-anthropic' ||
-          providerId === 'groq' ||
-          providerId === 'deepseek' ||
-          providerId === 'google' ||
-          providerId === 'vertex' ||
-          providerId === 'bedrock'),
+        supportsStreamingToolCalls(providerId),
     }
   }
 

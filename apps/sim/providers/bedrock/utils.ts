@@ -12,9 +12,11 @@ export interface BedrockStreamUsage {
 }
 
 /**
- * Bedrock ConverseStream → agent-events-v1.
- * Capability-honest: text deltas always; tool_call_start when toolUse id+name
- * appear on contentBlockStart. No thinking_delta unless/until Bedrock exposes it.
+ * Bedrock ConverseStream → agent-events-v1 for the legacy (non-tool-loop)
+ * streaming path. Text deltas only: tools on this path are never executed, so
+ * emitting `tool_call_start` here would leave a chip running forever with no
+ * matching end. Sim does not request Bedrock reasoning, so there is no
+ * thinking to forward either.
  */
 export function createReadableStreamFromBedrockStream(
   bedrockStream: AsyncIterable<ConverseStreamOutput>,
@@ -28,16 +30,6 @@ export function createReadableStreamFromBedrockStream(
     async start(controller) {
       try {
         for await (const event of bedrockStream) {
-          const startBlock = event.contentBlockStart?.start
-          if (startBlock && 'toolUse' in startBlock && startBlock.toolUse) {
-            const toolUse = startBlock.toolUse
-            const id = toolUse.toolUseId
-            const name = toolUse.name
-            if (id && name) {
-              controller.enqueue({ type: 'tool_call_start', id, name })
-            }
-          }
-
           if (event.contentBlockDelta?.delta?.text) {
             const text = event.contentBlockDelta.delta.text
             fullContent += text
