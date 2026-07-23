@@ -1,3 +1,5 @@
+import { Readable } from 'node:stream'
+import zlib from 'node:zlib'
 import dns from 'dns/promises'
 import http from 'http'
 import https from 'https'
@@ -8,7 +10,13 @@ import { omit } from '@sim/utils/object'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import * as ipaddr from 'ipaddr.js'
-import { Agent, type RequestInit as UndiciRequestInit, fetch as undiciFetch } from 'undici'
+import {
+  Agent,
+  type Dispatcher,
+  type RequestInit as UndiciRequestInit,
+  fetch as undiciFetch,
+  request as undiciRequest,
+} from 'undici'
 import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -619,6 +627,259 @@ export async function followRedirectsGuarded(
   }
 }
 
+/** Coerce a DOM/undici `HeadersInit` into the record shape undici `request` accepts. */
+function toUndiciRequestHeaders(
+  headers: UndiciRequestInit['headers']
+): Record<string, string> | undefined {
+  if (!headers) return undefined
+  const record: Record<string, string> = {}
+  if (Array.isArray(headers)) {
+    for (const [key, value] of headers as [string, string][]) {
+      if (value != null) record[key] = String(value)
+    }
+    return record
+  }
+  // Single cast (no `as unknown`): the optional `forEach` is satisfiable by both a plain
+  // record (absent) and a `Headers` instance (present), so it detects the iterable form.
+  const iterableHeaders = headers as {
+    forEach?: (cb: (value: string, key: string) => void) => void
+  }
+  if (typeof iterableHeaders.forEach === 'function') {
+    iterableHeaders.forEach((value, key) => {
+      record[key] = value
+    })
+    return record
+  }
+  for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {
+    if (value != null) record[key] = Array.isArray(value) ? value.join(', ') : String(value)
+  }
+  return record
+}
+
+/** Coerce a DOM/undici body init into a value undici `request` accepts. */
+function toUndiciRequestBody(
+  body: UndiciRequestInit['body']
+): string | Buffer | Uint8Array | Readable | undefined {
+  if (body == null) return undefined
+  // fetch accepts URLSearchParams (form-encoded) and undici.request does not — the MCP SDK's
+  // OAuth token/refresh exchange sends one. Serialize it to its wire form.
+  if (body instanceof URLSearchParams) return body.toString()
+  if (body instanceof ArrayBuffer) return Buffer.from(body)
+  if (ArrayBuffer.isView(body) && !(body instanceof Uint8Array)) {
+    return Buffer.from(body.buffer, body.byteOffset, body.byteLength)
+  }
+  if (typeof (body as ReadableStream).getReader === 'function') {
+    // double-cast-allowed: DOM ReadableStream and the node:stream Web type differ but are structurally compatible at runtime
+    return Readable.fromWeb(body as unknown as Parameters<typeof Readable.fromWeb>[0])
+  }
+  // string, Uint8Array/Buffer, or Readable — passed through unchanged.
+  // double-cast-allowed: undici BodyInit is wider than what request() accepts; our guarded/pinned callers only send these
+  return body as unknown as string | Buffer | Uint8Array | Readable
+}
+
+/**
+ * Decompression transform for a `Content-Encoding`, or `null` to pass the body through.
+ * `undici.fetch` decodes the body automatically; `undici.request` does not, so this restores
+ * fetch parity for gzip/deflate/br responses (common behind CDNs). Unknown/absent encodings
+ * pass through untouched.
+ */
+function contentEncodingDecoder(
+  encoding: string
+): zlib.Gunzip | zlib.Inflate | zlib.BrotliDecompress | null {
+  switch (encoding) {
+    case 'gzip':
+    case 'x-gzip':
+      return zlib.createGunzip()
+    case 'deflate':
+      return zlib.createInflate()
+    case 'br':
+      return zlib.createBrotliDecompress()
+    default:
+      return null
+  }
+}
+
+/**
+ * Bridges an undici `request()` Node `Readable` into a WHATWG `ReadableStream` for a
+ * `Response` body. Node's built-in `Readable.toWeb` is NOT used: its adapter throws an
+ * unhandled `ERR_INVALID_STATE` ("Controller is already closed") when the web stream is
+ * cancelled while the Node stream is still flowing — which `followRedirectsGuarded` does
+ * on every redirect hop (`response.body.cancel()`). This bridge instead swallows a late
+ * enqueue after close and destroys the source on cancel, so cancelling a live body frees
+ * its socket cleanly. `maxResponseSize` overruns surface as the source's `error` event and
+ * reject the read, preserving the DoS backstop.
+ */
+function nodeReadableToWebStream(nodeStream: Readable): ReadableStream<Uint8Array> {
+  let settled = false
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      nodeStream.on('data', (chunk: Buffer) => {
+        try {
+          // Copy, not a view: undici may recycle the pooled buffer backing `chunk` after
+          // this handler returns, which would corrupt a chunk still queued for a slow
+          // consumer. `new Uint8Array(chunk)` allocates a fresh backing buffer.
+          controller.enqueue(new Uint8Array(chunk))
+        } catch {
+          // Controller already closed (consumer cancelled) — stop the source, drop the chunk.
+          nodeStream.destroy()
+          return
+        }
+        if ((controller.desiredSize ?? 1) <= 0) nodeStream.pause()
+      })
+      nodeStream.once('end', () => {
+        settled = true
+        try {
+          controller.close()
+        } catch {}
+      })
+      nodeStream.once('error', (err) => {
+        settled = true
+        try {
+          controller.error(err)
+        } catch {}
+      })
+      // An abort (signal) or upstream reset can `destroy()` the source with no `error`
+      // event; without this the reader would hang forever. `close` fires after every
+      // terminal path, so only act when `end`/`error` didn't already settle the stream.
+      nodeStream.once('close', () => {
+        if (settled) return
+        settled = true
+        try {
+          controller.error(new Error('MCP transport stream closed before completing'))
+        } catch {}
+      })
+      // Start paused so nothing buffers before the consumer pulls (backpressure).
+      nodeStream.pause()
+    },
+    pull() {
+      nodeStream.resume()
+    },
+    cancel(reason) {
+      nodeStream.destroy(reason instanceof Error ? reason : undefined)
+    },
+  })
+}
+
+/**
+ * Streaming-safe replacement for `undiciFetch(url, { ...init, dispatcher })`.
+ *
+ * undici's `fetch` exposes the response body as a WHATWG `ReadableStream` whose
+ * bridge is broken under the Bun runtime (which the standalone server runs on):
+ * response headers arrive but `response.body` never yields data, hanging every
+ * incremental read — MCP SSE `tools/list`, provider streaming — to its timeout.
+ * undici's lower-level `request()` returns a Node `Readable` instead, which Bun
+ * implements natively and streams correctly; `Readable.toWeb` bridges it back to
+ * a spec `Response`. Buffered reads (`.json()`/`.text()`/`.arrayBuffer()`) behave
+ * identically on both runtimes, so this is a drop-in substitute.
+ *
+ * SSRF is unchanged: the same `dispatcher` (Agent carrying the guarded/pinned
+ * `connect.lookup`) governs every connection, and `maxResponseSize` still caps the
+ * body. Redirects are NOT followed here (`maxRedirections: 0`); the caller drives
+ * them via {@link followRedirectsGuarded}, exactly as it did over `fetch`'s
+ * `redirect: 'manual'`.
+ */
+async function undiciRequestAsResponse(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  dispatcher: Agent
+): Promise<Response> {
+  let url: string
+  let effectiveInit = init as UndiciRequestInit
+  if (typeof Request !== 'undefined' && input instanceof Request) {
+    // A Request input carries its own method/headers/body/signal; lift them (explicit
+    // init fields win, per fetch semantics) so a guarded POST isn't downgraded to GET.
+    const bodyAllowed = input.method !== 'GET' && input.method !== 'HEAD'
+    effectiveInit = {
+      method: input.method,
+      headers: input.headers,
+      body: bodyAllowed ? await input.clone().arrayBuffer() : undefined,
+      signal: input.signal,
+      ...(init as UndiciRequestInit),
+      // double-cast-allowed: DOM RequestInit and undici RequestInit differ in TS but match at runtime
+    } as unknown as UndiciRequestInit
+    url = input.url
+  } else {
+    url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  }
+
+  const method = (effectiveInit.method ?? 'GET').toUpperCase()
+  const canHaveBody = method !== 'GET' && method !== 'HEAD'
+  const requestHeaders = toUndiciRequestHeaders(effectiveInit.headers) ?? {}
+  const requestBody = canHaveBody ? toUndiciRequestBody(effectiveInit.body) : undefined
+  // fetch auto-adds a form content-type for a URLSearchParams body; preserve that parity
+  // when the caller didn't set one (the MCP SDK does set it explicitly, but not every caller).
+  if (
+    canHaveBody &&
+    effectiveInit.body instanceof URLSearchParams &&
+    !Object.keys(requestHeaders).some((key) => key.toLowerCase() === 'content-type')
+  ) {
+    requestHeaders['content-type'] = 'application/x-www-form-urlencoded;charset=UTF-8'
+  }
+  const { statusCode, headers, body } = await undiciRequest(url, {
+    method: method as Dispatcher.HttpMethod,
+    headers: requestHeaders,
+    body: requestBody,
+    signal: effectiveInit.signal ?? undefined,
+    dispatcher,
+    // No `maxRedirections`: request() does not auto-follow by default, so the caller's
+    // `followRedirectsGuarded` drives every hop with per-hop SSRF validation.
+  })
+
+  const responseHeaders = new Headers()
+  for (const [key, value] of Object.entries(headers)) {
+    if (Array.isArray(value)) for (const v of value) responseHeaders.append(key, v)
+    else if (value != null) responseHeaders.append(key, value)
+  }
+
+  // Null-body statuses (204/205/304) can't carry a body; drain undici's (empty) stream so its
+  // socket returns to the pool. Attach an error listener first so a socket reset mid-drain
+  // surfaces as a handled event, not an unhandled 'error' that crashes the process.
+  const isNullBody = statusCode === 204 || statusCode === 205 || statusCode === 304
+  if (isNullBody) {
+    body.on('error', () => {})
+    body.resume()
+    const response = new Response(null, { status: statusCode, headers: responseHeaders })
+    Object.defineProperty(response, 'url', { value: url, configurable: true })
+    return response
+  }
+
+  // Decode Content-Encoding like `fetch` does (`request()` returns raw bytes). `maxResponseSize`
+  // still caps the compressed wire bytes on `body`.
+  const contentEncoding = String(headers['content-encoding'] ?? '')
+    .toLowerCase()
+    .trim()
+  const decoder = contentEncodingDecoder(contentEncoding)
+  if (decoder) {
+    // The bridged body is now decoded; drop framing headers that would misdescribe it.
+    responseHeaders.delete('content-encoding')
+    responseHeaders.delete('content-length')
+  }
+  // Build the bridge over the stream the consumer reads (the decoder when decoding).
+  // `nodeReadableToWebStream` attaches its `error` listener synchronously, so wiring the pipe
+  // AFTER it means a synchronous zlib error (e.g. a server mislabeling a non-gzip body as gzip)
+  // is caught and rejects the reader instead of taking down the process.
+  const webBody = nodeReadableToWebStream(decoder ?? body)
+  if (decoder) {
+    body.once('error', (err) => decoder.destroy(err)) // forward maxResponseSize / socket reset
+    decoder.once('close', () => body.destroy()) // tear the source down so the socket can't leak
+    body.pipe(decoder)
+  }
+
+  try {
+    const response = new Response(webBody, { status: statusCode, headers: responseHeaders })
+    // undici.request never sets `url`; `fetch` did, and consumers rely on it (the MCP
+    // transport's response-cap wrapper copies it; the SDK resolves relative
+    // auth-metadata URLs against it). Preserve parity.
+    Object.defineProperty(response, 'url', { value: url, configurable: true })
+    return response
+  } catch (err) {
+    // `new Response` rejects an out-of-range status (a 1xx undici shouldn't surface, but
+    // defensively): destroy the source so its socket can't leak, then rethrow.
+    body.destroy()
+    throw err
+  }
+}
+
 /**
  * SSRF-guarded `fetch` + its `Agent` for outbound requests to user-controlled
  * hosts: DNS resolves normally, and every socket connect validates the chosen
@@ -637,11 +898,9 @@ export function createSsrfGuardedFetchWithDispatcher(options?: { maxResponseSize
     ...(options?.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
   })
 
-  const rawFetch = async (url: string, init: UndiciRequestInit): Promise<Response> => {
-    const response = await undiciFetch(url, { ...init, dispatcher })
-    // double-cast-allowed: undici Response and DOM Response are structurally compatible at runtime
-    return response as unknown as Response
-  }
+  const rawFetch = (url: string, init: UndiciRequestInit): Promise<Response> =>
+    // double-cast-allowed: DOM RequestInit and undici RequestInit differ in TS but match at runtime
+    undiciRequestAsResponse(url, init as unknown as RequestInit, dispatcher)
 
   const guarded = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const target = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url

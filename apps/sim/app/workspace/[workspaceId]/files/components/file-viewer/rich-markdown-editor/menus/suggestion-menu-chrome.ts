@@ -14,9 +14,10 @@ export const SUGGESTION_SURFACE_CLASS =
  */
 export const SUGGESTION_SCROLL_CLASS = 'max-h-[240px] scroll-py-1.5 overflow-y-auto overscroll-none'
 
-/** A selectable row: icon + label, 14px icon in `--text-icon`, truncating label. */
+/** A selectable row: icon + label, 14px icon in `--text-icon`, truncating label. The `img` rules
+ * size custom-block image icons (rendered as `<img>`, so the `svg` rules never reach them). */
 export const SUGGESTION_ITEM_CLASS =
-  'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left font-medium text-[var(--text-body)] text-caption outline-none transition-colors [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]'
+  'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left font-medium text-[var(--text-body)] text-caption outline-none transition-colors [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)] [&_img]:pointer-events-none [&_img]:size-[14px] [&_img]:shrink-0'
 
 /** A group heading above a run of rows. */
 export const SUGGESTION_GROUP_LABEL_CLASS =

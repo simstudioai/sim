@@ -6,6 +6,12 @@ import { LANDING_HERO_CTA_GAP } from '@/app/(landing)/components/landing-layout'
 
 interface LandingHeroHeaderProps {
   description: string
+  /**
+   * Optional second paragraph beneath the description - a self-contained
+   * definition of the page's subject, kept quotable for answer engines (GEO).
+   * Omitted by the homepage, so its hero renders unchanged.
+   */
+  definition?: string
   eyebrow?: ReactNode
   heading: ReactNode
   headingId: string
@@ -17,6 +23,7 @@ interface LandingHeroHeaderProps {
  */
 export function LandingHeroHeader({
   description,
+  definition,
   eyebrow,
   heading,
   headingId,
@@ -36,6 +43,12 @@ export function LandingHeroHeader({
         <p className='w-full min-w-0 max-w-[58ch] text-pretty text-[var(--text-muted)] text-base leading-[1.5]'>
           {description}
         </p>
+
+        {definition ? (
+          <p className='w-full min-w-0 max-w-[58ch] text-pretty text-[var(--text-muted)] text-base leading-[1.5]'>
+            {definition}
+          </p>
+        ) : null}
 
         <div className={cn('max-sm:w-full', LANDING_HERO_CTA_GAP)}>
           <HeroCta />

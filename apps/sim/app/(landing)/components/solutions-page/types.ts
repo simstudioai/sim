@@ -30,6 +30,13 @@ export interface SolutionsHeroConfig {
   /** Supporting description beneath the heading, in the body color. */
   description: string
   /**
+   * Optional visible definition of the page's subject, rendered as a second
+   * paragraph beneath {@link description}. Self-contained and answer-first so
+   * answer engines can quote it whole ("What is an enterprise AI agent?").
+   * Currently honored by the `home` hero variant.
+   */
+  definition?: string
+  /**
    * ~50-word sr-only atomic summary for AI citation (GEO). Names "Sim" explicitly
    * and states what the module is, who it's for, and what it does.
    */
@@ -89,6 +96,11 @@ export interface SolutionsCardRowConfig {
   title: string
   /** Supporting subtitle beneath the title, in the body color, naming "Sim". */
   subtitle: string
+  /**
+   * Optional second subtitle paragraph - a self-contained follow-on point that
+   * would overload {@link subtitle} if merged into it (e.g. self-hosting).
+   */
+  note?: string
   /** The row's single pill CTA. */
   cta: SolutionsPillCta
   /** The cards in this row - 3 or 4. The grid derives its columns from this length. */

@@ -13,6 +13,7 @@ import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
+import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 
 const logger = createLogger('ShopifyStore')
 
@@ -46,12 +47,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_invalid_domain`)
     }
 
-    const shopResponse = await fetch(`https://${shopDomain}/admin/api/2024-10/shop.json`, {
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json',
-      },
-    })
+    const shopResponse = await fetch(
+      `https://${shopDomain}/admin/api/${SHOPIFY_API_VERSION}/shop.json`,
+      {
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
 
     if (!shopResponse.ok) {
       const errorText = await shopResponse.text()
