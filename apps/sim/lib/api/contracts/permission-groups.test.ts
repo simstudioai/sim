@@ -4,8 +4,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   createPermissionGroupBodySchema,
+  permissionGroupFullConfigSchema,
   updatePermissionGroupBodySchema,
 } from '@/lib/api/contracts/permission-groups'
+import {
+  DEFAULT_PERMISSION_GROUP_CONFIG,
+  parsePermissionGroupConfig,
+} from '@/lib/permission-groups/types'
 
 describe('createPermissionGroupBodySchema', () => {
   it('accepts a name-only body (scope is resolved and validated server-side)', () => {
@@ -78,5 +83,37 @@ describe('updatePermissionGroupBodySchema', () => {
       workspaceIds: ['ws-1'],
     })
     expect(result.success).toBe(false)
+  })
+})
+
+/**
+ * The access-control group detail view decides whether its config buffer is
+ * dirty by comparing `JSON.stringify(savedConfig)` against
+ * `JSON.stringify(editingConfig)`, and reconciles the saved baseline from the
+ * update response. That only works while every config that reaches the client —
+ * from the list route and from the update route alike — carries the same key
+ * order, which holds because both pass through `parsePermissionGroupConfig` and
+ * then `permissionGroupFullConfigSchema`. If the two ever drift, the detail view
+ * would report unsaved changes forever after a successful save.
+ */
+describe('permissionGroupFullConfigSchema key order', () => {
+  it('matches parsePermissionGroupConfig so a saved config compares equal', () => {
+    const stored = parsePermissionGroupConfig({
+      allowedIntegrations: ['slack'],
+      hideCopilot: true,
+    })
+    const overWire = permissionGroupFullConfigSchema.parse(JSON.parse(JSON.stringify(stored)))
+    expect(JSON.stringify(overWire)).toBe(JSON.stringify(stored))
+  })
+
+  it('keeps an edited client buffer comparable to the server echo', () => {
+    const fromList = permissionGroupFullConfigSchema.parse(
+      JSON.parse(JSON.stringify(parsePermissionGroupConfig(DEFAULT_PERMISSION_GROUP_CONFIG)))
+    )
+    const edited = { ...fromList, hideDeployChatbot: true, deniedTools: ['slack_canvas'] }
+    const serverEcho = permissionGroupFullConfigSchema.parse(
+      JSON.parse(JSON.stringify(parsePermissionGroupConfig(edited)))
+    )
+    expect(JSON.stringify(serverEcho)).toBe(JSON.stringify(edited))
   })
 })

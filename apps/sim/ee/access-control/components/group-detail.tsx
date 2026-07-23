@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import {
   Checkbox,
   Chip,
@@ -102,6 +102,59 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
 
 function matchesStatusFilter(filter: StatusFilter, enabled: boolean) {
   return filter === 'all' || (filter === 'enabled') === enabled
+}
+
+interface StatusFilterChipProps {
+  value: StatusFilter
+  onChange: (value: StatusFilter) => void
+  /** Set when the chip is the last control in its row, so it sits flush to the edge. */
+  flush?: boolean
+}
+
+/** The All/Enabled/Disabled narrowing control shared by the three list tabs. */
+function StatusFilterChip({ value, onChange, flush }: StatusFilterChipProps) {
+  return (
+    <ChipDropdown
+      value={value}
+      onChange={(next) => onChange(next as StatusFilter)}
+      options={STATUS_FILTER_OPTIONS}
+      matchTriggerWidth={false}
+      flush={flush}
+      className='w-[140px] flex-shrink-0'
+    />
+  )
+}
+
+interface AuthModeFieldProps {
+  label: string
+  value: ShareAuthType[]
+  onChange: (values: string[]) => void
+  options: { value: ShareAuthType; label: string }[]
+  disabled: boolean
+}
+
+/**
+ * The allowed-auth-modes multi-select nested under a platform toggle. Dims and
+ * disables together with the toggle that owns it, so the coupling lives here
+ * rather than being re-derived at each call site.
+ */
+function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFieldProps) {
+  return (
+    <div className={cn('flex flex-col gap-1.5 px-2 pt-1 pb-1', disabled && 'opacity-50')}>
+      <span className='text-[var(--text-muted)] text-caption'>{label}</span>
+      <ChipDropdown
+        multiple
+        showAllOption={false}
+        allLabel='None'
+        value={value}
+        onChange={onChange}
+        options={options}
+        disabled={disabled}
+        matchTriggerWidth={false}
+        className='w-[200px]'
+      />
+    </div>
+  )
 }
 
 interface OrganizationMemberOption {
@@ -816,6 +869,22 @@ export function GroupDetail({
         configKey: 'disablePublicApi' as const,
         hint: 'Disable public API access to deployed workflows.',
       },
+      // Chat and Files get a category of their own so their nested auth-mode
+      // dropdown (see `featureExtras`) reads as part of the toggle it qualifies.
+      {
+        id: 'hide-deploy-chatbot',
+        label: 'Deployment',
+        category: 'Chat',
+        configKey: 'hideDeployChatbot' as const,
+        hint: 'Hide the chat deployment option.',
+      },
+      {
+        id: 'disable-public-file-sharing',
+        label: 'Public Sharing',
+        category: 'Files',
+        configKey: 'disablePublicFileSharing' as const,
+        hint: 'Disable public file-share links.',
+      },
     ],
     []
   )
@@ -855,10 +924,12 @@ export function GroupDetail({
       'Features',
       'Settings Tabs',
       'Logs',
+      'Chat',
+      'Files',
     ]
     const known = order.filter((c) => platformCategories[c]?.length)
     const extras = Object.keys(platformCategories).filter(
-      (c) => c !== 'Files' && !order.includes(c) && platformCategories[c]?.length
+      (c) => !order.includes(c) && platformCategories[c]?.length
     )
     return [...known, ...extras].map((category) => ({
       category,
@@ -866,57 +937,79 @@ export function GroupDetail({
     }))
   }, [platformCategories])
 
-  /**
-   * Chat and Files render as standalone sections (a toggle plus its nested
-   * auth-mode dropdown) rather than as `platformFeatures` rows, so they need the
-   * tab's search + status filter applied by hand — otherwise they'd be the only
-   * Platform controls that ignore both.
-   */
-  const platformSectionVisible = (label: string, enabled: boolean) => {
-    const search = platformSearchTerm.trim().toLowerCase()
-    if (search && !label.toLowerCase().includes(search)) return false
-    return matchesStatusFilter(platformStatusFilter, enabled)
-  }
-
-  const showChatSection = platformSectionVisible('Chat', !editingConfig.hideDeployChatbot)
-  const showFilesSection = platformSectionVisible('Files', !editingConfig.disablePublicFileSharing)
-  const hasPlatformMatches =
-    platformCategorySections.length > 0 || showChatSection || showFilesSection
-
   const hasConfigChanges = useMemo(() => {
     return JSON.stringify(viewingGroup.config) !== JSON.stringify(editingConfig)
   }, [viewingGroup.config, editingConfig])
 
   const trimmedName = editingName.trim()
   const trimmedDescription = editingDescription.trim()
-  const hasDetailChanges =
-    trimmedName !== viewingGroup.name || trimmedDescription !== (viewingGroup.description ?? '')
-  const hasChanges = hasConfigChanges || hasDetailChanges
+  const nameChanged = trimmedName !== viewingGroup.name
+  const descriptionChanged = trimmedDescription !== (viewingGroup.description ?? '')
+  const hasChanges = hasConfigChanges || nameChanged || descriptionChanged
 
   const guard = useSettingsUnsavedGuard({ isDirty: hasChanges })
 
-  const filteredProviders = useMemo(() => {
+  /**
+   * `null` means "everything allowed". Indexing the allow-lists once keeps the
+   * per-row membership checks O(1) — they run for every one of the ~200 block
+   * rows on each render, and again in the section-wide `every(...)` scans.
+   */
+  const allowedIntegrationSet = useMemo(
+    () =>
+      editingConfig.allowedIntegrations === null
+        ? null
+        : new Set(editingConfig.allowedIntegrations),
+    [editingConfig.allowedIntegrations]
+  )
+
+  const allowedProviderSet = useMemo(
+    () =>
+      editingConfig.allowedModelProviders === null
+        ? null
+        : new Set(editingConfig.allowedModelProviders),
+    [editingConfig.allowedModelProviders]
+  )
+
+  const isIntegrationAllowed = useCallback(
+    (blockType: string) => allowedIntegrationSet === null || allowedIntegrationSet.has(blockType),
+    [allowedIntegrationSet]
+  )
+
+  const isProviderAllowed = useCallback(
+    (providerId: string) => allowedProviderSet === null || allowedProviderSet.has(providerId),
+    [allowedProviderSet]
+  )
+
+  const searchedProviders = useMemo(() => {
     const query = providerSearchTerm.trim().toLowerCase()
-    const allowed = editingConfig.allowedModelProviders
-    return allProviderIds.filter((id) => {
-      if (query && !id.toLowerCase().includes(query)) return false
-      return matchesStatusFilter(providerStatusFilter, allowed === null || allowed.includes(id))
-    })
-  }, [
-    allProviderIds,
-    providerSearchTerm,
-    providerStatusFilter,
-    editingConfig.allowedModelProviders,
-  ])
+    if (!query) return allProviderIds
+    return allProviderIds.filter((id) => id.toLowerCase().includes(query))
+  }, [allProviderIds, providerSearchTerm])
+
+  /**
+   * Split from the search pass so the common `all` case returns the searched
+   * list by reference. Only the status pass depends on the allow-list, so a
+   * checkbox toggle no longer invalidates the downstream core/tool splits.
+   */
+  const filteredProviders = useMemo(() => {
+    if (providerStatusFilter === 'all') return searchedProviders
+    return searchedProviders.filter((id) =>
+      matchesStatusFilter(providerStatusFilter, isProviderAllowed(id))
+    )
+  }, [searchedProviders, providerStatusFilter, isProviderAllowed])
+
+  const searchedBlocks = useMemo(() => {
+    const query = integrationSearchTerm.trim().toLowerCase()
+    if (!query) return visibleBlocks
+    return visibleBlocks.filter((b) => b.name.toLowerCase().includes(query))
+  }, [visibleBlocks, integrationSearchTerm])
 
   const filteredBlocks = useMemo(() => {
-    const query = integrationSearchTerm.trim().toLowerCase()
-    const allowed = editingConfig.allowedIntegrations
-    return visibleBlocks.filter((b) => {
-      if (query && !b.name.toLowerCase().includes(query)) return false
-      return matchesStatusFilter(blockStatusFilter, allowed === null || allowed.includes(b.type))
-    })
-  }, [visibleBlocks, integrationSearchTerm, blockStatusFilter, editingConfig.allowedIntegrations])
+    if (blockStatusFilter === 'all') return searchedBlocks
+    return searchedBlocks.filter((b) =>
+      matchesStatusFilter(blockStatusFilter, isIntegrationAllowed(b.type))
+    )
+  }, [searchedBlocks, blockStatusFilter, isIntegrationAllowed])
 
   const filteredCoreBlocks = useMemo(
     () => filteredBlocks.filter((block) => block.category === 'blocks'),
@@ -945,13 +1038,6 @@ export function GroupDetail({
     const existingMemberUserIds = new Set(members.map((m) => m.userId))
     return organizationMembers.filter((m) => !existingMemberUserIds.has(m.userId))
   }, [organizationMembers, members])
-
-  const isIntegrationAllowed = useCallback(
-    (blockType: string) =>
-      editingConfig.allowedIntegrations === null ||
-      editingConfig.allowedIntegrations.includes(blockType),
-    [editingConfig.allowedIntegrations]
-  )
 
   /**
    * Drops denied tools whose integration is no longer allowed, keeping the
@@ -1062,13 +1148,6 @@ export function GroupDetail({
     }
     return counts
   }, [editingConfig.deniedTools, allBlocks])
-
-  const isProviderAllowed = useCallback(
-    (providerId: string) =>
-      editingConfig.allowedModelProviders === null ||
-      editingConfig.allowedModelProviders.includes(providerId),
-    [editingConfig.allowedModelProviders]
-  )
 
   const toggleProvider = useCallback(
     (providerId: string) => {
@@ -1199,19 +1278,43 @@ export function GroupDetail({
     }))
   }, [])
 
+  /**
+   * Nested controls rendered under a platform feature's checkbox, keyed by
+   * feature id. Keeping these out of `platformFeatures` leaves that array pure
+   * data (and its memo dependency-free) while the toggles themselves still flow
+   * through the tab's search, status filter, Select All, and empty state.
+   */
+  const featureExtras: Partial<Record<string, ReactNode>> = {
+    'hide-deploy-chatbot': (
+      <AuthModeField
+        label='Auth modes chat deployments may use'
+        value={chatDeployAuthValue}
+        onChange={setChatDeployAuthTypes}
+        options={CHAT_DEPLOY_AUTH_TYPE_OPTIONS}
+        disabled={editingConfig.hideDeployChatbot}
+      />
+    ),
+    'disable-public-file-sharing': (
+      <AuthModeField
+        label='Auth modes public file-share links may use'
+        value={fileShareAuthValue}
+        onChange={setFileShareAuthTypes}
+        options={FILE_SHARE_AUTH_TYPE_OPTIONS}
+        disabled={editingConfig.disablePublicFileSharing}
+      />
+    ),
+  }
+
   /** Persists the editing buffer — name/description are only sent when they changed. */
   const handleSaveConfig = useCallback(async () => {
     if (!trimmedName) return
-    const nextDescription = trimmedDescription || null
     try {
       const result = await updatePermissionGroup.mutateAsync({
         id: viewingGroup.id,
         organizationId,
         ...(hasConfigChanges && { config: editingConfig }),
-        ...(trimmedName !== viewingGroup.name && { name: trimmedName }),
-        ...(trimmedDescription !== (viewingGroup.description ?? '') && {
-          description: nextDescription,
-        }),
+        ...(nameChanged && { name: trimmedName }),
+        ...(descriptionChanged && { description: trimmedDescription || null }),
       })
       // Reconcile from the server's copy, like the scope/default writes do, so a
       // server-side normalization can't leave the dirty check comparing against a
@@ -1233,10 +1336,10 @@ export function GroupDetail({
     }
   }, [
     viewingGroup.id,
-    viewingGroup.name,
-    viewingGroup.description,
     editingConfig,
     hasConfigChanges,
+    nameChanged,
+    descriptionChanged,
     trimmedName,
     trimmedDescription,
     organizationId,
@@ -1574,13 +1677,7 @@ export function GroupDetail({
                 onChange={(e) => setProviderSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
               />
-              <ChipDropdown
-                value={providerStatusFilter}
-                onChange={(value) => setProviderStatusFilter(value as StatusFilter)}
-                options={STATUS_FILTER_OPTIONS}
-                matchTriggerWidth={false}
-                className='w-[140px] flex-shrink-0'
-              />
+              <StatusFilterChip value={providerStatusFilter} onChange={setProviderStatusFilter} />
               <Chip
                 onClick={() => setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)}
                 disabled={filteredProviders.length === 0}
@@ -1622,14 +1719,7 @@ export function GroupDetail({
                 onChange={(e) => setIntegrationSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
               />
-              <ChipDropdown
-                value={blockStatusFilter}
-                onChange={(value) => setBlockStatusFilter(value as StatusFilter)}
-                options={STATUS_FILTER_OPTIONS}
-                matchTriggerWidth={false}
-                flush
-                className='w-[140px] flex-shrink-0'
-              />
+              <StatusFilterChip value={blockStatusFilter} onChange={setBlockStatusFilter} flush />
             </div>
             {filteredCoreBlocks.length === 0 && filteredToolBlocks.length === 0 && (
               <SettingsEmptyState variant='inline'>
@@ -1732,13 +1822,7 @@ export function GroupDetail({
                 onChange={(e) => setPlatformSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
               />
-              <ChipDropdown
-                value={platformStatusFilter}
-                onChange={(value) => setPlatformStatusFilter(value as StatusFilter)}
-                options={STATUS_FILTER_OPTIONS}
-                matchTriggerWidth={false}
-                className='w-[140px] flex-shrink-0'
-              />
+              <StatusFilterChip value={platformStatusFilter} onChange={setPlatformStatusFilter} />
               <Chip
                 onClick={() =>
                   setEditingConfig((prev) => ({
@@ -1753,126 +1837,43 @@ export function GroupDetail({
                 {platformAllVisible ? 'Deselect All' : 'Select All'}
               </Chip>
             </div>
+            {platformCategorySections.length === 0 && (
+              <SettingsEmptyState variant='inline'>
+                No features match your filters.
+              </SettingsEmptyState>
+            )}
             {platformCategorySections.map(({ category, features }) => (
               <SettingsSection key={category} label={category}>
                 <div className='flex flex-col gap-0.5'>
                   {features.map((feature) => (
-                    <div key={feature.id} className='flex items-center gap-1.5'>
-                      <label
-                        htmlFor={feature.id}
-                        className='flex flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
-                      >
-                        <Checkbox
-                          id={feature.id}
-                          checked={!editingConfig[feature.configKey]}
-                          onCheckedChange={(checked) =>
-                            setEditingConfig((prev) => ({
-                              ...prev,
-                              [feature.configKey]: checked !== true,
-                            }))
-                          }
-                        />
-                        <span className='font-normal text-sm'>{feature.label}</span>
-                      </label>
-                      <Info side='top' className='flex-shrink-0'>
-                        {feature.hint}
-                      </Info>
+                    <div key={feature.id} className='flex flex-col'>
+                      <div className='flex items-center gap-1.5'>
+                        <label
+                          htmlFor={feature.id}
+                          className='flex flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                        >
+                          <Checkbox
+                            id={feature.id}
+                            checked={!editingConfig[feature.configKey]}
+                            onCheckedChange={(checked) =>
+                              setEditingConfig((prev) => ({
+                                ...prev,
+                                [feature.configKey]: checked !== true,
+                              }))
+                            }
+                          />
+                          <span className='font-normal text-sm'>{feature.label}</span>
+                        </label>
+                        <Info side='top' className='flex-shrink-0'>
+                          {feature.hint}
+                        </Info>
+                      </div>
+                      {featureExtras[feature.id]}
                     </div>
                   ))}
                 </div>
               </SettingsSection>
             ))}
-            {showChatSection && (
-              <SettingsSection label='Chat'>
-                <div className='flex flex-col gap-1.5'>
-                  <label
-                    htmlFor='hide-deploy-chatbot'
-                    className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
-                  >
-                    <Checkbox
-                      id='hide-deploy-chatbot'
-                      checked={!editingConfig.hideDeployChatbot}
-                      onCheckedChange={(checked) =>
-                        setEditingConfig((prev) => ({
-                          ...prev,
-                          hideDeployChatbot: checked !== true,
-                        }))
-                      }
-                    />
-                    <span className='font-normal text-sm'>Deployment</span>
-                  </label>
-                  <div
-                    className={cn(
-                      'flex flex-col gap-1.5 px-2 pt-1',
-                      editingConfig.hideDeployChatbot && 'opacity-50'
-                    )}
-                  >
-                    <span className='text-[var(--text-muted)] text-caption'>
-                      Auth modes chat deployments may use
-                    </span>
-                    <ChipDropdown
-                      multiple
-                      showAllOption={false}
-                      allLabel='None'
-                      value={chatDeployAuthValue}
-                      onChange={setChatDeployAuthTypes}
-                      options={CHAT_DEPLOY_AUTH_TYPE_OPTIONS}
-                      disabled={editingConfig.hideDeployChatbot}
-                      matchTriggerWidth={false}
-                      className='w-[200px]'
-                    />
-                  </div>
-                </div>
-              </SettingsSection>
-            )}
-            {showFilesSection && (
-              <SettingsSection label='Files'>
-                <div className='flex flex-col gap-1.5'>
-                  <label
-                    htmlFor='disable-public-file-sharing'
-                    className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
-                  >
-                    <Checkbox
-                      id='disable-public-file-sharing'
-                      checked={!editingConfig.disablePublicFileSharing}
-                      onCheckedChange={(checked) =>
-                        setEditingConfig((prev) => ({
-                          ...prev,
-                          disablePublicFileSharing: checked !== true,
-                        }))
-                      }
-                    />
-                    <span className='font-normal text-sm'>Public Sharing</span>
-                  </label>
-                  <div
-                    className={cn(
-                      'flex flex-col gap-1.5 px-2 pt-1',
-                      editingConfig.disablePublicFileSharing && 'opacity-50'
-                    )}
-                  >
-                    <span className='text-[var(--text-muted)] text-caption'>
-                      Auth modes public file-share links may use
-                    </span>
-                    <ChipDropdown
-                      multiple
-                      showAllOption={false}
-                      allLabel='None'
-                      value={fileShareAuthValue}
-                      onChange={setFileShareAuthTypes}
-                      options={FILE_SHARE_AUTH_TYPE_OPTIONS}
-                      disabled={editingConfig.disablePublicFileSharing}
-                      matchTriggerWidth={false}
-                      className='w-[200px]'
-                    />
-                  </div>
-                </div>
-              </SettingsSection>
-            )}
-            {!hasPlatformMatches && (
-              <SettingsEmptyState variant='inline'>
-                No features match your filters.
-              </SettingsEmptyState>
-            )}
           </div>
         )}
       </SettingsPanel>
