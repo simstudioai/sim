@@ -16,6 +16,18 @@ export function escapeCql(value: string): string {
 }
 
 /**
+ * Keeps only content that is still current in Confluence. The v2
+ * `/spaces/{id}/pages` endpoint includes `archived` pages by default and CQL has
+ * no status filter, so without this guard archived pages stay in every listing,
+ * keep getting upserted, and never fall out via deletion reconciliation (which
+ * removes only documents absent from the listing). Items with no status field
+ * are kept — only an explicit non-current status excludes a result.
+ */
+export function isCurrentContent(item: Record<string, unknown>): boolean {
+  return item.status == null || item.status === 'current'
+}
+
+/**
  * Builds a CQL clause restricting content to the given space keys.
  * Single key uses `space = "X"`; multiple keys use `space in ("X","Y")`.
  */
@@ -272,7 +284,7 @@ export const confluenceConnector: ConnectorConfig = {
       }
     }
 
-    if (!page) return null
+    if (!page || !isCurrentContent(page)) return null
     const body = page.body as Record<string, unknown> | undefined
     const view = body?.view as Record<string, unknown> | undefined
     const rawContent = (view?.value as string) || ''
@@ -381,6 +393,12 @@ async function listDocumentsV2(
 ): Promise<ExternalDocumentList> {
   const queryParams = new URLSearchParams()
   queryParams.append('limit', '250')
+  /**
+   * Restrict to current content: the pages endpoint defaults to
+   * `current,archived`, so archived pages would otherwise stay in the listing
+   * forever and never be purged by deletion reconciliation.
+   */
+  queryParams.append('status', 'current')
   if (cursor) {
     queryParams.append('cursor', cursor)
   }
@@ -410,13 +428,15 @@ async function listDocumentsV2(
   const data = await response.json()
   const results = data.results || []
 
-  const documents: ExternalDocument[] = results.map((page: Record<string, unknown>) => {
-    const links = page._links as Record<string, string> | undefined
-    return pageToStub(page, {
-      spaceId: page.spaceId,
-      sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+  const documents: ExternalDocument[] = (results as Record<string, unknown>[])
+    .filter(isCurrentContent)
+    .map((page) => {
+      const links = page._links as Record<string, string> | undefined
+      return pageToStub(page, {
+        spaceId: page.spaceId,
+        sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+      })
     })
-  })
 
   let nextCursor: string | undefined
   const nextLink = (data._links as Record<string, string>)?.next
@@ -594,9 +614,9 @@ async function listDocumentsViaCql(
   const data = await response.json()
   const results = data.results || []
 
-  const documents: ExternalDocument[] = results.map((item: Record<string, unknown>) =>
-    cqlResultToStub(item, domain)
-  )
+  const documents: ExternalDocument[] = (results as Record<string, unknown>[])
+    .filter(isCurrentContent)
+    .map((item) => cqlResultToStub(item, domain))
 
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched

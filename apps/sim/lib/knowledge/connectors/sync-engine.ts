@@ -245,6 +245,47 @@ export function shouldReconcileDeletions(
 }
 
 /**
+ * Decides whether a zero-document listing should skip deletion reconciliation.
+ *
+ * An empty listing is normally indistinguishable from a provider outage, so
+ * reconciliation is skipped by default rather than risk wiping a knowledge base on
+ * a bad response. A connector can set `sourceConfirmedEmpty` on `syncContext` to
+ * vouch that it verified the empty result directly against the source — not
+ * merely an empty listing page — e.g. a single-resource connector confirming its
+ * one source item was trashed/removed via a dedicated metadata lookup.
+ */
+export function shouldSkipEmptyListing(
+  externalDocsCount: number,
+  existingDocsCount: number,
+  fullSync: boolean | undefined,
+  syncContext: Record<string, unknown> | undefined
+): boolean {
+  if (externalDocsCount !== 0 || existingDocsCount === 0 || fullSync) return false
+  return !syncContext?.sourceConfirmedEmpty
+}
+
+/**
+ * Decides whether a deletion should be blocked by the mass-deletion safety
+ * threshold (more than half of existing documents, over 5) instead of proceeding.
+ *
+ * This guards against a connector-side bug or transient glitch producing a
+ * listing that looks mostly empty. `sourceConfirmedEmpty` bypasses it the same
+ * way it bypasses `shouldSkipEmptyListing` — the connector positively verified
+ * the deletion against the source rather than merely inferring it from a
+ * listing, so the extra caution this threshold provides doesn't apply.
+ */
+export function exceedsDeletionSafetyThreshold(
+  removedCount: number,
+  existingCount: number,
+  fullSync: boolean | undefined,
+  syncContext: Record<string, unknown> | undefined
+): boolean {
+  if (fullSync || syncContext?.sourceConfirmedEmpty) return false
+  const deletionRatio = existingCount > 0 ? removedCount / existingCount : 0
+  return deletionRatio > 0.5 && removedCount > 5
+}
+
+/**
  * Resolves tag values from connector metadata using the connector's mapTags function.
  * Translates semantic keys returned by mapTags to actual DB slots using the
  * tagSlotMapping stored in sourceConfig during connector creation.
@@ -537,7 +578,14 @@ export async function executeSync(
 
     const excludedExternalIds = new Set(excludedDocs.map((d) => d.externalId).filter(Boolean))
 
-    if (externalDocs.length === 0 && existingDocs.length > 0 && !options?.fullSync) {
+    if (
+      shouldSkipEmptyListing(
+        externalDocs.length,
+        existingDocs.length,
+        options?.fullSync,
+        syncContext
+      )
+    ) {
       logger.warn(
         `Source returned 0 documents but ${existingDocs.length} exist — skipping reconciliation`,
         { connectorId }
@@ -799,12 +847,20 @@ export async function executeSync(
         .map((d) => d.id)
 
       if (removedIds.length > 0) {
-        const deletionRatio = existingDocs.length > 0 ? removedIds.length / existingDocs.length : 0
-
-        if (deletionRatio > 0.5 && removedIds.length > 5 && !options?.fullSync) {
+        if (
+          exceedsDeletionSafetyThreshold(
+            removedIds.length,
+            existingDocs.length,
+            options?.fullSync,
+            syncContext
+          )
+        ) {
           logger.warn(
             `Skipping deletion of ${removedIds.length}/${existingDocs.length} docs — exceeds safety threshold. Trigger a full sync to force cleanup.`,
-            { connectorId, deletionRatio: Math.round(deletionRatio * 100) }
+            {
+              connectorId,
+              deletionRatio: Math.round((removedIds.length / existingDocs.length) * 100),
+            }
           )
         } else {
           await hardDeleteDocuments(removedIds, syncLogId)
