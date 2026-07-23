@@ -3,14 +3,12 @@
  */
 
 import { randomFillSync } from 'node:crypto'
-import { loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
 const { fetchWorkspaceFileBuffer } = vi.hoisted(() => ({
   fetchWorkspaceFileBuffer: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => loggerMock)
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   fetchWorkspaceFileBuffer,
 }))

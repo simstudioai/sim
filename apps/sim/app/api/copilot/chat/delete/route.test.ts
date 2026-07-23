@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { authMockFns, dbChainMock, dbChainMockFns } from '@sim/testing'
+import { authMockFns, dbChainMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,8 +18,6 @@ const {
   mockGetAccessibleCopilotChat: vi.fn(),
   mockGetAccessibleCopilotChatAuth: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   getAccessibleCopilotChat: mockGetAccessibleCopilotChat,

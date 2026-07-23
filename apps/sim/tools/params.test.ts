@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import {
   createExecutionToolSchema,
   createLLMToolSchema,
@@ -15,6 +15,7 @@ import {
   validateToolParameters,
 } from '@/tools/params'
 import type { HttpMethod, ParameterVisibility } from '@/tools/types'
+import * as toolsUtils from '@/tools/utils'
 
 const mockToolConfig = {
   id: 'test_tool',
@@ -55,23 +56,31 @@ const mockToolConfig = {
   },
 }
 
-vi.mock('@/tools/utils', () => ({
-  getTool: vi.fn((toolId: string) => {
-    if (toolId === 'test_tool') {
-      return mockToolConfig
+/**
+ * Spy on the real module namespace instead of vi.mock: under `isolate: false`
+ * `@/tools/params` may already be cached bound to the real `@/tools/utils`
+ * module, so patching the shared namespace is the only wiring that always
+ * applies.
+ */
+const getToolSpy = vi.spyOn(toolsUtils, 'getTool').mockImplementation(((toolId: string) => {
+  if (toolId === 'test_tool') {
+    return mockToolConfig
+  }
+  if (toolId === 'workflow_executor') {
+    return {
+      id: 'workflow_executor',
+      name: 'Workflow Executor',
+      description: '',
+      version: '1.0.0',
+      params: {},
     }
-    if (toolId === 'workflow_executor') {
-      return {
-        id: 'workflow_executor',
-        name: 'Workflow Executor',
-        description: '',
-        version: '1.0.0',
-        params: {},
-      }
-    }
-    return null
-  }),
-}))
+  }
+  return null
+}) as unknown as typeof toolsUtils.getTool)
+
+afterAll(() => {
+  getToolSpy.mockRestore()
+})
 
 describe('Tool Parameters Utils', () => {
   describe('getToolParametersConfig', () => {

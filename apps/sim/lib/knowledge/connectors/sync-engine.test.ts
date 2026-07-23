@@ -1,11 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { authOAuthUtilsMock, urlsMock } from '@sim/testing'
+import { authOAuthUtilsMock } from '@sim/testing'
 import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db', () => ({ db: {} }))
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
   eq: vi.fn(),
@@ -13,7 +12,6 @@ vi.mock('drizzle-orm', () => ({
   isNull: vi.fn(),
   ne: vi.fn(),
 }))
-vi.mock('@/lib/core/utils/urls', () => urlsMock)
 vi.mock('@/lib/knowledge/documents/service', () => ({
   hardDeleteDocuments: vi.fn(),
   isTriggerAvailable: vi.fn(),

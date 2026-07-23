@@ -3,12 +3,14 @@
  *
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockJwtConstructor, mockGetAccessToken, mockEnv } = vi.hoisted(() => {
+afterAll(resetEnvMock)
+
+const { mockJwtConstructor, mockGetAccessToken } = vi.hoisted(() => {
   const mockGetAccessToken = vi.fn()
   const jwtInstance = { getAccessToken: mockGetAccessToken }
-  const mockEnv: Record<string, string | undefined> = {}
   return {
     mockJwtConstructor: vi.fn().mockImplementation(
       class {
@@ -19,17 +21,11 @@ const { mockJwtConstructor, mockGetAccessToken, mockEnv } = vi.hoisted(() => {
       }
     ),
     mockGetAccessToken,
-    mockEnv,
   }
 })
 
 vi.mock('google-auth-library', () => ({
   JWT: mockJwtConstructor,
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: mockEnv,
-  getEnv: (key: string) => mockEnv[key],
 }))
 
 import { createGmailProvider } from '@/lib/messaging/email/providers/gmail'
@@ -54,8 +50,8 @@ describe('Gmail mail provider', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
-    mockEnv.GMAIL_SENDER = 'noreply@sim.example'
-    mockEnv.GMAIL_CREDENTIALS_JSON = VALID_CREDENTIALS
+    setEnv({ GMAIL_SENDER: 'noreply@sim.example' })
+    setEnv({ GMAIL_CREDENTIALS_JSON: VALID_CREDENTIALS })
     mockGetAccessToken.mockResolvedValue({ token: 'test-token' })
   })
 
@@ -66,26 +62,26 @@ describe('Gmail mail provider', () => {
 
   describe('createGmailProvider', () => {
     it('returns null when neither GMAIL_SENDER nor GMAIL_CREDENTIALS_JSON is set', () => {
-      mockEnv.GMAIL_SENDER = undefined
-      mockEnv.GMAIL_CREDENTIALS_JSON = undefined
+      setEnv({ GMAIL_SENDER: undefined })
+      setEnv({ GMAIL_CREDENTIALS_JSON: undefined })
 
       expect(createGmailProvider()).toBeNull()
     })
 
     it('returns null when only one of the two variables is set', () => {
-      mockEnv.GMAIL_CREDENTIALS_JSON = undefined
+      setEnv({ GMAIL_CREDENTIALS_JSON: undefined })
       expect(createGmailProvider()).toBeNull()
 
-      mockEnv.GMAIL_CREDENTIALS_JSON = VALID_CREDENTIALS
-      mockEnv.GMAIL_SENDER = undefined
+      setEnv({ GMAIL_CREDENTIALS_JSON: VALID_CREDENTIALS })
+      setEnv({ GMAIL_SENDER: undefined })
       expect(createGmailProvider()).toBeNull()
     })
 
     it('returns null for invalid or incomplete credentials JSON', () => {
-      mockEnv.GMAIL_CREDENTIALS_JSON = 'not-json'
+      setEnv({ GMAIL_CREDENTIALS_JSON: 'not-json' })
       expect(createGmailProvider()).toBeNull()
 
-      mockEnv.GMAIL_CREDENTIALS_JSON = JSON.stringify({ client_email: 'x@y.iam' })
+      setEnv({ GMAIL_CREDENTIALS_JSON: JSON.stringify({ client_email: 'x@y.iam' }) })
       expect(createGmailProvider()).toBeNull()
     })
 

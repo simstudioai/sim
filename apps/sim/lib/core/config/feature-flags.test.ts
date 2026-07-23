@@ -1,10 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FeatureFlagContext, FeatureFlagName } from '@/lib/core/config/feature-flags'
 
-const { mockFetch, mockIsPlatformAdmin, envRef, flagRef } = vi.hoisted(() => ({
+const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockIsPlatformAdmin: vi.fn(),
   envRef: {
@@ -13,7 +14,6 @@ const { mockFetch, mockIsPlatformAdmin, envRef, flagRef } = vi.hoisted(() => ({
     FORKING_ENABLED: undefined as boolean | undefined,
     DEPLOY_AS_BLOCK: undefined as boolean | undefined,
   },
-  flagRef: { isAppConfigEnabled: false },
 }))
 
 vi.mock('@/lib/core/config/appconfig', () => ({
@@ -27,21 +27,32 @@ vi.mock('@/lib/core/config/env', () => ({
   },
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isAppConfigEnabled() {
-    return flagRef.isAppConfigEnabled
-  },
-}))
-
 vi.mock('@/lib/permissions/super-user', () => ({
   isPlatformAdmin: mockIsPlatformAdmin,
 }))
 
-import { getFeatureFlags, isFeatureEnabled } from '@/lib/core/config/feature-flags'
+/**
+ * Query-suffixed import gives this file a private instance of the module under
+ * test. Under `isolate: false` the worker's module graph is shared across test
+ * files, so the plain specifier may already be cached with the real
+ * appconfig/env/env-flags bindings (mocks never reach an already-evaluated
+ * module) — and evaluating it here under this file's mocks would poison it for
+ * later files. The suffixed id is unique to this file, so it always evaluates
+ * fresh with the mocks above.
+ */
+declare module '@/lib/core/config/feature-flags?feature-flags-test' {
+  // biome-ignore lint/suspicious/noExportsInTest: ambient type re-declaration for the query-suffixed specifier, not a runtime export
+  export * from '@/lib/core/config/feature-flags'
+}
+
+import {
+  getFeatureFlags,
+  isFeatureEnabled,
+} from '@/lib/core/config/feature-flags?feature-flags-test'
 
 /** Make `getFeatureFlags` resolve to `doc` via the AppConfig path (also exercises parseConfig). */
 function withAppConfig(doc: unknown) {
-  flagRef.isAppConfigEnabled = true
+  setEnvFlags({ isAppConfigEnabled: true })
   mockFetch.mockImplementation((_ids, parse) => Promise.resolve(parse(doc)))
 }
 
@@ -53,10 +64,12 @@ function withAppConfig(doc: unknown) {
 const enabled = (flag: string, ctx?: FeatureFlagContext) =>
   isFeatureEnabled(flag as FeatureFlagName, ctx)
 
+afterAll(resetEnvFlagsMock)
+
 describe('getFeatureFlags', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    flagRef.isAppConfigEnabled = false
+    setEnvFlags({ isAppConfigEnabled: false })
   })
 
   it('derives flags from fallback secrets when AppConfig is disabled, without fetching', async () => {
@@ -87,7 +100,7 @@ describe('getFeatureFlags', () => {
   })
 
   it('falls back to the secret-derived document when the fetch yields null', async () => {
-    flagRef.isAppConfigEnabled = true
+    setEnvFlags({ isAppConfigEnabled: true })
     mockFetch.mockResolvedValue(null)
     const flags = await getFeatureFlags()
     expect(flags['mothership-beta']).toEqual({ enabled: false })
@@ -107,7 +120,7 @@ describe('getFeatureFlags', () => {
 describe('isFeatureEnabled', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    flagRef.isAppConfigEnabled = false
+    setEnvFlags({ isAppConfigEnabled: false })
     envRef.FORKING_ENABLED = undefined
     envRef.DEPLOY_AS_BLOCK = undefined
   })

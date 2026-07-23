@@ -19,6 +19,7 @@ import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, isNull, lte, ne, sql } from 'drizzle-orm'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
+import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
   acquireOrganizationMutationLock,
@@ -646,6 +647,10 @@ async function runInvitationAcceptancePostCommitEffects(
   }
 
   if (effects.organizationId && effects.memberRole) {
+    // Pre-join sessions keep their old expiry until the next sliding refresh;
+    // apply the org's session policy to them now (best-effort, never throws).
+    await applySessionPolicyToNewMember(input.userId, effects.organizationId)
+
     recordAudit({
       workspaceId: null,
       actorId: input.userId,

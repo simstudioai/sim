@@ -22,6 +22,17 @@ on:
     branches: [staging, main]
   workflow_dispatch: {}
 
+# One live run per PR: a newer opened/edited/synchronize event supersedes the
+# previous run's work entirely (the sticky comment/label upsert is idempotent
+# and only the latest body matters), so cancel in-flight runs instead of
+# letting them race the new one. workflow_dispatch bulk scans get a unique
+# group via run_id and are never cancelled. No paths filter on purpose: the
+# check reads the PR body and cross-repo PR state, not changed files, so a
+# paths filter would both be semantically wrong and stop status refreshes.
+concurrency:
+  group: companion-pr-check-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   pull-requests: write
   issues: write

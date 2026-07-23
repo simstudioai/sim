@@ -1,6 +1,6 @@
 'use client'
 
-import { createElement, useMemo, useState } from 'react'
+import { createElement, lazy, Suspense, useMemo, useState } from 'react'
 import {
   ArrowRight,
   Button,
@@ -19,6 +19,10 @@ import { useSession } from '@/lib/auth/auth-client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
+import {
+  resolveOAuthServiceForSlug,
+  resolveServiceAccountIntegration,
+} from '@/lib/integrations/oauth-service'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
@@ -27,6 +31,10 @@ import type {
   ChatMessageContext,
   MothershipResource,
 } from '@/app/workspace/[workspaceId]/home/types'
+// Deep import, not the barrel: the barrel also re-exports
+// ConnectServiceAccountModal, and that edge would pull the modal into this
+// chunk and defeat the lazy() split below.
+import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/use-service-account-connect'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
@@ -62,6 +70,17 @@ export interface UsageUpgradeTagData {
   message: string
 }
 
+/**
+ * Kept out of the chat's initial chunk — it pulls in three provider-specific
+ * setup forms and is only mounted once a message actually offers a service
+ * account.
+ */
+const ConnectServiceAccountModal = lazy(() =>
+  import(
+    '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/connect-service-account-modal'
+  ).then((m) => ({ default: m.ConnectServiceAccountModal }))
+)
+
 export const CREDENTIAL_TAG_TYPES = [
   'env_key',
   'oauth_key',
@@ -69,6 +88,7 @@ export const CREDENTIAL_TAG_TYPES = [
   'credential_id',
   'link',
   'secret_input',
+  'service_account',
 ] as const
 
 export type CredentialTagType = (typeof CREDENTIAL_TAG_TYPES)[number]
@@ -88,6 +108,11 @@ export interface CredentialTagData {
   name?: string
   /** Where a secret_input value is persisted. Defaults to "workspace". */
   scope?: SecretInputScope
+  /**
+   * Existing credential to reconnect in place (service_account only). Present =
+   * rotate the secret on this credential; absent = create a new one.
+   */
+  credentialId?: string
 }
 
 export interface MothershipErrorTagData {
@@ -224,6 +249,20 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
       return false
     }
     return typeof value.name === 'string' && value.name.trim().length > 0
+  }
+  // A service_account tag is a control, not a value: it names the provider
+  // whose setup form to open, and the user types the secret into that form —
+  // so it never carries a `value`, but it is useless without a provider. An
+  // optional `credentialId` reconnects an existing service account in place;
+  // reject a blank one, since the renderer treats a truthy id as "reconnect"
+  // and would try to rotate a non-existent credential.
+  if (value.type === 'service_account') {
+    if (value.credentialId !== undefined) {
+      if (typeof value.credentialId !== 'string' || value.credentialId.trim().length === 0) {
+        return false
+      }
+    }
+    return typeof value.provider === 'string' && value.provider.trim().length > 0
   }
   // A sim_key chip is platform-filled: the model only marks where the workspace
   // API key belongs (it never holds the value) and Sim injects it from the tool
@@ -870,6 +909,74 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
   )
 }
 
+/**
+ * Inline "set up a service account" control rendered for
+ * `<credential>{"type":"service_account","provider":"slack"}</credential>`.
+ *
+ * Opens `ConnectServiceAccountModal` over the chat rather than linking out to
+ * the integrations page — the user stays in the conversation that asked for
+ * the credential, and comes back to it with the credential in hand.
+ */
+function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { canEdit } = useUserPermissionsContext()
+  const [open, setOpen] = useState(false)
+
+  const match = useMemo(
+    () => (data.provider ? resolveServiceAccountIntegration(data.provider) : null),
+    [data.provider]
+  )
+  const service = useMemo(() => (match ? resolveOAuthServiceForSlug(match.slug) : null), [match])
+  const target = useServiceAccountConnectTarget({
+    serviceAccountProviderId: match?.serviceAccountProviderId,
+    serviceName: match?.serviceName,
+    serviceIcon: service?.serviceIcon,
+  })
+
+  // A credentialId reconnects (rotates the secret on) that existing service
+  // account in place rather than creating a new one — the modal keeps its id.
+  const reconnectCredentialId = data.credentialId
+  const { data: reconnectCredential } = useWorkspaceCredential(reconnectCredentialId)
+
+  // Creating a credential mutates the workspace — hide it from read-only
+  // members, and honour the provider's own preview gate (custom Slack bots
+  // ride the slack_v2 flag) so chat can't surface what the integrations page
+  // deliberately hides.
+  if (!target || target.hidden || !canEdit || !workspaceId) return null
+
+  const label = reconnectCredentialId
+    ? `Reconnect ${reconnectCredential?.displayName ?? target.serviceName}`
+    : `${target.label} for ${target.serviceName}`
+
+  return (
+    <>
+      <button
+        type='button'
+        onClick={() => setOpen(true)}
+        className='flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors hover-hover:bg-[var(--surface-5)]'
+      >
+        {createElement(target.serviceIcon, { className: 'size-[16px] shrink-0' })}
+        <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
+        <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      </button>
+      {open && (
+        <Suspense fallback={null}>
+          <ConnectServiceAccountModal
+            open={open}
+            onOpenChange={setOpen}
+            workspaceId={workspaceId}
+            serviceAccountProviderId={target.serviceAccountProviderId}
+            serviceName={target.serviceName}
+            serviceIcon={target.serviceIcon}
+            credentialId={reconnectCredentialId}
+            credentialDisplayName={reconnectCredential?.displayName ?? undefined}
+          />
+        </Suspense>
+      )}
+    </>
+  )
+}
+
 function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   const { canEdit } = useUserPermissionsContext()
 
@@ -919,6 +1026,10 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
 
   if (data.type === 'link') {
     return <CredentialLinkDisplay data={data} />
+  }
+
+  if (data.type === 'service_account') {
+    return <ServiceAccountConnectDisplay data={data} />
   }
 
   if (data.type === 'sim_key') {

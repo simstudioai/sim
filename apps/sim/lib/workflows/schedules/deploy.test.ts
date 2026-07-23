@@ -3,86 +3,54 @@
  *
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockInsert,
-  mockDelete,
-  mockOnConflictDoUpdate,
-  mockValues,
-  mockWhere,
-  mockGenerateCronExpression,
-  mockCalculateNextRunTime,
-  mockValidateCronExpression,
-  mockGetScheduleTimeValues,
-  mockRandomUUID,
-  mockTransaction,
-  mockSelect,
-  mockFrom,
-} = vi.hoisted(() => ({
-  mockInsert: vi.fn(),
-  mockDelete: vi.fn(),
-  mockOnConflictDoUpdate: vi.fn(),
-  mockValues: vi.fn(),
-  mockWhere: vi.fn(),
-  mockGenerateCronExpression: vi.fn(),
-  mockCalculateNextRunTime: vi.fn(),
-  mockValidateCronExpression: vi.fn(),
-  mockGetScheduleTimeValues: vi.fn(),
+const { mockRandomUUID } = vi.hoisted(() => ({
   mockRandomUUID: vi.fn(),
-  mockTransaction: vi.fn(),
-  mockSelect: vi.fn(),
-  mockFrom: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    transaction: mockTransaction,
-  },
-  workflowSchedule: {
-    workflowId: 'workflow_id',
-    blockId: 'block_id',
-    deploymentVersionId: 'deployment_version_id',
-    deploymentOperationId: 'deployment_operation_id',
-    id: 'id',
-    archivedAt: 'archived_at',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((...args) => ({ type: 'eq', args })),
-  and: vi.fn((...args) => ({ type: 'and', args })),
-  inArray: vi.fn((...args) => ({ type: 'inArray', args })),
-  isNull: vi.fn((...args) => ({ type: 'isNull', args })),
-  sql: vi.fn((strings, ...values) => ({ type: 'sql', strings, values })),
-}))
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 vi.mock('@/lib/webhooks/deploy', () => ({
   cleanupWebhooksForWorkflow: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('./utils', async (importOriginal) => {
-  const original = await importOriginal<typeof import('./utils')>()
-  return {
-    ...original,
-    generateCronExpression: mockGenerateCronExpression,
-    calculateNextRunTime: mockCalculateNextRunTime,
-    validateCronExpression: mockValidateCronExpression,
-    getScheduleTimeValues: mockGetScheduleTimeValues,
-  }
-})
-
-vi.stubGlobal('crypto', {
-  randomUUID: mockRandomUUID,
-})
-
 import { createSchedulesForDeploy, deleteSchedulesForWorkflow } from './deploy'
 import type { BlockState } from './utils'
+import * as scheduleUtils from './utils'
 import { findScheduleBlocks, validateScheduleBlock, validateWorkflowSchedules } from './validation'
+
+/**
+ * Spy on the shared `./utils` namespace instead of `vi.mock`: under
+ * `isolate: false` the modules under test may already be cached from another
+ * test file, bound to the real utils instance, which a per-file `vi.mock`
+ * factory could never rebind. Patching the resolved namespace covers both
+ * fresh and reused module graphs.
+ */
+const mockGenerateCronExpression = vi.spyOn(scheduleUtils, 'generateCronExpression')
+const mockCalculateNextRunTime = vi.spyOn(scheduleUtils, 'calculateNextRunTime')
+const mockValidateCronExpression = vi.spyOn(scheduleUtils, 'validateCronExpression')
+const mockGetScheduleTimeValues = vi.spyOn(scheduleUtils, 'getScheduleTimeValues')
+
+afterAll(() => {
+  mockGenerateCronExpression.mockRestore()
+  mockCalculateNextRunTime.mockRestore()
+  mockValidateCronExpression.mockRestore()
+  mockGetScheduleTimeValues.mockRestore()
+  resetDbChainMock()
+})
 
 describe('Schedule Deploy Utilities', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+
+    /**
+     * Re-stub per test: `unstubGlobals: true` unstubs all globals before each
+     * test, so a top-level stub would not survive past collection.
+     */
+    vi.stubGlobal('crypto', { randomUUID: mockRandomUUID })
 
     mockRandomUUID.mockReturnValue('test-uuid')
     mockGenerateCronExpression.mockReturnValue('0 9 * * *')
@@ -101,33 +69,11 @@ describe('Schedule Deploy Utilities', () => {
       monthlyTime: [9, 0],
       cronExpression: null,
     })
-
-    // Setup mock chain for insert
-    mockOnConflictDoUpdate.mockResolvedValue({})
-    mockValues.mockReturnValue({ onConflictDoUpdate: mockOnConflictDoUpdate })
-    mockInsert.mockReturnValue({ values: mockValues })
-
-    // Setup mock chain for delete
-    mockWhere.mockResolvedValue({})
-    mockDelete.mockReturnValue({ where: mockWhere })
-
-    // Setup mock chain for select
-    mockFrom.mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
-    mockSelect.mockReturnValue({ from: mockFrom })
-
-    // Setup transaction mock to execute callback with mock tx
-    mockTransaction.mockImplementation(async (callback) => {
-      const mockTx = {
-        insert: mockInsert,
-        delete: mockDelete,
-        select: mockSelect,
-      }
-      return callback(mockTx)
-    })
   })
 
   afterEach(() => {
     vi.clearAllMocks()
+    vi.unstubAllGlobals()
   })
 
   describe('findScheduleBlocks', () => {
@@ -708,24 +654,15 @@ describe('Schedule Deploy Utilities', () => {
   })
 
   describe('createSchedulesForDeploy', () => {
-    const setupMockTransaction = (
-      existingSchedules: Array<{ id: string; blockId: string }> = []
-    ) => {
-      mockFrom.mockReturnValue({ where: vi.fn().mockResolvedValue(existingSchedules) })
-      mockSelect.mockReturnValue({ from: mockFrom })
-    }
-
     it('should return success with no schedule blocks', async () => {
       const blocks: Record<string, BlockState> = {
         'block-1': { id: 'block-1', type: 'agent', subBlocks: {} } as BlockState,
       }
 
-      setupMockTransaction()
-
       const result = await createSchedulesForDeploy('workflow-1', blocks)
 
       expect(result.success).toBe(true)
-      expect(mockTransaction).not.toHaveBeenCalled()
+      expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     })
 
     it('should create schedule for valid schedule block', async () => {
@@ -741,17 +678,15 @@ describe('Schedule Deploy Utilities', () => {
         } as BlockState,
       }
 
-      setupMockTransaction()
-
       const result = await createSchedulesForDeploy('workflow-1', blocks)
 
       expect(result.success).toBe(true)
       expect(result.scheduleId).toBe('test-uuid')
       expect(result.cronExpression).toBe('0 9 * * *')
       expect(result.nextRunAt).toEqual(new Date('2025-04-15T09:00:00Z'))
-      expect(mockTransaction).toHaveBeenCalled()
-      expect(mockInsert).toHaveBeenCalled()
-      expect(mockOnConflictDoUpdate).toHaveBeenCalled()
+      expect(dbChainMockFns.transaction).toHaveBeenCalled()
+      expect(dbChainMockFns.insert).toHaveBeenCalled()
+      expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalled()
     })
 
     it('should return error for invalid schedule block', async () => {
@@ -766,13 +701,11 @@ describe('Schedule Deploy Utilities', () => {
         } as BlockState,
       }
 
-      setupMockTransaction()
-
       const result = await createSchedulesForDeploy('workflow-1', blocks)
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('Time is required for daily schedules')
-      expect(mockTransaction).not.toHaveBeenCalled()
+      expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     })
 
     it('should write through a provided transaction without opening a new one', async () => {
@@ -788,15 +721,19 @@ describe('Schedule Deploy Utilities', () => {
         } as BlockState,
       }
 
-      setupMockTransaction()
-      const callerTx = { insert: mockInsert, delete: mockDelete, select: mockSelect } as any
+      /**
+       * A distinct object identity from `db` (the code under test treats
+       * `tx === db` as "no caller transaction"), but backed by the same chain
+       * spies so writes are still observable.
+       */
+      const callerTx = { ...dbChainMock.db } as any
 
       const result = await createSchedulesForDeploy('workflow-1', blocks, callerTx)
 
       expect(result.success).toBe(true)
-      expect(mockTransaction).not.toHaveBeenCalled()
-      expect(mockInsert).toHaveBeenCalled()
-      expect(mockOnConflictDoUpdate).toHaveBeenCalled()
+      expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+      expect(dbChainMockFns.insert).toHaveBeenCalled()
+      expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalled()
     })
 
     it('should use onConflictDoUpdate for existing schedules', async () => {
@@ -812,11 +749,9 @@ describe('Schedule Deploy Utilities', () => {
         } as BlockState,
       }
 
-      setupMockTransaction()
-
       await createSchedulesForDeploy('workflow-1', blocks, undefined, 'version-1', 'operation-1')
 
-      expect(mockOnConflictDoUpdate).toHaveBeenCalledWith({
+      expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledWith({
         target: expect.any(Array),
         targetWhere: expect.objectContaining({ type: 'isNull' }),
         set: expect.objectContaining({
@@ -842,7 +777,7 @@ describe('Schedule Deploy Utilities', () => {
         } as BlockState,
       }
 
-      mockTransaction.mockRejectedValueOnce(new Error('Database error'))
+      dbChainMockFns.transaction.mockRejectedValueOnce(new Error('Database error'))
 
       const result = await createSchedulesForDeploy('workflow-1', blocks)
 
@@ -853,15 +788,10 @@ describe('Schedule Deploy Utilities', () => {
 
   describe('deleteSchedulesForWorkflow', () => {
     it('should delete all schedules for a workflow', async () => {
-      const mockTx = {
-        insert: mockInsert,
-        delete: mockDelete,
-      }
+      await deleteSchedulesForWorkflow('workflow-1', dbChainMock.db as any)
 
-      await deleteSchedulesForWorkflow('workflow-1', mockTx as any)
-
-      expect(mockDelete).toHaveBeenCalled()
-      expect(mockWhere).toHaveBeenCalled()
+      expect(dbChainMockFns.delete).toHaveBeenCalled()
+      expect(dbChainMockFns.where).toHaveBeenCalled()
     })
   })
 })

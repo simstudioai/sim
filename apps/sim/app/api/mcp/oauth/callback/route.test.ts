@@ -3,12 +3,10 @@
  */
 import {
   authMockFns,
-  dbChainMock,
   dbChainMockFns,
   mcpOauthMock,
   mcpOauthMockFns,
   resetDbChainMock,
-  schemaMock,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,13 +15,6 @@ const { mockDiscoverServerTools } = vi.hoisted(() => ({
   mockDiscoverServerTools: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
-vi.mock('@sim/db/schema', () => schemaMock)
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  eq: vi.fn(),
-  isNull: vi.fn(),
-}))
 vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
 vi.mock('@/lib/mcp/service', () => ({
   mcpService: { discoverServerTools: mockDiscoverServerTools },

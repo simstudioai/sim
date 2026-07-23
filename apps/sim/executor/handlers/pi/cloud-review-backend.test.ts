@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { createLogger } from '@sim/logger'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -17,7 +18,6 @@ const {
   mockRemoveRuntimeApiKey,
   mockCreateSealedResourceLoader,
   mockCreatePiModelRuntime,
-  mockLoggerWarn,
 } = vi.hoisted(() => ({
   mockRun: vi.fn(),
   mockWriteFile: vi.fn(),
@@ -32,7 +32,6 @@ const {
   mockRemoveRuntimeApiKey: vi.fn(),
   mockCreateSealedResourceLoader: vi.fn(),
   mockCreatePiModelRuntime: vi.fn(),
-  mockLoggerWarn: vi.fn(),
 }))
 
 let sessionEventListener: ((raw: unknown) => void) | undefined
@@ -59,9 +58,6 @@ const mockModelRuntime = {
   removeRuntimeApiKey: mockRemoveRuntimeApiKey,
 }
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: mockLoggerWarn }),
-}))
 vi.mock('@/lib/execution/e2b', () => ({
   withPiSandbox: (fn: (runner: unknown) => unknown) =>
     fn({ run: mockRun, writeFile: mockWriteFile }),
@@ -94,6 +90,14 @@ vi.mock('@/executor/handlers/pi/pi-sdk', () => ({
 
 import type { PiCloudReviewRunParams } from '@/executor/handlers/pi/backend'
 import { runCloudReviewPi } from '@/executor/handlers/pi/cloud-review-backend'
+
+/**
+ * The mock logger instance the global `@sim/logger` mock handed to the module
+ * under test at import time, captured so the suite can assert on its warns.
+ */
+const mockLoggerWarn = vi.mocked(createLogger).mock.results[
+  vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'PiCloudReviewBackend')
+].value.warn as ReturnType<typeof vi.fn>
 
 const HEAD_SHA = 'a'.repeat(40)
 const BASE_SHA = 'b'.repeat(40)

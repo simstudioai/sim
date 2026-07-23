@@ -7,10 +7,11 @@ import {
   createMockRequest,
   envFlagsMock,
   hybridAuthMockFns,
+  resetEnvFlagsMock,
   workflowsUtilsMock,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockExecuteInE2B,
@@ -101,13 +102,13 @@ vi.mock('@/lib/uploads', () => ({
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
-
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { POST } from '@/app/api/function/execute/route'
+
+afterAll(resetEnvFlagsMock)
 
 describe('Function Execute API Route', () => {
   beforeEach(() => {

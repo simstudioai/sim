@@ -1,21 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockOrderBy, mockDecryptSecret } = vi.hoisted(() => ({
-  mockOrderBy: vi.fn(),
+const { mockDecryptSecret } = vi.hoisted(() => ({
   mockDecryptSecret: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({ orderBy: mockOrderBy })),
-      })),
-    })),
-  },
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
@@ -28,10 +18,6 @@ vi.mock('@/lib/core/config/api-keys', () => ({
 
 vi.mock('@/lib/core/config/env', () => ({
   env: {},
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: false,
 }))
 
 vi.mock('@/providers/models', () => ({
@@ -62,10 +48,12 @@ const uniqueWorkspaceId = () => `workspace-${++testIndex}`
 
 const storedKey = (id: string) => ({ id, encryptedApiKey: `encrypted-${id}` })
 
+afterAll(resetDbChainMock)
+
 describe('getBYOKKey', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockOrderBy.mockResolvedValue([])
+    resetDbChainMock()
     mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
       decrypted: encrypted.replace('encrypted-', 'decrypted-'),
     }))
@@ -82,7 +70,7 @@ describe('getBYOKKey', () => {
 
   it('returns the same key on every call when only one key is stored', async () => {
     const workspaceId = uniqueWorkspaceId()
-    mockOrderBy.mockResolvedValue([storedKey('key-1')])
+    dbChainMockFns.orderBy.mockResolvedValue([storedKey('key-1')])
 
     for (let call = 0; call < 3; call++) {
       expect(await getBYOKKey(workspaceId, 'openai')).toEqual({
@@ -94,7 +82,11 @@ describe('getBYOKKey', () => {
 
   it('round-robins across multiple keys in creation order', async () => {
     const workspaceId = uniqueWorkspaceId()
-    mockOrderBy.mockResolvedValue([storedKey('key-1'), storedKey('key-2'), storedKey('key-3')])
+    dbChainMockFns.orderBy.mockResolvedValue([
+      storedKey('key-1'),
+      storedKey('key-2'),
+      storedKey('key-3'),
+    ])
 
     const apiKeys = []
     for (let call = 0; call < 4; call++) {
@@ -112,18 +104,18 @@ describe('getBYOKKey', () => {
 
   it('reads the key list fresh from the database on every call', async () => {
     const workspaceId = uniqueWorkspaceId()
-    mockOrderBy.mockResolvedValue([storedKey('key-1')])
+    dbChainMockFns.orderBy.mockResolvedValue([storedKey('key-1')])
 
     await getBYOKKey(workspaceId, 'openai')
     await getBYOKKey(workspaceId, 'openai')
     await getBYOKKey(workspaceId, 'openai')
 
-    expect(mockOrderBy).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.orderBy).toHaveBeenCalledTimes(3)
   })
 
   it('tracks rotation independently per provider within a workspace', async () => {
     const workspaceId = uniqueWorkspaceId()
-    mockOrderBy.mockResolvedValue([storedKey('key-1'), storedKey('key-2')])
+    dbChainMockFns.orderBy.mockResolvedValue([storedKey('key-1'), storedKey('key-2')])
 
     expect((await getBYOKKey(workspaceId, 'openai'))?.apiKey).toBe('decrypted-key-1')
     expect((await getBYOKKey(workspaceId, 'anthropic'))?.apiKey).toBe('decrypted-key-1')
@@ -132,7 +124,7 @@ describe('getBYOKKey', () => {
 
   it('skips a key that fails to decrypt and returns the next one', async () => {
     const workspaceId = uniqueWorkspaceId()
-    mockOrderBy.mockResolvedValue([storedKey('key-1'), storedKey('key-2')])
+    dbChainMockFns.orderBy.mockResolvedValue([storedKey('key-1'), storedKey('key-2')])
     mockDecryptSecret.mockImplementation(async (encrypted: string) => {
       if (encrypted === 'encrypted-key-1') {
         throw new Error('corrupt ciphertext')
@@ -148,14 +140,14 @@ describe('getBYOKKey', () => {
 
   it('returns null when every key fails to decrypt', async () => {
     const workspaceId = uniqueWorkspaceId()
-    mockOrderBy.mockResolvedValue([storedKey('key-1'), storedKey('key-2')])
+    dbChainMockFns.orderBy.mockResolvedValue([storedKey('key-1'), storedKey('key-2')])
     mockDecryptSecret.mockRejectedValue(new Error('corrupt ciphertext'))
 
     expect(await getBYOKKey(workspaceId, 'openai')).toBeNull()
   })
 
   it('returns null when the keys query throws', async () => {
-    mockOrderBy.mockRejectedValue(new Error('database unavailable'))
+    dbChainMockFns.orderBy.mockRejectedValue(new Error('database unavailable'))
 
     expect(await getBYOKKey(uniqueWorkspaceId(), 'openai')).toBeNull()
   })

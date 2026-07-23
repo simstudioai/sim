@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 interface MockMcpClient {
   connect: ReturnType<typeof vi.fn>
@@ -40,7 +41,6 @@ const {
   mockGetOrCreateOauthRow: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({ isTest: false }))
 vi.mock('@/lib/mcp/pubsub', () => ({
   mcpPubSub: {
     onToolsChanged: mockOnToolsChanged,
@@ -63,6 +63,12 @@ vi.mock('@/lib/mcp/oauth', () => ({
 }))
 
 import { McpConnectionManager } from '@/lib/mcp/connection-manager'
+
+beforeAll(() => {
+  setEnvFlags({ isTest: false })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('McpConnectionManager', () => {
   let manager: McpConnectionManager | null = null

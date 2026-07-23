@@ -79,7 +79,6 @@ import {
   useCreateMcpServer,
   useForceRefreshMcpTools,
   useMcpServers,
-  useMcpToolsEvents,
   useStoredMcpTools,
 } from '@/hooks/queries/mcp'
 import { useWorkflowState, useWorkflows } from '@/hooks/queries/workflows'
@@ -570,7 +569,6 @@ export const ToolInput = memo(function ToolInput({
   const { data: mcpServers = [], isLoading: mcpServersLoading } = useMcpServers(workspaceId)
   const { data: storedMcpTools = [] } = useStoredMcpTools(workspaceId)
   const forceRefreshMcpTools = useForceRefreshMcpTools().mutate
-  useMcpToolsEvents(workspaceId)
   const { navigateToSettings } = useSettingsNavigation()
   const createMcpServer = useCreateMcpServer()
   const { startOauthForServer } = useMcpOauthPopup({ workspaceId })

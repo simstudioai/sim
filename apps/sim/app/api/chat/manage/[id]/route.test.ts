@@ -6,11 +6,14 @@
 import {
   auditMock,
   authMockFns,
-  dbChainMock,
   dbChainMockFns,
   encryptionMock,
   encryptionMockFns,
   resetDbChainMock,
+  resetEnvFlagsMock,
+  resetEnvMock,
+  setEnv,
+  setEnvFlags,
   workflowsApiUtilsMock,
   workflowsApiUtilsMockFns,
   workflowsOrchestrationMock,
@@ -18,7 +21,7 @@ import {
   workflowsPersistenceUtilsMock,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCheckChatAccess, mockValidateChatDeployAuth } = vi.hoisted(() => ({
   mockCheckChatAccess: vi.fn(),
@@ -37,17 +40,8 @@ const mockNotifySocketDeploymentChanged =
   workflowsOrchestrationMockFns.mockNotifySocketDeploymentChanged
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isDev: true,
-  isHosted: false,
-  isProd: false,
-}))
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
-vi.mock('@/lib/core/utils/urls', () => ({
-  getEmailDomain: vi.fn().mockReturnValue('localhost:3000'),
-}))
 vi.mock('@/app/api/chat/utils', () => ({
   checkChatAccess: mockCheckChatAccess,
 }))
@@ -65,6 +59,16 @@ vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
 import { DELETE, GET, PATCH } from '@/app/api/chat/manage/[id]/route'
 import { ChatDeployAuthNotAllowedError } from '@/ee/access-control/utils/permission-check'
+
+beforeAll(() => {
+  setEnvFlags({ isDev: true })
+  setEnv({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+})
+
+afterAll(() => {
+  resetEnvFlagsMock()
+  resetEnvMock()
+})
 
 describe('Chat Edit API Route', () => {
   beforeEach(() => {

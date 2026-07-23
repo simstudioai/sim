@@ -236,13 +236,17 @@ jobs:
           key: ${{ github.repository }}-turbo-cache-build-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./.turbo
 
-      - name: Restore Next.js build cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      # Turbopack's persistent build cache (NEXT_TURBOPACK_BUILD_CACHE below)
+      # writes ~5 GB into .next/cache — a sticky disk mounts it in ~1s where an
+      # actions/cache round-trip would eat the warm-build win. Same event/fork
+      # namespacing as the other mounts; the GitHub fallback inside cache-mount
+      # still uses actions/cache with a run_id-suffixed key.
+      - name: Mount Next.js build cache
+        uses: ./.github/actions/cache-mount
         with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-nextjs-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./apps/sim/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -258,4 +262,7 @@ jobs:
           AWS_REGION: 'us-west-2'
           ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
+          # Opt into Turbopack's persistent build cache (beta) for this CI
+          # check build only — measured 105s cold vs 22s warm locally.
+          NEXT_TURBOPACK_BUILD_CACHE: '1'
         run: bunx turbo run build --filter=sim

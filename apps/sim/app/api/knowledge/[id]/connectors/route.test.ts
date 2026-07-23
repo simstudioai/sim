@@ -5,45 +5,32 @@ import {
   auditMock,
   authOAuthUtilsMock,
   createMockRequest,
+  dbChainMockFns,
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
   knowledgeApiUtilsMockFns,
+  resetDbChainMock,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCaptureServerEvent,
-  mockDbChain,
   mockDispatchSync,
   mockEncryptApiKey,
   mockHasWorkspaceLiveSyncAccess,
   mockResolveBillingAttribution,
   mockValidateConfig,
-} = vi.hoisted(() => {
-  const chain = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn(),
-    execute: vi.fn(),
-    transaction: vi.fn(),
-    insert: vi.fn().mockReturnThis(),
-    values: vi.fn(),
-  }
-  return {
-    mockCaptureServerEvent: vi.fn(),
-    mockDbChain: chain,
-    mockDispatchSync: vi.fn(),
-    mockEncryptApiKey: vi.fn(),
-    mockHasWorkspaceLiveSyncAccess: vi.fn(),
-    mockResolveBillingAttribution: vi.fn(),
-    mockValidateConfig: vi.fn(),
-  }
-})
+} = vi.hoisted(() => ({
+  mockCaptureServerEvent: vi.fn(),
+  mockDispatchSync: vi.fn(),
+  mockEncryptApiKey: vi.fn(),
+  mockHasWorkspaceLiveSyncAccess: vi.fn(),
+  mockResolveBillingAttribution: vi.fn(),
+  mockValidateConfig: vi.fn(),
+}))
 
 const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWriteAccess
 
-vi.mock('@sim/db', () => ({ db: mockDbChain }))
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
@@ -103,18 +90,14 @@ describe('Knowledge Connectors API Route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbChain.select.mockReturnThis()
-    mockDbChain.from.mockReturnThis()
-    mockDbChain.where.mockReturnThis()
-    mockDbChain.insert.mockReturnThis()
-    mockDbChain.execute.mockResolvedValue(undefined)
-    mockDbChain.values.mockResolvedValue(undefined)
-    mockDbChain.transaction.mockImplementation(
-      async (callback: (tx: typeof mockDbChain) => unknown) => callback(mockDbChain)
-    )
+    resetDbChainMock()
     mockDispatchSync.mockResolvedValue(undefined)
     mockEncryptApiKey.mockResolvedValue({ encrypted: 'encrypted-api-key' })
     mockValidateConfig.mockResolvedValue({ valid: true })
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('queues the authenticated actor with the paid workspace payer', async () => {
@@ -135,7 +118,7 @@ describe('Knowledge Connectors API Route', () => {
     })
     mockHasWorkspaceLiveSyncAccess.mockResolvedValue(true)
     mockResolveBillingAttribution.mockResolvedValue(BILLING_ATTRIBUTION)
-    mockDbChain.limit.mockResolvedValueOnce([{ id: 'knowledge-base-1' }]).mockResolvedValueOnce([
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'knowledge-base-1' }]).mockResolvedValueOnce([
       {
         id: 'connector-1',
         knowledgeBaseId: 'knowledge-base-1',

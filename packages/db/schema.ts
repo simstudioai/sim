@@ -1230,12 +1230,36 @@ export interface DataRetentionSettings {
   retentionOverrides?: RetentionOverride[] | null
 }
 
+/**
+ * Org-level session policy (enterprise). Absent or empty = Better Auth
+ * defaults (30-day sliding sessions). `maxSessionHours` caps absolute session
+ * lifetime from creation; `idleTimeoutHours` caps time between refreshes.
+ * Enforced by clamping `session.expiresAt` in the Better Auth session
+ * create/update database hooks; `securityPolicyVersion` invalidates cached
+ * session cookies org-wide when bumped.
+ */
+export interface SessionPolicySettings {
+  /** Absolute session lifetime cap in hours from session creation. */
+  maxSessionHours?: number | null
+  /** Idle timeout in hours — session expires this long after its last refresh. */
+  idleTimeoutHours?: number | null
+}
+
 export const organization = pgTable('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   slug: text('slug').notNull(),
   logo: text('logo'),
   metadata: json('metadata'),
+  sessionPolicySettings: json('session_policy_settings').$type<SessionPolicySettings>(),
+  /**
+   * Monotonic counter embedded in the Better Auth cookie-cache version for
+   * this org's members. Bumped on any security-policy change or org-wide
+   * session revocation so every cached session cookie in the org is
+   * invalidated (falls through to a DB session read) within the policy
+   * cache TTL instead of the 24h cookie-cache lifetime.
+   */
+  securityPolicyVersion: integer('security_policy_version').notNull().default(1),
   whitelabelSettings: json('whitelabel_settings').$type<{
     brandName?: string
     logoUrl?: string

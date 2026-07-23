@@ -1,15 +1,21 @@
 /**
  * @vitest-environment node
  */
-import { createEnvMock, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMockFns,
+  defaultMockEnv,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { env } from '@/lib/core/config/env'
 
 const { mockBatchTrigger } = vi.hoisted(() => ({
   mockBatchTrigger: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@trigger.dev/sdk', () => ({
   tasks: {
     batchTrigger: mockBatchTrigger,
@@ -18,11 +24,20 @@ vi.mock('@trigger.dev/sdk', () => ({
 vi.mock('@/lib/core/async-jobs/region', () => ({
   resolveTriggerRegion: vi.fn().mockResolvedValue('us-east-1'),
 }))
-vi.mock('@/lib/core/config/env', () => createEnvMock({ TRIGGER_SECRET_KEY: 'trigger-secret' }))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  getCostMultiplier: vi.fn().mockReturnValue(1),
-  isTriggerDevEnabled: true,
-}))
+/**
+ * Under `isolate: false` the shared `@/lib/knowledge/embeddings` /
+ * `documents/service` modules may be cached bound to the REAL env module, so
+ * mutate the real `env` object per test (restored afterAll) instead of
+ * vi.mock'ing a file-local replacement a cached consumer would never see.
+ */
+const envSnapshot = { ...env }
+
+afterAll(() => {
+  for (const key of Object.keys(env)) {
+    delete (env as Record<string, unknown>)[key]
+  }
+  Object.assign(env, envSnapshot)
+})
 
 import { processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 
@@ -47,11 +62,21 @@ const DOCUMENT = {
   mimeType: 'text/plain',
 }
 
+beforeAll(() => {
+  setEnvFlags({ isTriggerDevEnabled: true })
+})
+
+afterAll(resetEnvFlagsMock)
+
 describe('processDocumentsWithQueue billing attribution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockBatchTrigger.mockResolvedValue({ batchId: 'batch-1' })
+    for (const key of Object.keys(env)) {
+      delete (env as Record<string, unknown>)[key]
+    }
+    Object.assign(env, { ...defaultMockEnv, TRIGGER_SECRET_KEY: 'trigger-secret' })
   })
 
   it('validates and preserves workspace attribution before enqueue', async () => {
