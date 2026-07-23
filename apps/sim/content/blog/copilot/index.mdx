@@ -15,6 +15,19 @@ timeRequired: PT7M
 canonical: https://www.sim.ai/blog/copilot
 featured: false
 draft: true
+faq:
+  - q: "What is Sim Copilot?"
+    a: "Copilot is a context-aware assistant embedded directly in the Sim editor. It has first-class access, with user approval, to your workflows, blocks, logs, and docs, and the system is retrieval-centric with strong guardrails and deterministic execution paths."
+  - q: "How does Copilot retrieve context from my workflows?"
+    a: "Copilot indexes workspace workflows, block metadata, execution logs, and product docs using hybrid scoring that combines BM25 lexical search with embeddings, plus recency decay and per-source caps. Content is chunked with stable anchors so proposed diffs stay line-referential."
+  - q: "Can Copilot make changes to my workflows automatically?"
+    a: "No. All writes are gated behind explicit user approval in a human-in-the-loop model: diffs are reviewed and applied only on approval. Actions are also scope-limited to the open workspace and require explicit user triggers."
+  - q: "What kinds of actions can Copilot take beyond answering questions?"
+    a: "Copilot's tooling spans read-only tools like explain, compare, and search; propose-changes tools that generate diffs; and execution tools for approved actions. It can also help set up test runs and compare outputs side by side."
+  - q: "How accurate is Copilot at proposing fixes or generating block configurations?"
+    a: "The post is explicit that this section is a benchmark scaffold: the listed numbers, including 92% top-1 retrieval and 88% edit accuracy for explaining a workflow block, versus 74% retrieval and 65% edit accuracy for generating a new block configuration, are described as placeholders for the table's structure rather than results from completed benchmark runs. Sim plans to publish a full benchmark harness with anonymized evaluation sets and a detailed methodology post."
+  - q: "Does Copilot use the same permissions as the rest of Sim?"
+    a: "Yes. Copilot works with the same permissions model already used in Sim, and it enforces scope so actions stay limited to the open workspace, with sensitive data policies and redaction applied in logs."
 ---
 
 > This is a technical deep‑dive scaffold for Sim Copilot. We’ll keep updating it as we publish more results and open up additional capabilities.

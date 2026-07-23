@@ -82,6 +82,22 @@ describe('POST /api/v1/workflows/[id]/deploy', () => {
       deployedAt: new Date('2026-06-12T00:00:00Z'),
       version: 4,
       warnings: undefined,
+      activeDeployment: {
+        deploymentVersionId: 'dv-4',
+        version: 4,
+        deployedAt: '2026-06-12T00:00:00.000Z',
+      },
+      latestDeploymentAttempt: {
+        id: 'op-1',
+        deploymentVersionId: 'dv-4',
+        version: 4,
+        action: 'deploy',
+        status: 'active',
+        readiness: { webhooks: 'ready', schedules: 'ready', mcp: 'ready' },
+        requestedAt: '2026-06-12T00:00:00.000Z',
+        activatedAt: '2026-06-12T00:00:00.000Z',
+        error: null,
+      },
     })
   })
 
@@ -163,6 +179,8 @@ describe('POST /api/v1/workflows/[id]/deploy', () => {
       deployedAt: '2026-06-12T00:00:00.000Z',
       version: 4,
       warnings: [],
+      activeDeployment: expect.objectContaining({ deploymentVersionId: 'dv-4', version: 4 }),
+      latestDeploymentAttempt: expect.objectContaining({ id: 'op-1', status: 'active' }),
     })
   })
 
@@ -179,12 +197,11 @@ describe('POST /api/v1/workflows/[id]/deploy', () => {
         versionDescription: 'Fixes the agent prompt',
       })
     )
-    expect(mockCaptureServerEvent).toHaveBeenCalledWith(
-      'user-1',
-      'workflow_deployed',
-      expect.objectContaining({ workflow_id: WORKFLOW_ID }),
-      expect.anything()
-    )
+    /**
+     * The workflow_deployed analytics event is emitted by the activation
+     * side effects in the deployment outbox, not by this route.
+     */
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 
   it('maps validation failures from the orchestration to 400', async () => {

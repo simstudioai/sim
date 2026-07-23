@@ -6,6 +6,7 @@ export const LogsBlock: BlockConfig = {
   type: 'logs',
   name: 'Logs',
   hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'logs_v2' },
   description: 'Query workflow execution logs',
   longDescription:
     'Search workflow execution logs in the current workspace, fetch a single log by id, or load full execution details with the per-block state snapshot.',

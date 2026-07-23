@@ -14,6 +14,7 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
   name: 'Pulse',
   description: 'Extract text from documents using Pulse OCR',
   hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'pulse_v2' },
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via URL or upload.',
@@ -162,6 +163,7 @@ const pulseV2SubBlocks = (PulseBlock.subBlocks || []).flatMap((subBlock) => {
 
 export const PulseV2Block: BlockConfig<PulseParserOutput> = {
   ...PulseBlock,
+  sunset: undefined,
   type: 'pulse_v2',
   name: 'Pulse',
   hideFromToolbar: false,

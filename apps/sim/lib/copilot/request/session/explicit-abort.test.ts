@@ -1,7 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+beforeAll(() => {
+  setEnv({ COPILOT_API_KEY: 'sim-agent-key' })
+})
+
+afterAll(resetEnvMock)
 
 const { mockFetchGo } = vi.hoisted(() => ({
   mockFetchGo: vi.fn(),
@@ -14,13 +21,6 @@ vi.mock('@/lib/copilot/request/go/fetch', () => ({
 vi.mock('@/lib/copilot/server/agent-url', () => ({
   getMothershipBaseURL: vi.fn().mockResolvedValue('https://copilot.test'),
   getMothershipSourceEnvHeaders: vi.fn().mockReturnValue({ 'X-Sim-Source-Env': 'test' }),
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: { COPILOT_API_KEY: 'sim-agent-key' },
-  getEnv: vi.fn().mockReturnValue(undefined),
-  isTruthy: (value: unknown) => Boolean(value),
-  isFalsy: (value: unknown) => value === false,
 }))
 
 import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'

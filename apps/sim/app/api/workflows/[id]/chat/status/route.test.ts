@@ -4,7 +4,6 @@
  * @vitest-environment node
  */
 import {
-  dbChainMock,
   dbChainMockFns,
   hybridAuthMockFns,
   resetDbChainMock,
@@ -13,13 +12,6 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => dbChainMock)
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
-  eq: vi.fn(),
-  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
-}))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 

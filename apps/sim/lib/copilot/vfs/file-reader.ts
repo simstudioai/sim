@@ -1,6 +1,7 @@
 import { type Span, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import type { SharpConstructor } from 'sharp'
 import {
   CopilotVfsOutcome,
   CopilotVfsReadOutcome,
@@ -26,7 +27,8 @@ function recordSpanError(span: Span, err: unknown) {
 
 const logger = createLogger('FileReader')
 
-const MAX_TEXT_READ_BYTES = 5 * 1024 * 1024 // 5 MB
+/** Inline text-read cap — exported so callers can align their own byte-sniff budgets with what read() can actually display. */
+export const MAX_TEXT_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 // Parseable-document byte cap. Large office/PDF files can still
 // produce huge extracted text; reject up front to avoid wasting a
@@ -105,7 +107,7 @@ async function prepareImageForVision(
         const mediaType = detectImageMime(buffer, claimedType)
         span.setAttribute(TraceAttr.CopilotVfsInputMediaTypeDetected, mediaType)
 
-        let sharpModule: typeof import('sharp')
+        let sharpModule: SharpConstructor
         try {
           sharpModule = (await import('sharp')).default
         } catch (err) {

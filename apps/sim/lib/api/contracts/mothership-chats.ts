@@ -6,8 +6,12 @@ const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(v
   message: 'Expected a valid date string',
 })
 
+export const mothershipChatScopeSchema = z.enum(['active', 'archived'])
+export type MothershipChatScope = z.output<typeof mothershipChatScopeSchema>
+
 export const listMothershipChatsQuerySchema = z.object({
   workspaceId: z.string().min(1),
+  scope: mothershipChatScopeSchema.default('active'),
 })
 
 export const mothershipChatParamsSchema = z.object({
@@ -68,6 +72,35 @@ const mothershipExecuteFileAttachmentSchema = z
   })
   .passthrough()
 
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
+const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(jsonValueSchema),
+    z.record(z.string(), jsonValueSchema),
+  ])
+)
+const mothershipExecuteMcpInputSchema = z.record(z.string(), jsonValueSchema)
+
+const mothershipExecuteMcpToolSchema = z
+  .object({
+    type: z.literal('mcp'),
+    usageControl: z.enum(['auto', 'force', 'none']).optional(),
+    title: z.string().optional(),
+    schema: mothershipExecuteMcpInputSchema.optional(),
+    params: z
+      .object({
+        serverId: z.string().min(1),
+        toolName: z.string().min(1),
+        serverName: z.string().optional(),
+      })
+      .passthrough(),
+  })
+  .passthrough()
+
 export const mothershipExecuteBodySchema = z.object({
   messages: z.array(mothershipExecuteMessageSchema).min(1, 'At least one message is required'),
   responseFormat: z.any().optional(),
@@ -83,6 +116,7 @@ export const mothershipExecuteBodySchema = z.object({
    * captured contexts must reach the run without a live client.
    */
   contexts: z.array(scheduleContextSchema).optional(),
+  mcpTools: z.array(mothershipExecuteMcpToolSchema).optional(),
   workflowId: z.string().optional(),
   executionId: z.string().optional(),
   userMetadata: z
@@ -221,6 +255,7 @@ export const mothershipChatSchema = z.object({
   activeStreamId: z.string().nullable(),
   lastSeenAt: dateStringSchema.nullable(),
   pinned: z.boolean(),
+  deletedAt: dateStringSchema.nullable(),
 })
 
 export const listMothershipChatsContract = defineRouteContract({
@@ -261,6 +296,18 @@ export const deleteMothershipChatContract = defineRouteContract({
   },
 })
 
+export const restoreMothershipChatContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/mothership/chats/[chatId]/restore',
+  params: mothershipChatParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+    }),
+  },
+})
+
 export const forkMothershipChatBodySchema = z.object({
   upToMessageId: z.string().min(1, 'upToMessageId is required'),
 })
@@ -276,6 +323,13 @@ export const forkMothershipChatContract = defineRouteContract({
     schema: z.object({
       success: z.literal(true),
       id: z.string(),
+      /**
+       * Present (and > 0) when some file blobs could not be byte-copied: the
+       * new chat exists and its transcript references those copies, but their
+       * bytes are missing (blob copies are best-effort, post-transaction).
+       * Callers should surface a warning.
+       */
+      failedFileCopies: z.number().optional(),
     }),
   },
 })

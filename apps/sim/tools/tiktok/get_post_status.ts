@@ -20,13 +20,13 @@ export const tiktokGetPostStatusTool: ToolConfig<
   id: 'tiktok_get_post_status',
   name: 'TikTok Get Post Status',
   description:
-    'Check the status of a post initiated with Direct Post Video or Upload Video Draft. Use the publishId returned from the post request to track progress.',
+    'Check the status of a video draft upload. Use the publishId returned from Upload Video Draft to track progress.',
   version: '1.0.0',
 
   oauth: {
     required: true,
     provider: 'tiktok',
-    requiredScopes: ['video.publish', 'video.upload'],
+    requiredScopes: ['video.upload'],
   },
 
   params: {

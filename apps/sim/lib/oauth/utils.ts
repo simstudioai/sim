@@ -126,7 +126,6 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'user.info.basic': "Read a user's profile info (open id, avatar, display name)",
   'user.info.profile': "Read a user's profile info (bio, verification status, username)",
   'user.info.stats': "Read a user's stats (follower, following, likes, and video counts)",
-  'video.publish': "Directly post content to a user's TikTok profile",
   'video.upload': "Share content to a creator's account as a draft for further edit and post",
   'video.list': "Read a user's public TikTok videos",
 
@@ -358,6 +357,13 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
 
   // LinkedIn scopes
   w_member_social: 'Access LinkedIn profile',
+
+  // Instagram scopes (Business Login for Instagram)
+  instagram_business_basic: 'Access Instagram professional profile and media',
+  instagram_business_content_publish: 'Publish photos, videos, reels, and stories',
+  instagram_business_manage_comments: 'Read, reply to, hide, and delete comments',
+  instagram_business_manage_messages: 'Read conversations and send Instagram Direct messages',
+  instagram_business_manage_insights: 'Read account and media insights',
 
   // Box scopes
   root_readwrite: 'Read and write all files and folders in Box account',
@@ -602,6 +608,18 @@ for (const [baseProviderId, providerConfig] of Object.entries(OAUTH_PROVIDERS)) 
     PROVIDER_ID_TO_BASE_PROVIDER[service.providerId] = {
       baseProvider: baseProviderId,
       serviceKey,
+    }
+    // Service-account credentials are stored under `serviceAccountProviderId`
+    // (e.g. `claude-platform-service-account`). Map it to the same base so
+    // icon/name resolution doesn't fall back to a mis-split base provider — the
+    // hyphen split only recovers a single-segment base (`google`), not a
+    // multi-segment one (`claude-platform`). First service to claim it wins.
+    const saProviderId = service.serviceAccountProviderId
+    if (saProviderId && !PROVIDER_ID_TO_BASE_PROVIDER[saProviderId]) {
+      PROVIDER_ID_TO_BASE_PROVIDER[saProviderId] = {
+        baseProvider: baseProviderId,
+        serviceKey,
+      }
     }
   }
 }

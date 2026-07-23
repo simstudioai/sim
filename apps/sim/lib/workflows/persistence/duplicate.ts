@@ -326,6 +326,7 @@ export async function duplicateWorkflow(
         if (updatedSubBlocks && typeof updatedSubBlocks === 'object') {
           updatedSubBlocks = remapConditionIdsInSubBlocks(
             updatedSubBlocks as Record<string, any>,
+            block.type,
             block.id,
             newBlockId
           )

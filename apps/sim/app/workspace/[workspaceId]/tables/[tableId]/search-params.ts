@@ -1,6 +1,5 @@
 import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
-
-const SORT_DIRECTIONS = ['asc', 'desc'] as const
+import { SORT_DIRECTIONS } from '@/lib/url-state'
 
 /** Default sort direction applied when a sort column is selected. */
 export const DEFAULT_TABLE_DETAIL_SORT_DIRECTION = 'asc'

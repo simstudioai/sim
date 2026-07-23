@@ -1,10 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { e2bFlag, betaFlag, mockLoadCompiledDoc, mockRunSandboxTask } = vi.hoisted(() => ({
-  e2bFlag: { value: true },
+const { betaFlag, mockLoadCompiledDoc, mockRunSandboxTask } = vi.hoisted(() => ({
   betaFlag: { value: false },
   mockLoadCompiledDoc: vi.fn(),
   mockRunSandboxTask: vi.fn(),
@@ -31,11 +31,6 @@ vi.mock('./doc-compiled-store', () => ({
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isFeatureEnabled: vi.fn(async () => betaFlag.value),
 }))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isE2BDocEnabled() {
-    return e2bFlag.value
-  },
-}))
 vi.mock('@/app/api/files/utils', () => ({
   getContentType: (name: string) =>
     name.endsWith('.pdf')
@@ -53,10 +48,12 @@ const PDF_SOURCE = Buffer.from('from reportlab.pdfgen import canvas\n# generates
 const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x01])
 const XLSX_SOURCE = Buffer.from('from openpyxl import Workbook\n# generates an xlsx', 'utf-8')
 
+afterAll(resetEnvFlagsMock)
+
 describe('resolveServableDocBytes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    e2bFlag.value = true
+    setEnvFlags({ isE2BDocEnabled: true })
     betaFlag.value = false
   })
 
@@ -93,7 +90,7 @@ describe('resolveServableDocBytes', () => {
 
   it('throws DocCompileUserError when a generated doc artifact is not ready (E2B regime)', async () => {
     mockLoadCompiledDoc.mockResolvedValue(null)
-    e2bFlag.value = true
+    setEnvFlags({ isE2BDocEnabled: true })
 
     await expect(
       resolveServableDocBytes({
@@ -108,7 +105,7 @@ describe('resolveServableDocBytes', () => {
 
   it('compiles via the sandbox when E2B is disabled and no artifact is stored', async () => {
     mockLoadCompiledDoc.mockResolvedValue(null)
-    e2bFlag.value = false
+    setEnvFlags({ isE2BDocEnabled: false })
     const compiled = Buffer.from('%PDF-isolated-vm-binary')
     mockRunSandboxTask.mockResolvedValue(compiled)
 
@@ -153,7 +150,7 @@ describe('resolveServableDocBytes', () => {
 
   it('throws when a generated XLSX artifact is not ready (E2B + mothership-beta enabled)', async () => {
     mockLoadCompiledDoc.mockResolvedValue(null)
-    e2bFlag.value = true
+    setEnvFlags({ isE2BDocEnabled: true })
     betaFlag.value = true
 
     await expect(

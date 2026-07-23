@@ -1,8 +1,8 @@
 import type { ComponentType } from 'react'
+import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import integrationsJson from '@/lib/integrations/integrations.json'
 import type { Integration } from '@/lib/integrations/types'
 import { getServiceConfigByServiceId } from '@/lib/oauth'
-import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 
 const INTEGRATIONS_DATA: readonly Integration[] =
@@ -25,24 +25,6 @@ export interface OAuthServiceMatch {
    * connect option.
    */
   serviceAccountProviderId?: ServiceAccountProviderId
-}
-
-/**
- * Narrows the runtime `OAuthServiceConfig.serviceAccountProviderId` string to
- * the {@link ServiceAccountProviderId} union. Anything outside the union is
- * unsupported by `ConnectServiceAccountModal` and is silently ignored.
- */
-function asServiceAccountProviderId(
-  value: string | undefined
-): ServiceAccountProviderId | undefined {
-  if (
-    value === 'google-service-account' ||
-    value === 'atlassian-service-account' ||
-    value === SLACK_CUSTOM_BOT_PROVIDER_ID
-  ) {
-    return value
-  }
-  return undefined
 }
 
 /**
@@ -76,4 +58,105 @@ export function resolveOAuthServiceForSlug(slug: string): OAuthServiceMatch | nu
   const integration = INTEGRATIONS_DATA.find((entry) => entry.slug === slug)
   if (!integration) return null
   return resolveOAuthServiceForIntegration(integration)
+}
+
+/**
+ * An integration that exposes a service-account connect flow, resolved to the
+ * catalog slug whose detail page mounts `ConnectServiceAccountModal`.
+ */
+export interface ServiceAccountIntegrationMatch {
+  slug: string
+  serviceAccountProviderId: ServiceAccountProviderId
+  serviceName: string
+  providerId: string
+}
+
+/**
+ * Slug to prefer for a query that names a family rather than one of its
+ * integrations — either the shared service-account provider id or the bare
+ * base provider. Every Google integration issues the same
+ * `google-service-account` credential and every Atlassian one the same
+ * `atlassian-service-account`, so an unqualified request has to land
+ * somewhere; these are the most general surface of each family.
+ *
+ * Without the bare-provider entries, fuzzy matching resolves `google` to
+ * whichever Google integration sorts first in the catalog (BigQuery), which is
+ * both arbitrary and a poor landing page. A caller that names a specific
+ * integration still gets that integration.
+ */
+const CANONICAL_SERVICE_ACCOUNT_SLUGS: Readonly<Record<string, string>> = {
+  'google-service-account': 'google-drive',
+  google: 'google-drive',
+  'atlassian-service-account': 'jira',
+  atlassian: 'jira',
+} as const
+
+/**
+ * Every integration that offers a service-account flow, in catalog order.
+ * Built once — `resolveOAuthServiceForIntegration` walks `OAUTH_PROVIDERS` per
+ * entry, which is wasted work to repeat on each lookup.
+ */
+const SERVICE_ACCOUNT_INTEGRATIONS: readonly ServiceAccountIntegrationMatch[] =
+  INTEGRATIONS_DATA.flatMap((integration) => {
+    const match = resolveOAuthServiceForIntegration(integration)
+    if (!match?.serviceAccountProviderId) return []
+    return [
+      {
+        slug: integration.slug,
+        serviceAccountProviderId: match.serviceAccountProviderId,
+        serviceName: integration.name,
+        providerId: match.providerId,
+      },
+    ]
+  })
+
+/**
+ * Resolves a loosely-specified integration name to the service-account setup
+ * surface for it. Accepts a catalog slug (`google-sheets`), an OAuth provider
+ * value (`google-email`), a service-account provider id
+ * (`google-service-account`), or a display name (`Google Sheets`).
+ *
+ * Exact matches are tried before fuzzy ones so a caller naming a specific
+ * integration always lands on it: `gmail` must not fall through to Drive just
+ * because both issue the same Google service account. A bare service-account
+ * provider id names no single integration, so it resolves through
+ * {@link CANONICAL_SERVICE_ACCOUNT_SLUGS}.
+ *
+ * The id-based lookups also accept the space/underscore-normalized form
+ * (`slack custom bot`, `notion_service_account`) that `oauth_get_auth_link`'s
+ * guard rejects and steers toward a `service_account` tag — otherwise the chat
+ * renderer would fail to resolve exactly the forms the guard produced.
+ *
+ * Returns `null` when nothing matches or the named integration has no
+ * service-account flow — callers should fall back to OAuth rather than
+ * inventing a link.
+ */
+export function resolveServiceAccountIntegration(
+  providerName: string
+): ServiceAccountIntegrationMatch | null {
+  const query = providerName.toLowerCase().trim()
+  if (!query) return null
+  // Hyphenated form for id lookups (slug / providerId / SA-id are hyphenated);
+  // the raw query is kept for display-name matches, which aren't hyphenated.
+  const idQuery = query.replace(/[\s_]+/g, '-')
+
+  const canonicalSlug = CANONICAL_SERVICE_ACCOUNT_SLUGS[idQuery]
+  if (canonicalSlug) {
+    const canonical = SERVICE_ACCOUNT_INTEGRATIONS.find((entry) => entry.slug === canonicalSlug)
+    if (canonical) return canonical
+  }
+
+  return (
+    SERVICE_ACCOUNT_INTEGRATIONS.find((entry) => entry.slug === idQuery) ??
+    SERVICE_ACCOUNT_INTEGRATIONS.find((entry) => entry.providerId.toLowerCase() === idQuery) ??
+    SERVICE_ACCOUNT_INTEGRATIONS.find(
+      (entry) => entry.serviceAccountProviderId.toLowerCase() === idQuery
+    ) ??
+    SERVICE_ACCOUNT_INTEGRATIONS.find((entry) => entry.serviceName.toLowerCase() === query) ??
+    SERVICE_ACCOUNT_INTEGRATIONS.find(
+      (entry) =>
+        entry.serviceName.toLowerCase().includes(query) || entry.slug.replace(/-/g, ' ') === query
+    ) ??
+    null
+  )
 }

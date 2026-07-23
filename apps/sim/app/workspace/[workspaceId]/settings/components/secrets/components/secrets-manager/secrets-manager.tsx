@@ -20,6 +20,7 @@ import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/compone
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { isValidEnvVarName } from '@/executor/constants'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import {
@@ -362,7 +363,7 @@ export function SecretsManager() {
   const [newWorkspaceRows, setNewWorkspaceRows] = useState<UIEnvironmentVariable[]>([
     createEmptyEnvVar(),
   ])
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
   const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
   const [renamingKey, setRenamingKey] = useState<string | null>(null)

@@ -5,14 +5,17 @@
 import type { webhook, workflow } from '@sim/db/schema'
 import {
   createMockRequest,
-  envFlagsMock,
+  dbChainMock,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
 import type { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ADMISSION_ERROR_CODE,
   ADMISSION_RETRY_AFTER_SECONDS,
@@ -33,7 +36,6 @@ const {
   mockReleaseExecutionSlot,
   mockProviderHandler,
   mockShouldExecuteInline,
-  mockWebhookLookupResult,
 } = vi.hoisted(() => ({
   mockGenerateId: vi.fn(),
   mockAdmissionRelease: vi.fn(),
@@ -42,32 +44,11 @@ const {
   mockReleaseExecutionSlot: vi.fn(),
   mockProviderHandler: { current: {} as Record<string, unknown> },
   mockShouldExecuteInline: vi.fn(),
-  mockWebhookLookupResult: { rows: [] as WebhookLookupRow[] },
 }))
 
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 
-vi.mock('@sim/db', () => {
-  const selectChain = {
-    from: () => selectChain,
-    innerJoin: () => selectChain,
-    leftJoin: () => selectChain,
-    where: () => Promise.resolve(mockWebhookLookupResult.rows),
-  }
-  return {
-    db: { select: () => selectChain },
-    webhook: {},
-    workflow: {},
-    workflowDeploymentVersion: {},
-  }
-})
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  eq: vi.fn(),
-  isNull: vi.fn(),
-  or: vi.fn(),
-}))
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 vi.mock('@sim/utils/id', () => ({
   generateId: mockGenerateId,
@@ -96,14 +77,8 @@ vi.mock('@/lib/core/admission/gate', () => ({
   tryAdmit: vi.fn(() => ({ release: mockAdmissionRelease })),
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
-
 vi.mock('@sim/security/compare', () => ({
   safeCompare: vi.fn().mockReturnValue(true),
-}))
-
-vi.mock('@/lib/environment/utils', () => ({
-  getEffectiveDecryptedEnv: vi.fn().mockResolvedValue({}),
 }))
 
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
@@ -159,6 +134,8 @@ import {
   handleWebhookEventFilter,
   processPolledWebhookEvent,
 } from '@/lib/webhooks/processor'
+
+afterAll(resetDbChainMock)
 
 function makeWebhookRecord(overrides: Partial<WebhookRecord>): WebhookRecord {
   const now = new Date('2026-01-01T00:00:00.000Z')
@@ -221,7 +198,7 @@ const billingAttribution = {
 describe('findAllWebhooksForPath cross-tenant collision', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockWebhookLookupResult.rows = []
+    resetDbChainMock()
   })
 
   const makeRow = (workflowId: string, webhookId: string, createdAt: Date) => ({
@@ -229,11 +206,16 @@ describe('findAllWebhooksForPath cross-tenant collision', () => {
     workflow: { id: workflowId },
   })
 
+  const queueLookup = (rows: WebhookLookupRow[], claim: Array<{ workflowId: string }> = []) => {
+    queueTableRows(schemaMock.webhook, rows)
+    queueTableRows(schemaMock.webhookPathClaim, claim)
+  }
+
   it('returns all rows when they belong to a single workflow', async () => {
-    mockWebhookLookupResult.rows = [
+    queueLookup([
       makeRow('workflow-1', 'wh-a', new Date('2026-01-01')),
       makeRow('workflow-1', 'wh-b', new Date('2026-01-02')),
-    ]
+    ])
 
     const results = await findAllWebhooksForPath({ requestId: 'req-1', path: 'shared-path' })
 
@@ -244,7 +226,7 @@ describe('findAllWebhooksForPath cross-tenant collision', () => {
   it('drops foreign rows when a path collides across workflows, keeping the earliest owner', async () => {
     const victim = makeRow('victim-workflow', 'victim-wh', new Date('2026-01-01'))
     const attacker = makeRow('attacker-workflow', 'attacker-wh', new Date('2026-05-01'))
-    mockWebhookLookupResult.rows = [attacker, victim]
+    queueLookup([attacker, victim])
 
     const results = await findAllWebhooksForPath({ requestId: 'req-2', path: 'shared-path' })
 
@@ -253,11 +235,33 @@ describe('findAllWebhooksForPath cross-tenant collision', () => {
     expect(results[0].webhook.workflowId).toBe('victim-workflow')
   })
 
+  it('prefers the path-claim owner over an earlier-created interloper', async () => {
+    const interloper = makeRow('interloper-workflow', 'interloper-wh', new Date('2026-01-01'))
+    const claimHolder = makeRow('claim-workflow', 'claim-wh', new Date('2026-05-01'))
+    queueLookup([interloper, claimHolder], [{ workflowId: 'claim-workflow' }])
+
+    const results = await findAllWebhooksForPath({ requestId: 'req-6', path: 'shared-path' })
+
+    expect(results).toHaveLength(1)
+    expect(results[0].webhook.workflowId).toBe('claim-workflow')
+  })
+
+  it('falls back to earliest registration when the claim owner has no deliverable rows', async () => {
+    const victim = makeRow('victim-workflow', 'victim-wh', new Date('2026-01-01'))
+    const attacker = makeRow('attacker-workflow', 'attacker-wh', new Date('2026-05-01'))
+    queueLookup([attacker, victim], [{ workflowId: 'absent-workflow' }])
+
+    const results = await findAllWebhooksForPath({ requestId: 'req-7', path: 'shared-path' })
+
+    expect(results).toHaveLength(1)
+    expect(results[0].webhook.workflowId).toBe('victim-workflow')
+  })
+
   it("preserves the owner's full multi-webhook match while dropping a foreign row", async () => {
     const victimA = makeRow('victim-workflow', 'victim-wh-a', new Date('2026-01-01'))
     const victimB = makeRow('victim-workflow', 'victim-wh-b', new Date('2026-01-03'))
     const attacker = makeRow('attacker-workflow', 'attacker-wh', new Date('2026-05-01'))
-    mockWebhookLookupResult.rows = [victimB, attacker, victimA]
+    queueLookup([victimB, attacker, victimA])
 
     const results = await findAllWebhooksForPath({ requestId: 'req-5', path: 'shared-path' })
 
@@ -267,8 +271,6 @@ describe('findAllWebhooksForPath cross-tenant collision', () => {
   })
 
   it('returns an empty array when no webhooks match', async () => {
-    mockWebhookLookupResult.rows = []
-
     const results = await findAllWebhooksForPath({ requestId: 'req-3', path: 'missing' })
 
     expect(results).toEqual([])
@@ -436,6 +438,7 @@ describe('webhook processor execution identity', () => {
       makeWebhookRecord({
         path: 'incoming/gmail',
         provider: 'gmail',
+        deploymentVersionId: 'deployment-admitted',
       }),
       makeWorkflowRecord({}),
       { event: 'message.received' },
@@ -453,6 +456,7 @@ describe('webhook processor execution identity', () => {
       expect.objectContaining({
         workflowId: 'workflow-1',
         provider: 'gmail',
+        deploymentVersionId: 'deployment-admitted',
       }),
       expect.objectContaining({
         metadata: expect.objectContaining({

@@ -9,6 +9,7 @@ import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/ut
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
+import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
@@ -581,6 +582,8 @@ export class AgentBlockHandler implements BlockHandler {
       getTool,
       canonicalModes,
       toolIndex,
+      resolveCustomBlockBinding: (blockType: string) =>
+        resolveCustomBlockToolBinding(blockType, ctx.workspaceId),
     })
 
     if (transformedTool) {
@@ -1034,6 +1037,7 @@ export class AgentBlockHandler implements BlockHandler {
         blockNameMapping,
         isDeployedContext: ctx.isDeployedContext,
         callChain: ctx.callChain,
+        billingAttribution: ctx.metadata.billingAttribution,
         reasoningEffort: providerRequest.reasoningEffort,
         verbosity: providerRequest.verbosity,
         thinkingLevel: providerRequest.thinkingLevel,

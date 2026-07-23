@@ -1,10 +1,30 @@
 name: CI
 
+# Runner provider toggle, read from the CI_PROVIDER repo variable:
+#
+#   gh variable set CI_PROVIDER --body github   # fall back to GitHub-hosted
+#   gh variable delete CI_PROVIDER              # back to Blacksmith (default)
+#
+# A repo variable, not a committed value: during a Blacksmith outage there is no
+# working CI to merge a switchover through. Only unset/'blacksmith' selects
+# Blacksmith; anything unrecognized selects GitHub so a typo can't queue jobs
+# against the provider you're escaping. Every runs-on and both composite actions
+# share this predicate and must change together.
+#
+# GitHub mode is break-glass, not a peer — cold layers, slower runs. The app image
+# is the one job on a paid larger runner: next build needs ~32 GB and OOM-kills
+# (exit 137) on the free 16 GB runners at any heap ceiling.
+
 on:
   push:
     branches: [main, staging, dev]
   pull_request:
     branches: [main, staging, dev]
+    # Docs content and markdown don't affect the app build or images; push
+    # runs stay unfiltered because they feed the deploy pipeline.
+    paths-ignore:
+      - 'apps/docs/content/**'
+      - '**/*.md'
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -21,9 +41,12 @@ jobs:
     secrets: inherit
 
   # Detect if this is a version release commit (e.g., "v0.5.24: ...")
+  # Smallest runner on purpose: a few seconds of pure shell over the commit
+  # message, no checkout and no install.
   detect-version:
     name: Detect Version
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 5
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     outputs:
       version: ${{ steps.extract.outputs.version }}
@@ -46,13 +69,20 @@ jobs:
             echo "ℹ️ Not a release commit"
           fi
 
-  # Run database migrations before images are pushed: the ECR push triggers
-  # CodePipeline, so migrating first guarantees the schema is in place before
-  # the new app version deploys (replaces the removed ECS migration sidecar)
+  # Run database migrations before images are promoted: the ECR latest/staging
+  # tag push triggers CodePipeline, so migrating first guarantees the schema is
+  # in place before the new app version deploys (replaces the removed ECS
+  # migration sidecar)
   migrate:
     name: Migrate DB
     needs: [test-build]
+    # Explicit need results instead of the implicit success(): a skipped job
+    # anywhere in the transitive needs chain silently fails implicit success()
+    # and cascade-skips the deploy chain (migrate -> promote-images ->
+    # CodeDeploy) — this bit us on 2026-07-23. State requirements explicitly.
     if: >-
+      !cancelled() &&
+      needs.test-build.result == 'success' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     uses: ./.github/workflows/migrations.yml
@@ -74,7 +104,8 @@ jobs:
     name: Build Dev ECR
     needs: [detect-version, migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || matrix.gh_runner }}
+    timeout-minutes: 30
     permissions:
       contents: read
       id-token: write
@@ -82,14 +113,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Only the app image needs the paid 8-core/32 GB runner: next build
+          # exhausts the free 16 GB one (exit 137). The others build in <5 min.
           - dockerfile: ./docker/app.Dockerfile
             ecr_repo_secret: ECR_APP
+            gh_runner: linux-x64-8-core
           - dockerfile: ./docker/db.Dockerfile
             ecr_repo_secret: ECR_MIGRATIONS
+            gh_runner: ubuntu-latest
           - dockerfile: ./docker/realtime.Dockerfile
             ecr_repo_secret: ECR_REALTIME
+            gh_runner: ubuntu-latest
           - dockerfile: ./docker/pii.Dockerfile
             ecr_repo_secret: ECR_PII
+            gh_runner: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -110,9 +147,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
-
       - name: Resolve ECR repo name
         id: ecr-repo
         run: echo "name=$ECR_REPO" >> $GITHUB_OUTPUT
@@ -120,15 +154,12 @@ jobs:
           ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || matrix.ecr_repo_secret == 'ECR_PII' && secrets.ECR_PII || '' }}
 
       - name: Build and push
-        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+        uses: ./.github/actions/docker-build
         with:
-          context: .
+          provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          push: true
           tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:dev
-          provenance: false
-          sbom: false
 
   # Dev: deploy Trigger.dev background tasks to the preview "dev-sim" branch.
   # Gated after migrate-dev for the same reason as build-dev — the new task
@@ -137,7 +168,8 @@ jobs:
     name: Deploy Trigger.dev (Dev)
     needs: [migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -173,14 +205,18 @@ jobs:
           fi
           bunx trigger.dev@4.4.3 deploy --env preview --branch dev-sim
 
-  # Main/staging: build AMD64 images and push to ECR + GHCR
+  # Main/staging: build AMD64 images and push sha-tagged images to ECR + GHCR.
+  # Runs in parallel with tests — only immutable sha tags are pushed here, and
+  # the CodePipeline EventBridge triggers filter on exactly the
+  # latest/staging/dev ECR tags, so nothing deploys and no mutable tag moves
+  # until promote-images / create-ghcr-manifests retag after the gate.
   build-amd64:
     name: Build AMD64
-    needs: [test-build, detect-version, migrate]
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || matrix.gh_runner }}
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -192,15 +228,19 @@ jobs:
           - dockerfile: ./docker/app.Dockerfile
             ghcr_image: ghcr.io/simstudioai/simstudio
             ecr_repo_secret: ECR_APP
+            gh_runner: linux-x64-8-core
           - dockerfile: ./docker/db.Dockerfile
             ghcr_image: ghcr.io/simstudioai/migrations
             ecr_repo_secret: ECR_MIGRATIONS
+            gh_runner: ubuntu-latest
           - dockerfile: ./docker/realtime.Dockerfile
             ghcr_image: ghcr.io/simstudioai/realtime
             ecr_repo_secret: ECR_REALTIME
+            gh_runner: ubuntu-latest
           - dockerfile: ./docker/pii.Dockerfile
             ghcr_image: ghcr.io/simstudioai/pii
             ecr_repo_secret: ECR_PII
+            gh_runner: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -229,15 +269,15 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
-
       - name: Resolve ECR repo name
         id: ecr-repo
         run: echo "name=$ECR_REPO" >> $GITHUB_OUTPUT
         env:
           ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || matrix.ecr_repo_secret == 'ECR_PII' && secrets.ECR_PII || '' }}
 
+      # Only sha tags here — the ECR deploy tags (latest/staging) are applied
+      # by promote-images and the GHCR latest-amd64/version tags by
+      # create-ghcr-manifests, both after tests and migrations pass.
       - name: Generate tags
         id: meta
         run: |
@@ -245,46 +285,110 @@ jobs:
           ECR_REPO="${{ steps.ecr-repo.outputs.name }}"
           GHCR_IMAGE="${{ matrix.ghcr_image }}"
 
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            ECR_TAG="latest"
-          else
-            ECR_TAG="staging"
-          fi
-          ECR_IMAGE="${ECR_REGISTRY}/${ECR_REPO}:${ECR_TAG}"
-
-          TAGS="${ECR_IMAGE}"
+          TAGS="${ECR_REGISTRY}/${ECR_REPO}:${{ github.sha }}"
 
           if [ "${{ github.ref }}" = "refs/heads/main" ] && [ -n "$GHCR_IMAGE" ]; then
-            GHCR_AMD64="${GHCR_IMAGE}:latest-amd64"
-            GHCR_SHA="${GHCR_IMAGE}:${{ github.sha }}-amd64"
-            TAGS="${TAGS},$GHCR_AMD64,$GHCR_SHA"
-
-            if [ "${{ needs.detect-version.outputs.is_release }}" = "true" ]; then
-              VERSION="${{ needs.detect-version.outputs.version }}"
-              GHCR_VERSION="${GHCR_IMAGE}:${VERSION}-amd64"
-              TAGS="${TAGS},$GHCR_VERSION"
-              echo "📦 Adding version tag: ${VERSION}-amd64"
-            fi
+            TAGS="${TAGS},${GHCR_IMAGE}:${{ github.sha }}-amd64"
           fi
 
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
       - name: Build and push images
-        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+        uses: ./.github/actions/docker-build
         with:
-          context: .
+          provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          push: true
           tags: ${{ steps.meta.outputs.tags }}
-          provenance: false
-          sbom: false
 
-  # Build ARM64 images for GHCR (main branch only, runs in parallel)
+  # Promote the sha-tagged ECR images to the deploy tags once tests and
+  # migrations pass. Pushing the ECR latest/staging tag is what triggers
+  # CodePipeline, so this seconds-long manifest retag is the deploy gate —
+  # the image builds themselves run in parallel with the tests. A single job
+  # (not a matrix) so all four sha manifests are verified before any tag
+  # moves; a missing image can't produce a partial mixed-version deploy.
+  promote-images:
+    name: Promote Images
+    needs: [migrate, build-amd64]
+    # Explicit results: see migrate's comment.
+    if: >-
+      !cancelled() &&
+      needs.migrate.result == 'success' &&
+      needs.build-amd64.result == 'success' &&
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+
+      # Deploy-tag moves must be monotonic: a re-run of an old run must never
+      # retag latest/staging back to stale code. A superseded first-attempt
+      # run still promotes — the ci-<ref> concurrency group executes runs
+      # serially in commit order, so an ancestor of head is a forward deploy.
+      - name: Guard against stale promotion
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          STATUS="$(gh api "repos/${{ github.repository }}/compare/${{ github.sha }}...${GITHUB_REF_NAME}" --jq '.status' || echo "unknown")"
+          if [ "$STATUS" = "identical" ] || { [ "$STATUS" = "ahead" ] && [ "${{ github.run_attempt }}" = "1" ]; }; then
+            echo "fresh=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::Skipping promotion of ${{ github.sha }} (branch compare: ${STATUS}, attempt ${{ github.run_attempt }}). Moving the deploy tags here could deploy stale code; push a revert commit to roll back instead."
+            echo "fresh=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Promote images to deploy tags
+        if: steps.guard.outputs.fresh == 'true'
+        env:
+          ECR_REPOS: >-
+            ${{ secrets.ECR_APP }}
+            ${{ secrets.ECR_MIGRATIONS }}
+            ${{ secrets.ECR_REALTIME }}
+            ${{ secrets.ECR_PII }}
+        run: |
+          REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            ECR_TAG="latest"
+          else
+            ECR_TAG="staging"
+          fi
+
+          # Verify every sha image exists before moving any deploy tag, so a
+          # missing/expired image aborts the whole promotion up front.
+          for repo in $ECR_REPOS; do
+            echo "🔍 Verifying ${repo}:${{ github.sha }}"
+            docker buildx imagetools inspect "${REGISTRY}/${repo}:${{ github.sha }}" > /dev/null
+          done
+
+          for repo in $ECR_REPOS; do
+            echo "🚀 Promoting ${repo}:${{ github.sha }} to ${ECR_TAG}"
+            docker buildx imagetools create \
+              -t "${REGISTRY}/${repo}:${ECR_TAG}" \
+              "${REGISTRY}/${repo}:${{ github.sha }}"
+          done
+
+  # Build ARM64 images for GHCR (main branch only, runs in parallel with
+  # tests). Pushes only the immutable sha tag — latest-arm64/version-arm64
+  # are applied by create-ghcr-manifests after the gate, so a failing run
+  # never moves a documented tag.
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
-    needs: [detect-version]
-    runs-on: blacksmith-8vcpu-ubuntu-2404-arm
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404-arm' || matrix.gh_runner }}
+    timeout-minutes: 30
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
@@ -295,12 +399,16 @@ jobs:
         include:
           - dockerfile: ./docker/app.Dockerfile
             image: ghcr.io/simstudioai/simstudio
+            gh_runner: linux-arm64-8-core
           - dockerfile: ./docker/db.Dockerfile
             image: ghcr.io/simstudioai/migrations
+            gh_runner: ubuntu-24.04-arm
           - dockerfile: ./docker/realtime.Dockerfile
             image: ghcr.io/simstudioai/realtime
+            gh_runner: ubuntu-24.04-arm
           - dockerfile: ./docker/pii.Dockerfile
             image: ghcr.io/simstudioai/pii
+            gh_runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout code
@@ -313,42 +421,31 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
-
-      - name: Generate ARM64 tags
-        id: meta
-        run: |
-          IMAGE="${{ matrix.image }}"
-          TAGS="${IMAGE}:latest-arm64,${IMAGE}:${{ github.sha }}-arm64"
-
-          # Add version tag if this is a release commit
-          if [ "${{ needs.detect-version.outputs.is_release }}" = "true" ]; then
-            VERSION="${{ needs.detect-version.outputs.version }}"
-            TAGS="${TAGS},${IMAGE}:${VERSION}-arm64"
-            echo "📦 Adding version tag: ${VERSION}-arm64"
-          fi
-
-          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
-
       - name: Build and push ARM64 to GHCR
-        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+        uses: ./.github/actions/docker-build
         with:
-          context: .
+          provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          provenance: false
-          sbom: false
+          tags: ${{ matrix.image }}:${{ github.sha }}-arm64
 
-  # Create GHCR multi-arch manifests (only for main, after both builds)
+  # Publish all mutable GHCR tags (latest, latest-amd64/arm64, version tags)
+  # and the multi-arch manifests from the immutable sha tags — only on main,
+  # after the deploy gate (promote-images) and the ARM64 build both pass.
   create-ghcr-manifests:
     name: Create GHCR Manifests
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    needs: [build-amd64, build-ghcr-arm64, detect-version]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    needs: [promote-images, build-ghcr-arm64, detect-version]
+    # Explicit results: see migrate's comment.
+    if: >-
+      !cancelled() &&
+      needs.promote-images.result == 'success' &&
+      needs.build-ghcr-arm64.result == 'success' &&
+      needs.detect-version.result == 'success' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
+      contents: read
       packages: write
     strategy:
       matrix:
@@ -366,36 +463,53 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create and push manifests
+      # Same monotonic guard as promote-images, applied to the public latest
+      # tags only — immutable sha and version tags are always published.
+      - name: Guard against stale latest tags
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          IMAGE_BASE="${{ matrix.image }}"
+          STATUS="$(gh api "repos/${{ github.repository }}/compare/${{ github.sha }}...${GITHUB_REF_NAME}" --jq '.status' || echo "unknown")"
+          if [ "$STATUS" = "identical" ] || { [ "$STATUS" = "ahead" ] && [ "${{ github.run_attempt }}" = "1" ]; }; then
+            echo "fresh=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::Publishing immutable tags for ${{ github.sha }} but skipping the latest tags (branch compare: ${STATUS}, attempt ${{ github.run_attempt }})."
+            echo "fresh=false" >> $GITHUB_OUTPUT
+          fi
 
-          # Create latest manifest
-          docker manifest create "${IMAGE_BASE}:latest" \
-            "${IMAGE_BASE}:latest-amd64" \
-            "${IMAGE_BASE}:latest-arm64"
-          docker manifest push "${IMAGE_BASE}:latest"
+      - name: Publish tags and manifests
+        run: |
+          IMAGE="${{ matrix.image }}"
+          SHA="${{ github.sha }}"
 
-          # Create SHA manifest
-          docker manifest create "${IMAGE_BASE}:${{ github.sha }}" \
-            "${IMAGE_BASE}:${{ github.sha }}-amd64" \
-            "${IMAGE_BASE}:${{ github.sha }}-arm64"
-          docker manifest push "${IMAGE_BASE}:${{ github.sha }}"
+          # Multi-arch manifest from the immutable per-arch sha tags
+          docker buildx imagetools create -t "${IMAGE}:${SHA}" \
+            "${IMAGE}:${SHA}-amd64" "${IMAGE}:${SHA}-arm64"
 
-          # Create version manifest if this is a release commit
           if [ "${{ needs.detect-version.outputs.is_release }}" = "true" ]; then
             VERSION="${{ needs.detect-version.outputs.version }}"
-            echo "📦 Creating version manifest: ${VERSION}"
-            docker manifest create "${IMAGE_BASE}:${VERSION}" \
-              "${IMAGE_BASE}:${VERSION}-amd64" \
-              "${IMAGE_BASE}:${VERSION}-arm64"
-            docker manifest push "${IMAGE_BASE}:${VERSION}"
+            echo "📦 Publishing version tags: ${VERSION}"
+            docker buildx imagetools create -t "${IMAGE}:${VERSION}-amd64" "${IMAGE}:${SHA}-amd64"
+            docker buildx imagetools create -t "${IMAGE}:${VERSION}-arm64" "${IMAGE}:${SHA}-arm64"
+            docker buildx imagetools create -t "${IMAGE}:${VERSION}" \
+              "${IMAGE}:${SHA}-amd64" "${IMAGE}:${SHA}-arm64"
+          fi
+
+          if [ "${{ steps.guard.outputs.fresh }}" = "true" ]; then
+            docker buildx imagetools create -t "${IMAGE}:latest-amd64" "${IMAGE}:${SHA}-amd64"
+            docker buildx imagetools create -t "${IMAGE}:latest-arm64" "${IMAGE}:${SHA}-arm64"
+            docker buildx imagetools create -t "${IMAGE}:latest" \
+              "${IMAGE}:${SHA}-amd64" "${IMAGE}:${SHA}-arm64"
           fi
 
   # Check if docs changed
+  # Smallest runner on purpose: a depth-2 checkout plus a path filter, no
+  # install and no build.
   check-docs-changes:
     name: Check Docs Changes
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 5
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     outputs:
       docs_changed: ${{ steps.filter.outputs.docs }}
@@ -412,20 +526,31 @@ jobs:
               - 'apps/sim/scripts/process-docs.ts'
               - 'apps/sim/lib/chunkers/**'
 
-  # Process docs embeddings (only when docs change, after ECR images are pushed)
+  # Process docs embeddings (only when docs change, after images are promoted)
   process-docs:
     name: Process Docs
-    needs: [build-amd64, check-docs-changes]
-    if: needs.check-docs-changes.outputs.docs_changed == 'true'
+    needs: [promote-images, check-docs-changes]
+    # Explicit results: see migrate's comment.
+    if: >-
+      !cancelled() &&
+      needs.promote-images.result == 'success' &&
+      needs.check-docs-changes.result == 'success' &&
+      needs.check-docs-changes.outputs.docs_changed == 'true'
     uses: ./.github/workflows/docs-embeddings.yml
     secrets: inherit
 
   # Create GitHub Release (only for version commits on main, after all builds complete)
   create-release:
     name: Create GitHub Release
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 10
     needs: [create-ghcr-manifests, detect-version]
-    if: needs.detect-version.outputs.is_release == 'true'
+    # Explicit results: see migrate's comment.
+    if: >-
+      !cancelled() &&
+      needs.create-ghcr-manifests.result == 'success' &&
+      needs.detect-version.result == 'success' &&
+      needs.detect-version.outputs.is_release == 'true'
     permissions:
       contents: write
     steps:

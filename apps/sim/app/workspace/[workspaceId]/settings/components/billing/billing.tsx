@@ -424,6 +424,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     id: invoice.id,
     date: formatDate(new Date(invoice.created * 1000)),
     amount: formatInvoiceAmount(invoice.total, invoice.currency),
+    description: invoice.description,
     badge: getInvoiceStatusBadge(invoice.status),
     url: invoice.hostedInvoiceUrl ?? invoice.invoicePdf,
   }))
@@ -607,7 +608,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
                 'flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors'
               const rowContent = (
                 <>
-                  <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
+                  <span className='flex-shrink-0 text-[var(--text-body)] text-sm'>
                     {invoice.date}
                   </span>
                   <Badge variant={invoice.badge.variant} size='sm'>
@@ -615,6 +616,9 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
                   </Badge>
                   <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
                     {invoice.amount}
+                  </span>
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-caption'>
+                    {invoice.description ?? ''}
                   </span>
                   <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
                 </>

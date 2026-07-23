@@ -1,7 +1,6 @@
 /**
  * @vitest-environment node
  */
-import { envFlagsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAgent, mockUndiciFetch, capturedAgentOptions, agentCloses } = vi.hoisted(() => {
@@ -25,9 +24,20 @@ const { mockAgent, mockUndiciFetch, capturedAgentOptions, agentCloses } = vi.hoi
 })
 
 vi.mock('undici', () => ({ Agent: mockAgent, fetch: mockUndiciFetch }))
-vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
+/**
+ * Query-suffixed import gives this file a private instance of the module under
+ * test. Under `isolate: false` the worker's module graph is shared across test
+ * files, so the plain specifier may already be cached with the real `undici`
+ * binding (mocks never reach an already-evaluated module) — and evaluating it
+ * here under this file's mocks would poison it for later files. The suffixed id
+ * is unique to this file, so it always evaluates fresh with the mocks above.
+ */
+declare module '@/lib/core/security/input-validation.server?pinned-fetch-test' {
+  // biome-ignore lint/suspicious/noExportsInTest: ambient type re-declaration for the query-suffixed specifier, not a runtime export
+  export * from '@/lib/core/security/input-validation.server'
+}
 
-import { createPinnedFetch } from '@/lib/core/security/input-validation.server'
+import { createPinnedFetch } from '@/lib/core/security/input-validation.server?pinned-fetch-test'
 
 type LookupCallback = (err: Error | null, address: string, family: number) => void
 type PinnedLookup = (hostname: string, options: { all?: boolean }, callback: LookupCallback) => void
@@ -53,6 +63,18 @@ describe('createPinnedFetch', () => {
       )
     })
     expect(resolved).toEqual({ address: '203.0.113.10', family: 4 })
+  })
+
+  it('defaults allowH2 to false so existing consumers are unchanged', () => {
+    createPinnedFetch('203.0.113.10')
+    const opts = capturedAgentOptions[0] as { allowH2?: boolean }
+    expect(opts.allowH2).toBe(false)
+  })
+
+  it('opts the Agent into HTTP/2 when allowH2 is requested', () => {
+    createPinnedFetch('203.0.113.10', { allowH2: true })
+    const opts = capturedAgentOptions[0] as { allowH2?: boolean }
+    expect(opts.allowH2).toBe(true)
   })
 
   it('uses IPv6 family when the validated IP is IPv6', async () => {

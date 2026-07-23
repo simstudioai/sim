@@ -1,7 +1,29 @@
 import { tiktokGetUserApiDataSchema } from '@/tools/tiktok/api-schemas'
 import type { TikTokGetUserParams, TikTokGetUserResponse } from '@/tools/tiktok/types'
-import { readTikTokApiResponse, TIKTOK_USER_FIELDS } from '@/tools/tiktok/utils'
+import {
+  readTikTokApiResponse,
+  TIKTOK_USER_FIELD_NAMES,
+  TIKTOK_USER_FIELDS,
+} from '@/tools/tiktok/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const REQUIRED_USER_FIELDS = ['open_id', 'display_name'] as const
+const USER_FIELD_ALLOWLIST = new Set<string>(TIKTOK_USER_FIELD_NAMES)
+
+function resolveUserFields(fields: string | undefined): string {
+  if (!fields?.trim()) return TIKTOK_USER_FIELDS
+
+  const requested = fields
+    .split(',')
+    .map((field) => field.trim())
+    .filter(Boolean)
+  const invalid = requested.filter((field) => !USER_FIELD_ALLOWLIST.has(field))
+  if (invalid.length > 0) {
+    throw new Error(`Unsupported TikTok user field(s): ${[...new Set(invalid)].join(', ')}`)
+  }
+
+  return [...new Set([...REQUIRED_USER_FIELDS, ...requested])].join(',')
+}
 
 function emptyUserOutput(): TikTokGetUserResponse['output'] {
   return {
@@ -45,13 +67,13 @@ export const tiktokGetUserTool: ToolConfig<TikTokGetUserParams, TikTokGetUserRes
       visibility: 'user-or-llm',
       default: TIKTOK_USER_FIELDS,
       description:
-        'Comma-separated list of fields to return. Available: open_id, union_id, avatar_url, avatar_large_url, display_name, bio_description, profile_deep_link, is_verified, username, follower_count, following_count, likes_count, video_count. Include avatar_url and avatar_large_url to receive the avatarFile output.',
+        'Comma-separated allowlisted fields to return. open_id and display_name are always included. Available: open_id, union_id, avatar_url, avatar_large_url, display_name, bio_description, profile_deep_link, is_verified, username, follower_count, following_count, likes_count, video_count. Include avatar_url or avatar_large_url to receive avatarFile.',
     },
   },
 
   request: {
     url: (params: TikTokGetUserParams) => {
-      const fields = params.fields || TIKTOK_USER_FIELDS
+      const fields = resolveUserFields(params.fields)
       return `https://open.tiktokapis.com/v2/user/info/?fields=${encodeURIComponent(fields)}`
     },
     method: 'GET',

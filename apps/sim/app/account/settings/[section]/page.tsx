@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { AccountSettingsRenderer } from '@/components/settings/account-settings-renderer'
@@ -9,7 +10,7 @@ import {
   parseSettingsPathSection,
 } from '@/components/settings/navigation'
 import { getSession } from '@/lib/auth'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 
 interface AccountSettingsSectionPageProps {
@@ -45,10 +46,21 @@ export default async function AccountSettingsSectionPage({
   })
   if (!parsed) notFound()
   if (parsed === 'billing' && !isBillingEnabled) redirect(getAccountSettingsHref('general'))
+  if (parsed === 'copilot' && !isHosted) redirect(getAccountSettingsHref('general'))
   if (parsed === 'admin' || parsed === 'mothership') {
     const isSuperUser = await isPlatformAdmin(session.user.id)
     if (!isSuperUser) notFound()
   }
 
-  return <AccountSettingsRenderer section={parsed} />
+  /**
+   * Sections read URL query params via nuqs (which uses `useSearchParams`
+   * internally), so the renderer must sit under a Suspense boundary. The
+   * `null` fallback matches the existing visual behavior — the sections are
+   * `next/dynamic` components that render nothing while their chunk loads.
+   */
+  return (
+    <Suspense fallback={null}>
+      <AccountSettingsRenderer section={parsed} />
+    </Suspense>
+  )
 }

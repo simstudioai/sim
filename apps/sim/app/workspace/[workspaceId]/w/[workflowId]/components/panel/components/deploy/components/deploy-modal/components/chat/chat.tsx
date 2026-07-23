@@ -34,6 +34,7 @@ import {
   useUpdateChat,
 } from '@/hooks/queries/chats'
 import type { ChatDetail } from '@/hooks/queries/deployments'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useIdentifierValidation } from './hooks'
 import {
   getPasswordHelperText,
@@ -391,6 +392,7 @@ export function ChatDeploy({
           <AuthSelector
             key={`${existingChat?.id ?? 'new'}-${formInitCounter}`}
             authType={formData.authType}
+            savedAuthType={existingChat?.authType as AuthType | undefined}
             password={formData.password}
             emails={formData.emails}
             onAuthTypeChange={(type) => updateField('authType', type)}
@@ -603,6 +605,8 @@ function IdentifierInput({
 
 interface AuthSelectorProps {
   authType: AuthType
+  /** The persisted mode of an existing chat, kept selectable even if newly disallowed. */
+  savedAuthType?: AuthType
   password: string
   emails: string[]
   onAuthTypeChange: (type: AuthType) => void
@@ -622,6 +626,7 @@ const AUTH_LABELS: Record<AuthType, string> = {
 
 function AuthSelector({
   authType,
+  savedAuthType,
   password,
   emails,
   onAuthTypeChange,
@@ -691,10 +696,26 @@ function AuthSelector({
     }
   }
 
-  const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
-  const authOptions = ssoEnabled
-    ? (['public', 'password', 'email', 'sso'] as const)
-    : (['public', 'password', 'email'] as const)
+  const { config: permissionConfig } = usePermissionConfig()
+  const allowedAuthTypes = permissionConfig.allowedChatDeployAuthTypes
+
+  const ssoAvailable =
+    isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')) ||
+    savedAuthType === 'sso' ||
+    (allowedAuthTypes?.includes('sso') ?? false)
+  const baseAuthOptions: AuthType[] = ssoAvailable
+    ? ['public', 'password', 'email', 'sso']
+    : ['public', 'password', 'email']
+
+  const authOptions = baseAuthOptions.filter(
+    (type) => allowedAuthTypes === null || allowedAuthTypes.includes(type) || type === savedAuthType
+  )
+
+  useEffect(() => {
+    if (authOptions.length > 0 && !authOptions.includes(authType)) {
+      onAuthTypeChange(authOptions[0])
+    }
+  }, [authOptions, authType, onAuthTypeChange])
 
   return (
     <div className='space-y-4'>

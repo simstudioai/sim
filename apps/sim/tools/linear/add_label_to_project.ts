@@ -2,6 +2,7 @@ import type {
   LinearAddLabelToProjectParams,
   LinearAddLabelToProjectResponse,
 } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearAddLabelToProjectTool: ToolConfig<
@@ -42,7 +43,7 @@ export const linearAddLabelToProjectTool: ToolConfig<
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => ({

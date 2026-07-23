@@ -1,17 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { workflowAuthzMockFns } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAuthorizeWorkflowByWorkspacePermission } = vi.hoisted(() => ({
-  mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
-}))
-
-vi.mock('@sim/platform-authz/workflow', () => ({
-  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
-}))
+const { mockAuthorizeWorkflowByWorkspacePermission } = workflowAuthzMockFns
 
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
+
+afterAll(() => {
+  mockAuthorizeWorkflowByWorkspacePermission.mockReset()
+})
 
 describe('Copilot Auth Permissions', () => {
   beforeEach(() => {

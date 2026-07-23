@@ -76,6 +76,11 @@ export const TOKENIZATION_CONFIG = {
       confidence: 'medium',
       supportedMethods: ['heuristic', 'fallback'],
     },
+    kimi: {
+      avgCharsPerToken: 4,
+      confidence: 'medium',
+      supportedMethods: ['heuristic', 'fallback'],
+    },
     ollama: {
       avgCharsPerToken: 4,
       confidence: 'low',

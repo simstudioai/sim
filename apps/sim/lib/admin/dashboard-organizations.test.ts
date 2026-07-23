@@ -1,13 +1,12 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { member, organization, permissions, subscription } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('drizzle-orm')
 
 const mocks = vi.hoisted(() => ({
-  queryRows: [] as unknown[][],
-  selectCalls: 0,
-  selectDistinctOnCalls: 0,
   provisionings: new Map(),
 }))
 
@@ -16,34 +15,27 @@ vi.mock('@sim/audit', () => ({
   AuditResourceType: {},
   recordAudit: vi.fn(),
 }))
-vi.mock('@sim/db', () => {
-  function queryChain(rows: unknown[]) {
-    const chain: Record<string, unknown> = {}
-    for (const method of ['from', 'innerJoin', 'leftJoin', 'where', 'orderBy', 'limit']) {
-      chain[method] = () => chain
-    }
-    chain.offset = () => Promise.resolve(rows)
-    chain.groupBy = () => Promise.resolve(rows)
-    chain.then = (resolve: (value: unknown[]) => unknown, reject: (error: unknown) => unknown) =>
-      Promise.resolve(rows).then(resolve, reject)
-    return chain
-  }
-
-  const db = {
-    select: vi.fn(() => {
-      const rows = mocks.queryRows[mocks.selectCalls] ?? []
-      mocks.selectCalls += 1
-      return queryChain(rows)
-    }),
-    selectDistinctOn: vi.fn(() => {
-      const rows = mocks.queryRows[mocks.selectCalls] ?? []
-      mocks.selectCalls += 1
-      mocks.selectDistinctOnCalls += 1
-      return queryChain(rows)
-    }),
-  }
-  return { db }
-})
+/**
+ * Cuts the import chain dashboard.ts -> admin-move.ts -> invitations/core ->
+ * lib/auth/auth.ts. The auth module throws at import time when another suite
+ * in this shared worker has clobbered NEXT_PUBLIC_APP_URL, which fails this
+ * file's collection under `isolate: false`.
+ */
+vi.mock('@/lib/workspaces/admin-move', () => ({
+  moveWorkspaceToOrganization: vi.fn(),
+}))
+/**
+ * Keeps this suite from being the first loader of the real plan/usage modules
+ * in the shared worker. Under `isolate: false` the first import freezes a
+ * module's dependency bindings, which would break the dedicated plan/usage
+ * suites when they run later with their own dependency mocks.
+ */
+vi.mock('@/lib/billing/core/plan', () => ({
+  getHighestPrioritySubscription: vi.fn(),
+}))
+vi.mock('@/lib/billing/core/usage', () => ({
+  syncUsageLimitsFromSubscription: vi.fn(),
+}))
 vi.mock('@/lib/billing/enterprise-provisioning', () => ({
   getLatestEnterpriseProvisionings: vi.fn(async () => mocks.provisionings),
 }))
@@ -67,50 +59,81 @@ vi.mock('@/lib/core/idempotency/transaction', () => ({
 }))
 vi.mock('@/lib/core/outbox/service', () => ({ enqueueOutboxEvent: vi.fn() }))
 
-import { listDashboardOrganizations } from '@/lib/admin/dashboard'
+import { listDashboardOrganizations, toDashboardConfigurationUpdate } from '@/lib/admin/dashboard'
+
+afterAll(() => {
+  resetDbChainMock()
+})
+
+describe('toDashboardConfigurationUpdate', () => {
+  it('converts the pending Stripe metadata intent without replacing applied values', () => {
+    expect(
+      toDashboardConfigurationUpdate({
+        latestRevision: 2,
+        desiredMetadata: {},
+        hasUnappliedIntent: true,
+        effectiveSeatCapacity: 20,
+        configurationUpdate: {
+          id: 'config-2',
+          status: 'pending',
+          requestedMetadata: {
+            usageLimitCredits: 10_000_000,
+            seats: 20,
+            concurrencyLimit: 50,
+          },
+          error: null,
+        },
+      })
+    ).toEqual({
+      id: 'config-2',
+      status: 'pending',
+      requestedUsageLimitDollars: 50_000,
+      requestedSeats: 20,
+      requestedConcurrencyLimit: 50,
+      error: null,
+    })
+  })
+})
 
 describe('listDashboardOrganizations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.selectCalls = 0
-    mocks.selectDistinctOnCalls = 0
+    resetDbChainMock()
     mocks.provisionings = new Map()
   })
 
   it('loads a page with a fixed batch of queries instead of querying once per organization', async () => {
-    mocks.queryRows = [
-      [{ total: 2 }],
-      [
-        { id: 'org-1', name: 'One', orgUsageLimit: '10', creditBalance: '1' },
-        { id: 'org-2', name: 'Two', orgUsageLimit: '20', creditBalance: '2' },
-      ],
-      [
-        {
-          organizationId: 'org-1',
-          memberCount: 2,
-          ownerId: 'owner-1',
-          ownerName: 'Owner One',
-          ownerEmail: 'one@example.com',
-        },
-        {
-          organizationId: 'org-2',
-          memberCount: 1,
-          ownerId: 'owner-2',
-          ownerName: 'Owner Two',
-          ownerEmail: 'two@example.com',
-        },
-      ],
-      [{ organizationId: 'org-1', externalCollaboratorCount: 3 }],
-      [
-        {
-          id: 'sub-1',
-          referenceId: 'org-1',
-          plan: 'team_6000',
-          status: 'active',
-          metadata: null,
-        },
-      ],
-    ]
+    queueTableRows(organization, [{ total: 2 }])
+    queueTableRows(organization, [
+      { id: 'org-1', name: 'One', orgUsageLimit: '10', creditBalance: '1' },
+      { id: 'org-2', name: 'Two', orgUsageLimit: '20', creditBalance: '2' },
+    ])
+    queueTableRows(member, [
+      {
+        organizationId: 'org-1',
+        memberCount: 2,
+        ownerId: 'owner-1',
+        ownerName: 'Owner One',
+        ownerEmail: 'one@example.com',
+      },
+      {
+        organizationId: 'org-2',
+        memberCount: 1,
+        ownerId: 'owner-2',
+        ownerName: 'Owner Two',
+        ownerEmail: 'two@example.com',
+      },
+    ])
+    queueTableRows(permissions, [{ organizationId: 'org-1', externalCollaboratorCount: 3 }])
+    queueTableRows(subscription, [
+      {
+        id: 'sub-1',
+        referenceId: 'org-1',
+        plan: 'team_6000',
+        status: 'active',
+        metadata: null,
+      },
+    ])
 
     const result = await listDashboardOrganizations({ search: '', limit: 50, offset: 0 })
 
@@ -127,7 +150,7 @@ describe('listDashboardOrganizations', () => {
       externalCollaboratorCount: 0,
       planLabel: 'No plan',
     })
-    expect(mocks.selectCalls).toBe(5)
-    expect(mocks.selectDistinctOnCalls).toBe(1)
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(4)
+    expect(dbChainMockFns.selectDistinctOn).toHaveBeenCalledTimes(1)
   })
 })

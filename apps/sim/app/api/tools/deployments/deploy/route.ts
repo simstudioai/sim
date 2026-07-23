@@ -51,11 +51,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const result = await performFullDeploy({
       workflowId,
       userId: auth.userId,
-      workflowName: access.workflow.name || undefined,
       versionName: name,
       versionDescription: description ?? undefined,
       requestId,
-      request,
     })
 
     if (!result.success) {
@@ -69,9 +67,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       success: true,
       output: {
         workflowId,
-        isDeployed: true,
+        isDeployed: Boolean(result.activeDeployment),
         deployedAt: result.deployedAt?.toISOString() ?? null,
         version: result.version,
+        activeDeployment: result.activeDeployment,
+        latestDeploymentAttempt: result.latestDeploymentAttempt,
         warnings: result.warnings ?? [],
       },
     })

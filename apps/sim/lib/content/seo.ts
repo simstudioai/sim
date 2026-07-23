@@ -285,7 +285,7 @@ export function buildAuthorMetadata(
   author?: Author
 ): Metadata {
   const name = author?.name ?? 'Author'
-  const canonical = `${SITE_URL}${section.basePath}/authors/${id}`
+  const canonical = `${SITE_URL}${section.basePath}/authors/${encodeURIComponent(id)}`
   const description = `Read articles by ${name} on the Sim ${section.name.toLowerCase()}.`
   return {
     title: `${name} | Sim ${section.name}`,
@@ -318,9 +318,11 @@ export function buildAuthorGraphJsonLd(section: ContentSection, author: Author) 
       {
         '@type': 'Person',
         name: author.name,
-        url: `${SITE_URL}${section.basePath}/authors/${author.id}`,
+        url: `${SITE_URL}${section.basePath}/authors/${encodeURIComponent(author.id)}`,
         sameAs: author.url ? [author.url] : [],
-        image: author.avatarUrl,
+        image: author.avatarUrl?.startsWith('http')
+          ? author.avatarUrl
+          : author.avatarUrl && `${SITE_URL}${author.avatarUrl}`,
         worksFor: {
           '@type': 'Organization',
           name: 'Sim',
@@ -341,7 +343,7 @@ export function buildAuthorGraphJsonLd(section: ContentSection, author: Author) 
             '@type': 'ListItem',
             position: 3,
             name: author.name,
-            item: `${SITE_URL}${section.basePath}/authors/${author.id}`,
+            item: `${SITE_URL}${section.basePath}/authors/${encodeURIComponent(author.id)}`,
           },
         ],
       },

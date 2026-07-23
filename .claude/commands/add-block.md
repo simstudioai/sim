@@ -1,5 +1,5 @@
 ---
-description: Create a block configuration for a Sim integration with proper subBlocks, conditions, and tool wiring
+description: Create or update a Sim integration block with correct subBlocks, conditions, dependsOn, modes, canonicalParamId usage, outputs, and tool wiring. Use when working on `apps/sim/blocks/blocks/{service}.ts` or aligning a block with its tools.
 argument-hint: <service-name>
 ---
 
@@ -13,6 +13,20 @@ When the user asks you to create a block:
 1. Create the block file in `apps/sim/blocks/blocks/{service}.ts`
 2. Configure all subBlocks with proper types, conditions, and dependencies
 3. Wire up tools correctly
+
+## Hard Rule: No Guessed Tool Outputs
+
+Blocks depend on tool outputs. If the underlying tool response schema is not documented or live-verified, you MUST tell the user instead of guessing block outputs.
+
+- Do NOT invent block outputs for undocumented tool responses
+- Do NOT describe unknown JSON shapes as if they were confirmed
+- Do NOT wire fields into the block just because they seem likely to exist
+
+If the tool outputs are not known, do one of these instead:
+1. Ask the user for sample tool responses
+2. Ask the user for test credentials so the tool responses can be verified
+3. Limit the block to operations whose outputs are documented
+4. Leave uncertain outputs out and explicitly tell the user what remains unknown
 
 ## Block Configuration Structure
 
@@ -128,6 +142,25 @@ export const {ServiceName}Block: BlockConfig = {
 **Scopes:** Always use `getScopesForService(serviceId)` from `@/lib/oauth/utils` for `requiredScopes`. Never hardcode scope arrays — the single source of truth is `OAUTH_PROVIDERS` in `lib/oauth/oauth.ts`.
 
 **Scope descriptions:** When adding a new OAuth provider, also add human-readable descriptions for all scopes in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`.
+
+**Service accounts (shared, app-level credentials):** A plain `oauth-input` already lets users *select* an existing service account — those credentials fold into the picker automatically (a Google service account created for any Google service appears in every Google block's picker). You only set `credentialKind` when you want to change the *connect* action:
+
+```typescript
+{
+  id: 'credential',
+  title: 'Account',
+  type: 'oauth-input',
+  serviceId: '{service}',
+  requiredScopes: getScopesForService('{service}'),
+  credentialKind: 'any',   // omit | 'service-account' | 'any'
+}
+```
+
+- **omit (default):** lists OAuth accounts + any existing service accounts; the only connect action is "Connect account" (OAuth). Use this for the common "let users pick a service account someone set up elsewhere, but don't offer inline setup" case — no config needed.
+- **`'service-account'`:** service-account credentials *only*, plus an inline setup action that opens the provider's connect modal. Use when a block accepts *only* an app credential.
+- **`'any'`:** merged picker — OAuth accounts *and* service accounts in one grouped dropdown, with a connect action for each. Use when a block supports both (e.g. Slack: a personal account *or* a custom bot).
+
+Optional companions: `credentialLabels` (override the picker's section/connect-row copy) and `allowServiceAccounts: true` (trigger-mode only — list service accounts, which triggers otherwise exclude; set only when the trigger's polling path can resolve a service-account token). The connect modal, provider families (Google JSON key, Atlassian token, token-paste, client-credential, Slack bot), and the preview gate are all resolved from `serviceAccountProviderId` — you don't wire them per block.
 
 ### Selectors (with dynamic options)
 ```typescript
@@ -562,6 +595,8 @@ outputs: {
 
 Nested object outputs (`plan: { id: { type: 'string' }, ... }`) are a **tool-output** feature only — `OutputFieldDefinition` for blocks does not allow them and they fail TypeScript at build time.
 
+If the output shape is unknown because the underlying tool response is undocumented, you MUST tell the user and stop. Unknown is not the same as variable. Never guess block outputs.
+
 ## V2 Block Pattern
 
 When creating V2 blocks (alongside legacy V1):
@@ -872,3 +907,4 @@ After creating the block, you MUST validate it against every tool it references:
 3. **Verify block outputs** cover the key fields returned by all tools
 4. **Verify conditions** — each subBlock should only show for the operations that actually use it
 5. **Verify `{Service}BlockMeta` is exported** with at least 7 templates, each having `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
+6. **If any tool outputs are still unknown**, explicitly tell the user instead of guessing block outputs

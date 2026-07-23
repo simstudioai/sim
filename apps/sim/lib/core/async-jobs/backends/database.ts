@@ -207,7 +207,23 @@ export class DatabaseJobQueue implements JobQueueBackend {
         inlineCancelKeyControllers.set(cancelKey, controller)
         tracked.push({ key: cancelKey, controller })
       }
-      return runner(item.payload, controller.signal).catch((err) => {
+      // Same shared-key semaphore as `runInline`: without it, overlapping
+      // batches on one concurrencyKey (e.g. two dispatches on one table) would
+      // each run their full window concurrently instead of sharing the cap.
+      const { concurrencyKey, concurrencyLimit } = item.options ?? {}
+      const run = async () => {
+        if (concurrencyKey && concurrencyLimit && concurrencyLimit > 0) {
+          await acquireSlot(concurrencyKey, concurrencyLimit)
+          try {
+            await runner(item.payload, controller.signal)
+          } finally {
+            releaseSlot(concurrencyKey)
+          }
+          return
+        }
+        await runner(item.payload, controller.signal)
+      }
+      return run().catch((err) => {
         logger.error(`[${type}] Inline run failed`, {
           cancelKey,
           error: toError(err).message,

@@ -11,6 +11,7 @@ import {
   getOrganizationSettingsHref,
   getWorkspaceSettingsHref,
   isOrganizationSettingsSectionAvailable,
+  ORGANIZATION_PLANE_UNIFIED_SECTIONS,
   ORGANIZATION_SETTINGS_ITEMS,
   ORGANIZATION_SETTINGS_PATH_ALIASES,
   parseSettingsPathSection,
@@ -41,6 +42,7 @@ describe('settings navigation boundaries', () => {
       'inbox',
       'recently-deleted',
       'sso',
+      'sessions',
       'data-retention',
       'data-drains',
       'whitelabeling',
@@ -62,6 +64,7 @@ describe('settings navigation boundaries', () => {
       'access-control',
       'audit-logs',
       'sso',
+      'sessions',
       'data-retention',
       'data-drains',
       'whitelabeling',
@@ -107,6 +110,20 @@ describe('settings navigation boundaries', () => {
       ORGANIZATION_SETTINGS_ITEMS.map(({ id }) => id).sort()
     )
     expect([...workspaceIds].sort()).toEqual(WORKSPACE_SETTINGS_ITEMS.map(({ id }) => id).sort())
+  })
+
+  it('derives the organization-plane unified sections from the registry', () => {
+    expect([...ORGANIZATION_PLANE_UNIFIED_SECTIONS].sort()).toEqual([
+      'access-control',
+      'audit-logs',
+      'billing',
+      'data-drains',
+      'data-retention',
+      'organization',
+      'sessions',
+      'sso',
+      'whitelabeling',
+    ])
   })
 
   it('shares labels, icons, and docs links across projections', () => {

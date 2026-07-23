@@ -46,17 +46,18 @@ export const isCopilotBillingAttributionV1Enabled = isTruthy(
 export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
 
 /**
- * Is billing enforcement enabled
+ * Is billing enforcement enabled.
+ *
+ * Server code reads `BILLING_ENABLED`. Server-only vars never reach browser
+ * bundles, so client evaluation reads the `NEXT_PUBLIC_BILLING_ENABLED` twin
+ * (via `window.__ENV`, populated by `<PublicEnvScript>`) — reading
+ * `env.BILLING_ENABLED` in client code is always `undefined`. Deployments must
+ * set both vars together.
  */
-export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
-
-/**
- * Block free-plan accounts from programmatic workflow execution (API key, public
- * API, MCP server, generic webhooks, cross-origin chat embeds).
- * Gated behind {@link isBillingEnabled}; off by default so the paywall can ship
- * dark and be enabled per-deployment once verified.
- */
-export const isFreeApiDeploymentGateEnabled = isTruthy(env.FREE_API_DEPLOYMENT_GATE_ENABLED)
+export const isBillingEnabled =
+  typeof window === 'undefined'
+    ? isTruthy(env.BILLING_ENABLED)
+    : isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 /**
  * Is email verification enabled
@@ -154,18 +155,32 @@ export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
 export const isSsoEnabled = isTruthy(env.SSO_ENABLED)
 
 /**
- * Is access control (permission groups) enabled via env var override
- * This bypasses plan requirements for self-hosted deployments
+ * Is access control (permission groups) enabled via env var override.
+ * This bypasses plan requirements for self-hosted deployments.
+ *
+ * Server code reads `ACCESS_CONTROL_ENABLED`; the browser reads the
+ * `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` twin (see {@link isBillingEnabled}).
  */
-export const isAccessControlEnabled = isTruthy(env.ACCESS_CONTROL_ENABLED)
+export const isAccessControlEnabled =
+  typeof window === 'undefined'
+    ? isTruthy(env.ACCESS_CONTROL_ENABLED)
+    : isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
 
 /**
- * Is organizations enabled
+ * Is organizations enabled.
  * True if billing is enabled (orgs come with billing), OR explicitly enabled via env var,
- * OR if access control is enabled (access control requires organizations)
+ * OR if access control is enabled (access control requires organizations).
+ *
+ * Each term resolves through its `NEXT_PUBLIC_*` twin in the browser (see
+ * {@link isBillingEnabled}), so client code — e.g. the better-auth
+ * `organizationClient` plugin registration — sees the same value as the server.
  */
 export const isOrganizationsEnabled =
-  isBillingEnabled || isTruthy(env.ORGANIZATIONS_ENABLED) || isAccessControlEnabled
+  isBillingEnabled ||
+  (typeof window === 'undefined'
+    ? isTruthy(env.ORGANIZATIONS_ENABLED)
+    : isTruthy(getEnv('NEXT_PUBLIC_ORGANIZATIONS_ENABLED'))) ||
+  isAccessControlEnabled
 
 /**
  * Is inbox (Sim Mailer) enabled via env var override

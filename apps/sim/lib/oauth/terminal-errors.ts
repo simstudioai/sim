@@ -12,6 +12,7 @@ const TERMINAL_ERRORS = new Set<string>([
   'invalid_client_id',
   'invalid_client',
   'bad_redirect_uri',
+  'token_revoked',
 ])
 
 const DEAD_CACHE_TTL_SEC = 60 * 60

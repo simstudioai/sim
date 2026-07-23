@@ -234,6 +234,12 @@ export interface PostHogEventMap {
     workflow_id: string
   }
 
+  deprecated_block_fix_clicked: {
+    block_type: string
+    workflow_id: string
+    kind: 'block' | 'model'
+  }
+
   knowledge_base_created: {
     knowledge_base_id: string
     workspace_id: string
@@ -494,6 +500,10 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  task_restored: {
+    workspace_id: string
+  }
+
   task_forked: {
     workspace_id: string
     source_chat_id: string
@@ -535,6 +545,10 @@ export interface PostHogEventMap {
   docs_opened: {
     source: 'help_menu' | 'editor_button' | 'toolbar_context_menu'
     block_type?: string
+  }
+
+  slack_community_opened: {
+    source: 'help_menu'
   }
 
   search_result_selected: {
@@ -693,6 +707,20 @@ export interface PostHogEventMap {
     workflow_id: string
     workspace_id?: string
     locked: boolean
+  }
+
+  /** A workflow's fork-sync exclusion ("Exclude from sync") was toggled on or off. */
+  workflow_fork_sync_exclusion_toggled: {
+    workflow_id: string
+    workspace_id?: string
+    fork_sync_excluded: boolean
+  }
+
+  /** A batch of workflows was marked or unmarked "Exclude from sync" from the Forks settings. */
+  fork_excluded_workflows_updated: {
+    workspace_id: string
+    workflow_count: number
+    fork_sync_excluded: boolean
   }
 
   workflow_schedule_created: {

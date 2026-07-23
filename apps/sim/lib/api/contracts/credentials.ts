@@ -1,10 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import {
-  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
-  type OAuthProvider,
-  SLACK_CUSTOM_BOT_PROVIDER_ID,
-} from '@/lib/oauth/types'
+import { getServiceAccountRequiredFields } from '@/lib/credentials/service-account-fields'
+import type { OAuthProvider } from '@/lib/oauth/types'
 
 const ENV_VAR_NAME_REGEX = /^[A-Za-z0-9_]+$/
 
@@ -133,6 +130,9 @@ export const createCredentialBodySchema = z
     id: z.string().uuid('id must be a valid UUID').optional(),
     signingSecret: z.string().trim().min(1).optional(),
     botToken: z.string().trim().min(1).optional(),
+    clientId: z.string().trim().min(1).max(512).optional(),
+    clientSecret: z.string().trim().min(1).max(1024).optional(),
+    orgId: z.string().trim().min(1).max(255).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'oauth') {
@@ -161,46 +161,14 @@ export const createCredentialBodySchema = z
     }
 
     if (data.type === 'service_account') {
-      if (data.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
-        if (!data.apiToken) {
+      for (const field of getServiceAccountRequiredFields(data.providerId)) {
+        if (!data[field]) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: 'apiToken is required for Atlassian service account credentials',
-            path: ['apiToken'],
+            message: `${field} is required for ${data.providerId ?? 'service account'} credentials`,
+            path: [field],
           })
         }
-        if (!data.domain) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'domain is required for Atlassian service account credentials',
-            path: ['domain'],
-          })
-        }
-        return
-      }
-      if (data.providerId === SLACK_CUSTOM_BOT_PROVIDER_ID) {
-        if (!data.signingSecret) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'signingSecret is required for a custom Slack bot credential',
-            path: ['signingSecret'],
-          })
-        }
-        if (!data.botToken) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'botToken is required for a custom Slack bot credential',
-            path: ['botToken'],
-          })
-        }
-        return
-      }
-      if (!data.serviceAccountJson) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'serviceAccountJson is required for service account credentials',
-          path: ['serviceAccountJson'],
-        })
       }
       return
     }
@@ -235,6 +203,10 @@ export const updateCredentialByIdBodySchema = z
     /** Atlassian service-account secret rotation (reconnect). */
     apiToken: z.string().trim().min(1).optional(),
     domain: z.string().trim().min(1).optional(),
+    /** Client-credential service-account secret rotation (reconnect). */
+    clientId: z.string().trim().min(1).max(512).optional(),
+    clientSecret: z.string().trim().min(1).max(1024).optional(),
+    orgId: z.string().trim().min(1).max(255).optional(),
   })
   .strict()
   .refine(
@@ -245,7 +217,10 @@ export const updateCredentialByIdBodySchema = z
       data.signingSecret !== undefined ||
       data.botToken !== undefined ||
       data.apiToken !== undefined ||
-      data.domain !== undefined,
+      data.domain !== undefined ||
+      data.clientId !== undefined ||
+      data.clientSecret !== undefined ||
+      data.orgId !== undefined,
     {
       message: 'At least one field must be provided',
       path: ['displayName'],

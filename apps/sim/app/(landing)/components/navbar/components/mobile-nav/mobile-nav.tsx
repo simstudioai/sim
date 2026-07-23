@@ -23,8 +23,12 @@ import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
  * leaf hydrates; the desktop nav stays server-rendered.
  *
  * The sheet locks body scroll while open and closes on route change intent
- * (any link tap) and on `Escape`. Motion is a short token-driven
- * transform/opacity that collapses under `prefers-reduced-motion`.
+ * (any link tap) and on `Escape`. With all three mega-menus expanded the
+ * sections outgrow a phone viewport, so the sheet caps its height at the
+ * space under the bar (`100dvh` minus the bar's 62px) and scrolls internally
+ * (`overscroll-contain` keeps the locked page from rubber-banding behind it).
+ * Motion is a short token-driven transform/opacity that collapses under
+ * `prefers-reduced-motion`.
  */
 
 interface MobileNavProps {
@@ -35,14 +39,11 @@ interface MobileNavProps {
 /**
  * Standalone top-level routes shown in the sheet alongside the expanded mega-menu
  * sections. Pricing is a standalone link on the desktop nav (not a mega-menu), so
- * it stays a single row here too. Restoring `PLATFORM_MENU`/`SOLUTIONS_MENU` to
- * {@link NAV_MENUS} automatically expands them here as grouped sections too - the
- * sheet mirrors the desktop nav's information architecture with no extra edit.
+ * it stays a single row here too. Every menu in {@link NAV_MENUS} expands here as
+ * a grouped section automatically - the sheet mirrors the desktop nav's
+ * information architecture with no extra edit.
  */
-const STANDALONE_LINKS = [
-  { label: 'Enterprise', href: '/enterprise' },
-  { label: 'Pricing', href: '/pricing' },
-] as const
+const STANDALONE_LINKS = [{ label: 'Pricing', href: '/pricing' }] as const
 
 /** Shared row chrome for every tappable text link in the sheet. */
 const SHEET_ROW =
@@ -78,6 +79,7 @@ export function MobileNav({ stars }: MobileNavProps) {
         type='button'
         aria-label={open ? 'Close menu' : 'Open menu'}
         aria-expanded={open}
+        aria-controls='mobile-nav-sheet'
         onClick={() => setOpen((v) => !v)}
         className='flex size-[30px] items-center justify-center rounded-lg border border-[var(--border-1)] text-[var(--text-icon)] transition-colors hover:bg-[var(--surface-hover)]'
       >
@@ -95,12 +97,13 @@ export function MobileNav({ stars }: MobileNavProps) {
       ) : null}
 
       <div
+        id='mobile-nav-sheet'
         className={cn(
-          'absolute top-full right-0 left-0 z-50 origin-top border-[var(--border)] border-b transition-[opacity,transform] duration-200 motion-reduce:transition-none',
+          'absolute top-full right-0 left-0 z-50 max-h-[calc(100dvh-62px)] origin-top overflow-y-auto overscroll-contain border-[var(--border)] border-b transition-[opacity,transform,visibility] duration-200 motion-reduce:transition-none',
           NAVBAR_GLASS_SURFACE,
           open
-            ? 'pointer-events-auto translate-y-0 opacity-100'
-            : '-translate-y-2 pointer-events-none opacity-0'
+            ? 'pointer-events-auto visible translate-y-0 opacity-100'
+            : '-translate-y-2 pointer-events-none invisible opacity-0'
         )}
       >
         <div className='mx-auto flex w-full max-w-[1460px] flex-col gap-1 px-5 pt-2 pb-5'>

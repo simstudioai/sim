@@ -2,12 +2,12 @@
  * Fraction of the remaining gap to close per frame while chasing the bottom —
  * an exponential glide (originating in the subagent viewport's stick-to-bottom,
  * see BoundedViewport in agent-group.tsx) instead of snapping `scrollTop` to
- * `scrollHeight` on every content append. Closes ~90% of any gap within ~18
- * frames (~300ms) — deliberately lazier than the subagent viewport's 0.18 so a
- * large content burst reads as a calm upward drift of the transcript rather
+ * `scrollHeight` on every content append. Closes ~90% of any gap within ~13
+ * frames (~220ms) — slightly lazier than the subagent viewport's 0.18 so a
+ * large content burst reads as a brisk upward drift of the transcript rather
  * than a lurch.
  */
-export const SMOOTH_CHASE_RATE = 0.12
+export const SMOOTH_CHASE_RATE = 0.16
 
 /** Gap (px) below which the chase parks until new growth reopens it. */
 export const CHASE_REST_GAP = 0.5
@@ -26,6 +26,13 @@ export interface SmoothBottomChaseHandle {
   isActive: () => boolean
   /** Start the loop if parked. Call after content growth. */
   kick: () => void
+  /**
+   * Keep the loop alive for `durationMs` even while the gap is at rest,
+   * re-checking every frame. For growth that lands with no observable trigger
+   * — content mounting just after a stream's observers tear down (a stop's
+   * stopped-row/actions). Repeat calls extend the deadline; one loop only.
+   */
+  kickUntil: (durationMs: number) => void
   cancel: () => void
 }
 
@@ -37,9 +44,12 @@ export interface SmoothBottomChaseHandle {
  *
  * Self-interrupting: chase writes only ever move the offset down, and content
  * growth leaves it where the last write put it — so an offset that moved UP
- * since the last write can only be a user scrolling away, and the loop parks
- * instead of fighting them. `shouldContinue` layers any caller-owned stickiness
- * on top (checked every frame).
+ * since the last write, MORE than the bottom itself moved up, can only be a
+ * user scrolling away, and the loop parks instead of fighting them. (A
+ * content-shrink clamp moves the offset and the bottom together — e.g. the
+ * transcript's floor drain — and must not read as a user scroll.)
+ * `shouldContinue` layers any caller-owned stickiness on top (checked every
+ * frame).
  */
 export function createSmoothBottomChase(
   target: SmoothBottomChaseTarget,
@@ -47,11 +57,15 @@ export function createSmoothBottomChase(
 ): SmoothBottomChaseHandle {
   let raf: number | null = null
   let lastTop: number | null = null
+  let lastBottomTop: number | null = null
+  let deadline = 0
 
   const park = () => {
     if (raf !== null) cancelAnimationFrame(raf)
     raf = null
     lastTop = null
+    lastBottomTop = null
+    deadline = 0
   }
 
   const step = () => {
@@ -65,13 +79,27 @@ export function createSmoothBottomChase(
       return
     }
     const top = target.getTop()
-    if (lastTop !== null && top < lastTop - 1) {
+    const bottomTop = target.getBottomTop()
+    // A user scroll is an ACTUAL upward top move (first clause — growth alone
+    // must not trip this) that exceeds any upward move of the bottom itself
+    // (second clause — a shrink clamp moves both together).
+    const topDrop = lastTop === null ? 0 : lastTop - top
+    const bottomDrop = lastBottomTop === null ? 0 : lastBottomTop - bottomTop
+    if (topDrop > 1 && topDrop > bottomDrop + 1) {
       park()
       return
     }
-    const gap = target.getBottomTop() - top
+    lastBottomTop = bottomTop
+    const gap = bottomTop - top
     if (gap <= CHASE_REST_GAP) {
-      park()
+      // Within a kickUntil deadline, idle at rest instead of parking so
+      // trigger-less growth inside the window is still chased.
+      if (performance.now() >= deadline) {
+        park()
+        return
+      }
+      lastTop = top
+      raf = requestAnimationFrame(step)
       return
     }
     target.setTop(top + Math.max(1, gap * SMOOTH_CHASE_RATE))
@@ -82,10 +110,25 @@ export function createSmoothBottomChase(
     raf = requestAnimationFrame(step)
   }
 
+  /**
+   * Seed the upward-move interrupt baseline at (re)start so a user scroll-up
+   * between the kick and the first frame parks the loop immediately — without
+   * it the first step has no baseline and writes one downward frame against
+   * the user.
+   */
+  const start = () => {
+    if (raf !== null) return
+    lastTop = target.getTop()
+    lastBottomTop = target.getBottomTop()
+    raf = requestAnimationFrame(step)
+  }
+
   return {
     isActive: () => raf !== null,
-    kick: () => {
-      if (raf === null) raf = requestAnimationFrame(step)
+    kick: start,
+    kickUntil: (durationMs: number) => {
+      deadline = Math.max(deadline, performance.now() + durationMs)
+      start()
     },
     cancel: park,
   }

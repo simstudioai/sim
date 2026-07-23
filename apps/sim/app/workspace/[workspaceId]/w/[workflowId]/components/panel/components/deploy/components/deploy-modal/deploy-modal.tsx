@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Badge,
   Button,
@@ -17,12 +17,13 @@ import {
   ModalTabsList,
   ModalTabsTrigger,
   Tooltip,
+  toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import type { DeploymentOperationSummary } from '@/lib/api/contracts/deployments'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -31,7 +32,6 @@ import {
   releaseDeployAction,
   tryAcquireDeployAction,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/deploy-action-lock'
-import { syncLocalDraftFromServer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/sync-local-draft'
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
 import { normalizeName, startsWithUuid } from '@/executor/constants'
@@ -47,37 +47,18 @@ import {
 } from '@/hooks/queries/deployments'
 import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
-import { useWorkspaceOwnerBilling, useWorkspaceSettings } from '@/hooks/queries/workspace'
+import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { syncLocalDraftFromServer } from '@/stores/workflows/sync-local-draft'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import {
-  ApiDeploy,
-  ChatDeploy,
-  DeployUpgradeGate,
-  type ExistingChat,
-  GeneralDeploy,
-  McpDeploy,
-} from './components'
+import { ApiDeploy, ChatDeploy, type ExistingChat, GeneralDeploy, McpDeploy } from './components'
 import { ApiInfoModal } from './components/general/components/api-info-modal'
 
 const logger = createLogger('DeployModal')
-
-/** Renders the upgrade prompt in place of a programmatic-deploy tab when gated. */
-function GatedTabContent({
-  gated,
-  feature,
-  children,
-}: {
-  gated: boolean
-  feature: 'API' | 'MCP'
-  children: ReactNode
-}) {
-  return gated ? <DeployUpgradeGate feature={feature} /> : <>{children}</>
-}
 
 interface DeployModalProps {
   open: boolean
@@ -131,7 +112,6 @@ export function DeployModal({
   const [activeTab, setActiveTab] = useState<TabView>('general')
   const [chatSubmitting, setChatSubmitting] = useState(false)
   const [deployError, setDeployError] = useState<string | null>(null)
-  const [deployWarnings, setDeployWarnings] = useState<string[]>([])
   const [isFinalizingDeploy, setIsFinalizingDeploy] = useState(false)
   const [isActivatingVersion, setIsActivatingVersion] = useState(false)
   const [isChatFormValid, setIsChatFormValid] = useState(false)
@@ -153,16 +133,6 @@ export function DeployModal({
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
-  // Gate on the WORKSPACE owner's plan (billed account, rolled up), not the
-  // viewer's individual plan, so a free member of a paid workspace isn't shown
-  // the upgrade wall. Keyed on the URL `workspaceId` (available on mount). Uses
-  // `isPaid` — the same check the server gate runs (any paid plan in an entitled
-  // status, incl. `past_due`) — rather than `hasUsablePaidAccess`, which would
-  // reject `past_due`/billing-blocked owners the API still allows. While loading
-  // the data is undefined → gate stays closed (no flash); only a resolved,
-  // non-paid owner gates.
-  const { data: ownerBilling } = useWorkspaceOwnerBilling(workspaceId ?? undefined)
-  const gateProgrammaticDeploy = isBillingEnabled && !!ownerBilling && !ownerBilling.isPaid
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
     workflowWorkspaceId || ''
@@ -180,7 +150,7 @@ export function DeployModal({
     data: deploymentInfoData,
     isLoading: isLoadingDeploymentInfo,
     refetch: refetchDeploymentInfo,
-  } = useDeploymentInfo(workflowId, { enabled: open && isDeployed })
+  } = useDeploymentInfo(workflowId, { enabled: open })
 
   const { data: versionsData, isLoading: versionsLoading } = useDeploymentVersions(workflowId, {
     enabled: open,
@@ -201,28 +171,42 @@ export function DeployModal({
   const activateVersionMutation = useActivateDeploymentVersion()
 
   const versions = versionsData?.versions ?? []
+  const deploymentAttemptStatus = deploymentInfoData?.latestDeploymentAttempt?.status
+  const attemptErrorMessage =
+    deploymentInfoData?.latestDeploymentAttempt?.error?.message ??
+    (deploymentAttemptStatus === 'failed' ? 'Deployment preparation failed' : null)
 
   const isWorkflowStillActive = (targetWorkflowId: string) => {
     return useWorkflowRegistry.getState().activeWorkflowId === targetWorkflowId
   }
 
-  const syncDraftAfterDeploy = async (): Promise<string | null> => {
-    if (!workflowId) return null
+  const syncDraftAfterDeploy = async (): Promise<void> => {
+    if (!workflowId) return
 
     try {
-      const syncedActiveWorkflow = await syncLocalDraftFromServer(workflowId)
-      if (!syncedActiveWorkflow && isWorkflowStillActive(workflowId)) {
-        return 'Deployment succeeded, but local sync is still catching up. Refresh if the status looks stale.'
-      }
-      return null
+      await syncLocalDraftFromServer(workflowId)
     } catch (error) {
-      if (!isWorkflowStillActive(workflowId)) return null
+      if (!isWorkflowStillActive(workflowId)) return
       logger.warn('Workflow deployed, but local draft sync failed', {
         workflowId,
         error: toError(error).message,
       })
-      return 'Deployment succeeded, but local sync failed. Refresh if the status looks stale.'
     }
+  }
+
+  /**
+   * Post-activation warnings (dead-lettered or still-queued side effects)
+   * arrive with an `active` attempt, so the Live badge gives no signal —
+   * surface them as a toast. Pending/failed attempts are excluded: the
+   * status badge already covers those.
+   */
+  const toastPostActivationWarnings = (
+    title: string,
+    result: { latestDeploymentAttempt?: { status: string } | null; warnings?: string[] }
+  ) => {
+    if (result.latestDeploymentAttempt?.status !== 'active') return
+    if (!result.warnings?.length) return
+    toast.warning(title, { description: result.warnings.join(' ') })
   }
 
   useEffect(() => {
@@ -272,7 +256,6 @@ export function DeployModal({
     if (open && workflowId) {
       setActiveTab('general')
       setDeployError(null)
-      setDeployWarnings([])
       setChatSuccess(false)
 
       const currentOutputs = selectedStreamingOutputsRef.current
@@ -328,7 +311,6 @@ export function DeployModal({
     deployActionIdRef.current = actionId
     setIsFinalizingDeploy(true)
     setDeployError(null)
-    setDeployWarnings([])
 
     try {
       if (!(await deployReadiness.waitUntilReady())) {
@@ -340,9 +322,12 @@ export function DeployModal({
 
       try {
         const result = await deployMutation.mutateAsync({ workflowId })
-        const syncWarning = await syncDraftAfterDeploy()
-        if (!isWorkflowStillActive(workflowId) || deployActionIdRef.current !== actionId) return
-        setDeployWarnings([...(result.warnings || []), ...(syncWarning ? [syncWarning] : [])])
+        if (result.latestDeploymentAttempt?.status === 'active') {
+          await syncDraftAfterDeploy()
+        }
+        if (isWorkflowStillActive(workflowId)) {
+          toastPostActivationWarnings('Workflow deployed', result)
+        }
       } finally {
         if (deployActionIdRef.current === actionId) {
           setIsFinalizingDeploy(false)
@@ -368,18 +353,17 @@ export function DeployModal({
 
     activateVersionInFlightRef.current = true
     setIsActivatingVersion(true)
-    setDeployWarnings([])
+    setDeployError(null)
 
     try {
       const result = await activateVersionMutation.mutateAsync({ workflowId, version })
-      if (!isWorkflowStillActive(workflowId)) return
-      if (result.warnings && result.warnings.length > 0) {
-        setDeployWarnings(result.warnings)
+      if (isWorkflowStillActive(workflowId)) {
+        toastPostActivationWarnings(`Promoted v${version} to live`, result)
       }
     } catch (error) {
       if (!isWorkflowStillActive(workflowId)) return
       logger.error('Error promoting version:', { error })
-      throw error
+      setDeployError(toError(error).message || `Failed to promote v${version} to live`)
     } finally {
       activateVersionInFlightRef.current = false
       setIsActivatingVersion(false)
@@ -394,20 +378,23 @@ export function DeployModal({
       return
     }
 
-    setDeployWarnings([])
-
     try {
       const result = await undeployMutation.mutateAsync({ workflowId: targetWorkflowId })
       if (!isWorkflowStillActive(targetWorkflowId)) return
       setUndeployTargetWorkflowId(null)
-      if (result.warnings && result.warnings.length > 0) {
-        setDeployWarnings(result.warnings)
-        return
-      }
       onOpenChange(false)
+      /**
+       * Partial cleanup warnings (e.g. external subscription teardown left to
+       * background retries) surface as a toast so closing the modal does not
+       * silently swallow them.
+       */
+      if (result.warnings?.length) {
+        toast.warning('Workflow undeployed', { description: result.warnings.join(' ') })
+      }
     } catch (error: unknown) {
       if (!isWorkflowStillActive(targetWorkflowId)) return
       logger.error('Error undeploying workflow:', { error })
+      toast.error('Failed to undeploy workflow', { description: toError(error).message })
     }
   }
 
@@ -419,7 +406,6 @@ export function DeployModal({
     deployActionIdRef.current = actionId
     setIsFinalizingDeploy(true)
     setDeployError(null)
-    setDeployWarnings([])
 
     try {
       if (!(await deployReadiness.waitUntilReady())) {
@@ -445,9 +431,12 @@ export function DeployModal({
 
       try {
         const result = await deployMutation.mutateAsync({ workflowId })
-        const syncWarning = await syncDraftAfterDeploy()
-        if (!isWorkflowStillActive(workflowId) || deployActionIdRef.current !== actionId) return
-        setDeployWarnings([...(result.warnings || []), ...(syncWarning ? [syncWarning] : [])])
+        if (result.latestDeploymentAttempt?.status === 'active') {
+          await syncDraftAfterDeploy()
+        }
+        if (isWorkflowStillActive(workflowId)) {
+          toastPostActivationWarnings('Workflow redeployed', result)
+        }
       } finally {
         if (deployActionIdRef.current === actionId) {
           setIsFinalizingDeploy(false)
@@ -473,7 +462,6 @@ export function DeployModal({
     if (workflowId) releaseDeployAction(workflowId)
     setChatSubmitting(false)
     setDeployError(null)
-    setDeployWarnings([])
     onOpenChange(false)
   }
 
@@ -545,24 +533,11 @@ export function DeployModal({
                 Configure and manage workflow deployment settings including API, MCP, and chat
                 options.
               </ModalDescription>
-              {(deployError || deployWarnings.length > 0) && (
-                <div className='mb-3 flex flex-col gap-2'>
-                  {deployError && (
-                    <Badge variant='red' size='lg' dot className='max-w-full truncate'>
-                      {deployError}
-                    </Badge>
-                  )}
-                  {deployWarnings.map((warning) => (
-                    <Badge
-                      key={warning}
-                      variant='amber'
-                      size='lg'
-                      dot
-                      className='max-w-full truncate'
-                    >
-                      {warning}
-                    </Badge>
-                  ))}
+              {deployError && (
+                <div className='mb-3' role='alert'>
+                  <Badge variant='red' size='lg' dot className='max-w-full truncate'>
+                    {deployError}
+                  </Badge>
                 </div>
               )}
               <ModalTabsContent value='general'>
@@ -581,17 +556,15 @@ export function DeployModal({
               </ModalTabsContent>
 
               <ModalTabsContent value='api' className='h-full'>
-                <GatedTabContent gated={gateProgrammaticDeploy} feature='API'>
-                  <ApiDeploy
-                    workflowId={workflowId}
-                    deploymentInfo={deploymentInfo}
-                    isLoading={isLoadingDeploymentInfo}
-                    needsRedeployment={needsRedeployment}
-                    getInputFormatExample={getInputFormatExample}
-                    selectedStreamingOutputs={selectedStreamingOutputs}
-                    onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
-                  />
-                </GatedTabContent>
+                <ApiDeploy
+                  workflowId={workflowId}
+                  deploymentInfo={deploymentInfo}
+                  isLoading={isLoadingDeploymentInfo}
+                  needsRedeployment={needsRedeployment}
+                  getInputFormatExample={getInputFormatExample}
+                  selectedStreamingOutputs={selectedStreamingOutputs}
+                  onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
+                />
               </ModalTabsContent>
 
               <ModalTabsContent value='chat'>
@@ -611,22 +584,20 @@ export function DeployModal({
               </ModalTabsContent>
 
               <ModalTabsContent value='mcp' className='h-full'>
-                <GatedTabContent gated={gateProgrammaticDeploy} feature='MCP'>
-                  {workflowId && (
-                    <McpDeploy
-                      workflowId={workflowId}
-                      workflowName={workflowMetadata?.name || 'Workflow'}
-                      workflowDescription={workflowMetadata?.description}
-                      isDeployed={isDeployed}
-                      deployedState={deployedState}
-                      isLoadingDeployedState={isLoadingDeployedState}
-                      onSubmittingChange={setMcpToolSubmitting}
-                      onCanSaveChange={setMcpToolCanSave}
-                      onSaveDisabledReasonChange={setMcpToolSaveDisabledReason}
-                      onActiveServerChange={setMcpActiveServerId}
-                    />
-                  )}
-                </GatedTabContent>
+                {workflowId && (
+                  <McpDeploy
+                    workflowId={workflowId}
+                    workflowName={workflowMetadata?.name || 'Workflow'}
+                    workflowDescription={workflowMetadata?.description}
+                    isDeployed={isDeployed}
+                    deployedState={deployedState}
+                    isLoadingDeployedState={isLoadingDeployedState}
+                    onSubmittingChange={setMcpToolSubmitting}
+                    onCanSaveChange={setMcpToolCanSave}
+                    onSaveDisabledReasonChange={setMcpToolSaveDisabledReason}
+                    onActiveServerChange={setMcpActiveServerId}
+                  />
+                )}
               </ModalTabsContent>
             </ModalBody>
           </ModalTabs>
@@ -639,6 +610,8 @@ export function DeployModal({
               isUndeploying={isUndeploying}
               deployReadiness={deployReadiness}
               isDeploymentSettling={isDeploymentSettling}
+              attemptStatus={deploymentAttemptStatus}
+              attemptErrorMessage={attemptErrorMessage}
               onDeploy={onDeploy}
               onRedeploy={handleRedeploy}
               onUndeploy={() => {
@@ -646,7 +619,7 @@ export function DeployModal({
               }}
             />
           )}
-          {activeTab === 'api' && !gateProgrammaticDeploy && (
+          {activeTab === 'api' && (
             <ModalFooter className='items-center justify-between'>
               <div />
               <div className='flex items-center gap-2'>
@@ -698,7 +671,7 @@ export function DeployModal({
               </div>
             </ModalFooter>
           )}
-          {activeTab === 'mcp' && !gateProgrammaticDeploy && isDeployed && hasMcpServers && (
+          {activeTab === 'mcp' && isDeployed && hasMcpServers && (
             <ModalFooter className='items-center justify-between'>
               <div />
               <div className='flex items-center gap-2'>
@@ -781,15 +754,77 @@ export function DeployModal({
   )
 }
 
+type DeploymentAttemptStatus = DeploymentOperationSummary['status']
+
 interface StatusBadgeProps {
-  isWarning: boolean
+  isDeployed: boolean
+  needsRedeployment: boolean
+  attemptStatus?: DeploymentAttemptStatus
+  attemptErrorMessage?: string | null
 }
 
-function StatusBadge({ isWarning }: StatusBadgeProps) {
-  const label = isWarning ? 'Update deployment' : 'Live'
+/**
+ * Lifecycle-aware deployment status badge. Pending attempts render amber
+ * (labelled Retrying once an attempt has recorded a transient error), failed
+ * attempts render red with the failure reason in a tooltip, and a settled
+ * live deployment falls back to the Live/Update states.
+ */
+function StatusBadge({
+  isDeployed,
+  needsRedeployment,
+  attemptStatus,
+  attemptErrorMessage,
+}: StatusBadgeProps) {
+  if (attemptStatus === 'preparing' || attemptStatus === 'activating') {
+    const isRetrying = Boolean(attemptErrorMessage)
+    return (
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Badge variant='amber' size='lg' dot className='cursor-default'>
+            {isRetrying ? 'Retrying' : 'Pending'}
+          </Badge>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='top' className='max-w-[320px]'>
+          {isRetrying && <p className='text-caption'>{attemptErrorMessage}</p>}
+          <p className='text-caption'>
+            {isRetrying
+              ? isDeployed
+                ? 'Retrying automatically. The current version stays live until cutover completes.'
+                : 'Retrying automatically. The workflow goes live once activation completes.'
+              : isDeployed
+                ? 'A new version is being prepared. The current version stays live until cutover completes.'
+                : 'Triggers and schedules are being registered. The workflow goes live once activation completes.'}
+          </p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    )
+  }
+
+  if (attemptStatus === 'failed') {
+    return (
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Badge variant='red' size='lg' dot className='cursor-default'>
+            Failed
+          </Badge>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='top' className='max-w-[320px]'>
+          <p className='text-caption'>{attemptErrorMessage || 'Deployment preparation failed.'}</p>
+          <p className='text-caption'>
+            {isDeployed
+              ? 'The previously deployed version is still live.'
+              : 'The workflow remains undeployed.'}
+          </p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    )
+  }
+
+  if (!isDeployed) return null
+
   return (
-    <Badge variant={isWarning ? 'amber' : 'green'} size='lg' dot>
-      {label}
+    <Badge variant={needsRedeployment ? 'amber' : 'green'} size='lg' dot>
+      {needsRedeployment ? 'Update deployment' : 'Live'}
     </Badge>
   )
 }
@@ -801,6 +836,8 @@ interface GeneralFooterProps {
   isUndeploying: boolean
   deployReadiness: DeployReadiness
   isDeploymentSettling: boolean
+  attemptStatus?: DeploymentAttemptStatus
+  attemptErrorMessage?: string | null
   onDeploy: () => Promise<void>
   onRedeploy: () => Promise<void>
   onUndeploy: () => void
@@ -813,6 +850,8 @@ function GeneralFooter({
   isUndeploying,
   deployReadiness,
   isDeploymentSettling,
+  attemptStatus,
+  attemptErrorMessage,
   onDeploy,
   onRedeploy,
   onUndeploy,
@@ -823,12 +862,30 @@ function GeneralFooter({
     deployReadiness.isBlocked && !deployReadiness.isSyncing && !isSubmitting && !isUndeploying
       ? deployReadiness.tooltip
       : null
+  const status = (
+    <div className='flex min-w-0 flex-col gap-1'>
+      <StatusBadge
+        isDeployed={Boolean(isDeployed)}
+        needsRedeployment={needsRedeployment}
+        attemptStatus={attemptStatus}
+        attemptErrorMessage={attemptErrorMessage}
+      />
+      {blockedMessage && (
+        <div
+          className='max-w-[300px] truncate text-[var(--text-muted)] text-xs'
+          title={blockedMessage}
+        >
+          {blockedMessage}
+        </div>
+      )}
+    </div>
+  )
   const deployActionLoading = isSubmitting || isDeploymentSettling
 
   if (!isDeployed) {
     return (
       <ModalFooter className='items-center justify-between'>
-        <div className='max-w-[260px] text-[var(--text-muted)] text-xs'>{blockedMessage}</div>
+        {status}
         <div className='flex items-center gap-2'>
           <Button variant='tertiary' onClick={onDeploy} disabled={isDeployBlocked}>
             {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
@@ -841,12 +898,7 @@ function GeneralFooter({
 
   return (
     <ModalFooter className='items-center justify-between'>
-      <div className='flex min-w-0 flex-col gap-1'>
-        <StatusBadge isWarning={needsRedeployment} />
-        {blockedMessage && (
-          <div className='max-w-[300px] text-[var(--text-muted)] text-xs'>{blockedMessage}</div>
-        )}
-      </div>
+      {status}
       <div className='flex items-center gap-2'>
         <Button variant='default' onClick={onUndeploy} disabled={isUndeploying || isSubmitting}>
           {isUndeploying ? 'Undeploying...' : 'Undeploy'}

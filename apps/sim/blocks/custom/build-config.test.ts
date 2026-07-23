@@ -8,6 +8,7 @@ import {
   CUSTOM_BLOCK_TILE_COLOR,
   type CustomBlockRow,
   isCustomBlockType,
+  isReservedOutputName,
 } from '@/blocks/custom/build-config'
 import type { BlockIcon } from '@/blocks/types'
 
@@ -33,6 +34,18 @@ describe('isCustomBlockType', () => {
   })
 })
 
+describe('isReservedOutputName', () => {
+  it('rejects the system output fields case-insensitively', () => {
+    expect(isReservedOutputName('cost')).toBe(true)
+    expect(isReservedOutputName('Cost')).toBe(true)
+    expect(isReservedOutputName(' success ')).toBe(true)
+    expect(isReservedOutputName('error')).toBe(true)
+    expect(isReservedOutputName('result')).toBe(false)
+    expect(isReservedOutputName('cost_2')).toBe(false)
+    expect(isReservedOutputName('summary')).toBe(false)
+  })
+})
+
 describe('buildCustomBlockConfig', () => {
   const fields: WorkflowInputField[] = [
     { name: 'title', type: 'string' },
@@ -47,6 +60,7 @@ describe('buildCustomBlockConfig', () => {
     const config = buildCustomBlockConfig(row, fields, { icon })
     expect(config.type).toBe('custom_block_abc123')
     expect(config.name).toBe('Invoice Parser')
+    expect(config.sourceWorkflowId).toBe('wf-1')
     expect(config.category).toBe('tools')
     expect(config.bgColor).toBe(CUSTOM_BLOCK_TILE_COLOR)
     expect(config.hideFromToolbar).toBeUndefined()

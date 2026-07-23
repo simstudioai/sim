@@ -1,0 +1,158 @@
+/**
+ * @vitest-environment node
+ */
+import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockMaterializeExecutionData } = vi.hoisted(() => ({
+  mockMaterializeExecutionData: vi.fn(),
+}))
+
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
+
+vi.mock('@/lib/logs/execution/trace-store', () => ({
+  materializeExecutionData: mockMaterializeExecutionData,
+  TRACE_STORE_REF_KEY: 'traceStoreRef',
+}))
+
+import {
+  getExecutionInputForWorkflow,
+  getExecutionStateForWorkflow,
+  getLatestExecutionStateWithExecutionId,
+} from '@/lib/workflows/executor/execution-state'
+
+const EXECUTION_STATE = {
+  blockStates: {},
+  executedBlocks: ['block-1'],
+  blockLogs: [],
+  decisions: {},
+  completedLoops: [],
+  activeExecutionPath: [],
+}
+
+describe('execution state lookup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockMaterializeExecutionData.mockReset()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
+  it('materializes externalized execution data for a specific execution', async () => {
+    const slimExecutionData = {
+      traceStoreRef: {
+        __simLargeValueRef: true,
+        id: 'value-1',
+        key: 'execution/workspace-1/workflow-1/execution-1/value.json',
+        kind: 'object',
+        size: 100,
+        version: 1,
+        executionId: 'execution-1',
+      },
+    }
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionData: slimExecutionData,
+      },
+    ])
+    mockMaterializeExecutionData.mockResolvedValueOnce({
+      executionState: EXECUTION_STATE,
+    })
+
+    const result = await getExecutionStateForWorkflow('execution-1', 'workflow-1')
+
+    expect(mockMaterializeExecutionData).toHaveBeenCalledWith(slimExecutionData, {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
+    expect(result).toEqual(EXECUTION_STATE)
+  })
+
+  it('materializes externalized execution data when reusing workflow input', async () => {
+    const slimExecutionData = {
+      traceStoreRef: {
+        __simLargeValueRef: true,
+        id: 'value-1',
+        key: 'execution/workspace-1/workflow-1/execution-1/value.json',
+        kind: 'object',
+        size: 100,
+        version: 1,
+        executionId: 'execution-1',
+      },
+    }
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionData: slimExecutionData,
+      },
+    ])
+    mockMaterializeExecutionData.mockResolvedValueOnce({
+      workflowInput: { leadId: 'lead-1' },
+    })
+
+    const result = await getExecutionInputForWorkflow('execution-1', 'workflow-1')
+
+    expect(result).toEqual({
+      found: true,
+      input: { leadId: 'lead-1' },
+    })
+    expect(mockMaterializeExecutionData).toHaveBeenCalledWith(slimExecutionData, {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
+  })
+
+  it('checks older pointer-backed candidates when the latest has no execution state', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-2',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionState: null,
+        traceStoreRef: { id: 'value-2' },
+      },
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionState: null,
+        traceStoreRef: { id: 'value-1' },
+      },
+    ])
+    mockMaterializeExecutionData
+      .mockResolvedValueOnce({})
+      .mockImplementationOnce(async (executionData: Record<string, unknown>) => {
+        const { traceStoreRef: _traceStoreRef, ...inlineValues } = executionData
+        return { executionState: EXECUTION_STATE, ...inlineValues }
+      })
+
+    const result = await getLatestExecutionStateWithExecutionId('workflow-1')
+
+    expect(result).toEqual({
+      executionId: 'execution-1',
+      state: EXECUTION_STATE,
+    })
+    expect(mockMaterializeExecutionData).toHaveBeenCalledTimes(2)
+    expect(mockMaterializeExecutionData).toHaveBeenNthCalledWith(
+      1,
+      {
+        traceStoreRef: { id: 'value-2' },
+      },
+      {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-2',
+      }
+    )
+  })
+})

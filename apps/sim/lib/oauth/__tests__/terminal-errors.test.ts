@@ -1,11 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
+import { redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
-
 import {
   clearDeadFlag,
   getRecentTerminalError,

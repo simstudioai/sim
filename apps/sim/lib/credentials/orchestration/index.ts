@@ -17,6 +17,7 @@ import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
 } from '@/lib/credentials/service-account-secret'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialOrchestration')
@@ -48,6 +49,10 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   /** Atlassian service-account secret rotation (reconnect). */
   apiToken?: string
   domain?: string
+  /** Client-credential service-account secret rotation (reconnect). */
+  clientId?: string
+  clientSecret?: string
+  orgId?: string
 }
 
 export interface PerformCredentialResult {
@@ -58,6 +63,7 @@ export interface PerformCredentialResult {
   providerErrorCode?: string
   workspaceId?: string
   updatedFields?: string[]
+  previousDisplayName?: string
 }
 
 export async function performUpdateCredential(
@@ -116,14 +122,18 @@ export async function performUpdateCredential(
       updates.encryptedServiceAccountKey = encrypted
     }
 
-    // Reconnect: rotate a Slack/Atlassian service-account secret in place. The
+    // Reconnect: rotate a service-account secret (Slack, Atlassian, or any
+    // token-paste provider) in place. The
     // secret is re-verified against the provider and re-encrypted; the display
     // name is preserved (the user may have renamed it).
     const hasRotationSecret =
       params.signingSecret !== undefined ||
       params.botToken !== undefined ||
       params.apiToken !== undefined ||
-      params.domain !== undefined
+      params.domain !== undefined ||
+      params.clientId !== undefined ||
+      params.clientSecret !== undefined ||
+      params.orgId !== undefined
     let rotatedSlackBotUserId: string | undefined
     if (hasRotationSecret && access.credential.type === 'service_account') {
       try {
@@ -134,6 +144,9 @@ export async function performUpdateCredential(
             botToken: params.botToken,
             apiToken: params.apiToken,
             domain: params.domain,
+            clientId: params.clientId,
+            clientSecret: params.clientSecret,
+            orgId: params.orgId,
           }
         )
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
@@ -145,6 +158,14 @@ export async function performUpdateCredential(
         if (error instanceof AtlassianValidationError) {
           // Surface the provider code so the client maps it to the specific
           // token/domain message (create returns it too).
+          return {
+            success: false,
+            error: error.code,
+            errorCode: 'validation',
+            providerErrorCode: error.code,
+          }
+        }
+        if (error instanceof TokenServiceAccountValidationError) {
           return {
             success: false,
             error: error.code,
@@ -203,7 +224,12 @@ export async function performUpdateCredential(
       request: params.request,
     })
 
-    return { success: true, workspaceId: access.credential.workspaceId, updatedFields }
+    return {
+      success: true,
+      workspaceId: access.credential.workspaceId,
+      updatedFields,
+      previousDisplayName: access.credential.displayName,
+    }
   } catch (error) {
     if (error instanceof Error && error.message.includes('unique')) {
       return {

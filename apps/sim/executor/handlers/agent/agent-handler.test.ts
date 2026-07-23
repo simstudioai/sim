@@ -1,5 +1,21 @@
-import { setupGlobalFetchMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import {
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+  setEnvFlags,
+} from '@sim/testing'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type Mock,
+  vi,
+} from 'vitest'
 import { getAllBlocks } from '@/blocks'
 import { BlockType, isMcpTool } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
@@ -10,19 +26,6 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: false,
-  isProd: false,
-  isDev: true,
-  isTest: false,
-  getCostMultiplier: vi.fn().mockReturnValue(1),
-  getAllowedIntegrationsFromEnv: vi.fn().mockReturnValue(null),
-  isEmailVerificationEnabled: false,
-  isBillingEnabled: false,
-  isOrganizationsEnabled: false,
-  isAccessControlEnabled: false,
-}))
 
 vi.mock('@/providers/utils', () => ({
   getProviderFromModel: vi.fn().mockReturnValue('mock-provider'),
@@ -88,19 +91,12 @@ vi.mock('@/executor/utils/http', () => ({
   }),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([
-          { id: 'mcp-search-server', connectionStatus: 'connected' },
-          { id: 'same-server', connectionStatus: 'connected' },
-          { id: 'mcp-legacy-server', connectionStatus: 'connected' },
-        ]),
-      }),
-    }),
-  },
-}))
+/** Connected MCP servers every workspace-server lookup in this suite resolves. */
+const MCP_SERVER_ROWS = [
+  { id: 'mcp-search-server', connectionStatus: 'connected' },
+  { id: 'same-server', connectionStatus: 'connected' },
+  { id: 'mcp-legacy-server', connectionStatus: 'connected' },
+]
 
 const mockGetCustomToolById = vi.fn()
 
@@ -108,14 +104,18 @@ vi.mock('@/lib/workflows/custom-tools/operations', () => ({
   getCustomToolById: (...args: unknown[]) => mockGetCustomToolById(...args),
 }))
 
-setupGlobalFetchMock()
-
 const mockGetAllBlocks = getAllBlocks as Mock
 const mockExecuteTool = executeTool as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockTransformBlockTool = transformBlockTool as Mock
-const mockFetch = global.fetch as unknown as Mock
+const mockFetch = vi.fn()
 const mockExecuteProviderRequest = executeProviderRequest as Mock
+
+beforeAll(() => {
+  setEnvFlags({ isDev: true, isTest: false })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('AgentBlockHandler', () => {
   let handler: AgentBlockHandler
@@ -125,6 +125,13 @@ describe('AgentBlockHandler', () => {
   beforeEach(() => {
     handler = new AgentBlockHandler()
     vi.clearAllMocks()
+    resetDbChainMock()
+    // The MCP server lookup awaits select().from(mcpServers).where(...) directly;
+    // queue a set per lookup so the structural where spy keeps its default wiring.
+    queueTableRows(schemaMock.mcpServers, MCP_SERVER_ROWS)
+
+    // unstubGlobals removes any module-scope fetch stub before each test, so re-stub here
+    vi.stubGlobal('fetch', mockFetch)
 
     Object.defineProperty(global, 'window', {
       value: {},
@@ -211,6 +218,10 @@ describe('AgentBlockHandler', () => {
         configurable: true,
       })
     } catch (e) {}
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   describe('canHandle', () => {
@@ -1826,6 +1837,42 @@ describe('AgentBlockHandler', () => {
       expect(mockExecuteProviderRequest).toHaveBeenCalled()
       const providerCallArgs = mockExecuteProviderRequest.mock.calls[0][1]
       expect(providerCallArgs.callChain).toEqual(['wf-parent', 'test-workflow-456'])
+    })
+
+    it('should pass billingAttribution to executeProviderRequest so LLM tool calls carry it', async () => {
+      const billingAttribution = {
+        actorUserId: 'user-1',
+        workspaceId: 'test-workspace-123',
+        organizationId: 'organization-1',
+        billedAccountUserId: 'owner-1',
+        billingEntity: { type: 'organization', id: 'organization-1' },
+        billingPeriod: {
+          start: '2026-07-01T00:00:00.000Z',
+          end: '2026-08-01T00:00:00.000Z',
+        },
+        payerSubscription: null,
+      }
+
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Search the knowledge base',
+        apiKey: 'test-api-key',
+      }
+
+      const contextWithAttribution = {
+        ...mockContext,
+        workspaceId: 'test-workspace-123',
+        workflowId: 'test-workflow-456',
+        metadata: { ...mockContext.metadata, billingAttribution },
+      } as ExecutionContext
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(contextWithAttribution, mockBlock, inputs)
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalled()
+      const providerCallArgs = mockExecuteProviderRequest.mock.calls[0][1]
+      expect(providerCallArgs.billingAttribution).toEqual(billingAttribution)
     })
 
     it('should handle multiple MCP tools from the same server efficiently', async () => {

@@ -131,6 +131,8 @@ export const AuditAction = {
   // Organizations
   ORGANIZATION_CREATED: 'organization.created',
   ORGANIZATION_UPDATED: 'organization.updated',
+  ORGANIZATION_SESSION_POLICY_UPDATED: 'organization.session_policy.updated',
+  ORGANIZATION_SESSIONS_REVOKED: 'organization.sessions.revoked',
   ORG_MEMBER_ADDED: 'org_member.added',
   ORG_MEMBER_REMOVED: 'org_member.removed',
   ORG_MEMBER_ROLE_CHANGED: 'org_member.role_changed',
@@ -185,6 +187,8 @@ export const AuditAction = {
   WORKFLOW_DEPLOYMENT_REVERTED: 'workflow.deployment_reverted',
   WORKFLOW_LOCKED: 'workflow.locked',
   WORKFLOW_UNLOCKED: 'workflow.unlocked',
+  WORKFLOW_FORK_SYNC_EXCLUDED: 'workflow.fork_sync_excluded',
+  WORKFLOW_FORK_SYNC_INCLUDED: 'workflow.fork_sync_included',
   WORKFLOW_VARIABLES_UPDATED: 'workflow.variables_updated',
   WORKFLOW_PUBLIC_API_TOGGLED: 'workflow.public_api_toggled',
   WORKFLOW_EXPORTED: 'workflow.exported',

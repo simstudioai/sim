@@ -16,6 +16,18 @@ export function escapeCql(value: string): string {
 }
 
 /**
+ * Keeps only content that is still current in Confluence. The v2
+ * `/spaces/{id}/pages` endpoint includes `archived` pages by default and CQL has
+ * no status filter, so without this guard archived pages stay in every listing,
+ * keep getting upserted, and never fall out via deletion reconciliation (which
+ * removes only documents absent from the listing). Items with no status field
+ * are kept — only an explicit non-current status excludes a result.
+ */
+export function isCurrentContent(item: Record<string, unknown>): boolean {
+  return item.status == null || item.status === 'current'
+}
+
+/**
  * Builds a CQL clause restricting content to the given space keys.
  * Single key uses `space = "X"`; multiple keys use `space in ("X","Y")`.
  */
@@ -92,6 +104,16 @@ async function fetchLabelsForPages(
 }
 
 /**
+ * Body representation marker embedded in the contentHash. Bumping this
+ * invalidates every previously-synced Confluence document so a one-time
+ * re-hydration picks up content newly reachable by the current extraction
+ * (e.g. the switch from `storage` to rendered `view`, which expands Include
+ * Page / Excerpt macros). Without it, already-indexed pages whose version is
+ * unchanged classify as `unchanged` and keep their stale (empty) content.
+ */
+const CONTENT_REPRESENTATION = 'view'
+
+/**
  * Produces a canonical metadata stub with a deterministic contentHash that
  * does not depend on which API surface (v1 CQL or v2) returned the page.
  */
@@ -115,7 +137,7 @@ function pageToStub(
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: options.sourceUrl,
-    contentHash: `confluence:${page.id}:${versionKey}`,
+    contentHash: `confluence:${CONTENT_REPRESENTATION}:${page.id}:${versionKey}`,
     metadata: {
       spaceId: options.spaceId,
       status: page.status,
@@ -233,10 +255,18 @@ export const confluenceConnector: ConnectorConfig = {
       if (syncContext) syncContext.cloudId = cloudId
     }
 
-    // Try pages first, fall back to blogposts if not found
+    /**
+     * Fetch the `view` representation rather than `storage`. Storage format only
+     * carries unexpanded macro references (e.g. Include Page / Excerpt Include),
+     * so "mirrored" content that pulls in another page's body is stripped to
+     * nothing by `htmlToPlainText`. The `view` representation is server-rendered
+     * HTML with those macros expanded inline, so included content is indexed too.
+     * The v2 single-item GET (`/pages/{id}`, `/blogposts/{id}`) supports
+     * `body-format=view`; only the bulk list endpoints are limited to storage/adf.
+     */
     let page: Record<string, unknown> | null = null
     for (const endpoint of ['pages', 'blogposts']) {
-      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${externalId}?body-format=storage`
+      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${externalId}?body-format=view`
       const response = await fetchWithRetry(url, {
         method: 'GET',
         headers: {
@@ -254,10 +284,10 @@ export const confluenceConnector: ConnectorConfig = {
       }
     }
 
-    if (!page) return null
+    if (!page || !isCurrentContent(page)) return null
     const body = page.body as Record<string, unknown> | undefined
-    const storage = body?.storage as Record<string, unknown> | undefined
-    const rawContent = (storage?.value as string) || ''
+    const view = body?.view as Record<string, unknown> | undefined
+    const rawContent = (view?.value as string) || ''
     const plainText = htmlToPlainText(rawContent)
 
     const labelMap = await fetchLabelsForPages(cloudId, accessToken, [String(page.id)])
@@ -363,6 +393,12 @@ async function listDocumentsV2(
 ): Promise<ExternalDocumentList> {
   const queryParams = new URLSearchParams()
   queryParams.append('limit', '250')
+  /**
+   * Restrict to current content: the pages endpoint defaults to
+   * `current,archived`, so archived pages would otherwise stay in the listing
+   * forever and never be purged by deletion reconciliation.
+   */
+  queryParams.append('status', 'current')
   if (cursor) {
     queryParams.append('cursor', cursor)
   }
@@ -392,13 +428,15 @@ async function listDocumentsV2(
   const data = await response.json()
   const results = data.results || []
 
-  const documents: ExternalDocument[] = results.map((page: Record<string, unknown>) => {
-    const links = page._links as Record<string, string> | undefined
-    return pageToStub(page, {
-      spaceId: page.spaceId,
-      sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+  const documents: ExternalDocument[] = (results as Record<string, unknown>[])
+    .filter(isCurrentContent)
+    .map((page) => {
+      const links = page._links as Record<string, string> | undefined
+      return pageToStub(page, {
+        spaceId: page.spaceId,
+        sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+      })
     })
-  })
 
   let nextCursor: string | undefined
   const nextLink = (data._links as Record<string, string>)?.next
@@ -576,9 +614,9 @@ async function listDocumentsViaCql(
   const data = await response.json()
   const results = data.results || []
 
-  const documents: ExternalDocument[] = results.map((item: Record<string, unknown>) =>
-    cqlResultToStub(item, domain)
-  )
+  const documents: ExternalDocument[] = (results as Record<string, unknown>[])
+    .filter(isCurrentContent)
+    .map((item) => cqlResultToStub(item, domain))
 
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched

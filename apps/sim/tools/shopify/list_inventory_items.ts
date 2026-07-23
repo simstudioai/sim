@@ -1,3 +1,4 @@
+import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 import {
   INVENTORY_ITEM_OUTPUT_PROPERTIES,
   PAGE_INFO_OUTPUT_PROPERTIES,
@@ -44,7 +45,7 @@ export const shopifyListInventoryItemsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://${params.shopDomain || params.idToken}/admin/api/2024-10/graphql.json`,
+      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
     method: 'POST',
     headers: (params) => {
       if (!params.accessToken) {

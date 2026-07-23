@@ -1,7 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
+import { dbChainMockFns, loggerMock, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   MockMcpClient,
@@ -23,7 +26,7 @@ const {
   // an expiry timestamp so negative-cache assertions behave like production.
   const cacheStore = new Map<string, { tools: unknown[]; expiry: number }>()
   const mockCacheAdapter = {
-    get: async (key: string) => {
+    get: vi.fn(async (key: string) => {
       const entry = cacheStore.get(key)
       if (!entry) return null
       if (entry.expiry <= Date.now()) {
@@ -31,16 +34,16 @@ const {
         return null
       }
       return entry
-    },
-    set: async (key: string, tools: unknown[], ttlMs: number) => {
+    }),
+    set: vi.fn(async (key: string, tools: unknown[], ttlMs: number) => {
       cacheStore.set(key, { tools, expiry: Date.now() + ttlMs })
-    },
-    delete: async (key: string) => {
+    }),
+    delete: vi.fn(async (key: string) => {
       cacheStore.delete(key)
-    },
-    clear: async () => {
+    }),
+    clear: vi.fn(async () => {
       cacheStore.clear()
-    },
+    }),
     dispose: () => {},
   }
   return {
@@ -70,28 +73,22 @@ const {
   }
 })
 
-vi.mock('@sim/db', () => {
-  // `where(...)` resolves to the workspace's rows AND exposes `.limit()` for
-  // chains like `getServerConfig` that do `select().from().where().limit(1)`.
-  const where = (...args: unknown[]) => {
-    const rowsPromise = Promise.resolve(mockGetWorkspaceServersRows(...args))
-    const thenable = Object.assign(rowsPromise, {
-      limit: (n: number) => rowsPromise.then((rows) => rows.slice(0, n)),
-    })
-    return thenable
-  }
-  const setter = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
-  return {
-    db: {
-      select: vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({ where }),
-      }),
-      update: vi.fn().mockReturnValue({ set: setter }),
-      insert: vi.fn(),
-      delete: vi.fn(),
-    },
-  }
-})
+/**
+ * Routes every select chain to `mockGetWorkspaceServersRows`: `where(...)`
+ * resolves the workspace's rows AND exposes `.limit()` for chains like
+ * `getServerConfig` that do `select().from().where().limit(1)`.
+ */
+function wireSelectsToWorkspaceRows() {
+  dbChainMockFns.from.mockImplementation(() => {
+    const rows = Promise.resolve(mockGetWorkspaceServersRows())
+    return {
+      where: () =>
+        Object.assign(rows, {
+          limit: (n: number) => rows.then((r: unknown[]) => r.slice(0, n)),
+        }),
+    }
+  })
+}
 
 vi.mock('@/lib/mcp/client', () => ({
   McpClient: MockMcpClient,
@@ -125,6 +122,8 @@ vi.mock('@/lib/mcp/storage', () => ({
 
 import { mcpService } from '@/lib/mcp/service'
 import { McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
+
+const mockLogger = vi.mocked(loggerMock.createLogger).mock.results.at(-1)?.value
 
 const WORKSPACE_ID = 'workspace-test'
 const USER_ID = 'user-test'
@@ -162,6 +161,9 @@ function tool(name: string, serverId: string) {
 describe('McpService.discoverTools per-server caching', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    wireSelectsToWorkspaceRows()
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'server-1' }])
     // `clearAllMocks` does not drain `.mockResolvedValueOnce` queues; reset
     // listTools so a previous test's unconsumed mock doesn't leak into the next.
     mockListTools.mockReset()
@@ -175,6 +177,10 @@ describe('McpService.discoverTools per-server caching', () => {
     mockDisconnect.mockResolvedValue(undefined)
     // The McpService singleton holds cache state across imports.
     await mcpService.clearCache()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('caches each server independently after first discovery', async () => {
@@ -321,9 +327,77 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(mockListTools).not.toHaveBeenCalled()
   })
 
+  it('persists and negative-caches UnauthorizedError for a headers-auth server', async () => {
+    const reflectedCredential = 'Bearer static-secret-for-bulk-discovery'
+    mockGetWorkspaceServersRows.mockResolvedValue([
+      dbRow('mcp-a', 'A', {
+        statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
+      }),
+    ])
+    mockListTools.mockRejectedValue(
+      new UnauthorizedError(`Rejected Authorization: ${reflectedCredential}`)
+    )
+
+    const first = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+    expect(first).toEqual([])
+
+    await vi.waitFor(() => {
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionStatus: 'disconnected',
+          lastError: 'Authentication failed',
+          statusConfig: { consecutiveFailures: 1, lastSuccessfulDiscovery: null },
+        })
+      )
+      expect(mockCacheAdapter.set).toHaveBeenCalledWith(
+        `workspace:${WORKSPACE_ID}:server:mcp-a:failure`,
+        [],
+        expect.any(Number)
+      )
+    })
+    expect(JSON.stringify(dbChainMockFns.set.mock.calls)).not.toContain(reflectedCredential)
+    expect(JSON.stringify(mockCacheAdapter.set.mock.calls)).not.toContain(reflectedCredential)
+    expect(JSON.stringify(mockLogger?.warn.mock.calls)).not.toContain(reflectedCredential)
+
+    mockListTools.mockClear()
+    const second = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+    expect(second).toEqual([])
+    expect(mockListTools).not.toHaveBeenCalled()
+  })
+
+  it('keeps UnauthorizedError soft-pending for an OAuth server', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
+    mockResolveEnvVars.mockRejectedValue(new UnauthorizedError('OAuth token rejected'))
+
+    const first = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+    expect(first).toEqual([])
+
+    await vi.waitFor(() => {
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionStatus: 'disconnected',
+          lastError: null,
+        })
+      )
+    })
+    expect(mockCacheAdapter.set).not.toHaveBeenCalledWith(
+      `workspace:${WORKSPACE_ID}:server:mcp-a:failure`,
+      [],
+      expect.any(Number)
+    )
+
+    mockResolveEnvVars.mockClear()
+    await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+    expect(mockResolveEnvVars).toHaveBeenCalledTimes(1)
+  })
+
   it('successful discoverServerTools clears the negative cache', async () => {
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
-    mockListTools.mockRejectedValueOnce(new Error('Request timed out'))
+    // A timeout is transient/retryable, so it must fail every attempt to reach
+    // the persisted-failure path.
+    mockListTools
+      .mockRejectedValueOnce(new Error('Request timed out'))
+      .mockRejectedValueOnce(new Error('Request timed out'))
 
     await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
       'Request timed out'
@@ -365,5 +439,166 @@ describe('McpService.discoverTools per-server caching', () => {
     const after = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
     expect(after.map((t) => t.name)).toEqual(['a1'])
     expect(mockListTools).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists a per-server discovery failure before rethrowing it', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([
+      dbRow('mcp-a', 'A', {
+        statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
+      }),
+    ])
+    mockListTools
+      .mockRejectedValueOnce(new Error('Request timed out'))
+      .mockRejectedValueOnce(new Error('Request timed out'))
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'Request timed out'
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionStatus: 'disconnected',
+        // Raw SDK timeout text is mapped to a user-facing message before persisting.
+        lastError: 'The MCP server took too long to respond and timed out',
+        statusConfig: { consecutiveFailures: 1, lastSuccessfulDiscovery: null },
+      })
+    )
+  })
+
+  it('retries a transient tools/list timeout and succeeds on the second attempt', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools
+      .mockRejectedValueOnce(new Error('Request timed out'))
+      .mockResolvedValueOnce([tool('a1', 'mcp-a')])
+
+    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
+
+    expect(tools.map((t) => t.name)).toEqual(['a1'])
+    expect(mockListTools).toHaveBeenCalledTimes(2)
+  })
+
+  it('persists and negative-caches per-server UnauthorizedError for headers auth', async () => {
+    const reflectedCredential = 'Bearer static-secret-for-server-discovery'
+    mockGetWorkspaceServersRows.mockResolvedValue([
+      dbRow('mcp-a', 'A', {
+        statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
+      }),
+    ])
+    mockListTools.mockRejectedValue(
+      new UnauthorizedError(`Rejected Authorization: ${reflectedCredential}`)
+    )
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      reflectedCredential
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionStatus: 'disconnected',
+        lastError: 'Authentication failed',
+        statusConfig: { consecutiveFailures: 1, lastSuccessfulDiscovery: null },
+      })
+    )
+    expect(JSON.stringify(dbChainMockFns.set.mock.calls)).not.toContain(reflectedCredential)
+    expect(JSON.stringify(mockCacheAdapter.set.mock.calls)).not.toContain(reflectedCredential)
+    expect(JSON.stringify(mockLogger?.warn.mock.calls)).not.toContain(reflectedCredential)
+
+    mockListTools.mockClear()
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'cooldown'
+    )
+    expect(mockListTools).not.toHaveBeenCalled()
+  })
+
+  it('recovers a rotated headers-auth credential via a single discovery retry', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    // Stale key 401s once, then the retry re-resolves and succeeds.
+    mockListTools
+      .mockRejectedValueOnce(new UnauthorizedError('stale key'))
+      .mockResolvedValueOnce([tool('a1', 'mcp-a')])
+
+    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
+
+    expect(tools).toHaveLength(1)
+    expect(mockListTools).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps per-server UnauthorizedError soft-pending for OAuth auth', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
+    mockResolveEnvVars.mockRejectedValue(new UnauthorizedError('OAuth token rejected'))
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'OAuth token rejected'
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionStatus: 'disconnected',
+        lastError: null,
+      })
+    )
+    expect(mockCacheAdapter.set).not.toHaveBeenCalledWith(
+      `workspace:${WORKSPACE_ID}:server:mcp-a:failure`,
+      [],
+      expect.any(Number)
+    )
+
+    mockResolveEnvVars.mockClear()
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'OAuth token rejected'
+    )
+    expect(mockResolveEnvVars).toHaveBeenCalledTimes(1)
+  })
+
+  it('promotes the persisted server status to error on the third consecutive failure', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([
+      dbRow('mcp-a', 'A', {
+        statusConfig: { consecutiveFailures: 2, lastSuccessfulDiscovery: null },
+      }),
+    ])
+    mockListTools.mockRejectedValueOnce(new Error('Connection refused'))
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'Connection refused'
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionStatus: 'error',
+        statusConfig: { consecutiveFailures: 3, lastSuccessfulDiscovery: null },
+      })
+    )
+  })
+
+  it('persists OAuth-required discovery as disconnected without a failure error', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockRejectedValueOnce(new McpOauthAuthorizationRequiredError('mcp-a', 'A'))
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'OAuth authorization required'
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionStatus: 'disconnected',
+        lastError: null,
+      })
+    )
+  })
+
+  it('does not negative-cache a failure older than a successful discovery', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockRejectedValueOnce(new Error('Older request failed'))
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'Older request failed'
+    )
+
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
+
+    expect(tools.map((tool) => tool.name)).toEqual(['a1'])
+    expect(mockListTools).toHaveBeenCalledTimes(2)
   })
 })

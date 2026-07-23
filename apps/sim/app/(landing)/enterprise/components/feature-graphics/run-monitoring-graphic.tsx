@@ -1,13 +1,25 @@
-import type { ReactNode } from 'react'
 import { ChipTag, cn } from '@sim/emcn'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/run-monitoring-graphic.module.css'
 
-interface LogField {
+export interface LogField {
   /** Row label, matching the workspace Log Details panel's key column. */
   label: string
-  /** Right-aligned value cell — plain text or a quiet mono chip. */
-  value: ReactNode
+  /** Right-aligned value cell text. */
+  value: string
+  /**
+   * Value treatment: `strong` for the primary-name row, `chip` for the
+   * quiet grey mono chip, `mono` for a bare mono value.
+   */
+  variant: 'strong' | 'chip' | 'mono'
+}
+
+/** One key/value pair of the closing JSON output card. */
+export interface OutputPair {
+  /** JSON key, rendered inside the muted scaffolding. */
+  key: string
+  /** Raw value literal, rendered in the stronger ink (include quotes for strings). */
+  value: string
 }
 
 /**
@@ -17,35 +29,38 @@ interface LogField {
  * row's monochrome vocabulary.
  */
 const LOG_FIELDS: readonly LogField[] = [
-  {
-    label: 'Workflow',
-    value: (
-      <span className='truncate font-medium text-[var(--text-primary)] text-caption'>
-        Support agent
-      </span>
-    ),
-  },
-  {
-    label: 'Run ID',
-    value: (
-      <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
-        afda69e9
-      </ChipTag>
-    ),
-  },
-  {
-    label: 'Trigger',
-    value: (
-      <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
-        Schedule
-      </ChipTag>
-    ),
-  },
-  {
-    label: 'Duration',
-    value: <span className='font-mono text-[var(--text-secondary)] text-caption'>1.56s</span>,
-  },
+  { label: 'Workflow', value: 'Support agent', variant: 'strong' },
+  { label: 'Run ID', value: 'afda69e9', variant: 'chip' },
+  { label: 'Trigger', value: 'Schedule', variant: 'chip' },
+  { label: 'Duration', value: '1.56s', variant: 'mono' },
 ] as const
+
+/** The default two-line JSON payload of the enterprise run. */
+const OUTPUT_PAIRS: readonly [OutputPair, OutputPair] = [
+  { key: 'status', value: '"completed"' },
+  { key: 'resolved', value: '24' },
+] as const
+
+/** Renders one field's right-aligned value cell in its declared treatment. */
+function fieldValue(field: LogField) {
+  if (field.variant === 'chip') {
+    return (
+      <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
+        {field.value}
+      </ChipTag>
+    )
+  }
+  if (field.variant === 'mono') {
+    return (
+      <span className='font-mono text-[var(--text-secondary)] text-caption'>{field.value}</span>
+    )
+  }
+  return (
+    <span className='truncate font-medium text-[var(--text-primary)] text-caption'>
+      {field.value}
+    </span>
+  )
+}
 
 /**
  * The workspace's Log Details panel told as a frameless vignette (the
@@ -71,29 +86,57 @@ const LOG_FIELDS: readonly LogField[] = [
  * padding to land on the tile's visible center instead of the bled
  * slot's center. The column is fluid (`w-full max-w-[312px]`) so it
  * never exceeds the compensated slot at narrow tile widths — the
- * workflow value and JSON lines truncate instead of clipping.
+ * workflow value and JSON lines truncate instead of clipping. On the
+ * wide spanned tile of the two-column band (container ≥500px inside
+ * `sm`..`lg`) the column relaxes to 400px so the key-value ledger's
+ * rows take the wide slot's airier measure.
+ *
+ * Every label is parametrizable so other landing pages (IT, HR,
+ * finance, workflows) can retell the live-run panel for their own
+ * domain's monitors; the defaults keep the enterprise page's
+ * Support-agent run byte-identical. Chrome, motion, and layout never
+ * change with the copy.
  */
-export function RunMonitoringGraphic() {
+interface RunMonitoringGraphicProps {
+  /** Panel title. */
+  title?: string
+  /** Live-status label beside the pulsing dot. */
+  statusLabel?: string
+  /** The key-value ledger rows. */
+  fields?: readonly LogField[]
+  /** Label above the JSON output card. */
+  outputLabel?: string
+  /** The two key/value pairs of the JSON output card. */
+  outputPairs?: readonly [OutputPair, OutputPair]
+}
+
+export function RunMonitoringGraphic({
+  title = 'Log details',
+  statusLabel = 'Live',
+  fields = LOG_FIELDS,
+  outputLabel = 'Workflow output',
+  outputPairs = OUTPUT_PAIRS,
+}: RunMonitoringGraphicProps = {}) {
   return (
     <FeatureGraphicShell>
       <div
         aria-hidden='true'
         className='absolute inset-0 flex items-center justify-center pr-8 max-lg:pr-6'
       >
-        <div className='w-full max-w-[312px]'>
+        <div className='w-full max-w-[312px] sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'>
           <div className='mb-1.5 flex items-center justify-between gap-2'>
             <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-base'>
-              Log details
+              {title}
             </span>
             <span className='flex shrink-0 items-center gap-1.5'>
               <span
                 className={cn('size-2 rounded-full bg-[var(--text-primary)]', styles.livePulse)}
               />
-              <span className='text-[var(--text-muted)] text-caption'>Live</span>
+              <span className='text-[var(--text-muted)] text-caption'>{statusLabel}</span>
             </span>
           </div>
 
-          {LOG_FIELDS.map((field, index) => (
+          {fields.map((field, index) => (
             <div
               key={field.label}
               className={cn(
@@ -102,21 +145,21 @@ export function RunMonitoringGraphic() {
               )}
             >
               <span className='shrink-0 text-[var(--text-muted)] text-caption'>{field.label}</span>
-              {field.value}
+              {fieldValue(field)}
             </div>
           ))}
 
           <div className='mt-2'>
-            <span className='block text-[var(--text-muted)] text-caption'>Workflow output</span>
+            <span className='block text-[var(--text-muted)] text-caption'>{outputLabel}</span>
             <div className='mt-1.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2 font-mono text-caption leading-[1.6] shadow-sm'>
               <div className='truncate whitespace-pre'>
-                <span className='text-[var(--text-muted)]'>{'{ "status": '}</span>
-                <span className='text-[var(--text-secondary)]'>"completed"</span>
+                <span className='text-[var(--text-muted)]'>{`{ "${outputPairs[0].key}": `}</span>
+                <span className='text-[var(--text-secondary)]'>{outputPairs[0].value}</span>
                 <span className='text-[var(--text-muted)]'>,</span>
               </div>
               <div className='truncate whitespace-pre'>
-                <span className='text-[var(--text-muted)]'>{'  "resolved": '}</span>
-                <span className='text-[var(--text-secondary)]'>24</span>
+                <span className='text-[var(--text-muted)]'>{`  "${outputPairs[1].key}": `}</span>
+                <span className='text-[var(--text-secondary)]'>{outputPairs[1].value}</span>
                 <span className='text-[var(--text-muted)]'>{' }'}</span>
               </div>
             </div>

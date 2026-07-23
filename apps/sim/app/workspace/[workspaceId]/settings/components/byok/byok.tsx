@@ -20,6 +20,7 @@ import {
   HunterIOIcon,
   IcypeasIcon,
   JinaAIIcon,
+  KimiIcon,
   LeadMagicIcon,
   LinkupIcon,
   MillionVerifierIcon,
@@ -47,6 +48,7 @@ import {
   type BYOKProviderSection,
 } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useBYOKKeys, useDeleteBYOKKey, useUpsertBYOKKey } from '@/hooks/queries/byok-keys'
 import type { BYOKProviderId } from '@/tools/types'
 
@@ -85,6 +87,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: xAIIcon,
     description: 'LLM calls',
     placeholder: 'xai-...',
+  },
+  {
+    id: 'kimi',
+    name: 'Kimi',
+    icon: KimiIcon,
+    description: 'LLM calls',
+    placeholder: 'sk-...',
   },
   {
     id: 'fireworks',
@@ -298,6 +307,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'google',
       'mistral',
       'xai',
+      'kimi',
       'fireworks',
       'together',
       'baseten',
@@ -345,6 +355,7 @@ export function BYOK() {
   const workspaceId = (params?.workspaceId as string) || ''
   const workspacePermissions = useUserPermissionsContext()
   const canManage = canMutateWorkspaceSettingsSection('byok', workspacePermissions)
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
 
   const { data, isLoading } = useBYOKKeys(workspaceId)
   const upsertKey = useUpsertBYOKKey()
@@ -372,6 +383,8 @@ export function BYOK() {
         isSaving={upsertKey.isPending}
         isDeleting={deleteKey.isPending}
         readOnly={!canManage}
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
         onSaveKey={async ({ providerId, apiKey, keyId, name }) => {
           await upsertKey.mutateAsync({
             workspaceId,

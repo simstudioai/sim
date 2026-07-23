@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, dbFor } from '@sim/db'
 import {
   member,
   organization,
@@ -69,6 +69,13 @@ import { emitExecutionCompletedEvent } from '@/lib/workspace-events/emitter'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
 const logger = createLogger('ExecutionLogger')
+
+/**
+ * Execution-log persistence (reads and writes on `workflow_execution_logs`,
+ * including the completion transaction) runs on the dedicated exec pool.
+ * Billing/usage-ledger work stays on the global `db`.
+ */
+const execDb = dbFor('exec')
 const MAX_EXECUTION_DATA_BYTES = 3 * 1024 * 1024
 const MAX_TRACE_IO_BYTES = 8 * 1024
 const MAX_WORKFLOW_VALUE_BYTES = 512 * 1024
@@ -546,7 +553,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     execLog.debug('Starting workflow execution')
 
     // Check if execution log already exists (idempotency check)
-    const existingLog = await db
+    const existingLog = await execDb
       .select()
       .from(workflowExecutionLogs)
       .where(eq(workflowExecutionLogs.executionId, executionId))
@@ -583,7 +590,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     const startTime = new Date()
 
-    const [workflowLog] = await db
+    const [workflowLog] = await execDb
       .insert(workflowExecutionLogs)
       .values({
         id: generateId(),
@@ -638,7 +645,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
   private async applyPiiRedaction(
     workspaceId: string | null,
     payload: RedactablePayload,
-    storeContext: { workflowId?: string | null; executionId: string; userId?: string | null }
+    storeContext: { workflowId?: string | null; executionId: string; userId?: string | null },
+    onRedactionStart?: () => Promise<void>
   ): Promise<RedactablePayload> {
     if (!workspaceId) return payload
 
@@ -659,6 +667,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId }).logs
     if (!config.enabled) return payload
 
+    // Masking large payloads can take a while; let the caller surface the phase
+    // (e.g. flip the log row to 'redacting') before the slow work starts.
+    await onRedactionStart?.()
+
     // The string redactor can't reach values already offloaded to large-value
     // storage (>8MB refs). Always hydrate → mask → re-store them under the LOGS
     // policy, even if the block-output stage already masked before offload: that
@@ -669,6 +681,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const working = await redactLargeValueRefs(payload, {
       entityTypes: config.entityTypes,
       language: config.language,
+      customPatterns: config.customPatterns,
       store: {
         workspaceId,
         workflowId: storeContext.workflowId ?? undefined,
@@ -680,6 +693,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     return redactPIIFromExecution(working, {
       entityTypes: config.entityTypes,
       language: config.language,
+      customPatterns: config.customPatterns,
     })
   }
 
@@ -740,7 +754,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     let execLog = logger.withMetadata({ executionId })
     execLog.debug('Completing workflow execution', { isResume })
 
-    const [existingLog] = await db
+    const [existingLog] = await execDb
       .select()
       .from(workflowExecutionLogs)
       .where(eq(workflowExecutionLogs.executionId, executionId))
@@ -858,6 +872,29 @@ export class ExecutionLogger implements IExecutionLoggerService {
         workflowId: existingLog?.workflowId ?? null,
         executionId,
         userId: actorUserId,
+      },
+      async () => {
+        // Execution is done but the log payload is still being masked — surface
+        // that as 'redacting' so the Logs UI doesn't show a stale 'running'.
+        // Guarded on 'running' so a concurrent cancellation is never clobbered;
+        // the terminal update below overwrites with the final status either way.
+        // Purely cosmetic: a failed write must never abort masking/finalization.
+        try {
+          await db
+            .update(workflowExecutionLogs)
+            .set({ status: 'redacting' })
+            .where(
+              and(
+                eq(workflowExecutionLogs.executionId, executionId),
+                eq(workflowExecutionLogs.status, 'running')
+              )
+            )
+        } catch (error) {
+          logger.warn('Failed to set redacting status on execution log', {
+            executionId,
+            error: getErrorMessage(error),
+          })
+        }
       }
     )
 
@@ -931,7 +968,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
     const completedExecutionLargeValueKeys = collectLargeValueReferenceKeys(storedExecutionData)
 
-    const updatedLog = await db.transaction(async (tx) => {
+    const updatedLog = await execDb.transaction(async (tx) => {
       await setExecutionLogWriteTimeouts(tx)
 
       const [log] = await tx
@@ -1161,7 +1198,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
   }
 
   async getWorkflowExecution(executionId: string): Promise<WorkflowExecutionLog | null> {
-    const [workflowLog] = await db
+    const [workflowLog] = await execDb
       .select()
       .from(workflowExecutionLogs)
       .where(eq(workflowExecutionLogs.executionId, executionId))

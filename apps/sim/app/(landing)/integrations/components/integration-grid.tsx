@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { ChipInput, Search } from '@sim/emcn'
-import { debounce, useQueryStates } from 'nuqs'
+import { useQueryStates } from 'nuqs'
 import {
   blockTypeToIconMap,
   formatIntegrationType,
@@ -13,9 +13,7 @@ import {
   integrationsParsers,
   integrationsUrlKeys,
 } from '@/app/(landing)/integrations/search-params'
-
-/** Debounce window for writing the search term to the URL (filtering is instant). */
-const SEARCH_DEBOUNCE_MS = 300
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 const PILL_BASE =
   'rounded-[5px] border border-[var(--border-1)] px-[9px] py-0.5 text-small text-[var(--text-primary)] transition-colors' as const
@@ -32,6 +30,9 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
     integrationsUrlKeys
   )
   const activeCategory = category || null
+
+  /** Debounced `q` URL write; the input stays instant and clearing strips the param immediately. */
+  const setQuery = useDebouncedSearchSetter((value, options) => setParams({ q: value }, options))
 
   /** Category facets, derived once from the (stable) integration list. */
   const availableCategories = useMemo(() => {
@@ -66,9 +67,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
             type='search'
             placeholder='Search integrations, tools, or triggers…'
             value={query}
-            onChange={(e) =>
-              setParams({ q: e.target.value }, { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) })
-            }
+            onChange={(e) => setQuery(e.target.value)}
             aria-label='Search integrations'
           />
         </div>

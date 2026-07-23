@@ -367,11 +367,31 @@ export interface SubBlockConfig {
   serviceId?: string
   requiredScopes?: string[]
   /**
-   * Narrows an `oauth-input` selector to a specific credential kind. `'custom-bot'`
-   * lists only reusable custom Slack bot credentials (service-account type) and its
-   * connect row opens the custom-bot setup modal instead of the OAuth flow.
+   * Narrows an `oauth-input` selector to a specific credential kind.
+   * `'service-account'` lists only service-account credentials; its connect row
+   * opens the provider's setup modal (resolved from the service-account setup
+   * registry — a bespoke wizard when registered, the generic token-paste modal
+   * otherwise). `'any'` lists OAuth accounts and service accounts together in a
+   * grouped dropdown with a connect action for each kind.
    */
-  credentialKind?: 'custom-bot'
+  credentialKind?: 'service-account' | 'any'
+  /**
+   * Overrides the credential picker's section and connect-row copy. Unset keys
+   * fall back to generic provider-derived labels.
+   */
+  credentialLabels?: {
+    oauthGroup?: string
+    oauthConnect?: string
+    serviceAccountGroup?: string
+    serviceAccountConnect?: string
+  }
+  /**
+   * Opts a trigger-mode `oauth-input` selector into listing service-account
+   * credentials, which are otherwise excluded in trigger mode. Set only when the
+   * trigger's server-side polling path can resolve the provider's service-account
+   * token (see `resolveOAuthCredential` in `@/lib/webhooks/polling/utils`).
+   */
+  allowServiceAccounts?: boolean
   // Selector properties — declarative mapping to a SelectorKey
   selectorKey?: SelectorKey
   selectorAllowSearch?: boolean
@@ -381,6 +401,11 @@ export interface SubBlockConfig {
   acceptedTypes?: string
   multiple?: boolean
   maxSize?: number
+  /**
+   * When true, FileUpload checks for S3/Blob and warns / disables new uploads if missing.
+   * Used by providers (e.g. Instagram) that need a Meta-fetchable public HTTPS URL.
+   */
+  requiresCloudStorage?: boolean
   // Slider-specific properties
   step?: number
   integer?: boolean
@@ -469,6 +494,12 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
   }
   hideFromToolbar?: boolean
   /**
+   * For published custom blocks only: the bound source workflow's id. Discovery
+   * surfaces use it to hide a workflow's own block on that workflow's canvas
+   * (placing it would recurse).
+   */
+  sourceWorkflowId?: string
+  /**
    * Marks an unreleased block. Preview blocks are hidden from every discovery
    * surface (toolbar, search, mentions, copilot/VFS, docs) in every environment —
    * hosted, self-hosted, dev, and SSR — until revealed via the hosted
@@ -478,6 +509,18 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
    * gated. Remove at GA.
    */
   preview?: boolean
+  /**
+   * Post-GA lifecycle state. `legacy` — superseded but still supported (amber
+   * badge, click-to-upgrade); `deprecated` — no longer supported, slated for
+   * removal (red badge). Placed instances keep executing and rendering in both
+   * states. `replacedBy` is the block `type` to migrate to — omit when no direct
+   * successor exists. Distinct from {@link hideFromToolbar} (a rendering
+   * decision) and {@link preview} (unreleased). Remove config at end-of-life.
+   */
+  sunset?: {
+    status: 'legacy' | 'deprecated'
+    replacedBy?: string
+  }
   triggers?: {
     enabled: boolean
     available: string[] // List of trigger IDs this block supports

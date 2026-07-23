@@ -123,6 +123,15 @@ Example:
       description: 'Allow retries for POST/PATCH requests (may create duplicate requests)',
       mode: 'advanced',
     },
+    {
+      id: 'proxyUrl',
+      title: 'Proxy URL',
+      type: 'short-input',
+      placeholder: 'http://user:pass@proxy.host:port or {{PROXY_URL}}',
+      description:
+        'Optional. Route this request through an http:// proxy (e.g. a residential proxy). Must be http://; the proxy host must be publicly reachable. Keep credentials in an environment variable and reference it like {{PROXY_URL}}.',
+      mode: 'advanced',
+    },
   ],
   tools: {
     access: ['http_request'],
@@ -143,6 +152,10 @@ Example:
     retryNonIdempotent: {
       type: 'boolean',
       description: 'Allow retries for non-idempotent methods like POST/PATCH',
+    },
+    proxyUrl: {
+      type: 'string',
+      description: 'Optional http:// proxy URL to route the request through',
     },
   },
   outputs: {

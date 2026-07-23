@@ -208,16 +208,6 @@ export const workspaceOwnerBillingSchema = z.object({
 
 export type WorkspaceOwnerBilling = z.output<typeof workspaceOwnerBillingSchema>
 
-export const getWorkspaceOwnerBillingContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/workspaces/[id]/owner-billing',
-  params: workspaceParamsSchema,
-  response: {
-    mode: 'json',
-    schema: workspaceOwnerBillingSchema,
-  },
-})
-
 export const workspaceHostContextSchema = z.object({
   workspace: z.object({
     id: nonEmptyIdSchema,

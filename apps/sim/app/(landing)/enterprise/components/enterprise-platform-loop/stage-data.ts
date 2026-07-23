@@ -146,6 +146,53 @@ export const ENTERPRISE_STAGE_CANVAS = { width: 560, height: 680 } as const
 /** Where the main pane is within one loop pass. */
 export type EnterpriseLoopPhase = 'idle' | 'typing' | 'typed' | 'dispatch' | 'reply'
 
+/**
+ * Everything domain-specific the platform loop replays - the sidebar's
+ * workspace identity, the chat exchange, and the staged workflow. The
+ * solutions pages supply their own content through this shape; the enterprise
+ * page renders {@link ENTERPRISE_LOOP_CONTENT} by default, so its hero stays
+ * byte-for-byte what it was before the loop was parametrized.
+ */
+export interface EnterpriseLoopContent {
+  /** Workspace name shown in the sidebar header. */
+  workspaceName: string
+  /** The new-chat greeting, personalized like the real workspace Home. */
+  greeting: string
+  /** Composer placeholder shown before the prompt types out. */
+  placeholder: string
+  /** The prompt the loop types - concise enough to type on screen. */
+  prompt: string
+  /** Sim's reply, streamed word by word once the workflow finishes building. */
+  reply: string
+  /** Recent chats in the sidebar - exactly four fill the design height. */
+  sidebarChats: readonly [string, string, string, string]
+  /** Deployed workflows in the sidebar - exactly five fill the design height. */
+  sidebarWorkflows: readonly [string, string, string, string, string]
+  /** Suggested actions under the composer - one per leading icon. */
+  suggestedActions: readonly [string, string, string, string]
+  /** The workflow the chat "builds" on the stage pane, in build order. */
+  stageBlocks: BlockDef[]
+  /** Source → target pairs among {@link stageBlocks}, drawn in build order. */
+  stageEdges: ReadonlyArray<readonly [string, string]>
+  /** Design-space bounding box of the staged block layout. */
+  stageCanvas: { width: number; height: number }
+}
+
+/** The enterprise hero's own loop content - the parametrized loop's default. */
+export const ENTERPRISE_LOOP_CONTENT: EnterpriseLoopContent = {
+  workspaceName: 'Brightwave',
+  greeting: ENTERPRISE_GREETING,
+  placeholder: COMPOSER_PLACEHOLDER,
+  prompt: ENTERPRISE_PROMPT,
+  reply: ENTERPRISE_REPLY,
+  sidebarChats: SIDEBAR_CHATS,
+  sidebarWorkflows: SIDEBAR_WORKFLOWS,
+  suggestedActions: SUGGESTED_ACTIONS,
+  stageBlocks: ENTERPRISE_STAGE_BLOCKS,
+  stageEdges: ENTERPRISE_STAGE_EDGES,
+  stageCanvas: ENTERPRISE_STAGE_CANVAS,
+}
+
 /** The idle new-chat view holds this long before typing starts. */
 const IDLE_HOLD_MS = 1400
 /** Rest on the fully-typed prompt before "send". */
@@ -160,21 +207,32 @@ export const BUILD_STEP_MS = 620
 const REPLY_AFTER_MS = 500
 /** The finished scene (reply + built canvas) holds this long. */
 const REPLY_HOLD_MS = 4800
-/** Fade-out length before the cycle restarts. */
-export const RESET_FADE_MS = 300
+
+/** Derived phase starts for one loop pass. */
+export interface LoopTimeline {
+  typing: number
+  typed: number
+  dispatch: number
+  stageOpen: number
+  buildStart: number
+  reply: number
+  total: number
+}
 
 /**
- * Derived phase starts. Later stages (tables, files, knowledge base, logs)
- * slot in after `reply` by extending {@link EnterpriseLoopPhase} and appending
- * starts here.
+ * Derives the phase starts for a given loop content - the typing beat scales
+ * with the prompt's length and the build window with the staged block count,
+ * so every domain's pass keeps the enterprise pacing. Later stages (tables,
+ * files, knowledge base, logs) slot in after `reply` by extending
+ * {@link EnterpriseLoopPhase} and appending starts here.
  */
-export const LOOP_TIMELINE = (() => {
+export function buildLoopTimeline(content: EnterpriseLoopContent): LoopTimeline {
   const typing = IDLE_HOLD_MS
-  const typed = typing + ENTERPRISE_PROMPT.length * PROMPT_CHAR_MS
+  const typed = typing + content.prompt.length * PROMPT_CHAR_MS
   const dispatch = typed + TYPED_HOLD_MS
   const stageOpen = dispatch + STAGE_OPEN_AFTER_MS
   const buildStart = stageOpen + BUILD_START_AFTER_MS
-  const reply = buildStart + (ENTERPRISE_STAGE_BLOCKS.length - 1) * BUILD_STEP_MS + REPLY_AFTER_MS
+  const reply = buildStart + (content.stageBlocks.length - 1) * BUILD_STEP_MS + REPLY_AFTER_MS
   const total = reply + REPLY_HOLD_MS
-  return { typing, typed, dispatch, stageOpen, buildStart, reply, total } as const
-})()
+  return { typing, typed, dispatch, stageOpen, buildStart, reply, total }
+}

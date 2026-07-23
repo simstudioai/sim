@@ -15,9 +15,19 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
 import {
+  type ClientCredentialAccountProviderId,
+  getClientCredentialAccountDescriptor,
+} from '@/lib/credentials/client-credential-accounts/descriptors'
+import {
+  getTokenServiceAccountDescriptor,
+  type TokenServiceAccountProviderId,
+} from '@/lib/credentials/token-service-accounts/descriptors'
+import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
+import { ClientCredentialAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credential-account-modal'
+import { TokenServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/token-service-account-modal'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import {
   useCreateWorkspaceCredential,
@@ -32,6 +42,8 @@ export type ServiceAccountProviderId =
   | typeof GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SLACK_CUSTOM_BOT_PROVIDER_ID
+  | TokenServiceAccountProviderId
+  | ClientCredentialAccountProviderId
 
 /** Sim setup guides for each provider, docked bottom-left of each modal. */
 const GOOGLE_SERVICE_ACCOUNT_DOCS_URL = 'https://docs.sim.ai/integrations/google-service-account'
@@ -96,6 +108,8 @@ interface ConnectServiceAccountModalProps {
   credentialDisplayName?: string
   /** Existing description, used to seed reconnect-capable modals. */
   credentialDescription?: string
+  /** Called with the new credential id after a successful create (token-paste providers). */
+  onCreated?: (credentialId: string) => void
 }
 
 /**
@@ -120,7 +134,41 @@ export function ConnectServiceAccountModal({
   credentialId,
   credentialDisplayName,
   credentialDescription,
+  onCreated,
 }: ConnectServiceAccountModalProps) {
+  const clientCredentialDescriptor = getClientCredentialAccountDescriptor(serviceAccountProviderId)
+  if (clientCredentialDescriptor) {
+    return (
+      <ClientCredentialAccountModal
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        descriptor={clientCredentialDescriptor}
+        serviceName={serviceName}
+        serviceIcon={serviceIcon}
+        credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
+      />
+    )
+  }
+  const tokenDescriptor = getTokenServiceAccountDescriptor(serviceAccountProviderId)
+  if (tokenDescriptor) {
+    return (
+      <TokenServiceAccountModal
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        descriptor={tokenDescriptor}
+        serviceName={serviceName}
+        serviceIcon={serviceIcon}
+        credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
+        onCreated={onCreated}
+      />
+    )
+  }
   if (serviceAccountProviderId === SLACK_CUSTOM_BOT_PROVIDER_ID) {
     return (
       <ConnectSlackBotModal
@@ -130,6 +178,7 @@ export function ConnectServiceAccountModal({
         credentialId={credentialId}
         initialDisplayName={credentialDisplayName}
         initialDescription={credentialDescription}
+        onCreated={onCreated}
       />
     )
   }

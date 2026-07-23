@@ -1467,6 +1467,21 @@ export function LinkedInIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/** Instagram camera glyph rendered with the block's brand gradient background. */
+export function InstagramIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 24 24'
+      fill='currentColor'
+      xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
+    >
+      <path d='M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z' />
+    </svg>
+  )
+}
+
 export function CrunchbaseIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -2786,6 +2801,52 @@ export function LinqIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function ClickUpIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const bodyGradientId = `clickup_body_${id}`
+  const arrowGradientId = `clickup_arrow_${id}`
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 54.8 65.8' fill='none'>
+      <linearGradient
+        id={bodyGradientId}
+        gradientUnits='userSpaceOnUse'
+        x1='0'
+        y1='15.0492'
+        x2='54.8446'
+        y2='15.0492'
+        gradientTransform='matrix(1 0 0 -1 0 69.3604)'
+      >
+        <stop offset='0' stopColor='#8930FD' />
+        <stop offset='1' stopColor='#49CCF9' />
+      </linearGradient>
+      <linearGradient
+        id={arrowGradientId}
+        gradientUnits='userSpaceOnUse'
+        x1='1.1953'
+        y1='53.166'
+        x2='53.7447'
+        y2='53.166'
+        gradientTransform='matrix(1 0 0 -1 0 69.3604)'
+      >
+        <stop offset='0' stopColor='#FF02F0' />
+        <stop offset='1' stopColor='#FFC800' />
+      </linearGradient>
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        fill={`url(#${bodyGradientId})`}
+        d='M0,50.6l10.1-7.8c5.4,7,11.1,10.3,17.4,10.3c6.3,0,11.9-3.2,17-10.2l10.3,7.6c-7.4,10-16.6,15.3-27.3,15.3C16.9,65.8,7.6,60.5,0,50.6z'
+      />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        fill={`url(#${arrowGradientId})`}
+        d='M27.5,16.9l-18,15.5l-8.3-9.7L27.6,0l26.2,22.7l-8.4,9.6L27.5,16.9z'
+      />
+    </svg>
+  )
+}
+
 export function LinearIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -3622,6 +3683,20 @@ export const AnthropicIcon = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
+export const ClaudeIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    {...props}
+    fill='currentColor'
+    height='1em'
+    viewBox='0 0 100 100'
+    width='1em'
+    xmlns='http://www.w3.org/2000/svg'
+  >
+    <title>Claude</title>
+    <path d='m19.6 66.5 19.7-11 .3-1-.3-.5h-1l-3.3-.2-11.2-.3L14 53l-9.5-.5-2.4-.5L0 49l.2-1.5 2-1.3 2.9.2 6.3.5 9.5.6 6.9.4L38 49.1h1.6l.2-.7-.5-.4-.4-.4L29 41l-10.6-7-5.6-4.1-3-2-1.5-2-.6-4.2 2.7-3 3.7.3.9.2 3.7 2.9 8 6.1L37 36l1.5 1.2.6-.4.1-.3-.7-1.1L33 25l-6-10.4-2.7-4.3-.7-2.6c-.3-1-.4-2-.4-3l3-4.2L28 0l4.2.6L33.8 2l2.6 6 4.1 9.3L47 29.9l2 3.8 1 3.4.3 1h.7v-.5l.5-7.2 1-8.7 1-11.2.3-3.2 1.6-3.8 3-2L61 2.6l2 2.9-.3 1.8-1.1 7.7L59 27.1l-1.5 8.2h.9l1-1.1 4.1-5.4 6.9-8.6 3-3.5L77 13l2.3-1.8h4.3l3.1 4.7-1.4 4.9-4.4 5.6-3.7 4.7-5.3 7.1-3.2 5.7.3.4h.7l12-2.6 6.4-1.1 7.6-1.3 3.5 1.6.4 1.6-1.4 3.4-8.2 2-9.6 2-14.3 3.3-.2.1.2.3 6.4.6 2.8.2h6.8l12.6 1 3.3 2 1.9 2.7-.3 2-5.1 2.6-6.8-1.6-16-3.8-5.4-1.3h-.8v.4l4.6 4.5 8.3 7.5L89 80.1l.5 2.4-1.3 2-1.4-.2-9.2-7-3.6-3-8-6.8h-.5v.7l1.8 2.7 9.8 14.7.5 4.5-.7 1.4-2.6 1-2.7-.6-5.8-8-6-9-4.7-8.2-.5.4-2.9 30.2-1.3 1.5-3 1.2-2.5-2-1.4-3 1.4-6.2 1.6-8 1.3-6.4 1.2-7.9.7-2.6v-.2H49L43 72l-9 12.3-7.2 7.6-1.7.7-3-1.5.3-2.8L24 86l10-12.8 6-7.9 4-4.6-.1-.5h-.3L17.2 77.4l-4.7.6-2-2 .2-3 1-1 8-5.5Z' />
+  </svg>
+)
+
 export function AzureIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   const gradient0 = `azure_paint0_${id}`
@@ -3759,6 +3834,20 @@ export const ZaiIcon = (props: SVGProps<SVGSVGElement>) => (
     />
     <polygon fill='#FFFFFF' points='24.3,7.1 13.14,22.91 5.7,22.91 16.86,7.1' />
     <path d='M14.53,22.91l1.31-1.86c0.2-0.29,0.54-0.47,0.9-0.47h7.09v2.33H14.53z' fill='#FFFFFF' />
+  </svg>
+)
+
+export const KimiIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...props} height='1em' viewBox='0 0 24 24' width='1em' xmlns='http://www.w3.org/2000/svg'>
+    <title>Kimi</title>
+    <path
+      d='M21.846 0a1.923 1.923 0 110 3.846H20.15a.226.226 0 01-.227-.226V1.923C19.923.861 20.784 0 21.846 0z'
+      fill='#1783FF'
+    />
+    <path
+      d='M11.065 11.199l7.257-7.2c.137-.136.06-.41-.116-.41H14.3a.164.164 0 00-.117.051l-7.82 7.756c-.122.12-.302.013-.302-.179V3.82c0-.127-.083-.23-.185-.23H3.186c-.103 0-.186.103-.186.23V19.77c0 .128.083.23.186.23h2.69c.103 0 .186-.102.186-.23v-3.25c0-.069.025-.135.069-.178l2.424-2.406a.158.158 0 01.205-.023l6.484 4.772a7.677 7.677 0 003.453 1.283c.108.012.2-.095.2-.23v-3.06c0-.117-.07-.212-.164-.227a5.028 5.028 0 01-2.027-.807l-5.613-4.064c-.117-.078-.132-.279-.028-.381z'
+      fill='currentColor'
+    />
   </svg>
 )
 
@@ -5662,7 +5751,6 @@ export function SmtpIcon(props: SVGProps<SVGSVGElement>) {
         strokeLinecap='round'
         strokeLinejoin='round'
       />
-      <circle cx='24' cy='6' r='4' fill='currentColor' stroke='none' />
     </svg>
   )
 }
@@ -8646,6 +8734,27 @@ export function JupyterIcon(props: SVGProps<SVGSVGElement>) {
       <use xlinkHref='#jupyter-path-9' transform='translate(3.21 4.88)' fill='#F37726' />
       <use xlinkHref='#jupyter-path-10' transform='translate(3.28 43.09)' fill='#9E9E9E' />
       <use xlinkHref='#jupyter-path-11' transform='translate(1.87 5.43)' fill='#616262' />
+    </svg>
+  )
+}
+
+export function RocketlaneIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 19.001 16.514' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <g transform='translate(0 -6.486)'>
+        <path
+          fillRule='evenodd'
+          clipRule='evenodd'
+          d='M15.446 6.94198L19.0007 14.7744L15.446 22.6068C14.652 22.862 13.8054 22.9998 12.9266 22.9998C11.714 22.9998 10.5627 22.7374 9.52637 22.2664L12.9266 14.7744L9.52637 7.28242C10.5627 6.81133 11.714 6.54895 12.9266 6.54895C13.8054 6.54895 14.652 6.68677 15.446 6.94198Z'
+          fill='#0F62FE'
+        />
+        <path
+          fillRule='evenodd'
+          clipRule='evenodd'
+          d='M6.03112 7.01001L9.52638 14.7114L6.03112 22.4129C5.13054 22.7516 4.15483 22.9369 3.13585 22.9369C2.02543 22.9369 0.96641 22.7168 0 22.318L3.45221 14.7114L2.49902e-08 7.10487C0.96641 6.70602 2.02543 6.48599 3.13585 6.48599C4.15483 6.48599 5.13054 6.67128 6.03112 7.01001Z'
+          fill='currentColor'
+        />
+      </g>
     </svg>
   )
 }

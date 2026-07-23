@@ -12,6 +12,7 @@ import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/component
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
 
@@ -26,7 +27,7 @@ export function CustomTools() {
   const { data: tools = [], isLoading, error, refetch: refetchTools } = useCustomTools(workspaceId)
   const deleteToolMutation = useDeleteCustomTool()
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [deletingTools, setDeletingTools] = useState<Set<string>>(() => new Set())
   const [editingTool, setEditingTool] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)

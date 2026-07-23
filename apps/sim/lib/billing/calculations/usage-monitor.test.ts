@@ -1,41 +1,17 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockFlags,
-  mockDbLimit,
   mockGetOrgMemberUsageForBillingPeriod,
   mockGetOrgMemberUsageLimit,
   mockIsOrganizationBillingBlocked,
 } = vi.hoisted(() => ({
-  mockFlags: { isHosted: true, isBillingEnabled: true },
-  mockDbLimit: vi.fn(),
   mockGetOrgMemberUsageForBillingPeriod: vi.fn(),
   mockGetOrgMemberUsageLimit: vi.fn(),
   mockIsOrganizationBillingBlocked: vi.fn(),
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isHosted() {
-    return mockFlags.isHosted
-  },
-  get isBillingEnabled() {
-    return mockFlags.isBillingEnabled
-  },
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          limit: mockDbLimit,
-        }),
-      }),
-    }),
-  },
 }))
 
 vi.mock('@/lib/billing/organizations/member-limits', () => ({
@@ -60,12 +36,18 @@ import {
   checkOrganizationMemberUsageLimit,
 } from '@/lib/billing/calculations/usage-monitor'
 
+afterAll(() => {
+  resetDbChainMock()
+})
+
+afterAll(resetEnvFlagsMock)
+
 describe('checkBillingBlocked', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockFlags.isHosted = true
-    mockFlags.isBillingEnabled = true
-    mockDbLimit.mockResolvedValue([{ blocked: false, blockedReason: null }])
+    resetDbChainMock()
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
+    dbChainMockFns.limit.mockResolvedValue([{ blocked: false, blockedReason: null }])
   })
 
   it("checks only the actor's own user account without inspecting organization memberships", async () => {
@@ -73,7 +55,7 @@ describe('checkBillingBlocked', () => {
 
     await expect(checkBillingBlocked('actor-1')).resolves.toEqual({ blocked: false })
 
-    expect(mockDbLimit).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(1)
     expect(mockIsOrganizationBillingBlocked).not.toHaveBeenCalled()
   })
 })
@@ -81,10 +63,10 @@ describe('checkBillingBlocked', () => {
 describe('checkBillingEntityBlocked', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockFlags.isHosted = true
-    mockFlags.isBillingEnabled = true
+    resetDbChainMock()
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mockIsOrganizationBillingBlocked.mockResolvedValue(false)
-    mockDbLimit.mockResolvedValue([])
+    dbChainMockFns.limit.mockResolvedValue([])
   })
 
   it('checks only the exact organization payer', async () => {
@@ -95,11 +77,11 @@ describe('checkBillingEntityBlocked', () => {
     ).resolves.toMatchObject({ blocked: true })
 
     expect(mockIsOrganizationBillingBlocked).toHaveBeenCalledWith('workspace-org')
-    expect(mockDbLimit).not.toHaveBeenCalled()
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
   })
 
   it('checks the exact personal payer directly', async () => {
-    mockDbLimit.mockResolvedValue([{ blocked: true, blockedReason: 'dispute' }])
+    dbChainMockFns.limit.mockResolvedValue([{ blocked: true, blockedReason: 'dispute' }])
 
     await expect(
       checkBillingEntityBlocked({ type: 'user', id: 'personal-payer' })
@@ -120,8 +102,8 @@ describe('checkOrganizationMemberUsageLimit', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockFlags.isHosted = true
-    mockFlags.isBillingEnabled = true
+    resetDbChainMock()
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mockGetOrgMemberUsageLimit.mockResolvedValue(2)
     mockGetOrgMemberUsageForBillingPeriod.mockResolvedValue(1)
   })
@@ -143,14 +125,14 @@ describe('checkOrganizationMemberUsageLimit', () => {
   })
 
   it('no-ops when not hosted', async () => {
-    mockFlags.isHosted = false
+    setEnvFlags({ isHosted: false })
     const result = await checkOrganizationMemberUsageLimit('actor-1', 'org-1', billingPeriod)
     expect(result.isExceeded).toBe(false)
     expect(mockGetOrgMemberUsageLimit).not.toHaveBeenCalled()
   })
 
   it('no-ops when billing is disabled', async () => {
-    mockFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
     const result = await checkOrganizationMemberUsageLimit('actor-1', 'org-1', billingPeriod)
     expect(result.isExceeded).toBe(false)
     expect(mockGetOrgMemberUsageLimit).not.toHaveBeenCalled()

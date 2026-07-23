@@ -48,31 +48,6 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
-  or: vi.fn((...conditions: unknown[]) => ({ type: 'or', conditions })),
-  gte: vi.fn((field: unknown, value: unknown) => ({ type: 'gte', field, value })),
-  lte: vi.fn((field: unknown, value: unknown) => ({ type: 'lte', field, value })),
-  gt: vi.fn((field: unknown, value: unknown) => ({ type: 'gt', field, value })),
-  lt: vi.fn((field: unknown, value: unknown) => ({ type: 'lt', field, value })),
-  ne: vi.fn((field: unknown, value: unknown) => ({ type: 'ne', field, value })),
-  asc: vi.fn((field: unknown) => ({ field, type: 'asc' })),
-  desc: vi.fn((field: unknown) => ({ field, type: 'desc' })),
-  isNull: vi.fn((field: unknown) => ({ field, type: 'isNull' })),
-  isNotNull: vi.fn((field: unknown) => ({ field, type: 'isNotNull' })),
-  inArray: vi.fn((field: unknown, values: unknown) => ({ field, values, type: 'inArray' })),
-  notInArray: vi.fn((field: unknown, values: unknown) => ({ field, values, type: 'notInArray' })),
-  like: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'like' })),
-  ilike: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'ilike' })),
-  count: vi.fn((field: unknown) => ({ field, type: 'count' })),
-  sum: vi.fn((field: unknown) => ({ field, type: 'sum' })),
-  avg: vi.fn((field: unknown) => ({ field, type: 'avg' })),
-  min: vi.fn((field: unknown) => ({ field, type: 'min' })),
-  max: vi.fn((field: unknown) => ({ field, type: 'max' })),
-  sql: vi.fn((strings: unknown, ...values: unknown[]) => ({ type: 'sql', sql: strings, values })),
-}))
-
 vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn(() => 'test-uuid'),
   generateShortId: vi.fn(() => 'mock-short-id'),

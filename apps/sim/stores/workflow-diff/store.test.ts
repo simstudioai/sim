@@ -22,10 +22,6 @@ const { applyWorkflowStateToStores } = vi.hoisted(() => ({
   applyWorkflowStateToStores: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
-}))
-
 vi.mock('@/lib/workflows/diff', () => ({
   WorkflowDiffEngine: class {
     clearDiff = vi.fn()

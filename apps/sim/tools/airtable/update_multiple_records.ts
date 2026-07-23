@@ -43,6 +43,12 @@ export const airtableUpdateMultipleRecordsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Array of records to update, each with an `id` and a `fields` object',
     },
+    typecast: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When true, Airtable automatically converts string values to the field type',
+    },
   },
 
   request: {
@@ -53,7 +59,10 @@ export const airtableUpdateMultipleRecordsTool: ToolConfig<
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({ records: params.records }),
+    body: (params) => ({
+      records: params.records,
+      ...(params.typecast != null ? { typecast: params.typecast } : {}),
+    }),
   },
 
   transformResponse: async (response) => {

@@ -24,6 +24,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, count, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { invalidateMembershipCache } from '@/lib/auth/security-policy'
+import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
   assertNoUnresolvedEnterpriseIssuance,
@@ -312,6 +314,133 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
   return result
 }
 
+export interface PauseProForOrgCoverageResult {
+  /**
+   * True when an entitled paid organization covers this user — regardless of
+   * whether this call changed any state (the personal Pro may already be
+   * pausing). Callers gate coverage-dependent behavior on this, never on
+   * `paused`, so repeated invocations stay consistent.
+   */
+  covered: boolean
+  /** True only when this call transitioned the personal Pro to cancel at period end. */
+  paused: boolean
+  subscriptionId?: string
+  organizationId?: string
+}
+
+/**
+ * Pause (cancel at period end) a user's entitled personal Pro subscription
+ * because an organization with an entitled paid subscription already covers
+ * them. Transactional fence behind the checkout admission guard: it closes
+ * the race where a user starts a personal checkout while uncovered, joins a
+ * paid org mid-checkout, and completes payment after the join.
+ *
+ * The user keeps the period they paid for and the subscription simply does
+ * not renew — the same state a paid-org joiner's personal Pro enters, so the
+ * billing UI already renders it. If they leave the org before period end,
+ * `restoreUserProSubscription` un-pauses it automatically.
+ *
+ * Unlike `applyPaidOrgJoinBillingTx` (the join-time pause), this does NOT
+ * snapshot or zero current-period usage: by the time this runs the user's
+ * usage already attributes to the organization pool, and moving it into the
+ * pro snapshot would undercount the org's period.
+ *
+ * Idempotent: no state change when there is no entitled personal Pro, when
+ * it is already pausing, or when no entitled paid org covers the user. All
+ * checks re-run under the user billing identity lock and a `FOR UPDATE` read
+ * of the personal subscription row — the same serialization points as the
+ * join and restore paths.
+ */
+export async function pauseProSubscriptionForOrgCoverage(
+  userId: string
+): Promise<PauseProForOrgCoverageResult> {
+  const result: PauseProForOrgCoverageResult = { covered: false, paused: false }
+
+  await db.transaction(async (tx) => {
+    await acquireUserBillingIdentityLock(tx, userId)
+
+    /**
+     * Coverage is determined before (and independent of) the personal-sub
+     * lookup: `covered` reports the organization's coverage truth even when
+     * no entitled personal Pro row exists, exactly as the result contract
+     * promises. Callers gate free→paid transition handling on it, so a
+     * personal-sub lookup miss must not read as "not covered".
+     */
+    const memberships = await tx
+      .select({ organizationId: member.organizationId })
+      .from(member)
+      .where(eq(member.userId, userId))
+    if (memberships.length === 0) return
+
+    const organizationSubscriptions = await tx
+      .select({ plan: subscriptionTable.plan, referenceId: subscriptionTable.referenceId })
+      .from(subscriptionTable)
+      .where(
+        and(
+          inArray(
+            subscriptionTable.referenceId,
+            memberships.map((membership) => membership.organizationId)
+          ),
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
+    const coveringSubscription = organizationSubscriptions.find((organizationSubscription) =>
+      isPaid(organizationSubscription.plan)
+    )
+    if (!coveringSubscription) return
+
+    result.covered = true
+    result.organizationId = coveringSubscription.referenceId
+
+    const [personalPro] = await tx
+      .select()
+      .from(subscriptionTable)
+      .where(
+        and(
+          eq(subscriptionTable.referenceId, userId),
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+          sqlIsPro(subscriptionTable.plan)
+        )
+      )
+      .for('update')
+      .limit(1)
+
+    if (!personalPro) return
+
+    result.subscriptionId = personalPro.id
+
+    if (personalPro.cancelAtPeriodEnd) return
+
+    await tx
+      .update(subscriptionTable)
+      .set({ cancelAtPeriodEnd: true })
+      .where(eq(subscriptionTable.id, personalPro.id))
+
+    if (personalPro.stripeSubscriptionId) {
+      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+        stripeSubscriptionId: personalPro.stripeSubscriptionId,
+        subscriptionId: personalPro.id,
+        reason: 'covered-by-organization',
+      })
+    }
+
+    result.paused = true
+  })
+
+  if (result.paused) {
+    logger.warn(
+      'Paused personal Pro created while covered by an organization subscription (kept until period end, Stripe sync queued)',
+      {
+        userId,
+        subscriptionId: result.subscriptionId,
+        organizationId: result.organizationId,
+      }
+    )
+  }
+
+  return result
+}
+
 export interface AddMemberParams {
   userId: string
   organizationId: string
@@ -502,6 +631,12 @@ export async function ensureUserInOrganization(
   }
 
   const result = await addUserToOrganization(params)
+
+  if (result.success) {
+    // Invalidates the membership cache and clamps pre-join sessions to the
+    // org policy — same treatment as invite acceptance. Best-effort.
+    await applySessionPolicyToNewMember(params.userId, params.organizationId)
+  }
 
   return {
     ...result,
@@ -1216,7 +1351,7 @@ export async function transferUserBetweenOrganizations(
   }
 
   try {
-    return await withInvitationSafeOrganizationAccessMutation(
+    const transferResult = await withInvitationSafeOrganizationAccessMutation(
       {
         userId: params.userId,
         organizationId: params.sourceOrganizationId,
@@ -1386,6 +1521,11 @@ export async function transferUserBetweenOrganizations(
         }
       }
     )
+    // The transferred member's fallbacks must resolve to the destination org
+    // immediately, and their sessions clamp to its policy — same treatment as
+    // invite acceptance. Best-effort.
+    await applySessionPolicyToNewMember(params.userId, params.destinationOrganizationId)
+    return transferResult
   } catch (error) {
     logger.error('Failed to transfer organization member', { ...params, error })
     return { success: false, error: getErrorMessage(error), ...emptyResult }
@@ -1605,6 +1745,10 @@ export async function removeUserFromOrganization(
     billingActions.usageCaptured = result.usageCaptured
     billingActions.workspaceAccessRevoked = result.workspaceIdsToRevoke.length
     billingActions.pendingInvitationsCancelled = result.pendingInvitationsCancelled
+
+    // The departed member's cookie-version/hook-clamp fallbacks must stop
+    // resolving to this org immediately, not after the membership-cache TTL.
+    invalidateMembershipCache(userId)
 
     if (result.usageCaptured > 0) {
       logger.info('Captured departed member usage', {

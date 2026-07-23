@@ -2292,7 +2292,7 @@ export const SportmonksBlockMeta = {
   templates: [
     {
       icon: SportmonksIcon,
-      title: 'Daily football fixtures digest',
+      title: 'Sportmonks daily fixtures digest',
       prompt:
         "Build a scheduled daily workflow that fetches today's football fixtures from Sportmonks for the leagues I follow, summarizes the key matchups and kickoff times, and posts the digest to Slack.",
       modules: ['scheduled', 'agent', 'workflows'],
@@ -2302,7 +2302,7 @@ export const SportmonksBlockMeta = {
     },
     {
       icon: SportmonksIcon,
-      title: 'Live football score alerter',
+      title: 'Sportmonks live score alerter',
       prompt:
         'Create a scheduled workflow that polls Sportmonks inplay football scores, detects goals and status changes since the last run, and pings Slack with the updated scoreline for tracked matches.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -2312,7 +2312,7 @@ export const SportmonksBlockMeta = {
     },
     {
       icon: SportmonksIcon,
-      title: 'Weekly league standings report',
+      title: 'Sportmonks league standings report',
       prompt:
         'Build a scheduled weekly workflow that pulls the Sportmonks football standings and topscorers for a season, formats a league table with recent form, and emails the report to the group.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -2322,7 +2322,7 @@ export const SportmonksBlockMeta = {
     },
     {
       icon: SportmonksIcon,
-      title: 'Race weekend schedule digest',
+      title: 'Sportmonks race weekend digest',
       prompt:
         "Build a scheduled workflow that fetches this weekend's motorsport sessions from Sportmonks, summarizes the practice, qualifying, and race times, and posts the schedule to Slack.",
       modules: ['scheduled', 'agent', 'workflows'],
@@ -2332,7 +2332,7 @@ export const SportmonksBlockMeta = {
     },
     {
       icon: SportmonksIcon,
-      title: 'Motorsport championship tracker',
+      title: 'Sportmonks championship tracker',
       prompt:
         'Create a scheduled weekly workflow that pulls the Sportmonks motorsport driver and constructor standings for the current season, formats the championship tables, and emails them to the group.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -2342,7 +2342,7 @@ export const SportmonksBlockMeta = {
     },
     {
       icon: SportmonksIcon,
-      title: 'Pre-match odds snapshot',
+      title: 'Sportmonks pre-match odds snapshot',
       prompt:
         'Build a workflow that pulls Sportmonks pre-match odds for a fixture across selected bookmakers, computes the implied probability for each outcome, and writes the snapshot to a table.',
       modules: ['tables', 'agent', 'workflows'],
@@ -2351,7 +2351,7 @@ export const SportmonksBlockMeta = {
     },
     {
       icon: SportmonksIcon,
-      title: 'Live odds movement alerter',
+      title: 'Sportmonks live odds alerter',
       prompt:
         'Create a scheduled workflow that polls Sportmonks in-play odds for a fixture, detects sharp price moves since the last run, and pings Slack with the updated lines.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -2361,7 +2361,7 @@ export const SportmonksBlockMeta = {
     },
     {
       icon: SportmonksIcon,
-      title: 'Head-to-head match preview',
+      title: 'Sportmonks head-to-head preview',
       prompt:
         'Create a workflow that takes two team names, resolves them to IDs via Sportmonks football team search, pulls their head-to-head history and current standings, and writes a match preview file.',
       modules: ['agent', 'files', 'workflows'],

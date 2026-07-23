@@ -43,6 +43,12 @@ export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, Airtable
       visibility: 'user-or-llm',
       description: 'An object containing the field names and their new values',
     },
+    typecast: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When true, Airtable automatically converts string values to the field type',
+    },
   },
 
   request: {
@@ -53,7 +59,10 @@ export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, Airtable
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({ fields: params.fields }),
+    body: (params) => ({
+      fields: params.fields,
+      ...(params.typecast != null ? { typecast: params.typecast } : {}),
+    }),
   },
 
   transformResponse: async (response) => {

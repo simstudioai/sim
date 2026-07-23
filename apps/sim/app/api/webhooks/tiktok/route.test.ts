@@ -3,39 +3,22 @@
  */
 
 import crypto from 'node:crypto'
+import { requestUtilsMockFns, resetEnvMock, setEnv } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnqueue, mockExecuteTikTokWebhookIngress, mockRelease } = vi.hoisted(() => ({
-  mockEnqueue: vi.fn(),
-  mockExecuteTikTokWebhookIngress: vi.fn(),
+const { mockEnqueueTikTokWebhookIngress, mockRelease } = vi.hoisted(() => ({
+  mockEnqueueTikTokWebhookIngress: vi.fn(),
   mockRelease: vi.fn(),
 }))
 
 vi.mock('@/background/tiktok-webhook-ingress', () => ({
-  executeTikTokWebhookIngress: mockExecuteTikTokWebhookIngress,
-  TIKTOK_WEBHOOK_INGRESS_CONCURRENCY_LIMIT: 50,
-  TIKTOK_WEBHOOK_INGRESS_MAX_ATTEMPTS: 3,
+  enqueueTikTokWebhookIngress: mockEnqueueTikTokWebhookIngress,
 }))
 
 vi.mock('@/lib/core/admission/gate', () => ({
   admissionRejectedResponse: vi.fn(() => new Response(null, { status: 503 })),
   tryAdmit: vi.fn(() => ({ release: mockRelease })),
-}))
-
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: vi.fn(async () => ({ enqueue: mockEnqueue })),
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: {
-    TIKTOK_CLIENT_ID: 'client-key',
-    TIKTOK_CLIENT_SECRET: 'client-secret',
-  },
-}))
-
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn(() => 'request-1'),
 }))
 
 vi.mock('@/lib/core/utils/with-route-handler', () => ({
@@ -73,7 +56,14 @@ function signedRequest(overrides?: { clientKey?: string }): NextRequest {
 describe('TikTok webhook ingress route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockEnqueue.mockResolvedValue('ingress-job-1')
+    setEnv({ TIKTOK_CLIENT_ID: 'client-key', TIKTOK_CLIENT_SECRET: 'client-secret' })
+    requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('request-1')
+    mockEnqueueTikTokWebhookIngress.mockResolvedValue('ingress-job-1')
+  })
+
+  afterAll(() => {
+    resetEnvMock()
+    requestUtilsMockFns.mockGenerateRequestId.mockReset()
   })
 
   it('returns 200 only after the verified delivery is accepted by the job queue', async () => {
@@ -81,25 +71,20 @@ describe('TikTok webhook ingress route', () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ ok: true })
-    expect(mockEnqueue).toHaveBeenCalledWith(
-      'tiktok-webhook-ingress',
+    expect(mockEnqueueTikTokWebhookIngress).toHaveBeenCalledWith(
       expect.objectContaining({
         envelope: expect.objectContaining({
           client_key: 'client-key',
           user_openid: 'act.user',
         }),
         requestId: 'request-1',
-      }),
-      expect.objectContaining({
-        maxAttempts: 3,
-        runner: expect.any(Function),
       })
     )
     expect(mockRelease).toHaveBeenCalledOnce()
   })
 
   it('returns 503 when durable acceptance fails so TikTok retries', async () => {
-    mockEnqueue.mockRejectedValue(new Error('queue unavailable'))
+    mockEnqueueTikTokWebhookIngress.mockRejectedValue(new Error('queue unavailable'))
 
     const response = await POST(signedRequest())
 
@@ -111,6 +96,6 @@ describe('TikTok webhook ingress route', () => {
     const response = await POST(signedRequest({ clientKey: 'other-client-key' }))
 
     expect(response.status).toBe(401)
-    expect(mockEnqueue).not.toHaveBeenCalled()
+    expect(mockEnqueueTikTokWebhookIngress).not.toHaveBeenCalled()
   })
 })

@@ -1,15 +1,13 @@
 import { buildLandingMetadata } from '@/lib/landing/seo'
-import EnterprisePage from '@/app/(landing)/enterprise/enterprise'
+import EnterprisePage, { ENTERPRISE_SEO_DESCRIPTION } from '@/app/(landing)/enterprise/enterprise'
 
 export const revalidate = 3600
 
-const TITLE = 'Enterprise AI Agent Platform | Sim AI'
-const DESCRIPTION =
-  'Build, deploy, and govern enterprise AI agents in one workspace with security, approvals, observability, and collaboration.'
+const TITLE = 'Enterprise AI Agent Platform | Sim'
 
 export const metadata = buildLandingMetadata({
   title: TITLE,
-  description: DESCRIPTION,
+  description: ENTERPRISE_SEO_DESCRIPTION,
   path: '/enterprise',
   keywords:
     'enterprise ai agents, enterprise ai agent, enterprise ai agent platform, enterprise workflow agents',

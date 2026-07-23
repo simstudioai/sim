@@ -1,11 +1,109 @@
-import { truncate } from '@sim/utils/string'
+import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/env-flags'
+import {
+  getServiceAccountConnectNoun,
+  getServiceAccountGatingBlockType,
+} from '@/lib/credentials/service-account-provider-ids'
+import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
+import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
+import { getBlock } from '@/blocks'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { isHiddenUnder } from '@/blocks/visibility/context'
 import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolHostingCondition } from '@/tools/types'
+
+/** The service-account alternative to OAuth for a service, when it offers one. */
+export interface VfsServiceAccountAuth {
+  /** Vendor noun for the secret it collects — "private app token", "server-to-server app", … */
+  connectNoun: string
+}
+
+export type VfsToolAuth =
+  | {
+      type: 'oauth'
+      required: boolean
+      provider: string
+      /**
+       * Present when this OAuth service also accepts a shared service-account
+       * credential (connect AS AN APPLICATION, not as the user). The agent emits
+       * a `service_account` credential tag with this entry's OAuth `provider` to
+       * open the in-chat setup form. Omitted when the service has no
+       * service-account flow, or its flow is gated by a preview block.
+       */
+      serviceAccount?: VfsServiceAccountAuth
+    }
+  | {
+      type: 'api_key'
+      param: string
+      mode: 'hosted_or_byok' | 'conditional_hosted_or_byok' | 'byok_required'
+      provider?: string
+      condition?: ToolHostingCondition
+    }
+
+/**
+ * Whether an OAuth provider value also exposes a service-account flow, and the
+ * noun for the secret it collects. The single composition point behind both the
+ * per-tool `auth.serviceAccount` field and the `oauth-integrations.json`
+ * roll-up, so the two never disagree. Returns `undefined` when the service has
+ * no service-account flow, or its flow is gated by a preview block (a custom
+ * Slack bot needs slack_v2) — GA-only discovery, so the agent never proactively
+ * offers a preview flow, matching the per-viewer gate the renderer applies.
+ */
+export function describeServiceAccountForOAuthProvider(
+  oauthProvider: string
+): VfsServiceAccountAuth | undefined {
+  const serviceAccountProviderId = getServiceAccountProviderForProviderId(oauthProvider)
+  if (!serviceAccountProviderId) return undefined
+  const gatingBlockType = getServiceAccountGatingBlockType(serviceAccountProviderId)
+  if (gatingBlockType) {
+    const gatingBlock = getBlock(gatingBlockType)
+    // Omit when the gating block is missing (fail-closed) or hidden by the
+    // canonical predicate. Passing `null` vis reduces `isHiddenUnder` to the
+    // static preview check — so once the block GAs and drops `preview`, it is
+    // no longer hidden and discovery includes it again, matching the renderer.
+    // Hand-rolling `?.preview ?? true` would keep it omitted forever after GA.
+    if (!gatingBlock || isHiddenUnder(null, gatingBlock)) return undefined
+  }
+  return { connectNoun: getServiceAccountConnectNoun(serviceAccountProviderId) }
+}
+
+export interface ComponentSerializationOptions {
+  hosted?: boolean
+  toolConfigs?: ReadonlyMap<string, ToolConfig>
+}
+
+/**
+ * Project runtime tool authentication into a stable, machine-readable VFS contract.
+ * ToolConfig.hosting remains the source of truth for every hosted-key integration.
+ */
+export function serializeToolAuth(tool: ToolConfig, hosted = isHosted): VfsToolAuth | undefined {
+  if (tool.oauth) {
+    const serviceAccount = describeServiceAccountForOAuthProvider(tool.oauth.provider)
+    return {
+      type: 'oauth',
+      required: tool.oauth.required,
+      provider: tool.oauth.provider,
+      ...(serviceAccount ? { serviceAccount } : {}),
+    }
+  }
+
+  if (!tool.hosting) return undefined
+
+  return {
+    type: 'api_key',
+    param: tool.hosting.apiKeyParam,
+    mode: hosted
+      ? tool.hosting.enabled
+        ? 'conditional_hosted_or_byok'
+        : 'hosted_or_byok'
+      : 'byok_required',
+    provider: tool.hosting.byokProviderId,
+    condition: hosted ? tool.hosting.enabled?.condition : undefined,
+  }
+}
 
 /**
  * Serialize workflow metadata for VFS meta.json.
@@ -21,7 +119,6 @@ export function serializeWorkflowMeta(
   wf: {
     id: string
     name: string
-    description?: string | null
     folderId?: string | null
     isDeployed: boolean
     deployedAt?: Date | null
@@ -39,7 +136,6 @@ export function serializeWorkflowMeta(
     {
       id: wf.id,
       name: wf.name,
-      description: wf.description || undefined,
       folderId: wf.folderId || undefined,
       locked,
       lockedBy: locked ? (directLock ? 'workflow' : 'folder') : undefined,
@@ -85,7 +181,26 @@ export function serializeRecentExecutions(
 }
 
 /**
- * Serialize knowledge base metadata for VFS meta.json
+ * A knowledge base tag definition, reduced to the fields the agent needs to bind a tag filter.
+ *
+ * @remarks
+ * `tagName` is the DB's `displayName`. It is renamed at this boundary because that is the key
+ * a `tagFilters` entry must carry -- an entry written with `displayName` validates and persists
+ * but never filters anything.
+ */
+export interface KbTagDefinitionSummary {
+  tagName: string
+  tagSlot: string
+  fieldType: string
+}
+
+/**
+ * Serialize knowledge base metadata for VFS meta.json.
+ *
+ * `tagDefinitions` exposes the KB's defined tags (`tagName` → `tagSlot`) plus the operators
+ * legal for each tag's `fieldType`, so the agent can bind a knowledge-tag filter without
+ * guessing a tag name it cannot otherwise see or an operator the field does not accept
+ * (`between` is valid for number/date but not text/boolean).
  */
 export function serializeKBMeta(kb: {
   id: string
@@ -98,6 +213,7 @@ export function serializeKBMeta(kb: {
   updatedAt: Date
   documentCount: number
   connectorTypes?: string[]
+  tagDefinitions?: KbTagDefinitionSummary[]
 }): string {
   return JSON.stringify(
     {
@@ -110,6 +226,15 @@ export function serializeKBMeta(kb: {
       documentCount: kb.documentCount,
       connectorTypes:
         kb.connectorTypes && kb.connectorTypes.length > 0 ? kb.connectorTypes : undefined,
+      tagDefinitions:
+        kb.tagDefinitions && kb.tagDefinitions.length > 0
+          ? kb.tagDefinitions.map((tag) => ({
+              ...tag,
+              operators: getOperatorsForFieldType(tag.fieldType as FilterFieldType).map(
+                (op) => op.value
+              ),
+            }))
+          : undefined,
       createdAt: kb.createdAt.toISOString(),
       updatedAt: kb.updatedAt.toISOString(),
     },
@@ -291,6 +416,13 @@ export function serializeFileMeta(file: {
   contentType: string
   size: number
   uploadedAt: Date
+  updatedAt: Date
+  /** Whether the file has an active public share link. */
+  shared?: boolean
+  /** Auth mode of the active share; only meaningful when `shared` is true. */
+  shareAuthType?: ShareAuthType
+  /** Public share link (`{baseUrl}/f/{token}`); only meaningful when `shared` is true. */
+  shareUrl?: string
 }): string {
   return JSON.stringify(
     {
@@ -302,7 +434,11 @@ export function serializeFileMeta(file: {
       contentType: file.contentType,
       size: file.size,
       uploadedAt: file.uploadedAt.toISOString(),
+      updatedAt: file.updatedAt.toISOString(),
       readContentWith: file.vfsPath ? `${file.vfsPath}/content` : undefined,
+      shared: Boolean(file.shared),
+      shareAuthType: file.shared ? file.shareAuthType : undefined,
+      shareUrl: file.shared ? file.shareUrl : undefined,
       note: 'This is file metadata only. To read the file text/bytes, read the readContentWith path (i.e. append /content).',
     },
     null,
@@ -367,6 +503,9 @@ function getStaticModelOptionsForVFS(): StaticModelOption[] {
   for (const [providerId, def] of Object.entries(PROVIDER_DEFINITIONS)) {
     if (dynamicProviders.has(providerId)) continue
     for (const model of def.models) {
+      // Retired models are hidden from the agent's menu (mirrors the user picker)
+      // so it never suggests a model whose API calls fail; legacy stays available.
+      if (model.sunset?.status === 'deprecated') continue
       const option: StaticModelOption = {
         id: model.id,
         provider: providerId,
@@ -374,7 +513,7 @@ function getStaticModelOptionsForVFS(): StaticModelOption[] {
       }
       if (model.recommended) option.recommended = true
       if (model.speedOptimized) option.speedOptimized = true
-      if (model.deprecated) option.deprecated = true
+      if (model.sunset) option.deprecated = true
       models.push(option)
     }
   }
@@ -396,6 +535,8 @@ function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
   if (sb.defaultValue !== undefined) result.defaultValue = sb.defaultValue
   if (sb.mode) result.mode = sb.mode
   if (sb.canonicalParamId) result.canonicalParamId = sb.canonicalParamId
+  if (sb.condition && typeof sb.condition !== 'function') result.condition = sb.condition
+  if (sb.dependsOn) result.dependsOn = sb.dependsOn
 
   // Include static options arrays for dropdowns
   if (Array.isArray(sb.options)) {
@@ -408,28 +549,43 @@ function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
 /**
  * Serialize a block schema for VFS components/blocks/{type}.json
  */
-export function serializeBlockSchema(block: BlockConfig): string {
+export function serializeBlockSchema(
+  block: BlockConfig,
+  options?: ComponentSerializationOptions
+): string {
   // Custom blocks bake their `workflowId`/`inputMapping` as `hidden` sub-blocks;
   // treat `hidden` as hidden for them so those never reach the agent's schema.
   const customBlock = isCustomBlockType(block.type)
+  const hosted = options?.hosted ?? isHosted
+  const visibleSubBlocks = block.subBlocks.filter(
+    (sb) => !isSubBlockHidden(sb, { hosted }) && !(customBlock && sb.hidden)
+  )
+  const visibleIds = new Set(visibleSubBlocks.map((sb) => sb.id))
   const hiddenIds = new Set(
     block.subBlocks
-      .filter((sb) => isSubBlockHidden(sb) || (customBlock && sb.hidden))
+      .filter((sb) => isSubBlockHidden(sb, { hosted }) || (customBlock && sb.hidden))
       .map((sb) => sb.id)
+      .filter((id) => !visibleIds.has(id))
   )
 
-  const subBlocks = block.subBlocks
-    .filter((sb) => !hiddenIds.has(sb.id))
-    .map((sb) => {
-      const serialized = serializeSubBlock(sb)
+  const subBlocks = visibleSubBlocks.map((sb) => {
+    const serialized = serializeSubBlock(sb)
 
-      if (sb.id === 'model' && sb.type === 'combobox' && typeof sb.options === 'function') {
-        serialized.options = getStaticModelOptionsForVFS()
-        serialized.dynamicProviders = DYNAMIC_PROVIDERS_NOTE
-      }
+    if (sb.id === 'model' && sb.type === 'combobox' && typeof sb.options === 'function') {
+      serialized.options = getStaticModelOptionsForVFS()
+      serialized.dynamicProviders = DYNAMIC_PROVIDERS_NOTE
+    }
 
-      return serialized
-    })
+    return serialized
+  })
+
+  const toolAuth: Record<string, VfsToolAuth> = {}
+  for (const toolId of block.tools.access) {
+    const tool = options?.toolConfigs?.get(toolId)
+    if (!tool) continue
+    const auth = serializeToolAuth(tool, hosted)
+    if (auth) toolAuth[toolId] = auth
+  }
 
   const inputs =
     block.inputs && hiddenIds.size > 0
@@ -446,12 +602,14 @@ export function serializeBlockSchema(block: BlockConfig): string {
       bestPractices: block.bestPractices || undefined,
       triggerAllowed: block.triggerAllowed || undefined,
       singleInstance: block.singleInstance || undefined,
+      authMode: block.authMode || undefined,
       // Custom (deploy-as-block) blocks execute via a baked `workflow_executor`
       // internally; that's implementation plumbing, not something the agent
       // configures. Hiding it keeps the block self-contained (fields in, outputs
       // out) so the agent doesn't treat it like the generic workflow block and
       // ask for a workflowId/inputMapping.
       tools: isCustomBlockType(block.type) ? [] : block.tools.access,
+      toolAuth: Object.keys(toolAuth).length > 0 ? toolAuth : undefined,
       subBlocks,
       inputs,
       outputs: Object.fromEntries(
@@ -481,6 +639,8 @@ export function serializeCredentials(
     displayName?: string | null
     role?: string | null
     scope: string | null
+    /** 'service_account' for a shared app credential; omitted/undefined for a personal OAuth connection. */
+    credentialType?: 'oauth' | 'service_account'
     createdAt: Date
   }>
 ): string {
@@ -491,6 +651,10 @@ export function serializeCredentials(
       displayName: a.displayName || undefined,
       role: a.role || undefined,
       scope: a.scope || undefined,
+      // 'oauth' (personal connection) vs 'service_account' (shared app
+      // credential) — they reconnect differently, so the agent must branch on
+      // this. Env-var credentials carry no type.
+      type: a.credentialType,
       connectedAt: a.createdAt.toISOString(),
     })),
     null,
@@ -524,6 +688,55 @@ export function serializeApiKeys(
     null,
     2
   )
+}
+
+interface ApiKeyIntegrationTool {
+  config: ToolConfig
+  service: string
+  operation: string
+  preview?: boolean
+}
+
+/**
+ * Serialize API-key integration discovery with operation-level hosted status.
+ * ToolConfig.hosting is the only provider registry used to build this index.
+ */
+export function serializeApiKeyIntegrations(
+  tools: ApiKeyIntegrationTool[],
+  hosted = isHosted
+): string {
+  const services = new Map<
+    string,
+    {
+      params: string[]
+      operations: string[]
+      hostedOperations: string[]
+      conditionalHostedOperations: string[]
+    }
+  >()
+
+  for (const { config: tool, service, operation, preview } of tools) {
+    if (preview || !tool.hosting?.apiKeyParam) continue
+
+    const metadata = services.get(service) ?? {
+      params: [],
+      operations: [],
+      hostedOperations: [],
+      conditionalHostedOperations: [],
+    }
+    if (!metadata.params.includes(tool.hosting.apiKeyParam)) {
+      metadata.params.push(tool.hosting.apiKeyParam)
+    }
+    metadata.operations.push(operation)
+    if (hosted && tool.hosting.enabled) {
+      metadata.conditionalHostedOperations.push(operation)
+    } else if (hosted) {
+      metadata.hostedOperations.push(operation)
+    }
+    services.set(service, metadata)
+  }
+
+  return JSON.stringify(Object.fromEntries(services), null, 2)
 }
 
 /**
@@ -669,7 +882,7 @@ export function serializeCustomTool(tool: {
       id: tool.id,
       title: tool.title,
       schema: tool.schema,
-      codePreview: truncate(tool.code, 500),
+      code: tool.code,
     },
     null,
     2
@@ -716,7 +929,7 @@ export function serializeSkill(s: {
       id: s.id,
       name: s.name,
       description: s.description,
-      contentPreview: truncate(s.content, 500),
+      content: s.content,
       createdAt: s.createdAt.toISOString(),
     },
     null,
@@ -727,8 +940,14 @@ export function serializeSkill(s: {
 /**
  * Serialize an integration/tool schema for VFS components/integrations/{service}/{operation}.json
  */
-export function serializeIntegrationSchema(tool: ToolConfig): string {
-  const hostedApiKeyParam = isHosted && tool.hosting ? tool.hosting.apiKeyParam : null
+export function serializeIntegrationSchema(
+  tool: ToolConfig,
+  options?: Pick<ComponentSerializationOptions, 'hosted'>
+): string {
+  const hosted = options?.hosted ?? isHosted
+  const auth = serializeToolAuth(tool, hosted)
+  const hostedApiKeyParam =
+    auth?.type === 'api_key' && auth.mode === 'hosted_or_byok' ? auth.param : null
 
   return JSON.stringify(
     {
@@ -737,8 +956,9 @@ export function serializeIntegrationSchema(tool: ToolConfig): string {
       // field and load it" matches the callable tool and the block's tools.access.
       id: tool.id,
       name: tool.name,
-      description: getCopilotToolDescription(tool, { isHosted }),
+      description: getCopilotToolDescription(tool, { isHosted: hosted }),
       version: tool.version,
+      auth,
       oauth: tool.oauth
         ? { required: tool.oauth.required, provider: tool.oauth.provider }
         : undefined,

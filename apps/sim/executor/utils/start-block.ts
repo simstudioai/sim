@@ -13,6 +13,8 @@ import type { InputFormatField } from '@/lib/workflows/types'
 import {
   EXECUTION_CONTROL_OUTPUT_FIELD_NAMES,
   type NormalizedBlockOutput,
+  START_BLOCK_METADATA_FIELD,
+  type StartBlockRunMetadata,
   type UserFile,
 } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
@@ -139,6 +141,14 @@ function extractInputFormat(block: SerializedBlock): InputFormatField[] {
   return source
     .filter((field): field is InputFormatField => isRecordLike(field))
     .map((field) => field)
+}
+
+/**
+ * Reads the Start block's "Add run metadata" toggle from the serialized block.
+ */
+export function isRunMetadataEnabled(block: SerializedBlock): boolean {
+  const value = readMetadataSubBlockValue(block, 'runMetadata') ?? block.config?.params?.runMetadata
+  return value === true || value === 'true'
 }
 
 function normalizeLegacyStarterMode(modeValue: unknown): 'manual' | 'api' | 'chat' | null {
@@ -580,11 +590,32 @@ function extractSubBlocks(block: SerializedBlock): Record<string, unknown> | und
 export interface StartBlockOutputOptions {
   resolution: ExecutorStartResolution
   workflowInput: unknown
+  /** Trusted, server-built run metadata. Only applied when the block's toggle is on. */
+  runMetadata?: StartBlockRunMetadata
+}
+
+function assertNoMetadataInputFormatField(
+  inputFormat: InputFormatField[],
+  block: SerializedBlock
+): void {
+  const hasMetadataField = inputFormat.some(
+    (field) => readInputFormatFieldName(field) === START_BLOCK_METADATA_FIELD
+  )
+
+  if (!hasMetadataField) {
+    return
+  }
+
+  const blockName = block.metadata?.name ?? block.id
+  throw new Error(
+    `Start block "${blockName}" has "Add run metadata" enabled, which reserves the "${START_BLOCK_METADATA_FIELD}" output. Rename the "${START_BLOCK_METADATA_FIELD}" input format field or disable the toggle.`
+  )
 }
 
 export function buildStartBlockOutput(options: StartBlockOutputOptions): NormalizedBlockOutput {
   const { resolution, workflowInput } = options
   const inputFormat = extractInputFormat(resolution.block)
+  const runMetadataEnabled = isRunMetadataEnabled(resolution.block)
   const legacyStarterMode =
     resolution.path === StartBlockPath.LEGACY_STARTER
       ? getSerializedLegacyStarterMode(resolution.block)
@@ -592,6 +623,9 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
 
   if (pathConsumesInputFormat(resolution.path, legacyStarterMode)) {
     assertNoReservedInputFormatFields(inputFormat, resolution.block)
+    if (runMetadataEnabled) {
+      assertNoMetadataInputFormatField(inputFormat, resolution.block)
+    }
   }
 
   const { finalInput, structuredInput, hasStructured } = deriveInputFromFormat(
@@ -629,6 +663,15 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
 
     default:
       output = buildManualTriggerOutput(finalInput, workflowInput)
+  }
+
+  if (runMetadataEnabled) {
+    // The metadata key is server-owned when the toggle is on: any caller-supplied
+    // value is dropped, and absent trusted metadata leaves the key absent (fail closed).
+    delete output[START_BLOCK_METADATA_FIELD]
+    if (options.runMetadata) {
+      output[START_BLOCK_METADATA_FIELD] = { ...options.runMetadata }
+    }
   }
 
   assertNoReservedStartOutputFields(output, resolution.block)

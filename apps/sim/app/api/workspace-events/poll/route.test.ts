@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest, redisConfigMock, redisConfigMockFns } from '@sim/testing'
+import { createMockRequest, redisConfigMockFns } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,8 +17,6 @@ const { mockVerifyCronAuth, mockPollNoActivityEvents } = vi.hoisted(() => ({
 vi.mock('@/lib/auth/internal', () => ({
   verifyCronAuth: mockVerifyCronAuth,
 }))
-
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 vi.mock('@/lib/workspace-events/no-activity', () => ({
   pollNoActivityEvents: mockPollNoActivityEvents,

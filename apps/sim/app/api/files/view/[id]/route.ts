@@ -5,7 +5,7 @@ import { fileViewContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { type StorageContext, USE_BLOB_STORAGE } from '@/lib/uploads/config'
+import { getServeStoragePrefix, type StorageContext } from '@/lib/uploads/config'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 
@@ -57,7 +57,7 @@ export const GET = withRouteHandler(
       )
     }
 
-    const storagePrefix = USE_BLOB_STORAGE ? 'blob' : 's3'
+    const storagePrefix = getServeStoragePrefix()
     const servePath = `/api/files/serve/${storagePrefix}/${encodeURIComponent(record.key)}`
     logger.info('Redirecting file view to serve path', { id, servePath })
 

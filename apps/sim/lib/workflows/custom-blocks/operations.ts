@@ -15,7 +15,7 @@ import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/wor
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import type { CustomBlockOutput, CustomBlockRow } from '@/blocks/custom/build-config'
-import { CUSTOM_BLOCK_TYPE_PREFIX } from '@/blocks/custom/build-config'
+import { CUSTOM_BLOCK_TYPE_PREFIX, isReservedOutputName } from '@/blocks/custom/build-config'
 
 const logger = createLogger('CustomBlocksOperations')
 
@@ -355,10 +355,55 @@ export async function getCustomBlockAuthority(
   }
 }
 
+/** A custom block's agent-tool binding: bound workflow + its input schema surface. */
+export interface CustomBlockToolBinding {
+  workflowId: string
+  /** LATEST-deployment Start input fields — the exact inputs the child will accept. */
+  inputFields: WorkflowInputField[]
+  /** Field ids (form keys) the publisher marked required. */
+  requiredInputIds: string[]
+}
+
+/**
+ * Resolve a custom block's agent-tool binding so an Agent can offer it as a tool:
+ * the authoritative bound workflow (org-scoped to the consumer's workspace,
+ * owner-derived — the same trust model execution uses via `getCustomBlockAuthority`)
+ * plus its LATEST-deployment Start input fields and the publisher's required-input
+ * ids. Returns `null` when the type doesn't resolve for the consumer's org
+ * (foreign-org, disabled, or missing) so the caller simply omits the tool. Fields
+ * are keyed by their stable id, matching `assembleCustomBlockInputMapping`.
+ */
+export async function resolveCustomBlockToolBinding(
+  type: string,
+  consumerWorkspaceId: string | undefined
+): Promise<CustomBlockToolBinding | null> {
+  const authority = await getCustomBlockAuthority(type, consumerWorkspaceId)
+  if (!authority) return null
+  const inputFields = await deriveInputFields(authority.workflowId)
+  return {
+    workflowId: authority.workflowId,
+    inputFields,
+    requiredInputIds: authority.requiredInputIds,
+  }
+}
+
 export class CustomBlockValidationError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'CustomBlockValidationError'
+  }
+}
+
+/**
+ * Reject exposed outputs whose name shadows a system output field. Authoritative
+ * check: also covers callers that bypass the HTTP contract (copilot handler).
+ */
+function assertNoReservedOutputNames(exposedOutputs: CustomBlockOutput[] | undefined): void {
+  const reserved = exposedOutputs?.find((o) => isReservedOutputName(o.name))
+  if (reserved) {
+    throw new CustomBlockValidationError(
+      `"${reserved.name}" is a reserved output name (success, error, cost)`
+    )
   }
 }
 
@@ -392,6 +437,8 @@ export async function publishCustomBlock(params: {
     inputs,
     exposedOutputs,
   } = params
+
+  assertNoReservedOutputNames(exposedOutputs)
 
   const [wf] = await db
     .select({
@@ -487,6 +534,7 @@ export async function updateCustomBlock(
     exposedOutputs?: CustomBlockOutput[]
   }
 ): Promise<void> {
+  if (updates.exposedOutputs !== undefined) assertNoReservedOutputNames(updates.exposedOutputs)
   const patch: Partial<typeof customBlock.$inferInsert> = { updatedAt: new Date() }
   if (updates.name !== undefined) patch.name = updates.name
   if (updates.description !== undefined) patch.description = updates.description

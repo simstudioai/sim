@@ -1,5 +1,9 @@
 import type { Metadata } from 'next'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import {
+  HOME_PAGE_DESCRIPTION,
+  HOME_PAGE_TITLE,
+} from '@/app/(landing)/components/home-structured-data'
 import Landing from '@/app/(landing)/landing'
 
 export const revalidate = 3600
@@ -7,10 +11,9 @@ export const revalidate = 3600
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    absolute: 'Sim, The AI Workspace | Build, Deploy & Manage AI Agents',
+    absolute: HOME_PAGE_TITLE,
   },
-  description:
-    'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents across 1,000+ integrations and every major LLM.',
+  description: HOME_PAGE_DESCRIPTION,
   keywords:
     'AI workspace, AI agent builder, AI agent workflow builder, build AI agents, visual workflow builder, open-source AI agent platform, AI agents, agentic workflows, LLM orchestration, AI automation, knowledge base, workflow builder, AI integrations, SOC2 compliant, enterprise AI',
   authors: [{ name: 'Sim' }],
@@ -22,9 +25,8 @@ export const metadata: Metadata = {
     telephone: false,
   },
   openGraph: {
-    title: 'Sim, The AI Workspace | Build, Deploy & Manage AI Agents',
-    description:
-      'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work, visually, conversationally, or with code.',
+    title: HOME_PAGE_TITLE,
+    description: HOME_PAGE_DESCRIPTION,
     type: 'website',
     url: SITE_URL,
     siteName: 'Sim',
@@ -43,9 +45,8 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     site: '@simdotai',
     creator: '@simdotai',
-    title: 'Sim, The AI Workspace | Build, Deploy & Manage AI Agents',
-    description:
-      'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.',
+    title: HOME_PAGE_TITLE,
+    description: HOME_PAGE_DESCRIPTION,
     images: {
       url: '/logo/426-240/reverse/small.png',
       alt: 'Sim, The AI Workspace for Teams',

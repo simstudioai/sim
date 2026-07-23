@@ -45,7 +45,7 @@ const AREAS: Area[] = [
     size: 180,
     definition: (
       <>
-        One catalog of 1,000+ integrations
+        Sim&apos;s catalog of 1,000+ integrations
         <br />
         your agents act through.
       </>
@@ -55,7 +55,7 @@ const AREAS: Area[] = [
     word: 'Context',
     Mark: IsoIngestIllustration,
     size: 170,
-    definition: 'Your data, stored semantically as the memory your agents reason over.',
+    definition: 'Your data, stored semantically in Sim as the memory your agents reason over.',
   },
   {
     word: 'Build',
@@ -67,7 +67,7 @@ const AREAS: Area[] = [
     word: 'Monitor',
     Mark: IsoMonitorIllustration,
     size: 174,
-    definition: 'See inside every run with live traces, logs, and real cost.',
+    definition: 'See inside every run in Sim: live traces, logs, and real cost.',
   },
 ]
 
@@ -83,7 +83,7 @@ export function Mothership() {
         className='max-w-[1200px] text-balance text-[28px] leading-[1.2] max-sm:text-[22px]'
       >
         <span className='block text-[var(--text-primary)]'>
-          Everything your agents need, in one workspace.
+          Everything your AI agents need, in one workspace.
         </span>
         <span className='block text-[var(--text-body)]'>Build, run, and watch every agent.</span>
       </h2>

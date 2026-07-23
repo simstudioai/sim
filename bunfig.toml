@@ -5,12 +5,20 @@ exact = true
 minimumReleaseAge = 604800
 # @typescript/native-preview stays excluded permanently: it only publishes nightly
 # dev builds, so every version is structurally younger than any age gate.
-# typescript@7.0.2 and @typescript/typescript6@6.0.2 were vetted in #5521; they age
-# out of the gate on 2026-07-15 and 2026-07-13 — drop those two entries after that.
+# The exactly pinned Pi 0.80.10 packages were vetted for the cloud-review SDK
+# migration; they age out of the gate on 2026-07-24 — drop these four entries then.
+# next@16.2.11 and @next/env@16.2.11 are the official Vercel security patch for the
+# July 2026 advisories (SSRF, cache confusion, DoS, middleware bypass — GHSA-89xv-2m56-2m9x
+# et al.); published 2026-07-21, they age out of the gate on 2026-07-28 — drop these two
+# entries then.
 minimumReleaseAgeExcludes = [
-  "typescript",
-  "@typescript/typescript6",
   "@typescript/native-preview",
+  "@earendil-works/pi-agent-core",
+  "@earendil-works/pi-ai",
+  "@earendil-works/pi-coding-agent",
+  "@earendil-works/pi-tui",
+  "next",
+  "@next/env",
 ]
 
 [run]

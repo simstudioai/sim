@@ -1,0 +1,131 @@
+---
+slug: apache-2-0-vs-fair-code
+title: "Apache 2.0 vs Fair-Code: Why Sim's License Beats n8n's for Self-Hosting"
+description: Apache 2.0 vs n8n's fair-code Sustainable Use License - what OSI open source actually means, what each license permits for self-hosting, embedding, and resale, and how Sim, n8n, Dify, and Zapier compare.
+date: 2026-07-14
+updated: 2026-07-14
+authors:
+  - andrew
+readingTime: 9
+tags: [Apache 2.0, Fair-Code, Open Source, Self-Hosting, n8n, Sim]
+ogImage: /library/apache-2-0-vs-fair-code/cover.jpg
+canonical: https://www.sim.ai/library/apache-2-0-vs-fair-code
+draft: false
+faq:
+  - q: "Is n8n open source?"
+    a: "Not in the strict OSI sense. n8n's core ships under the Sustainable Use License and is described as \"fair-code.\" The source is available and you can self-host it for internal use, but the license restricts offering it as a hosted service to third parties or building a competing product without a commercial agreement."
+  - q: "Is Dify open source?"
+    a: "Not in the strict OSI sense either. Dify's community edition ships under the Dify Open Source License, which follows Apache 2.0 for most terms but adds two conditions: you must retain Dify's logo and copyright notices in the frontend, and you need commercial authorization from Dify to run it as a public multi-tenant SaaS. Those additions are what an OSI-approved license would not permit, so Dify is source available with Apache-style terms rather than pure Apache 2.0."
+  - q: "What is the difference between Apache 2.0 and fair-code?"
+    a: "Apache 2.0 is an OSI-approved permissive license with no restriction on commercial use, self-hosting, or field of use, plus an explicit patent grant. Fair-code, such as the Sustainable Use License, makes source available but attaches usage restrictions an OSI license would not allow. Apache 2.0 is open source. Fair-code is source available."
+  - q: "Can I self-host an AI agent platform for free under Apache 2.0?"
+    a: "Yes. Apache 2.0 lets you run the software on your own infrastructure with no seat caps or usage metering, modify it, and use it commercially, as long as you preserve the license and copyright notices. Sim ships Docker, Kubernetes, and npx simstudio paths on those terms."
+  - q: "Can I embed Sim inside a commercial product I sell?"
+    a: "Yes. Apache 2.0 grants commercial use, sublicensing, and redistribution, so you can build a hosted product on the Sim core or ship it inside client deliverables. The same license applies whether you fork it, rename it, or offer it multi-tenant to your own customers."
+  - q: "Which open source AI agent builder should I use?"
+    a: "If a permissive, OSI-approved license and unrestricted self-hosting are priorities, Sim is built for that: a visual AI agent builder with Chat for natural-language building, Agent blocks, built-in Tables, Files, and Knowledge Bases, and bring-your-own-key model support. If you want a mature workflow tool for internal use and accept the Sustainable Use License terms, n8n is a strong option. Confirm the current LICENSE file before committing either way."
+---
+
+Apache 2.0 lets you use, modify, self-host, and redistribute Sim commercially with no field-of-use restriction and no per-seat gate. n8n's Sustainable Use License (its "fair-code" model) lets you self-host and use the software internally, but it bars you from reselling it or offering it as a competing hosted service. So n8n is source available, not open source in the strict OSI sense. Sim is Apache 2.0, an OSI-approved permissive license, which is the difference that matters if you plan to build on, embed, or resell the platform.
+
+## TL;DR
+
+- **Apache 2.0 grants unrestricted commercial use, sublicensing, redistribution, and an explicit patent grant.** The Sustainable Use License permits internal self-hosting but restricts multi-tenant hosting and commercial resale of the product itself.
+- **Sim ships Docker, Kubernetes, and `npx simstudio` self-host paths** with no seat, workflow, or execution caps beyond your own infrastructure.
+- **Choose n8n** when you need mature, deterministic node-based automation and its free community edition covers your internal workloads.
+- **Choose Sim** when you plan to embed, resell, or multi-tenant host the agent builder, or run Chat and Agent blocks inside regulated infrastructure without a vendor conversation.
+
+If "open source" is part of your decision, the license is the detail that decides more than any feature list. Here is what OSI open source actually means, what fair-code changes, and how the leading AI agent builders compare.
+
+## What "open source" actually means
+
+The term has a formal definition maintained by the Open Source Initiative. To qualify, a license must allow free use, modification, and redistribution with no restriction on the field of use, commercial use included. Apache 2.0, MIT, GPL, and MPL all clear that bar. Under any of them you can run the software for any purpose, including building a competing product, and no one can revoke that right later.
+
+"Source available" is a different thing. You can read the code and often modify it, but the license attaches conditions an OSI-approved license would not permit. The code sits on GitHub, which feels open, but the legal rights are narrower than the label suggests.
+
+## Fair-code and the Sustainable Use License
+
+"Fair-code" is a term n8n popularized. It is not an OSI category. n8n's core ships under the Sustainable Use License, which grants broad rights for internal business use and self-hosting but restricts using the software to offer a competing hosted service or to redistribute it as a commercial product.
+
+That model is legitimate and widely adopted. n8n uses it to stop cloud providers from wrapping the open code and reselling it at scale, which is a real commercial risk permissive licenses do nothing about. Calling fair-code a lesser license misreads it. It solves a different problem than Apache 2.0 does, and for a team automating its own operations, the internal-use grant covers everything they need. The distinction only turns decisive when your plans cross the line the license draws.
+
+## What Apache 2.0 unlocks that fair-code restricts
+
+Apache 2.0 permits four things the Sustainable Use License holds back, and each maps to a concrete plan.
+
+**Run it as a multi-tenant service.** Spin up one Sim deployment, put separate customer workspaces on it, charge for access, and Apache 2.0 permits that with no commercial conversation. Hosting the product as a paid multi-tenant service for other people is the exact use a fair-code license carves out.
+
+**Embed it inside a product you sell.** Ship an application where each customer's Agent blocks call your models and run your workflows behind your own UI. Apache 2.0 grants the commercial rights and the patent grant to do that, so the workflow engine becomes a component you distribute rather than a dependency you license separately.
+
+**Fork it and redistribute under a different name.** Take the source, rename it, modify the builder, and hand the result to your own users. Apache 2.0 asks only that you preserve the license and notices. Fair-code licenses typically stop you from redistributing a competing hosted version, which is where forks meant for resale hit the terms.
+
+**Run it in regulated or air-gapped infrastructure with no vendor approval.** If your environment sits behind a firewall with no outbound calls, you deploy the workflows and Agent blocks on your own hardware and never ask permission, because Apache 2.0 imposes no field-of-use restriction. Teams in finance, healthcare, and defense care about this because a licensing exception request is itself a compliance event.
+
+None of these rights come from a paid tier. They come from the license attached to the code, so they hold whether you run one Sim instance or a hundred.
+
+To be precise about where the line sits: Sim runs an open-core model, the same shape GitLab and Databricks use. The Apache 2.0 core is the whole workflow engine, Chat, Agent blocks, Tables, Files, and Knowledge Bases, and none of it is metered or seat-gated. The enterprise tier adds operational and compliance layers on top: SSO and SAML, SCIM provisioning, granular access control, an Admin API, whitelabeling, and dedicated support. That is a real distinction and worth knowing before you plan a deployment. It is also a different thing from a fair-code restriction. Open core decides which features ship in the paid product. Fair-code decides what you are legally permitted to do with the code you already have. You can hit an open-core feature boundary and still hold every right Apache 2.0 grants you.
+
+### What Apache 2.0 permits, in short
+
+- Use the software commercially, with no restriction on field of use.
+- Self-host on your own infrastructure with no seat caps, usage metering, or license gate.
+- Modify the source and ship your changes, privately or publicly.
+- Redistribute it, including as part of a larger commercial offering.
+- Build on it with patent protection, since Apache 2.0 includes an explicit patent grant that MIT and BSD do not.
+
+The only real obligations are to preserve copyright and license notices and to state significant changes. There is no "you may not compete with us" clause. That is the practical line between permissive open source and fair-code.
+
+## How does Sim's self-hosting work under Apache 2.0?
+
+Sim gives you three ways to run the platform on your own infrastructure, and each one hands you the full Apache 2.0 core.
+
+- **Docker.** Pull the images and run the stack with Docker Compose. Fits a single VM or a managed container service.
+- **Kubernetes.** Deploy with the provided manifests. Fits teams already running workloads on a cluster who want Sim to sit alongside them.
+- **`npx simstudio`.** Spin up a local instance in one command to prototype an Agent block or test a workflow.
+
+None of these paths caps how many users, workflows, or Agent block executions you run. The only ceiling is the compute, memory, and storage you provision. If you want a thousand people building with Chat and the visual builder, you size the database and runners to handle it, and nothing in the license stops you. No seat counter, no usage meter, no phone-home check that throttles a self-hosted instance. The software ships sensible burst-protection defaults, such as a per-pod cap on concurrent in-flight executions, but those are plain environment variables you tune to your own hardware, not license gates.
+
+The terms stay identical across all three paths. The core you get from `npx simstudio` on a laptop is the core you deploy to a production cluster. Sim does not gate self-hosting behind a paid tier and reserve the permissive license for a stripped-down community build. That consistency matters when you plan a migration: prototype locally, promote to staging, move to production, all without switching license models or discovering a feature was reserved for a hosted plan.
+
+## Where n8n's self-hosting still wins the job
+
+n8n runs deterministic, node-based automation better than almost anything else you can self-host, and licensing has nothing to do with why. It has spent years hardening a visual workflow engine around predictable triggers, retries, and error branches. When a job needs to fire on a webhook, hit six APIs in sequence, transform the payloads, and write to a database with exact control over failure behavior, n8n's node graph gives you that determinism without a fight.
+
+Its integration library is the second reason to reach for it. n8n ships hundreds of maintained nodes for specific SaaS products, and each one encodes the auth flow, pagination, and field mappings you would otherwise write by hand. If your job is stitching existing systems together rather than reasoning over unstructured input, that catalog saves real weeks.
+
+Its community edition is a genuine free self-hosting tier, not a crippled trial. You run the full engine on your own Docker host, keep data in your own Postgres, and never talk to a salesperson for internal automation. The Sustainable Use License permits exactly that, and the resale restrictions never come into play.
+
+Choose n8n when your workload is deterministic integration plumbing, your team thinks in flowcharts, and your requirements map cleanly onto pre-built nodes. Sim leans toward workflows where Agent blocks make decisions over messy input and an LLM sits in the loop rather than at the edges. Those are different jobs, and n8n is the stronger engine for the first one no matter which license sits underneath.
+
+## AI agent platform license comparison
+
+| Platform | License type | OSI-approved open source | Commercial self-hosting | Usage restrictions | Source available |
+| --- | --- | --- | --- | --- | --- |
+| Sim | Permissive (Apache 2.0) | Yes | Yes, no seat or usage cap | None | Yes |
+| n8n | Sustainable Use License (fair-code) | No | Internal use yes; hosting-as-a-service to third parties restricted | Cannot resell as a hosted service or build a competing product without a commercial license | Yes |
+| Dify | Dify Open Source License (Apache 2.0 plus added conditions) | No | Internal use yes; public multi-tenant SaaS requires authorization | Frontend logo and copyright notices must be retained; commercial authorization required to run a public multi-tenant SaaS | Yes |
+| Zapier | Proprietary / closed source | No | No self-hosting | Fully hosted SaaS only | No |
+
+Read each vendor's current LICENSE file before you rely on the summary above. Licenses change, and a table is a snapshot. The pattern that holds: a permissive license (Apache 2.0, MIT) gives the broadest rights, fair-code sits in the middle, and proprietary SaaS gives you no self-hosting rights at all.
+
+## Why licensing matters for AI agent platforms
+
+AI agents touch your most sensitive surfaces: customer data, internal APIs, credentials, production systems. The license you build on decides how much control you keep as usage grows.
+
+- **Data control and self-hosting.** A permissive license lets you run the platform inside your own VPC or on-prem, so agent executions and the data they read never leave your environment. This matters for regulated teams and anyone with data-residency requirements.
+- **No usage cliff.** Fair-code and source-available licenses often reserve the right to restrict specific commercial patterns. If your use case drifts toward offering the tool to your own customers, you can hit a clause that forces a commercial license. Apache 2.0 has no such cliff.
+- **Freedom to extend.** Agent platforms live or die on integrations and custom blocks. A permissive license lets you fork, patch, and ship extensions without a legal review of whether your change competes with the vendor.
+- **Longevity insurance.** If a permissively licensed project is abandoned or relicensed, the community can fork the last open version. Source-available projects are harder to rescue, because the license constrains what a fork may do.
+
+For technical builders and teams standardizing an agent stack, these are not abstractions. They are the reasons a self-hostable, permissively licensed platform lowers long-term risk.
+
+## Choosing a license model for your situation
+
+The right license depends on what you plan to do with the software, not on which engine has more nodes. Run through these before you commit.
+
+- **Building a hosted product on the workflow engine and charging others to use it?** Apache 2.0 is the only one of the two that permits this with no commercial agreement. Sim runs under the same terms whether you serve one team or a thousand.
+- **Embedding workflows into client deliverables or reselling under your own brand?** Same logic. Apache 2.0 grants sublicensing and redistribution, so you can ship Agent blocks inside a product you sell.
+- **Running in a regulated or air-gapped environment and want to skip the vendor conversation?** Apache 2.0 removes the field-of-use questions before they start. You own the terms once you have the code.
+- **Automating internal deterministic workflows and never reselling or multi-tenanting?** n8n's Sustainable Use License permits exactly that, and its community edition is the right starting point.
+
+For the Sim path, [start with `npx simstudio`](https://sim.ai) to run locally, then move to Docker or Kubernetes for production. For internal-automation-only, n8n's community edition covers the job without cost or friction.

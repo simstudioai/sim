@@ -159,6 +159,10 @@
               "type": "string",
               "description": "Comma-separated additional public origins to trust for auth (e.g. 'https://app.example.com,https://www.example.com'). Merged into Better Auth trustedOrigins."
             },
+            "AUTH_TRUSTED_PROXIES": {
+              "type": "string",
+              "description": "Comma-separated reverse-proxy IPs or CIDR ranges in front of the app (e.g. '10.0.0.0/16'). Better Auth walks x-forwarded-for right to left, skips these hops, and uses the first untrusted address as the client IP."
+            },
             "SSO_TRUSTED_PROVIDER_IDS": {
               "type": "string",
               "description": "Comma-separated SSO provider IDs to trust for automatic account linking when an SSO sign-in matches an existing account's email. Only needed for IdPs that do not assert email_verified. Merged into Better Auth accountLinking.trustedProviders."
@@ -211,6 +215,14 @@
             "SMTP_SECURE": {
               "type": "string",
               "description": "Set to 'true' to force TLS on connect. Defaults to true when SMTP_PORT=465."
+            },
+            "GMAIL_CREDENTIALS_JSON": {
+              "type": "string",
+              "description": "Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider."
+            },
+            "GMAIL_SENDER": {
+              "type": "string",
+              "description": "Google Workspace user the Gmail service account impersonates when sending (e.g., noreply@yourdomain.com)."
             },
             "GOOGLE_CLIENT_ID": {
               "type": "string",
@@ -758,15 +770,6 @@
         "enabled": {
           "type": "boolean",
           "description": "Enable the Presidio PII redaction service"
-        },
-        "engine": {
-          "type": "string",
-          "enum": ["spacy", "gliner"],
-          "description": "NER engine (spacy default, gliner opt-in; both ship in the image)"
-        },
-        "device": {
-          "type": "string",
-          "description": "Torch device for the gliner engine (cpu, cuda, cuda:N); empty auto-detects"
         },
         "replicaCount": {
           "type": "integer",

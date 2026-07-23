@@ -11,6 +11,17 @@ tags: [AI Agents, RPA, Enterprise Automation, Sim]
 ogImage: /library/ai-agents-vs-rpa/cover.jpg
 canonical: https://www.sim.ai/library/ai-agents-vs-rpa
 draft: false
+faq:
+  - q: "What is the main difference between AI agents and RPA?"
+    a: "RPA bots follow pre-programmed scripts to execute specific, rule-based tasks exactly the same way every time. AI agents use large language models to perceive inputs, reason about what needs to happen, and pursue goals by planning and adapting their steps."
+  - q: "Can AI agents replace enterprise RPA entirely?"
+    a: "RPA remains strong for deterministic, compliance-critical, high-volume structured tasks where you need identical execution every time with a fully auditable trail. AI agents add the most value on top of RPA, handling the exceptions, unstructured inputs, and judgment calls that RPA was never built for. Think of it as complementary, not competitive."
+  - q: "What kinds of processes should use RPA vs AI agents?"
+    a: "Look at three process characteristics: data structure, variability, and exception rate. If your inputs are structured and consistent, steps never change, and exceptions are rare, use RPA. If inputs vary in format, the process requires interpretation or multi-step reasoning, and exceptions are frequent, use AI agents."
+  - q: "How do you combine AI agents and RPA in the same workflow?"
+    a: "Use the brain-and-hands model: the AI agent orchestrates the workflow by reading inputs, making decisions, and routing actions, while RPA bots execute the deterministic steps inside legacy systems. For example, in a finance workflow, an AI agent interprets and validates a customer's service request, then triggers an RPA bot to execute the approved transaction in the ERP system."
+  - q: "How long does it take to implement AI agents compared to RPA?"
+    a: "RPA bots typically take one to four months to deploy for a well-scoped use case. AI agents used to take months because of the additional work required to define goals, set confidence thresholds, and test edge cases. Visual agent builder platforms like Sim can cut that timeline significantly by removing the need to write orchestration code from scratch, making hybrid deployments accessible to teams without deep ML engineering resources."
 ---
 
 Picture this: your accounts payable team deployed an RPA bot two years ago to process vendor invoices. It ran flawlessly, pulling data from the same portal, matching line items, and pushing entries into the ERP system with zero human intervention. Then the vendor updated their web portal. New layout, new field names, new login flow. The bot broke overnight. Your team spent the next week re-scripting instead of building anything new.
@@ -211,25 +222,3 @@ This is also when governance frameworks need to mature:
 The AI agents vs RPA question isn't really a versus at all. RPA gives you consistent, auditable execution on structured tasks and legacy systems. AI agents give you reasoning, adaptability, and the ability to handle the messy, variable work that RPA was never designed for. Trying to solve every automation problem with just one of these tools means you're either over-engineering simple tasks or leaving complex processes stuck in manual mode.
 
 The practical path forward: audit where your current RPA bots hand off to humans, deploy AI agents at those specific seams, and build the integration layer that lets both technologies work as a single system. Start small, prove the hybrid model on one or two high-value workflows, and scale from there.
-
-## FAQ
-
-### What is the main difference between AI agents and RPA?
-
-RPA bots follow pre-programmed scripts to execute specific, rule-based tasks exactly the same way every time. AI agents use large language models to perceive inputs, reason about what needs to happen, and pursue goals by planning and adapting their steps.
-
-### Can AI agents replace enterprise RPA entirely?
-
-RPA remains strong for deterministic, compliance-critical, high-volume structured tasks where you need identical execution every time with a fully auditable trail. AI agents add the most value on top of RPA, handling the exceptions, unstructured inputs, and judgment calls that RPA was never built for. Think of it as complementary, not competitive.
-
-### What kinds of processes should use RPA vs AI agents?
-
-Look at three process characteristics: data structure, variability, and exception rate. If your inputs are structured and consistent, steps never change, and exceptions are rare, use RPA. If inputs vary in format, the process requires interpretation or multi-step reasoning, and exceptions are frequent, use AI agents.
-
-### How do you combine AI agents and RPA in the same workflow?
-
-Use the brain-and-hands model: the AI agent orchestrates the workflow by reading inputs, making decisions, and routing actions, while RPA bots execute the deterministic steps inside legacy systems. For example, in a finance workflow, an AI agent interprets and validates a customer's service request, then triggers an RPA bot to execute the approved transaction in the ERP system.
-
-### How long does it take to implement AI agents compared to RPA?
-
-RPA bots typically take one to four months to deploy for a well-scoped use case. AI agents used to take months because of the additional work required to define goals, set confidence thresholds, and test edge cases. Visual agent builder platforms like Sim can cut that timeline significantly by removing the need to write orchestration code from scratch, making hybrid deployments accessible to teams without deep ML engineering resources.

@@ -1,5 +1,5 @@
 import { ClipboardList } from '@sim/emcn/icons'
-import { GmailIcon, LemlistIcon } from '@/components/icons'
+import { GmailIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -57,6 +57,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   bgColor: '#FFFFFF',
   icon: GmailIcon,
   hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'gmail_v2' },
   triggerAllowed: true,
   subBlocks: [
     // Operation selector
@@ -575,6 +576,7 @@ Return ONLY the search query - no explanations, no extra text.`,
 
 export const GmailV2Block: BlockConfig<GmailToolResponse> = {
   ...GmailBlock,
+  sunset: undefined,
   type: 'gmail_v2',
   name: 'Gmail',
   hideFromToolbar: false,
@@ -649,7 +651,7 @@ export const GmailBlockMeta = {
   templates: [
     {
       icon: GmailIcon,
-      title: 'Auto-reply agent',
+      title: 'Gmail auto-reply agent',
       prompt:
         'Create a workflow that reads my Gmail inbox, identifies emails that need a response, and drafts contextual replies for each one. Schedule it to run every hour.',
       image: '/templates/gmail-agent-dark.png',
@@ -659,8 +661,8 @@ export const GmailBlockMeta = {
       featured: true,
     },
     {
-      icon: LemlistIcon,
-      title: 'Outbound sequence builder',
+      icon: GmailIcon,
+      title: 'Gmail outbound sequence builder',
       prompt:
         'Build a workflow that reads leads from my table, researches each prospect and their company on the web, writes a personalized cold email tailored to their role and pain points, and sends it via Gmail. Schedule it to run daily to process new leads automatically.',
       modules: ['tables', 'agent', 'workflows'],
@@ -669,7 +671,7 @@ export const GmailBlockMeta = {
     },
     {
       icon: GmailIcon,
-      title: 'Email knowledge search',
+      title: 'Gmail knowledge search',
       prompt:
         'Create a knowledge base connected to my Gmail so all my emails are automatically synced, chunked, and searchable. Then build an agent I can ask things like "what did Sarah say about the pricing proposal?" or "find the contract John sent last month" and get instant answers with the original email cited.',
       modules: ['knowledge-base', 'agent'],
@@ -678,7 +680,7 @@ export const GmailBlockMeta = {
     },
     {
       icon: GmailIcon,
-      title: 'Email triage assistant',
+      title: 'Gmail triage assistant',
       prompt:
         'Build a workflow that scans my Gmail inbox every hour, categorizes emails by urgency and type (action needed, FYI, follow-up), drafts replies for routine messages, and sends me a prioritized summary in Slack so I only open what matters. Schedule it to run hourly.',
       modules: ['agent', 'scheduled', 'workflows'],
@@ -688,7 +690,7 @@ export const GmailBlockMeta = {
     },
     {
       icon: ClipboardList,
-      title: 'Invoice processor',
+      title: 'Gmail invoice processor',
       prompt:
         'Build a workflow that processes invoice PDFs from Gmail, extracts vendor name, amount, due date, and line items, then logs everything to a tracking table and sends a Slack alert for invoices due within 7 days.',
       modules: ['files', 'tables', 'agent', 'workflows'],
@@ -719,7 +721,7 @@ export const GmailBlockMeta = {
 
     {
       icon: GmailIcon,
-      title: 'Save incoming emails to Notion databases',
+      title: 'Gmail to Notion email capture',
       prompt:
         'Build a workflow that monitors Gmail for incoming emails, extracts structured data from each one, and stores it as a Notion database entry — useful for lead capture, support tickets, and meeting scheduling.',
       modules: ['agent', 'workflows'],

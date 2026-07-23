@@ -1,43 +1,20 @@
 /**
  * @vitest-environment node
  */
-import { copilotHttpMock, copilotHttpMockFns, permissionsMock } from '@sim/testing'
+import {
+  copilotHttpMock,
+  copilotHttpMockFns,
+  dbChainMockFns,
+  permissionsMock,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockFrom, mockWhere, mockOrderBy, mockReconcileChatStreamMarkers } = vi.hoisted(
-  () => ({
-    mockSelect: vi.fn(),
-    mockFrom: vi.fn(),
-    mockWhere: vi.fn(),
-    mockOrderBy: vi.fn(),
-    mockReconcileChatStreamMarkers: vi.fn(),
-  })
-)
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockSelect,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  copilotChats: {
-    id: 'copilotChats.id',
-    title: 'copilotChats.title',
-    userId: 'copilotChats.userId',
-    workspaceId: 'copilotChats.workspaceId',
-    type: 'copilotChats.type',
-    updatedAt: 'copilotChats.updatedAt',
-    conversationId: 'copilotChats.conversationId',
-    lastSeenAt: 'copilotChats.lastSeenAt',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
-  desc: vi.fn((field: unknown) => ({ type: 'desc', field })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
+const { mockReconcileChatStreamMarkers } = vi.hoisted(() => ({
+  mockReconcileChatStreamMarkers: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
@@ -66,16 +43,12 @@ function createRequest(workspaceId: string) {
 describe('GET /api/mothership/chats', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
 
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
     })
-
-    mockOrderBy.mockResolvedValue([])
-    mockWhere.mockReturnValue({ orderBy: mockOrderBy })
-    mockFrom.mockReturnValue({ where: mockWhere })
-    mockSelect.mockReturnValue({ from: mockFrom })
 
     mockReconcileChatStreamMarkers.mockImplementation(
       async (candidates: Array<{ chatId: string; streamId: string | null }>) =>
@@ -94,7 +67,7 @@ describe('GET /api/mothership/chats', () => {
 
   it('clears activeStreamId on chats whose redis lock has expired (stuck-yellow bug)', async () => {
     const now = new Date('2026-05-11T12:00:00Z')
-    mockOrderBy.mockResolvedValueOnce([
+    queueTableRows(schemaMock.copilotChats, [
       {
         id: 'chat-stuck',
         title: 'Stuck chat',
@@ -147,7 +120,7 @@ describe('GET /api/mothership/chats', () => {
 
   it('preserves chats when no chat has a stream marker set', async () => {
     const now = new Date('2026-05-11T12:00:00Z')
-    mockOrderBy.mockResolvedValueOnce([
+    queueTableRows(schemaMock.copilotChats, [
       { id: 'chat-1', title: null, updatedAt: now, activeStreamId: null, lastSeenAt: null },
       { id: 'chat-2', title: null, updatedAt: now, activeStreamId: null, lastSeenAt: null },
     ])
@@ -171,7 +144,7 @@ describe('GET /api/mothership/chats', () => {
 
   it('leaves activeStreamId untouched when redis confirms every lock is live', async () => {
     const now = new Date('2026-05-11T12:00:00Z')
-    mockOrderBy.mockResolvedValueOnce([
+    queueTableRows(schemaMock.copilotChats, [
       { id: 'chat-a', title: null, updatedAt: now, activeStreamId: 'stream-a', lastSeenAt: null },
       { id: 'chat-b', title: null, updatedAt: now, activeStreamId: 'stream-b', lastSeenAt: null },
     ])
@@ -187,7 +160,7 @@ describe('GET /api/mothership/chats', () => {
 
   it('uses Redis lock owner when it differs from a stale activeStreamId', async () => {
     const now = new Date('2026-05-11T12:00:00Z')
-    mockOrderBy.mockResolvedValueOnce([
+    queueTableRows(schemaMock.copilotChats, [
       {
         id: 'chat-mismatch',
         title: null,
@@ -219,7 +192,11 @@ describe('GET /api/mothership/chats', () => {
 
     const response = await GET(createRequest('ws-1'))
     expect(response.status).toBe(401)
-    expect(mockSelect).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(mockReconcileChatStreamMarkers).not.toHaveBeenCalled()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 })

@@ -1,7 +1,7 @@
 import { cn } from '@sim/emcn'
-import Image from 'next/image'
 import { Cta } from '@/app/(landing)/components/cta/cta'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
+import { PlatformHeroVisual } from '@/app/(landing)/components/platform-hero-visual'
 import {
   SolutionsHero,
   SolutionsLogosRow,
@@ -31,9 +31,9 @@ import {
  * Enterprise landing page (`/enterprise`) - the flagship surface for teams
  * evaluating Sim as their enterprise AI agent platform.
  *
- * Structurally it mirrors {@link SolutionsPage} (hero → logos → card rows) but
- * composes its own `<main>` so it can append the shared homepage CTA that
- * `SolutionsPage` does not render. The four feature rows render through
+ * Structurally it mirrors {@link SolutionsPage} (hero → logos → card rows →
+ * shared homepage CTA) but composes its own `<main>` so the hero can render
+ * full-bleed in its `home` variant. The four feature rows render through
  * {@link EnterpriseFeatureGrid} - one shared grid that regroups the 12 cards
  * into 4/4/2/2 in the two-column band so no section leaves an orphan cell.
  * The shared `SOLUTIONS_SPACING` constants own the enterprise content gutter
@@ -44,53 +44,53 @@ import {
  * (each card), never skipped. Server Component; the interactive leaves live in
  * the shared landing components.
  */
+/**
+ * The enterprise page's canonical description - shared by `page.tsx` (the
+ * `<meta name="description">` and OG/Twitter cards) and the JSON-LD
+ * `WebPage.description` via {@link SolutionsPageConfig.seoDescription}.
+ */
+export const ENTERPRISE_SEO_DESCRIPTION =
+  'Build and govern enterprise AI agents in Sim with SSO, approvals, audit trails, versioning, and 1,000+ integrations.'
+
 const ENTERPRISE_CONFIG: SolutionsPageConfig = {
   module: 'Enterprise',
   path: '/enterprise',
+  seoDescription: ENTERPRISE_SEO_DESCRIPTION,
+  offersFreeTier: false,
   hero: {
-    heading: 'The AI Agent Platform for Enterprise Teams',
-    description: 'Build, deploy, and govern enterprise AI agents in one workspace.',
+    heading: 'Sim is the enterprise AI agent platform for governed workflows.',
+    description:
+      'Build, deploy, and govern enterprise AI agents in one AI workspace. Connect every major LLM and 1,000+ integrations with role-based access, approval paths, versioning, monitoring, and complete audit trails.',
+    definition:
+      'An enterprise AI agent uses AI models, business data, and connected tools to complete multi-step work within the permissions, approval policies, and human oversight your organization defines.',
     summary:
-      'Sim is the open-source enterprise AI agent platform where IT, operations, and technical teams build, deploy, and govern enterprise AI agents in one AI workspace. Connect 1,000+ integrations and every major LLM, with security, role-based access, approvals, observability, versioning, and audit trails for reliable deployment across teams.',
+      'Sim is the open-source AI workspace where IT, operations, and technical teams build, deploy, and govern enterprise AI agents. Connect 1,000+ integrations and every major LLM, with role-based access, approvals, versioning, and full audit trails.',
     /**
-     * The enterprise architectural backdrop with the enterprise-specific
-     * platform loop framed in front of it: the same white demo window the
-     * homepage hero uses, filled by the {@link EnterprisePlatformLoop} - a
-     * sibling of the homepage `HeroPlatformLoop` that renders the whole
-     * interior live (Brightwave sidebar + the real new-chat home view) and
-     * replays an enterprise prompt. The `variant='home'` hero renders this
-     * into the same `aspect-[1300/720]` media frame the homepage uses.
+     * The shared {@link PlatformHeroVisual} backdrop-plus-demo-window
+     * composition, filled by the {@link EnterprisePlatformLoop} - a sibling of
+     * the homepage `HeroPlatformLoop` that renders the whole interior live
+     * (Brightwave sidebar + the real new-chat home view) and replays an
+     * enterprise prompt. The `variant='home'` hero renders this into the same
+     * `aspect-[1300/720]` media frame the homepage uses.
      */
     visual: (
-      <>
-        <Image
-          fill
-          priority
-          fetchPriority='high'
-          alt=''
-          className='object-cover object-center'
-          sizes='(max-width: 1024px) 100vw, 1300px'
-          src='/landing/enterprise-hero-background.webp'
-        />
-        <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 flex aspect-[1080/620] w-[83.08%] flex-col overflow-hidden rounded-[10px] bg-[var(--surface-1)] shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_2px_6px_0_rgba(0,0,0,0.05),0_4px_42px_0_rgba(0,0,0,0.06)]'>
-          <div className='relative flex-1'>
-            <EnterprisePlatformLoop />
-          </div>
-        </div>
-      </>
+      <PlatformHeroVisual>
+        <EnterprisePlatformLoop />
+      </PlatformHeroVisual>
     ),
   },
   rows: [
     {
       id: 'build',
-      title: 'Build, Deploy, and Manage Enterprise AI Agents in One Workspace',
+      title: 'Build, Deploy, and Manage Enterprise AI Agents',
       subtitle:
-        'Build enterprise AI agents, ship to production, and manage every version from one workspace.',
+        'Sim takes enterprise AI agents from initial design to production in one workspace. Build visually or with code, validate changes, deploy approved versions, and monitor every run without connecting separate development and operations tools.',
       cta: { label: 'Start building', href: SIGNUP_HREF },
       cards: [
         {
           title: 'Build visually or with code',
-          description: 'Create agents in the visual builder, through chat, or directly in code.',
+          description:
+            "Create enterprise AI agents in Sim's visual builder, describe the workflow in plain English, or write custom logic directly in code.",
           visual: <BuildMethodsGraphic />,
         },
         {
@@ -103,7 +103,8 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
         },
         {
           title: 'Manage the full lifecycle',
-          description: 'Version, monitor, and edit every agent as your workflows evolve.',
+          description:
+            'Version, monitor, and update every enterprise AI agent in Sim as your business requirements, integrations, and governance policies evolve.',
           visual: <LifecycleGraphic />,
         },
       ],
@@ -112,7 +113,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
       id: 'governance',
       title: 'Governance and Security for Enterprise AI Agents',
       subtitle:
-        'Security, approvals, and controls keep enterprise AI agents trusted in production.',
+        'Control how enterprise AI agents access data, use tools, and take action. Sim provides SSO, permission groups, approval paths, configurable data retention, and append-only audit logs for every security-relevant change.',
       cta: { label: 'See security', href: DEMO_HREF },
       cards: [
         {
@@ -123,13 +124,13 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
         },
         {
           title: 'Prove every action',
-          description: 'Trace every run block by block with a complete audit trail.',
+          description: 'Sim traces every run block by block with a complete audit trail.',
           visual: <AuditTrailGraphic />,
         },
         {
           title: 'Meet enterprise standards',
           description:
-            'SOC2 compliance and open source give security teams a clear path to review.',
+            'Sim is SOC2 compliant and open source, giving security teams a clear path to review.',
           visual: <StandardsGraphic />,
           featureTileTone: 'dark',
           featureTileDescriptionTone: 'soft',
@@ -139,7 +140,9 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
     {
       id: 'deploy',
       title: 'Deploy Enterprise Workflow Agents with Confidence',
-      subtitle: 'Stage, observe, and version workflow agents before they reach production.',
+      subtitle:
+        'Enterprise workflow agents need controlled release processes. Test changes in staging, observe production runs, version every deployment, and restore a stable version if updates cause an issue.',
+      note: 'Deploy Sim on your own infrastructure with Docker or Kubernetes when your organization requires greater control over its environment and data.',
       cta: { label: 'Explore deployment', href: SIGNUP_HREF },
       cards: [
         {
@@ -149,12 +152,12 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
         },
         {
           title: 'Watch every run',
-          description: 'See live logs, run history, and monitoring in one place.',
+          description: 'Sim shows live logs, run history, and monitoring in one place.',
           visual: <RunMonitoringGraphic />,
         },
         {
           title: 'Roll back safely',
-          description: 'Version workflows and roll back production agents in seconds.',
+          description: 'Sim versions workflows so you can roll back production agents in seconds.',
           visual: <RollbackGraphic />,
         },
       ],
@@ -163,7 +166,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
       id: 'teams',
       title: 'Built for Enterprise Teams',
       subtitle:
-        'Built for the teams that own enterprise AI agents across IT, operations, and engineering.',
+        'IT, operations, and engineering teams share one Sim workspace, each with the controls their role needs.',
       cta: { label: 'Talk to sales', href: DEMO_HREF },
       cards: [
         {
@@ -180,7 +183,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
         },
         {
           title: 'Technical teams',
-          description: 'Let technical teams ship, review, and maintain agents together.',
+          description: 'Technical teams ship, review, and maintain agents together in Sim.',
           visual: <TechnicalTeamsGraphic />,
         },
       ],

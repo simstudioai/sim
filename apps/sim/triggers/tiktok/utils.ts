@@ -8,8 +8,6 @@ export const tiktokTriggerOptions = [
   { label: 'Post Inbox Delivered', id: 'tiktok_post_inbox_delivered' },
   { label: 'Post Publicly Available', id: 'tiktok_post_publicly_available' },
   { label: 'Post No Longer Public', id: 'tiktok_post_no_longer_public' },
-  { label: 'Video Publish Completed', id: 'tiktok_video_publish_completed' },
-  { label: 'Video Upload Failed', id: 'tiktok_video_upload_failed' },
   { label: 'Authorization Removed', id: 'tiktok_authorization_removed' },
 ]
 
@@ -20,8 +18,6 @@ export const TIKTOK_TRIGGER_EVENT_MAP: Record<string, string> = {
   tiktok_post_inbox_delivered: 'post.publish.inbox_delivered',
   tiktok_post_publicly_available: 'post.publish.publicly_available',
   tiktok_post_no_longer_public: 'post.publish.no_longer_publicaly_available',
-  tiktok_video_publish_completed: 'video.publish.completed',
-  tiktok_video_upload_failed: 'video.upload.failed',
   tiktok_authorization_removed: 'authorization.removed',
 }
 
@@ -121,13 +117,6 @@ export function buildTikTokPostingOutputs(options?: {
     }
   }
   return outputs
-}
-
-export function buildTikTokVideoKitOutputs(): Record<string, TriggerOutput> {
-  return {
-    ...buildCommonOutputs(),
-    shareId: { type: 'string', description: 'Share Kit / Video Kit share_id' },
-  }
 }
 
 export function buildTikTokAuthorizationRemovedOutputs(): Record<string, TriggerOutput> {

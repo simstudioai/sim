@@ -122,11 +122,10 @@ export const Panel = memo(function Panel() {
 
   const panelRef = useRef<HTMLElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { activeTab, setActiveTab, panelWidth, _hasHydrated, setHasHydrated } = usePanelStore(
+  const { activeTab, setActiveTab, _hasHydrated, setHasHydrated } = usePanelStore(
     useShallow((state) => ({
       activeTab: state.activeTab,
       setActiveTab: state.setActiveTab,
-      panelWidth: state.panelWidth,
       _hasHydrated: state._hasHydrated,
       setHasHydrated: state.setHasHydrated,
     }))
@@ -189,7 +188,7 @@ export const Panel = memo(function Panel() {
   const { handleRunWorkflow, handleCancelExecution, isExecuting } = useWorkflowExecution()
 
   // Panel resize hook
-  const { handleMouseDown } = usePanelResize()
+  const { handlePointerDown } = usePanelResize()
 
   /**
    * Opens subscription settings modal
@@ -459,10 +458,11 @@ export const Panel = memo(function Panel() {
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const message = (e as CustomEvent<MothershipSendMessageDetail>).detail?.message
-      if (!message) return
+      const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
+      if (!detail?.message) return
+      e.preventDefault()
       setActiveTab('copilot')
-      copilotSendMessage(message)
+      copilotSendMessage(detail.message, undefined, detail.contexts)
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
     return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
@@ -932,7 +932,7 @@ export const Panel = memo(function Panel() {
         {/* Resize Handle */}
         <div
           className='absolute top-0 bottom-0 left-[-4px] z-20 w-[8px] cursor-ew-resize'
-          onMouseDown={handleMouseDown}
+          onPointerDown={handlePointerDown}
           role='separator'
           aria-orientation='vertical'
           aria-label='Resize panel'

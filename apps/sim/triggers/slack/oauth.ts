@@ -1,9 +1,7 @@
 import { SlackIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
   SLACK_ALL_EVENT_OPTIONS,
-  SLACK_SIM_EVENT_OPTIONS,
   SLACK_SOURCE_OPTIONS,
   SLACK_THREAD_OPTIONS,
   SLACK_TRIGGER_OUTPUTS,
@@ -25,14 +23,20 @@ const BOT_FILTER_EVENTS = ['message', 'app_mention']
 const OWN_MESSAGE_EVENTS = ['message', 'app_mention', 'reaction_added', 'reaction_removed']
 
 /**
- * Unified Slack trigger. App Type selects how events arrive:
- * - `sim` (default): the official Sim Slack app the user OAuth-connects — events
- *   route to this workflow by Slack `team_id` (stored as the webhook `routingKey`,
- *   derived at deploy time). No signing secret, bot token, or app setup.
- * - `custom`: a bring-your-own Slack app, selected as a reusable bot credential
- *   (set up once). Events route by that credential (`webhook.routingKey =
- *   credentialId`) to one shared ingest URL, so many triggers on the same bot
- *   share a single Request URL, verified with the bot's own signing secret.
+ * Unified Slack trigger. A single credential picker lists both the native Sim
+ * Slack app (an OAuth-connected account) and reusable custom bots; the deploy
+ * path resolves the credential's kind server-side to pick the backend:
+ * - Custom bot: events route by that credential (`webhook.routingKey =
+ *   credentialId`) to one shared ingest URL verified with the bot's own signing
+ *   secret, so many triggers on the same bot share a single Request URL.
+ * - Native Sim app: events route by Slack `team_id` on the official shared app
+ *   (derived at deploy time via `auth.test`, no path or app setup). Only the
+ *   events the shared app subscribes to are usable; the deploy path enforces
+ *   that (`SIM_SUBSCRIBED_EVENTS`), so the event picker offers every event
+ *   rather than mutating its option set with the selected credential.
+ *
+ * The trigger is only reachable through the preview-gated `slack_v2` block, so
+ * the native Sim-app mode inherits that gate — no separate env flag.
  */
 export const slackOAuthTrigger: TriggerConfig = {
   id: 'slack_oauth',
@@ -47,65 +51,32 @@ export const slackOAuthTrigger: TriggerConfig = {
       id: 'eventType',
       title: 'Event',
       type: 'dropdown',
-      options: [...SLACK_SIM_EVENT_OPTIONS],
+      options: [...SLACK_ALL_EVENT_OPTIONS],
       placeholder: 'Select an event',
       description:
         'The single Slack event this trigger fires on. Add another trigger block for another event.',
       required: true,
       mode: 'trigger',
-      dependsOn: ['appType'],
-      fetchOptions: async (blockId: string) => {
-        const appType = useSubBlockStore.getState().getValue(blockId, 'appType')
-        return appType === 'custom' ? [...SLACK_ALL_EVENT_OPTIONS] : [...SLACK_SIM_EVENT_OPTIONS]
-      },
-    },
-    {
-      id: 'appType',
-      title: 'App Type',
-      type: 'dropdown',
-      // Ship 1 exposes custom bots only; the native "Sim" app mode returns in a
-      // later ship (un-hide + default back to 'sim'). Hidden — not removed — so
-      // the seeded 'custom' value keeps every `appType==='custom'` condition, the
-      // event-catalog fetch, and the deploy routing branch resolving correctly.
-      hidden: true,
-      options: [
-        { label: 'Sim', id: 'sim' },
-        { label: 'Custom', id: 'custom' },
-      ],
-      value: () => 'custom',
-      // `value()` only seeds editor-created blocks; `defaultValue` is what
-      // buildProviderConfig persists when the stored value is absent
-      // (imported / programmatically-created workflows).
-      defaultValue: 'custom',
-      description: 'Use the official Sim Slack app, or your own custom Slack app.',
-      mode: 'trigger',
-    },
-    {
-      id: 'triggerCredentials',
-      title: 'Slack Account',
-      type: 'oauth-input',
-      canonicalParamId: 'oauthCredential',
-      serviceId: 'slack',
-      requiredScopes: getScopesForService('slack'),
-      placeholder: 'Select Slack account',
-      required: { field: 'appType', value: 'sim' },
-      mode: 'trigger',
-      condition: { field: 'appType', value: 'sim' },
     },
     {
       id: 'customBotCredential',
-      title: 'Slack Bot',
+      title: 'Slack Account',
       type: 'oauth-input',
       canonicalParamId: 'botCredential',
       serviceId: 'slack',
-      credentialKind: 'custom-bot',
+      credentialKind: 'any',
+      credentialLabels: {
+        oauthGroup: 'Sim app',
+        oauthConnect: 'Connect the Sim app',
+        serviceAccountGroup: 'Custom bots',
+        serviceAccountConnect: 'Set up a custom bot',
+      },
       requiredScopes: getScopesForService('slack'),
-      placeholder: 'Select a connected bot',
+      placeholder: 'Select Slack account or bot',
       description:
-        'Choose a custom Slack bot you set up once and reuse across triggers and actions.',
-      required: { field: 'appType', value: 'custom' },
+        'Connect the native Sim Slack app, or choose a custom Slack bot you set up once and reuse across triggers and actions.',
+      required: true,
       mode: 'trigger',
-      condition: { field: 'appType', value: 'custom' },
     },
     {
       id: 'manualBotCredential',
@@ -114,9 +85,8 @@ export const slackOAuthTrigger: TriggerConfig = {
       canonicalParamId: 'botCredential',
       placeholder: 'Enter bot credential ID',
       description: 'Set the custom bot credential ID directly.',
-      required: { field: 'appType', value: 'custom' },
+      required: true,
       mode: 'trigger-advanced',
-      condition: { field: 'appType', value: 'custom' },
     },
     {
       id: 'source',
@@ -142,7 +112,7 @@ export const slackOAuthTrigger: TriggerConfig = {
       placeholder: 'Any channel the bot is in',
       description:
         'Restrict to specific channels. Leave empty to trigger on any channel the bot has been added to.',
-      dependsOn: { any: ['triggerCredentials', 'customBotCredential'] },
+      dependsOn: ['customBotCredential'],
       required: false,
       mode: 'trigger',
       condition: { field: 'eventType', value: CHANNEL_FILTER_EVENTS },

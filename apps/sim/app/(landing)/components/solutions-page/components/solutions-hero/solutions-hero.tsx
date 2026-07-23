@@ -67,6 +67,7 @@ export function SolutionsHero({ hero, align = 'left', variant = 'solutions' }: S
           heading={hero.heading}
           headingId='solutions-hero-heading'
           description={hero.description}
+          definition={hero.definition}
         />
 
         <div
@@ -121,7 +122,7 @@ export function SolutionsHero({ hero, align = 'left', variant = 'solutions' }: S
         </div>
       </div>
 
-      <SolutionsVisualFrame size='hero'>{hero.visual}</SolutionsVisualFrame>
+      <SolutionsVisualFrame>{hero.visual}</SolutionsVisualFrame>
     </section>
   )
 }

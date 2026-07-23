@@ -1,3 +1,4 @@
+import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 import type { ShopifyCollectionResponse, ShopifyGetCollectionParams } from '@/tools/shopify/types'
 import { COLLECTION_WITH_PRODUCTS_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
 import type { ToolConfig } from '@/tools/types'
@@ -40,7 +41,7 @@ export const shopifyGetCollectionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://${params.shopDomain || params.idToken}/admin/api/2024-10/graphql.json`,
+      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
     method: 'POST',
     headers: (params) => {
       if (!params.accessToken) {

@@ -1,8 +1,26 @@
 /**
  * @vitest-environment node
  */
-import { createEnvMock, workflowAuthzMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMock,
+  requestUtilsMockFns,
+  resetEnvMock,
+  schemaMock,
+  setEnv,
+  workflowAuthzMockFns,
+} from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+beforeAll(() => {
+  setEnv({ INTERNAL_API_SECRET: 'secret', SOCKET_SERVER_URL: 'http://socket.test' })
+  requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('request-1')
+})
+
+afterAll(() => {
+  resetEnvMock()
+  requestUtilsMockFns.mockGenerateRequestId.mockReset()
+})
+
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 
@@ -44,10 +62,7 @@ vi.mock('@sim/audit', () => ({
   recordAudit: recordAuditMock,
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {},
-  workflow: {},
-}))
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 vi.mock('@/lib/api-key/orchestration', () => ({
   performCreateWorkspaceApiKey: vi.fn(),
@@ -62,16 +77,6 @@ vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
   releaseExecutionSlot: releaseExecutionSlotMock,
   reserveExecutionSlot: reserveExecutionSlotMock,
   UsageReservationUnavailableError: class UsageReservationUnavailableError extends Error {},
-}))
-
-vi.mock('@/lib/core/config/env', () => createEnvMock({ INTERNAL_API_SECRET: 'secret' }))
-
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: () => 'request-1',
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getSocketServerUrl: () => 'http://socket.test',
 }))
 
 vi.mock('@/lib/workflows/executor/execute-workflow', () => ({
@@ -124,7 +129,7 @@ vi.mock('../access', () => ({
 
 import { applyCreateWorkflowOutputToContext } from '@/lib/copilot/request/tools/workflow-context'
 import { performUpdateWorkflow } from '@/lib/workflows/orchestration'
-import { verifyFolderWorkspace } from '@/lib/workflows/utils'
+import { listFolders, verifyFolderWorkspace } from '@/lib/workflows/utils'
 import {
   executeCreateWorkflow,
   executeMoveWorkflow,
@@ -136,6 +141,7 @@ import {
 } from './mutations'
 
 const performUpdateWorkflowMock = vi.mocked(performUpdateWorkflow)
+const listFoldersMock = vi.mocked(listFolders)
 const verifyFolderWorkspaceMock = vi.mocked(verifyFolderWorkspace)
 const billingAttribution: BillingAttributionSnapshot = {
   actorUserId: 'user-1',
@@ -291,6 +297,117 @@ describe('executeCreateWorkflow billing attribution', () => {
       payerUsage: { currentUsage: 1, limit: 10 },
     })
     reserveExecutionSlotMock.mockResolvedValue({ reserved: true, created: true })
+    listFoldersMock.mockResolvedValue([])
+  })
+
+  it('ignores legacy description input instead of persisting it', async () => {
+    performCreateWorkflowMock.mockResolvedValue({
+      success: true,
+      workflow: {
+        id: 'created-workflow',
+        name: 'Created Workflow',
+        workspaceId: 'workspace-1',
+        folderId: null,
+      },
+    })
+    const legacyParams = {
+      name: 'Created Workflow',
+      workspaceId: 'workspace-1',
+      description: 'PRIVATE WORKFLOW DESCRIPTION',
+    } as Parameters<typeof executeCreateWorkflow>[0]
+
+    const result = await executeCreateWorkflow(legacyParams, executionContext)
+
+    expect(result.success).toBe(true)
+    expect(performCreateWorkflowMock).toHaveBeenCalledWith({
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      name: 'Created Workflow',
+      folderId: null,
+    })
+  })
+
+  it('canonicalizes a workflow-folder VFS path and resolves its internal ID', async () => {
+    listFoldersMock.mockResolvedValue([
+      { folderId: 'folder-dream', folderName: 'Dream', parentId: null },
+      {
+        folderId: 'folder-launch-plans',
+        folderName: 'Launch Plans',
+        parentId: 'folder-dream',
+      },
+    ])
+    performCreateWorkflowMock.mockResolvedValue({
+      success: true,
+      workflow: {
+        id: 'created-workflow',
+        name: 'Created Workflow',
+        workspaceId: 'workspace-1',
+        folderId: 'folder-launch-plans',
+      },
+    })
+
+    const result = await executeCreateWorkflow(
+      {
+        name: 'Created Workflow',
+        workspaceId: 'workspace-1',
+        folderPath: 'workflows/Dream/Launch%20Plans',
+      },
+      executionContext
+    )
+
+    expect(result.success).toBe(true)
+    expect(performCreateWorkflowMock).toHaveBeenCalledWith({
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      name: 'Created Workflow',
+      folderId: 'folder-launch-plans',
+    })
+    expect(workflowAuthzMockFns.mockAssertFolderMutable).toHaveBeenCalledWith('folder-launch-plans')
+  })
+
+  it('fails clearly when a workflow-folder VFS path does not exist', async () => {
+    listFoldersMock.mockResolvedValue([
+      { folderId: 'folder-existing', folderName: 'Existing', parentId: null },
+    ])
+
+    const result = await executeCreateWorkflow(
+      {
+        name: 'Created Workflow',
+        workspaceId: 'workspace-1',
+        folderPath: 'workflows/Dream',
+      },
+      executionContext
+    )
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Folder not found at workflows/Dream',
+    })
+    expect(performCreateWorkflowMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects canonically ambiguous workflow-folder VFS paths', async () => {
+    listFoldersMock.mockResolvedValue([
+      { folderId: 'folder-cafe-nfc', folderName: 'Caf\u00e9', parentId: null },
+      { folderId: 'folder-cafe-nfd', folderName: 'Cafe\u0301', parentId: null },
+    ])
+
+    const result = await executeCreateWorkflow(
+      {
+        name: 'Created Workflow',
+        workspaceId: 'workspace-1',
+        folderPath: 'workflows/Caf%C3%A9',
+      },
+      executionContext
+    )
+
+    expect(result).toEqual({
+      success: false,
+      error:
+        'Folder path is ambiguous after canonicalization: workflows/Caf%C3%A9. Rename one of the conflicting folders and retry.',
+    })
+    expect(performCreateWorkflowMock).not.toHaveBeenCalled()
+    expect(workflowAuthzMockFns.mockAssertFolderMutable).not.toHaveBeenCalled()
   })
 
   it('keeps same-workspace creation and subsequent execution on the immutable payer', async () => {

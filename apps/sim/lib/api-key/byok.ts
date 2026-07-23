@@ -206,13 +206,20 @@ export async function getApiKeyWithBYOK(
   const isMistralModel = provider === 'mistral'
   const isZaiModel = provider === 'zai'
   const isXaiModel = provider === 'xai'
+  const isKimiModel = provider === 'kimi'
 
   const byokProviderId = isGeminiModel ? 'google' : (provider as BYOKProviderId)
 
   if (
     isHosted &&
     workspaceId &&
-    (isOpenAIModel || isClaudeModel || isGeminiModel || isMistralModel || isZaiModel || isXaiModel)
+    (isOpenAIModel ||
+      isClaudeModel ||
+      isGeminiModel ||
+      isMistralModel ||
+      isZaiModel ||
+      isXaiModel ||
+      isKimiModel)
   ) {
     const hostedModels = getHostedModels()
     const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())

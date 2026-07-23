@@ -1,5 +1,6 @@
-import { setupGlobalFetchMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { getBlock } from '@/blocks/registry'
 import { BlockType } from '@/executor/constants'
 import {
   findMissingRequiredCustomBlockInputs,
@@ -9,16 +10,89 @@ import {
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
-const { mockExecutorExecute, mockCreateSnapshot } = vi.hoisted(() => ({
+const {
+  mockExecutorExecute,
+  mockCreateSnapshot,
+  mockResolveBillingAttribution,
+  mockGetCustomBlockAuthority,
+  mockGetUserEmailById,
+  executorOptions,
+} = vi.hoisted(() => ({
   mockExecutorExecute: vi.fn(),
   mockCreateSnapshot: vi.fn(),
+  mockResolveBillingAttribution: vi.fn(),
+  mockGetCustomBlockAuthority: vi.fn(),
+  mockGetUserEmailById: vi.fn(),
+  executorOptions: [] as Array<Record<string, any>>,
 }))
 
 vi.mock('@/executor', () => ({
   Executor: class {
+    constructor(options: Record<string, any>) {
+      executorOptions.push(options)
+    }
     execute = mockExecutorExecute
   },
 }))
+
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  resolveBillingAttribution: mockResolveBillingAttribution,
+}))
+
+const mockGetPersonalAndWorkspaceEnv = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
+
+vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
+  getCustomBlockAuthority: mockGetCustomBlockAuthority,
+}))
+
+vi.mock('@/lib/users/queries', () => ({
+  getUserEmailById: mockGetUserEmailById,
+}))
+
+/**
+ * Overrides the global registry mock's getBlock so the Serializer can carry the
+ * start block's runMetadata param through child deployed-state serialization.
+ */
+function getBlockOverride(type: string) {
+  if (type === 'start_trigger') {
+    return {
+      name: 'Start',
+      description: 'Unified workflow entry point',
+      category: 'triggers',
+      bgColor: '#34B5FF',
+      icon: () => null,
+      subBlocks: [
+        { id: 'inputFormat', title: 'Inputs', type: 'input-format' },
+        { id: 'runMetadata', title: 'Add run metadata', type: 'switch', defaultValue: false },
+      ],
+      inputs: {},
+      outputs: {},
+      tools: { access: [] },
+      triggers: { enabled: true, available: ['chat', 'manual', 'api'] },
+    }
+  }
+  return {
+    name: 'Mock Block',
+    description: 'Mock block description',
+    icon: () => null,
+    subBlocks: [],
+    inputs: {},
+    outputs: {},
+    tools: { access: [] },
+  }
+}
+
+const mockGetBlock = getBlock as Mock
+const defaultGetBlockImpl = mockGetBlock.getMockImplementation()
+
+beforeAll(() => {
+  mockGetBlock.mockImplementation(getBlockOverride)
+})
+
+afterAll(() => {
+  mockGetBlock.mockImplementation(defaultGetBlockImpl as () => unknown)
+  resetEnvironmentUtilsMock()
+})
 
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
   snapshotService: { createSnapshotWithDeduplication: mockCreateSnapshot },
@@ -42,9 +116,6 @@ vi.mock('@/executor/utils/http', () => ({
   }),
 }))
 
-// Mock fetch globally
-setupGlobalFetchMock()
-
 describe('WorkflowBlockHandler', () => {
   let handler: WorkflowBlockHandler
   let mockBlock: SerializedBlock
@@ -52,14 +123,17 @@ describe('WorkflowBlockHandler', () => {
   let mockFetch: Mock
 
   beforeEach(() => {
-    // Mock window.location.origin for getBaseUrl()
-    ;(global as any).window = {
+    // Mock window.location.origin for getBaseUrl(); stubGlobal so unstubGlobals cleans it up
+    vi.stubGlobal('window', {
       location: {
         origin: 'http://localhost:3000',
       },
-    }
+    })
     handler = new WorkflowBlockHandler()
-    mockFetch = global.fetch as Mock
+
+    // unstubGlobals removes any module-scope fetch stub before each test, so stub fresh here
+    mockFetch = vi.fn()
+    vi.stubGlobal('fetch', mockFetch)
 
     mockBlock = {
       id: 'workflow-block-1',
@@ -92,6 +166,7 @@ describe('WorkflowBlockHandler', () => {
 
     // Reset all mocks
     vi.clearAllMocks()
+    executorOptions.length = 0
 
     // Setup default fetch mock
     mockFetch.mockResolvedValue({
@@ -273,6 +348,503 @@ describe('WorkflowBlockHandler', () => {
       expect(mockExecutorExecute).toHaveBeenCalledWith('child-workflow-id')
     })
 
+    it('threads the parent billing attribution into the child execution context', async () => {
+      const billingAttribution = {
+        actorUserId: 'actor-1',
+        workspaceId: 'workspace-parent',
+        organizationId: 'org-1',
+        billedAccountUserId: 'owner-1',
+        billingEntity: { type: 'organization', id: 'org-1' },
+        billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+        payerSubscription: null,
+      }
+      const ctx = {
+        ...mockContext,
+        workspaceId: 'workspace-parent',
+        metadata: { ...mockContext.metadata, billingAttribution },
+      } as ExecutionContext
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: { blocks: {}, edges: [], loops: {}, parallels: {} },
+            },
+          }),
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, mockBlock, inputs)
+
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].contextExtensions.billingAttribution).toBe(billingAttribution)
+      expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
+    })
+
+    it('resolves a source-scoped billing attribution for custom block children', async () => {
+      const consumerAttribution = { actorUserId: 'consumer-1', workspaceId: 'workspace-consumer' }
+      const sourceAttribution = { actorUserId: 'owner-9', workspaceId: 'workspace-source' }
+      const customBlock = {
+        ...mockBlock,
+        metadata: { id: 'custom_block_abc', name: 'Published Block' },
+      }
+      const ctx = {
+        ...mockContext,
+        workspaceId: 'workspace-consumer',
+        metadata: { ...mockContext.metadata, billingAttribution: consumerAttribution },
+      } as unknown as ExecutionContext
+
+      mockGetCustomBlockAuthority.mockResolvedValue({
+        workflowId: 'source-workflow-id',
+        organizationId: 'org-1',
+        ownerUserId: 'owner-9',
+        exposedOutputs: [],
+        requiredInputIds: [],
+      })
+      mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+        personalDecrypted: {},
+        workspaceDecrypted: {},
+      })
+      mockResolveBillingAttribution.mockResolvedValue(sourceAttribution)
+      mockFetch.mockImplementation(async (url: unknown) => {
+        if (String(url).includes('/deployed')) {
+          return {
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                data: {
+                  deployedState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+                },
+              }),
+          }
+        }
+        return {
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                name: 'Source Workflow',
+                workspaceId: 'workspace-source',
+                variables: {},
+              },
+            }),
+        }
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, customBlock, {})
+
+      expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
+        actorUserId: 'owner-9',
+        workspaceId: 'workspace-source',
+      })
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].contextExtensions.billingAttribution).toBe(sourceAttribution)
+      expect(executorOptions[0].contextExtensions.userId).toBe('owner-9')
+      expect(executorOptions[0].contextExtensions.workspaceId).toBe('workspace-source')
+    })
+
+    it('builds trusted caller metadata for custom block children with the toggle on', async () => {
+      const customBlock = {
+        ...mockBlock,
+        metadata: { id: 'custom_block_abc', name: 'Published Block' },
+      }
+      const ctx = {
+        ...mockContext,
+        userId: 'consumer-1',
+        workspaceId: 'workspace-consumer',
+        executionId: 'exec-1',
+      } as ExecutionContext
+
+      mockGetCustomBlockAuthority.mockResolvedValue({
+        workflowId: 'source-workflow-id',
+        organizationId: 'org-1',
+        ownerUserId: 'owner-9',
+        exposedOutputs: [],
+        requiredInputIds: [],
+      })
+      mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+        personalDecrypted: {},
+        workspaceDecrypted: {},
+      })
+      mockResolveBillingAttribution.mockResolvedValue({
+        actorUserId: 'owner-9',
+        workspaceId: 'workspace-source',
+      })
+      mockGetUserEmailById.mockImplementation(async (userId: string) =>
+        userId === 'owner-9' ? 'owner@source.com' : userId === 'consumer-1' ? 'a@corp.com' : null
+      )
+      mockFetch.mockImplementation(async (url: unknown) => {
+        if (String(url).includes('/deployed')) {
+          return {
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                data: {
+                  deployedState: {
+                    blocks: {
+                      start: {
+                        id: 'start',
+                        type: 'start_trigger',
+                        name: 'Start',
+                        position: { x: 0, y: 0 },
+                        subBlocks: {
+                          runMetadata: { id: 'runMetadata', type: 'switch', value: true },
+                        },
+                        outputs: {},
+                        enabled: true,
+                      },
+                    },
+                    edges: [],
+                    loops: {},
+                    parallels: {},
+                  },
+                },
+              }),
+          }
+        }
+        return {
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                name: 'Source Workflow',
+                workspaceId: 'workspace-source',
+                variables: {},
+              },
+            }),
+        }
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, customBlock, {})
+
+      expect(executorOptions).toHaveLength(1)
+      const startRunMetadata = executorOptions[0].contextExtensions.startRunMetadata
+      expect(startRunMetadata).toMatchObject({
+        userEmail: 'a@corp.com',
+        workspaceId: 'workspace-consumer',
+        workflowId: 'parent-workflow-id',
+        executionId: 'exec-1',
+        executionType: 'workflow',
+      })
+      expect(mockGetUserEmailById).toHaveBeenCalledWith('consumer-1')
+      expect(mockGetUserEmailById).not.toHaveBeenCalledWith('owner-9')
+      expect(startRunMetadata).not.toHaveProperty('userId')
+      expect(typeof startRunMetadata.startTime).toBe('string')
+    })
+
+    it('propagates the parent run metadata wholesale to nested children', async () => {
+      const customBlock = {
+        ...mockBlock,
+        metadata: { id: 'custom_block_abc', name: 'Published Block' },
+      }
+      const inheritedMetadata = {
+        userEmail: 'original@corp.com',
+        workspaceId: 'workspace-original',
+        workflowId: 'workflow-original',
+        executionId: 'exec-1',
+        executionType: 'api',
+        executionMode: 'async' as const,
+        startTime: '2026-07-15T00:00:00.000Z',
+      }
+      const ctx = {
+        ...mockContext,
+        userId: 'publisher-1',
+        workspaceId: 'workspace-intermediate',
+        executionId: 'exec-1',
+        startRunMetadata: inheritedMetadata,
+      } as ExecutionContext
+
+      mockGetCustomBlockAuthority.mockResolvedValue({
+        workflowId: 'source-workflow-id',
+        organizationId: 'org-1',
+        ownerUserId: 'owner-9',
+        exposedOutputs: [],
+        requiredInputIds: [],
+      })
+      mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+        personalDecrypted: {},
+        workspaceDecrypted: {},
+      })
+      mockResolveBillingAttribution.mockResolvedValue({
+        actorUserId: 'owner-9',
+        workspaceId: 'workspace-source',
+      })
+      mockFetch.mockImplementation(async (url: unknown) => {
+        if (String(url).includes('/deployed')) {
+          return {
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                data: {
+                  deployedState: {
+                    blocks: {
+                      start: {
+                        id: 'start',
+                        type: 'start_trigger',
+                        name: 'Start',
+                        position: { x: 0, y: 0 },
+                        subBlocks: {
+                          runMetadata: { id: 'runMetadata', type: 'switch', value: true },
+                        },
+                        outputs: {},
+                        enabled: true,
+                      },
+                    },
+                    edges: [],
+                    loops: {},
+                    parallels: {},
+                  },
+                },
+              }),
+          }
+        }
+        return {
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                name: 'Source Workflow',
+                workspaceId: 'workspace-source',
+                variables: {},
+              },
+            }),
+        }
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, customBlock, {})
+
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].contextExtensions.startRunMetadata).toMatchObject({
+        userEmail: 'original@corp.com',
+        workspaceId: 'workspace-original',
+        workflowId: 'workflow-original',
+        executionMode: 'async',
+      })
+      expect(mockGetUserEmailById).not.toHaveBeenCalled()
+    })
+
+    it('preserves a fail-soft null inherited email instead of re-resolving it', async () => {
+      const ctx = {
+        ...mockContext,
+        userId: 'publisher-1',
+        workspaceId: 'workspace-parent',
+        startRunMetadata: {
+          userEmail: null,
+          workspaceId: 'workspace-original',
+          workflowId: 'workflow-original',
+        },
+      } as ExecutionContext
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: {
+                blocks: {
+                  start: {
+                    id: 'start',
+                    type: 'start_trigger',
+                    name: 'Start',
+                    position: { x: 0, y: 0 },
+                    subBlocks: {
+                      runMetadata: { id: 'runMetadata', type: 'switch', value: true },
+                    },
+                    outputs: {},
+                    enabled: true,
+                  },
+                },
+                edges: [],
+                loops: {},
+                parallels: {},
+              },
+            },
+          }),
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, mockBlock, inputs)
+
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].contextExtensions.startRunMetadata.userEmail).toBeNull()
+      expect(mockGetUserEmailById).not.toHaveBeenCalled()
+    })
+
+    it('recovers inherited metadata from the seeded start-block state after resume', async () => {
+      const seededMetadata = {
+        userEmail: 'original@corp.com',
+        workspaceId: 'workspace-original',
+        workflowId: 'workflow-original',
+        executionMode: 'sync',
+      }
+      const parentStartBlock = {
+        id: 'parent-start',
+        position: { x: 0, y: 0 },
+        config: { tool: 'start_trigger', params: { runMetadata: true } },
+        inputs: {},
+        outputs: {},
+        metadata: { id: 'start_trigger', name: 'Start', category: 'triggers' },
+        enabled: true,
+      }
+      const ctx = {
+        ...mockContext,
+        userId: 'user-1',
+        workspaceId: 'workspace-parent',
+        workflow: { ...mockContext.workflow, blocks: [parentStartBlock] },
+        blockStates: new Map([
+          [
+            'parent-start',
+            { output: { metadata: seededMetadata }, executed: true, executionTime: 0 },
+          ],
+        ]),
+      } as unknown as ExecutionContext
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: {
+                blocks: {
+                  start: {
+                    id: 'start',
+                    type: 'start_trigger',
+                    name: 'Start',
+                    position: { x: 0, y: 0 },
+                    subBlocks: {
+                      runMetadata: { id: 'runMetadata', type: 'switch', value: true },
+                    },
+                    outputs: {},
+                    enabled: true,
+                  },
+                },
+                edges: [],
+                loops: {},
+                parallels: {},
+              },
+            },
+          }),
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, mockBlock, inputs)
+
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].contextExtensions.startRunMetadata).toMatchObject({
+        userEmail: 'original@corp.com',
+        workspaceId: 'workspace-original',
+        workflowId: 'workflow-original',
+      })
+      expect(mockGetUserEmailById).not.toHaveBeenCalled()
+    })
+
+    it('passes inherited metadata through a toggle-off child so deeper children keep it', async () => {
+      const inheritedMetadata = {
+        userEmail: 'original@corp.com',
+        workspaceId: 'workspace-original',
+        workflowId: 'workflow-original',
+      }
+      const ctx = {
+        ...mockContext,
+        userId: 'publisher-1',
+        workspaceId: 'workspace-parent',
+        startRunMetadata: inheritedMetadata,
+      } as ExecutionContext
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: {
+                blocks: {
+                  start: {
+                    id: 'start',
+                    type: 'start_trigger',
+                    name: 'Start',
+                    position: { x: 0, y: 0 },
+                    subBlocks: {},
+                    outputs: {},
+                    enabled: true,
+                  },
+                },
+                edges: [],
+                loops: {},
+                parallels: {},
+              },
+            },
+          }),
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, mockBlock, inputs)
+
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].contextExtensions.startRunMetadata).toBe(inheritedMetadata)
+    })
+
+    it('passes no run metadata when the child start block toggle is off', async () => {
+      const ctx = {
+        ...mockContext,
+        userId: 'consumer-1',
+        workspaceId: 'workspace-parent',
+      } as ExecutionContext
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: {
+                blocks: {
+                  start: {
+                    id: 'start',
+                    type: 'start_trigger',
+                    name: 'Start',
+                    position: { x: 0, y: 0 },
+                    subBlocks: {},
+                    outputs: {},
+                    enabled: true,
+                  },
+                },
+                edges: [],
+                loops: {},
+                parallels: {},
+              },
+            },
+          }),
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, mockBlock, inputs)
+
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].contextExtensions.startRunMetadata).toBeUndefined()
+      expect(mockGetUserEmailById).not.toHaveBeenCalled()
+    })
+
     it('should fail closed when the executing context has no workspace', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -387,6 +959,45 @@ describe('WorkflowBlockHandler', () => {
         childWorkflowName: 'Child Workflow',
         result: { nested: 'data' },
         childTraceSpans: [],
+      })
+    })
+  })
+
+  describe('projectCustomBlockOutput', () => {
+    const childResult = {
+      success: true,
+      output: { data: 'whole result' },
+      logs: [{ blockId: 'b1', success: true, output: { data: { x: 42 }, price: 999 } }],
+    }
+
+    it('maps each curated output to its named field plus system fields', () => {
+      const result = (handler as any).projectCustomBlockOutput(
+        childResult,
+        [{ blockId: 'b1', path: 'data.x', name: 'answer' }],
+        0.5
+      )
+
+      expect(result).toEqual({ answer: 42, success: true, cost: { total: 0.5 } })
+    })
+
+    it('never lets an exposed output named cost clobber the billed cost', () => {
+      const result = (handler as any).projectCustomBlockOutput(
+        childResult,
+        [{ blockId: 'b1', path: 'price', name: 'cost' }],
+        0.5
+      )
+
+      expect(result.cost).toEqual({ total: 0.5 })
+      expect(result.success).toBe(true)
+    })
+
+    it('exposes the whole child result when no outputs are curated', () => {
+      const result = (handler as any).projectCustomBlockOutput(childResult, [], 0.5)
+
+      expect(result).toEqual({
+        success: true,
+        result: { data: 'whole result' },
+        cost: { total: 0.5 },
       })
     })
   })

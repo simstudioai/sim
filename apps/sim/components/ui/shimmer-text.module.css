@@ -13,7 +13,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: shimmer-sweep 2.2s linear infinite;
+  animation: shimmer-sweep 2.2s linear infinite reverse;
 }
 
 :global(.dark) .shimmer {

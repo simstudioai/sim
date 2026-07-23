@@ -5,6 +5,8 @@ import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
+import { HttpProxyAgent } from 'http-proxy-agent'
+import { HttpsProxyAgent } from 'https-proxy-agent'
 import * as ipaddr from 'ipaddr.js'
 import { Agent, type RequestInit as UndiciRequestInit, fetch as undiciFetch } from 'undici'
 import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
@@ -105,7 +107,11 @@ export async function validateUrlWithDNS(
   }
 
   try {
-    const { address } = await dns.lookup(cleanHostname, { verbatim: true })
+    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
+    // on IPv4-only egress (e.g. AWS NAT gateways) — still-pinned consumers (providers, SSO,
+    // A2A) depend on this ordering.
+    const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
+    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
 
     const resolvedIsLoopback =
       ipaddr.isValid(address) &&
@@ -142,6 +148,71 @@ export async function validateUrlWithDNS(
       error: `${paramName} hostname could not be resolved`,
     }
   }
+}
+
+/**
+ * Result of validating a user-supplied HTTP proxy URL.
+ */
+export interface ProxyValidationResult {
+  isValid: boolean
+  /** Proxy URL with hostname rewritten to the resolved IP (creds/port preserved) to pin the proxy connection. */
+  pinnedProxyUrl?: string
+  error?: string
+}
+
+/**
+ * Validates a user-supplied HTTP proxy URL and returns an IP-pinned form.
+ *
+ * When a request routes through a proxy, the TCP connection targets the proxy
+ * host (the proxy resolves the destination), so target-IP pinning no longer
+ * governs egress and the proxy URL becomes the SSRF surface. This function:
+ * 1. Enforces the `http:` scheme (raw TCP to the proxy, no TLS-to-proxy SNI to
+ *    reconcile, so the host can be safely rewritten to an IP).
+ * 2. Resolves the proxy host's DNS and blocks private/reserved/loopback IPs via
+ *    {@link validateUrlWithDNS}.
+ * 3. Pins the connection by rewriting the hostname to the resolved IP while
+ *    preserving credentials/port, closing the DNS-rebinding (TOCTOU) window.
+ *
+ * @param proxyUrl - The proxy URL (e.g. `http://user:pass@host:port`)
+ */
+export async function validateAndPinProxyUrl(
+  proxyUrl: string | null | undefined
+): Promise<ProxyValidationResult> {
+  if (!proxyUrl || typeof proxyUrl !== 'string') {
+    return { isValid: false, error: 'proxyUrl must be a string' }
+  }
+
+  let parsed: URL
+  try {
+    parsed = new URL(proxyUrl)
+  } catch {
+    return { isValid: false, error: 'proxyUrl must be a valid URL' }
+  }
+
+  if (parsed.protocol !== 'http:') {
+    return {
+      isValid: false,
+      error: 'proxyUrl must use http:// (https/socks proxies are not supported)',
+    }
+  }
+
+  const validation = await validateUrlWithDNS(proxyUrl, 'proxyUrl', { allowHttp: true })
+  if (!validation.isValid) {
+    return { isValid: false, error: validation.error }
+  }
+
+  const resolvedIP = validation.resolvedIP!
+
+  // validateUrlWithDNS permits loopback for self-hosted dev targets; a proxy governs
+  // egress, so loopback/private proxy hosts stay blocked unconditionally.
+  if (isPrivateOrReservedIP(resolvedIP)) {
+    return { isValid: false, error: 'proxyUrl resolves to a blocked IP address' }
+  }
+
+  // Bracket IPv6 literals: assigning an unbracketed IPv6 address to URL.hostname
+  // is a no-op, which would leave the DNS hostname in place and reopen rebinding.
+  parsed.hostname = resolvedIP.includes(':') ? `[${resolvedIP}]` : resolvedIP
+  return { isValid: true, pinnedProxyUrl: parsed.toString() }
 }
 
 /**
@@ -188,7 +259,10 @@ export async function validateDatabaseHost(
   }
 
   try {
-    const { address } = await dns.lookup(cleanHost, { verbatim: true })
+    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
+    // on IPv4-only egress (e.g. AWS NAT gateways).
+    const resolved = await dns.lookup(cleanHost, { all: true, verbatim: true })
+    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
 
     if (isPrivateOrReservedIP(address) && !isPrivateDatabaseHostsAllowed) {
       logger.warn('Database host resolves to blocked IP address', {
@@ -336,6 +410,12 @@ export interface SecureFetchOptions {
   signal?: AbortSignal
   /** Drop the Authorization header when following a redirect, so it is not sent to the redirect target's origin. */
   stripAuthOnRedirect?: boolean
+  /**
+   * Pre-validated, IP-pinned `http://` proxy URL (see {@link validateAndPinProxyUrl}).
+   * When set, the connection routes through this proxy and target-IP pinning is
+   * bypassed (the proxy resolves the target).
+   */
+  proxyUrl?: string
 }
 
 export class SecureFetchHeaders {
@@ -417,6 +497,176 @@ export function createPinnedLookup(resolvedIP: string): LookupFunction {
 }
 
 /**
+ * DNS lookup that resolves normally and validates EVERY resolved address against
+ * the SSRF policy at socket-connect time (the LibreChat `getSSRFConnect` pattern).
+ * Private/reserved/loopback records are filtered out; if nothing publicly routable
+ * remains the connect fails. Because the check runs on each dial — including
+ * redirects and reconnects — there is no validated-then-trusted window for a DNS
+ * rebind to slip through, and unlike single-IP pinning the connector keeps the
+ * full public address set, so the OS/undici can fall back across addresses.
+ * IPv4 is ordered first (`verbatim: false`) — our egress is IPv4-only.
+ */
+export function createSsrfGuardedLookup(): LookupFunction {
+  return (hostname, options, callback) => {
+    dns
+      .lookup(hostname, { all: true, verbatim: false })
+      .then((addresses) => {
+        const usable = addresses.filter((entry) => !isPrivateOrReservedIP(entry.address))
+        if (usable.length === 0) {
+          callback(
+            new Error(`Blocked by SSRF policy: ${hostname} has no publicly routable address`),
+            '',
+            4
+          )
+          return
+        }
+        if (options.all) callback(null, usable)
+        else callback(null, usable[0].address, usable[0].family)
+      })
+      .catch((error) => callback(toError(error), '', 4))
+  }
+}
+
+const MAX_GUARDED_REDIRECTS = 5
+
+/**
+ * Rejects a redirect hop whose target is a private/reserved IP LITERAL. Node's
+ * `net.connect` bypasses the custom `lookup` for numeric hosts (`isIP(host)`
+ * short-circuits), so the connect-time guard never sees IP-literal dials —
+ * a 3xx to `http://169.254.169.254/` would otherwise connect directly. Hostname
+ * targets are covered by {@link createSsrfGuardedLookup} at connect time.
+ */
+function assertGuardedRedirectTarget(url: URL): void {
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`Blocked by SSRF policy: redirect to unsupported protocol ${url.protocol}`)
+  }
+  const host =
+    url.hostname.startsWith('[') && url.hostname.endsWith(']')
+      ? url.hostname.slice(1, -1)
+      : url.hostname
+  if (ipaddr.isValid(host) && isPrivateOrReservedIP(host)) {
+    throw new Error('Blocked by SSRF policy: redirect to a private or reserved address')
+  }
+}
+
+/**
+ * Manual, revalidating redirect follower used by the guarded fetch. Auto-follow
+ * is unsafe here on two counts the connect-time lookup cannot cover: IP-literal
+ * redirect targets bypass the lookup entirely (validated per hop instead), and
+ * undici retains CUSTOM request headers across cross-origin redirects (it strips
+ * only Authorization/Cookie) — so caller headers are dropped on any cross-origin
+ * hop. Exported for tests.
+ */
+export async function followRedirectsGuarded(
+  rawFetch: (url: string, init: UndiciRequestInit) => Promise<Response>,
+  input: string,
+  init: UndiciRequestInit
+): Promise<Response> {
+  let currentUrl = new URL(input)
+  // The initial URL gets the same IP-literal check as redirect hops, so the exported
+  // guard is self-contained even when a caller skips its own up-front validation.
+  assertGuardedRedirectTarget(currentUrl)
+  let method = (init.method ?? 'GET').toUpperCase()
+  let body = init.body
+  let headers = init.headers
+  for (let hop = 0; ; hop++) {
+    const response = await rawFetch(currentUrl.href, {
+      ...init,
+      method,
+      body,
+      headers,
+      redirect: 'manual',
+    })
+    const status = response.status
+    const location = response.headers.get('location')
+    if (![301, 302, 303, 307, 308].includes(status) || !location) return response
+    // Cancel the redirect body up front so the throw paths below (hop cap, blocked
+    // target) can't leave a socket checked out on the long-lived Agent.
+    await response.body?.cancel().catch(() => {})
+    if (hop >= MAX_GUARDED_REDIRECTS) {
+      throw new Error(`Blocked by SSRF policy: more than ${MAX_GUARDED_REDIRECTS} redirects`)
+    }
+    const nextUrl = new URL(location, currentUrl)
+    assertGuardedRedirectTarget(nextUrl)
+    // Per the fetch spec: 303 (and 301/302 on POST) switch to a bodyless GET, dropping
+    // the entity headers that described the removed body (a retained Content-Length /
+    // Content-Type on a bodyless GET is malformed and undici rejects it).
+    if (status === 303 || ((status === 301 || status === 302) && method === 'POST')) {
+      method = 'GET'
+      body = undefined
+      if (headers !== undefined) {
+        const sanitized = new Headers(headers as HeadersInit)
+        sanitized.delete('content-length')
+        sanitized.delete('content-type')
+        sanitized.delete('content-encoding')
+        sanitized.delete('transfer-encoding')
+        // double-cast-allowed: Headers is a valid undici HeadersInit at runtime but the DOM/undici types differ
+        headers = sanitized as unknown as UndiciRequestInit['headers']
+      }
+    }
+    if (nextUrl.origin !== currentUrl.origin) {
+      headers = undefined
+      // 307/308 preserve method+body; forwarding a body cross-origin can hand OAuth
+      // client secrets / tokens to an open-redirect target now that redirects really
+      // dial the new origin. No legitimate MCP/OAuth flow does this — refuse it.
+      if (body !== undefined && body !== null) {
+        throw new Error(
+          'Blocked by SSRF policy: cross-origin redirect would forward a request body'
+        )
+      }
+    }
+    currentUrl = nextUrl
+  }
+}
+
+/**
+ * SSRF-guarded `fetch` + its `Agent` for outbound requests to user-controlled
+ * hosts: DNS resolves normally, and every socket connect validates the chosen
+ * addresses via {@link createSsrfGuardedLookup}; redirects are followed manually
+ * with per-hop validation (see {@link followRedirectsGuarded}) so IP-literal
+ * targets can't bypass the lookup and custom headers never cross origins. See
+ * {@link createPinnedFetchWithDispatcher} for the `maxResponseSize` semantics.
+ */
+export function createSsrfGuardedFetchWithDispatcher(options?: { maxResponseSize?: number }): {
+  fetch: typeof fetch
+  dispatcher: Agent
+} {
+  const dispatcher = new Agent({
+    allowH2: false,
+    connect: { lookup: createSsrfGuardedLookup() },
+    ...(options?.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
+  })
+
+  const rawFetch = async (url: string, init: UndiciRequestInit): Promise<Response> => {
+    const response = await undiciFetch(url, { ...init, dispatcher })
+    // double-cast-allowed: undici Response and DOM Response are structurally compatible at runtime
+    return response as unknown as Response
+  }
+
+  const guarded = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const target = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    // A Request input carries its own method/headers/body/signal; lift them into the
+    // init (explicit init fields win, per fetch semantics) so the manual redirect
+    // follower doesn't silently downgrade a guarded POST Request to a bare GET.
+    let effectiveInit: RequestInit = init ?? {}
+    if (typeof Request !== 'undefined' && input instanceof Request) {
+      const bodyAllowed = input.method !== 'GET' && input.method !== 'HEAD'
+      effectiveInit = {
+        method: input.method,
+        headers: input.headers,
+        body: bodyAllowed ? await input.clone().arrayBuffer() : undefined,
+        signal: input.signal,
+        ...init,
+      }
+    }
+    // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
+    return followRedirectsGuarded(rawFetch, target, effectiveInit as unknown as UndiciRequestInit)
+  }
+
+  return { fetch: guarded, dispatcher }
+}
+
+/**
  * Builds a standard `fetch`-compatible function that pins every outbound
  * connection to `resolvedIP`, preventing DNS-rebinding (TOCTOU) between URL
  * validation and connection. The original hostname is preserved for TLS SNI and
@@ -433,9 +683,40 @@ export function createPinnedLookup(resolvedIP: string): LookupFunction {
  *
  * The `Agent` is captured for the lifetime of the returned function, so repeated
  * calls (e.g. a provider tool loop) reuse its keep-alive connections.
+ *
+ * `allowH2` opts the pinned Agent into HTTP/2 (ALPN-negotiated, h1.1 fallback).
+ * It defaults to `false` to leave existing consumers unchanged. Enabling it does
+ * not weaken pinning: the pinned `connect.lookup` forces every connection on the
+ * Agent to `resolvedIP` regardless of authority, so h2 connection coalescing can
+ * never reach an address other than the validated one.
  */
-export function createPinnedFetch(resolvedIP: string): typeof fetch {
-  const dispatcher = new Agent({ connect: { lookup: createPinnedLookup(resolvedIP) } })
+export function createPinnedFetch(
+  resolvedIP: string,
+  options?: { allowH2?: boolean }
+): typeof fetch {
+  return createPinnedFetchWithDispatcher(resolvedIP, options).fetch
+}
+
+/**
+ * Same as {@link createPinnedFetch} but also returns the underlying `Agent` so a
+ * caller with a defined connection lifetime (e.g. a long-lived MCP transport) can
+ * tear the Agent down on close instead of waiting for its idle timeout. Closing
+ * the Agent is what releases any pooled keep-alive / HTTP/2 sockets it holds.
+ *
+ * `maxResponseSize` caps the (decoded) response body in bytes and makes undici reject
+ * with `UND_ERR_RES_EXCEEDED_MAX_SIZE` once exceeded — a DoS backstop for one-shot
+ * callers reading from a URL taken from untrusted metadata. Omit it (the default) to
+ * leave the response unbounded, which streaming consumers like the MCP transport need.
+ */
+export function createPinnedFetchWithDispatcher(
+  resolvedIP: string,
+  options?: { allowH2?: boolean; maxResponseSize?: number }
+): { fetch: typeof fetch; dispatcher: Agent } {
+  const dispatcher = new Agent({
+    allowH2: options?.allowH2 ?? false,
+    connect: { lookup: createPinnedLookup(resolvedIP) },
+    ...(options?.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
+  })
 
   const pinned = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     // double-cast-allowed: DOM RequestInfo/URL and undici fetch input types differ but are structurally compatible at runtime (Node's global fetch IS undici)
@@ -447,7 +728,7 @@ export function createPinnedFetch(resolvedIP: string): typeof fetch {
     return response as unknown as Response
   }
 
-  return pinned
+  return { fetch: pinned, dispatcher }
 }
 
 /**
@@ -470,11 +751,17 @@ export async function secureFetchWithPinnedIP(
     const defaultPort = isHttps ? 443 : 80
     const port = parsed.port ? Number.parseInt(parsed.port, 10) : defaultPort
 
-    const lookup = createPinnedLookup(resolvedIP)
-
-    const agentOptions: http.AgentOptions = { lookup }
-
-    const agent = isHttps ? new https.Agent(agentOptions) : new http.Agent(agentOptions)
+    let agent: http.Agent
+    if (options.proxyUrl) {
+      // Proxy connection is already IP-pinned by validateAndPinProxyUrl; target-IP
+      // pinning is intentionally bypassed (the proxy resolves the target). https
+      // targets tunnel via CONNECT, http targets use absolute-URI forwarding.
+      agent = isHttps ? new HttpsProxyAgent(options.proxyUrl) : new HttpProxyAgent(options.proxyUrl)
+    } else {
+      const lookup = createPinnedLookup(resolvedIP)
+      const agentOptions: http.AgentOptions = { lookup }
+      agent = isHttps ? new https.Agent(agentOptions) : new http.Agent(agentOptions)
+    }
 
     const { 'accept-encoding': _, ...sanitizedHeaders } = options.headers ?? {}
 

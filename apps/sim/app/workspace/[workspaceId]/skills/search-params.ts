@@ -19,3 +19,20 @@ export const skillIdUrlKeys = {
   history: 'push',
   clearOnDefault: true,
 } as const
+
+/**
+ * `search` filters the skills list by name/description. The input is controlled
+ * directly by the instant nuqs value; only its URL write is debounced via
+ * `useDebouncedSearchSetter` — never written on every keystroke.
+ */
+export const skillSearchParam = {
+  key: 'search',
+  parser: parseAsString.withDefault(''),
+} as const
+
+/** Search is filter view-state: clean URLs, no back-stack churn. */
+export const skillSearchUrlKeys = {
+  history: 'replace',
+  shallow: true,
+  clearOnDefault: true,
+} as const

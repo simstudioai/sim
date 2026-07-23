@@ -9,7 +9,7 @@
  *
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns } from '@sim/testing'
+import { dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetFileMetadataByKey, mockGetUserEntityPermissions, mockGetFileMetadata } = vi.hoisted(
@@ -20,15 +20,12 @@ const { mockGetFileMetadataByKey, mockGetUserEntityPermissions, mockGetFileMetad
   })
 )
 
-vi.mock('@sim/db', () => dbChainMock)
-
 vi.mock('@/lib/uploads', () => ({
   getFileMetadata: mockGetFileMetadata,
 }))
 
 vi.mock('@/lib/uploads/config', () => ({
-  BLOB_CHAT_CONFIG: {},
-  S3_CHAT_CONFIG: {},
+  getStorageConfig: vi.fn(() => ({})),
 }))
 
 vi.mock('@/lib/uploads/server/metadata', () => ({

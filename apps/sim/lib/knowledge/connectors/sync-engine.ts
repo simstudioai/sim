@@ -84,10 +84,17 @@ type DocClassification =
  *   is already indexed is kept as-is (last-known-good) rather than downgraded.
  * - `drop`: empty, non-deferred content that cannot be indexed.
  * - `add` / `update` / `unchanged`: normal content reconciliation by content hash.
+ *
+ * `forceRehydrate` (set on a full resync of a `rehydrateOnFullSync` connector) promotes
+ * an otherwise-`unchanged` deferred document to `update` so its content is re-fetched —
+ * needed when rendered content can drift without the hash changing (e.g. Confluence
+ * transclusions). Non-deferred docs already carry final content from listing, so they
+ * are left `unchanged` (re-indexing identical content would be pointless).
  */
 export function classifyExternalDoc(
   extDoc: Pick<ExternalDocument, 'content' | 'contentDeferred' | 'contentHash' | 'skippedReason'>,
-  existing: { id: string; contentHash: string | null } | undefined
+  existing: { id: string; contentHash: string | null } | undefined,
+  forceRehydrate = false
 ): DocClassification {
   if (extDoc.skippedReason) {
     return existing ? { type: 'unchanged' } : { type: 'skip' }
@@ -99,6 +106,9 @@ export function classifyExternalDoc(
     return { type: 'add' }
   }
   if (existing.contentHash !== extDoc.contentHash) {
+    return { type: 'update', existingId: existing.id }
+  }
+  if (forceRehydrate && extDoc.contentDeferred) {
     return { type: 'update', existingId: existing.id }
   }
   return { type: 'unchanged' }
@@ -235,6 +245,110 @@ export function shouldReconcileDeletions(
 }
 
 /**
+ * Decides whether a sync should use the connector's incremental listing.
+ *
+ * A pending-removal document only surfaces in an incremental listing if its
+ * content changed since last sync — an unchanged-but-still-present document
+ * never appears in an incremental delta at all, so it could never be
+ * resurrected and would stay tombstoned indefinitely on a connector that runs
+ * incrementally from here on. `hasTombstonedDocs` forces a full listing
+ * whenever any pending-removal document exists for this connector, so every
+ * one of them gets a real resurrect-or-confirm decision on this sync.
+ */
+export function shouldRunIncrementalSync(
+  supportsIncrementalSync: boolean | undefined,
+  syncMode: string | null | undefined,
+  fullSync: boolean | undefined,
+  rehydrate: boolean | undefined,
+  hasTombstonedDocs: boolean,
+  lastSyncAt: string | Date | null | undefined
+): boolean {
+  return Boolean(
+    supportsIncrementalSync &&
+      syncMode !== 'full' &&
+      !fullSync &&
+      !hasTombstonedDocs &&
+      !rehydrate &&
+      lastSyncAt != null
+  )
+}
+
+/** A stored document's identity, as read back for reconciliation. */
+type ReconciliationDoc = { id: string; externalId: string | null }
+
+/**
+ * Partitions a connector's stored documents against the current listing into
+ * the three reconciliation actions.
+ *
+ * A document absent from a normal (non-fullSync) listing is never purged
+ * immediately — an empty or shrunken listing can equally mean a transient
+ * source outage, and a single bad observation must never cause an
+ * irreversible mass deletion. It is instead marked pending-removal
+ * (`softDeleteIds`), and only becomes eligible for hard deletion
+ * (`hardDeleteIds`) once a *later* sync confirms it's still absent — i.e. it
+ * was already pending-removal (`tombstonedDocs`) coming into this sync. A
+ * document that reappears while pending-removal is resurrected
+ * (`resurrectIds`) regardless of `fullSync`, since presence — unlike absence —
+ * is trustworthy evidence even from a partial listing. A document whose
+ * content refresh was attempted but failed (`failedExternalIds`) is excluded
+ * from resurrection even though it was seen — surfacing it now would show
+ * known-stale pre-tombstone content; it stays tombstoned for a later sync to
+ * retry.
+ *
+ * A forced `fullSync` is an explicit request to reconcile right now: it skips
+ * the grace period and purges everything absent in one pass.
+ */
+export function partitionSyncReconciliation(
+  existingDocs: ReconciliationDoc[],
+  tombstonedDocs: ReconciliationDoc[],
+  seenExternalIds: Set<string>,
+  failedExternalIds: Set<string>,
+  fullSync: boolean | undefined
+): { resurrectIds: string[]; softDeleteIds: string[]; hardDeleteIds: string[] } {
+  const resurrectIds = tombstonedDocs
+    .filter(
+      (d) =>
+        d.externalId && seenExternalIds.has(d.externalId) && !failedExternalIds.has(d.externalId)
+    )
+    .map((d) => d.id)
+  const liveMissingIds = existingDocs
+    .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
+    .map((d) => d.id)
+  const tombstonedStillMissingIds = tombstonedDocs
+    .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
+    .map((d) => d.id)
+
+  if (fullSync) {
+    return {
+      resurrectIds,
+      softDeleteIds: [],
+      hardDeleteIds: [...liveMissingIds, ...tombstonedStillMissingIds],
+    }
+  }
+  return { resurrectIds, softDeleteIds: liveMissingIds, hardDeleteIds: tombstonedStillMissingIds }
+}
+
+/**
+ * Re-filters the three reconciliation ID lists against a fresh ownership
+ * snapshot taken under the connector's `FOR UPDATE` lock, dropping any
+ * document a concurrent "delete connector, keep documents" request already
+ * detached (its `connectorId` no longer matches) since the lists were first
+ * computed.
+ */
+export function filterStillOwnedReconciliationIds(
+  resurrectIds: string[],
+  softDeleteIds: string[],
+  hardDeleteIds: string[],
+  stillOwnedIds: Set<string>
+): { resurrectIds: string[]; softDeleteIds: string[]; hardDeleteIds: string[] } {
+  return {
+    resurrectIds: resurrectIds.filter((id) => stillOwnedIds.has(id)),
+    softDeleteIds: softDeleteIds.filter((id) => stillOwnedIds.has(id)),
+    hardDeleteIds: hardDeleteIds.filter((id) => stillOwnedIds.has(id)),
+  }
+}
+
+/**
  * Resolves tag values from connector metadata using the connector's mapTags function.
  * Translates semantic keys returned by mapTags to actual DB slots using the
  * tagSlotMapping stored in sourceConfig during connector creation.
@@ -308,7 +422,11 @@ async function resolveAccessToken(
  */
 export async function executeSync(
   connectorId: string,
-  options: { billingAttribution: BillingAttributionSnapshot; fullSync?: boolean }
+  options: {
+    billingAttribution: BillingAttributionSnapshot
+    fullSync?: boolean
+    rehydrate?: boolean
+  }
 ): Promise<SyncResult> {
   const billingAttribution = assertBillingAttributionSnapshot(options?.billingAttribution)
   const result: SyncResult = {
@@ -418,14 +536,72 @@ export async function executeSync(
     let hasMore = true
     const syncContext: Record<string, unknown> = { syncRunId: generateId() }
 
-    // Determine if this sync should be incremental
-    const isIncremental =
-      connectorConfig.supportsIncrementalSync &&
-      connector.syncMode !== 'full' &&
-      !options?.fullSync &&
-      connector.lastSyncAt != null
+    // Shared cutoff for both the tombstone-retry bound below and the stuck-document
+    // retry near the end of this sync — same RETRY_WINDOW_DAYS window, one computation.
+    const retryCutoff = new Date(Date.now() - RETRY_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+
+    /**
+     * Bounded to the same retry window as the stuck-document retry below: a
+     * document whose refresh keeps failing every sync (e.g. permanently
+     * oversized) would otherwise be a tombstone that never resolves, forcing a
+     * full listing — and its listing-time overhead — for this connector
+     * forever. Past the window, this connector stops forcing full syncs on its
+     * account; the document itself is unaffected and stays tombstoned either way.
+     *
+     * Known accepted trade-off: once past the window, a still-tombstoned
+     * document that's unchanged-but-genuinely-present at the source can only
+     * be resurrected by a full listing — and nothing here forces one anymore.
+     * On a connector that never runs a full sync again (persistent incremental
+     * syncMode, no manual full resync), that document stays correctly
+     * invisible (excluded everywhere by `isNull(deletedAt)`, so no
+     * search/billing/listing leakage) but unresolved indefinitely. This is
+     * deliberately not "fixed" by hard-deleting it after the window expires —
+     * that would delete a document we have no positive evidence is actually
+     * gone, reintroducing the exact risk this whole design exists to avoid.
+     */
+    const hasTombstonedDocs = await db
+      .select({ id: document.id })
+      .from(document)
+      .where(
+        and(
+          eq(document.connectorId, connectorId),
+          isNull(document.archivedAt),
+          isNotNull(document.deletedAt),
+          gt(document.deletedAt, retryCutoff)
+        )
+      )
+      .limit(1)
+      .then((rows) => rows.length > 0)
+
+    /**
+     * Determine if this sync should be incremental. A `rehydrate` request forces a
+     * full listing too: re-hydration must see *every* document (a container page can
+     * be unchanged itself yet transclude a page that changed), and an incremental
+     * listing would omit those unchanged containers, so they'd never be re-fetched.
+     */
+    const isIncremental = shouldRunIncrementalSync(
+      connectorConfig.supportsIncrementalSync,
+      connector.syncMode,
+      options?.fullSync,
+      options?.rehydrate,
+      hasTombstonedDocs,
+      connector.lastSyncAt
+    )
     const lastSyncAt =
       isIncremental && connector.lastSyncAt ? new Date(connector.lastSyncAt) : undefined
+
+    /**
+     * Re-hydrate and re-index connectors whose rendered content can drift without a
+     * hash change (transclusions) — see `ConnectorMeta.rehydrateOnFullSync`. Driven
+     * by the dedicated `rehydrate` request (the "Full resync" action) or implied by a
+     * true `fullSync`. It forces a full listing (above) and re-indexes unchanged
+     * deferred docs, but — unlike `fullSync` — it does NOT bypass any
+     * deletion-reconciliation safety guard. Incremental syncs of other connectors
+     * stay hash-gated.
+     */
+    const forceRehydrate = Boolean(
+      (options?.rehydrate || options?.fullSync) && connectorConfig.rehydrateOnFullSync
+    )
 
     for (let pageNum = 0; hasMore && pageNum < MAX_PAGES; pageNum++) {
       if (pageNum > 0 && connectorConfig.auth.mode === 'oauth') {
@@ -474,7 +650,7 @@ export async function executeSync(
       connectorId,
     })
 
-    const [existingDocs, excludedDocs] = await Promise.all([
+    const [existingDocs, tombstonedDocs, excludedDocs] = await Promise.all([
       db
         .select({
           id: document.id,
@@ -489,6 +665,31 @@ export async function executeSync(
             isNull(document.deletedAt)
           )
         ),
+      // Docs already marked pending-removal by a prior sync's reconciliation (see
+      // shouldReconcileDeletions below): absent from the source once, not yet
+      // absent twice in a row. Included in classification so a document that
+      // reappears is recognized as existing (resurrected) rather than re-added
+      // as a duplicate.
+      db
+        .select({
+          id: document.id,
+          externalId: document.externalId,
+          contentHash: document.contentHash,
+          deletedAt: document.deletedAt,
+        })
+        .from(document)
+        .where(
+          and(
+            eq(document.connectorId, connectorId),
+            isNull(document.archivedAt),
+            isNotNull(document.deletedAt)
+          )
+        ),
+      // Not filtered on deletedAt: a document can be both userExcluded and
+      // tombstoned (e.g. excluded via a bulk request that raced a sync marking
+      // it pending-removal). Excluding it here regardless of tombstone state
+      // keeps it short-circuited in the classification loop below instead of
+      // silently reappearing through the normal update/resurrect path.
       db
         .select({ externalId: document.externalId })
         .from(document)
@@ -496,49 +697,34 @@ export async function executeSync(
           and(
             eq(document.connectorId, connectorId),
             eq(document.userExcluded, true),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
+            isNull(document.archivedAt)
           )
         ),
     ])
 
     const excludedExternalIds = new Set(excludedDocs.map((d) => d.externalId).filter(Boolean))
 
-    if (externalDocs.length === 0 && existingDocs.length > 0 && !options?.fullSync) {
-      logger.warn(
-        `Source returned 0 documents but ${existingDocs.length} exist — skipping reconciliation`,
-        { connectorId }
-      )
-
-      await completeSyncLog(syncLogId, 'completed', result)
-
-      const now = new Date()
-      await db
-        .update(knowledgeConnector)
-        .set({
-          status: 'active',
-          lastSyncAt: now,
-          lastSyncError: null,
-          nextSyncAt: calculateNextSyncTime(connector.syncIntervalMinutes),
-          consecutiveFailures: 0,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(knowledgeConnector.id, connectorId),
-            isNull(knowledgeConnector.archivedAt),
-            isNull(knowledgeConnector.deletedAt)
-          )
-        )
-
-      return result
-    }
-
-    const existingByExternalId = new Map(
-      existingDocs.filter((d) => d.externalId !== null).map((d) => [d.externalId!, d])
+    const priorByExternalId = new Map(
+      [...existingDocs, ...tombstonedDocs]
+        .filter((d) => d.externalId !== null)
+        .map((d) => [d.externalId!, d])
     )
 
     const seenExternalIds = new Set<string>()
+    /**
+     * externalIds whose content was never verified as current: a hydration
+     * error, a rejected write, a fulfilled-but-unusable hydration (skipped as
+     * oversized, or an empty re-fetch), a listing-time skippedReason
+     * short-circuit, or empty non-deferred content (`drop`) — all fall back to
+     * either keeping the stored content as last-known-good or discarding the
+     * listing entry outright, without ever comparing or refreshing content.
+     * That's fine for an already-visible document, but for a tombstoned one it
+     * means we still don't have confirmed-current content — so this excludes
+     * them from resurrection below: a tombstoned document whose refresh didn't
+     * actually land must stay tombstoned rather than come back visible while
+     * still serving stale pre-tombstone content.
+     */
+    const failedExternalIds = new Set<string>()
 
     const pendingOps: DocOp[] = []
     for (const extDoc of externalDocs) {
@@ -550,14 +736,18 @@ export async function executeSync(
         continue
       }
 
-      const existing = existingByExternalId.get(extDoc.externalId)
-      const classification = classifyExternalDoc(extDoc, existing)
+      const existing = priorByExternalId.get(extDoc.externalId)
+      const classification = classifyExternalDoc(extDoc, existing, forceRehydrate)
 
       switch (classification.type) {
         case 'skip':
           pendingOps.push({ type: 'skip', extDoc })
           break
         case 'drop':
+          // Empty, non-deferred content is never usable. If this was a
+          // reappearing tombstoned document, its content was never verified as
+          // current — see failedExternalIds below.
+          if (existing) failedExternalIds.add(extDoc.externalId)
           logger.info(`Skipping empty document: ${extDoc.title}`, {
             externalId: extDoc.externalId,
           })
@@ -569,6 +759,12 @@ export async function executeSync(
           pendingOps.push({ type: 'update', existingId: classification.existingId, extDoc })
           break
         case 'unchanged':
+          // A listing-time skippedReason short-circuits classification before
+          // the hash comparison, so this is "kept as last-known-good", not a
+          // verified-unchanged match — same as the deferred-hydration
+          // equivalent above. A genuine hash match never sets skippedReason,
+          // so this only fires for the short-circuited case.
+          if (extDoc.skippedReason && existing) failedExternalIds.add(extDoc.externalId)
           result.docsUnchanged++
           break
       }
@@ -623,21 +819,34 @@ export async function executeSync(
                 })
               } else if (op.type === 'update') {
                 // Already-indexed file is kept as last-known-good (not downgraded), so it
-                // counts as unchanged rather than slipping past every result counter.
+                // counts as unchanged rather than slipping past every result counter. Not a
+                // verified refresh, though — see failedExternalIds below.
                 result.docsUnchanged++
+                failedExternalIds.add(op.extDoc.externalId)
               }
               return null
             }
             if (!fullDoc?.content.trim()) {
               // An empty re-fetch leaves an already-indexed update as last-known-good; count
-              // it as unchanged so the totals still reconcile with documents seen.
-              if (op.type === 'update') result.docsUnchanged++
+              // it as unchanged so the totals still reconcile with documents seen. Not a
+              // verified refresh, though — see failedExternalIds below.
+              if (op.type === 'update') {
+                result.docsUnchanged++
+                failedExternalIds.add(op.extDoc.externalId)
+              }
               return null
             }
             const hydratedHash = fullDoc.contentHash ?? op.extDoc.contentHash
+            /**
+             * Normally an update whose hydrated hash matches the stored hash is a
+             * no-op (content unchanged). On a forced re-hydration the hash is
+             * version-based and cannot reflect the rendered-dependency change we are
+             * refreshing for, so re-index unconditionally instead of skipping.
+             */
             if (
               op.type === 'update' &&
-              existingByExternalId.get(op.extDoc.externalId)?.contentHash === hydratedHash
+              !forceRehydrate &&
+              priorByExternalId.get(op.extDoc.externalId)?.contentHash === hydratedHash
             ) {
               result.docsUnchanged++
               return null
@@ -657,13 +866,16 @@ export async function executeSync(
           })
         )
 
-        for (const outcome of hydrated) {
+        for (let i = 0; i < hydrated.length; i++) {
+          const outcome = hydrated[i]
           if (outcome.status === 'fulfilled' && outcome.value) {
             readyOps.push(outcome.value)
           } else if (outcome.status === 'rejected') {
             result.docsFailed++
+            failedExternalIds.add(deferredOps[i].extDoc.externalId)
             logger.error('Failed to hydrate deferred document', {
               connectorId,
+              externalId: deferredOps[i].extDoc.externalId,
               error: getErrorMessage(outcome.reason),
             })
           }
@@ -726,6 +938,7 @@ export async function executeSync(
           else result.docsUpdated++
         } else {
           result.docsFailed++
+          failedExternalIds.add(batch[j].extDoc.externalId)
           logger.error('Failed to process document', {
             connectorId,
             externalId: batch[j].extDoc.externalId,
@@ -753,27 +966,108 @@ export async function executeSync(
       }
     }
 
-    if (shouldReconcileDeletions(isIncremental, syncContext, options?.fullSync)) {
-      const removedIds = existingDocs
-        .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
-        .map((d) => d.id)
+    const { resurrectIds, softDeleteIds, hardDeleteIds } = partitionSyncReconciliation(
+      existingDocs,
+      tombstonedDocs,
+      seenExternalIds,
+      failedExternalIds,
+      options?.fullSync
+    )
 
-      if (removedIds.length > 0) {
-        const deletionRatio = existingDocs.length > 0 ? removedIds.length / existingDocs.length : 0
+    const reconcileDeletionsAllowed = shouldReconcileDeletions(
+      isIncremental,
+      syncContext,
+      options?.fullSync
+    )
+    const gatedSoftDeleteIds = reconcileDeletionsAllowed ? softDeleteIds : []
+    const gatedHardDeleteIds = reconcileDeletionsAllowed ? hardDeleteIds : []
 
-        if (deletionRatio > 0.5 && removedIds.length > 5 && !options?.fullSync) {
-          logger.warn(
-            `Skipping deletion of ${removedIds.length}/${existingDocs.length} docs — exceeds safety threshold. Trigger a full sync to force cleanup.`,
-            { connectorId, deletionRatio: Math.round(deletionRatio * 100) }
-          )
-        } else {
-          await hardDeleteDocuments(removedIds, syncLogId)
-          result.docsDeleted += removedIds.length
+    const candidateIds = [
+      ...new Set([...resurrectIds, ...gatedSoftDeleteIds, ...gatedHardDeleteIds]),
+    ]
+
+    let safeResurrectIds: string[] = []
+    let safeSoftDeleteIds: string[] = []
+    let safeHardDeleteIds: string[] = []
+
+    if (candidateIds.length > 0) {
+      /**
+       * A concurrent "delete connector, keep documents" request detaches these
+       * same documents (connectorId set to NULL) under the same FOR UPDATE lock
+       * the DELETE route takes on this connector row. Taking that lock here
+       * serializes the two requests: whichever commits first wins, and the
+       * loser's re-check below sees the up-to-date connectorId and skips any
+       * document the other request already claimed — instead of resurrecting or
+       * deleting a document that another request just detached (and possibly
+       * already billed) as a standalone KB entry.
+       */
+      await db.transaction(async (tx) => {
+        await tx.execute(
+          sql`SELECT 1 FROM knowledge_connector WHERE id = ${connectorId} FOR UPDATE`
+        )
+
+        const stillOwned = new Set(
+          (
+            await tx
+              .select({ id: document.id })
+              .from(document)
+              .where(and(inArray(document.id, candidateIds), eq(document.connectorId, connectorId)))
+          ).map((d) => d.id)
+        )
+
+        const stillOwnedResult = filterStillOwnedReconciliationIds(
+          resurrectIds,
+          gatedSoftDeleteIds,
+          gatedHardDeleteIds,
+          stillOwned
+        )
+        safeResurrectIds = stillOwnedResult.resurrectIds
+        safeSoftDeleteIds = stillOwnedResult.softDeleteIds
+        safeHardDeleteIds = stillOwnedResult.hardDeleteIds
+
+        /**
+         * A document reappearing at the source is trustworthy evidence on its
+         * own — unlike absence, presence never depends on the listing being
+         * complete — so resurrection runs unconditionally, even on an
+         * incremental or otherwise gated sync.
+         */
+        if (safeResurrectIds.length > 0) {
+          await tx
+            .update(document)
+            .set({ deletedAt: null })
+            .where(inArray(document.id, safeResurrectIds))
         }
-      }
+        if (safeSoftDeleteIds.length > 0) {
+          await tx
+            .update(document)
+            .set({ deletedAt: new Date() })
+            .where(inArray(document.id, safeSoftDeleteIds))
+        }
+      })
     }
 
-    // Check if connector/KB were deleted before retrying stuck documents
+    if (safeResurrectIds.length > 0) {
+      logger.info(
+        `Resurrected ${safeResurrectIds.length} documents that reappeared at the source`,
+        {
+          connectorId,
+        }
+      )
+    }
+    if (safeSoftDeleteIds.length > 0) {
+      logger.info(
+        `Marked ${safeSoftDeleteIds.length} documents pending removal — absent from source, confirming on next sync`,
+        { connectorId }
+      )
+    }
+    if (safeHardDeleteIds.length > 0) {
+      // Re-verifies connectorId once more at the moment of the actual delete
+      // query — the FOR UPDATE lock above only covers the window up to its
+      // own commit; this closes the remaining gap between that commit and
+      // this call.
+      result.docsDeleted += await hardDeleteDocuments(safeHardDeleteIds, syncLogId, connectorId)
+    }
+
     const postBatchLiveness = await checkSyncLiveness(connectorId, connector.knowledgeBaseId)
     if (postBatchLiveness.connectorDeleted) {
       throw new ConnectorDeletedException(connectorId)
@@ -789,7 +1083,6 @@ export async function executeSync(
     // abandoned (e.g. the Trigger.dev task process exited before processing completed).
     // Documents uploaded more than RETRY_WINDOW_DAYS ago are not retried.
     const staleProcessingCutoff = new Date(Date.now() - STALE_PROCESSING_MINUTES * 60 * 1000)
-    const retryCutoff = new Date(Date.now() - RETRY_WINDOW_DAYS * 24 * 60 * 60 * 1000)
     const stuckDocs = await db
       .select({
         id: document.id,
@@ -827,35 +1120,71 @@ export async function executeSync(
       logger.info(`Retrying ${stuckDocs.length} stuck documents`, { connectorId })
       try {
         const stuckDocIds = stuckDocs.map((doc) => doc.id)
+        let retryDocs: typeof stuckDocs = []
 
-        await db.delete(embedding).where(inArray(embedding.documentId, stuckDocIds))
+        /**
+         * Takes the same `knowledge_connector` FOR UPDATE lock the DELETE route
+         * takes before nulling connectorId on detached documents, so the two
+         * requests serialize instead of racing — a plain re-SELECT only
+         * narrows the window between the ownership check and these writes, it
+         * never closes it, since a concurrent detach can still commit in
+         * between. Embedding cleanup and the processing-state reset happen
+         * inside the same locked transaction so a document already claimed by
+         * a detach never gets its embeddings wiped or is reprocessed as if
+         * still connector-owned.
+         */
+        await db.transaction(async (tx) => {
+          await tx.execute(
+            sql`SELECT 1 FROM knowledge_connector WHERE id = ${connectorId} FOR UPDATE`
+          )
 
-        await db
-          .update(document)
-          .set({
-            processingStatus: 'pending',
-            processingStartedAt: null,
-            processingCompletedAt: null,
-            processingError: null,
-            chunkCount: 0,
-            tokenCount: 0,
-            characterCount: 0,
-          })
-          .where(inArray(document.id, stuckDocIds))
+          const stillOwnedIds = new Set(
+            (
+              await tx
+                .select({ id: document.id })
+                .from(document)
+                .where(
+                  and(inArray(document.id, stuckDocIds), eq(document.connectorId, connectorId))
+                )
+            ).map((d) => d.id)
+          )
+          retryDocs = stuckDocs.filter((doc) => stillOwnedIds.has(doc.id))
 
-        await processDocumentsWithQueue(
-          stuckDocs.map((doc) => ({
-            documentId: doc.id,
-            filename: doc.filename ?? 'document.txt',
-            fileUrl: doc.fileUrl ?? '',
-            fileSize: doc.fileSize ?? 0,
-            mimeType: doc.mimeType ?? 'text/plain',
-          })),
-          connector.knowledgeBaseId,
-          {},
-          generateId(),
-          billingAttribution
-        )
+          if (retryDocs.length > 0) {
+            const retryDocIds = retryDocs.map((doc) => doc.id)
+
+            await tx.delete(embedding).where(inArray(embedding.documentId, retryDocIds))
+
+            await tx
+              .update(document)
+              .set({
+                processingStatus: 'pending',
+                processingStartedAt: null,
+                processingCompletedAt: null,
+                processingError: null,
+                chunkCount: 0,
+                tokenCount: 0,
+                characterCount: 0,
+              })
+              .where(inArray(document.id, retryDocIds))
+          }
+        })
+
+        if (retryDocs.length > 0) {
+          await processDocumentsWithQueue(
+            retryDocs.map((doc) => ({
+              documentId: doc.id,
+              filename: doc.filename ?? 'document.txt',
+              fileUrl: doc.fileUrl ?? '',
+              fileSize: doc.fileSize ?? 0,
+              mimeType: doc.mimeType ?? 'text/plain',
+            })),
+            connector.knowledgeBaseId,
+            {},
+            generateId(),
+            billingAttribution
+          )
+        }
       } catch (error) {
         logger.warn('Failed to enqueue stuck documents for reprocessing', {
           connectorId,
@@ -907,20 +1236,17 @@ export async function executeSync(
       logger.info('Connector deleted during sync, cleaning up', { connectorId })
 
       try {
+        // Includes pending-removal (tombstoned) docs — the connector is gone, so
+        // there's no future sync left to confirm or resurrect them.
         const connectorDocs = await db
           .select({ id: document.id })
           .from(document)
-          .where(
-            and(
-              eq(document.connectorId, connectorId),
-              isNull(document.archivedAt),
-              isNull(document.deletedAt)
-            )
-          )
+          .where(and(eq(document.connectorId, connectorId), isNull(document.archivedAt)))
 
         await hardDeleteDocuments(
           connectorDocs.map((doc) => doc.id),
-          syncLogId
+          syncLogId,
+          connectorId
         )
 
         await completeSyncLog(syncLogId, 'failed', result, 'Connector deleted during sync')
@@ -1197,7 +1523,6 @@ async function updateDocument(
   kbOwner: KnowledgeBaseOwner,
   sourceConfig?: Record<string, unknown>
 ): Promise<DocumentData> {
-  // Fetch old file URL before uploading replacement
   const existingRows = await db
     .select({ fileUrl: document.fileUrl })
     .from(document)
@@ -1246,12 +1571,21 @@ async function updateDocument(
           ...tagValues,
           processingStatus: 'pending',
           uploadedAt: new Date(),
+          // A tombstoned document reappearing with changed content is resurrected
+          // in the same write as its content update — otherwise reconciliation's
+          // separate resurrect step would clear deletedAt while this update, gated
+          // on deletedAt IS NULL, rejects the row and leaves stale content active.
+          deletedAt: null,
         })
         .where(
           and(
             eq(document.id, existingDocId),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
+            // A concurrent "delete connector, keep documents" request can null out
+            // connectorId between this sync's liveness check and this write. Without
+            // this check, that now-standalone document would still match on id alone
+            // and get overwritten with connector-sourced content post-detachment.
+            eq(document.connectorId, connectorId),
+            isNull(document.archivedAt)
           )
         )
         .returning({ id: document.id })

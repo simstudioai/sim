@@ -12,6 +12,7 @@ const {
   mockAcquireOrganizationMutationLock,
   mockAssertNoCompetingEnterpriseIssuance,
   mockGetOrganizationIdForSubscriptionReference,
+  mockIsSubscriptionOrgScoped,
 } = vi.hoisted(() => ({
   mockCreateOrganizationWithOwner: vi.fn(),
   mockGetPlanPricing: vi.fn(),
@@ -20,12 +21,12 @@ const {
   mockAcquireOrganizationMutationLock: vi.fn(),
   mockAssertNoCompetingEnterpriseIssuance: vi.fn(),
   mockGetOrganizationIdForSubscriptionReference: vi.fn(),
+  mockIsSubscriptionOrgScoped: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/core/billing', () => ({
   getPlanPricing: mockGetPlanPricing,
+  isSubscriptionOrgScoped: mockIsSubscriptionOrgScoped,
 }))
 
 vi.mock('@/lib/billing/core/subscription', () => ({
@@ -75,8 +76,10 @@ function queueWhereResponses(responses: unknown[][]) {
     const result = queue.shift() ?? []
     const thenable = Promise.resolve(result) as Promise<unknown[]> & {
       limit: ReturnType<typeof vi.fn>
+      for: ReturnType<typeof vi.fn>
     }
     thenable.limit = vi.fn(() => Promise.resolve(result))
+    thenable.for = vi.fn(() => Promise.resolve(result))
     return thenable as ReturnType<typeof dbChainMockFns.where>
   })
 }
@@ -85,11 +88,11 @@ describe('ensureOrganizationForTeamSubscription', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockGetOrganizationIdForSubscriptionReference.mockResolvedValue(null)
+    mockIsSubscriptionOrgScoped.mockResolvedValue(false)
   })
 
-  it('treats existing legacy organization ids as organization references', async () => {
-    mockGetOrganizationIdForSubscriptionReference.mockResolvedValue('legacy-org-id')
+  it('treats existing organization references as already homed and takes no write', async () => {
+    mockIsSubscriptionOrgScoped.mockResolvedValueOnce(true)
 
     const result = await ensureOrganizationForTeamSubscription({
       id: 'sub-1',
@@ -108,6 +111,7 @@ describe('ensureOrganizationForTeamSubscription', () => {
     })
     expect(mockCreateOrganizationWithOwner).not.toHaveBeenCalled()
     expect(mockAttachOwnedWorkspacesToOrganization).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mockAcquireOrganizationMutationLock).toHaveBeenCalledWith(
       expect.anything(),
       'legacy-org-id'
@@ -120,7 +124,7 @@ describe('ensureOrganizationForTeamSubscription', () => {
   })
 
   it('allows the authoritative Enterprise webhook to apply its own unresolved issuance', async () => {
-    mockGetOrganizationIdForSubscriptionReference.mockResolvedValue('org-enterprise')
+    mockIsSubscriptionOrgScoped.mockResolvedValueOnce(true)
 
     const result = await ensureOrganizationForTeamSubscription({
       id: 'sub-enterprise',
@@ -137,6 +141,39 @@ describe('ensureOrganizationForTeamSubscription', () => {
       'org-enterprise',
       'operation-1'
     )
+  })
+
+  it('transfers a user-referenced team subscription onto the org the user administers', async () => {
+    mockIsSubscriptionOrgScoped.mockResolvedValueOnce(false)
+    queueWhereResponses([
+      // membership lookup: user owns an org
+      [{ id: 'member-1', organizationId: 'org-owned', role: 'owner' }],
+      // locked membership re-read inside the transfer transaction
+      [{ organizationId: 'org-owned', role: 'owner' }],
+      // locked subscription re-read inside the transfer transaction
+      [{ id: 'sub-1', referenceId: 'user-1', plan: 'team' }],
+      // locked organization re-read
+      [{ id: 'org-owned' }],
+      // duplicate check: org has no entitled subscription
+      [],
+    ])
+
+    const result = await ensureOrganizationForTeamSubscription({
+      id: 'sub-1',
+      plan: 'team',
+      referenceId: 'user-1',
+      status: 'active',
+      seats: 2,
+    })
+
+    expect(result.referenceId).toBe('org-owned')
+    expect(dbChainMockFns.update).toHaveBeenCalled()
+    expect(mockAttachOwnedWorkspacesToOrganization).toHaveBeenCalledWith({
+      ownerUserId: 'user-1',
+      organizationId: 'org-owned',
+      externalMemberPolicy: 'keep-external',
+    })
+    expect(mockCreateOrganizationWithOwner).not.toHaveBeenCalled()
   })
 
   it('keeps org creation, subscription transfer, and workspace attachment on the caller transaction', async () => {

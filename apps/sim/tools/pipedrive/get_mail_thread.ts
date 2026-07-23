@@ -3,6 +3,7 @@ import type {
   PipedriveGetMailThreadParams,
   PipedriveGetMailThreadResponse,
 } from '@/tools/pipedrive/types'
+import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('PipedriveGetMailThread')
@@ -28,6 +29,13 @@ export const pipedriveGetMailThreadTool: ToolConfig<
       visibility: 'hidden',
       description: 'The access token for the Pipedrive API',
     },
+    authStyle: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description:
+        'Auth scheme for the token; set by the credential resolver for API-token service accounts',
+    },
     thread_id: {
       type: 'string',
       required: true,
@@ -40,16 +48,7 @@ export const pipedriveGetMailThreadTool: ToolConfig<
     url: (params) =>
       `https://api.pipedrive.com/v1/mailbox/mailThreads/${params.thread_id}/mailMessages`,
     method: 'GET',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-        Accept: 'application/json',
-      }
-    },
+    headers: (params) => getPipedriveAuthHeaders(params),
   },
 
   transformResponse: async (response: Response, params) => {

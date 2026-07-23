@@ -25,11 +25,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const parsed = await parseRequest(guardrailsMaskBatchContract, request, {})
   if (!parsed.success) return parsed.response
 
-  const { texts, entityTypes, language } = parsed.data.body
+  const { texts, entityTypes, language, customPatterns } = parsed.data.body
 
   try {
     const startedAt = performance.now()
-    const masked = await maskPIIBatch(texts, entityTypes, language)
+    const masked = await maskPIIBatch(texts, entityTypes, language, customPatterns)
     logger.info('Masked PII batch', {
       count: texts.length,
       durationMs: Math.round(performance.now() - startedAt),

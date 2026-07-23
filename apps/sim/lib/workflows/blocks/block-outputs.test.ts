@@ -70,4 +70,25 @@ describe('block outputs parity', () => {
     expect(getEffectiveBlockOutputType('agent', 'min', subBlocks, options)).toBe('number')
     expect(getEffectiveBlockOutputType('agent', 'max', subBlocks, options)).toBe('number')
   })
+
+  it.concurrent('surfaces start run metadata paths only when the toggle is on', () => {
+    const subBlocks: SubBlocks = { runMetadata: { value: true } }
+    const options = { triggerMode: true }
+
+    const outputs = getEffectiveBlockOutputs('start_trigger', subBlocks, options)
+    const paths = getEffectiveBlockOutputPaths('start_trigger', subBlocks, options)
+
+    expect(outputs).toHaveProperty('metadata')
+    expect(paths).toContain('metadata.userEmail')
+    expect(paths).toContain('metadata.executionType')
+    expect(paths).toContain('metadata.workflowId')
+    expect(
+      getEffectiveBlockOutputType('start_trigger', 'metadata.userEmail', subBlocks, options)
+    ).toBe('string')
+
+    const offOutputs = getEffectiveBlockOutputs('start_trigger', {}, options)
+    const offPaths = getEffectiveBlockOutputPaths('start_trigger', {}, options)
+    expect(offOutputs).not.toHaveProperty('metadata')
+    expect(offPaths.some((path) => path.startsWith('metadata'))).toBe(false)
+  })
 })

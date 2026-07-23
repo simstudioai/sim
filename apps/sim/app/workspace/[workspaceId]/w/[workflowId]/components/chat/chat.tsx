@@ -401,9 +401,7 @@ export function Chat() {
 
   const workflowMessages = useMemo(() => {
     if (!activeWorkflowId) return []
-    return messages
-      .filter((msg) => msg.workflowId === activeWorkflowId)
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    return messages.filter((msg) => msg.workflowId === activeWorkflowId)
   }, [messages, activeWorkflowId])
 
   const isStreaming = useMemo(() => {

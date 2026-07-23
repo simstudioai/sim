@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChipConfirmModal, chipVariants, cn } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
+import { ORGANIZATION_PLANE_UNIFIED_SECTIONS } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
@@ -120,6 +121,15 @@ export function SettingsSidebar({
       }
 
       if (item.selfHostedOverride && !isHosted) {
+        /**
+         * Org-plane sections route through the organization gate in
+         * `settings/[section]/page.tsx` (host organization + org-admin viewer),
+         * which 404s other viewers — mirror it here so the item never links to
+         * a dead page.
+         */
+        if (ORGANIZATION_PLANE_UNIFIED_SECTIONS.has(item.id) && !isOrgAdminOrOwner) {
+          return false
+        }
         if (item.id === 'sso') {
           const hasProviders = (ssoProvidersData?.providers?.length ?? 0) > 0
           return !hasProviders || isSSOProviderOwner === true

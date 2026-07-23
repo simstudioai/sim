@@ -130,6 +130,7 @@ const nextConfig: NextConfig = {
     'isolated-vm',
     '@e2b/code-interpreter',
     'e2b',
+    '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
   ],
   outputFileTracingIncludes: {
@@ -143,6 +144,12 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizeCss: !isDev,
     turbopackFileSystemCacheForDev: false,
+    /**
+     * Turbopack's persistent build cache (beta) — opt-in via env so only the
+     * CI check build uses it; production image builds stay on the default
+     * cold-build path until the feature stabilizes.
+     */
+    turbopackFileSystemCacheForBuild: process.env.NEXT_TURBOPACK_BUILD_CACHE === '1',
     preloadEntriesOnStart: false,
     optimizePackageImports: [
       'lodash',
@@ -329,8 +336,19 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       {
+        source: '/slack',
+        destination:
+          'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA',
+        permanent: false,
+      },
+      {
         source: '/x',
         destination: 'https://x.com/simdotai',
+        permanent: false,
+      },
+      {
+        source: '/linkedin',
+        destination: 'https://www.linkedin.com/company/simstudioai/',
         permanent: false,
       },
       {
@@ -454,6 +472,63 @@ const nextConfig: NextConfig = {
         permanent: true,
       })
     }
+
+    /**
+     * The comparison route was renamed from `/comparison` to `/comparisons`
+     * for naming consistency with `/integrations/[slug]` (plural category,
+     * singular item). Preserve previously indexed URLs for the hub page and
+     * every competitor detail page.
+     */
+    redirects.push(
+      {
+        source: '/comparison',
+        destination: '/comparisons',
+        permanent: true,
+      },
+      {
+        source: '/comparison/:path*',
+        destination: '/comparisons/:path*',
+        permanent: true,
+      }
+    )
+
+    /**
+     * Stray crawler/artifact URLs picked up in an external SEO audit — no
+     * page ever existed at these paths, but they were indexed or linked
+     * somewhere with junk characters/casing. Send them home instead of 404.
+     */
+    redirects.push(
+      {
+        source: '/$',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/&',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/Sim',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/homepage',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/logo',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/en-US',
+        destination: '/',
+        permanent: true,
+      }
+    )
 
     return redirects
   },

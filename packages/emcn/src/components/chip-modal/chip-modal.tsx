@@ -86,6 +86,26 @@ export function ChipModalSeparator({ className }: { className?: string }) {
  */
 const CHIP_MODAL_FIELD_ERROR_CLASS = 'text-[var(--text-error)] text-caption'
 
+/**
+ * The modal's registered primary action, published by {@link ChipModalFooter}
+ * and consumed by {@link ChipModalField} so a single-line input can submit the
+ * modal on Enter without the consumer wiring `onSubmit` on every field.
+ */
+interface ChipModalSubmit {
+  /** Fires the footer's primary action. */
+  trigger: () => void
+  /** Mirrors the primary action's disabled state so Enter never submits an invalid form. */
+  disabled?: boolean
+}
+
+/**
+ * Carries a mutable handle to the modal's primary action down to its fields.
+ * A ref (not state) so the footer can keep it current without re-rendering the
+ * body, and fields read it at Enter-time rather than at render-time.
+ */
+const ChipModalSubmitContext =
+  React.createContext<React.MutableRefObject<ChipModalSubmit | null> | null>(null)
+
 export interface ChipModalProps {
   /** Controlled open state. */
   open: boolean
@@ -120,21 +140,24 @@ function ChipModal({
   className,
   children,
 }: ChipModalProps) {
+  const submitRef = React.useRef<ChipModalSubmit | null>(null)
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent bare showClose={false} srTitle={srTitle} size={size}>
-        <div
-          className={cn(
-            'flex min-h-0 w-full flex-col rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
-            className
-          )}
-        >
-          <div className='flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
-            {children}
+    <ChipModalSubmitContext.Provider value={submitRef}>
+      <Modal open={open} onOpenChange={onOpenChange}>
+        <ModalContent bare showClose={false} srTitle={srTitle} size={size}>
+          <div
+            className={cn(
+              'flex min-h-0 w-full flex-col rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
+              className
+            )}
+          >
+            <div className='flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
+              {children}
+            </div>
           </div>
-        </div>
-      </ModalContent>
-    </Modal>
+        </ModalContent>
+      </Modal>
+    </ChipModalSubmitContext.Provider>
   )
 }
 
@@ -214,6 +237,10 @@ export interface ChipModalTabsProps {
  * Reusing `ChipSwitch` keeps every tabbed modal visually identical to the
  * segmented toggles elsewhere in the app (e.g. the billing-period switch).
  *
+ * Pinned to `w-fit` so the pill always hugs its tabs: dropped directly into a
+ * flex column the `inline-flex` trough is otherwise blockified and stretched
+ * full-width by `align-items: stretch`. A caller-supplied width class still wins.
+ *
  * @example
  * ```tsx
  * <ChipModalBody>
@@ -239,7 +266,7 @@ function ChipModalTabs({
       onChange={onChange}
       aria-label={ariaLabel}
       options={tabs.map((tab) => ({ value: tab.value, label: tab.label, icon: tab.icon }))}
-      className={className}
+      className={cn('w-fit', className)}
     />
   )
 }
@@ -364,7 +391,32 @@ interface ChipModalFieldBaseProps {
   className?: string
 }
 
-interface ChipModalInputFieldProps extends ChipModalFieldBaseProps {
+/**
+ * Enter-submit behavior shared by the single-line field types (`input`,
+ * `email`). Both fire the modal's {@link ChipModalFooter} primary action on
+ * Enter by default; these props override or opt out of that.
+ */
+interface ChipModalSingleLineEnterProps {
+  /**
+   * Overrides the default Enter behavior. By default, pressing Enter in a
+   * single-line field fires the {@link ChipModalFooter} primary action (unless
+   * it's disabled), so a plain modal submits on Enter with no wiring. Pass
+   * `onSubmit` only when Enter should do something OTHER than the primary action
+   * (e.g. advance a multi-step flow).
+   */
+  onSubmit?: () => void
+  /**
+   * Opts this field out of the automatic Enter-submits-the-primary-action
+   * behavior. Set `false` for a config knob that lives inside a larger form
+   * (e.g. a "number of runs" input in a scheduling modal) where Enter firing
+   * the modal's primary action would submit prematurely. Ignored when an
+   * explicit `onSubmit` is provided.
+   * @default true
+   */
+  submitOnEnter?: boolean
+}
+
+interface ChipModalInputFieldProps extends ChipModalFieldBaseProps, ChipModalSingleLineEnterProps {
   type: 'input'
   value: string
   onChange: (value: string) => void
@@ -380,24 +432,14 @@ interface ChipModalInputFieldProps extends ChipModalFieldBaseProps {
    * @default false
    */
   mono?: boolean
-  /**
-   * Called when the user presses Enter in the field. Wire this to the
-   * modal's primary action so the field behaves like a form submit.
-   */
-  onSubmit?: () => void
 }
 
-interface ChipModalEmailFieldProps extends ChipModalFieldBaseProps {
+interface ChipModalEmailFieldProps extends ChipModalFieldBaseProps, ChipModalSingleLineEnterProps {
   type: 'email'
   value: string
   onChange: (value: string) => void
   placeholder?: string
   autoComplete?: string
-  /**
-   * Called when the user presses Enter in the field. Wire this to the
-   * modal's primary action so the field behaves like a form submit.
-   */
-  onSubmit?: () => void
 }
 
 interface ChipModalTextareaFieldBaseProps extends ChipModalFieldBaseProps {
@@ -536,6 +578,7 @@ export type ChipModalFieldProps =
  */
 function ChipModalField(props: ChipModalFieldProps) {
   const id = React.useId()
+  const submitRef = React.useContext(ChipModalSubmitContext)
   const errorId = `${id}-error`
   const hintId = `${id}-hint`
   const { title, required, error, hint, flush = false, className } = props
@@ -559,7 +602,7 @@ function ChipModalField(props: ChipModalFieldProps) {
           </span>
         )}
       </Label>
-      {renderChipModalControl(props, id, errorId, hintId)}
+      {renderChipModalControl(props, id, errorId, hintId, submitRef)}
       {error && props.type !== 'emails' ? (
         <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>
           {error}
@@ -584,7 +627,8 @@ function renderChipModalControl(
   props: ChipModalFieldProps,
   id: string,
   errorId: string,
-  hintId: string
+  hintId: string,
+  submitRef: React.MutableRefObject<ChipModalSubmit | null> | null
 ): React.ReactNode {
   const aria = {
     'aria-required': props.required || undefined,
@@ -594,23 +638,32 @@ function renderChipModalControl(
 
   switch (props.type) {
     case 'input':
-    case 'email':
+    case 'email': {
+      const onSubmit = props.onSubmit
       return (
         <ChipInput
           id={id}
           type={props.type === 'email' ? 'email' : (props.inputType ?? 'text')}
           value={props.value}
           onChange={(event) => props.onChange(event.target.value)}
-          onKeyDown={
-            props.onSubmit
-              ? (event) => {
-                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
-                    event.preventDefault()
-                    props.onSubmit?.()
-                  }
-                }
-              : undefined
-          }
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+            if (onSubmit) {
+              event.preventDefault()
+              event.stopPropagation()
+              onSubmit()
+              return
+            }
+            if (props.submitOnEnter === false) return
+            const submit = submitRef?.current
+            if (submit && !submit.disabled) {
+              event.preventDefault()
+              // Stop bubbling so a parent Enter handler (e.g. a modal body that
+              // also submits) can't fire the same primary action a second time.
+              event.stopPropagation()
+              submit.trigger()
+            }
+          }}
           placeholder={props.placeholder}
           maxLength={props.type === 'input' ? props.maxLength : undefined}
           autoComplete={props.autoComplete}
@@ -619,6 +672,7 @@ function renderChipModalControl(
           {...aria}
         />
       )
+    }
     case 'textarea':
       return (
         <ChipTextarea
@@ -1043,6 +1097,35 @@ function ChipModalFooter({
   secondaryActions,
 }: ChipModalFooterProps) {
   const showsDisabledTooltip = Boolean(primaryAction.disabled && primaryAction.disabledTooltip)
+
+  /**
+   * Publish the primary action so single-line {@link ChipModalField}s can submit
+   * the modal on Enter without per-field wiring. Kept in a ref (updated each
+   * render) rather than state so fields read the latest handler at Enter-time.
+   *
+   * A layout effect (not a passive effect) so the ref is populated before the
+   * browser paints the modal — otherwise there is a window between first paint
+   * and effect commit where an enabled primary is visible but Enter does
+   * nothing because `submitRef.current` is still `null`.
+   *
+   * A `destructive` primary is deliberately NOT published: Enter must never
+   * trigger a destructive action from a text field. Destructive flows that DO
+   * want Enter (e.g. a guarded "change address") wire an explicit field-level
+   * `onSubmit`, which takes precedence over this fallback.
+   */
+  const submitRef = React.useContext(ChipModalSubmitContext)
+  React.useLayoutEffect(() => {
+    if (!submitRef) return
+    if (primaryAction.variant === 'destructive') {
+      submitRef.current = null
+      return
+    }
+    submitRef.current = { trigger: primaryAction.onClick, disabled: primaryAction.disabled }
+    return () => {
+      submitRef.current = null
+    }
+  }, [submitRef, primaryAction.onClick, primaryAction.disabled, primaryAction.variant])
+
   const primaryChip = (
     <Chip
       variant={primaryAction.variant ?? 'primary'}

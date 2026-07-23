@@ -105,7 +105,6 @@ export function generateToolUseId(toolName: string): string {
  */
 const GEO_PROFILE_UNSUPPORTED_MODEL_IDS = new Set([
   'mistral.mistral-large-3-675b-instruct',
-  'mistral.mistral-large-2411-v1:0',
   'mistral.mistral-large-2407-v1:0',
   'mistral.magistral-small-2509',
   'mistral.ministral-3-14b-instruct',

@@ -1,5 +1,5 @@
 import type { UserFile } from '@/executor/types'
-import type { OutputProperty, ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 
 /**
  * Base params that include OAuth access token
@@ -35,11 +35,7 @@ export interface TikTokGetUserResponse extends ToolResponse {
     followingCount: number | null
     likesCount: number | null
     videoCount: number | null
-    avatarFile?: {
-      name: string
-      mimeType: string
-      url: string
-    }
+    avatarFile?: ToolFileData
   }
 }
 
@@ -125,49 +121,12 @@ export interface TikTokQueryVideosResponse extends ToolResponse {
   }
 }
 
-/**
- * Query Creator Info - Check posting permissions and get privacy options
- */
-export interface TikTokQueryCreatorInfoParams extends TikTokBaseParams {}
-
-export interface TikTokQueryCreatorInfoResponse extends ToolResponse {
-  output: {
-    creatorAvatarUrl: string | null
-    creatorUsername: string | null
-    creatorNickname: string | null
-    privacyLevelOptions: string[]
-    commentDisabled: boolean
-    duetDisabled: boolean
-    stitchDisabled: boolean
-    maxVideoPostDurationSec: number | null
-  }
-}
-
-/**
- * Direct Post Video - Publish an uploaded video to TikTok
- */
-export interface TikTokDirectPostVideoParams extends TikTokBaseParams {
-  file: UserFile
-  title?: string
-  privacyLevel: string
-  disableDuet: boolean
-  disableStitch: boolean
-  disableComment: boolean
-  videoCoverTimestampMs?: number
-  isAigc?: boolean
-  brandContentToggle: boolean
-  brandOrganicToggle?: boolean
-  musicUsageConsent: 'accepted'
-}
-
-/** Shared response shape for TikTok publish and draft initialization tools. */
-export interface TikTokPublishResponse extends ToolResponse {
+/** Response shape for TikTok inbox draft initialization. */
+export interface TikTokDraftInitResponse extends ToolResponse {
   output: {
     publishId: string
   }
 }
-
-export type TikTokDirectPostVideoResponse = TikTokPublishResponse
 
 /**
  * Upload Video Draft - Send a video to the user's TikTok inbox for manual editing/posting
@@ -176,7 +135,7 @@ export interface TikTokUploadVideoDraftParams extends TikTokBaseParams {
   file: UserFile
 }
 
-export type TikTokUploadVideoDraftResponse = TikTokPublishResponse
+export type TikTokUploadVideoDraftResponse = TikTokDraftInitResponse
 
 /**
  * Get Post Status - Check status of a published/uploaded post
@@ -202,7 +161,5 @@ export type TikTokResponse =
   | TikTokGetUserResponse
   | TikTokListVideosResponse
   | TikTokQueryVideosResponse
-  | TikTokQueryCreatorInfoResponse
-  | TikTokDirectPostVideoResponse
   | TikTokUploadVideoDraftResponse
   | TikTokGetPostStatusResponse

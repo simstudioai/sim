@@ -21,7 +21,7 @@ import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settin
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { useSettingsBeforeUnload } from '@/components/settings/use-settings-before-unload'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 
 interface StandaloneSettingsShellBaseProps {
   children: ReactNode
@@ -52,6 +52,7 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
   const organizationFeatures = getOrganizationSettingsFeatures(hasEnterprisePlan)
   const accountItems = ACCOUNT_SETTINGS_ITEMS.filter((item) => {
     if (item.id === 'billing' && !isBillingEnabled) return false
+    if (item.id === 'copilot' && !isHosted) return false
     if ((item.id === 'admin' || item.id === 'mothership') && !isSuperUser) return false
     return true
   })

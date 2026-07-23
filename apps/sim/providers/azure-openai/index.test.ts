@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProviderRequest } from '@/providers/types'
 
 const {
@@ -14,7 +15,6 @@ const {
   sentinelFetch,
   mockIsChatCompletionsEndpoint,
   mockIsResponsesEndpoint,
-  envState,
 } = vi.hoisted(() => {
   const azureOpenAIArgs: Array<Record<string, unknown>> = []
   const sentinelFetch = vi.fn()
@@ -35,15 +35,10 @@ const {
     sentinelFetch,
     mockIsChatCompletionsEndpoint: vi.fn(() => false),
     mockIsResponsesEndpoint: vi.fn(() => false),
-    envState: {
-      AZURE_OPENAI_ENDPOINT: undefined as string | undefined,
-      AZURE_OPENAI_API_VERSION: undefined as string | undefined,
-    },
   }
 })
 
 vi.mock('openai', () => ({ AzureOpenAI: mockAzureOpenAI }))
-vi.mock('@/lib/core/config/env', () => ({ env: envState }))
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
 vi.mock('@/lib/core/security/input-validation.server', () => ({
   validateUrlWithDNS: mockValidate,
@@ -96,12 +91,13 @@ function request(overrides: Partial<ProviderRequest>): ProviderRequest {
 /** Config object passed to the Responses core on the Nth call. */
 const responsesConfig = (call = 0) => mockExecuteResponses.mock.calls[call][1]
 
+afterAll(resetEnvMock)
+
 describe('azureOpenAIProvider — SSRF pinning', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     azureOpenAIArgs.length = 0
-    envState.AZURE_OPENAI_ENDPOINT = undefined
-    envState.AZURE_OPENAI_API_VERSION = undefined
+    setEnv({ AZURE_OPENAI_ENDPOINT: undefined, AZURE_OPENAI_API_VERSION: undefined })
     mockIsChatCompletionsEndpoint.mockReturnValue(false)
     mockIsResponsesEndpoint.mockReturnValue(false)
     mockExecuteResponses.mockResolvedValue({ content: 'ok' })
@@ -121,7 +117,7 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
     })
 
     it('passes no custom fetch when the endpoint comes from trusted server env', async () => {
-      envState.AZURE_OPENAI_ENDPOINT = 'https://trusted.openai.azure.com'
+      setEnv({ AZURE_OPENAI_ENDPOINT: 'https://trusted.openai.azure.com' })
 
       await azureOpenAIProvider.executeRequest(request({ azureEndpoint: undefined }))
 
@@ -178,8 +174,10 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
 
     it('constructs the AzureOpenAI client without a custom fetch for a trusted env endpoint', async () => {
       mockIsChatCompletionsEndpoint.mockReturnValue(true)
-      envState.AZURE_OPENAI_ENDPOINT =
-        'https://trusted.openai.azure.com/openai/deployments/gpt-4o/chat/completions'
+      setEnv({
+        AZURE_OPENAI_ENDPOINT:
+          'https://trusted.openai.azure.com/openai/deployments/gpt-4o/chat/completions',
+      })
       mockChatCreate.mockResolvedValue({
         choices: [{ message: { content: 'hi', tool_calls: undefined } }],
         usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },

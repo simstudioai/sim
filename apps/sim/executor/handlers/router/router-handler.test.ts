@@ -30,7 +30,7 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 const mockGenerateRouterPrompt = generateRouterPrompt as Mock
 const mockGenerateRouterV2Prompt = generateRouterV2Prompt as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
-const mockFetch = global.fetch as unknown as Mock
+const mockFetch = vi.fn()
 
 describe('RouterBlockHandler', () => {
   let handler: RouterBlockHandler
@@ -94,6 +94,9 @@ describe('RouterBlockHandler', () => {
     }
 
     vi.clearAllMocks()
+
+    // unstubGlobals removes any module-scope fetch stub before each test, so re-stub here
+    vi.stubGlobal('fetch', mockFetch)
 
     authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValue({
       accountId: 'test-vertex-credential-id',
@@ -393,6 +396,9 @@ describe('RouterBlockHandler V2', () => {
     }
 
     vi.clearAllMocks()
+
+    // unstubGlobals removes any module-scope fetch stub before each test, so re-stub here
+    vi.stubGlobal('fetch', mockFetch)
 
     authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValue({
       accountId: 'test-vertex-credential-id',

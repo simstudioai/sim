@@ -527,7 +527,7 @@ export const STSBlockMeta = {
     },
     {
       icon: STSIcon,
-      title: 'CI/CD OIDC credential broker',
+      title: 'STS CI/CD OIDC credential broker',
       prompt:
         'Build a workflow that receives an OIDC token from a CI/CD pipeline (e.g. GitHub Actions), calls AWS STS assume role with web identity to mint short-lived deployment credentials, and writes the issuance to an audit log.',
       modules: ['agent', 'workflows'],
@@ -536,7 +536,7 @@ export const STSBlockMeta = {
     },
     {
       icon: STSIcon,
-      title: 'Enterprise SSO SAML role broker',
+      title: 'STS SAML SSO role broker',
       prompt:
         'Create a workflow that takes a SAML assertion from a corporate identity provider, calls AWS STS assume role with SAML to grant scoped temporary credentials, and logs the session details for compliance review.',
       modules: ['agent', 'workflows'],

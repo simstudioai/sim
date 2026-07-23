@@ -1,23 +1,27 @@
 /**
  * @vitest-environment node
  */
+
+import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
 import type { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetEffectiveDecryptedEnv, mockGetProviderHandler } = vi.hoisted(() => ({
-  mockGetEffectiveDecryptedEnv: vi.fn(),
+const { mockGetEffectiveDecryptedEnv } = environmentUtilsMockFns
+
+afterAll(resetEnvironmentUtilsMock)
+
+const { mockGetProviderHandler } = vi.hoisted(() => ({
   mockGetProviderHandler: vi.fn(),
-}))
-
-vi.mock('@/lib/environment/utils', () => ({
-  getEffectiveDecryptedEnv: mockGetEffectiveDecryptedEnv,
 }))
 
 vi.mock('@/lib/webhooks/providers', () => ({
   getProviderHandler: mockGetProviderHandler,
 }))
 
-import { createExternalWebhookSubscription } from '@/lib/webhooks/provider-subscriptions'
+import {
+  cleanupExternalWebhook,
+  createExternalWebhookSubscription,
+} from '@/lib/webhooks/provider-subscriptions'
 
 describe('createExternalWebhookSubscription', () => {
   beforeEach(() => {
@@ -117,5 +121,46 @@ describe('createExternalWebhookSubscription', () => {
     expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
     expect(result.externalSubscriptionCreated).toBe(false)
     expect(result.updatedProviderConfig.token).toBe('{{SLACK_TOKEN}}')
+  })
+})
+
+describe('cleanupExternalWebhook', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetEffectiveDecryptedEnv.mockResolvedValue({ CALENDLY_API_KEY: 'real-secret-key' })
+  })
+
+  it('resolves {{ENV_VAR}} references before deleting the provider subscription', async () => {
+    const deleteSubscription = vi.fn().mockResolvedValue(undefined)
+    mockGetProviderHandler.mockReturnValue({ deleteSubscription })
+
+    const webhook = {
+      id: 'webhook-1',
+      provider: 'calendly',
+      providerConfig: {
+        apiKey: '{{CALENDLY_API_KEY}}',
+        externalId: 'external-1',
+      },
+    }
+    const workflow = {
+      id: 'workflow-1',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    }
+
+    await cleanupExternalWebhook(webhook, workflow, 'request-1')
+
+    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-1', 'workspace-1')
+    expect(deleteSubscription).toHaveBeenCalledWith(
+      expect.objectContaining({
+        webhook: expect.objectContaining({
+          providerConfig: {
+            apiKey: 'real-secret-key',
+            externalId: 'external-1',
+          },
+        }),
+      })
+    )
+    expect(webhook.providerConfig.apiKey).toBe('{{CALENDLY_API_KEY}}')
   })
 })

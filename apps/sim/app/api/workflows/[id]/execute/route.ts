@@ -15,10 +15,6 @@ import {
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import {
-  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE,
-  isWorkspaceApiExecutionEntitled,
-} from '@/lib/billing/core/api-access'
-import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
   requireBillingAttributionHeader,
@@ -85,6 +81,7 @@ import {
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import {
   loadDeployedWorkflowState,
+  loadWorkflowDeploymentVersionState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { attachAgentStreamSink } from '@/lib/workflows/streaming/attach-agent-stream-sink'
@@ -567,7 +564,6 @@ async function handleExecutePost(
 
     let userId: string
     let isPublicApiAccess = false
-    let gateWorkspaceId: string | undefined
 
     if (!auth.success || !auth.userId) {
       const hasExplicitCredentials =
@@ -602,29 +598,8 @@ async function handleExecutePost(
 
       userId = wf.userId
       isPublicApiAccess = true
-      gateWorkspaceId = wf.workspaceId
     } else {
       userId = auth.userId
-    }
-
-    // Programmatic execution (API key or public API) is gated on the workflow's
-    // workspace billed account — the same entity MCP/webhooks/chat gate on —
-    // so a paid workspace is never blocked because an individual is on free.
-    if (auth.authType === AuthType.API_KEY || isPublicApiAccess) {
-      if (!gateWorkspaceId) {
-        const [wfRow] = await db
-          .select({ workspaceId: workflowTable.workspaceId })
-          .from(workflowTable)
-          .where(eq(workflowTable.id, workflowId))
-          .limit(1)
-        gateWorkspaceId = wfRow?.workspaceId ?? undefined
-      }
-      if (!(await isWorkspaceApiExecutionEntitled(gateWorkspaceId))) {
-        return NextResponse.json(
-          { error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE },
-          { status: 402 }
-        )
-      }
     }
 
     let body: any = {}
@@ -695,6 +670,7 @@ async function handleExecutePost(
       includeFileBase64,
       base64MaxBytes,
       workflowStateOverride,
+      deploymentVersionId: admittedDeploymentVersionId,
       executionId: rawBodyExecutionId,
       triggerBlockId: parsedTriggerBlockId,
       startBlockId,
@@ -703,6 +679,12 @@ async function handleExecutePost(
       parentWorkspaceId,
     } = validation.data
     const triggerBlockId = parsedTriggerBlockId ?? startBlockId
+    if (admittedDeploymentVersionId && !isMcpBridgeRequest) {
+      return NextResponse.json(
+        { error: 'deploymentVersionId is reserved for internal MCP execution' },
+        { status: 400 }
+      )
+    }
     const headerExecutionId = headerValidation.data[WORKFLOW_EXECUTION_ID_HEADER]
     let legacyBodyExecutionId: string | undefined
     if (!headerExecutionId && rawBodyExecutionId !== undefined) {
@@ -833,6 +815,7 @@ async function handleExecutePost(
               includeFileBase64,
               base64MaxBytes,
               workflowStateOverride,
+              deploymentVersionId: _deploymentVersionId,
               triggerBlockId: _triggerBlockId,
               stopAfterBlockId: _stopAfterBlockId,
               runFromBlock: _runFromBlock,
@@ -1104,7 +1087,13 @@ async function handleExecutePost(
       }
       const workflowData = shouldUseDraftState
         ? await loadWorkflowFromNormalizedTables(workflowId)
-        : await loadDeployedWorkflowState(workflowId, workspaceId)
+        : admittedDeploymentVersionId
+          ? await loadWorkflowDeploymentVersionState(
+              workflowId,
+              admittedDeploymentVersionId,
+              workspaceId
+            )
+          : await loadDeployedWorkflowState(workflowId, workspaceId)
 
       if (req.signal.aborted) {
         await releaseExecutionSlot(executionId)

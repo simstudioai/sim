@@ -501,6 +501,16 @@ export const getForkDiffContract = defineRouteContract({
       willArchive: z.number().int(),
       /** Per-workflow change list for the sync preview. */
       workflows: z.array(forkWorkflowChangeSchema),
+      /**
+       * Names of deployed SOURCE workflows marked "Exclude from sync" - never sent.
+       * Defaulted so a new client tolerates an old server's response during rollout.
+       */
+      excludedSourceWorkflows: z.array(z.string()).default([]),
+      /**
+       * Names of mapped TARGET workflows marked "Exclude from sync" - the sync
+       * neither replaces nor archives them. Defaulted for rollout tolerance.
+       */
+      excludedTargetWorkflows: z.array(z.string()).default([]),
       unmappedRequired: z.array(forkUnmappedReferenceSchema),
       unmappedOptional: z.array(forkUnmappedReferenceSchema),
       /** Source MCP server ids that use OAuth and need re-authorization in the target. */
@@ -732,6 +742,11 @@ export const rollbackForkContract = defineRouteContract({
       unarchived: z.number().int(),
       /** Snapshot workflows that no longer exist and couldn't be reactivated. */
       skipped: z.number().int(),
+      /**
+       * Workflows whose restored version has not finished its activation
+       * cutover; the undo point is preserved so the rollback can be re-run.
+       */
+      pendingActivations: z.array(z.string()),
     }),
   },
 })
@@ -772,3 +787,30 @@ export const unlinkForkContract = defineRouteContract({
 })
 export type UnlinkForkBody = z.input<typeof unlinkForkBodySchema>
 export type UnlinkForkResponse = z.output<typeof unlinkForkContract.response.schema>
+
+export const updateForkExcludedWorkflowsBodySchema = z.object({
+  /** Workflows to mark or unmark; ids outside the workspace are ignored. */
+  workflowIds: z
+    .array(z.string().min(1, 'workflowIds entries cannot be empty'))
+    .min(1, 'workflowIds cannot be empty')
+    .max(1000, 'Cannot update more than 1000 workflows at once'),
+  /** True marks the workflows "Exclude from sync"; false includes them again. */
+  forkSyncExcluded: z.boolean(),
+})
+export const updateForkExcludedWorkflowsContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/workspaces/[id]/fork/excluded-workflows',
+  params: workspaceIdParamsSchema,
+  body: updateForkExcludedWorkflowsBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      /** Number of workflows actually updated (ids outside the workspace are skipped). */
+      updated: z.number().int(),
+    }),
+  },
+})
+export type UpdateForkExcludedWorkflowsBody = z.input<typeof updateForkExcludedWorkflowsBodySchema>
+export type UpdateForkExcludedWorkflowsResponse = z.output<
+  typeof updateForkExcludedWorkflowsContract.response.schema
+>

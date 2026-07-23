@@ -9,8 +9,9 @@ permissions:
 
 jobs:
   test-build:
-    name: Test and Build
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    name: Lint and Test
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -24,33 +25,32 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: latest
+          node-version: 22
 
-      - name: Mount Bun cache (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      # Cache keys are scoped by event name, and fork PRs get their own
+      # namespace on top: untrusted fork runs must never share a cache with
+      # push runs (whose caches feed production image builds) or with trusted
+      # internal-PR runs.
+      - name: Mount Bun cache
+        uses: ./.github/actions/cache-mount
         with:
-          key: ${{ github.repository }}-bun-cache
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ~/.bun/install/cache
 
-      - name: Mount node_modules (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      - name: Mount node_modules
+        uses: ./.github/actions/cache-mount
         with:
-          key: ${{ github.repository }}-node-modules
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./node_modules
 
-      - name: Mount Turbo cache (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      - name: Mount Turbo cache
+        uses: ./.github/actions/cache-mount
         with:
-          key: ${{ github.repository }}-turbo-cache
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-turbo-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./.turbo
-
-      - name: Restore Next.js build cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: ./apps/sim/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -137,6 +137,9 @@ jobs:
       - name: Verify realtime prune graph
         run: bun run check:realtime-prune
 
+      - name: Verify skill projections are in sync
+        run: bun run skills:check
+
       - name: Migration safety (zero-downtime) audit
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -149,6 +152,11 @@ jobs:
 
       - name: Type-check realtime server
         run: bunx turbo run type-check --filter=@sim/realtime
+
+      # cloud-review-tools.test.ts runs the real helper on the runner, which shells
+      # out to rg. Blacksmith's image ships it, GitHub's doesn't.
+      - name: Install ripgrep
+        run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
 
       - name: Run tests with coverage
         env:
@@ -172,6 +180,77 @@ jobs:
           fi
           echo "✅ Schema and migrations are in sync"
 
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
+        with:
+          directory: ./apps/sim/coverage
+          fail_ci_if_error: false
+          verbose: true
+
+  # Next.js production build, in parallel with lint + tests. Sticky disks are
+  # cloned from the last committed snapshot per job and committed last-writer-
+  # wins, so concurrent mounts are safe. The bun/node_modules disks are shared
+  # with test-build (identical content from the same lockfile — LWW loss is
+  # harmless), but the Turbo cache gets its own key: with a shared key, only
+  # the last committer's new entries survive each run, so the test and build
+  # Turbo entries would evict each other nondeterministically.
+  # Same next build as the app image, so it needs the same larger runner in
+  # GitHub mode: it peaks ~21.9 GB and SIGKILLs on the free 16 GB ones.
+  build:
+    name: Build App
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+
+      - name: Mount Bun cache
+        uses: ./.github/actions/cache-mount
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+          path: ~/.bun/install/cache
+
+      - name: Mount node_modules
+        uses: ./.github/actions/cache-mount
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+          path: ./node_modules
+
+      - name: Mount Turbo cache
+        uses: ./.github/actions/cache-mount
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-turbo-cache-build-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+          path: ./.turbo
+
+      # Turbopack's persistent build cache (NEXT_TURBOPACK_BUILD_CACHE below)
+      # writes ~5 GB into .next/cache — a sticky disk mounts it in ~1s where an
+      # actions/cache round-trip would eat the warm-build win. Same event/fork
+      # namespacing as the other mounts; the GitHub fallback inside cache-mount
+      # still uses actions/cache with a run_id-suffixed key.
+      - name: Mount Next.js build cache
+        uses: ./.github/actions/cache-mount
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-nextjs-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+          path: ./apps/sim/.next/cache
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
       - name: Build application
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
@@ -183,11 +262,7 @@ jobs:
           AWS_REGION: 'us-west-2'
           ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
+          # Opt into Turbopack's persistent build cache (beta) for this CI
+          # check build only — measured 105s cold vs 22s warm locally.
+          NEXT_TURBOPACK_BUILD_CACHE: '1'
         run: bunx turbo run build --filter=sim
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
-        with:
-          directory: ./apps/sim/coverage
-          fail_ci_if_error: false
-          verbose: true

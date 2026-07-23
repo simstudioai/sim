@@ -168,6 +168,7 @@ export const workflow = pgTable(
     deployedAt: timestamp('deployed_at'),
     isPublicApi: boolean('is_public_api').notNull().default(false),
     locked: boolean('locked').notNull().default(false),
+    forkSyncExcluded: boolean('fork_sync_excluded').notNull().default(false),
     runCount: integer('run_count').notNull().default(0),
     lastRunAt: timestamp('last_run_at'),
     variables: json('variables').default('{}'),
@@ -633,6 +634,10 @@ export const workflowSchedule = pgTable(
       () => workflowDeploymentVersion.id,
       { onDelete: 'cascade' }
     ),
+    deploymentOperationId: text('deployment_operation_id').references(
+      (): AnyPgColumn => workflowDeploymentOperation.id,
+      { onDelete: 'set null' }
+    ),
     blockId: text('block_id'),
     cronExpression: text('cron_expression'),
     nextRunAt: timestamp('next_run_at'),
@@ -748,6 +753,10 @@ export const webhook = pgTable(
       () => workflowDeploymentVersion.id,
       { onDelete: 'cascade' }
     ),
+    registrationStatus: text('registration_status'),
+    registrationGeneration: integer('registration_generation'),
+    configFingerprint: text('config_fingerprint'),
+    preparedAt: timestamp('prepared_at'),
     blockId: text('block_id'),
     /**
      * URL-addressable webhook path. NULL for shared-app providers (e.g. the
@@ -801,8 +810,49 @@ export const webhook = pgTable(
         table.blockId,
         table.updatedAt.desc()
       ),
+      activeRegistrationUnique: uniqueIndex('webhook_active_registration_unique')
+        .on(table.workflowId, table.blockId)
+        .where(
+          sql`${table.registrationStatus} = 'active' AND ${table.blockId} IS NOT NULL AND ${table.archivedAt} IS NULL`
+        ),
+      candidateRegistrationUnique: uniqueIndex('webhook_candidate_registration_unique')
+        .on(table.workflowId, table.blockId)
+        .where(sql`${table.registrationStatus} = 'candidate' AND ${table.blockId} IS NOT NULL`),
+      registrationGenerationIdx: index('webhook_registration_status_generation_idx').on(
+        table.workflowId,
+        table.registrationStatus,
+        table.registrationGeneration
+      ),
+      registrationStatusCheck: check(
+        'webhook_registration_status_check',
+        sql`${table.registrationStatus} IS NULL OR ${table.registrationStatus} IN ('active', 'candidate', 'retired', 'orphaned')`
+      ),
+      registrationGenerationCheck: check(
+        'webhook_registration_generation_check',
+        sql`${table.registrationGeneration} IS NULL OR ${table.registrationGeneration} >= 0`
+      ),
     }
   }
+)
+
+/**
+ * Owns a normalized path independently from registration generations.
+ */
+export const webhookPathClaim = pgTable(
+  'webhook_path_claim',
+  {
+    path: text('path').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    generation: integer('generation').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workflowIdx: index('webhook_path_claim_workflow_idx').on(table.workflowId),
+    generationCheck: check('webhook_path_claim_generation_check', sql`${table.generation} >= 0`),
+  })
 )
 
 /**
@@ -1110,6 +1160,13 @@ export const chat = pgTable(
   }
 )
 
+/** A user-supplied custom regex pattern; matches are replaced verbatim with `replacement`. */
+export interface CustomPiiPattern {
+  name: string
+  regex: string
+  replacement: string
+}
+
 /** Per-stage PII redaction policy stored on a {@link PiiRedactionRule}. */
 export interface PiiStagePolicy {
   enabled: boolean
@@ -1117,6 +1174,8 @@ export interface PiiStagePolicy {
   entityTypes: string[]
   /** Language whose Presidio recognizers apply (e.g. 'en', 'es'); defaults to English. */
   language?: string
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns?: CustomPiiPattern[]
 }
 
 /**
@@ -1178,12 +1237,36 @@ export interface DataRetentionSettings {
   retentionOverrides?: RetentionOverride[] | null
 }
 
+/**
+ * Org-level session policy (enterprise). Absent or empty = Better Auth
+ * defaults (30-day sliding sessions). `maxSessionHours` caps absolute session
+ * lifetime from creation; `idleTimeoutHours` caps time between refreshes.
+ * Enforced by clamping `session.expiresAt` in the Better Auth session
+ * create/update database hooks; `securityPolicyVersion` invalidates cached
+ * session cookies org-wide when bumped.
+ */
+export interface SessionPolicySettings {
+  /** Absolute session lifetime cap in hours from session creation. */
+  maxSessionHours?: number | null
+  /** Idle timeout in hours — session expires this long after its last refresh. */
+  idleTimeoutHours?: number | null
+}
+
 export const organization = pgTable('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   slug: text('slug').notNull(),
   logo: text('logo'),
   metadata: json('metadata'),
+  sessionPolicySettings: json('session_policy_settings').$type<SessionPolicySettings>(),
+  /**
+   * Monotonic counter embedded in the Better Auth cookie-cache version for
+   * this org's members. Bumped on any security-policy change or org-wide
+   * session revocation so every cached session cookie in the org is
+   * invalidated (falls through to a DB session read) within the policy
+   * cache TTL instead of the 24h cookie-cache lifetime.
+   */
+  securityPolicyVersion: integer('security_policy_version').notNull().default(1),
   whitelabelSettings: json('whitelabel_settings').$type<{
     brandName?: string
     logoUrl?: string
@@ -1718,6 +1801,16 @@ export const workspaceFiles = pgTable(
     }),
     context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
+    /**
+     * Logical id of the copilot message this file was born in (the user message the
+     * upload was attached to). Plain text with no FK: message ids are only unique per
+     * chat — the same id legitimately exists in the source chat and every fork of it,
+     * which is what lets a fork's "copy files at-or-before this message" cut match rows
+     * in both. NULL means "birth unknown / not tracked": rows predating this column and
+     * contexts that don't stamp it. Nulled together with chatId when a file is
+     * materialized to the workspace.
+     */
+    messageId: text('message_id'),
     originalName: text('original_name').notNull(),
     /**
      * Collision-disambiguated name exposed to the copilot VFS as `uploads/<displayName>`.
@@ -2328,6 +2421,7 @@ export const copilotChats = pgTable(
     resources: jsonb('resources').notNull().default('[]'),
     lastSeenAt: timestamp('last_seen_at'),
     pinned: boolean('pinned').notNull().default(false),
+    deletedAt: timestamp('deleted_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -2351,6 +2445,11 @@ export const copilotChats = pgTable(
       sql`date_trunc('milliseconds', ${table.createdAt})`,
       table.id
     ),
+
+    // Soft-deleted chats surfaced in Recently Deleted (listed per user + workspace)
+    userWorkspaceDeletedPartialIdx: index('copilot_chats_user_workspace_deleted_partial_idx')
+      .on(table.userId, table.workspaceId)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
   })
 )
 
@@ -2649,6 +2748,82 @@ export const workflowDeploymentVersion = pgTable(
       table.isActive
     ),
     createdAtIdx: index('workflow_deployment_version_created_at_idx').on(table.createdAt),
+  })
+)
+
+/**
+ * Tracks mutable deployment attempts separately from immutable version snapshots.
+ */
+export const workflowDeploymentOperation = pgTable(
+  'workflow_deployment_operation',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    deploymentVersionId: text('deployment_version_id')
+      .notNull()
+      .references(() => workflowDeploymentVersion.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    previousActiveVersionId: text('previous_active_version_id').references(
+      () => workflowDeploymentVersion.id,
+      { onDelete: 'set null' }
+    ),
+    action: text('action').notNull(),
+    protocolVersion: integer('protocol_version').notNull(),
+    generation: integer('generation').notNull(),
+    status: text('status').notNull().default('preparing'),
+    componentReadiness: jsonb('component_readiness')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    idempotencyKey: text('idempotency_key'),
+    requestHash: text('request_hash').notNull(),
+    actorId: text('actor_id').notNull(),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workflowGenerationUnique: uniqueIndex(
+      'workflow_deployment_operation_workflow_generation_unique'
+    ).on(table.workflowId, table.generation),
+    workflowIdempotencyUnique: uniqueIndex(
+      'workflow_deployment_operation_workflow_idempotency_unique'
+    )
+      .on(table.workflowId, table.idempotencyKey)
+      .where(sql`${table.idempotencyKey} IS NOT NULL`),
+    workflowInFlightUnique: uniqueIndex('workflow_deployment_operation_workflow_in_flight_unique')
+      .on(table.workflowId)
+      .where(sql`${table.status} IN ('preparing', 'activating')`),
+    workflowStatusIdx: index('workflow_deployment_operation_workflow_status_idx').on(
+      table.workflowId,
+      table.status
+    ),
+    deploymentVersionIdx: index('workflow_deployment_operation_deployment_version_idx').on(
+      table.deploymentVersionId
+    ),
+    workflowVersionGenerationIdx: index(
+      'workflow_deployment_operation_workflow_version_generation_idx'
+    ).on(table.workflowId, table.deploymentVersionId, table.generation.desc()),
+    actionCheck: check(
+      'workflow_deployment_operation_action_check',
+      sql`${table.action} IN ('deploy', 'activate')`
+    ),
+    statusCheck: check(
+      'workflow_deployment_operation_status_check',
+      sql`${table.status} IN ('preparing', 'activating', 'active', 'failed', 'superseded')`
+    ),
+    generationCheck: check(
+      'workflow_deployment_operation_generation_check',
+      sql`${table.generation} > 0`
+    ),
+    protocolVersionCheck: check(
+      'workflow_deployment_operation_protocol_version_check',
+      sql`${table.protocolVersion} > 0`
+    ),
   })
 )
 

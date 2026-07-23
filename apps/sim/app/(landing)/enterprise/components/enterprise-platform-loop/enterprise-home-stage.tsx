@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, cn } from '@sim/emcn'
 import {
   ArrowRight,
@@ -26,8 +26,6 @@ import {
   REPLY_WORD_MS,
   SUGGESTED_ACTIONS,
 } from '@/app/(landing)/enterprise/components/enterprise-platform-loop/stage-data'
-
-const REPLY_WORDS = ENTERPRISE_REPLY.split(' ')
 
 /**
  * Reveals an incrementing count (typed chars, streamed words) at a fixed
@@ -139,6 +137,16 @@ interface EnterpriseHomeStageProps {
   phase: EnterpriseLoopPhase
   /** True during the brief fade-out before the cycle restarts. */
   fading: boolean
+  /** Personalized new-chat greeting. Defaults to the enterprise copy. */
+  greeting?: string
+  /** Composer placeholder before typing starts. Defaults to the enterprise copy. */
+  placeholder?: string
+  /** The prompt the loop types out. Defaults to the enterprise copy. */
+  prompt?: string
+  /** Sim's streamed reply. Defaults to the enterprise copy. */
+  reply?: string
+  /** Suggested-action rows under the composer. Defaults to the enterprise set. */
+  suggestedActions?: readonly [string, string, string, string]
 }
 
 /**
@@ -156,15 +164,24 @@ interface EnterpriseHomeStageProps {
  * ELAPSED time so throttled background tabs catch up instead of stalling
  * mid-sentence.
  */
-export function EnterpriseHomeStage({ phase, fading }: EnterpriseHomeStageProps) {
+export function EnterpriseHomeStage({
+  phase,
+  fading,
+  greeting = ENTERPRISE_GREETING,
+  placeholder = COMPOSER_PLACEHOLDER,
+  prompt = ENTERPRISE_PROMPT,
+  reply = ENTERPRISE_REPLY,
+  suggestedActions = SUGGESTED_ACTIONS,
+}: EnterpriseHomeStageProps) {
   const isTyping = phase === 'typing'
   const isReply = phase === 'reply'
   const inConversation = phase === 'dispatch' || isReply
   const promptDone = phase === 'typed' || inConversation
-  const typedChars = useElapsedReveal(isTyping, PROMPT_CHAR_MS, ENTERPRISE_PROMPT.length)
-  const revealedWords = useElapsedReveal(isReply, REPLY_WORD_MS, REPLY_WORDS.length)
+  const replyWords = useMemo(() => reply.split(' '), [reply])
+  const typedChars = useElapsedReveal(isTyping, PROMPT_CHAR_MS, prompt.length)
+  const revealedWords = useElapsedReveal(isReply, REPLY_WORD_MS, replyWords.length)
 
-  const visiblePrompt = promptDone ? ENTERPRISE_PROMPT : ENTERPRISE_PROMPT.slice(0, typedChars)
+  const visiblePrompt = promptDone ? prompt : prompt.slice(0, typedChars)
   const hasText = visiblePrompt.length > 0
 
   return (
@@ -182,7 +199,7 @@ export function EnterpriseHomeStage({ phase, fading }: EnterpriseHomeStageProps)
           inConversation ? 'pointer-events-none opacity-0' : 'opacity-100'
         )}
       >
-        <p className='mb-7 text-[30px] text-[var(--text-primary)]'>{ENTERPRISE_GREETING}</p>
+        <p className='mb-7 text-[30px] text-[var(--text-primary)]'>{greeting}</p>
 
         <div className='w-full max-w-[576px]'>
           <Composer active={hasText}>
@@ -192,7 +209,7 @@ export function EnterpriseHomeStage({ phase, fading }: EnterpriseHomeStageProps)
                 {isTyping && <Caret />}
               </>
             ) : (
-              <span className='font-[380] text-[var(--text-muted)]'>{COMPOSER_PLACEHOLDER}</span>
+              <span className='font-[380] text-[var(--text-muted)]'>{placeholder}</span>
             )}
           </Composer>
 
@@ -208,7 +225,7 @@ export function EnterpriseHomeStage({ phase, fading }: EnterpriseHomeStageProps)
               </span>
             </div>
             <div className='mt-2 flex flex-col'>
-              {SUGGESTED_ACTIONS.map((action, i) => {
+              {suggestedActions.map((action, i) => {
                 const Icon = ACTION_ICONS[i]
                 return (
                   <span
@@ -242,7 +259,7 @@ export function EnterpriseHomeStage({ phase, fading }: EnterpriseHomeStageProps)
       >
         <div className='mx-auto flex min-h-0 w-full max-w-[640px] flex-1 flex-col gap-6 overflow-hidden px-6 pt-6'>
           <div className='max-w-[82%] self-end rounded-2xl bg-[var(--surface-3)] px-4 py-3 text-[15px] text-[var(--text-primary)] leading-[1.5]'>
-            {ENTERPRISE_PROMPT}
+            {prompt}
           </div>
           {phase === 'dispatch' && (
             <ThinkingLoader size={26} phase labelRatio={0.58} className='mt-1' />
@@ -253,7 +270,7 @@ export function EnterpriseHomeStage({ phase, fading }: EnterpriseHomeStageProps)
               isReply ? 'opacity-100' : 'opacity-0'
             )}
           >
-            {REPLY_WORDS.slice(0, revealedWords).join(' ')}
+            {replyWords.slice(0, revealedWords).join(' ')}
           </p>
         </div>
         <div className='mx-auto mb-5 w-[calc(100%-40px)] max-w-[600px] shrink-0'>

@@ -9,13 +9,13 @@ import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
 const logger = createLogger('TriggerKnowledgeConnectorSync')
 
 export async function executeConnectorSyncJob(payload: unknown) {
-  const { connectorId, fullSync, requestId, billingAttribution } =
+  const { connectorId, fullSync, rehydrate, requestId, billingAttribution } =
     assertConnectorSyncPayload(payload)
 
   logger.info(`[${requestId}] Starting connector sync: ${connectorId}`)
 
   try {
-    const result = await executeSync(connectorId, { billingAttribution, fullSync })
+    const result = await executeSync(connectorId, { billingAttribution, fullSync, rehydrate })
 
     logger.info(`[${requestId}] Connector sync completed`, {
       connectorId,

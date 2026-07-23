@@ -8,10 +8,12 @@
  *
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db', () => dbChainMock)
+afterAll(() => {
+  resetDbChainMock()
+})
 
 const {
   mockGetFreeTierLimit,
@@ -84,6 +86,7 @@ const PRO_SUBSCRIPTION = {
 describe('getUserUsageLimit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockIsOrgScopedSubscription.mockReturnValue(false)
     mockGetHighestPrioritySubscription.mockResolvedValue(null)
   })
@@ -164,6 +167,7 @@ describe('getUserUsageLimit', () => {
 describe('syncUsageLimitsFromSubscription', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockIsOrgScopedSubscription.mockReturnValue(false)
   })
 

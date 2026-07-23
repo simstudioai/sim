@@ -20,8 +20,6 @@ const {
   mockResolveBillingInterval: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
-
 vi.mock('@/lib/billing/core/subscription', () => ({
   getHighestPriorityPersonalSubscription: mockGetHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,

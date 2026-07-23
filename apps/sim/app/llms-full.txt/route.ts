@@ -154,14 +154,14 @@ Built-in table creation and management:
 - [Documentation](https://docs.sim.ai): Product guides and technical reference
 - [API Reference](https://docs.sim.ai/api): API documentation
 - [GitHub](https://github.com/simstudioai/sim): Open-source codebase
-- [Discord](https://discord.gg/Hr4UWYEcTT): Community server
+- [Slack](https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA): Community workspace
 - [X/Twitter](https://x.com/simdotai): Announcements and updates
 - [LinkedIn](https://linkedin.com/company/simstudioai): Company page
 
 ## Support
 
 - [Documentation](https://docs.sim.ai): Self-serve guides and reference
-- [Community Discord](https://discord.gg/Hr4UWYEcTT): Community support
+- [Community Slack](https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA): Community support
 - Email: help@sim.ai
 - Security issues: security@sim.ai
 

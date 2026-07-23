@@ -2,7 +2,9 @@
  * @vitest-environment node
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { outboxEvent } from '@sim/db/schema'
+import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type OutboxRow = {
   id: string
@@ -17,117 +19,6 @@ type OutboxRow = {
   createdAt: Date
   processedAt: Date | null
 }
-
-// Hoisted mock state — all tests manipulate these directly.
-const { state, mockDb } = vi.hoisted(() => {
-  const state = {
-    // Rows returned from the FOR UPDATE SKIP LOCKED select in claimBatch.
-    claimedRows: [] as OutboxRow[],
-    // Whether the terminal update (lease CAS) should report a match.
-    leaseHeld: true,
-    // IDs the reaper's UPDATE should return (simulates stuck `processing` rows).
-    reapedRowIds: [] as string[],
-    // Everything written (for assertions).
-    inserts: [] as Array<{ values: unknown }>,
-    updates: [] as Array<{ set: Record<string, unknown>; where?: unknown }>,
-  }
-
-  const makeUpdateChain = () => {
-    const row: { set: Record<string, unknown>; where?: unknown } = { set: {} }
-    const chain: Record<string, unknown> = {}
-    chain.set = vi.fn((s: Record<string, unknown>) => {
-      row.set = s
-      return chain
-    })
-    chain.where = vi.fn((w: unknown) => {
-      row.where = w
-      state.updates.push(row)
-      return chain
-    })
-    chain.returning = vi.fn(async () => {
-      // Terminal UPDATE (lease CAS): has `attempts` + `availableAt`
-      // on retry, or explicit completed/dead_letter. Reaper path sets
-      // status='pending' without attempts/availableAt.
-      const isReaperUpdate =
-        row.set.status === 'pending' && !('attempts' in row.set) && !('availableAt' in row.set)
-
-      if (isReaperUpdate) {
-        return state.reapedRowIds.map((id) => ({ id }))
-      }
-
-      if (
-        row.set.status === 'completed' ||
-        row.set.status === 'dead_letter' ||
-        (row.set.status === 'pending' && 'attempts' in row.set && 'availableAt' in row.set) ||
-        (!('status' in row.set) && 'attempts' in row.set && 'lockedAt' in row.set) ||
-        'payload' in row.set
-      ) {
-        return state.leaseHeld ? [{ id: 'evt-1' }] : []
-      }
-
-      return []
-    })
-    return chain
-  }
-
-  const makeSelectChain = () => {
-    const chain: Record<string, unknown> = {}
-    const self = () => chain
-    chain.from = vi.fn(self)
-    chain.where = vi.fn(self)
-    chain.orderBy = vi.fn(self)
-    chain.limit = vi.fn(self)
-    chain.for = vi.fn(async () => state.claimedRows.splice(0, 1))
-    return chain
-  }
-
-  const mockDb = {
-    insert: vi.fn(() => {
-      const chain: Record<string, unknown> = {}
-      chain.values = vi.fn(async (v: unknown) => {
-        state.inserts.push({ values: v })
-      })
-      return chain
-    }),
-    update: vi.fn(() => makeUpdateChain()),
-    select: vi.fn(() => makeSelectChain()),
-    transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(mockDb)),
-  }
-
-  return { state, mockDb }
-})
-
-vi.mock('@sim/db', () => ({ db: mockDb }))
-
-vi.mock('@sim/db/schema', () => ({
-  outboxEvent: {
-    id: 'outbox_event.id',
-    eventType: 'outbox_event.event_type',
-    payload: 'outbox_event.payload',
-    status: 'outbox_event.status',
-    attempts: 'outbox_event.attempts',
-    maxAttempts: 'outbox_event.max_attempts',
-    availableAt: 'outbox_event.available_at',
-    lockedAt: 'outbox_event.locked_at',
-    lastError: 'outbox_event.last_error',
-    createdAt: 'outbox_event.created_at',
-    processedAt: 'outbox_event.processed_at',
-    $inferSelect: {} as OutboxRow,
-  },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...args) => ({ _op: 'and', args })),
-  asc: vi.fn((col) => ({ _op: 'asc', col })),
-  eq: vi.fn((col, val) => ({ _op: 'eq', col, val })),
-  inArray: vi.fn((col, vals) => ({ _op: 'inArray', col, vals })),
-  lte: vi.fn((col, val) => ({ _op: 'lte', col, val })),
-  sql: vi.fn(() => ({ _op: 'sql' })),
-}))
 
 vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn(() => 'test-event-id'),
@@ -152,24 +43,32 @@ function makePendingRow(overrides: Partial<OutboxRow> = {}): OutboxRow {
   }
 }
 
-function resetState() {
-  state.claimedRows = []
-  state.leaseHeld = true
-  state.reapedRowIds = []
-  state.inserts.length = 0
-  state.updates.length = 0
+/** The values object of every `set(...)` call, in call order. */
+const updateSets = (): Record<string, unknown>[] =>
+  dbChainMockFns.set.mock.calls.map((call) => call[0] as Record<string, unknown>)
+
+/**
+ * Simulate a held processing lease: the reaper's `returning` (always the first
+ * `.returning()` of a run) reaps nothing, and every later terminal /
+ * checkpoint UPDATE's lease CAS reports a matched row. Without this priming,
+ * `returning` defaults to `[]` everywhere, which models a lost lease.
+ */
+function holdLease() {
+  dbChainMockFns.returning.mockResolvedValueOnce([]).mockResolvedValue([{ id: 'evt-1' }])
 }
+
+afterAll(resetDbChainMock)
 
 describe('enqueueOutboxEvent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    resetState()
+    resetDbChainMock()
   })
 
   it('inserts a row with the given event type and payload', async () => {
-    const id = await enqueueOutboxEvent(mockDb, 'test.event', { foo: 'bar' })
+    const id = await enqueueOutboxEvent(dbChainMock.db, 'test.event', { foo: 'bar' })
     expect(id).toBe('test-event-id')
-    expect(state.inserts[0].values).toMatchObject({
+    expect(dbChainMockFns.values.mock.calls[0][0]).toMatchObject({
       id: 'test-event-id',
       eventType: 'test.event',
       payload: { foo: 'bar' },
@@ -178,21 +77,23 @@ describe('enqueueOutboxEvent', () => {
   })
 
   it('respects maxAttempts override', async () => {
-    await enqueueOutboxEvent(mockDb, 'test.event', {}, { maxAttempts: 3 })
-    expect(state.inserts[0].values).toMatchObject({ maxAttempts: 3 })
+    await enqueueOutboxEvent(dbChainMock.db, 'test.event', {}, { maxAttempts: 3 })
+    expect(dbChainMockFns.values.mock.calls[0][0]).toMatchObject({ maxAttempts: 3 })
   })
 
   it('respects availableAt override for delayed processing', async () => {
     const future = new Date(Date.now() + 60_000)
-    await enqueueOutboxEvent(mockDb, 'test.event', {}, { availableAt: future })
-    expect((state.inserts[0].values as { availableAt: Date }).availableAt).toBe(future)
+    await enqueueOutboxEvent(dbChainMock.db, 'test.event', {}, { availableAt: future })
+    expect((dbChainMockFns.values.mock.calls[0][0] as { availableAt: Date }).availableAt).toBe(
+      future
+    )
   })
 })
 
 describe('processOutboxEvents — empty / no handler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    resetState()
+    resetDbChainMock()
   })
 
   it('returns zero counts when no events are due', async () => {
@@ -207,21 +108,22 @@ describe('processOutboxEvents — empty / no handler', () => {
   })
 
   it('dead-letters events with no registered handler', async () => {
-    state.claimedRows = [makePendingRow({ eventType: 'unknown.event' })]
+    queueTableRows(outboxEvent, [makePendingRow({ eventType: 'unknown.event' })])
+    holdLease()
 
     const result = await processOutboxEvents({})
 
     expect(result.deadLettered).toBe(1)
-    const terminal = state.updates.find((u) => u.set.status === 'dead_letter')
+    const terminal = updateSets().find((set) => set.status === 'dead_letter')
     expect(terminal).toBeDefined()
-    expect(terminal?.set.lastError).toMatch(/No handler registered/)
+    expect(terminal?.lastError).toMatch(/No handler registered/)
   })
 })
 
 describe('processOutboxEvents — handler success and retry', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    resetState()
+    resetDbChainMock()
   })
 
   it('transitions to completed on handler success and passes context to handler', async () => {
@@ -230,15 +132,16 @@ describe('processOutboxEvents — handler success and retry', () => {
       handlerCalls.push({ payload, eventId: ctx.eventId, attempts: ctx.attempts })
     })
 
-    state.claimedRows = [makePendingRow()]
+    queueTableRows(outboxEvent, [makePendingRow()])
+    holdLease()
 
     const result = await processOutboxEvents({ 'test.event': handler })
 
     expect(result.processed).toBe(1)
     expect(handlerCalls).toEqual([{ payload: { foo: 'bar' }, eventId: 'evt-1', attempts: 0 }])
-    const completeUpdate = state.updates.find((u) => u.set.status === 'completed')
+    const completeUpdate = updateSets().find((set) => set.status === 'completed')
     expect(completeUpdate).toBeDefined()
-    expect(completeUpdate?.set.lastError).toBeNull()
+    expect(completeUpdate?.lastError).toBeNull()
   })
 
   it('checkpoints payload fields only while the processing lease is held', async () => {
@@ -250,12 +153,13 @@ describe('processOutboxEvents — handler success and retry', () => {
         await ctx.checkpointPayload({ stripeProgress: { customerId: 'cus_1' } })
       }
     )
-    state.claimedRows = [makePendingRow()]
+    queueTableRows(outboxEvent, [makePendingRow()])
+    holdLease()
 
     const result = await processOutboxEvents({ 'test.event': handler })
 
     expect(result.processed).toBe(1)
-    expect(state.updates.some((update) => 'payload' in update.set)).toBe(true)
+    expect(updateSets().some((set) => 'payload' in set)).toBe(true)
   })
 
   it('stops a handler whose payload checkpoint loses the processing lease', async () => {
@@ -267,8 +171,7 @@ describe('processOutboxEvents — handler success and retry', () => {
         await ctx.checkpointPayload({ stripeProgress: { customerId: 'cus_1' } })
       }
     )
-    state.claimedRows = [makePendingRow()]
-    state.leaseHeld = false
+    queueTableRows(outboxEvent, [makePendingRow()])
 
     const result = await processOutboxEvents({ 'test.event': handler })
 
@@ -281,18 +184,19 @@ describe('processOutboxEvents — handler success and retry', () => {
       throw new Error('transient failure')
     })
 
-    state.claimedRows = [makePendingRow({ attempts: 2 })]
+    queueTableRows(outboxEvent, [makePendingRow({ attempts: 2 })])
+    holdLease()
 
     const before = Date.now()
     const result = await processOutboxEvents({ 'test.event': handler })
 
     expect(result.retried).toBe(1)
-    const retryUpdate = state.updates.find((u) => u.set.status === 'pending' && 'attempts' in u.set)
+    const retryUpdate = updateSets().find((set) => set.status === 'pending' && 'attempts' in set)
     expect(retryUpdate).toBeDefined()
-    expect(retryUpdate?.set.attempts).toBe(3)
-    expect(retryUpdate?.set.lastError).toBe('transient failure')
+    expect(retryUpdate?.attempts).toBe(3)
+    expect(retryUpdate?.lastError).toBe('transient failure')
     // Backoff after nextAttempts=3: 1000 * 2^3 = 8000ms
-    const scheduledAt = retryUpdate?.set.availableAt as Date
+    const scheduledAt = retryUpdate?.availableAt as Date
     expect(scheduledAt.getTime()).toBeGreaterThan(before + 7500)
     expect(scheduledAt.getTime()).toBeLessThan(before + 10_000)
   })
@@ -302,15 +206,16 @@ describe('processOutboxEvents — handler success and retry', () => {
       throw new Error('permanent failure')
     })
 
-    state.claimedRows = [makePendingRow({ attempts: 9, maxAttempts: 10 })]
+    queueTableRows(outboxEvent, [makePendingRow({ attempts: 9, maxAttempts: 10 })])
+    holdLease()
 
     const result = await processOutboxEvents({ 'test.event': handler })
 
     expect(result.deadLettered).toBe(1)
-    const deadUpdate = state.updates.find((u) => u.set.status === 'dead_letter')
+    const deadUpdate = updateSets().find((set) => set.status === 'dead_letter')
     expect(deadUpdate).toBeDefined()
-    expect(deadUpdate?.set.attempts).toBe(10)
-    expect(deadUpdate?.set.lastError).toBe('permanent failure')
+    expect(deadUpdate?.attempts).toBe(10)
+    expect(deadUpdate?.lastError).toBe('permanent failure')
   })
 
   it('caps exponential backoff at 1 hour', async () => {
@@ -318,14 +223,15 @@ describe('processOutboxEvents — handler success and retry', () => {
       throw new Error('transient')
     })
 
-    state.claimedRows = [makePendingRow({ attempts: 20, maxAttempts: 100 })]
+    queueTableRows(outboxEvent, [makePendingRow({ attempts: 20, maxAttempts: 100 })])
+    holdLease()
 
     const before = Date.now()
     await processOutboxEvents({ 'test.event': handler })
 
-    const retryUpdate = state.updates.find((u) => u.set.status === 'pending' && 'attempts' in u.set)
+    const retryUpdate = updateSets().find((set) => set.status === 'pending' && 'attempts' in set)
     expect(retryUpdate).toBeDefined()
-    const scheduledAt = retryUpdate?.set.availableAt as Date
+    const scheduledAt = retryUpdate?.availableAt as Date
     // 1hr = 3,600,000ms
     expect(scheduledAt.getTime()).toBeLessThan(before + 3_600_000 + 1000)
     expect(scheduledAt.getTime()).toBeGreaterThan(before + 3_599_000)
@@ -335,7 +241,7 @@ describe('processOutboxEvents — handler success and retry', () => {
 describe('processOutboxEvents — lease CAS / reaper race', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    resetState()
+    resetDbChainMock()
   })
 
   it('reports leaseLost when completion UPDATE affects zero rows', async () => {
@@ -343,8 +249,7 @@ describe('processOutboxEvents — lease CAS / reaper race', () => {
       // "succeeds" but terminal write will fail the lease CAS
     })
 
-    state.claimedRows = [makePendingRow()]
-    state.leaseHeld = false
+    queueTableRows(outboxEvent, [makePendingRow()])
 
     const result = await processOutboxEvents({ 'test.event': handler })
 
@@ -357,8 +262,7 @@ describe('processOutboxEvents — lease CAS / reaper race', () => {
       throw new Error('transient')
     })
 
-    state.claimedRows = [makePendingRow({ attempts: 2 })]
-    state.leaseHeld = false
+    queueTableRows(outboxEvent, [makePendingRow({ attempts: 2 })])
 
     const result = await processOutboxEvents({ 'test.event': handler })
 
@@ -370,7 +274,7 @@ describe('processOutboxEvents — lease CAS / reaper race', () => {
 describe('processOutboxEvents — handler timeout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    resetState()
+    resetDbChainMock()
     vi.useFakeTimers()
   })
 
@@ -381,7 +285,8 @@ describe('processOutboxEvents — handler timeout', () => {
   it('times out a stuck handler without releasing it for overlapping retry', async () => {
     const neverResolves = vi.fn(() => new Promise<void>(() => {}))
 
-    state.claimedRows = [makePendingRow({ attempts: 0 })]
+    queueTableRows(outboxEvent, [makePendingRow({ attempts: 0 })])
+    holdLease()
 
     const promise = processOutboxEvents({ 'test.event': neverResolves })
     // Must exceed DEFAULT_HANDLER_TIMEOUT_MS (90s).
@@ -389,22 +294,51 @@ describe('processOutboxEvents — handler timeout', () => {
     const result = await promise
 
     expect(result.leaseLost).toBe(1)
-    const timeoutUpdate = state.updates.find(
-      (u) => !('status' in u.set) && 'attempts' in u.set && 'lockedAt' in u.set
+    const timeoutUpdate = updateSets().find(
+      (set) => !('status' in set) && 'attempts' in set && 'lockedAt' in set
     )
-    expect(timeoutUpdate?.set.attempts).toBe(1)
-    expect(timeoutUpdate?.set.lastError).toMatch(/timed out/)
+    expect(timeoutUpdate?.attempts).toBe(1)
+    expect(timeoutUpdate?.lastError).toMatch(/timed out/)
+  })
+
+  it('aborts the handler signal when its execution window expires', async () => {
+    let handlerSignal: AbortSignal | undefined
+    const handler = vi.fn(
+      async (
+        _payload: unknown,
+        context: { maxAttempts: number; signal: AbortSignal }
+      ): Promise<void> => {
+        handlerSignal = context.signal
+        expect(context.maxAttempts).toBe(10)
+        await new Promise<void>((resolve) => {
+          context.signal.addEventListener('abort', () => resolve(), { once: true })
+        })
+      }
+    )
+    queueTableRows(outboxEvent, [makePendingRow({ attempts: 0 })])
+    holdLease()
+
+    const promise = processOutboxEvents({ 'test.event': handler })
+    await vi.advanceTimersByTimeAsync(90 * 1000 + 1)
+    const result = await promise
+
+    expect(handlerSignal?.aborted).toBe(true)
+    expect(result.leaseLost).toBe(1)
   })
 })
 
 describe('processOutboxEvents — reaper recovery', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    resetState()
+    resetDbChainMock()
   })
 
   it('reaps stuck processing rows back to pending and reports count', async () => {
-    state.reapedRowIds = ['stuck-1', 'stuck-2', 'stuck-3']
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'stuck-1' },
+      { id: 'stuck-2' },
+      { id: 'stuck-3' },
+    ])
 
     const result = await processOutboxEvents({})
 
@@ -413,11 +347,11 @@ describe('processOutboxEvents — reaper recovery', () => {
 
     // The reaper's UPDATE sets status='pending' with NO attempts / availableAt
     // fields — that's how runHandler's retry update is distinguished from it.
-    const reaperUpdate = state.updates.find(
-      (u) => u.set.status === 'pending' && !('attempts' in u.set) && !('availableAt' in u.set)
+    const reaperUpdate = updateSets().find(
+      (set) => set.status === 'pending' && !('attempts' in set) && !('availableAt' in set)
     )
     expect(reaperUpdate).toBeDefined()
-    expect(reaperUpdate?.set.lockedAt).toBeNull()
+    expect(reaperUpdate?.lockedAt).toBeNull()
   })
 
   it('returns zero reaped when no rows are stuck', async () => {

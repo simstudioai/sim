@@ -16,6 +16,13 @@ export const pipedriveGetFilesTool: ToolConfig<PipedriveGetFilesParams, Pipedriv
         visibility: 'hidden',
         description: 'The access token for the Pipedrive API',
       },
+      authStyle: {
+        type: 'string',
+        required: false,
+        visibility: 'hidden',
+        description:
+          'Auth scheme for the token; set by the credential resolver for API-token service accounts',
+      },
       sort: {
         type: 'string',
         required: false,
@@ -50,6 +57,7 @@ export const pipedriveGetFilesTool: ToolConfig<PipedriveGetFilesParams, Pipedriv
       }),
       body: (params) => ({
         accessToken: params.accessToken,
+        authStyle: params.authStyle,
         sort: params.sort,
         limit: params.limit,
         start: params.start,

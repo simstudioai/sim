@@ -53,9 +53,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       workflowId,
       version,
       userId: auth.userId,
-      workflow: access.workflow as Record<string, unknown>,
       requestId,
-      request,
     })
 
     if (!result.success) {
@@ -69,9 +67,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       success: true,
       output: {
         workflowId,
-        isDeployed: true,
+        isDeployed: Boolean(result.activeDeployment),
         deployedAt: result.deployedAt?.toISOString() ?? null,
         version,
+        activeDeployment: result.activeDeployment,
+        latestDeploymentAttempt: result.latestDeploymentAttempt,
         warnings: result.warnings ?? [],
       },
     })

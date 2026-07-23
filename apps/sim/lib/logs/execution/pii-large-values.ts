@@ -3,12 +3,21 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { LargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
-import { materializeLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
+import {
+  appendLargeArrayManifest,
+  createLargeArrayManifest,
+  readLargeArrayManifestSlice,
+} from '@/lib/execution/payloads/large-array-manifest'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef, type LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import {
+  MAX_DURABLE_LARGE_VALUE_BYTES,
+  MAX_INLINE_MATERIALIZATION_BYTES,
+} from '@/lib/execution/payloads/materialization.server'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
+import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 import {
   PiiRedactionError,
   type PiiRedactionFailureMode,
@@ -23,6 +32,8 @@ export interface RedactLargeValueRefsOptions {
   /** Presidio entity types to mask. Empty = redact all detected PII. */
   entityTypes: string[]
   language: string
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns?: CustomPiiPattern[]
   /** Storage scope for materializing and re-storing the masked values. */
   store: LargeValueStoreContext
   /**
@@ -32,6 +43,41 @@ export interface RedactLargeValueRefsOptions {
    * than feeding a marker (or leaking raw bytes) downstream.
    */
   onFailure?: PiiRedactionFailureMode
+  /**
+   * @internal Shared across every nested invocation spawned from one entry-point
+   * call, so oversized hydrations serialize globally — not just within their own
+   * {@link resolveReplacements} pass. Created by the entry points; callers never
+   * set it.
+   */
+  oversizedGate?: OversizedHydrationGate
+  /**
+   * @internal True while running under the gate. Nested oversized work inside a
+   * gated ref runs directly instead of re-acquiring — the holder would otherwise
+   * wait on itself (deadlock). Safe because the holder is globally serialized.
+   */
+  withinOversizedGate?: boolean
+}
+
+/** Promise-chain mutex for oversized hydrations (see {@link requiresSerialHydration}). */
+interface OversizedHydrationGate {
+  chain: Promise<void>
+}
+
+/** Queue `fn` behind every previously gated task; failures don't poison the chain. */
+async function runSerially<T>(gate: OversizedHydrationGate, fn: () => Promise<T>): Promise<T> {
+  const run = gate.chain.then(fn)
+  gate.chain = run.then(
+    () => undefined,
+    () => undefined
+  )
+  return run
+}
+
+/** Ensure one shared gate exists for the whole entry-point call tree. */
+function withOversizedGate(options: RedactLargeValueRefsOptions): RedactLargeValueRefsOptions {
+  return options.oversizedGate
+    ? options
+    : { ...options, oversizedGate: { chain: Promise.resolve() } }
 }
 
 /**
@@ -54,6 +100,7 @@ export async function redactLargeValueRefs(
   payload: RedactablePayload,
   options: RedactLargeValueRefsOptions
 ): Promise<RedactablePayload> {
+  const gatedOptions = withOversizedGate(options)
   // Collect refs across the WHOLE payload first (shared `seen`), so every ref is
   // hydrated+masked+re-stored in one bounded-concurrency pass instead of one
   // sequential pass per key. A ref shared across keys is walked/masked once.
@@ -64,7 +111,7 @@ export async function redactLargeValueRefs(
   }
   if (refs.length === 0) return payload
 
-  const replacements = await resolveReplacements(refs, options)
+  const replacements = await resolveReplacements(refs, gatedOptions)
   const result: RedactablePayload = { ...payload }
   for (const key of Object.keys(payload) as (keyof RedactablePayload)[]) {
     if (payload[key] !== undefined) result[key] = substituteRefs(payload[key], replacements)
@@ -82,7 +129,7 @@ export async function redactLargeValueRefsInValue<T>(
   value: T,
   options: RedactLargeValueRefsOptions
 ): Promise<T> {
-  return (await redactValueRefs(value, options)) as T
+  return (await redactValueRefs(value, withOversizedGate(options))) as T
 }
 
 /** Sync-collect every ref/manifest in `value`, then async-replace each, then sync-substitute. */
@@ -106,9 +153,29 @@ async function redactValueRefs(
 const REF_CONCURRENCY = env.PII_REF_CONCURRENCY ?? 4
 
 /**
+ * A single ref past the default inline ceiling hydrates its whole blob at once
+ * (~2-3× its serialized size in transient heap) — and a manifest whose packer
+ * emitted an oversized chunk (a single item larger than the chunk target)
+ * hydrates that chunk the same way. Those run serially instead of in the
+ * {@link REF_CONCURRENCY} pool — one 64MB hydration is fine, four at once is an
+ * OOM on the small trigger.dev machines. Normally-chunked manifests page ~8MB
+ * at a time and stay pooled regardless of total size.
+ */
+function requiresSerialHydration(ref: object): boolean {
+  if (isLargeValueRef(ref)) {
+    return ref.size > MAX_INLINE_MATERIALIZATION_BYTES
+  }
+  if (isLargeArrayManifest(ref)) {
+    return ref.chunks.some((chunk) => chunk.byteSize > MAX_INLINE_MATERIALIZATION_BYTES)
+  }
+  return false
+}
+
+/**
  * Dedupe the collected refs by identity, then replace each in parallel (bounded by
- * {@link REF_CONCURRENCY}). `Map.set` is synchronous, so concurrent workers writing
- * the shared map do not race.
+ * {@link REF_CONCURRENCY}); refs needing an oversized hydration run serially after
+ * the pool drains (see {@link requiresSerialHydration}). `Map.set` is synchronous,
+ * so concurrent workers writing the shared map do not race.
  *
  * `mapWithConcurrency`'s `fn` must not reject (a rejection fails the pool
  * non-deterministically), so the mapper is total: it catches per-ref errors and
@@ -121,15 +188,28 @@ async function resolveReplacements(
   options: RedactLargeValueRefsOptions
 ): Promise<Map<object, unknown>> {
   const unique = [...new Set(refs)]
+  const pooled = unique.filter((ref) => !requiresSerialHydration(ref))
+  const oversized = unique.filter(requiresSerialHydration)
   const replacements = new Map<object, unknown>()
   let firstError: unknown
-  await mapWithConcurrency(unique, REF_CONCURRENCY, async (ref) => {
+  const resolveOne = async (ref: object, opts: RedactLargeValueRefsOptions): Promise<void> => {
     try {
-      replacements.set(ref, await replaceRef(ref, options))
+      replacements.set(ref, await replaceRef(ref, opts))
     } catch (error) {
       if (firstError === undefined) firstError = error
     }
-  })
+  }
+  await mapWithConcurrency(pooled, REF_CONCURRENCY, (ref) => resolveOne(ref, options))
+  const gate = options.oversizedGate
+  for (const ref of oversized) {
+    if (!gate || options.withinOversizedGate) {
+      // Already serialized by a gated ancestor (or no gate: direct internal
+      // call) — re-acquiring would deadlock on the ancestor's own hold.
+      await resolveOne(ref, options)
+    } else {
+      await runSerially(gate, () => resolveOne(ref, { ...options, withinOversizedGate: true }))
+    }
+  }
   if (firstError !== undefined) throw firstError
   return replacements
 }
@@ -173,20 +253,32 @@ async function replaceRef(ref: object, options: RedactLargeValueRefsOptions): Pr
 }
 
 /**
- * Mask a materialized large value and re-offload it: handle any nested refs
- * first, then mask inline strings, then re-store. `redactObjectStrings` skips
- * refs, so the nested re-stored refs are left intact while their siblings mask.
+ * Mask a materialized value: mask inline strings first (`redactObjectStrings`
+ * treats refs as opaque), then replace any nested refs with their own masked
+ * results. Strings-first matters — a nested ref whose masked value shrinks
+ * below the offload threshold comes back inline, and running the string pass
+ * after substitution would mask that already-masked content a second time
+ * (non-idempotent for custom patterns).
  */
+async function maskMaterializedValue(
+  value: unknown,
+  options: RedactLargeValueRefsOptions
+): Promise<unknown> {
+  const masked = await redactObjectStrings(value, {
+    entityTypes: options.entityTypes,
+    language: options.language,
+    customPatterns: options.customPatterns,
+    onFailure: options.onFailure ?? 'scrub',
+  })
+  return redactValueRefs(masked, options)
+}
+
+/** Mask a materialized large value and re-offload it as a fresh durable ref. */
 async function maskAndReStore(
   value: unknown,
   options: RedactLargeValueRefsOptions
 ): Promise<unknown> {
-  const nested = await redactValueRefs(value, options)
-  const masked = await redactObjectStrings(nested, {
-    entityTypes: options.entityTypes,
-    language: options.language,
-    onFailure: options.onFailure ?? 'scrub',
-  })
+  const masked = await maskMaterializedValue(value, options)
   return compactExecutionPayload(masked, { ...options.store, requireDurable: true })
 }
 
@@ -213,6 +305,11 @@ async function redactRef(
     const materialized = await materializeLargeValueRef(ref, {
       ...options.store,
       trackReference: false,
+      // Redaction must hydrate refs past the default inline ceiling to mask
+      // them; refs above that ceiling are scheduled serially (see
+      // isOversizedSingleRef) so the raised budget never multiplies across the
+      // concurrency pool.
+      maxBytes: MAX_DURABLE_LARGE_VALUE_BYTES,
     })
     if (materialized === undefined) {
       return onRefFailure(
@@ -227,13 +324,47 @@ async function redactRef(
   }
 }
 
+/**
+ * Mask a large-array manifest chunk-by-chunk: page one stored chunk at a time,
+ * mask nested refs + strings in that slice, and append the masked items to a
+ * fresh manifest. Peak memory stays ~one chunk regardless of the manifest's
+ * total `byteSize`, so a large offloaded array never trips the inline
+ * materialization ceiling. The rebuilt manifest re-chunks by byte target,
+ * recomputes `count`/`byteSize` bookkeeping from the masked items, and derives
+ * `preview` from masked content — the source manifest's preview holds raw items
+ * and must never be carried forward.
+ */
 async function redactManifest(
   manifest: LargeArrayManifest,
   options: RedactLargeValueRefsOptions
 ): Promise<unknown> {
   try {
-    const materialized = await materializeLargeArrayManifest(manifest, { ...options.store })
-    return await maskAndReStore(materialized, options)
+    const readContext = {
+      ...options.store,
+      trackReference: false,
+      // Chunks target ~8MB, but a single item larger than the target still
+      // occupies its own chunk — allow those up to the durable cap since they
+      // hydrate one at a time.
+      maxBytes: MAX_DURABLE_LARGE_VALUE_BYTES,
+    }
+    let masked: LargeArrayManifest | undefined
+    let cursor = 0
+    for (const chunk of manifest.chunks) {
+      const slice = await readLargeArrayManifestSlice(manifest, cursor, chunk.count, readContext)
+      cursor += chunk.count
+      const items = (await maskMaterializedValue(slice, options)) as unknown[]
+      masked =
+        masked === undefined
+          ? await createLargeArrayManifest(items, { ...options.store })
+          : await appendLargeArrayManifest(masked, items, { ...options.store })
+    }
+    if (masked === undefined) {
+      return createLargeArrayManifest([], { ...options.store })
+    }
+    if (masked.totalCount !== manifest.totalCount) {
+      throw new Error('Masked manifest item count does not match the source manifest.')
+    }
+    return masked
   } catch (error) {
     return onRefFailure(error, options, 'Failed to redact large array manifest')
   }

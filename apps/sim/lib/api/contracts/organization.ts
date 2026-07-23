@@ -142,6 +142,65 @@ export const organizationDataRetentionResponseSchema = z.object({
   data: organizationDataRetentionDataSchema,
 })
 
+/**
+ * Session-policy bounds — the single source for the contract validation, the
+ * server-side clamp (`@/lib/auth/session-policy`), and the settings UI.
+ * `MIN_IDLE_TIMEOUT_HOURS` is twice the session cookie-cache window (24h):
+ * cached reads never record activity, so a continuously active user only
+ * refreshes their session when the cookie cache expires. A floor of one
+ * window would sign out active users exactly at the cache boundary; two
+ * windows guarantees a DB-path refresh lands before the idle limit can.
+ */
+export const MIN_SESSION_LIFETIME_HOURS = 1
+export const MIN_IDLE_TIMEOUT_HOURS = 48
+export const MAX_SESSION_POLICY_HOURS = 8760
+
+export const updateOrganizationSessionPolicyBodySchema = z.object({
+  maxSessionHours: z
+    .number()
+    .int()
+    .min(MIN_SESSION_LIFETIME_HOURS, 'Max session lifetime must be at least 1 hour')
+    .max(MAX_SESSION_POLICY_HOURS, 'Max session lifetime cannot exceed 8760 hours (1 year)')
+    .nullable(),
+  idleTimeoutHours: z
+    .number()
+    .int()
+    .min(
+      MIN_IDLE_TIMEOUT_HOURS,
+      'Idle timeout must be at least 48 hours — session activity is recorded at most once per 24h cookie-cache window'
+    )
+    .max(MAX_SESSION_POLICY_HOURS, 'Idle timeout cannot exceed 8760 hours (1 year)')
+    .nullable(),
+})
+
+export type UpdateOrganizationSessionPolicyBody = z.input<
+  typeof updateOrganizationSessionPolicyBodySchema
+>
+
+const organizationSessionPolicyValuesSchema = z.object({
+  maxSessionHours: z.number().int().nullable(),
+  idleTimeoutHours: z.number().int().nullable(),
+})
+
+const organizationSessionPolicyDataSchema = z.object({
+  isEnterprise: z.boolean(),
+  configured: organizationSessionPolicyValuesSchema,
+})
+
+export type OrganizationSessionPolicy = z.output<typeof organizationSessionPolicyDataSchema>
+
+export const organizationSessionPolicyResponseSchema = z.object({
+  success: z.boolean(),
+  data: organizationSessionPolicyDataSchema,
+})
+
+export const revokeOrganizationSessionsResponseSchema = z.object({
+  success: z.boolean(),
+  data: z.object({
+    revokedSessions: z.number().int().min(0),
+  }),
+})
+
 export const updateOrganizationWhitelabelBodySchema = z.object({
   brandName: z
     .string()
@@ -488,6 +547,37 @@ export const updateOrganizationDataRetentionContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: organizationDataRetentionResponseSchema,
+  },
+})
+
+export const getOrganizationSessionPolicyContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/session-policy',
+  params: organizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: organizationSessionPolicyResponseSchema,
+  },
+})
+
+export const updateOrganizationSessionPolicyContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/organizations/[id]/session-policy',
+  params: organizationParamsSchema,
+  body: updateOrganizationSessionPolicyBodySchema,
+  response: {
+    mode: 'json',
+    schema: organizationSessionPolicyResponseSchema,
+  },
+})
+
+export const revokeOrganizationSessionsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/organizations/[id]/sessions/revoke',
+  params: organizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: revokeOrganizationSessionsResponseSchema,
   },
 })
 

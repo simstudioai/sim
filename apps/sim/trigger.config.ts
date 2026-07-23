@@ -60,7 +60,12 @@ export default defineConfig({
   dirs: ['./background'],
   ...(grafanaTelemetry ? { telemetry: grafanaTelemetry } : {}),
   build: {
-    external: ['isolated-vm', '@earendil-works/pi-coding-agent', 'cpu-features'],
+    external: [
+      'isolated-vm',
+      '@earendil-works/pi-ai',
+      '@earendil-works/pi-coding-agent',
+      'cpu-features',
+    ],
     extensions: [
       syncEnvVars(() => [{ name: 'DB_APP_NAME', value: 'sim-trigger' }]),
       additionalFiles({
@@ -77,6 +82,7 @@ export default defineConfig({
           'isolated-vm',
           'react-dom',
           '@react-email/render',
+          '@earendil-works/pi-ai',
           '@earendil-works/pi-coding-agent',
         ],
       }),
