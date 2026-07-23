@@ -46,28 +46,13 @@ html[data-sim-desktop-title-bar="inset"] {
   --desktop-title-bar-height: 36px;
 }
 
-/**
- * Route-shell primitives for the main macOS desktop window. Fullscreen,
- * browser, Windows/Linux, and the frameless Quick Ask panel all resolve the
- * shared variable to 0px, so these remain no-ops outside the traffic-light UI.
- */
+/** The macOS desktop login shell reserves the native traffic-light lane. */
 .desktop-title-bar-page {
   margin-top: var(--desktop-title-bar-height);
   min-height: calc(100vh - var(--desktop-title-bar-height));
 }
 
-.desktop-title-bar-page-height {
-  margin-top: var(--desktop-title-bar-height);
-  height: calc(100vh - var(--desktop-title-bar-height));
-}
-
-.desktop-title-bar-fixed-page {
-  top: var(--desktop-title-bar-height);
-}
-
-.desktop-title-bar-page::before,
-.desktop-title-bar-page-height::before,
-.desktop-title-bar-fixed-page::before {
+.desktop-title-bar-page::before {
   position: fixed;
   inset: 0 0 auto;
   height: var(--desktop-title-bar-height);

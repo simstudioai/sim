@@ -98,7 +98,7 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
 
   return (
     <ToastProvider>
-      <div className='desktop-title-bar-page-height flex w-full overflow-hidden bg-[var(--surface-1)] p-2'>
+      <div className='flex h-screen w-full overflow-hidden bg-[var(--surface-1)] p-2'>
         <aside
           className='mr-2 flex w-[248px] flex-shrink-0 flex-col rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] pt-3'
           aria-label={`${plane === 'account' ? 'Account' : 'Organization'} settings navigation`}

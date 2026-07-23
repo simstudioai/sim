@@ -6,13 +6,13 @@ import { getDesktopBridge } from '@/lib/desktop'
 
 export type DesktopTitleBarMode = 'fullscreen' | 'inset' | null
 
-/** The frameless Quick Ask panel has no native traffic lights to reserve. */
+/** Only the macOS desktop login route reserves space outside workspace chrome. */
 export function supportsDesktopTitleBar(
   pathname: string,
   userAgent: string,
   hasDesktopBridge: boolean
 ): boolean {
-  return hasDesktopBridge && /Mac/i.test(userAgent) && pathname !== '/desktop/launcher'
+  return hasDesktopBridge && /Mac/i.test(userAgent) && pathname === '/login'
 }
 
 export function applyDesktopTitleBarMode(
@@ -27,9 +27,8 @@ export function applyDesktopTitleBarMode(
 }
 
 /**
- * Keeps the macOS title-bar inset correct across every App Router surface and
- * native fullscreen transition. The blocking head script owns first paint;
- * this controller owns client navigation and subsequent window-state changes.
+ * Keeps the macOS login inset correct across native fullscreen transitions.
+ * Workspace routes retain their existing WorkspaceChrome-owned listener.
  */
 export function DesktopTitleBarController() {
   const pathname = usePathname()

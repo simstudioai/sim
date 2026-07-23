@@ -51,7 +51,7 @@ export function ImpersonationExpired() {
   }
 
   return (
-    <main className='desktop-title-bar-fixed-page fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-[var(--surface-1)] p-6'>
+    <main className='fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-[var(--surface-1)] p-6'>
       <p className='text-[var(--text-muted)] text-sm'>
         {failed
           ? 'The impersonation session expired, but signing out failed.'

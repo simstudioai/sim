@@ -124,6 +124,31 @@ export function WorkspaceChrome({
     })
   }, [])
 
+  useEffect(() => {
+    const windowState = getDesktopBridge()?.windowState
+    if (!windowState) return
+
+    let disposed = false
+    const applyWindowState = ({ isFullScreen }: { isFullScreen: boolean }) => {
+      if (!disposed) {
+        document.documentElement.setAttribute(
+          'data-sim-desktop-title-bar',
+          isFullScreen ? 'fullscreen' : 'inset'
+        )
+      }
+    }
+    const unsubscribe = windowState.onStateChange(applyWindowState)
+    void windowState
+      .getState()
+      .then(applyWindowState)
+      .catch(() => {})
+
+    return () => {
+      disposed = true
+      unsubscribe()
+    }
+  }, [])
+
   // Re-clamp the width when the window shrinks below what the persisted width
   // allows, so the sidebar can never grow wider than the viewport permits.
   useEffect(() => {

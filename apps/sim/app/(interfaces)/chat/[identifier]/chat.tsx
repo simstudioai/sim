@@ -426,7 +426,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   }
 
   return (
-    <div className='desktop-title-bar-fixed-page light fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
+    <div className='light fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
       {/* Header component */}
       <ChatHeader chatConfig={chatConfig} starCount={starCount} />
 

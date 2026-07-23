@@ -110,7 +110,7 @@ export default function WorkspacePage() {
 
   if (failedToLoad) {
     return (
-      <main className='desktop-title-bar-page-height flex w-full items-center justify-center bg-[var(--surface-1)] p-6'>
+      <main className='flex h-screen w-full items-center justify-center bg-[var(--surface-1)] p-6'>
         <div className='flex max-w-md flex-col items-center gap-3 text-center'>
           <div className='flex size-10 items-center justify-center rounded-full bg-[var(--surface-3)]'>
             <CircleAlert className='size-[18px] text-[var(--text-icon)]' aria-hidden />
@@ -136,7 +136,7 @@ export default function WorkspacePage() {
   }
 
   return (
-    <div className='desktop-title-bar-page-height flex w-full items-center justify-center'>
+    <div className='flex h-screen w-full items-center justify-center'>
       <div
         className='size-[18px] animate-spin rounded-full'
         style={{

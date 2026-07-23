@@ -2,7 +2,7 @@ import { Skeleton } from '@sim/emcn'
 
 export default function ChatLoading() {
   return (
-    <div className='desktop-title-bar-fixed-page light fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
+    <div className='light fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
       <div className='border-[var(--border-1)] border-b px-4 py-3'>
         <div className='mx-auto flex max-w-3xl items-center justify-between'>
           <div className='flex items-center gap-[12px]'>
