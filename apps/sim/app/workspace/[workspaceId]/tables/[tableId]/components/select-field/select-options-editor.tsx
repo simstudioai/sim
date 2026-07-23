@@ -1,7 +1,7 @@
 'use client'
 
 import { Button, ChipInput } from '@sim/emcn'
-import { Plus, Trash } from '@sim/emcn/icons'
+import { Plus, X } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import type { SelectOption } from '@/lib/table'
 
@@ -30,7 +30,7 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
   }
 
   return (
-    <div className='flex flex-col gap-2'>
+    <div className='flex flex-col gap-1'>
       {options.map((option) => (
         <div key={option.id} className='flex items-center gap-1.5'>
           <ChipInput
@@ -48,12 +48,17 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
             className='!p-1 size-7 shrink-0'
             aria-label={`Remove ${option.name || 'option'}`}
           >
-            <Trash className='size-[14px]' />
+            <X className='size-[12px]' />
           </Button>
         </div>
       ))}
-      <Button variant='default' size='sm' onClick={add} className='self-start'>
-        <Plus className='size-[14px]' />
+      <Button
+        variant='ghost'
+        size='sm'
+        onClick={add}
+        className='mt-1 self-start px-2 py-1 text-[var(--text-secondary)] text-xs'
+      >
+        <Plus className='mr-1 size-[10px]' />
         Add option
       </Button>
     </div>

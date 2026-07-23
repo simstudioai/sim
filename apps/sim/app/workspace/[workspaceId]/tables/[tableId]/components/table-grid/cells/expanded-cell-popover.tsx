@@ -12,7 +12,6 @@ import {
   formatValueForInput,
   storageToDisplay,
 } from '../../../utils'
-import { SelectValueEditor, toSelectedIds } from '../../select-field'
 import type { DisplayColumn } from '../types'
 
 interface ExpandedCellPopoverProps {
@@ -63,7 +62,6 @@ export function ExpandedCellPopover({
   }, [expandedCell, rows, columns])
 
   const isBooleanCell = target?.column.type === 'boolean'
-  const isSelectCell = target?.column.type === 'select' || target?.column.type === 'multiselect'
   // Workflow-output cells are editable in the expanded view too — the user
   // can override the workflow's value. Booleans toggle inline; the expanded
   // popover only handles text-shaped inputs.
@@ -150,16 +148,7 @@ export function ExpandedCellPopover({
       className='fixed z-50 flex flex-col overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--bg)] shadow-md'
       style={{ top, left, width, height: EXPANDED_CELL_HEIGHT }}
     >
-      {isEditable && isSelectCell ? (
-        <ExpandedSelectEditor
-          key={`${expandedCell.rowId}:${expandedCell.columnKey ?? expandedCell.columnName}`}
-          initialValue={target.value}
-          column={target.column}
-          rowId={target.row.id}
-          onSave={onSave}
-          onClose={onClose}
-        />
-      ) : isEditable ? (
+      {isEditable ? (
         <ExpandedCellEditor
           key={`${expandedCell.rowId}:${expandedCell.columnKey ?? expandedCell.columnName}`}
           initialValue={
@@ -281,55 +270,6 @@ function ExpandedCellEditor({
             <kbd className='font-mono'>↵</kbd> save · <kbd className='font-mono'>esc</kbd> cancel
           </span>
         )}
-        <div className='flex items-center gap-1.5'>
-          <Button variant='ghost' size='sm' onClick={onClose}>
-            Cancel
-          </Button>
-          <Button size='sm' variant='primary' onClick={handleSave}>
-            Save
-          </Button>
-        </div>
-      </div>
-    </>
-  )
-}
-
-interface ExpandedSelectEditorProps {
-  initialValue: unknown
-  column: DisplayColumn
-  rowId: string
-  onSave: ExpandedCellPopoverProps['onSave']
-  onClose: () => void
-}
-
-/** Select/multiselect body of the expanded popover. */
-function ExpandedSelectEditor({
-  initialValue,
-  column,
-  rowId,
-  onSave,
-  onClose,
-}: ExpandedSelectEditorProps) {
-  // `toSelectedIds` normalizes both shapes — a single id string (normal right
-  // after a select→multiselect conversion, before the row is rewritten) and an
-  // array — so opening the popover never collapses a stored value to empty.
-  const [draft, setDraft] = useState<string | string[] | null>(
-    column.type === 'multiselect'
-      ? toSelectedIds(initialValue)
-      : (toSelectedIds(initialValue)[0] ?? null)
-  )
-
-  const handleSave = () => {
-    onSave(rowId, column.key, draft, 'blur')
-    onClose()
-  }
-
-  return (
-    <>
-      <div className='min-h-0 flex-1 overflow-auto px-2.5 py-2.5'>
-        <SelectValueEditor column={column} value={draft} onChange={setDraft} fullWidth />
-      </div>
-      <div className='flex items-center justify-end border-[var(--border)] border-t bg-[var(--surface-2)] px-2 py-1.5'>
         <div className='flex items-center gap-1.5'>
           <Button variant='ghost' size='sm' onClick={onClose}>
             Cancel

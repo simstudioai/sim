@@ -2029,6 +2029,16 @@ export function TableGrid({
         return
       }
 
+      // Select/multiselect: open the inline option dropdown when editable; never
+      // the big text popover. Read-only cells do nothing (like booleans).
+      if (column?.type === 'select' || column?.type === 'multiselect') {
+        if (canEditRef.current) {
+          setEditingCell({ rowId, columnName })
+          setInitialCharacter(null)
+        }
+        return
+      }
+
       // Workflow-output cell with no value → let the user write over the status pill.
       if (column?.workflowGroupId && canEditRef.current) {
         const row = rowsRef.current.find((r) => r.id === rowId)
