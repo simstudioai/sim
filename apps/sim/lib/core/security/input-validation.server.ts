@@ -660,6 +660,9 @@ function toUndiciRequestBody(
   body: UndiciRequestInit['body']
 ): string | Buffer | Uint8Array | Readable | undefined {
   if (body == null) return undefined
+  // fetch accepts URLSearchParams (form-encoded) and undici.request does not — the MCP SDK's
+  // OAuth token/refresh exchange sends one. Serialize it to its wire form.
+  if (body instanceof URLSearchParams) return body.toString()
   if (body instanceof ArrayBuffer) return Buffer.from(body)
   if (ArrayBuffer.isView(body) && !(body instanceof Uint8Array)) {
     return Buffer.from(body.buffer, body.byteOffset, body.byteLength)
@@ -689,7 +692,10 @@ function nodeReadableToWebStream(nodeStream: Readable): ReadableStream<Uint8Arra
     start(controller) {
       nodeStream.on('data', (chunk: Buffer) => {
         try {
-          controller.enqueue(new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength))
+          // Copy, not a view: undici may recycle the pooled buffer backing `chunk` after
+          // this handler returns, which would corrupt a chunk still queued for a slow
+          // consumer. `new Uint8Array(chunk)` allocates a fresh backing buffer.
+          controller.enqueue(new Uint8Array(chunk))
         } catch {
           // Controller already closed (consumer cancelled) — stop the source, drop the chunk.
           nodeStream.destroy()
@@ -775,10 +781,21 @@ async function undiciRequestAsResponse(
 
   const method = (effectiveInit.method ?? 'GET').toUpperCase()
   const canHaveBody = method !== 'GET' && method !== 'HEAD'
+  const requestHeaders = toUndiciRequestHeaders(effectiveInit.headers) ?? {}
+  const requestBody = canHaveBody ? toUndiciRequestBody(effectiveInit.body) : undefined
+  // fetch auto-adds a form content-type for a URLSearchParams body; preserve that parity
+  // when the caller didn't set one (the MCP SDK does set it explicitly, but not every caller).
+  if (
+    canHaveBody &&
+    effectiveInit.body instanceof URLSearchParams &&
+    !Object.keys(requestHeaders).some((key) => key.toLowerCase() === 'content-type')
+  ) {
+    requestHeaders['content-type'] = 'application/x-www-form-urlencoded;charset=UTF-8'
+  }
   const { statusCode, headers, body } = await undiciRequest(url, {
     method: method as Dispatcher.HttpMethod,
-    headers: toUndiciRequestHeaders(effectiveInit.headers),
-    body: canHaveBody ? toUndiciRequestBody(effectiveInit.body) : undefined,
+    headers: requestHeaders,
+    body: requestBody,
     signal: effectiveInit.signal ?? undefined,
     dispatcher,
     // No `maxRedirections`: request() does not auto-follow by default, so the caller's

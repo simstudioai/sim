@@ -132,6 +132,54 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
     expect(Buffer.from(options.body).toString()).toBe('payload')
   })
 
+  it('serializes a URLSearchParams body and defaults the form content-type (OAuth token exchange)', async () => {
+    mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, byteStream('{}')))
+    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+
+    await fetch('https://auth.example.com/token', {
+      method: 'POST',
+      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: 'r-1' }),
+    })
+
+    const [, options] = mockUndiciRequest.mock.calls[0]
+    expect(options.body).toBe('grant_type=refresh_token&refresh_token=r-1')
+    expect(options.headers['content-type']).toBe('application/x-www-form-urlencoded;charset=UTF-8')
+  })
+
+  it('does not override an explicit content-type on a URLSearchParams body', async () => {
+    mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, byteStream('{}')))
+    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+
+    await fetch('https://auth.example.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'authorization_code' }),
+    })
+
+    const [, options] = mockUndiciRequest.mock.calls[0]
+    expect(options.body).toBe('grant_type=authorization_code')
+    expect(options.headers['Content-Type']).toBe('application/x-www-form-urlencoded')
+    expect(options.headers['content-type']).toBeUndefined()
+  })
+
+  it('copies each chunk so a recycled source buffer cannot corrupt queued data', async () => {
+    const source = new Readable({ read() {} })
+    mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, source))
+    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+
+    const response = await fetch('https://mcp.example.com/stream', { method: 'GET' })
+    const reader = response.body!.getReader()
+
+    // Emit a chunk, then mutate the SAME backing buffer (as undici's pool reuse would).
+    const buf = Buffer.from('AB')
+    source.push(buf)
+    const first = await reader.read()
+    buf[0] = 0x00 // corrupt the source buffer after the chunk was enqueued
+    expect(Buffer.from(first.value!).toString()).toBe('AB') // copy is unaffected
+    source.push(null)
+    await reader.read()
+  })
+
   it('rejects the reader when the source is destroyed without an error (abort/reset)', async () => {
     const source = new Readable({ read() {} }) // stays open, never pushes
     mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, source))
