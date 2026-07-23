@@ -197,6 +197,34 @@ describe('/api/auth/sso/providers/[id]', () => {
     expect(mockUpdateSSOProvider).not.toHaveBeenCalled()
   })
 
+  it('recomputes the identity guard from the provider row loaded inside the lock', async () => {
+    mockWithSSOProviderMutationLock.mockImplementationOnce(
+      async (callback: () => Promise<unknown>) => {
+        dbState.providers = [
+          {
+            ...PROVIDER,
+            issuer: 'https://concurrent-idp.example.com',
+            domain: 'concurrent.example.com',
+          },
+        ]
+        dbState.accounts = [{ id: 'concurrent-link' }]
+        return callback()
+      }
+    )
+
+    const response = await PATCH(
+      createMockRequest('PATCH', {
+        ...SAML_UPDATE,
+        issuer: PROVIDER.issuer,
+        domain: PROVIDER.domain,
+      }),
+      context
+    )
+
+    expect(response.status).toBe(409)
+    expect(mockUpdateSSOProvider).not.toHaveBeenCalled()
+  })
+
   it('reports the compatibility-active state while verification enforcement is disabled', async () => {
     const previousValue = env.SSO_DOMAIN_VERIFICATION_ENABLED
     env.SSO_DOMAIN_VERIFICATION_ENABLED = undefined

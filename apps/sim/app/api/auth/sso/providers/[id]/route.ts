@@ -70,34 +70,69 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
         existingDomain: provider.domain,
       }
     )
-    const updated = await withSSOProviderMutationLock(async () => {
-      if (changesProviderIdentity) {
-        await assertSSOProviderHasNoAccountLinks(provider.providerId)
+    const mutation = await withSSOProviderMutationLock(async () => {
+      const currentProvider = await getManagedSSOProvider(parsed.data.params.id, session.user.id)
+      const currentIsSamlProvider = Boolean(currentProvider.samlConfig)
+      if (currentIsSamlProvider !== 'entryPoint' in body) {
+        throw new SSOManagementError('Provider type cannot be changed', 400, 'SSO_TYPE_IMMUTABLE')
+      }
+
+      const currentDomain = requireNormalizedSSODomain(body.domain, currentProvider.domain)
+      if (currentDomain !== currentProvider.domain || body.issuer !== currentProvider.issuer) {
+        await assertSSOProviderHasNoAccountLinks(currentProvider.providerId)
       }
       await assertSSOProviderAvailable({
-        providerId: provider.providerId,
-        domain,
-        organizationId: provider.organizationId!,
-        excludeRowId: provider.id,
+        providerId: currentProvider.providerId,
+        domain: currentDomain,
+        organizationId: currentProvider.organizationId!,
+        excludeRowId: currentProvider.id,
       })
-      return auth.api.updateSSOProvider({
-        body: providerConfig,
+
+      const configurationSourceChanged =
+        currentProvider.issuer !== provider.issuer ||
+        currentProvider.domain !== provider.domain ||
+        currentProvider.oidcConfig !== provider.oidcConfig ||
+        currentProvider.samlConfig !== provider.samlConfig
+      const currentProviderConfig = configurationSourceChanged
+        ? await buildSSOProviderConfiguration(
+            { ...body, domain: currentDomain },
+            {
+              providerId: currentProvider.providerId,
+              existingConfig: currentIsSamlProvider
+                ? currentProvider.samlConfig
+                : currentProvider.oidcConfig,
+              existingIssuer: currentProvider.issuer,
+              existingDomain: currentProvider.domain,
+            }
+          )
+        : { ...providerConfig, domain: currentDomain }
+
+      const updated = await auth.api.updateSSOProvider({
+        body: currentProviderConfig,
         headers: collectAuthHeaders(request),
       })
+      return {
+        updated,
+        provider: currentProvider,
+        domain: currentDomain,
+        isSamlProvider: currentIsSamlProvider,
+      }
     })
 
     logger.info('SSO provider updated', {
-      providerId: provider.providerId,
-      providerType: isSamlProvider ? 'saml' : 'oidc',
-      domain,
-      organizationId: provider.organizationId,
+      providerId: mutation.provider.providerId,
+      providerType: mutation.isSamlProvider ? 'saml' : 'oidc',
+      domain: mutation.domain,
+      organizationId: mutation.provider.organizationId,
     })
 
     return NextResponse.json({
       success: true,
-      providerId: provider.providerId,
-      providerType: isSamlProvider ? ('saml' as const) : ('oidc' as const),
-      domainVerified: isTruthy(env.SSO_DOMAIN_VERIFICATION_ENABLED) ? updated.domainVerified : true,
+      providerId: mutation.provider.providerId,
+      providerType: mutation.isSamlProvider ? ('saml' as const) : ('oidc' as const),
+      domainVerified: isTruthy(env.SSO_DOMAIN_VERIFICATION_ENABLED)
+        ? mutation.updated.domainVerified
+        : true,
       message: 'SSO provider updated successfully',
     })
   } catch (error) {
