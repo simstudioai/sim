@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  *
- * Step 10 smoke: Anthropic thinking+tool fixture, openai-compat thinking,
+ * Agent-events capability smokes: Anthropic thinking+tool fixture, openai-compat thinking,
  * and a non-thinking text-only stream — capability-honest expectations.
  */
 import { describe, expect, it } from 'vitest'
@@ -27,7 +27,7 @@ async function collectEvents(
   return events
 }
 
-describe('Step 10 provider smokes', () => {
+describe('agent-events provider smokes', () => {
   it('Anthropic fixture emits thinking then text (tools ignored on simple util)', async () => {
     const stream = createReadableStreamFromAnthropicStream(
       (async function* () {

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  *
- * Step 7: Anthropic streaming tool loop — live tool_call_start/end, final-turn-only
+ * Anthropic streaming tool loop — live tool_call_start/end, final-turn-only
  * answer text, abort → cancelled, per-turn usage accumulation.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -22,15 +22,12 @@ vi.mock('@/tools', () => ({
   executeTool: mockExecuteTool,
 }))
 
-vi.mock('@/providers/utils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/providers/utils')>()
-  return {
-    ...actual,
-    prepareToolExecution: mockPrepareToolExecution,
-    calculateCost: () => ({ input: 0.01, output: 0.02, total: 0.03 }),
-    sumToolCosts: () => 0,
-  }
-})
+vi.mock('@/providers/utils', () => ({
+  prepareToolExecution: mockPrepareToolExecution,
+  calculateCost: () => ({ input: 0.01, output: 0.02, total: 0.03 }),
+  sumToolCosts: () => 0,
+  trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
+}))
 
 async function collectEvents(
   stream: ReadableStream<AgentStreamEvent>
@@ -73,7 +70,7 @@ function makeMessageStream(events: unknown[], finalMessage: ReturnType<typeof ma
   }
 }
 
-describe('createAnthropicStreamingToolLoopStream (Step 7)', () => {
+describe('createAnthropicStreamingToolLoopStream', () => {
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),

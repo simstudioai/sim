@@ -18,7 +18,7 @@ async function collectEvents(
   return events
 }
 
-describe('createReadableStreamFromGeminiStream (Step 9)', () => {
+describe('createReadableStreamFromGeminiStream', () => {
   it('splits thought parts into thinking_delta and answer into text_delta', async () => {
     const onComplete = vi.fn()
     const stream = createReadableStreamFromGeminiStream(

@@ -144,6 +144,19 @@ export interface TimeoutAbortController {
   timeoutMs: number | undefined
 }
 
+/**
+ * True when an abort signal's reason marks an execution timeout. Abort reasons
+ * are `DOMException('timeout' | 'user', 'AbortError')` so code that passes the
+ * signal straight into `fetch` still sees a standard AbortError, while pumps
+ * and executors can discriminate timeout from user Stop via the message.
+ */
+export function isTimeoutAbortReason(reason: unknown): boolean {
+  if (reason === 'timeout') return true
+  return (
+    reason instanceof DOMException && reason.name === 'AbortError' && reason.message === 'timeout'
+  )
+}
+
 export function createTimeoutAbortController(timeoutMs?: number): TimeoutAbortController {
   const abortController = new AbortController()
   let isTimedOut = false
@@ -152,8 +165,8 @@ export function createTimeoutAbortController(timeoutMs?: number): TimeoutAbortCo
   if (timeoutMs) {
     timeoutId = setTimeout(() => {
       isTimedOut = true
-      // Typed reason so pumps/executors can distinguish timeout from user Stop.
-      abortController.abort('timeout')
+      // AbortError with a typed message — see isTimeoutAbortReason.
+      abortController.abort(new DOMException('timeout', 'AbortError'))
     }, timeoutMs)
   }
 
@@ -164,7 +177,7 @@ export function createTimeoutAbortController(timeoutMs?: number): TimeoutAbortCo
       if (timeoutId) clearTimeout(timeoutId)
     },
     // Manual abort is user/client cancellation (disconnect, Stop, registerManualExecutionAborter).
-    abort: () => abortController.abort('user'),
+    abort: () => abortController.abort(new DOMException('user', 'AbortError')),
     timeoutMs,
   }
 }

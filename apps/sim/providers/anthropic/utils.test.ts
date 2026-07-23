@@ -1,8 +1,8 @@
 /**
  * @vitest-environment node
  *
- * Step 3 gate: Anthropic adapter emits AgentStreamEvent objects (thinking + text)
- * from Messages stream fixtures; tool_use deltas are ignored until Step 7.
+ * Anthropic adapter emits AgentStreamEvent objects (thinking + text)
+ * from Messages stream fixtures; tool_use deltas are handled by the tool loop.
  */
 import { describe, expect, it, vi } from 'vitest'
 import {

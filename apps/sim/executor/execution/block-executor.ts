@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -397,7 +398,7 @@ export class BlockExecutor {
     const isAbort =
       (error instanceof DOMException && error.name === 'AbortError') ||
       (error instanceof Error && error.name === 'AbortError')
-    const isTimeout = ctx.abortSignal?.reason === 'timeout'
+    const isTimeout = isTimeoutAbortReason(ctx.abortSignal?.reason)
     const isAgentBlock = block.metadata?.id === BlockType.AGENT
     if (isAbort && !isTimeout && ctx.abortSignal?.aborted && isAgentBlock) {
       const softOutput: NormalizedBlockOutput = {

@@ -26,26 +26,23 @@ vi.mock('@/tools', () => ({
   })),
 }))
 
-vi.mock('@/providers/utils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/providers/utils')>()
-  return {
-    ...actual,
-    prepareToolExecution: vi.fn(() => ({
-      toolParams: { url: 'https://httpbin.org/get' },
-      executionParams: { url: 'https://httpbin.org/get' },
-    })),
-    calculateCost: vi.fn(() => ({
-      input: 0.01,
-      output: 0.02,
-      total: 0.03,
-      pricing: { input: 1, output: 2, updatedAt: new Date().toISOString() },
-    })),
-    sumToolCosts: vi.fn(() => 0),
-    isGemini3Model: vi.fn(() => false),
-  }
-})
+vi.mock('@/providers/utils', () => ({
+  prepareToolExecution: vi.fn(() => ({
+    toolParams: { url: 'https://httpbin.org/get' },
+    executionParams: { url: 'https://httpbin.org/get' },
+  })),
+  calculateCost: vi.fn(() => ({
+    input: 0.01,
+    output: 0.02,
+    total: 0.03,
+    pricing: { input: 1, output: 2, updatedAt: new Date().toISOString() },
+  })),
+  sumToolCosts: vi.fn(() => 0),
+  isGemini3Model: vi.fn(() => false),
+  trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
+}))
 
-describe('createGeminiStreamingToolLoopStream (Step 9)', () => {
+describe('createGeminiStreamingToolLoopStream', () => {
   it('emits thinking, tool lifecycle, then final answer; allocates local tool ids', async () => {
     resetLocalToolIdCounterForTests()
 

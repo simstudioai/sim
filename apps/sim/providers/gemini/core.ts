@@ -1027,7 +1027,7 @@ export async function executeGeminiRequest(
     const shouldStreamToolCalls = request.streamToolCalls ?? false
     const shouldStream = request.stream && !tools?.length
 
-    // Live streaming tool loop (Step 9)
+    // Live streaming tool loop
     if (request.stream && shouldStreamToolCalls && tools?.length) {
       logger.info('Using streaming tool loop for Gemini request')
 

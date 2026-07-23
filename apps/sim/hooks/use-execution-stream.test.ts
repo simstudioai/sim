@@ -65,7 +65,7 @@ describe('processSSEStream', () => {
         timestamp: new Date().toISOString(),
         executionId: 'exec-1',
         workflowId: 'wf-1',
-        data: { blockId: 'agent-1', data: 'reasoning ' },
+        data: { blockId: 'agent-1', text: 'reasoning ' },
       },
       {
         type: 'stream:tool',
@@ -96,7 +96,7 @@ describe('processSSEStream', () => {
 
     expect(onStreamThinking).toHaveBeenCalledWith({
       blockId: 'agent-1',
-      data: 'reasoning ',
+      text: 'reasoning ',
     })
     expect(onStreamTool).toHaveBeenCalledWith({
       blockId: 'agent-1',

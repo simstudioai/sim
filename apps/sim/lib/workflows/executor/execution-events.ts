@@ -24,6 +24,18 @@ export type ExecutionEventType =
   | 'stream:tool'
 
 /**
+ * Event types that are live-only: forwarded to connected clients but excluded
+ * from reconnect replay buffers (same rule as answer chunks — guaranteed `seq`
+ * replay for stream events is out of scope).
+ */
+export const LIVE_ONLY_EXECUTION_EVENT_TYPES: ReadonlySet<ExecutionEventType> = new Set([
+  'stream:chunk',
+  'stream:done',
+  'stream:thinking',
+  'stream:tool',
+])
+
+/**
  * Base event structure for SSE
  */
 interface BaseExecutionEvent {
@@ -233,7 +245,7 @@ interface StreamThinkingEvent extends BaseExecutionEvent {
   workflowId: string
   data: {
     blockId: string
-    data: string
+    text: string
   }
 }
 

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  *
- * Step 0 gate: Anthropic stream fixtures parse and match expected assembled
+ * Fixture gate: Anthropic stream fixtures parse and match expected assembled
  * thinking/text/tool/signature content. No provider adapters are exercised yet.
  */
 import { describe, expect, it } from 'vitest'
@@ -143,7 +143,7 @@ function assertValidStreamSequence(events: readonly StreamEvent[]) {
   expect(open.size).toBe(0)
 }
 
-describe('Anthropic stream fixtures (Step 0)', () => {
+describe('Anthropic stream fixtures', () => {
   it('parses thinking → text → tool_use stream and preserves signature', () => {
     assertValidStreamSequence(anthropicThinkingTextToolStreamEvents)
 

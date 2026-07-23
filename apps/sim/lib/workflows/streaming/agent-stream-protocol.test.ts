@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 import {
   AGENT_STREAM_PROTOCOL_HEADER,
   AGENT_STREAM_PROTOCOL_V1,
-  requestOptsIntoAgentStreamProtocol,
   shouldEmitAgentStreamEvents,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
 
@@ -67,17 +66,6 @@ describe('shouldEmitAgentStreamEvents', () => {
           [AGENT_STREAM_PROTOCOL_HEADER]: 'text, agent-events-v1',
         }),
       })
-    ).toBe(true)
-  })
-})
-
-describe('requestOptsIntoAgentStreamProtocol', () => {
-  it('detects protocol opt-in independent of deployment policy', () => {
-    expect(requestOptsIntoAgentStreamProtocol(headers())).toBe(false)
-    expect(
-      requestOptsIntoAgentStreamProtocol(
-        headers({ [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 })
-      )
     ).toBe(true)
   })
 })

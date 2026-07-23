@@ -7,9 +7,15 @@ import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
+import {
+  type AgentStreamToolCall,
+  applyToolCallPhase,
+  settleRunningToolCalls,
+  snapshotToolCalls,
+  toolCallKey,
+} from '@/components/agent-stream/tool-call-lifecycle'
 import { requestJson } from '@/lib/api/client/request'
 import { cancelWorkflowExecutionContract, workflowLogContract } from '@/lib/api/contracts/workflows'
-import { humanizeToolName } from '@/lib/copilot/tools/tool-display'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import type { ExecutionPausedData } from '@/lib/workflows/executor/execution-events'
@@ -1065,30 +1071,42 @@ export function useWorkflowExecution() {
       const activeBlockRefCounts = new Map<string, number>()
       const streamedChunks = new Map<string, string[]>()
       const agentStreamThinking = new Map<string, string>()
-      const agentStreamToolCalls = new Map<
-        string,
-        Map<string, import('@/components/agent-stream/agent-stream-chrome').AgentStreamToolCall>
-      >()
+      const agentStreamToolCalls = new Map<string, Map<string, AgentStreamToolCall>>()
       const agentStreamToolOrder = new Map<string, string[]>()
+      /**
+       * Thinking deltas arrive per token; batch store writes (same cadence as
+       * the chat surface) so the terminal does not re-render per delta.
+       */
+      const THINKING_FLUSH_MS = 50
+      const thinkingFlushTimers = new Map<string, ReturnType<typeof setTimeout>>()
+      const flushThinking = (blockId: string) => {
+        const timer = thinkingFlushTimers.get(blockId)
+        if (timer !== undefined) {
+          clearTimeout(timer)
+          thinkingFlushTimers.delete(blockId)
+        }
+        const thinking = agentStreamThinking.get(blockId)
+        if (thinking === undefined) return
+        updateConsole(
+          blockId,
+          { agentStreamThinking: thinking, agentStreamActive: true },
+          executionIdRef.current
+        )
+      }
       const settleAgentStreamChrome = (
         blockId: string,
         status: 'success' | 'error' | 'cancelled'
       ) => {
+        flushThinking(blockId)
         const map = agentStreamToolCalls.get(blockId)
         const order = agentStreamToolOrder.get(blockId)
         if (map && order) {
-          for (const [key, tool] of map) {
-            if (tool.status === 'running') {
-              map.set(key, { ...tool, status })
-            }
-          }
+          settleRunningToolCalls(map, status)
           updateConsole(
             blockId,
             {
               agentStreamActive: false,
-              agentStreamToolCalls: order
-                .map((k) => map.get(k))
-                .filter((t): t is NonNullable<typeof t> => Boolean(t)),
+              agentStreamToolCalls: snapshotToolCalls(order, map),
             },
             executionIdRef.current
           )
@@ -1215,20 +1233,16 @@ export function useWorkflowExecution() {
 
             onStreamThinking: (data) => {
               const prev = agentStreamThinking.get(data.blockId) ?? ''
-              const next = prev + data.data
-              agentStreamThinking.set(data.blockId, next)
-              updateConsole(
-                data.blockId,
-                {
-                  agentStreamThinking: next,
-                  agentStreamActive: true,
-                },
-                executionIdRef.current
-              )
+              agentStreamThinking.set(data.blockId, prev + data.text)
+              if (!thinkingFlushTimers.has(data.blockId)) {
+                thinkingFlushTimers.set(
+                  data.blockId,
+                  setTimeout(() => flushThinking(data.blockId), THINKING_FLUSH_MS)
+                )
+              }
             },
 
             onStreamTool: (data) => {
-              const key = `${data.blockId}:${data.id}`
               if (!agentStreamToolCalls.has(data.blockId)) {
                 agentStreamToolCalls.set(data.blockId, new Map())
                 agentStreamToolOrder.set(data.blockId, [])
@@ -1236,37 +1250,23 @@ export function useWorkflowExecution() {
               const map = agentStreamToolCalls.get(data.blockId)!
               const order = agentStreamToolOrder.get(data.blockId)!
 
-              if (data.phase === 'start') {
-                if (!map.has(key)) {
-                  order.push(key)
-                }
-                map.set(key, {
-                  key,
+              applyToolCallPhase(
+                map,
+                order,
+                {
+                  key: toolCallKey(data.blockId, data.id),
                   id: data.id,
                   name: data.name,
-                  displayName: humanizeToolName(data.name),
-                  status: 'running',
-                })
-              } else {
-                const existing = map.get(key)
-                map.set(key, {
-                  key,
-                  id: data.id,
-                  name: data.name,
-                  displayName: existing?.displayName ?? humanizeToolName(data.name),
-                  status: data.status ?? 'success',
-                })
-                if (!existing) {
-                  order.push(key)
-                }
-              }
+                  phase: data.phase,
+                  status: data.status,
+                },
+                (tool) => tool
+              )
 
               updateConsole(
                 data.blockId,
                 {
-                  agentStreamToolCalls: order
-                    .map((k) => map.get(k))
-                    .filter((t): t is NonNullable<typeof t> => Boolean(t)),
+                  agentStreamToolCalls: snapshotToolCalls(order, map),
                   agentStreamActive: true,
                 },
                 executionIdRef.current

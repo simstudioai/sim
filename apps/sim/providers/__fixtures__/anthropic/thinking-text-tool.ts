@@ -7,7 +7,7 @@
  * Shapes mirror Anthropic RawMessageStreamEvent fields used by
  * `createReadableStreamFromAnthropicStream`. The adapter emits thinking_delta +
  * text_delta AgentStreamEvents; tool_use deltas are ignored until the streaming
- * tool loop (Step 7).
+ * tool loop.
  */
 
 export const anthropicThinkingTextToolStreamEvents = [
@@ -27,7 +27,7 @@ export const anthropicThinkingTextToolStreamEvents = [
   {
     type: 'content_block_start',
     index: 0,
-    content_block: { type: 'thinking', thinking: '' },
+    content_block: { type: 'thinking', thinking: '', signature: '' },
   },
   {
     type: 'content_block_delta',

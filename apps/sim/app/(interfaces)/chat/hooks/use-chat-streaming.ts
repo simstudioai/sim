@@ -3,14 +3,27 @@
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { humanizeToolName } from '@/lib/copilot/tools/tool-display'
+import {
+  anyToolCallRunning,
+  applyToolCallPhase,
+  settleRunningToolCalls,
+  snapshotToolCalls,
+  toolCallKey,
+} from '@/components/agent-stream/tool-call-lifecycle'
 import { readSSEEvents } from '@/lib/core/utils/sse'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import {
+  isChatChunkFrame,
+  isChatErrorFrame,
+  isChatFinalFrame,
+  isChatStreamErrorFrame,
+  isChatThinkingFrame,
+  isChatToolFrame,
+} from '@/lib/workflows/streaming/agent-stream-protocol'
 import type {
   ChatFile,
   ChatMessage,
   ChatToolCall,
-  ChatToolCallStatus,
 } from '@/app/(interfaces)/chat/components/message/message'
 import { CHAT_ERROR_MESSAGES } from '@/app/(interfaces)/chat/constants'
 
@@ -77,70 +90,11 @@ export interface StreamingOptions {
   abortController?: AbortController
 }
 
-type ChatSseEvent = {
-  blockId?: string
-  chunk?: string
-  event?: string
-  error?: string
-  phase?: 'start' | 'end'
-  id?: string
-  name?: string
-  status?: 'success' | 'error' | 'cancelled'
-  data?:
-    | string
-    | {
-        success: boolean
-        error?: string | { message?: string }
-        output?: Record<string, Record<string, any>>
-      }
-}
-
-function toolCallKey(blockId: string, id: string): string {
-  return `${blockId}:${id}`
-}
-
-function settleInFlightTools(
-  map: Map<string, ChatToolCall>,
-  terminal: Exclude<ChatToolCallStatus, 'running'>
-): void {
-  for (const [key, tool] of map) {
-    if (tool.status === 'running') {
-      map.set(key, { ...tool, status: terminal })
-    }
-  }
-}
-
-function snapshotToolCalls(
-  order: string[],
-  map: Map<string, ChatToolCall>
-): ChatToolCall[] | undefined {
-  if (order.length === 0) return undefined
-  return order.map((key) => map.get(key)).filter((t): t is ChatToolCall => Boolean(t))
-}
-
-function anyToolRunning(map: Map<string, ChatToolCall>): boolean {
-  for (const tool of map.values()) {
-    if (tool.status === 'running') return true
-  }
-  return false
-}
-
-/** Answer text frames never carry an event type (or use a reserved non-answer event). */
-function isAnswerChunkFrame(json: ChatSseEvent): boolean {
-  if (!json.blockId || typeof json.chunk !== 'string' || !json.chunk) return false
-  // Thinking / tools / errors must never use `chunk` for answer accumulation.
-  if (json.event === 'thinking' || json.event === 'stream_error' || json.event === 'error') {
-    return false
-  }
-  if (
-    json.event === 'final' ||
-    json.event === 'tool' ||
-    json.event === 'tool_call_start' ||
-    json.event === 'tool_call_end'
-  ) {
-    return false
-  }
-  return json.event === undefined || json.event === ''
+/** Client-side view of the `final` frame's opaque `data` payload. */
+interface ChatFinalData {
+  success?: boolean
+  error?: string | { message?: string }
+  output?: Record<string, Record<string, any>>
 }
 
 export function useChatStreaming() {
@@ -264,7 +218,7 @@ export function useChatStreaming() {
       const thinkingSnapshot = accumulatedThinking
       const thinkingStreamingSnapshot = isThinkingStreaming
       const toolCallsSnapshot = snapshotToolCalls(toolCallOrder, toolCallsMap)
-      const toolStreamingSnapshot = anyToolRunning(toolCallsMap)
+      const toolStreamingSnapshot = anyToolCallRunning(toolCallsMap)
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id !== messageId) return msg
@@ -316,20 +270,18 @@ export function useChatStreaming() {
     const streamAbortSignal = abortControllerRef.current!.signal
 
     try {
-      await readSSEEvents<ChatSseEvent>(response.body, {
+      await readSSEEvents<Record<string, unknown>>(response.body, {
         signal: streamAbortSignal,
         onParseError: (_data, parseError) => {
           logger.error('Error parsing stream data:', parseError)
         },
         onEvent: async (json) => {
-          const { blockId, chunk: contentChunk, event: eventType } = json
-
-          if (eventType === 'error' || json.event === 'error') {
+          if (isChatErrorFrame(json)) {
             // User Stop aborts the fetch; the server often still emits a terminal
             // `{ event: 'error', error: 'Client cancelled request' }` before the
             // SSE reader finishes. Do not overwrite the stop notice.
             if (streamAbortSignal.aborted) {
-              settleInFlightTools(toolCallsMap, 'cancelled')
+              settleRunningToolCalls(toolCallsMap, 'cancelled')
               syncToolCallsRef()
               const toolsSnapshot = snapshotToolCalls(toolCallOrder, toolCallsMap)
               setMessages((prev) =>
@@ -352,7 +304,7 @@ export function useChatStreaming() {
             }
 
             const errorMessage = json.error || CHAT_ERROR_MESSAGES.GENERIC_ERROR
-            settleInFlightTools(toolCallsMap, 'error')
+            settleRunningToolCalls(toolCallsMap, 'error')
             syncToolCallsRef()
             const toolsSnapshot = snapshotToolCalls(toolCallOrder, toolCallsMap)
             setMessages((prev) =>
@@ -376,27 +328,20 @@ export function useChatStreaming() {
             return true
           }
 
-          if (eventType === 'stream_error') {
-            const errText =
-              typeof json.error === 'string' && json.error
-                ? json.error
-                : 'A streaming error occurred'
+          if (isChatStreamErrorFrame(json)) {
+            // Non-terminal mid-block read issue: keep streaming. The legacy
+            // client ignored these frames; log only — never repurpose the
+            // thinking lane for error text.
             logger.warn('[useChatStreaming] Non-terminal stream_error', {
-              blockId,
-              error: errText,
+              blockId: json.blockId,
+              error: json.error || 'A streaming error occurred',
             })
-            // Non-terminal: keep streaming; surface in thinking chrome so it is visible.
-            accumulatedThinking += `${accumulatedThinking ? '\n\n' : ''}[Stream error] ${errText}`
-            accumulatedThinkingRef.current = accumulatedThinking
-            isThinkingStreaming = true
-            uiDirty = true
-            scheduleUIFlush()
             return false
           }
 
-          if (eventType === 'thinking' && blockId && typeof json.data === 'string') {
-            if (!messageIdMap.has(blockId)) {
-              messageIdMap.set(blockId, messageId)
+          if (isChatThinkingFrame(json)) {
+            if (!messageIdMap.has(json.blockId)) {
+              messageIdMap.set(json.blockId, messageId)
             }
             accumulatedThinking += json.data
             accumulatedThinkingRef.current = accumulatedThinking
@@ -406,59 +351,38 @@ export function useChatStreaming() {
             return false
           }
 
-          if (
-            eventType === 'tool' &&
-            blockId &&
-            typeof json.id === 'string' &&
-            json.id &&
-            typeof json.name === 'string' &&
-            json.name
-          ) {
+          if (isChatToolFrame(json)) {
+            const { blockId } = json
             if (!messageIdMap.has(blockId)) {
               messageIdMap.set(blockId, messageId)
             }
-            const key = toolCallKey(blockId, json.id)
-            if (json.phase === 'start') {
-              if (!toolCallsMap.has(key)) {
-                toolCallOrder.push(key)
-              }
-              toolCallsMap.set(key, {
-                key,
-                blockId,
+            applyToolCallPhase(
+              toolCallsMap,
+              toolCallOrder,
+              {
+                key: toolCallKey(blockId, json.id),
                 id: json.id,
                 name: json.name,
-                displayName: humanizeToolName(json.name),
-                status: 'running',
+                phase: json.phase,
+                status: json.status,
+              },
+              (tool): ChatToolCall => ({
+                ...tool,
+                blockId,
+                displayName: tool.displayName ?? tool.name,
               })
-            } else if (json.phase === 'end') {
-              const endStatus: ChatToolCallStatus =
-                json.status === 'error' || json.status === 'cancelled' ? json.status : 'success'
-              const existing = toolCallsMap.get(key)
-              if (!existing) {
-                toolCallOrder.push(key)
-                toolCallsMap.set(key, {
-                  key,
-                  blockId,
-                  id: json.id,
-                  name: json.name,
-                  displayName: humanizeToolName(json.name),
-                  status: endStatus,
-                })
-              } else {
-                toolCallsMap.set(key, { ...existing, status: endStatus })
-              }
-            }
+            )
             syncToolCallsRef()
             uiDirty = true
             scheduleUIFlush()
             return false
           }
 
-          if (eventType === 'final' && json.data && typeof json.data === 'object') {
+          if (isChatFinalFrame(json)) {
             flushUI()
-            const finalData = json.data
+            const finalData = json.data as ChatFinalData
             isThinkingStreaming = false
-            settleInFlightTools(toolCallsMap, 'success')
+            settleRunningToolCalls(toolCallsMap, 'success')
             syncToolCallsRef()
             const toolsSnapshot = snapshotToolCalls(toolCallOrder, toolCallsMap)
 
@@ -608,8 +532,9 @@ export function useChatStreaming() {
           }
 
           // Answer text only — never append thinking/tool/unknown chunk frames blindly.
-          if (isAnswerChunkFrame(json) && contentChunk) {
-            if (blockId && !messageIdMap.has(blockId)) {
+          if (isChatChunkFrame(json)) {
+            const { blockId, chunk: contentChunk } = json
+            if (!messageIdMap.has(blockId)) {
               messageIdMap.set(blockId, messageId)
             }
 
@@ -665,7 +590,7 @@ export function useChatStreaming() {
         // or only non-terminal stream_error). Clear live chrome so the UI does not
         // stay stuck in a streaming/loading state.
         const wasAborted = streamAbortSignal.aborted
-        settleInFlightTools(toolCallsMap, wasAborted ? 'cancelled' : 'error')
+        settleRunningToolCalls(toolCallsMap, wasAborted ? 'cancelled' : 'error')
         syncToolCallsRef()
         isThinkingStreaming = false
         const toolsSnapshot = snapshotToolCalls(toolCallOrder, toolCallsMap)
@@ -715,10 +640,10 @@ export function useChatStreaming() {
       // Match chat.tsx + use-audio-streaming: expected cancel, not a hard failure.
       if (error instanceof Error && error.name === 'AbortError') {
         logger.info('Stream aborted by user or timeout')
-        settleInFlightTools(toolCallsMap, 'cancelled')
+        settleRunningToolCalls(toolCallsMap, 'cancelled')
       } else {
         logger.error('Error processing stream:', error)
-        settleInFlightTools(toolCallsMap, 'error')
+        settleRunningToolCalls(toolCallsMap, 'error')
       }
       syncToolCallsRef()
       flushUI()
@@ -762,5 +687,3 @@ export function useChatStreaming() {
     handleStreamedResponse,
   }
 }
-
-export { isAnswerChunkFrame }

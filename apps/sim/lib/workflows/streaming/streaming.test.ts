@@ -605,7 +605,7 @@ describe('createStreamingResponse', () => {
   })
 })
 
-describe('createStreamingResponse agent-events-v1 (Step 5)', () => {
+describe('createStreamingResponse agent-events-v1', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearLargeValueCacheForTests()

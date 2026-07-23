@@ -9,22 +9,9 @@
  * stream + optional sink; downstream SSE/chat must not re-parse provider streams.
  */
 
-export const AGENT_STREAM_FORMATS = ['text', 'agent-events-v1'] as const
+export type AgentStreamFormat = 'text' | 'agent-events-v1'
 
-export type AgentStreamFormat = (typeof AGENT_STREAM_FORMATS)[number]
-
-export const AGENT_STREAM_EVENT_TYPES = [
-  'text_delta',
-  'thinking_delta',
-  'tool_call_start',
-  'tool_call_end',
-] as const
-
-export type AgentStreamEventType = (typeof AGENT_STREAM_EVENT_TYPES)[number]
-
-export const TOOL_CALL_END_STATUSES = ['success', 'error', 'cancelled'] as const
-
-export type ToolCallEndStatus = (typeof TOOL_CALL_END_STATUSES)[number]
+export type ToolCallEndStatus = 'success' | 'error' | 'cancelled'
 
 export type TextDeltaTurn = 'intermediate' | 'final'
 
@@ -48,10 +35,6 @@ export type UnsubscribeAgentStreamSink = () => void
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-export function isAgentStreamFormat(value: unknown): value is AgentStreamFormat {
-  return value === 'text' || value === 'agent-events-v1'
 }
 
 export function isToolCallEndStatus(value: unknown): value is ToolCallEndStatus {
@@ -85,18 +68,6 @@ export function isAgentStreamEvent(value: unknown): value is AgentStreamEvent {
     default:
       return false
   }
-}
-
-/**
- * Narrows a {@link ReadableStream} to an agent-events object stream.
- * Callers must also check `streamFormat === 'agent-events-v1'` on the envelope —
- * do not sniff chunk types from the stream.
- */
-export function isAgentEventReadableStream(
-  stream: ReadableStream<unknown>,
-  streamFormat: AgentStreamFormat
-): stream is ReadableStream<AgentStreamEvent> {
-  return streamFormat === 'agent-events-v1'
 }
 
 /**

@@ -1,12 +1,14 @@
 /**
- * Executor-facing agent stream pump (Step 2).
+ * Executor-facing agent stream pump.
  *
  * Owns a single drain of a provider {@link StreamingExecution} source and:
  * - projects final-turn answer text to an optional legacy byte stream
- * - pushes the full ordered timeline (including text) to optional sinks
+ * - pushes the full ordered timeline (including text deltas, which current
+ *   sinks ignore — answer text reaches clients via the byte projection) to
+ *   optional sinks
  * - awaits each sink per event (simple backpressure; SSE enqueues are cheap)
  *
- * Wired into {@link BlockExecutor} `handleStreamingExecution` (Step 3).
+ * Wired into {@link BlockExecutor} `handleStreamingExecution`.
  */
 
 import {
@@ -17,8 +19,13 @@ import {
   type UnsubscribeAgentStreamSink,
 } from '@/providers/stream-events'
 
-/** Default cap on thinking text forwarded to sinks (UTF-16 code units via `.length`). */
-export const DEFAULT_MAX_THINKING_BYTES = 512 * 1024
+/**
+ * Default cap on thinking text forwarded to sinks, in UTF-16 code units.
+ * Enforced twice on purpose, at different scopes: the pump caps per block
+ * (each agent block gets its own pump) while the chat SSE `sendThinking` caps
+ * per execution so a many-block workflow cannot flood a public stream.
+ */
+export const DEFAULT_MAX_THINKING_CHARS = 512 * 1024
 
 export type AgentStreamPumpCancelReason = 'user' | 'timeout' | 'unknown'
 
@@ -30,7 +37,7 @@ export interface CreateAgentStreamPumpOptions {
    * consumers read only the sink. Avoids unbounded buffering into an unread stream.
    */
   sinkMode?: boolean
-  maxThinkingBytes?: number
+  maxThinkingChars?: number
   abortSignal?: AbortSignal
 }
 
@@ -70,9 +77,11 @@ function resolveCancelReason(signal: AbortSignal): AgentStreamPumpCancelReason {
       return 'user'
     }
   }
-  if (reason && typeof reason === 'object' && 'name' in reason) {
-    const name = String((reason as { name?: unknown }).name)
-    if (name === 'TimeoutError') return 'timeout'
+  if (reason && typeof reason === 'object') {
+    // Execution aborts carry DOMException('timeout' | 'user', 'AbortError').
+    const { name, message } = reason as { name?: unknown; message?: unknown }
+    if (message === 'timeout' || String(name) === 'TimeoutError') return 'timeout'
+    if (message === 'user') return 'user'
   }
   return 'unknown'
 }
@@ -89,7 +98,7 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
     source,
     streamFormat,
     sinkMode = false,
-    maxThinkingBytes = DEFAULT_MAX_THINKING_BYTES,
+    maxThinkingChars = DEFAULT_MAX_THINKING_CHARS,
     abortSignal,
   } = options
 
@@ -98,7 +107,7 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
   let closedTextStream = false
 
   let answerText = ''
-  let thinkingBytesForwarded = 0
+  let thinkingCharsForwarded = 0
 
   let textController: ReadableStreamDefaultController<Uint8Array> | null = null
   let textBackpressureWait: Promise<void> | null = null
@@ -229,10 +238,10 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
 
   async function handleEvent(event: AgentStreamEvent): Promise<void> {
     if (event.type === 'thinking_delta') {
-      const remaining = Math.max(0, maxThinkingBytes - thinkingBytesForwarded)
+      const remaining = Math.max(0, maxThinkingChars - thinkingCharsForwarded)
       if (remaining <= 0) return
       const forwarded = event.text.length > remaining ? event.text.slice(0, remaining) : event.text
-      thinkingBytesForwarded += forwarded.length
+      thinkingCharsForwarded += forwarded.length
       if (forwarded.length > 0) {
         await dispatchToSinks({ type: 'thinking_delta', text: forwarded })
       }

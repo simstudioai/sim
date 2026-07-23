@@ -1,5 +1,5 @@
 /**
- * OpenAI-compat stream fixtures (Step 9) — capability-honest reasoning deltas.
+ * OpenAI-compat stream fixtures — capability-honest reasoning deltas.
  */
 export const openaiCompatReasoningAndTextChunks = [
   {
@@ -10,7 +10,6 @@ export const openaiCompatReasoningAndTextChunks = [
         },
       },
     ],
-    usage: { prompt_tokens: 10, completion_tokens: 0, total_tokens: 10 },
   },
   {
     choices: [
@@ -24,6 +23,10 @@ export const openaiCompatReasoningAndTextChunks = [
   },
   {
     choices: [{ delta: { content: '4' } }],
+  },
+  // Usage arrives on a trailing chunk with empty choices (stream_options.include_usage).
+  {
+    choices: [],
     usage: { prompt_tokens: 10, completion_tokens: 8, total_tokens: 18 },
   },
 ] as const
@@ -34,6 +37,10 @@ export const openaiCompatTextOnlyChunks = [
   },
   {
     choices: [{ delta: { content: ' world' } }],
+  },
+  // Usage arrives on a trailing chunk with empty choices (stream_options.include_usage).
+  {
+    choices: [],
     usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 },
   },
 ] as const

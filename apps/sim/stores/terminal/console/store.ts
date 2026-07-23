@@ -4,10 +4,10 @@ import { generateId } from '@sim/utils/id'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { useShallow } from 'zustand/react/shallow'
-import type {
-  AgentStreamToolCall,
-  AgentStreamToolStatus,
-} from '@/components/agent-stream/agent-stream-chrome'
+import {
+  type AgentStreamToolTerminalStatus,
+  settleRunningToolCallList,
+} from '@/components/agent-stream/tool-call-lifecycle'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
@@ -85,24 +85,16 @@ const getBlockExecutionKey = (blockId: string, executionId?: string): string =>
  */
 const settleAgentStreamChrome = (
   entry: ConsoleEntry,
-  status: AgentStreamToolStatus
-): Pick<ConsoleEntry, 'agentStreamActive' | 'agentStreamToolCalls'> => {
-  const toolCalls = entry.agentStreamToolCalls
-  if (!toolCalls?.length) {
-    return { agentStreamActive: false, agentStreamToolCalls: toolCalls }
-  }
-  return {
-    agentStreamActive: false,
-    agentStreamToolCalls: toolCalls.map((tool: AgentStreamToolCall) =>
-      tool.status === 'running' ? { ...tool, status } : tool
-    ),
-  }
-}
+  status: AgentStreamToolTerminalStatus
+): Pick<ConsoleEntry, 'agentStreamActive' | 'agentStreamToolCalls'> => ({
+  agentStreamActive: false,
+  agentStreamToolCalls: settleRunningToolCallList(entry.agentStreamToolCalls, status),
+})
 
 const resolveAgentStreamSettleStatus = (
   entry: ConsoleEntry,
   update?: ConsoleUpdate
-): AgentStreamToolStatus => {
+): AgentStreamToolTerminalStatus => {
   if (update?.isCanceled === true || entry.isCanceled) return 'cancelled'
   if (update?.success === false || entry.success === false) return 'error'
   return 'success'

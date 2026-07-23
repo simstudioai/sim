@@ -5,23 +5,12 @@ import { describe, expect, it } from 'vitest'
 import {
   type AgentStreamEvent,
   createAgentEventReadableStream,
-  isAgentEventReadableStream,
   isAgentStreamEvent,
-  isAgentStreamFormat,
   isTextDeltaTurn,
   isToolCallEndStatus,
 } from '@/providers/stream-events'
 
 describe('stream-events contract', () => {
-  describe('isAgentStreamFormat', () => {
-    it('accepts text and agent-events-v1 only', () => {
-      expect(isAgentStreamFormat('text')).toBe(true)
-      expect(isAgentStreamFormat('agent-events-v1')).toBe(true)
-      expect(isAgentStreamFormat('ndjson')).toBe(false)
-      expect(isAgentStreamFormat(undefined)).toBe(false)
-    })
-  })
-
   describe('isAgentStreamEvent', () => {
     it('accepts valid event variants', () => {
       const events: AgentStreamEvent[] = [
@@ -58,14 +47,6 @@ describe('stream-events contract', () => {
       expect(isToolCallEndStatus('failed')).toBe(false)
       expect(isTextDeltaTurn('final')).toBe(true)
       expect(isTextDeltaTurn('first')).toBe(false)
-    })
-  })
-
-  describe('isAgentEventReadableStream', () => {
-    it('requires streamFormat agent-events-v1 and does not sniff', () => {
-      const stream = new ReadableStream<AgentStreamEvent>()
-      expect(isAgentEventReadableStream(stream, 'agent-events-v1')).toBe(true)
-      expect(isAgentEventReadableStream(stream, 'text')).toBe(false)
     })
   })
 

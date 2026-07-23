@@ -7,6 +7,10 @@ import {
   AgentStreamThinkingChrome,
   AgentStreamToolCallsChrome,
 } from '@/components/agent-stream/agent-stream-chrome'
+import type {
+  AgentStreamToolCall,
+  AgentStreamToolStatus,
+} from '@/components/agent-stream/tool-call-lifecycle'
 import {
   ChatFileDownload,
   ChatFileDownloadAll,
@@ -32,16 +36,12 @@ export interface ChatFile {
 }
 
 /** Lifecycle status for a tool chip (agent-events-v1). No args/results. */
-export type ChatToolCallStatus = 'running' | 'success' | 'error' | 'cancelled'
+export type ChatToolCallStatus = AgentStreamToolStatus
 
-export interface ChatToolCall {
-  /** Stable UI key: `${blockId}:${id}`. */
-  key: string
+/** Chat surface tool chip — the shared lifecycle chip plus its block id. */
+export interface ChatToolCall extends AgentStreamToolCall {
   blockId: string
-  id: string
-  name: string
   displayName: string
-  status: ChatToolCallStatus
 }
 
 export interface ChatMessage {

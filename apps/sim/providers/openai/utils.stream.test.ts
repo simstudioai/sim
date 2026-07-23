@@ -30,7 +30,7 @@ async function collectEvents(
   return events
 }
 
-describe('createReadableStreamFromResponses (Step 9)', () => {
+describe('createReadableStreamFromResponses', () => {
   it('emits reasoning summary deltas as thinking and output_text as final text', async () => {
     const onComplete = vi.fn()
     const response = sseResponse([

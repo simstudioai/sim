@@ -34,9 +34,10 @@ Answer text stays on `chunk`. Thinking and tools never reuse `chunk` (so older c
 | `{ "blockId", "chunk": "…" }` | Final-turn answer text only |
 | `{ "blockId", "event": "thinking", "data": "…" }` | Thinking / reasoning summary delta |
 | `{ "blockId", "event": "tool", "phase": "start"\|"end", "id", "name", "status?" }` | Tool lifecycle (no args / results) |
-| `{ "event": "final", … }` | Terminal success envelope |
-| `{ "event": "stream_error", … }` | Terminal failure (may omit `final`) |
-| `data: [DONE]` | Stream closed (documented completion marker) |
+| `{ "event": "final", "data": … }` | Terminal success envelope |
+| `{ "event": "error", "error": "…" }` | Terminal failure — followed by `[DONE]`, never by `final` |
+| `{ "event": "stream_error", "blockId?", "error" }` | Non-terminal mid-block read issue; the stream keeps going |
+| `data: [DONE]` | Stream closed (always follows the terminal `final` or `error` frame) |
 
 ### Intermediate-turn text
 
@@ -52,9 +53,9 @@ Canvas execution-events `stream:chunk`, `stream:thinking`, and `stream:tool` are
 
 ## Canvas (draft Run)
 
-When you click **Run** in the builder, the execution-events SSE path forwards the same sink:
+When you click **Run** in the builder, the execution-events SSE path forwards the same sink. The canvas is always opted in — it does not send (or need) the `X-Sim-Stream-Protocol` header; the dual gate applies only to the public chat / simple SSE surface:
 
-- `stream:thinking` — `{ blockId, data }`
+- `stream:thinking` — `{ blockId, text }`
 - `stream:tool` — `{ blockId, phase, id, name, status? }`
 - `stream:chunk` — answer text (unchanged)
 
@@ -68,9 +69,9 @@ In **Deploy → Chat**, enable **Include thinking** so public chat can expose th
 
 | Family | Thinking | Live tools |
 |--------|----------|------------|
-| Anthropic / Azure Anthropic | Yes (incl. redacted blocks in traces) | Yes |
-| Gemini / Vertex | Yes when `includeThoughts` requested | Yes |
-| OpenAI Responses | Reasoning **summaries** when streamed | Silent tool loop today (answer streams; chips may be absent) |
+| Anthropic / Azure Anthropic | Yes (incl. redacted blocks in traces). The newest Claude models default to omitted thinking display, so they may stream no `thinking` deltas | Yes |
+| Gemini / Vertex | Yes when a thinking level is set (thought summaries requested on agent-events runs) | Yes |
+| OpenAI Responses | Reasoning **summaries** when streamed (requires OpenAI organization verification; unverified orgs fall back to no summaries) | Silent tool loop today (answer streams; chips may be absent) |
 | OpenAI-compat (Groq, DeepSeek, …) | Only if vendor streams `reasoning` / `reasoning_content` | Live loop where wired (e.g. Groq, DeepSeek) |
 | Bedrock | Not invented | Yes when streaming tool loop is used |
 

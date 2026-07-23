@@ -36,9 +36,9 @@ vi.mock('@/components/ui', () => ({
 
 import {
   AgentStreamThinkingChrome,
-  type AgentStreamToolCall,
   AgentStreamToolCallsChrome,
 } from '@/components/agent-stream/agent-stream-chrome'
+import type { AgentStreamToolCall } from '@/components/agent-stream/tool-call-lifecycle'
 
 function renderChrome(props: { thinking: string; isStreaming?: boolean }): {
   container: HTMLDivElement

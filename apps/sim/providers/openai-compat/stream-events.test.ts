@@ -23,7 +23,7 @@ async function collectEvents(
   return events
 }
 
-describe('createOpenAICompatibleAgentEventStream (Step 9)', () => {
+describe('createOpenAICompatibleAgentEventStream', () => {
   it('emits thinking_delta from reasoning_content then text_delta', async () => {
     const onComplete = vi.fn()
     const stream = createOpenAICompatibleAgentEventStream(

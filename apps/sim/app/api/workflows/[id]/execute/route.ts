@@ -71,7 +71,11 @@ import {
 import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
-import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
+import {
+  type ExecutionEvent,
+  encodeSSEEvent,
+  LIVE_ONLY_EXECUTION_EVENT_TYPES,
+} from '@/lib/workflows/executor/execution-events'
 import {
   claimExecutionId,
   type ExecutionIdClaim,
@@ -84,11 +88,8 @@ import {
   loadWorkflowDeploymentVersionState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
-import { attachAgentStreamSink } from '@/lib/workflows/streaming/attach-agent-stream-sink'
-import {
-  agentStreamProtocolResponseHeaders,
-  createStreamingResponse,
-} from '@/lib/workflows/streaming/streaming'
+import { forwardAgentStreamToExecutionEvents } from '@/lib/workflows/streaming/forward-agent-stream-events'
+import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
@@ -1485,13 +1486,7 @@ async function handleExecutePost(
       executionIdClaimCommitted = true
       return new NextResponse(stream, {
         status: 200,
-        headers: {
-          ...SSE_HEADERS,
-          ...agentStreamProtocolResponseHeaders({
-            includeThinking: false,
-            requestHeaders: req.headers,
-          }),
-        },
+        headers: SSE_HEADERS,
       })
     }
 
@@ -1532,11 +1527,7 @@ async function handleExecutePost(
           event: ExecutionEvent,
           terminalStatus?: TerminalExecutionStreamStatus
         ) => {
-          const isBuffered =
-            event.type !== 'stream:chunk' &&
-            event.type !== 'stream:done' &&
-            event.type !== 'stream:thinking' &&
-            event.type !== 'stream:tool'
+          const isBuffered = !LIVE_ONLY_EXECUTION_EVENT_TYPES.has(event.type)
           let eventToSend = event
           if (isBuffered) {
             try {
@@ -1735,34 +1726,11 @@ async function handleExecutePost(
             const blockId = (streamingExec.execution as any).blockId
 
             // Sync window: attach sink before first await so pump delivers thinking/tools.
-            const unsubscribe = attachAgentStreamSink(streamingExec, {
-              onThinkingDelta: async (text) => {
-                await sendEvent({
-                  type: 'stream:thinking',
-                  timestamp: new Date().toISOString(),
-                  executionId,
-                  workflowId,
-                  data: { blockId, data: text },
-                })
-              },
-              onToolCallStart: async (id, name) => {
-                await sendEvent({
-                  type: 'stream:tool',
-                  timestamp: new Date().toISOString(),
-                  executionId,
-                  workflowId,
-                  data: { blockId, phase: 'start', id, name },
-                })
-              },
-              onToolCallEnd: async (id, name, status) => {
-                await sendEvent({
-                  type: 'stream:tool',
-                  timestamp: new Date().toISOString(),
-                  executionId,
-                  workflowId,
-                  data: { blockId, phase: 'end', id, name, status },
-                })
-              },
+            const unsubscribe = forwardAgentStreamToExecutionEvents(streamingExec, {
+              blockId,
+              executionId,
+              workflowId,
+              sendEvent,
             })
 
             const reader = streamingExec.stream.getReader()

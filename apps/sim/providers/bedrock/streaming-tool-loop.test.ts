@@ -25,25 +25,22 @@ vi.mock('@/tools', () => ({
   })),
 }))
 
-vi.mock('@/providers/utils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/providers/utils')>()
-  return {
-    ...actual,
-    prepareToolExecution: vi.fn(() => ({
-      toolParams: { url: 'https://example.com' },
-      executionParams: { url: 'https://example.com' },
-    })),
-    calculateCost: vi.fn(() => ({
-      input: 0.01,
-      output: 0.02,
-      total: 0.03,
-      pricing: { input: 1, output: 2, updatedAt: new Date().toISOString() },
-    })),
-    sumToolCosts: vi.fn(() => 0),
-  }
-})
+vi.mock('@/providers/utils', () => ({
+  prepareToolExecution: vi.fn(() => ({
+    toolParams: { url: 'https://example.com' },
+    executionParams: { url: 'https://example.com' },
+  })),
+  calculateCost: vi.fn(() => ({
+    input: 0.01,
+    output: 0.02,
+    total: 0.03,
+    pricing: { input: 1, output: 2, updatedAt: new Date().toISOString() },
+  })),
+  sumToolCosts: vi.fn(() => 0),
+  trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
+}))
 
-describe('createBedrockStreamingToolLoopStream (Step 9)', () => {
+describe('createBedrockStreamingToolLoopStream', () => {
   it('emits tool_call_start/end and final text; no invented thinking', async () => {
     const turns = [
       (async function* () {

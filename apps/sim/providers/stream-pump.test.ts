@@ -7,7 +7,7 @@ import {
   type AgentStreamSink,
   createAgentEventReadableStream,
 } from '@/providers/stream-events'
-import { createAgentStreamPump, DEFAULT_MAX_THINKING_BYTES } from '@/providers/stream-pump'
+import { createAgentStreamPump, DEFAULT_MAX_THINKING_CHARS } from '@/providers/stream-pump'
 
 async function readAllText(stream: ReadableStream<Uint8Array> | null): Promise<string> {
   if (!stream) return ''
@@ -129,7 +129,7 @@ describe('createAgentStreamPump', () => {
         { type: 'text_delta', text: 'out', turn: 'final' },
       ]),
       streamFormat: 'agent-events-v1',
-      maxThinkingBytes: 4,
+      maxThinkingChars: 4,
     })
     const { sink, events } = collectingSink()
     pump.subscribe(sink)
@@ -141,7 +141,7 @@ describe('createAgentStreamPump', () => {
     expect(events.filter((e) => e.type === 'thinking_delta')).toEqual([
       { type: 'thinking_delta', text: 'abcd' },
     ])
-    expect(DEFAULT_MAX_THINKING_BYTES).toBeGreaterThan(0)
+    expect(DEFAULT_MAX_THINKING_CHARS).toBeGreaterThan(0)
   })
 
   it('allows late subscribers to receive only future events', async () => {

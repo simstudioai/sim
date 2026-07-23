@@ -104,7 +104,7 @@ export const deployedChatConfigSchema = z.object({
     (value) => value ?? undefined,
     z.array(deployedChatOutputConfigSchema).optional()
   ),
-  /** Policy for thinking SSE; clients still need X-Sim-Stream-Protocol opt-in (Step 5). */
+  /** Policy for thinking SSE; clients still need the X-Sim-Stream-Protocol opt-in. */
   includeThinking: z.preprocess((value) => value ?? false, z.boolean()),
 })
 export type DeployedChatConfig = z.output<typeof deployedChatConfigSchema>

@@ -16,15 +16,32 @@ vi.mock('@/tools', () => ({
   executeTool: mockExecuteTool,
 }))
 
-vi.mock('@/providers/utils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/providers/utils')>()
-  return {
-    ...actual,
-    prepareToolExecution: mockPrepareToolExecution,
-    calculateCost: () => ({ input: 0.01, output: 0.02, total: 0.03 }),
-    sumToolCosts: () => 0,
-  }
-})
+vi.mock('@/providers/utils', () => ({
+  prepareToolExecution: mockPrepareToolExecution,
+  calculateCost: () => ({ input: 0.01, output: 0.02, total: 0.03 }),
+  sumToolCosts: () => 0,
+  /** Minimal faithful tracking: marks the forced tool used when the model called it. */
+  trackForcedToolUsage: (
+    toolCalls: Array<{ function?: { name?: string } }>,
+    toolChoice: unknown,
+    _logger: unknown,
+    _provider: unknown,
+    _forcedTools: string[],
+    usedForcedTools: string[]
+  ) => {
+    const forcedName =
+      toolChoice && typeof toolChoice === 'object'
+        ? (toolChoice as { function?: { name?: string } }).function?.name
+        : undefined
+    const usedNow = Boolean(
+      forcedName && toolCalls.some((toolCall) => toolCall.function?.name === forcedName)
+    )
+    return {
+      hasUsedForcedTool: usedNow || usedForcedTools.length > 0,
+      usedForcedTools: usedNow && forcedName ? [...usedForcedTools, forcedName] : usedForcedTools,
+    }
+  },
+}))
 
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
 

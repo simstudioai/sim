@@ -25,7 +25,10 @@ import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
-import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
+import {
+  type ExecutionEvent,
+  LIVE_ONLY_EXECUTION_EVENT_TYPES,
+} from '@/lib/workflows/executor/execution-events'
 import {
   createPausedExecutionResumeMetadata,
   parsePausedExecutionResumeMetadata,
@@ -35,7 +38,7 @@ import {
   normalizeAutomaticResumeWaitingReason,
   resolveAutomaticResumeAdmissionFailure,
 } from '@/lib/workflows/executor/resume-policy'
-import { attachAgentStreamSink } from '@/lib/workflows/streaming/attach-agent-stream-sink'
+import { forwardAgentStreamToExecutionEvents } from '@/lib/workflows/streaming/forward-agent-stream-events'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
   ChildWorkflowContext,
@@ -1277,11 +1280,7 @@ export class PauseResumeManager {
       event: ExecutionEvent,
       terminalStatus?: TerminalExecutionStreamStatus
     ) => {
-      const isBuffered =
-        event.type !== 'stream:chunk' &&
-        event.type !== 'stream:done' &&
-        event.type !== 'stream:thinking' &&
-        event.type !== 'stream:tool'
+      const isBuffered = !LIVE_ONLY_EXECUTION_EVENT_TYPES.has(event.type)
       if (isBuffered) {
         const entry = terminalStatus
           ? await eventWriter.writeTerminal(event, terminalStatus).catch((error) => {
@@ -1424,34 +1423,11 @@ export class PauseResumeManager {
           : undefined
         const blockId = typeof blockIdValue === 'string' ? blockIdValue : ''
 
-        const unsubscribe = attachAgentStreamSink(streamingExec, {
-          onThinkingDelta: async (text) => {
-            await writeBufferedEvent({
-              type: 'stream:thinking',
-              timestamp: new Date().toISOString(),
-              executionId: resumeExecutionId,
-              workflowId,
-              data: { blockId, data: text },
-            } as ExecutionEvent)
-          },
-          onToolCallStart: async (id, name) => {
-            await writeBufferedEvent({
-              type: 'stream:tool',
-              timestamp: new Date().toISOString(),
-              executionId: resumeExecutionId,
-              workflowId,
-              data: { blockId, phase: 'start', id, name },
-            } as ExecutionEvent)
-          },
-          onToolCallEnd: async (id, name, status) => {
-            await writeBufferedEvent({
-              type: 'stream:tool',
-              timestamp: new Date().toISOString(),
-              executionId: resumeExecutionId,
-              workflowId,
-              data: { blockId, phase: 'end', id, name, status },
-            } as ExecutionEvent)
-          },
+        const unsubscribe = forwardAgentStreamToExecutionEvents(streamingExec, {
+          blockId,
+          executionId: resumeExecutionId,
+          workflowId,
+          sendEvent: writeBufferedEvent,
         })
 
         const reader = streamingExec.stream.getReader()

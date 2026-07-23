@@ -17,30 +17,27 @@ vi.mock('@sim/utils/id', () => ({
   generateId: () => 'msg-assistant-1',
 }))
 
+import { isChatChunkFrame } from '@/lib/workflows/streaming/agent-stream-protocol'
 import type { ChatMessage } from '@/app/(interfaces)/chat/components/message/message'
-import {
-  isAnswerChunkFrame,
-  useChatStreaming,
-} from '@/app/(interfaces)/chat/hooks/use-chat-streaming'
+import { useChatStreaming } from '@/app/(interfaces)/chat/hooks/use-chat-streaming'
 
-describe('isAnswerChunkFrame', () => {
+describe('isChatChunkFrame', () => {
   it('accepts plain answer chunks without an event type', () => {
-    expect(isAnswerChunkFrame({ blockId: 'a1', chunk: 'hello' })).toBe(true)
+    expect(isChatChunkFrame({ blockId: 'a1', chunk: 'hello' })).toBe(true)
   })
 
   it('rejects thinking / stream_error / tool frames even if chunk is present', () => {
     expect(
-      isAnswerChunkFrame({ blockId: 'a1', chunk: 'leak', event: 'thinking', data: 'thought' })
+      isChatChunkFrame({ blockId: 'a1', chunk: 'leak', event: 'thinking', data: 'thought' })
     ).toBe(false)
-    expect(isAnswerChunkFrame({ blockId: 'a1', chunk: 'x', event: 'stream_error' })).toBe(false)
-    expect(isAnswerChunkFrame({ blockId: 'a1', chunk: 'x', event: 'tool' })).toBe(false)
-    expect(isAnswerChunkFrame({ blockId: 'a1', chunk: 'x', event: 'tool_call_start' })).toBe(false)
-    expect(isAnswerChunkFrame({ blockId: 'a1', chunk: 'x', event: 'final' })).toBe(false)
+    expect(isChatChunkFrame({ blockId: 'a1', chunk: 'x', event: 'stream_error' })).toBe(false)
+    expect(isChatChunkFrame({ blockId: 'a1', chunk: 'x', event: 'tool' })).toBe(false)
+    expect(isChatChunkFrame({ blockId: 'a1', chunk: 'x', event: 'final' })).toBe(false)
   })
 
   it('rejects frames missing blockId or empty chunk', () => {
-    expect(isAnswerChunkFrame({ chunk: 'hello' })).toBe(false)
-    expect(isAnswerChunkFrame({ blockId: 'a1', chunk: '' })).toBe(false)
+    expect(isChatChunkFrame({ chunk: 'hello' })).toBe(false)
+    expect(isChatChunkFrame({ blockId: 'a1', chunk: '' })).toBe(false)
   })
 })
 
@@ -91,7 +88,7 @@ async function flushUiBatch() {
   })
 }
 
-describe('useChatStreaming thinking + abort (Step 6)', () => {
+describe('useChatStreaming thinking + abort', () => {
   let handle: HookHandle
   let messages: ChatMessage[]
   let setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
@@ -150,7 +147,7 @@ describe('useChatStreaming thinking + abort (Step 6)', () => {
     expect(assistant?.isThinkingStreaming).toBe(false)
   })
 
-  it('surfaces stream_error text in thinking chrome without terminating', async () => {
+  it('ignores non-terminal stream_error frames and keeps streaming', async () => {
     mockReadSSEEvents.mockImplementation(async (_source, options) => {
       await options.onEvent({
         blockId: 'agent-1',
@@ -178,8 +175,8 @@ describe('useChatStreaming thinking + abort (Step 6)', () => {
     await flushUiBatch()
 
     const assistant = messages.find((m) => m.id === 'msg-assistant-1')
-    expect(assistant?.thinking).toContain('Working…')
-    expect(assistant?.thinking).toContain('[Stream error] partial provider glitch')
+    // Error text never pollutes the thinking lane (legacy parity: log-only).
+    expect(assistant?.thinking).toBe('Working…')
     expect(assistant?.content).toBe('Recovered answer.')
     expect(assistant?.isStreaming).toBe(false)
   })
@@ -414,7 +411,7 @@ describe('useChatStreaming thinking + abort (Step 6)', () => {
   })
 })
 
-describe('useChatStreaming tool lifecycle (Step 8)', () => {
+describe('useChatStreaming tool lifecycle', () => {
   let handle: HookHandle
   let messages: ChatMessage[]
   let setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>

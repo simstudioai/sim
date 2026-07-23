@@ -2291,7 +2291,7 @@ describe('AgentBlockHandler', () => {
     })
   })
 
-  describe('wrapStreamForMemoryPersistence envelope (Step 3)', () => {
+  describe('wrapStreamForMemoryPersistence envelope', () => {
     it('preserves streamFormat and subscribe via object spread', () => {
       const handler = new AgentBlockHandler()
       const subscribe = vi.fn()

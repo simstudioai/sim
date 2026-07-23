@@ -438,7 +438,7 @@ describe('BlockExecutor', () => {
   })
 })
 
-describe('BlockExecutor streaming pump (Step 3)', () => {
+describe('BlockExecutor streaming pump', () => {
   function createAgentBlock(): SerializedBlock {
     return {
       id: 'agent-block-1',
