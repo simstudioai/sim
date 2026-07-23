@@ -3,7 +3,6 @@ import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@sim/workflow-renderer'
 import {
   CONTAINER_LAYOUT_OPTIONS,
   DEFAULT_LAYOUT_OPTIONS,
-  MAX_OVERLAP_ITERATIONS,
 } from '@/lib/workflows/autolayout/constants'
 import type { Edge, GraphNode, LayoutOptions } from '@/lib/workflows/autolayout/types'
 import {
@@ -200,56 +199,22 @@ export function groupByLayer(nodes: Map<string, GraphNode>): Map<number, GraphNo
 }
 
 /**
- * Resolves vertical overlaps between nodes in the same layer.
+ * Resolves vertical overlaps between nodes within a single layer by pushing
+ * lower nodes down. Must run before the next layer is positioned so successors
+ * derive their Y from resolved predecessor positions — this keeps each branch
+ * in a stable row instead of re-breaking Y ties per layer.
  * X overlaps are prevented by construction via cumulative width-based positioning.
  */
-function resolveVerticalOverlaps(nodes: GraphNode[], verticalSpacing: number): void {
-  let iteration = 0
-  let hasOverlap = true
+function resolveLayerOverlaps(layerNodes: GraphNode[], verticalSpacing: number): void {
+  if (layerNodes.length < 2) return
 
-  while (hasOverlap && iteration < MAX_OVERLAP_ITERATIONS) {
-    hasOverlap = false
-    iteration++
+  const sorted = [...layerNodes].sort((a, b) => a.position.y - b.position.y)
 
-    const nodesByLayer = new Map<number, GraphNode[]>()
-    for (const node of nodes) {
-      if (!nodesByLayer.has(node.layer)) {
-        nodesByLayer.set(node.layer, [])
-      }
-      nodesByLayer.get(node.layer)!.push(node)
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const requiredY = sorted[i].position.y + sorted[i].metrics.height + verticalSpacing
+    if (sorted[i + 1].position.y < requiredY) {
+      sorted[i + 1].position.y = requiredY
     }
-
-    for (const [layer, layerNodes] of nodesByLayer) {
-      if (layerNodes.length < 2) continue
-
-      layerNodes.sort((a, b) => a.position.y - b.position.y)
-
-      for (let i = 0; i < layerNodes.length - 1; i++) {
-        const node1 = layerNodes[i]
-        const node2 = layerNodes[i + 1]
-
-        const node1Bottom = node1.position.y + node1.metrics.height
-        const requiredY = node1Bottom + verticalSpacing
-
-        if (node2.position.y < requiredY) {
-          hasOverlap = true
-          node2.position.y = requiredY
-
-          logger.debug('Resolved vertical overlap in layer', {
-            layer,
-            block1: node1.id,
-            block2: node2.id,
-            iteration,
-          })
-        }
-      }
-    }
-  }
-
-  if (hasOverlap) {
-    logger.warn('Could not fully resolve all vertical overlaps after max iterations', {
-      iterations: MAX_OVERLAP_ITERATIONS,
-    })
   }
 }
 
@@ -372,9 +337,9 @@ export function calculatePositions(
 
       node.position = { x: xPosition, y: bestSourceHandleY - targetHandleOffset }
     }
-  }
 
-  resolveVerticalOverlaps(Array.from(layers.values()).flat(), verticalSpacing)
+    resolveLayerOverlaps(nodesInLayer, verticalSpacing)
+  }
 }
 
 /**
