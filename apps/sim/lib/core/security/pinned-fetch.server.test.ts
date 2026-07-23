@@ -124,6 +124,18 @@ describe('createPinnedFetch', () => {
     expect(response.headers.get('location')).toBe('https://login.example.com/')
   })
 
+  it('honors redirect mode carried on a Request input (not just init)', async () => {
+    mockUndiciRequest.mockResolvedValueOnce(
+      undiciReply(302, { location: 'https://login.example.com/' }, byteStream(''))
+    )
+    const pinned = createPinnedFetch('203.0.113.10')
+
+    const response = await pinned(new Request('https://mcp.example.com/', { redirect: 'manual' }))
+
+    expect(mockUndiciRequest).toHaveBeenCalledTimes(1)
+    expect(response.status).toBe(302)
+  })
+
   it('follows redirects by default and DROPS headers on a cross-origin hop (no api-key leak)', async () => {
     mockUndiciRequest
       .mockResolvedValueOnce(

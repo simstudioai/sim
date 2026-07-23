@@ -909,6 +909,9 @@ async function liftFetchArgs(
         headers: input.headers,
         body: bodyAllowed ? await input.clone().arrayBuffer() : undefined,
         signal: input.signal,
+        // Carry the Request's redirect mode so the pinned fetch honors `manual`/`error`
+        // instead of defaulting a `Request({ redirect: 'manual' })` to `follow`.
+        redirect: input.redirect,
         ...init,
       },
     }
