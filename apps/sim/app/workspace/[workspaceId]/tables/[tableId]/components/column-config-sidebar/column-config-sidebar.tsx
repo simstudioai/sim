@@ -273,7 +273,7 @@ function ColumnConfigBody({
             </div>
             <FieldDivider />
             <div className='flex items-center justify-between pl-0.5'>
-              <Label htmlFor='column-sidebar-multiple'>Allow multiple</Label>
+              <Label htmlFor='column-sidebar-multiple'>Multiselect</Label>
               <Switch
                 id='column-sidebar-multiple'
                 checked={multipleInput}
