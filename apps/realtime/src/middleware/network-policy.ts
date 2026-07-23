@@ -82,11 +82,19 @@ interface HandshakeLike {
  * the log.
  */
 const DENIAL_AUDIT_WINDOW_MS = 5 * 60 * 1000
+const DENIAL_AUDIT_MAX_TRACKED = 10_000
 const lastDenialAuditAt = new Map<string, number>()
 
 function recordSocketDenial(userId: string, organizationId: string, clientIp: string | null): void {
   const last = lastDenialAuditAt.get(userId)
   if (last && Date.now() - last < DENIAL_AUDIT_WINDOW_MS) return
+  // Bound the map (matching the app-side throttle): on overflow drop the
+  // oldest-inserted key. Long-lived realtime process, many distinct denied
+  // members — this keeps it a slow ceiling, not an unbounded leak.
+  if (lastDenialAuditAt.size >= DENIAL_AUDIT_MAX_TRACKED) {
+    const oldest = lastDenialAuditAt.keys().next().value
+    if (oldest !== undefined) lastDenialAuditAt.delete(oldest)
+  }
   lastDenialAuditAt.set(userId, Date.now())
   recordAudit({
     workspaceId: null,
