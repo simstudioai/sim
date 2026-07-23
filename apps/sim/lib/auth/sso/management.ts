@@ -104,7 +104,13 @@ export function requireNormalizedSSODomain(input: string, existingDomain?: strin
 }
 
 export function domainsOverlap(left: string, right: string): boolean {
-  return left === right || left.endsWith(`.${right}`) || right.endsWith(`.${left}`)
+  const normalizedLeft = left.toLowerCase()
+  const normalizedRight = right.toLowerCase()
+  return (
+    normalizedLeft === normalizedRight ||
+    normalizedLeft.endsWith(`.${normalizedRight}`) ||
+    normalizedRight.endsWith(`.${normalizedLeft}`)
+  )
 }
 
 export async function authorizeOrganizationSSOAdmin(
@@ -216,7 +222,7 @@ export async function assertSSOProviderAvailable(input: {
         'SSO_ORGANIZATION_PROVIDER_CONFLICT'
       )
     }
-    if (domainsOverlap(provider.domain.toLowerCase(), input.domain)) {
+    if (domainsOverlap(provider.domain, input.domain)) {
       throw new SSOManagementError(
         'This domain overlaps an SSO domain registered by another organization',
         409,

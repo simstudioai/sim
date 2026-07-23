@@ -97,6 +97,9 @@ describe('SSO management helpers', () => {
     expect(domainsOverlap('acme.com', 'acme.com')).toBe(true)
     expect(domainsOverlap('login.acme.com', 'acme.com')).toBe(true)
     expect(domainsOverlap('acme.com', 'login.acme.com')).toBe(true)
+    expect(domainsOverlap('LOGIN.CORP', 'login.corp')).toBe(true)
+    expect(domainsOverlap('AUTH.LOGIN.CORP', 'login.corp')).toBe(true)
+    expect(domainsOverlap('login.corp', 'AUTH.LOGIN.CORP')).toBe(true)
     expect(domainsOverlap('notacme.com', 'acme.com')).toBe(false)
   })
 
