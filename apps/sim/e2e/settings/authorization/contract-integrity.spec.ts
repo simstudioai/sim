@@ -109,14 +109,30 @@ test('Step 3 proof references resolve without rerunning their cases', () => {
 test('access contracts declare every required Step 4 gate axis', () => {
   expectSections(
     accessGateCases.filter(({ caseId }) => caseId.startsWith('organization-read-member-')),
-    ['access-control', 'audit-logs', 'sso', 'data-retention', 'data-drains', 'whitelabeling']
+    [
+      'access-control',
+      'audit-logs',
+      'sso',
+      'sessions',
+      'data-retention',
+      'data-drains',
+      'whitelabeling',
+    ]
   )
   expectSections(
     accessGateCases.filter(
       ({ caseId }) =>
         caseId.startsWith('organization-lapsed-admin-') && caseId.endsWith('-plan-denied')
     ),
-    ['access-control', 'audit-logs', 'sso', 'data-retention', 'data-drains', 'whitelabeling']
+    [
+      'access-control',
+      'audit-logs',
+      'sso',
+      'sessions',
+      'data-retention',
+      'data-drains',
+      'whitelabeling',
+    ]
   )
   expectSections(
     accessGateCases.filter(({ caseId }) => caseId.startsWith('workspace-member-')),
@@ -126,6 +142,7 @@ test('access contracts declare every required Step 4 gate axis', () => {
       'access-control',
       'audit-logs',
       'sso',
+      'sessions',
       'data-retention',
       'data-drains',
       'whitelabeling',
@@ -137,6 +154,7 @@ test('access contracts declare every required Step 4 gate axis', () => {
       'access-control',
       'audit-logs',
       'sso',
+      'sessions',
       'data-retention',
       'data-drains',
       'whitelabeling',

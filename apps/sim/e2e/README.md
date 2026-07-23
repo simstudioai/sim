@@ -408,9 +408,11 @@ contracts before the isolation project opens its two-worker pool.
 
 ## Stability gate and required CI
 
-The Step 7 source discovers 256 tests: 131 navigation/foundation, 84
-authorization, 13 credentials, 11 workflows, 15 persona contracts, and 2
-two-worker isolation tests.
+The current integrated source discovers 262 tests: 133 navigation/foundation,
+88 authorization, 13 credentials, 11 workflows, 15 persona contracts, and 2
+two-worker isolation tests. The six tests added after the frozen Step 7 gate
+cover the organization/workspace Session policies routes and their direct
+authorization/entitlement negatives.
 
 Retries remain fixed at zero while the suite is stabilized. The final gate is
 five Playwright executions per test against one healthy production stack, not

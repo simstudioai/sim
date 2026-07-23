@@ -63,6 +63,7 @@ const ORGANIZATION_SECTION_MAP: Partial<Record<SettingsSection, OrganizationSett
   'access-control': 'access-control',
   'audit-logs': 'audit-logs',
   sso: 'sso',
+  sessions: 'sessions',
   'data-retention': 'data-retention',
   'data-drains': 'data-drains',
   whitelabeling: 'whitelabeling',

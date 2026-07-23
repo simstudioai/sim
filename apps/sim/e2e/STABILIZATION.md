@@ -12,10 +12,11 @@ billing-enabled Chromium milestone. It complements the operational runbook in
   deletions. Generated Drizzle snapshots are classified as generated review
   material; migration SQL, schema declarations, and preflight code remain
   hand-reviewed.
-- Current Step 7 source discovers 256 tests: 131 navigation/foundation, 84
+- Current integrated source discovers 262 tests: 133 navigation/foundation, 88
   authorization, 13 credentials, 11 workflows, 15 persona contracts, and 2
-  isolation tests. The pre-Step-7 baseline was 254; Step 7 adds two foundation
-  safety policies for selective trace suppression and auth-screenshot clearing.
+  isolation tests. The pre-Step-7 baseline was 254; Step 7 added two foundation
+  safety policies, and the later session-policy setting added two canonical
+  navigation contracts plus four direct authorization/entitlement negatives.
 - Regenerate the exact inventory instead of copying a stale list:
 
   ```bash
@@ -53,7 +54,7 @@ are never committed.
 ## Navigation contract
 
 The explicit datasets in `e2e/settings/navigation/contracts.ts` are independent
-of `SETTINGS_SECTION_REGISTRY`: 37 canonical sections, 21 special route cases,
+of `SETTINGS_SECTION_REGISTRY`: 39 canonical sections, 21 special route cases,
 and 11 representative visibility cases.
 
 - `canonical-navigation.spec.ts` iterates every literal account, organization,
@@ -79,7 +80,7 @@ an explicit product decision and a paired update to the independent contract.
 ## Authorization and entitlement contract
 
 `e2e/settings/authorization/contracts.ts` owns literal access outcomes and
-semantic mutation probes: 47 direct access cases and 31 mutation-control cases.
+semantic mutation probes: 51 direct access cases and 31 mutation-control cases.
 Its integrity spec requires every declared gate axis.
 
 - Read, write, and admin workspace personas cover view/mutation boundaries for
