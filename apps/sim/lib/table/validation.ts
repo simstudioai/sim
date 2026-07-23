@@ -6,8 +6,15 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { getColumnId } from '@/lib/table/column-keys'
-import { COLUMN_TYPES, getMaxRowSizeBytes, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { getColumnId, nameShadowsColumnId } from '@/lib/table/column-keys'
+import {
+  COLUMN_NAME_PATTERN,
+  COLUMN_NAME_RULE,
+  COLUMN_TYPES,
+  getMaxRowSizeBytes,
+  NAME_PATTERN,
+  TABLE_LIMITS,
+} from '@/lib/table/constants'
 import { normalizeDateCellValue } from '@/lib/table/dates'
 import { withSeqscanOff } from '@/lib/table/planner'
 import type {
@@ -206,6 +213,13 @@ export function validateTableSchema(schema: TableSchema): ValidationResult {
   const uniqueNames = new Set(columnNames)
   if (uniqueNames.size !== columnNames.length) {
     errors.push('Duplicate column names found')
+  }
+
+  for (let i = 0; i < schema.columns.length; i++) {
+    const column = schema.columns[i]
+    if (nameShadowsColumnId(schema.columns, column.name, i)) {
+      errors.push(`Column name "${column.name}" conflicts with another column's id`)
+    }
   }
 
   return { valid: errors.length === 0, errors }
@@ -662,7 +676,12 @@ export async function checkBatchUniqueConstraintsDb(
   return { valid: rowErrors.length === 0, errors: rowErrors }
 }
 
-/** Validates column definition format and type. */
+/**
+ * Validates column definition format and type, accumulating errors for bulk
+ * schema checks. Write paths use the throwing `assertValidNewColumnName`
+ * (column-keys.ts), which adds uniqueness and id-shadow checks; the
+ * pattern/length rules here mirror it and must stay in sync.
+ */
 export function validateColumnDefinition(column: ColumnDefinition): ValidationResult {
   const errors: string[] = []
 
@@ -677,10 +696,8 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
     )
   }
 
-  if (!NAME_PATTERN.test(column.name)) {
-    errors.push(
-      `Column name "${column.name}" must start with letter or underscore, followed by alphanumeric or underscore`
-    )
+  if (!COLUMN_NAME_PATTERN.test(column.name)) {
+    errors.push(`Column name "${column.name}" is invalid: ${COLUMN_NAME_RULE}`)
   }
 
   if (!COLUMN_TYPES.includes(column.type)) {

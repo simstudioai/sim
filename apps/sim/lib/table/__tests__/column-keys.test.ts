@@ -17,6 +17,7 @@ import {
   filterNamesToIds,
   generateColumnId,
   getColumnId,
+  nameShadowsColumnId,
   remapGroupColumnRefs,
   rowDataIdToName,
   rowDataNameToId,
@@ -55,8 +56,10 @@ describe('name ↔ id maps', () => {
     ],
   }
 
-  it('buildIdByName maps display name → storage id', () => {
+  it('buildIdByName maps lowercased display name → storage id', () => {
     expect(Object.fromEntries(buildIdByName(schema))).toEqual({ email: 'col_1', age: 'age' })
+    const mixed: TableSchema = { columns: [{ id: 'col_9', name: 'First Name', type: 'string' }] }
+    expect(Object.fromEntries(buildIdByName(mixed))).toEqual({ 'first name': 'col_9' })
   })
   it('buildNameById maps storage id → display name', () => {
     expect(Object.fromEntries(buildNameById(schema))).toEqual({ col_1: 'email', age: 'age' })
@@ -84,6 +87,10 @@ describe('row data translation', () => {
     expect(rowDataNameToId({ email: 'x', ghost: 1 }, idByName)).toEqual({ col_1: 'x' })
     expect(rowDataIdToName({ col_1: 'x', col_gone: 9 }, nameById)).toEqual({ email: 'x' })
   })
+
+  it('matches wire keys case-insensitively instead of silently dropping them', () => {
+    expect(rowDataNameToId({ EMAIL: 'x', Age: 1 }, idByName)).toEqual({ col_1: 'x', age: 1 })
+  })
 })
 
 describe('filter / sort translation', () => {
@@ -108,6 +115,29 @@ describe('filter / sort translation', () => {
       col_1: 'asc',
       createdAt: 'desc',
     })
+  })
+
+  it('matches filter/sort fields case-insensitively, preserving unknown keys verbatim', () => {
+    expect(filterNamesToIds({ EMAIL: 'x', Ghost: 1 }, idByName)).toEqual({ col_1: 'x', Ghost: 1 })
+    expect(sortNamesToIds({ Email: 'asc' }, idByName)).toEqual({ col_1: 'asc' })
+  })
+})
+
+describe('nameShadowsColumnId', () => {
+  const columns: TableSchema['columns'] = [
+    { id: 'col_abc', name: 'email', type: 'string' },
+    { name: 'age', type: 'number' }, // legacy: storage key is the name
+  ]
+
+  it('flags a name equal to another column storage key', () => {
+    expect(nameShadowsColumnId(columns, 'col_abc')).toBe(true)
+    expect(nameShadowsColumnId(columns, 'age')).toBe(true)
+    expect(nameShadowsColumnId(columns, 'First Name')).toBe(false)
+  })
+
+  it('excludes the column being renamed', () => {
+    expect(nameShadowsColumnId(columns, 'age', 1)).toBe(false)
+    expect(nameShadowsColumnId(columns, 'col_abc', 1)).toBe(true)
   })
 })
 

@@ -46,15 +46,15 @@ const MAX_EXAMPLES_IN_ERROR = 3
 const CSV_PREVIEW_BYTES = 512 * 1024
 /**
  * Sentinel value for the "Do not import" option in the mapping combobox. The
- * whitespace is intentional: valid column names must match `NAME_PATTERN`
- * (`/^[a-z_][a-z0-9_]*$/i`), so no real column can share this value.
+ * embedded NUL is intentional: control characters are invalid in column names
+ * (`COLUMN_NAME_PATTERN`), so no real column can share this value.
  */
-const SKIP_VALUE = '__ skip __'
+const SKIP_VALUE = '\u0000skip'
 /**
- * Sentinel for the "Create new column" option. Same whitespace trick as
+ * Sentinel for the "Create new column" option. Same control-character trick as
  * `SKIP_VALUE` to avoid colliding with any valid column name.
  */
-const CREATE_VALUE = '__ create __'
+const CREATE_VALUE = '\u0000create'
 
 /**
  * Converts the verbose backend error messages into a short, human-friendly

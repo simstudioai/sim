@@ -9,13 +9,16 @@ import {
   CSV_MAX_BATCH_SIZE,
   CSV_SCHEMA_SAMPLE_SIZE,
   type CsvHeaderMapping,
+  CsvImportValidationError,
   coerceRowsForTable,
   createCsvParser,
   inferColumnType,
   inferSchemaFromCsv,
-  sanitizeName,
+  sanitizeColumnName,
   type TableSchema,
+  uniqueColumnName,
   validateMapping,
+  validateTableSchema,
 } from '@/lib/table'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { withGeneratedColumnIds } from '@/lib/table/column-keys'
@@ -149,6 +152,15 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         // Stamp ids so the imported table is id-native (rows coerce + persist by
         // the same ids).
         schema = withGeneratedColumnIds({ columns: inferred.columns.map(normalizeColumn) })
+        // The sync create route validates via createTable; this path writes the
+        // schema directly, so validate here or an over-wide CSV would persist an
+        // invalid schema (e.g. more than MAX_COLUMNS_PER_TABLE columns).
+        const schemaValidation = validateTableSchema(schema)
+        if (!schemaValidation.valid) {
+          throw new CsvImportValidationError(
+            `Invalid schema: ${schemaValidation.errors.join('; ')}`
+          )
+        }
         headerToColumn = inferred.headerToColumn
         await setTableSchemaForImport(tableId, schema)
         return
@@ -168,14 +180,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         const additions: { name: string; type: string }[] = []
         const updatedMapping: CsvHeaderMapping = { ...effectiveMapping }
         for (const header of payload.createColumns) {
-          const base = sanitizeName(header)
-          let columnName = base
-          let suffix = 2
-          while (usedNames.has(columnName.toLowerCase())) {
-            columnName = `${base}_${suffix}`
-            suffix++
-          }
-          usedNames.add(columnName.toLowerCase())
+          const columnName = uniqueColumnName(sanitizeColumnName(header), usedNames)
           additions.push({ name: columnName, type: inferColumnType(sample.map((r) => r[header])) })
           updatedMapping[header] = columnName
         }

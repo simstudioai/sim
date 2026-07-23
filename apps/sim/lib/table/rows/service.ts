@@ -23,7 +23,7 @@ import {
   TableRowLimitError,
   wouldExceedRowLimit,
 } from '@/lib/table/billing'
-import { getColumnId } from '@/lib/table/column-keys'
+import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
 import { getMaxPageBytes, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { nKeysBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
@@ -513,12 +513,12 @@ export async function upsertRow(
 
   // Determine the single conflict target column, resolving to its stable
   // storage id (the row-data key). `conflictTarget` may arrive as an id
-  // (first-party) or a name (legacy/internal) — match either.
+  // (first-party) or a name (legacy/internal) — match either, with the same
+  // case-insensitive name semantics as every other column-ref resolver.
   let targetColumnKey: string
   if (data.conflictTarget) {
-    const col = uniqueColumns.find(
-      (c) => getColumnId(c) === data.conflictTarget || c.name === data.conflictTarget
-    )
+    const target = data.conflictTarget
+    const col = uniqueColumns.find((c) => columnMatchesRef(c, target))
     if (!col) {
       throw new Error(
         `Column "${data.conflictTarget}" is not a unique column. Available unique columns: ${uniqueColumns.map((c) => c.name).join(', ')}`

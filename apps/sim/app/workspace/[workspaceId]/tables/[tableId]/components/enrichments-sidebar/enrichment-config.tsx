@@ -18,7 +18,7 @@ import { generateId } from '@sim/utils/id'
 import type { AddWorkflowGroupBodyInput } from '@/lib/api/contracts/tables'
 import type { ColumnDefinition, WorkflowGroup, WorkflowGroupOutput } from '@/lib/table'
 import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
-import { deriveOutputColumnName } from '@/lib/table/column-naming'
+import { uniqueColumnName } from '@/lib/table/column-naming'
 import { FieldError } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
 import {
@@ -110,11 +110,9 @@ export function EnrichmentConfig({
       }
       return seed
     }
-    const taken = new Set(allColumns.map((c) => c.name))
+    const taken = new Set(allColumns.map((c) => c.name.toLowerCase()))
     for (const o of enrichment.outputs) {
-      const colName = deriveOutputColumnName(o.name, taken)
-      taken.add(colName)
-      seed[o.id] = colName
+      seed[o.id] = uniqueColumnName(o.name, taken)
     }
     return seed
   })
@@ -192,13 +190,12 @@ export function EnrichmentConfig({
     }
 
     const groupId = generateId()
-    const taken = new Set(allColumns.map((c) => c.name))
+    const taken = new Set(allColumns.map((c) => c.name.toLowerCase()))
     const outputColumns: AddWorkflowGroupBodyInput['outputColumns'] = []
     const outputs: WorkflowGroupOutput[] = []
     for (const o of enrichment.outputs) {
       const desired = (outputNames[o.id] ?? '').trim() || o.name
-      const colName = deriveOutputColumnName(desired, taken)
-      taken.add(colName)
+      const colName = uniqueColumnName(desired, taken)
       outputColumns.push({
         name: colName,
         type: o.type,

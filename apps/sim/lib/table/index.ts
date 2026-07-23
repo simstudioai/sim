@@ -7,6 +7,7 @@
 
 export * from '@/lib/table/billing'
 export * from '@/lib/table/column-keys'
+export * from '@/lib/table/column-naming'
 export * from '@/lib/table/columns/service'
 export * from '@/lib/table/constants'
 export * from '@/lib/table/dates'

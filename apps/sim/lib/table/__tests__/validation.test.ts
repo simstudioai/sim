@@ -93,6 +93,42 @@ describe('Validation', () => {
       expect(result.errors).toContain('Column name is required')
     })
 
+    it('should accept names with spaces, digits, and punctuation', () => {
+      const names = ['First Name', '2024 Revenue', 'e-mail', 'price ($)', 'café', '№ of items']
+
+      for (const name of names) {
+        const result = validateColumnDefinition({ name, type: 'string' })
+        expect(result.valid).toBe(true)
+      }
+    })
+
+    it('should reject names with control or invisible characters or leading/trailing whitespace', () => {
+      const names = [
+        ' leading',
+        'trailing ',
+        'tab\tinside',
+        'new\nline',
+        'nul\u0000char',
+        'zero\u200bwidth',
+        '\u200b',
+        '\u202eevil',
+        'lone\ud800surrogate',
+      ]
+
+      for (const name of names) {
+        const result = validateColumnDefinition({ name, type: 'string' })
+        expect(result.valid).toBe(false)
+        expect(result.errors[0]).toContain('is invalid')
+      }
+    })
+
+    it('should reject names starting with "$" (filter-grammar collision)', () => {
+      for (const name of ['$or', '$and', '$ Amount']) {
+        expect(validateColumnDefinition({ name, type: 'string' }).valid).toBe(false)
+      }
+      expect(validateColumnDefinition({ name: 'Amount ($)', type: 'string' }).valid).toBe(true)
+    })
+
     it('should reject invalid column type', () => {
       const result = validateColumnDefinition({
         name: 'test',

@@ -68,7 +68,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
       msg.includes('already exists') ||
       msg.includes('maximum column') ||
       msg.includes('Invalid column') ||
-      msg.includes('exceeds maximum')
+      msg.includes('exceeds maximum') ||
+      msg.includes("conflicts with another column's id")
     ) {
       return NextResponse.json({ error: msg }, { status: 400 })
     }
@@ -161,6 +162,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       msg.includes('Cannot set unique column') ||
       msg.includes('Invalid column') ||
       msg.includes('exceeds maximum') ||
+      msg.includes("conflicts with another column's id") ||
       msg.includes('incompatible') ||
       msg.includes('duplicate')
     ) {

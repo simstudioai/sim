@@ -13,8 +13,13 @@ import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, sql } from 'drizzle-orm'
-import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import {
+  assertValidNewColumnName,
+  columnMatchesRef,
+  generateColumnId,
+  getColumnId,
+} from '@/lib/table/column-keys'
+import { COLUMN_TYPES, TABLE_LIMITS } from '@/lib/table/constants'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { withLockedTable } from '@/lib/table/service'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
@@ -54,27 +59,13 @@ export async function addTableColumn(
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(tableId, async (table, trx) => {
-    if (!NAME_PATTERN.test(column.name)) {
-      throw new Error(
-        `Invalid column name "${column.name}". Must start with a letter or underscore and contain only alphanumeric characters and underscores.`
-      )
-    }
-
-    if (column.name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
-      throw new Error(
-        `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
-      )
-    }
+    const schema = table.schema
+    assertValidNewColumnName(column.name, schema.columns)
 
     if (!COLUMN_TYPES.includes(column.type as (typeof COLUMN_TYPES)[number])) {
       throw new Error(
         `Invalid column type "${column.type}". Must be one of: ${COLUMN_TYPES.join(', ')}`
       )
-    }
-
-    const schema = table.schema
-    if (schema.columns.some((c) => c.name.toLowerCase() === column.name.toLowerCase())) {
-      throw new Error(`Column "${column.name}" already exists`)
     }
 
     if (schema.columns.length >= TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
@@ -157,31 +148,12 @@ export async function renameColumn(
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(data.tableId, async (table, trx) => {
-    if (!NAME_PATTERN.test(data.newName)) {
-      throw new Error(
-        `Invalid column name "${data.newName}". Column names must start with a letter or underscore, followed by alphanumeric characters or underscores.`
-      )
-    }
-
-    if (data.newName.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
-      throw new Error(
-        `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
-      )
-    }
-
     const schema = table.schema
     const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.oldName))
     if (columnIndex === -1) {
       throw new Error(`Column "${data.oldName}" not found`)
     }
-
-    if (
-      schema.columns.some(
-        (c, i) => i !== columnIndex && c.name.toLowerCase() === data.newName.toLowerCase()
-      )
-    ) {
-      throw new Error(`Column "${data.newName}" already exists`)
-    }
+    assertValidNewColumnName(data.newName, schema.columns, { excludeIndex: columnIndex })
 
     const targetColumn = schema.columns[columnIndex]
     const actualOldName = targetColumn.name

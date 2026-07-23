@@ -2602,7 +2602,7 @@
                     "properties": {
                       "name": {
                         "type": "string",
-                        "description": "Column name (alphanumeric and underscores, must start with letter or underscore)"
+                        "description": "Column display name. Any printable characters; no control characters or leading/trailing whitespace."
                       },
                       "type": {
                         "type": "string",
@@ -5577,9 +5577,8 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "Column name. Must start with a letter or underscore.",
-            "example": "email",
-            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+            "description": "Column display name. Any printable characters; no control characters or leading/trailing whitespace.",
+            "example": "email"
           },
           "type": {
             "type": "string",

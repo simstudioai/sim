@@ -685,7 +685,7 @@ export function WorkflowSidebarBody({
           toast.success(`Saved "${targetColumnName}"`)
         } else {
           // edit-group: full output diff with new-column derivation.
-          const taken = new Set(allColumns.map((c) => c.name))
+          const taken = new Set(allColumns.map((c) => c.name.toLowerCase()))
           const fullOutputs: WorkflowGroupOutput[] = []
           const newOutputColumns: NonNullable<UpdateWorkflowGroupBodyInput['newOutputColumns']> = []
           for (const o of orderedOutputs) {
@@ -696,7 +696,6 @@ export function WorkflowSidebarBody({
               fullOutputs.push(existingOut)
             } else {
               const colName = deriveOutputColumnName(o.path, taken)
-              taken.add(colName)
               fullOutputs.push({ blockId: o.blockId, path: o.path, columnName: colName })
               newOutputColumns.push({
                 name: colName,
@@ -723,12 +722,11 @@ export function WorkflowSidebarBody({
       } else {
         // Create path: brand-new group with auto-derived output column names.
         const groupId = generateId()
-        const taken = new Set(allColumns.map((c) => c.name))
+        const taken = new Set(allColumns.map((c) => c.name.toLowerCase()))
         const newOutputColumns: AddWorkflowGroupBodyInput['outputColumns'] = []
         const groupOutputs: WorkflowGroupOutput[] = []
         for (const o of orderedOutputs) {
           const colName = deriveOutputColumnName(o.path, taken)
-          taken.add(colName)
           newOutputColumns.push({
             name: colName,
             type: columnTypeForLeaf(o.leafType),

@@ -253,7 +253,7 @@ describe('SQL Builder', () => {
 
     it('throws on invalid field name', () => {
       expect(() => buildFilterClause({ 'invalid-field': 'v' }, TABLE, NO_COLUMNS)).toThrow(
-        'Invalid field name'
+        'Unknown field'
       )
     })
 
@@ -418,7 +418,7 @@ describe('SQL Builder', () => {
 
     it('throws on invalid field name', () => {
       const sort: Sort = { 'invalid-field': 'asc' }
-      expect(() => buildSortClause(sort, TABLE, NO_COLUMNS)).toThrow('Invalid field name')
+      expect(() => buildSortClause(sort, TABLE, NO_COLUMNS)).toThrow('Unknown field')
     })
 
     it('throws on invalid direction', () => {
@@ -437,25 +437,21 @@ describe('SQL Builder', () => {
 
     it('rejects identifiers starting with a digit', () => {
       expect(() => buildFilterClause({ '123name': 'v' }, TABLE, NO_COLUMNS)).toThrow(
-        'Invalid field name'
+        'Unknown field'
       )
     })
 
     it('rejects identifiers with special characters', () => {
       const invalid = ['field-name', 'field.name', 'field name', 'field@name']
       for (const name of invalid) {
-        expect(() => buildFilterClause({ [name]: 'v' }, TABLE, NO_COLUMNS)).toThrow(
-          'Invalid field name'
-        )
+        expect(() => buildFilterClause({ [name]: 'v' }, TABLE, NO_COLUMNS)).toThrow('Unknown field')
       }
     })
 
     it('rejects SQL injection attempts in field names', () => {
       const attempts = ["'; DROP TABLE users; --", 'name OR 1=1', 'name; DELETE FROM']
       for (const a of attempts) {
-        expect(() => buildFilterClause({ [a]: 'v' }, TABLE, NO_COLUMNS)).toThrow(
-          'Invalid field name'
-        )
+        expect(() => buildFilterClause({ [a]: 'v' }, TABLE, NO_COLUMNS)).toThrow('Unknown field')
       }
     })
   })

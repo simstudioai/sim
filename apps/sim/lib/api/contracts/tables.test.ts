@@ -2,7 +2,31 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { tableEventStreamQuerySchema } from '@/lib/api/contracts/tables'
+import { tableColumnSchema, tableEventStreamQuerySchema } from '@/lib/api/contracts/tables'
+
+describe('tableColumnSchema', () => {
+  it('accepts display names with spaces, digits-first, punctuation, and unicode', () => {
+    for (const name of ['First Name', '2024 Revenue', 'price ($)', 'caf\u00e9']) {
+      expect(tableColumnSchema.safeParse({ name, type: 'string' }).success).toBe(true)
+    }
+  })
+
+  it('rejects invisible characters, edge whitespace, leading $, and the CSV-dialog sentinels', () => {
+    const bad = [' leading', 'trailing ', 'a\u0000b', 'zero\u200bwidth', '$or', '\u0000skip']
+    for (const name of bad) {
+      expect(tableColumnSchema.safeParse({ name, type: 'string' }).success).toBe(false)
+    }
+  })
+
+  it('accepts identifier-shaped column ids and rejects non-identifier ids', () => {
+    const good = { name: 'x', type: 'string' }
+    expect(tableColumnSchema.safeParse({ ...good, id: 'col_ab12' }).success).toBe(true)
+    expect(tableColumnSchema.safeParse({ ...good, id: 'legacy_name' }).success).toBe(true)
+    for (const id of ["a-b'", 'has space', '1leading', '']) {
+      expect(tableColumnSchema.safeParse({ ...good, id }).success).toBe(false)
+    }
+  })
+})
 
 describe('tableEventStreamQuerySchema', () => {
   it('parses an explicit cursor', () => {
