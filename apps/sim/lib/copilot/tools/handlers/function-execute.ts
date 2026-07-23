@@ -232,6 +232,7 @@ export async function resolveInputFiles(
         logger.warn('Input file is a plan alias directory', { filePath })
         continue
       }
+      // Upload mounts bypass the workspace listing, so load it only for persistent files.
       allFiles ??= await listWorkspaceFiles(workspaceId, {
         includeReservedSystemFiles: betaEnabled,
       })

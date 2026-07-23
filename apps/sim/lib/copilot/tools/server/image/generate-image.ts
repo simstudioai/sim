@@ -76,6 +76,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
     }
 
     try {
+      // Preflight explicit outputs so invalid paths fail before provider work begins.
       const outputFile = params.outputs?.files?.length
         ? await prepareMediaOutput({
             output: params.outputs,

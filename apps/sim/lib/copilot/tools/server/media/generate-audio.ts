@@ -83,6 +83,7 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
     }
 
     try {
+      // Preflight explicit outputs so invalid paths fail before provider work begins.
       const outputFile = params.outputs?.files?.length
         ? await prepareMediaOutput({
             output: params.outputs,
@@ -91,7 +92,7 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
           })
         : undefined
 
-      // Voice cloning: a reference sample clones that voice into the generated speech.
+      // Resolve voice-clone uploads inside the tool error boundary because lookup can fail.
       let voiceSampleDataUri: string | undefined
       const inputFile = params.inputs
         ? requireExactlyOneMediaFile(params.inputs.files, 'Input')

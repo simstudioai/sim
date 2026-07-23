@@ -82,6 +82,7 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
     }
 
     try {
+      // Preflight explicit outputs so invalid paths fail before media processing begins.
       const outputFile =
         params.operation === 'probe' || !params.outputs?.files?.length
           ? undefined

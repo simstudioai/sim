@@ -61,6 +61,7 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
     }
 
     try {
+      // Preflight explicit outputs so invalid paths fail before provider work begins.
       const outputFile = params.outputs?.files?.length
         ? await prepareMediaOutput({
             output: params.outputs,
@@ -68,7 +69,6 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
             userId: context.userId,
           })
         : undefined
-      const outputPath = outputFile?.path || 'files/generated-video.mp4'
 
       let imageDataUri: string | undefined
       const inputFile = params.inputs
@@ -103,6 +103,7 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         imageDataUri,
       })
 
+      const outputPath = outputFile?.path || 'files/generated-video.mp4'
       const mode = outputFile?.mode ?? 'create'
 
       assertServerToolNotAborted(context)
