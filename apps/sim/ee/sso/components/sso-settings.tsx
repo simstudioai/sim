@@ -19,6 +19,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import type { SsoRegistrationBody, SsoUpdateBody } from '@/lib/api/contracts/auth'
 import { useSession } from '@/lib/auth/auth-client'
+import { SSO_RESERVED_PROVIDER_IDS } from '@/lib/auth/sso/config'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -108,6 +109,18 @@ const DEFAULT_ERRORS = {
 
 interface SSOProps {
   organizationId: string
+}
+
+export function validateSSOProviderIdForForm(value: string): string[] {
+  if (!value || !value.trim()) return ['Provider ID is required.']
+  if (value.length > 44) return ['Provider ID must be 44 characters or fewer.']
+  if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(value)) {
+    return ['Use lowercase letters, numbers, and dashes without leading or trailing dashes.']
+  }
+  if (SSO_RESERVED_PROVIDER_IDS.some((reservedId) => reservedId === value)) {
+    return ['This provider ID is reserved by a built-in authentication provider.']
+  }
+  return []
 }
 
 export function SSO({ organizationId }: SSOProps) {
@@ -207,12 +220,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     }
   }
 
-  const validateProviderId = (value: string): string[] => {
-    if (!value || !value.trim()) return ['Provider ID is required.']
-    if (!/^[-a-z0-9]+$/i.test(value.trim())) return ['Use letters, numbers, and dashes only.']
-    return []
-  }
-
   const validateIssuerUrl = (value: string): string[] => {
     const out: string[] = []
     if (!value || !value.trim()) return ['Issuer URL is required.']
@@ -246,7 +253,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const validateAll = (data: typeof formData) => {
     const newErrors: Record<string, string[]> = {
       providerType: [],
-      providerId: validateProviderId(data.providerId),
+      providerId: validateSSOProviderIdForForm(data.providerId),
       issuerUrl: validateIssuerUrl(data.issuerUrl),
       domain: validateDomain(data.domain),
       clientId: [],

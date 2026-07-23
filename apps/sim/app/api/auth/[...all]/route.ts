@@ -1,3 +1,4 @@
+import { withSSOProviderMutationLock } from '@sim/db'
 import { toNextJsHandler } from 'better-auth/next-js'
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
@@ -26,6 +27,10 @@ function isBlockedOrganizationMutationPath(path: string): boolean {
   return path.startsWith('organization/') && !SAFE_ORGANIZATION_POST_PATHS.has(path)
 }
 
+function isSSOCallbackPath(path: string): boolean {
+  return path.startsWith('sso/callback/') || path.startsWith('sso/saml2/callback/')
+}
+
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const path = getAuthPath(request)
 
@@ -34,7 +39,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(createAnonymousSession())
   }
 
-  return betterAuthGET(request)
+  return isSSOCallbackPath(path)
+    ? withSSOProviderMutationLock(() => betterAuthGET(request))
+    : betterAuthGET(request)
 })
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
@@ -54,5 +61,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
-  return betterAuthPOST(request)
+  return isSSOCallbackPath(path)
+    ? withSSOProviderMutationLock(() => betterAuthPOST(request))
+    : betterAuthPOST(request)
 })

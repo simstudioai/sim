@@ -133,7 +133,7 @@ vi.mock('@/hooks/queries/organization', () => ({
   useOrganizationBilling: mockUseOrganizationBilling,
 }))
 
-import { SSO } from '@/ee/sso/components/sso-settings'
+import { SSO, validateSSOProviderIdForForm } from '@/ee/sso/components/sso-settings'
 
 function provider(organizationId: string) {
   const suffix = organizationId === 'org-a' ? 'a' : 'b'
@@ -269,4 +269,20 @@ describe('SSO organization transitions', () => {
     })
     expect(mockDeleteMutate).toHaveBeenCalledWith({ id: 'sso-a', organizationId: 'org-a' })
   })
+})
+
+describe('SSO provider ID validation', () => {
+  it.each(['Valid', '-leading', 'trailing-', 'a'.repeat(45), ' with-space', 'google'])(
+    'rejects API-incompatible provider ID %s',
+    (providerId) => {
+      expect(validateSSOProviderIdForForm(providerId)).not.toEqual([])
+    }
+  )
+
+  it.each(['a', 'acme-sso', 'provider44'])(
+    'accepts API-compatible provider ID %s',
+    (providerId) => {
+      expect(validateSSOProviderIdForForm(providerId)).toEqual([])
+    }
+  )
 })

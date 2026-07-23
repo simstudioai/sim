@@ -13,6 +13,11 @@ const handlerMocks = vi.hoisted(() => ({
     session: { id: 'anon-session' },
   })),
   isAuthDisabled: false,
+  withSSOProviderMutationLock: vi.fn((callback: () => Promise<unknown>) => callback()),
+}))
+
+vi.mock('@sim/db', () => ({
+  withSSOProviderMutationLock: handlerMocks.withSSOProviderMutationLock,
 }))
 
 vi.mock('better-auth/next-js', () => ({
@@ -176,6 +181,43 @@ describe('auth catch-all route SSO mutations', () => {
 
     const res = await POST(req as any)
     expect(res.status).toBe(200)
+    expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
+    expect(handlerMocks.withSSOProviderMutationLock).not.toHaveBeenCalled()
+  })
+
+  it('serializes OIDC GET callbacks with provider mutations', async () => {
+    const { NextResponse } = await import('next/server')
+    handlerMocks.betterAuthGET.mockResolvedValueOnce(new NextResponse(null, { status: 302 }) as any)
+    const req = createMockRequest(
+      'GET',
+      undefined,
+      {},
+      'http://localhost:3000/api/auth/sso/callback/acme'
+    )
+
+    const res = await GET(req as any)
+
+    expect(res.status).toBe(302)
+    expect(handlerMocks.withSSOProviderMutationLock).toHaveBeenCalledTimes(1)
+    expect(handlerMocks.betterAuthGET).toHaveBeenCalledTimes(1)
+  })
+
+  it('serializes SAML POST callbacks with provider mutations', async () => {
+    const { NextResponse } = await import('next/server')
+    handlerMocks.betterAuthPOST.mockResolvedValueOnce(
+      new NextResponse(null, { status: 302 }) as any
+    )
+    const req = createMockRequest(
+      'POST',
+      undefined,
+      {},
+      'http://localhost:3000/api/auth/sso/saml2/callback/acme'
+    )
+
+    const res = await POST(req as any)
+
+    expect(res.status).toBe(302)
+    expect(handlerMocks.withSSOProviderMutationLock).toHaveBeenCalledTimes(1)
     expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
   })
 })

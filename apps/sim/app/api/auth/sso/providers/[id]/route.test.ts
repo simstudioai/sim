@@ -261,4 +261,32 @@ describe('/api/auth/sso/providers/[id]', () => {
     expect(deleteResponse.status).toBe(409)
     expect(mockDeleteSSOProvider).not.toHaveBeenCalled()
   })
+
+  it('blocks an identity update when a link appears while waiting for the mutation lock', async () => {
+    mockWithSSOProviderMutationLock.mockImplementationOnce(
+      async (callback: () => Promise<unknown>) => {
+        dbState.accounts = [{ id: 'concurrent-link' }]
+        return callback()
+      }
+    )
+
+    const response = await PATCH(createMockRequest('PATCH', SAML_UPDATE), context)
+
+    expect(response.status).toBe(409)
+    expect(mockUpdateSSOProvider).not.toHaveBeenCalled()
+  })
+
+  it('blocks deletion when a link appears while waiting for the mutation lock', async () => {
+    mockWithSSOProviderMutationLock.mockImplementationOnce(
+      async (callback: () => Promise<unknown>) => {
+        dbState.accounts = [{ id: 'concurrent-link' }]
+        return callback()
+      }
+    )
+
+    const response = await DELETE(createMockRequest('DELETE'), context)
+
+    expect(response.status).toBe(409)
+    expect(mockDeleteSSOProvider).not.toHaveBeenCalled()
+  })
 })

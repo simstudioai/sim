@@ -50,7 +50,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     }
 
     const domain = requireNormalizedSSODomain(body.domain, provider.domain)
-    if (domain !== provider.domain || body.issuer !== provider.issuer) {
+    const changesProviderIdentity = domain !== provider.domain || body.issuer !== provider.issuer
+    if (changesProviderIdentity) {
       await assertSSOProviderHasNoAccountLinks(provider.providerId)
     }
     await assertSSOProviderAvailable({
@@ -70,6 +71,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
       }
     )
     const updated = await withSSOProviderMutationLock(async () => {
+      if (changesProviderIdentity) {
+        await assertSSOProviderHasNoAccountLinks(provider.providerId)
+      }
       await assertSSOProviderAvailable({
         providerId: provider.providerId,
         domain,
@@ -121,9 +125,12 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
 
     const provider = await getManagedSSOProvider(parsed.data.params.id, session.user.id)
     await assertSSOProviderHasNoAccountLinks(provider.providerId)
-    await auth.api.deleteSSOProvider({
-      body: { providerId: provider.providerId },
-      headers: collectAuthHeaders(request),
+    await withSSOProviderMutationLock(async () => {
+      await assertSSOProviderHasNoAccountLinks(provider.providerId)
+      return auth.api.deleteSSOProvider({
+        body: { providerId: provider.providerId },
+        headers: collectAuthHeaders(request),
+      })
     })
 
     logger.info('SSO provider deleted', {
