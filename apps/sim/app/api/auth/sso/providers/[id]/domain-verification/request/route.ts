@@ -13,6 +13,7 @@ import {
   getManagedSSOProvider,
   ssoManagementErrorResponse,
 } from '@/lib/auth/sso/management'
+import { assertNoActiveSSOProviderOperations } from '@/lib/auth/sso/provider-operation-intent'
 import { env, isTruthy } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -40,6 +41,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
       const provider = await getManagedSSOProvider(parsed.data.params.id, session.user.id, {
         requireCreator: true,
       })
+      await assertNoActiveSSOProviderOperations(provider.providerId)
       const result = await auth.api.requestDomainVerification({
         body: { providerId: provider.providerId },
         headers: collectAuthHeaders(request),

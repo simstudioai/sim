@@ -92,8 +92,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
       }
 
       const currentDomain = requireNormalizedSSODomain(body.domain, currentProvider.domain)
+      await assertNoActiveSSOProviderOperations(currentProvider.providerId)
       if (currentDomain !== currentProvider.domain || body.issuer !== currentProvider.issuer) {
-        await assertNoActiveSSOProviderOperations(currentProvider.providerId)
         await assertSSOProviderHasNoAccountLinks(currentProvider.providerId)
       }
       await assertSSOProviderAvailable({

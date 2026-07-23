@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   dbState,
   memberTable,
+  mockAssertNoActiveSSOProviderOperations,
   mockGetSession,
   mockIsOrganizationOnEnterprisePlan,
   mockRequestDomainVerification,
@@ -24,6 +25,7 @@ const {
     organizationId: 'member.organizationId',
     role: 'member.role',
   },
+  mockAssertNoActiveSSOProviderOperations: vi.fn(),
   mockGetSession: vi.fn(),
   mockIsOrganizationOnEnterprisePlan: vi.fn(),
   mockRequestDomainVerification: vi.fn(),
@@ -81,6 +83,7 @@ vi.mock('@/lib/auth', () => ({
 }))
 
 vi.mock('@/lib/auth/sso/provider-operation-intent', () => ({
+  assertNoActiveSSOProviderOperations: mockAssertNoActiveSSOProviderOperations,
   withSSODomainVerificationIntent: mockWithSSODomainVerificationIntent,
 }))
 
@@ -92,6 +95,7 @@ vi.mock('@/lib/core/config/env', () =>
   createEnvMock({ SSO_ENABLED: 'true', SSO_DOMAIN_VERIFICATION_ENABLED: 'true' })
 )
 
+import { SSOManagementError } from '@/lib/auth/sso/management'
 import { POST as requestVerification } from '@/app/api/auth/sso/providers/[id]/domain-verification/request/route'
 import { POST as verifyDomain } from '@/app/api/auth/sso/providers/[id]/domain-verification/verify/route'
 
@@ -156,6 +160,23 @@ describe('SSO domain verification façades', () => {
     await expect(response.json()).resolves.toMatchObject({
       recordName: '_better-auth-token-acme-saml.updated.acme.com',
     })
+  })
+
+  it('does not replace the verification token while verification is in progress', async () => {
+    mockAssertNoActiveSSOProviderOperations.mockRejectedValueOnce(
+      new SSOManagementError(
+        'An SSO operation is currently completing for this provider. Try again shortly.',
+        409,
+        'SSO_OPERATION_IN_PROGRESS'
+      )
+    )
+
+    const response = await requestVerification(createMockRequest('POST'), context)
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({ code: 'SSO_OPERATION_IN_PROGRESS' })
+    expect(mockAssertNoActiveSSOProviderOperations).toHaveBeenCalledWith('acme-saml')
+    expect(mockRequestDomainVerification).not.toHaveBeenCalled()
   })
 
   it('delegates DNS verification to Better Auth', async () => {

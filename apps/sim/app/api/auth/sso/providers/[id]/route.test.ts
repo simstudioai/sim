@@ -221,6 +221,30 @@ describe('/api/auth/sso/providers/[id]', () => {
     expect(mockUpdateSSOProvider).not.toHaveBeenCalled()
   })
 
+  it('rejects a configuration-only update while an SSO callback is in progress', async () => {
+    mockAssertNoActiveSSOProviderOperations.mockRejectedValueOnce(
+      new SSOManagementError(
+        'An SSO operation is currently completing for this provider. Try again shortly.',
+        409,
+        'SSO_OPERATION_IN_PROGRESS'
+      )
+    )
+
+    const response = await PATCH(
+      createMockRequest('PATCH', {
+        ...SAML_UPDATE,
+        issuer: PROVIDER.issuer,
+        domain: PROVIDER.domain,
+      }),
+      context
+    )
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({ code: 'SSO_OPERATION_IN_PROGRESS' })
+    expect(mockAssertNoActiveSSOProviderOperations).toHaveBeenCalledWith('acme-saml')
+    expect(mockUpdateSSOProvider).not.toHaveBeenCalled()
+  })
+
   it('rejects a stale update when the provider changes before lock acquisition', async () => {
     mockWithSSOProviderMutationLock.mockImplementationOnce(
       async (callback: () => Promise<unknown>) => {
