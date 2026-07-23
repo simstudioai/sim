@@ -1,11 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, resetDbChainMock } from '@sim/testing'
+import { resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => dbChainMock)
-
 import {
   assertEnterpriseReconciliationLeaseHeld,
   type EnterpriseReconciliationLease,

@@ -37,8 +37,6 @@ const {
   mockIsWorkspaceOnEnterprisePlan: vi.fn(async () => true),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
-
 vi.mock('@/lib/billing/organizations/membership', () => ({
   ensureUserInOrganizationTx: mockEnsureUserInOrganization,
   getUserOrganization: mockGetUserOrganization,

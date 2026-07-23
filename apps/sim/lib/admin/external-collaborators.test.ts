@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { member, permissions } from '@sim/db/schema'
-import { dbChainMock, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -16,8 +16,6 @@ vi.mock('@sim/audit', () => ({
   AuditResourceType: { ORGANIZATION: 'organization' },
   recordAudit: mocks.recordAudit,
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/organizations/member-limits', () => ({
   setOrgMemberUsageLimit: mocks.setLimit,

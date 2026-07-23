@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 import { knowledgeConnector } from '@sim/db/schema'
-import { dbChainMock, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { queueTableRows, resetDbChainMock, resetUrlsMock, urlsMockFns } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockAssertBillingAttributionSnapshot,
@@ -19,7 +19,6 @@ const {
   mockSerializeBillingAttributionHeader: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/auth/internal', () => ({
   generateInternalToken: mockGenerateInternalToken,
 }))
@@ -38,9 +37,11 @@ vi.mock('@/lib/copilot/generated/tool-catalog-v1', () => ({
 vi.mock('@/lib/copilot/tools/server/base-tool', () => ({
   assertServerToolNotAborted: vi.fn(),
 }))
-vi.mock('@/lib/core/utils/urls', () => ({
-  getInternalApiBaseUrl: vi.fn(() => 'http://internal.test'),
-}))
+beforeAll(() => {
+  urlsMockFns.mockGetInternalApiBaseUrl.mockReturnValue('http://internal.test')
+})
+
+afterAll(resetUrlsMock)
 vi.mock('@/lib/knowledge/documents/service', () => ({
   createSingleDocument: vi.fn(),
   deleteDocument: vi.fn(),

@@ -1,7 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+beforeAll(() => {
+  setEnv({ E2B_API_KEY: 'test-key' })
+})
+
+afterAll(resetEnvMock)
+
 import { CodeLanguage } from '@/lib/execution/languages'
 
 const { mockCreate, mockRunCode, mockCommandsRun, mockFilesWrite, mockKill } = vi.hoisted(() => ({
@@ -13,7 +21,6 @@ const { mockCreate, mockRunCode, mockCommandsRun, mockFilesWrite, mockKill } = v
 }))
 
 vi.mock('@e2b/code-interpreter', () => ({ Sandbox: { create: mockCreate } }))
-vi.mock('@/lib/core/config/env', () => ({ env: { E2B_API_KEY: 'test-key' } }))
 
 import { executeInE2B, executeShellInE2B } from '@/lib/execution/e2b'
 

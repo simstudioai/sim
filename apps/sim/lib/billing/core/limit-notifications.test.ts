@@ -2,15 +2,16 @@
  * @vitest-environment node
  */
 import {
-  dbChainMock,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
   resetEnvFlagsMock,
+  resetUrlsMock,
   schemaMock,
   setEnvFlags,
+  urlsMockFns,
 } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { sendEmailSpy, getEmailPreferencesMock, renderMock, subjectMock, isOrgAdminRoleMock } =
   vi.hoisted(() => ({
@@ -21,9 +22,6 @@ const { sendEmailSpy, getEmailPreferencesMock, renderMock, subjectMock, isOrgAdm
     isOrgAdminRoleMock: vi.fn(() => true),
   }))
 
-vi.mock('@sim/db', () => dbChainMock)
-
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://app.sim.ai' }))
 vi.mock('@/lib/messaging/email/mailer', () => ({ sendEmail: sendEmailSpy }))
 vi.mock('@/lib/messaging/email/unsubscribe', () => ({
   getEmailPreferences: getEmailPreferencesMock,
@@ -47,7 +45,14 @@ const baseUserParams = {
   userName: 'Ada',
 }
 
-afterAll(resetEnvFlagsMock)
+beforeAll(() => {
+  urlsMockFns.mockGetBaseUrl.mockReturnValue('https://app.sim.ai')
+})
+
+afterAll(() => {
+  resetEnvFlagsMock()
+  resetUrlsMock()
+})
 
 describe('maybeSendLimitThresholdEmail', () => {
   beforeEach(() => {

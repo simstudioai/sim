@@ -79,15 +79,6 @@ vi.mock('@/lib/workspace-events/emitter', () => ({
   emitWorkflowUndeployedEvent: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: { INTERNAL_API_SECRET: 'secret' },
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'http://localhost:3000',
-  getSocketServerUrl: () => 'http://localhost:3002',
-}))
-
 vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: mockCaptureServerEvent,
 }))

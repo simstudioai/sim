@@ -5,7 +5,7 @@
 import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
-import { dbChainMock, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1CompletionStatus,
@@ -112,8 +112,6 @@ vi.mock('@/lib/copilot/request/session', () => ({
 vi.mock('@/lib/copilot/request/session/sse', () => ({
   SSE_RESPONSE_HEADERS: {},
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/copilot/chat-status', () => ({
   chatPubSub: null,

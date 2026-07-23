@@ -1,40 +1,24 @@
 /**
  * @vitest-environment node
  */
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockEnv } = vi.hoisted(() => ({
-  mockEnv: {} as Record<string, string | undefined>,
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: mockEnv,
-  envNumber: (
-    value: number | string | undefined | null,
-    fallback: number,
-    options: { min?: number; integer?: boolean } = {}
-  ) => {
-    const parsed = Number(value)
-    const min = options.min ?? 0
-    return Number.isFinite(parsed) &&
-      parsed >= min &&
-      (!options.integer || Number.isInteger(parsed))
-      ? parsed
-      : fallback
-  },
-}))
-
+import { resetEnvFlagsMock, resetEnvMock, setEnv, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   getMaxTableDispatchConcurrency,
   getTableDispatchConcurrency,
 } from '@/lib/table/dispatch-concurrency'
 
-afterAll(resetEnvFlagsMock)
+afterAll(() => {
+  resetEnvFlagsMock()
+  resetEnvMock()
+})
 
 describe('getTableDispatchConcurrency', () => {
   beforeEach(() => {
-    for (const key of Object.keys(mockEnv)) delete mockEnv[key]
+    setEnv({
+      TABLE_DISPATCH_CONCURRENCY_FREE: undefined,
+      TABLE_DISPATCH_CONCURRENCY_PAID: undefined,
+    })
     setEnvFlags({ isBillingEnabled: true })
   })
 
@@ -47,8 +31,8 @@ describe('getTableDispatchConcurrency', () => {
   })
 
   it('applies env overrides', () => {
-    mockEnv.TABLE_DISPATCH_CONCURRENCY_FREE = '5'
-    mockEnv.TABLE_DISPATCH_CONCURRENCY_PAID = '200'
+    setEnv({ TABLE_DISPATCH_CONCURRENCY_FREE: '5' })
+    setEnv({ TABLE_DISPATCH_CONCURRENCY_PAID: '200' })
 
     expect(getTableDispatchConcurrency('free')).toBe(5)
     expect(getTableDispatchConcurrency('pro_6000')).toBe(200)
@@ -59,20 +43,23 @@ describe('getTableDispatchConcurrency', () => {
     setEnvFlags({ isBillingEnabled: false })
     expect(getTableDispatchConcurrency(null)).toBe(50)
 
-    mockEnv.TABLE_DISPATCH_CONCURRENCY_PAID = '120'
+    setEnv({ TABLE_DISPATCH_CONCURRENCY_PAID: '120' })
     expect(getTableDispatchConcurrency(null)).toBe(120)
   })
 })
 
 describe('getMaxTableDispatchConcurrency', () => {
   beforeEach(() => {
-    for (const key of Object.keys(mockEnv)) delete mockEnv[key]
+    setEnv({
+      TABLE_DISPATCH_CONCURRENCY_FREE: undefined,
+      TABLE_DISPATCH_CONCURRENCY_PAID: undefined,
+    })
   })
 
   it('returns the highest configured value', () => {
     expect(getMaxTableDispatchConcurrency()).toBe(50)
 
-    mockEnv.TABLE_DISPATCH_CONCURRENCY_FREE = '80'
+    setEnv({ TABLE_DISPATCH_CONCURRENCY_FREE: '80' })
     expect(getMaxTableDispatchConcurrency()).toBe(80)
   })
 })

@@ -94,10 +94,6 @@ vi.mock('@/lib/billing/storage/limits', () => ({
   isStorageEnforcementEnabled: () => envFlagsMock.isBillingEnabled,
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  getEnv: vi.fn(() => undefined),
-}))
-
 vi.mock('@sim/logger', () => ({
   createLogger: () => ({
     error: mockLoggerError,

@@ -2,13 +2,7 @@
  * @vitest-environment node
  */
 import { member, workspace } from '@sim/db/schema'
-import {
-  dbChainMock,
-  queueTableRows,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  setEnvFlags,
-} from '@sim/testing'
+import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -20,8 +14,6 @@ const {
   mockGetOrganizationSubscription: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
   getUserOrganization: mockGetUserOrganization,

@@ -1,14 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockChangeWorkspaceStoragePayerInTx } = vi.hoisted(() => ({
   mockChangeWorkspaceStoragePayerInTx: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/storage/payer-transfer', () => ({
   changeWorkspaceStoragePayerInTx: mockChangeWorkspaceStoragePayerInTx,

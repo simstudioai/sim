@@ -65,22 +65,9 @@ vi.mock('@sim/audit', () => ({
 
 vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: { INTERNAL_API_SECRET: 'secret' },
-}))
-
 vi.mock('@/lib/core/outbox/service', () => ({
   enqueueOutboxEvent: vi.fn(),
   processOutboxEventById: vi.fn(),
-}))
-
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: () => 'request-generated',
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'http://localhost:3000',
-  getSocketServerUrl: () => 'http://localhost:3002',
 }))
 
 vi.mock('@/lib/mcp/server-locks', () => ({

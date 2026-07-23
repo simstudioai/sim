@@ -1,13 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  dbChainMock,
-  dbChainMockFns,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  setEnvFlags,
-} from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -19,8 +13,6 @@ const {
   mockGetOrgMemberUsageLimit: vi.fn(),
   mockIsOrganizationBillingBlocked: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/organizations/member-limits', () => ({
   getOrgMemberUsageForBillingPeriod: mockGetOrgMemberUsageForBillingPeriod,

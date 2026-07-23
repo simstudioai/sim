@@ -2,13 +2,7 @@
  * @vitest-environment node
  */
 import { usageLog } from '@sim/db/schema'
-import {
-  dbChainMock,
-  dbChainMockFns,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  setEnvFlags,
-} from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -30,8 +24,6 @@ const {
   mockTransaction: vi.fn(),
   mockUpdate: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/core/plan', () => ({
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, resetDbChainMock } from '@sim/testing'
+import { resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -16,7 +16,6 @@ const {
   mockGetOrganizationCoverageForMember: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/billing', () => ({ hasPaidSubscription: mockHasPaidSubscription }))
 vi.mock('@/lib/billing/core/organization', () => ({
   isOrganizationOwnerOrAdmin: mockIsOwnerOrAdmin,

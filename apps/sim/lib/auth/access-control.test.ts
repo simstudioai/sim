@@ -1,31 +1,28 @@
 /**
  * @vitest-environment node
  */
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, resetEnvMock, setEnv, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccessControlConfig } from '@/lib/auth/access-control'
 
-const { mockFetch, envRef } = vi.hoisted(() => ({
+const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  envRef: {
-    APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
-    APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
-    BLOCKED_SIGNUP_DOMAINS: undefined as string | undefined,
-    BLOCKED_EMAILS: undefined as string | undefined,
-    ALLOWED_LOGIN_EMAILS: undefined as string | undefined,
-    ALLOWED_LOGIN_DOMAINS: undefined as string | undefined,
-    BLOCKED_EMAIL_MX_HOSTS: undefined as string | undefined,
-  },
 }))
+
+beforeAll(() => {
+  setEnv({
+    APPCONFIG_APPLICATION: 'sim-staging',
+    APPCONFIG_ENVIRONMENT: 'staging',
+    BLOCKED_SIGNUP_DOMAINS: undefined,
+    BLOCKED_EMAILS: undefined,
+    ALLOWED_LOGIN_EMAILS: undefined,
+    ALLOWED_LOGIN_DOMAINS: undefined,
+    BLOCKED_EMAIL_MX_HOSTS: undefined,
+  })
+})
 
 vi.mock('@/lib/core/config/appconfig', () => ({
   fetchAppConfigProfile: mockFetch,
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  get env() {
-    return envRef
-  },
 }))
 
 import {
@@ -42,13 +39,16 @@ const empty: AccessControlConfig = {
   blockedEmailMxHosts: [],
 }
 
-afterAll(resetEnvFlagsMock)
+afterAll(() => {
+  resetEnvFlagsMock()
+  resetEnvMock()
+})
 
 describe('getAccessControlConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
-    Object.assign(envRef, {
+    setEnv({
       BLOCKED_SIGNUP_DOMAINS: undefined,
       BLOCKED_EMAILS: undefined,
       ALLOWED_LOGIN_EMAILS: undefined,
@@ -64,9 +64,9 @@ describe('getAccessControlConfig', () => {
     })
 
     it('parses, trims, lowercases, and dedupes csv env vars', async () => {
-      envRef.BLOCKED_SIGNUP_DOMAINS = 'Gmail.com, yahoo.com ,gmail.com,'
-      envRef.BLOCKED_EMAILS = 'Spam@Evil.com, spam@evil.com'
-      envRef.ALLOWED_LOGIN_DOMAINS = 'Sim.ai'
+      setEnv({ BLOCKED_SIGNUP_DOMAINS: 'Gmail.com, yahoo.com ,gmail.com,' })
+      setEnv({ BLOCKED_EMAILS: 'Spam@Evil.com, spam@evil.com' })
+      setEnv({ ALLOWED_LOGIN_DOMAINS: 'Sim.ai' })
       const result = await getAccessControlConfig()
       expect(result.blockedSignupDomains).toEqual(['gmail.com', 'yahoo.com'])
       expect(result.blockedEmails).toEqual(['spam@evil.com'])
@@ -102,7 +102,7 @@ describe('getAccessControlConfig', () => {
     })
 
     it('falls back to env vars when the fetch yields null', async () => {
-      envRef.BLOCKED_SIGNUP_DOMAINS = 'spam.example'
+      setEnv({ BLOCKED_SIGNUP_DOMAINS: 'spam.example' })
       mockFetch.mockResolvedValue(null)
       const result = await getAccessControlConfig()
       expect(result.blockedSignupDomains).toEqual(['spam.example'])

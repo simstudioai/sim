@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import {
-  dbChainMock,
   queueTableRows,
   resetDbChainMock,
   resetEnvFlagsMock,
@@ -14,8 +13,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const { mockReconcileOrganizationSeats } = vi.hoisted(() => ({
   mockReconcileOrganizationSeats: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/organizations/seats', () => ({
   reconcileOrganizationSeats: mockReconcileOrganizationSeats,

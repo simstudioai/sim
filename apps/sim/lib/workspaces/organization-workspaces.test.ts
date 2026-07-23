@@ -1,13 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  dbChainMock,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -25,8 +19,6 @@ const {
   mockAcquireInvitationMutationLocks: vi.fn(),
   mockChangeWorkspaceStoragePayersInTx: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: mockAcquireOrganizationMutationLock,

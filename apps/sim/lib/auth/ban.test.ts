@@ -7,28 +7,25 @@ import {
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
+  resetEnvMock,
   schemaMock,
+  setEnv,
 } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { envRef } = vi.hoisted(() => ({
-  envRef: {
-    BLOCKED_SIGNUP_DOMAINS: undefined as string | undefined,
-    BLOCKED_EMAILS: undefined as string | undefined,
-  },
-}))
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 vi.mock('@/lib/core/config/appconfig', () => ({ fetchAppConfigProfile: vi.fn() }))
-vi.mock('@/lib/core/config/env', () => ({
-  get env() {
-    return envRef
-  },
-}))
 
 import { getActivelyBannedUserIds, isBanActive, isEmailBlocked } from '@/lib/auth/ban'
 
-afterAll(resetDbChainMock)
+beforeAll(() => {
+  setEnv({ BLOCKED_SIGNUP_DOMAINS: undefined, BLOCKED_EMAILS: undefined })
+})
+
+afterAll(() => {
+  resetDbChainMock()
+  resetEnvMock()
+})
 
 describe('isBanActive', () => {
   it('returns true for a permanent ban', () => {
@@ -53,8 +50,8 @@ describe('isEmailBlocked', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    envRef.BLOCKED_SIGNUP_DOMAINS = 'bad.com'
-    envRef.BLOCKED_EMAILS = 'spam@evil.com'
+    setEnv({ BLOCKED_SIGNUP_DOMAINS: 'bad.com' })
+    setEnv({ BLOCKED_EMAILS: 'spam@evil.com' })
   })
 
   it('returns true for blocked domains and subdomains without querying users', async () => {
@@ -84,8 +81,8 @@ describe('getActivelyBannedUserIds', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    envRef.BLOCKED_SIGNUP_DOMAINS = undefined
-    envRef.BLOCKED_EMAILS = undefined
+    setEnv({ BLOCKED_SIGNUP_DOMAINS: undefined })
+    setEnv({ BLOCKED_EMAILS: undefined })
   })
 
   it('short-circuits on empty input without querying', async () => {
@@ -110,7 +107,7 @@ describe('getActivelyBannedUserIds', () => {
   })
 
   it('returns ids whose email is individually blocked', async () => {
-    envRef.BLOCKED_EMAILS = 'spam@evil.com'
+    setEnv({ BLOCKED_EMAILS: 'spam@evil.com' })
     queueTableRows(user, [
       { id: 'u1', email: 'spam@evil.com', banned: false, banExpires: null },
       { id: 'u2', email: 'ok@evil.com', banned: false, banExpires: null },
@@ -119,7 +116,7 @@ describe('getActivelyBannedUserIds', () => {
   })
 
   it('returns ids whose email domain is in the blocked-domains list, including subdomains', async () => {
-    envRef.BLOCKED_SIGNUP_DOMAINS = 'bad.com'
+    setEnv({ BLOCKED_SIGNUP_DOMAINS: 'bad.com' })
     queueTableRows(user, [
       { id: 'u1', email: 'a@bad.com', banned: false, banExpires: null },
       { id: 'u2', email: 'b@mail.bad.com', banned: false, banExpires: null },

@@ -1,21 +1,13 @@
 /**
  * @vitest-environment node
  */
-import {
-  dbChainMock,
-  dbChainMockFns,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  setEnvFlags,
-} from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetOrganizationSubscription, mockHasInflightOutboxEvent } = vi.hoisted(() => ({
   mockGetOrganizationSubscription: vi.fn(),
   mockHasInflightOutboxEvent: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/core/outbox/service', () => ({
   hasInflightOutboxEvent: mockHasInflightOutboxEvent,

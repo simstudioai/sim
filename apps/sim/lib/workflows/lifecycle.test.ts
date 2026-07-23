@@ -2,17 +2,23 @@
  * @vitest-environment node
  */
 import {
-  createEnvMock,
   dbChainMock,
   dbChainMockFns,
   resetDbChainMock,
+  resetEnvMock,
   schemaMock,
-  urlsMock,
+  setEnv,
   urlsMockFns,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+beforeAll(() => {
+  setEnv({ SOCKET_SERVER_URL: 'http://socket.test', INTERNAL_API_SECRET: 'secret' })
+})
+
+afterAll(resetEnvMock)
 
 const { mockCleanupExternalWebhook, mockWorkflowDeleted } = vi.hoisted(() => ({
   mockCleanupExternalWebhook: vi.fn(),
@@ -28,12 +34,6 @@ vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 vi.mock('@/lib/webhooks/provider-subscriptions', () => ({
   cleanupExternalWebhook: (...args: unknown[]) => mockCleanupExternalWebhook(...args),
 }))
-
-vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({ SOCKET_SERVER_URL: 'http://socket.test', INTERNAL_API_SECRET: 'secret' })
-)
-
-vi.mock('@/lib/core/utils/urls', () => urlsMock)
 
 vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: {

@@ -1,13 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  auditMock,
-  auditMockFns,
-  dbChainMock,
-  dbChainMockFns,
-  resetDbChainMock,
-} from '@sim/testing'
+import { auditMock, auditMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -26,7 +20,6 @@ const {
   mockWorkspaceMemberAdded: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/billing/organizations/membership', () => ({

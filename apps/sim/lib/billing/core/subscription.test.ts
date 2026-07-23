@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetEnvFlagsMock, setEnvFlags, urlsMock } from '@sim/testing'
+import { dbChainMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -19,8 +19,6 @@ const {
   mockGetPlanTierCredits: vi.fn(),
   mockHasUsableSubscriptionAccess: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/core/access', () => ({
   getEffectiveBillingStatus: vi.fn(),
@@ -54,8 +52,6 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
 }))
-
-vi.mock('@/lib/core/utils/urls', () => urlsMock)
 
 import {
   getOrganizationCoverageForMember,

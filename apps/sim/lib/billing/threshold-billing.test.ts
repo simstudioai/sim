@@ -1,13 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  dbChainMock,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -48,8 +42,6 @@ vi.mock('@sim/audit', () => ({
   recordAudit: mockRecordAudit,
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
-
 vi.mock('@/lib/billing/core/access', () => ({
   getEffectiveBillingStatus: mockGetEffectiveBillingStatus,
   isOrganizationBillingBlocked: mockIsOrganizationBillingBlocked,
@@ -83,11 +75,6 @@ vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
   OUTBOX_EVENT_TYPES: {
     STRIPE_THRESHOLD_OVERAGE_INVOICE: 'stripe.threshold-overage-invoice',
   },
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: {},
-  envNumber: vi.fn((_value: string | undefined, fallback: number) => fallback),
 }))
 
 vi.mock('@/lib/core/outbox/service', () => ({

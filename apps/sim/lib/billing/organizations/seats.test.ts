@@ -3,7 +3,6 @@
  */
 import {
   auditMock,
-  dbChainMock,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
@@ -17,8 +16,6 @@ const { mockSyncSubscriptionUsageLimits, enqueueMock } = vi.hoisted(() => ({
   mockSyncSubscriptionUsageLimits: vi.fn(),
   enqueueMock: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/organization', () => ({
   syncSubscriptionUsageLimits: mockSyncSubscriptionUsageLimits,

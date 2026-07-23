@@ -81,10 +81,6 @@ vi.mock('@sim/security/compare', () => ({
   safeCompare: vi.fn().mockReturnValue(true),
 }))
 
-vi.mock('@/lib/environment/utils', () => ({
-  getEffectiveDecryptedEnv: vi.fn().mockResolvedValue({}),
-}))
-
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 

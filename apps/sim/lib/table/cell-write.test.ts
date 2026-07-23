@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RowExecutionMetadata, TableDefinition, WorkflowGroup } from '@/lib/table/types'
 
@@ -10,8 +10,6 @@ const { mockAppendTableEvent, mockUpdateRow, mockWriteExecutionsPatch } = vi.hoi
   mockUpdateRow: vi.fn(),
   mockWriteExecutionsPatch: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/table/events', () => ({
   appendTableEvent: mockAppendTableEvent,

@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import {
-  dbChainMock,
   dbChainMockFns,
   defaultMockEnv,
   resetDbChainMock,
@@ -17,7 +16,6 @@ const { mockBatchTrigger } = vi.hoisted(() => ({
   mockBatchTrigger: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@trigger.dev/sdk', () => ({
   tasks: {
     batchTrigger: mockBatchTrigger,

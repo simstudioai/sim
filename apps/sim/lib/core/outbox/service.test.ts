@@ -20,8 +20,6 @@ type OutboxRow = {
   processedAt: Date | null
 }
 
-vi.mock('@sim/db', () => dbChainMock)
-
 vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn(() => 'test-event-id'),
 }))

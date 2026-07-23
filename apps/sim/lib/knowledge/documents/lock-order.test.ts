@@ -8,11 +8,9 @@
  * a concurrent chunk edit of the same document.
  */
 import { document, embedding } from '@sim/db/schema'
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { updateDocument } from '@/lib/knowledge/documents/service'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 /** invocationCallOrder of the first `tx.update(table)` call. */
 function updateOrderForTable(table: unknown): number {

@@ -2,14 +2,22 @@
  * @vitest-environment node
  */
 
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  environmentUtilsMockFns,
+  resetEnvFlagsMock,
+  resetEnvironmentUtilsMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext, StreamingContext } from '@/lib/copilot/request/types'
+
+const mockGetEffectiveDecryptedEnv = environmentUtilsMockFns.mockGetEffectiveDecryptedEnv
+
+afterAll(resetEnvironmentUtilsMock)
 
 const {
   mockCreateRunSegment,
   mockForceFailHungToolCall,
-  mockGetEffectiveDecryptedEnv,
   mockGetMothershipBaseURL,
   mockGetMothershipSourceEnvHeaders,
   mockPrepareExecutionContext,
@@ -20,7 +28,6 @@ const {
 } = vi.hoisted(() => ({
   mockCreateRunSegment: vi.fn(),
   mockForceFailHungToolCall: vi.fn(),
-  mockGetEffectiveDecryptedEnv: vi.fn(),
   mockGetMothershipBaseURL: vi.fn(),
   mockGetMothershipSourceEnvHeaders: vi.fn(),
   mockPrepareExecutionContext: vi.fn(),
@@ -75,10 +82,6 @@ vi.mock('@/lib/core/config/env', () => ({
   getEnv: vi.fn((key: string) => (key === 'NEXT_PUBLIC_APP_URL' ? 'http://localhost:3000' : '')),
   isTruthy: vi.fn((value: string | undefined) => value === 'true'),
   isFalsy: vi.fn((value: string | undefined) => value === 'false'),
-}))
-
-vi.mock('@/lib/environment/utils', () => ({
-  getEffectiveDecryptedEnv: mockGetEffectiveDecryptedEnv,
 }))
 
 vi.mock('@/lib/copilot/tools/handlers/context', () => ({

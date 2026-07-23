@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import {
-  dbChainMock,
   dbChainMockFns,
   permissionsMock,
   permissionsMockFns,
@@ -17,8 +16,6 @@ const { mockArchiveWorkflowsForWorkspace } = vi.hoisted(() => ({
 }))
 
 const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/workflows/lifecycle', () => ({
   archiveWorkflowsForWorkspace: (...args: unknown[]) => mockArchiveWorkflowsForWorkspace(...args),

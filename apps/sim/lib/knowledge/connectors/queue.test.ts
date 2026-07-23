@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockExecuteSync, mockIsTriggerAvailable, mockResolveTriggerRegion, mockTrigger } =
@@ -12,7 +12,6 @@ const { mockExecuteSync, mockIsTriggerAvailable, mockResolveTriggerRegion, mockT
     mockTrigger: vi.fn(),
   }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@trigger.dev/sdk', () => ({ tasks: { trigger: mockTrigger } }))
 vi.mock('@/lib/core/async-jobs/region', () => ({
   resolveTriggerRegion: mockResolveTriggerRegion,
