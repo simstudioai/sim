@@ -3,9 +3,16 @@
  *
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, requestUtilsMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  requestUtilsMockFns,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { type NextRequest, NextResponse } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const orderByLimitMock = vi.fn()
 
@@ -14,7 +21,6 @@ const {
   mockExecuteScheduleJob,
   mockExecuteJobInline,
   mockReleaseScheduleLock,
-  mockFeatureFlags,
   mockEnqueue,
   mockGetJob,
   mockStartJob,
@@ -29,12 +35,6 @@ const {
   mockExecuteScheduleJob: vi.fn().mockResolvedValue(undefined),
   mockExecuteJobInline: vi.fn().mockResolvedValue(undefined),
   mockReleaseScheduleLock: vi.fn().mockResolvedValue(undefined),
-  mockFeatureFlags: {
-    isTriggerDevEnabled: false,
-    isHosted: false,
-    isProd: false,
-    isDev: true,
-  },
   mockEnqueue: vi.fn().mockResolvedValue('job-id-1'),
   mockGetJob: vi.fn().mockResolvedValue(null),
   mockStartJob: vi.fn().mockResolvedValue(undefined),
@@ -69,8 +69,6 @@ vi.mock('@/background/schedule-execution', () => ({
     infraRetryCount: 0,
   }),
 }))
-
-vi.mock('@/lib/core/config/env-flags', () => mockFeatureFlags)
 
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({
@@ -277,6 +275,8 @@ function createMockRequest(): NextRequest {
   } as NextRequest
 }
 
+afterAll(resetEnvFlagsMock)
+
 describe('Scheduled Workflow Execution API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -289,10 +289,10 @@ describe('Scheduled Workflow Execution API Route', () => {
     dbChainMockFns.orderBy.mockReturnValue({ limit: orderByLimitMock } as never)
     dbChainMockFns.execute.mockResolvedValue([{ acquired: true }] as never)
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('test-request-id')
-    mockFeatureFlags.isTriggerDevEnabled = false
-    mockFeatureFlags.isHosted = false
-    mockFeatureFlags.isProd = false
-    mockFeatureFlags.isDev = true
+    setEnvFlags({ isTriggerDevEnabled: false })
+    setEnvFlags({ isHosted: false })
+    setEnvFlags({ isProd: false })
+    setEnvFlags({ isDev: true })
     mockShouldExecuteInline.mockReturnValue(false)
     mockEnqueue.mockReset()
     mockEnqueue.mockResolvedValue('job-id-1')
@@ -337,7 +337,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should queue schedules to Trigger.dev when enabled', async () => {
-    mockFeatureFlags.isTriggerDevEnabled = true
+    setEnvFlags({ isTriggerDevEnabled: true })
     dbChainMockFns.limit
       .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
       .mockResolvedValueOnce([])

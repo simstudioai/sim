@@ -1,11 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFlags, mockIsTriggerAvailable } = vi.hoisted(() => ({
-  mockFlags: { isBillingEnabled: false },
+const { mockIsTriggerAvailable } = vi.hoisted(() => ({
   mockIsTriggerAvailable: vi.fn(),
 }))
 
@@ -18,11 +23,6 @@ vi.mock('@/lib/cleanup/batch-delete', () => ({ chunkArray: vi.fn() }))
 vi.mock('@/lib/core/async-jobs', () => ({ getJobQueue: vi.fn() }))
 vi.mock('@/lib/core/async-jobs/config', () => ({ shouldExecuteInline: vi.fn(() => false) }))
 vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: vi.fn() }))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return mockFlags.isBillingEnabled
-  },
-}))
 vi.mock('@/lib/knowledge/documents/service', () => ({
   isTriggerAvailable: mockIsTriggerAvailable,
 }))
@@ -33,11 +33,13 @@ vi.mock('@/lib/workspaces/policy', () => ({
 
 import { dispatchCleanupJobs } from '@/lib/billing/cleanup-dispatcher'
 
+afterAll(resetEnvFlagsMock)
+
 describe('dispatchCleanupJobs billing gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
   })
 
   afterAll(() => {

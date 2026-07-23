@@ -1,8 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { redisConfigMock, redisConfigMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { evalMock, mockEnv } = vi.hoisted(() => ({
   evalMock: vi.fn(),
@@ -31,14 +31,15 @@ vi.mock('@/lib/core/config/env', () => ({
   },
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isBillingEnabled: true,
-  isHosted: true,
-}))
-
 vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 import { reserveExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+
+beforeAll(() => {
+  setEnvFlags({ isBillingEnabled: true, isHosted: true })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('usage reservation environment overrides', () => {
   beforeEach(() => {

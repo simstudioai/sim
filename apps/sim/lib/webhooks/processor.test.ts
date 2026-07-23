@@ -6,7 +6,6 @@ import type { webhook, workflow } from '@sim/db/schema'
 import {
   createMockRequest,
   dbChainMock,
-  envFlagsMock,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   queueTableRows,
@@ -77,8 +76,6 @@ vi.mock('@/lib/core/async-jobs', () => ({
 vi.mock('@/lib/core/admission/gate', () => ({
   tryAdmit: vi.fn(() => ({ release: mockAdmissionRelease })),
 }))
-
-vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 vi.mock('@sim/security/compare', () => ({
   safeCompare: vi.fn().mockReturnValue(true),

@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetApiKeyWithBYOK, mockExecuteRequest } = vi.hoisted(() => ({
   mockGetApiKeyWithBYOK: vi.fn(),
@@ -16,10 +17,6 @@ vi.mock('@/providers/registry', () => ({
   getProviderExecutor: vi.fn().mockResolvedValue({
     executeRequest: (...args: unknown[]) => mockExecuteRequest(...args),
   }),
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  getCostMultiplier: vi.fn(() => 1),
 }))
 
 import { executeProviderRequest } from '@/providers'
@@ -65,6 +62,8 @@ function makeAnthropicResponse(): ProviderResponse {
     },
   }
 }
+
+afterAll(resetEnvFlagsMock)
 
 describe('executeProviderRequest — BYOK regression', () => {
   beforeEach(() => {

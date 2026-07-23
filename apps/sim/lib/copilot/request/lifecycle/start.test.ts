@@ -5,7 +5,7 @@
 import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
-import { dbChainMock, resetDbChainMock } from '@sim/testing'
+import { dbChainMock, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1CompletionStatus,
@@ -26,7 +26,6 @@ const {
   hasAbortMarker,
   releasePendingChatStream,
   fetchGo,
-  billingFlags,
 } = vi.hoisted(() => ({
   runCopilotLifecycle: vi.fn(),
   createRunSegment: vi.fn(),
@@ -41,10 +40,6 @@ const {
   hasAbortMarker: vi.fn(),
   releasePendingChatStream: vi.fn(),
   fetchGo: vi.fn(),
-  billingFlags: {
-    isHosted: false,
-    isCopilotBillingAttributionV1Enabled: false,
-  },
 }))
 
 const BILLING_ATTRIBUTION = {
@@ -133,15 +128,6 @@ vi.mock('@/lib/copilot/server/agent-url', () => ({
   getMothershipSourceEnvHeaders: vi.fn().mockReturnValue({}),
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isHosted() {
-    return billingFlags.isHosted
-  },
-  get isCopilotBillingAttributionV1Enabled() {
-    return billingFlags.isCopilotBillingAttributionV1Enabled
-  },
-}))
-
 import { createSSEStream, requestChatTitle } from './start'
 
 async function drainStream(stream: ReadableStream) {
@@ -152,6 +138,8 @@ async function drainStream(stream: ReadableStream) {
   }
 }
 
+afterAll(resetEnvFlagsMock)
+
 describe('createSSEStream terminal error handling', () => {
   afterAll(() => {
     resetDbChainMock()
@@ -160,8 +148,8 @@ describe('createSSEStream terminal error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    billingFlags.isHosted = false
-    billingFlags.isCopilotBillingAttributionV1Enabled = false
+    setEnvFlags({ isHosted: false })
+    setEnvFlags({ isCopilotBillingAttributionV1Enabled: false })
     fetchGo.mockResolvedValue(
       new Response(JSON.stringify({ title: 'Test title' }), {
         status: 200,
@@ -347,8 +335,8 @@ describe('requestChatTitle billing protocol', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    billingFlags.isHosted = true
-    billingFlags.isCopilotBillingAttributionV1Enabled = true
+    setEnvFlags({ isHosted: true })
+    setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
     fetchGo.mockResolvedValue(
       new Response(JSON.stringify({ title: 'Billing Protocol' }), {
         status: 200,
@@ -382,7 +370,7 @@ describe('requestChatTitle billing protocol', () => {
   })
 
   it('sends explicit legacy-v0 during the Sim-first compatibility stage', async () => {
-    billingFlags.isCopilotBillingAttributionV1Enabled = false
+    setEnvFlags({ isCopilotBillingAttributionV1Enabled: false })
 
     await requestChatTitle({
       message: 'explain billing',

@@ -1,8 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, defaultMockEnv, resetDbChainMock } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  defaultMockEnv,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
 
@@ -33,10 +40,6 @@ afterAll(() => {
   }
   Object.assign(env, envSnapshot)
 })
-vi.mock('@/lib/core/config/env-flags', () => ({
-  getCostMultiplier: vi.fn().mockReturnValue(1),
-  isTriggerDevEnabled: true,
-}))
 
 import { processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 
@@ -60,6 +63,12 @@ const DOCUMENT = {
   fileSize: 128,
   mimeType: 'text/plain',
 }
+
+beforeAll(() => {
+  setEnvFlags({ isTriggerDevEnabled: true })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('processDocumentsWithQueue billing attribution', () => {
   beforeEach(() => {

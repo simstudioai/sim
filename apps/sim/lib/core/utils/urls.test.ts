@@ -1,7 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetEnv } = vi.hoisted(() => ({
   mockGetEnv: vi.fn<(key: string) => string | undefined>(),
@@ -10,10 +11,6 @@ const { mockGetEnv } = vi.hoisted(() => ({
 vi.mock('@/lib/core/config/env', () => ({
   env: {},
   getEnv: mockGetEnv,
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isProd: false,
 }))
 
 import {
@@ -31,6 +28,8 @@ function setLocation(url: string) {
     configurable: true,
   })
 }
+
+afterAll(resetEnvFlagsMock)
 
 describe('getBrowserOrigin', () => {
   it('returns the page origin in the browser', () => {

@@ -1,8 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCheckInternalApiKey,
@@ -15,7 +15,6 @@ const {
   mockToBillingContext,
   MockCumulativeUsageContextMismatchError,
   MockThresholdSettlementError,
-  billingState,
 } = vi.hoisted(() => ({
   mockCheckInternalApiKey: vi.fn(),
   mockRecordCumulativeUsage: vi.fn(),
@@ -35,10 +34,6 @@ const {
       this.name = 'ThresholdSettlementError'
       this.code = code
     }
-  },
-  billingState: {
-    isBillingEnabled: true,
-    isCopilotBillingProtocolRequired: false,
   },
 }))
 
@@ -82,17 +77,10 @@ vi.mock('@/lib/billing/threshold-billing', () => ({
   ThresholdSettlementError: MockThresholdSettlementError,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return billingState.isBillingEnabled
-  },
-  get isCopilotBillingProtocolRequired() {
-    return billingState.isCopilotBillingProtocolRequired
-  },
-}))
-
 import { billingUpdateCostBodySchema } from '@/lib/api/contracts/subscription'
 import { POST } from '@/app/api/billing/update-cost/route'
+
+afterAll(resetEnvFlagsMock)
 
 const ACCOUNT_BILLING_DECISION = {
   userId: 'user-1',
@@ -159,8 +147,8 @@ const KEYLESS_UPDATE_COST_BODY = {
 describe('POST /api/billing/update-cost — workspaceId attribution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    billingState.isBillingEnabled = true
-    billingState.isCopilotBillingProtocolRequired = false
+    setEnvFlags({ isBillingEnabled: true })
+    setEnvFlags({ isCopilotBillingProtocolRequired: false })
     mockCheckInternalApiKey.mockReturnValue({ success: true })
     mockRecordCumulativeUsage.mockResolvedValue({ billed: true, delta: 0.5, total: 0.5 })
     mockCheckAndBillOverageThreshold.mockResolvedValue(undefined)
@@ -178,7 +166,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
   })
 
   it('returns 401 for a billing-disabled request without valid internal auth', async () => {
-    billingState.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
     mockCheckInternalApiKey.mockReturnValue({ success: false, error: 'Invalid internal API key' })
 
     const res = await POST(
@@ -200,7 +188,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
   })
 
   it('returns no-op success for old markerless Go when billing is disabled', async () => {
-    billingState.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
 
     const res = await POST(
       createMockRequest(
@@ -303,7 +291,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
   })
 
   it('rejects markerless callbacks only when protocol-required is explicitly enabled', async () => {
-    billingState.isCopilotBillingProtocolRequired = true
+    setEnvFlags({ isCopilotBillingProtocolRequired: true })
     const res = await POST(
       createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
     )
@@ -328,7 +316,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
   })
 
   it('rejects explicitly labeled legacy callbacks without admission attribution', async () => {
-    billingState.isCopilotBillingProtocolRequired = true
+    setEnvFlags({ isCopilotBillingProtocolRequired: true })
     const res = await POST(
       createMockRequest('POST', EXPLICIT_LEGACY_HOSTED_UPDATE_COST_BODY, {
         'x-api-key': 'internal',
@@ -343,7 +331,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
   })
 
   it('bills explicitly labeled legacy callbacks from their admission attribution', async () => {
-    billingState.isCopilotBillingProtocolRequired = true
+    setEnvFlags({ isCopilotBillingProtocolRequired: true })
     const res = await POST(
       createMockRequest('POST', EXPLICIT_LEGACY_HOSTED_UPDATE_COST_BODY, {
         'x-api-key': 'internal',

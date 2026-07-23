@@ -1,7 +1,6 @@
 /**
  * @vitest-environment node
  */
-import { envFlagsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAgent, mockUndiciFetch, capturedAgentOptions, agentCloses } = vi.hoisted(() => {
@@ -25,8 +24,6 @@ const { mockAgent, mockUndiciFetch, capturedAgentOptions, agentCloses } = vi.hoi
 })
 
 vi.mock('undici', () => ({ Agent: mockAgent, fetch: mockUndiciFetch }))
-vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
-
 /**
  * Query-suffixed import gives this file a private instance of the module under
  * test. Under `isolate: false` the worker's module graph is shared across test

@@ -1,5 +1,22 @@
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { afterAll, afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import {
+  dbChainMock,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+  setEnvFlags,
+} from '@sim/testing'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type Mock,
+  vi,
+} from 'vitest'
 import { getAllBlocks } from '@/blocks'
 import { BlockType, isMcpTool } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
@@ -10,19 +27,6 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: false,
-  isProd: false,
-  isDev: true,
-  isTest: false,
-  getCostMultiplier: vi.fn().mockReturnValue(1),
-  getAllowedIntegrationsFromEnv: vi.fn().mockReturnValue(null),
-  isEmailVerificationEnabled: false,
-  isBillingEnabled: false,
-  isOrganizationsEnabled: false,
-  isAccessControlEnabled: false,
-}))
 
 vi.mock('@/providers/utils', () => ({
   getProviderFromModel: vi.fn().mockReturnValue('mock-provider'),
@@ -109,6 +113,12 @@ const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockTransformBlockTool = transformBlockTool as Mock
 const mockFetch = vi.fn()
 const mockExecuteProviderRequest = executeProviderRequest as Mock
+
+beforeAll(() => {
+  setEnvFlags({ isDev: true, isTest: false })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('AgentBlockHandler', () => {
   let handler: AgentBlockHandler

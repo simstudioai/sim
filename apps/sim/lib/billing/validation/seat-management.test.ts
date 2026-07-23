@@ -1,15 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFeatureFlags, mockGetOrganizationSubscription, mockHasInflightOutboxEvent } =
-  vi.hoisted(() => ({
-    mockFeatureFlags: { isBillingEnabled: false },
-    mockGetOrganizationSubscription: vi.fn(),
-    mockHasInflightOutboxEvent: vi.fn(),
-  }))
+const { mockGetOrganizationSubscription, mockHasInflightOutboxEvent } = vi.hoisted(() => ({
+  mockGetOrganizationSubscription: vi.fn(),
+  mockHasInflightOutboxEvent: vi.fn(),
+}))
 
 vi.mock('@sim/db', () => dbChainMock)
 
@@ -35,12 +39,6 @@ vi.mock('@/lib/billing/plan-helpers', () => ({
 
 vi.mock('@/lib/billing/subscriptions/utils', () => ({
   getEffectiveSeats: vi.fn().mockReturnValue(10),
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return mockFeatureFlags.isBillingEnabled
-  },
 }))
 
 vi.mock('@/lib/messaging/email/validation', () => ({
@@ -73,11 +71,13 @@ function queueSelectResponses(responses: unknown[][]) {
   })
 }
 
+afterAll(resetEnvFlagsMock)
+
 describe('getOrganizationSeatInfo', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockFeatureFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
     mockGetOrganizationSubscription.mockResolvedValue(null)
   })
 
@@ -103,7 +103,7 @@ describe('validateSeatAvailability', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockFeatureFlags.isBillingEnabled = true
+    setEnvFlags({ isBillingEnabled: true })
     mockGetOrganizationSubscription.mockResolvedValue({
       id: 'sub-1',
       plan: 'team',

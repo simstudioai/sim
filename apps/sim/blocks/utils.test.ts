@@ -1,13 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsHosted, mockIsAzureConfigured, mockIsOllamaConfigured } = vi.hoisted(() => ({
-  mockIsHosted: { value: false },
-  mockIsAzureConfigured: { value: false },
-  mockIsOllamaConfigured: { value: false },
-}))
+afterAll(resetEnvFlagsMock)
 
 const {
   mockGetHostedModels,
@@ -31,18 +28,6 @@ const { mockProviders } = vi.hoisted(() => ({
       openrouter: { models: [] as string[], isLoading: false },
       fireworks: { models: [] as string[], isLoading: false },
     },
-  },
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isHosted() {
-    return mockIsHosted.value
-  },
-  get isAzureConfigured() {
-    return mockIsAzureConfigured.value
-  },
-  get isOllamaConfigured() {
-    return mockIsOllamaConfigured.value
   },
 }))
 
@@ -103,9 +88,9 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockIsHosted.value = false
-    mockIsAzureConfigured.value = false
-    mockIsOllamaConfigured.value = false
+    setEnvFlags({ isHosted: false })
+    setEnvFlags({ isAzureConfigured: false })
+    setEnvFlags({ isOllamaConfigured: false })
     mockProviders.value = {
       base: { models: [], isLoading: false },
       ollama: { models: [], isLoading: false },
@@ -131,14 +116,14 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
 
   describe('hosted models', () => {
     it('does not require API key for hosted models on hosted platform', () => {
-      mockIsHosted.value = true
+      setEnvFlags({ isHosted: true })
       mockGetHostedModels.mockReturnValue(['gpt-4o', 'claude-sonnet-4-5'])
       expect(evaluateCondition('gpt-4o')).toBe(false)
       expect(evaluateCondition('claude-sonnet-4-5')).toBe(false)
     })
 
     it('requires API key for non-hosted models on hosted platform', () => {
-      mockIsHosted.value = true
+      setEnvFlags({ isHosted: true })
       mockGetHostedModels.mockReturnValue(['gpt-4o'])
       expect(evaluateCondition('claude-sonnet-4-5')).toBe(true)
     })
@@ -158,14 +143,14 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
 
   describe('Azure models', () => {
     it('does not require API key for azure/ models when Azure is configured', () => {
-      mockIsAzureConfigured.value = true
+      setEnvFlags({ isAzureConfigured: true })
       expect(evaluateCondition('azure/gpt-4o')).toBe(false)
       expect(evaluateCondition('azure-openai/gpt-4o')).toBe(false)
       expect(evaluateCondition('azure-anthropic/claude-sonnet-4-5')).toBe(false)
     })
 
     it('requires API key for azure/ models when Azure is not configured', () => {
-      mockIsAzureConfigured.value = false
+      setEnvFlags({ isAzureConfigured: false })
       expect(evaluateCondition('azure/gpt-4o')).toBe(true)
     })
   })
@@ -218,7 +203,7 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
 
   describe('Ollama — OLLAMA_URL env var (server-safe)', () => {
     it('does not require API key for unknown models when OLLAMA_URL is set', () => {
-      mockIsOllamaConfigured.value = true
+      setEnvFlags({ isOllamaConfigured: true })
       expect(evaluateCondition('llama3:latest')).toBe(false)
       expect(evaluateCondition('phi3:latest')).toBe(false)
       expect(evaluateCondition('gemma2:latest')).toBe(false)
@@ -226,7 +211,7 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     })
 
     it('does not require API key for Ollama models that match cloud provider regex patterns', () => {
-      mockIsOllamaConfigured.value = true
+      setEnvFlags({ isOllamaConfigured: true })
       expect(evaluateCondition('mistral:latest')).toBe(false)
       expect(evaluateCondition('mistral')).toBe(false)
       expect(evaluateCondition('mistral-nemo')).toBe(false)
@@ -234,7 +219,7 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     })
 
     it('requires API key for known cloud models even when OLLAMA_URL is set', () => {
-      mockIsOllamaConfigured.value = true
+      setEnvFlags({ isOllamaConfigured: true })
       mockGetBaseModelProviders.mockReturnValue(BASE_CLOUD_MODELS)
       expect(evaluateCondition('gpt-4o')).toBe(true)
       expect(evaluateCondition('claude-sonnet-4-5')).toBe(true)
@@ -243,7 +228,7 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     })
 
     it('requires API key for slash-prefixed cloud models when OLLAMA_URL is set', () => {
-      mockIsOllamaConfigured.value = true
+      setEnvFlags({ isOllamaConfigured: true })
       expect(evaluateCondition('azure/gpt-4o')).toBe(true)
       expect(evaluateCondition('fireworks/llama-3')).toBe(true)
       expect(evaluateCondition('openrouter/anthropic/claude')).toBe(true)
@@ -253,7 +238,7 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
 
   describe('cloud provider models that need API key', () => {
     it('requires API key for standard cloud models on hosted platform', () => {
-      mockIsHosted.value = true
+      setEnvFlags({ isHosted: true })
       mockGetHostedModels.mockReturnValue([])
       expect(evaluateCondition('gpt-4o')).toBe(true)
       expect(evaluateCondition('claude-sonnet-4-5')).toBe(true)
@@ -262,7 +247,7 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     })
 
     it('requires API key for prefixed cloud models on hosted platform', () => {
-      mockIsHosted.value = true
+      setEnvFlags({ isHosted: true })
       expect(evaluateCondition('fireworks/llama-3')).toBe(true)
       expect(evaluateCondition('openrouter/anthropic/claude')).toBe(true)
       expect(evaluateCondition('groq/llama-3')).toBe(true)
@@ -270,7 +255,7 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     })
 
     it('requires API key for prefixed cloud models on self-hosted', () => {
-      mockIsHosted.value = false
+      setEnvFlags({ isHosted: false })
       expect(evaluateCondition('fireworks/llama-3')).toBe(true)
       expect(evaluateCondition('openrouter/anthropic/claude')).toBe(true)
       expect(evaluateCondition('groq/llama-3')).toBe(true)
@@ -280,8 +265,8 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
 
   describe('self-hosted without OLLAMA_URL', () => {
     it('requires API key for any model (Ollama models cannot appear without OLLAMA_URL)', () => {
-      mockIsHosted.value = false
-      mockIsOllamaConfigured.value = false
+      setEnvFlags({ isHosted: false })
+      setEnvFlags({ isOllamaConfigured: false })
       expect(evaluateCondition('llama3:latest')).toBe(true)
       expect(evaluateCondition('mistral:latest')).toBe(true)
       expect(evaluateCondition('gpt-4o')).toBe(true)

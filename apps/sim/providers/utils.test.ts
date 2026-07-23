@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as environmentModule from '@/lib/core/config/env-flags'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   calculateCost,
   extractAndParseJSON,
@@ -43,11 +43,10 @@ import {
   updateOllamaProviderModels,
 } from '@/providers/utils'
 
-const isHostedSpy = vi.spyOn(environmentModule, 'isHosted', 'get') as unknown as {
-  mockReturnValue: (value: boolean) => void
-}
 const mockGetRotatingApiKey = vi.fn().mockReturnValue('rotating-server-key')
 const originalRequire = module.require
+
+afterAll(resetEnvFlagsMock)
 
 describe('getApiKey', () => {
   const originalEnv = { ...process.env }
@@ -55,7 +54,7 @@ describe('getApiKey', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    isHostedSpy.mockReturnValue(false)
+    setEnvFlags({ isHosted: false })
 
     module.require = vi.fn(() => ({
       getRotatingApiKey: mockGetRotatingApiKey,
@@ -68,7 +67,7 @@ describe('getApiKey', () => {
   })
 
   it.concurrent('should return user-provided key when not in hosted environment', () => {
-    isHostedSpy.mockReturnValue(false)
+    setEnvFlags({ isHosted: false })
 
     const key1 = getApiKey('openai', 'gpt-4', 'user-key-openai')
     expect(key1).toBe('user-key-openai')
@@ -81,7 +80,7 @@ describe('getApiKey', () => {
   })
 
   it.concurrent('should throw error if no key provided in non-hosted environment', () => {
-    isHostedSpy.mockReturnValue(false)
+    setEnvFlags({ isHosted: false })
 
     expect(() => getApiKey('openai', 'gpt-4')).toThrow('API key is required for openai gpt-4')
     expect(() => getApiKey('anthropic', 'claude-3')).toThrow(
@@ -90,7 +89,7 @@ describe('getApiKey', () => {
   })
 
   it.concurrent('should fall back to user key in hosted environment if rotation fails', () => {
-    isHostedSpy.mockReturnValue(true)
+    setEnvFlags({ isHosted: true })
 
     module.require = vi.fn(() => {
       throw new Error('Rotation failed')
@@ -103,7 +102,7 @@ describe('getApiKey', () => {
   it.concurrent(
     'should throw error in hosted environment if rotation fails and no user key',
     () => {
-      isHostedSpy.mockReturnValue(true)
+      setEnvFlags({ isHosted: true })
 
       module.require = vi.fn(() => {
         throw new Error('Rotation failed')
@@ -116,7 +115,7 @@ describe('getApiKey', () => {
   it.concurrent(
     'should require user key for non-OpenAI/Anthropic providers even in hosted environment',
     () => {
-      isHostedSpy.mockReturnValue(true)
+      setEnvFlags({ isHosted: true })
 
       const key = getApiKey('other-provider', 'some-model', 'user-key')
       expect(key).toBe('user-key')
@@ -130,7 +129,7 @@ describe('getApiKey', () => {
   it.concurrent(
     'should require user key for models NOT in hosted list even if provider matches',
     () => {
-      isHostedSpy.mockReturnValue(true)
+      setEnvFlags({ isHosted: true })
 
       const key1 = getApiKey('anthropic', 'claude-sonnet-4-20250514', 'user-key-anthropic')
       expect(key1).toBe('user-key-anthropic')
@@ -149,7 +148,7 @@ describe('getApiKey', () => {
   )
 
   it.concurrent('should return empty for ollama provider without requiring API key', () => {
-    isHostedSpy.mockReturnValue(false)
+    setEnvFlags({ isHosted: false })
 
     const key = getApiKey('ollama', 'llama2')
     expect(key).toBe('empty')
@@ -161,7 +160,7 @@ describe('getApiKey', () => {
   it.concurrent(
     'should return empty or user-provided key for vllm provider without requiring API key',
     () => {
-      isHostedSpy.mockReturnValue(false)
+      setEnvFlags({ isHosted: false })
 
       const key = getApiKey('vllm', 'vllm/qwen-3')
       expect(key).toBe('empty')
@@ -174,7 +173,7 @@ describe('getApiKey', () => {
   it.concurrent(
     'should return empty or user-provided key for litellm provider without requiring API key',
     () => {
-      isHostedSpy.mockReturnValue(false)
+      setEnvFlags({ isHosted: false })
 
       const key = getApiKey('litellm', 'litellm/anthropic/claude-sonnet-4-6')
       expect(key).toBe('empty')

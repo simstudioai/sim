@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 /**
  * Query-suffixed imports give this file private instances of the modules under
@@ -20,7 +21,6 @@ declare module '@/lib/core/rate-limiter/types?rate-limiter-test' {
   export * from '@/lib/core/rate-limiter/types'
 }
 
-vi.mock('@/lib/core/config/env-flags', () => ({ isBillingEnabled: true }))
 vi.mock(
   '@/lib/core/rate-limiter/types',
   () => import('@/lib/core/rate-limiter/types?rate-limiter-test')
@@ -41,6 +41,12 @@ const createMockAdapter = (): MockAdapter => ({
   getTokenStatus: vi.fn(),
   resetBucket: vi.fn(),
 })
+
+beforeAll(() => {
+  setEnvFlags({ isBillingEnabled: true })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('RateLimiter', () => {
   const testUserId = 'test-user-123'

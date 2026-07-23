@@ -1,28 +1,22 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Free-tier timeouts are baked into EXECUTION_TIMEOUTS at module load, while
  * the billing-disabled opt-in check reads the env at call time. Seeding here
  * mirrors production, where both reads observe the same process env.
  */
-const { mockEnv, mockFlags } = vi.hoisted(() => ({
+const { mockEnv } = vi.hoisted(() => ({
   mockEnv: {
     EXECUTION_TIMEOUT_FREE: '120',
     EXECUTION_TIMEOUT_ASYNC_FREE: '240',
   } as Record<string, string | undefined>,
-  mockFlags: { isBillingEnabled: true },
 }))
 
 vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return mockFlags.isBillingEnabled
-  },
-}))
-
 /**
  * Query-suffixed import gives this file a private instance of the module under
  * test (the barrel's `./types` source, so the fresh evaluation bakes the mocked
@@ -43,9 +37,11 @@ import {
   getExecutionTimeout,
 } from '@/lib/core/execution-limits/types?execution-limits-test'
 
+afterAll(resetEnvFlagsMock)
+
 describe('getExecutionTimeout', () => {
   beforeEach(() => {
-    mockFlags.isBillingEnabled = true
+    setEnvFlags({ isBillingEnabled: true })
     mockEnv.EXECUTION_TIMEOUT_FREE = '120'
     mockEnv.EXECUTION_TIMEOUT_ASYNC_FREE = '240'
   })
@@ -57,7 +53,7 @@ describe('getExecutionTimeout', () => {
   })
 
   it('disables timeouts when billing is disabled and no free env is set', () => {
-    mockFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
     mockEnv.EXECUTION_TIMEOUT_FREE = undefined
     mockEnv.EXECUTION_TIMEOUT_ASYNC_FREE = undefined
 
@@ -66,7 +62,7 @@ describe('getExecutionTimeout', () => {
   })
 
   it('opts back into the free timeout when the env var is explicitly set', () => {
-    mockFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
 
     expect(getExecutionTimeout('free', 'sync')).toBe(120 * 1000)
     expect(getExecutionTimeout('free', 'async')).toBe(240 * 1000)

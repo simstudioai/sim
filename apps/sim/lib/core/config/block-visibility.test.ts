@@ -1,16 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockIsPlatformAdmin, envRef, flagRef } = vi.hoisted(() => ({
+const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockIsPlatformAdmin: vi.fn(),
   envRef: {
     APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
   },
-  flagRef: { isAppConfigEnabled: false, previewBlocks: [] as string[] },
 }))
 
 vi.mock('@/lib/core/config/appconfig', () => ({
@@ -23,13 +23,6 @@ vi.mock('@/lib/core/config/env', () => ({
   },
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isAppConfigEnabled() {
-    return flagRef.isAppConfigEnabled
-  },
-  getPreviewBlocksFromEnv: () => flagRef.previewBlocks,
-}))
-
 vi.mock('@/lib/permissions/super-user', () => ({
   isPlatformAdmin: mockIsPlatformAdmin,
 }))
@@ -38,20 +31,22 @@ import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 
 /** Make `getBlockVisibility` resolve `doc` via the AppConfig path (also exercises parsing). */
 function withAppConfig(doc: unknown) {
-  flagRef.isAppConfigEnabled = true
+  setEnvFlags({ isAppConfigEnabled: true })
   mockFetch.mockImplementation((_ids, parse) => Promise.resolve(parse(doc)))
 }
+
+afterAll(resetEnvFlagsMock)
 
 describe('getBlockVisibility', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    flagRef.isAppConfigEnabled = false
-    flagRef.previewBlocks = []
+    setEnvFlags({ isAppConfigEnabled: false })
+    envFlagsMockFns.getPreviewBlocksFromEnv.mockReturnValue([])
   })
 
   describe('off-AppConfig (env fallback)', () => {
     it('reveals and preview-tags the PREVIEW_BLOCKS types without fetching', async () => {
-      flagRef.previewBlocks = ['gmail_v2', 'notion_v3']
+      envFlagsMockFns.getPreviewBlocksFromEnv.mockReturnValue(['gmail_v2', 'notion_v3'])
       const vis = await getBlockVisibility({ userId: 'u1' })
       expect(vis.revealed).toEqual(new Set(['gmail_v2', 'notion_v3']))
       expect(vis.previewTagged).toEqual(new Set(['gmail_v2', 'notion_v3']))

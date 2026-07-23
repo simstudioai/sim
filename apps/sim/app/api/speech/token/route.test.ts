@@ -6,6 +6,7 @@ import {
   dbChainMock,
   queueTableRows,
   resetDbChainMock,
+  resetEnvFlagsMock,
   schemaMock,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -72,11 +73,6 @@ vi.mock('@/app/api/workflows/utils', () => ({
 
 vi.mock('@/lib/core/config/env', () => ({ env: { ELEVENLABS_API_KEY: 'test-key' } }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isBillingEnabled: false,
-  getCostMultiplier: () => 1,
-}))
-
 vi.mock('@/lib/core/rate-limiter', () => ({
   RateLimiter: class {
     checkRateLimitDirect = vi.fn().mockResolvedValue({ allowed: true })
@@ -131,6 +127,8 @@ beforeEach(() => {
 afterAll(() => {
   resetDbChainMock()
 })
+
+afterAll(resetEnvFlagsMock)
 
 describe('POST /api/speech/token — usage attribution', () => {
   it('editor voice: bills the session user and stamps the verified workspace', async () => {

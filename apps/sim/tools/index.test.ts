@@ -14,14 +14,15 @@ import {
   inputValidationMock,
   inputValidationMockFns,
   type MockFetchResponse,
+  resetEnvFlagsMock,
+  setEnvFlags,
 } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
 // Hoisted mock state - these are available to vi.mock factories
 const {
-  mockIsHosted,
   mockEnv,
   mockGetBYOKKey,
   mockGetToolAsync,
@@ -33,7 +34,6 @@ const {
   mockResolveWorkspaceFileReference,
   mockGetEffectiveDecryptedEnv,
 } = vi.hoisted(() => ({
-  mockIsHosted: { value: false },
   mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:3000' } as Record<string, string | undefined>,
   mockGetBYOKKey: vi.fn(),
   mockGetToolAsync: vi.fn(),
@@ -52,16 +52,6 @@ const {
 
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
 const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
-
-// Mock feature flags
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isHosted() {
-    return mockIsHosted.value
-  },
-  isProd: false,
-  isDev: true,
-  isTest: true,
-}))
 
 // Mock env config to control hosted key availability
 vi.mock('@/lib/core/config/env', () => ({
@@ -479,6 +469,12 @@ function setupEnvVars(variables: Record<string, string>) {
     })
   }
 }
+
+beforeAll(() => {
+  setEnvFlags({ isDev: true })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('Tools Registry', () => {
   it('should include all expected built-in tools', () => {
@@ -2553,7 +2549,7 @@ describe('Rate Limiting and Retry Logic', () => {
       NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
     })
     vi.clearAllMocks()
-    mockIsHosted.value = true
+    setEnvFlags({ isHosted: true })
     mockEnv.TEST_HOSTED_KEY = 'test-hosted-api-key'
     mockGetBYOKKey.mockResolvedValue(null)
     // Set up throttler mock defaults
@@ -2571,7 +2567,7 @@ describe('Rate Limiting and Retry Logic', () => {
     vi.useRealTimers()
     vi.resetAllMocks()
     cleanupEnvVars()
-    mockIsHosted.value = false
+    setEnvFlags({ isHosted: false })
     mockEnv.TEST_HOSTED_KEY = undefined
   })
 
@@ -2937,7 +2933,7 @@ describe('Cost Field Handling', () => {
       NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
     })
     vi.clearAllMocks()
-    mockIsHosted.value = true
+    setEnvFlags({ isHosted: true })
     mockEnv.TEST_HOSTED_KEY = 'test-hosted-api-key'
     mockGetBYOKKey.mockResolvedValue(null)
     // Set up throttler mock defaults
@@ -2954,7 +2950,7 @@ describe('Cost Field Handling', () => {
   afterEach(() => {
     vi.resetAllMocks()
     cleanupEnvVars()
-    mockIsHosted.value = false
+    setEnvFlags({ isHosted: false })
     mockEnv.TEST_HOSTED_KEY = undefined
   })
 
@@ -3020,7 +3016,7 @@ describe('Cost Field Handling', () => {
   })
 
   it('should not add cost when not using hosted key', async () => {
-    mockIsHosted.value = false
+    setEnvFlags({ isHosted: false })
 
     const mockTool = {
       id: 'test_no_hosted_cost',

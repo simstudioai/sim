@@ -1,5 +1,5 @@
-import { envFlagsMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { envFlagsMock, resetEnvFlagsMock } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   validateAirtableId,
   validateAlphanumericId,
@@ -34,7 +34,7 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
 
-vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
+afterAll(resetEnvFlagsMock)
 
 describe('validatePathSegment', () => {
   describe('valid inputs', () => {

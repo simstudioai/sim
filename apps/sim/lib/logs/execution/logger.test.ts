@@ -1,5 +1,5 @@
 import { usageLog, workflow } from '@sim/db/schema'
-import { dbChainMockFns, envFlagsMock, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { ExecutionLogger } from '@/lib/logs/execution/logger'
@@ -69,8 +69,6 @@ vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillOverageThreshold: vi.fn(() => Promise.resolve()),
   checkAndBillPayerOverageThreshold: vi.fn(() => Promise.resolve()),
 }))
-
-vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 // Mock security module
 vi.mock('@/lib/core/security/redaction', () => ({

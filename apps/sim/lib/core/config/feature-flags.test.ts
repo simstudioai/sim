@@ -1,10 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FeatureFlagContext, FeatureFlagName } from '@/lib/core/config/feature-flags'
 
-const { mockFetch, mockIsPlatformAdmin, envRef, flagRef } = vi.hoisted(() => ({
+const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockIsPlatformAdmin: vi.fn(),
   envRef: {
@@ -13,7 +14,6 @@ const { mockFetch, mockIsPlatformAdmin, envRef, flagRef } = vi.hoisted(() => ({
     FORKING_ENABLED: undefined as boolean | undefined,
     DEPLOY_AS_BLOCK: undefined as boolean | undefined,
   },
-  flagRef: { isAppConfigEnabled: false },
 }))
 
 vi.mock('@/lib/core/config/appconfig', () => ({
@@ -24,12 +24,6 @@ vi.mock('@/lib/core/config/env', () => ({
   isTruthy: (v: unknown) => Boolean(v),
   get env() {
     return envRef
-  },
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isAppConfigEnabled() {
-    return flagRef.isAppConfigEnabled
   },
 }))
 
@@ -58,7 +52,7 @@ import {
 
 /** Make `getFeatureFlags` resolve to `doc` via the AppConfig path (also exercises parseConfig). */
 function withAppConfig(doc: unknown) {
-  flagRef.isAppConfigEnabled = true
+  setEnvFlags({ isAppConfigEnabled: true })
   mockFetch.mockImplementation((_ids, parse) => Promise.resolve(parse(doc)))
 }
 
@@ -70,10 +64,12 @@ function withAppConfig(doc: unknown) {
 const enabled = (flag: string, ctx?: FeatureFlagContext) =>
   isFeatureEnabled(flag as FeatureFlagName, ctx)
 
+afterAll(resetEnvFlagsMock)
+
 describe('getFeatureFlags', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    flagRef.isAppConfigEnabled = false
+    setEnvFlags({ isAppConfigEnabled: false })
   })
 
   it('derives flags from fallback secrets when AppConfig is disabled, without fetching', async () => {
@@ -104,7 +100,7 @@ describe('getFeatureFlags', () => {
   })
 
   it('falls back to the secret-derived document when the fetch yields null', async () => {
-    flagRef.isAppConfigEnabled = true
+    setEnvFlags({ isAppConfigEnabled: true })
     mockFetch.mockResolvedValue(null)
     const flags = await getFeatureFlags()
     expect(flags['mothership-beta']).toEqual({ enabled: false })
@@ -124,7 +120,7 @@ describe('getFeatureFlags', () => {
 describe('isFeatureEnabled', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    flagRef.isAppConfigEnabled = false
+    setEnvFlags({ isAppConfigEnabled: false })
     envRef.FORKING_ENABLED = undefined
     envRef.DEPLOY_AS_BLOCK = undefined
   })

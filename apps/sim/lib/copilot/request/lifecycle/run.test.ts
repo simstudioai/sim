@@ -2,7 +2,8 @@
  * @vitest-environment node
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext, StreamingContext } from '@/lib/copilot/request/types'
 
 const {
@@ -16,7 +17,6 @@ const {
   mockToolWatchdogTimeoutMs,
   mockUpdateRunStatus,
   mockEnv,
-  mockFlags,
 } = vi.hoisted(() => ({
   mockCreateRunSegment: vi.fn(),
   mockForceFailHungToolCall: vi.fn(),
@@ -29,10 +29,6 @@ const {
   mockUpdateRunStatus: vi.fn(),
   mockEnv: {
     COPILOT_API_KEY: undefined as string | undefined,
-  },
-  mockFlags: {
-    isHosted: false,
-    isCopilotBillingAttributionV1Enabled: false,
   },
 }))
 
@@ -81,15 +77,6 @@ vi.mock('@/lib/core/config/env', () => ({
   isFalsy: vi.fn((value: string | undefined) => value === 'false'),
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isCopilotBillingAttributionV1Enabled() {
-    return mockFlags.isCopilotBillingAttributionV1Enabled
-  },
-  get isHosted() {
-    return mockFlags.isHosted
-  },
-}))
-
 vi.mock('@/lib/environment/utils', () => ({
   getEffectiveDecryptedEnv: mockGetEffectiveDecryptedEnv,
 }))
@@ -112,12 +99,14 @@ import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothershi
 import { CopilotBackendError } from '@/lib/copilot/request/go/stream'
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 
+afterAll(resetEnvFlagsMock)
+
 describe('runCopilotLifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockEnv.COPILOT_API_KEY = undefined
-    mockFlags.isHosted = false
-    mockFlags.isCopilotBillingAttributionV1Enabled = false
+    setEnvFlags({ isHosted: false })
+    setEnvFlags({ isCopilotBillingAttributionV1Enabled: false })
     mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
     mockGetMothershipSourceEnvHeaders.mockReturnValue({})
   })
@@ -381,8 +370,8 @@ describe('runCopilotLifecycle', () => {
       },
       payerSubscription: null,
     }
-    mockFlags.isHosted = true
-    mockFlags.isCopilotBillingAttributionV1Enabled = true
+    setEnvFlags({ isHosted: true })
+    setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
     mockEnv.COPILOT_API_KEY = 'sim-agent-key'
     mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
     mockRunStreamLoop.mockImplementationOnce(
@@ -444,7 +433,7 @@ describe('runCopilotLifecycle', () => {
   })
 
   it('runs legacy-v0 during Sim-first deployment without guessed billing aliases', async () => {
-    mockFlags.isHosted = true
+    setEnvFlags({ isHosted: true })
     mockEnv.COPILOT_API_KEY = 'sim-agent-key'
     mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
 
@@ -479,8 +468,8 @@ describe('runCopilotLifecycle', () => {
   })
 
   it('runs modern hosted work without legacy compatibility storage', async () => {
-    mockFlags.isHosted = true
-    mockFlags.isCopilotBillingAttributionV1Enabled = true
+    setEnvFlags({ isHosted: true })
+    setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
     mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
 
     await runCopilotLifecycle(

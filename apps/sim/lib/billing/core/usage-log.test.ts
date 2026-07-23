@@ -2,8 +2,14 @@
  * @vitest-environment node
  */
 import { usageLog } from '@sim/db/schema'
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetHighestPrioritySubscription,
@@ -35,10 +41,6 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
   isOrgScopedSubscription: mockIsOrgScopedSubscription,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isBillingEnabled: true,
-}))
-
 import {
   CUMULATIVE_COST_EPSILON,
   CumulativeUsageContextMismatchError,
@@ -60,6 +62,12 @@ function installSharedDbMocks(): void {
 afterAll(() => {
   resetDbChainMock()
 })
+
+beforeAll(() => {
+  setEnvFlags({ isBillingEnabled: true })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('recordUsage', () => {
   beforeEach(() => {

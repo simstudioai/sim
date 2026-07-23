@@ -1,12 +1,18 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMock,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockReconcileOrganizationSeats, mockFeatureFlags } = vi.hoisted(() => ({
+const { mockReconcileOrganizationSeats } = vi.hoisted(() => ({
   mockReconcileOrganizationSeats: vi.fn(),
-  mockFeatureFlags: { isBillingEnabled: true },
 }))
 
 vi.mock('@sim/db', () => dbChainMock)
@@ -15,19 +21,15 @@ vi.mock('@/lib/billing/organizations/seats', () => ({
   reconcileOrganizationSeats: mockReconcileOrganizationSeats,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return mockFeatureFlags.isBillingEnabled
-  },
-}))
-
 import { reconcileTeamSeatDrift } from '@/lib/billing/organizations/seat-drift'
+
+afterAll(resetEnvFlagsMock)
 
 describe('reconcileTeamSeatDrift', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockFeatureFlags.isBillingEnabled = true
+    setEnvFlags({ isBillingEnabled: true })
     mockReconcileOrganizationSeats.mockResolvedValue({ changed: true, previousSeats: 1, seats: 2 })
   })
 
@@ -99,7 +101,7 @@ describe('reconcileTeamSeatDrift', () => {
   })
 
   it('no-ops when billing is disabled', async () => {
-    mockFeatureFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
 
     const result = await reconcileTeamSeatDrift()
 
