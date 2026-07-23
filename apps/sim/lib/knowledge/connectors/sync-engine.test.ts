@@ -116,6 +116,61 @@ describe('shouldSkipEmptyListing', () => {
   })
 })
 
+describe('exceedsDeletionSafetyThreshold', () => {
+  it('does not block a small deletion, even above 50%', async () => {
+    const { exceedsDeletionSafetyThreshold } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(exceedsDeletionSafetyThreshold(4, 5, undefined, {})).toBe(false)
+  })
+
+  it('does not block a large deletion below 50%', async () => {
+    const { exceedsDeletionSafetyThreshold } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(exceedsDeletionSafetyThreshold(6, 20, undefined, {})).toBe(false)
+  })
+
+  it('blocks a deletion above both the ratio and count thresholds by default', async () => {
+    const { exceedsDeletionSafetyThreshold } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(exceedsDeletionSafetyThreshold(10, 10, undefined, {})).toBe(true)
+    expect(exceedsDeletionSafetyThreshold(10, 10, undefined, undefined)).toBe(true)
+  })
+
+  it('does not block on a forced fullSync', async () => {
+    const { exceedsDeletionSafetyThreshold } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(exceedsDeletionSafetyThreshold(10, 10, true, {})).toBe(false)
+  })
+
+  it('does not block when the connector confirms the deletion against the source', async () => {
+    const { exceedsDeletionSafetyThreshold } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(exceedsDeletionSafetyThreshold(10, 10, undefined, { sourceConfirmedEmpty: true })).toBe(
+      false
+    )
+  })
+
+  it('still blocks when sourceConfirmedEmpty is falsy', async () => {
+    const { exceedsDeletionSafetyThreshold } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(exceedsDeletionSafetyThreshold(10, 10, undefined, { sourceConfirmedEmpty: false })).toBe(
+      true
+    )
+  })
+})
+
 describe('resolveTagMapping', () => {
   beforeEach(() => {
     vi.clearAllMocks()
