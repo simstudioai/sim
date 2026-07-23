@@ -1120,42 +1120,57 @@ export async function executeSync(
       logger.info(`Retrying ${stuckDocs.length} stuck documents`, { connectorId })
       try {
         const stuckDocIds = stuckDocs.map((doc) => doc.id)
+        let retryDocs: typeof stuckDocs = []
 
         /**
-         * Re-verify connectorId at write time — a concurrent "delete connector,
-         * keep documents" request can null it out between the select above and
-         * these writes, and resetting/re-enqueuing a detached document's
-         * processing state would corrupt a standalone KB entry the connector no
-         * longer owns.
+         * Takes the same `knowledge_connector` FOR UPDATE lock the DELETE route
+         * takes before nulling connectorId on detached documents, so the two
+         * requests serialize instead of racing — a plain re-SELECT only
+         * narrows the window between the ownership check and these writes, it
+         * never closes it, since a concurrent detach can still commit in
+         * between. Embedding cleanup and the processing-state reset happen
+         * inside the same locked transaction so a document already claimed by
+         * a detach never gets its embeddings wiped or is reprocessed as if
+         * still connector-owned.
          */
-        const stillOwnedIds = new Set(
-          (
-            await db
-              .select({ id: document.id })
-              .from(document)
-              .where(and(inArray(document.id, stuckDocIds), eq(document.connectorId, connectorId)))
-          ).map((d) => d.id)
-        )
-        const retryDocs = stuckDocs.filter((doc) => stillOwnedIds.has(doc.id))
+        await db.transaction(async (tx) => {
+          await tx.execute(
+            sql`SELECT 1 FROM knowledge_connector WHERE id = ${connectorId} FOR UPDATE`
+          )
+
+          const stillOwnedIds = new Set(
+            (
+              await tx
+                .select({ id: document.id })
+                .from(document)
+                .where(
+                  and(inArray(document.id, stuckDocIds), eq(document.connectorId, connectorId))
+                )
+            ).map((d) => d.id)
+          )
+          retryDocs = stuckDocs.filter((doc) => stillOwnedIds.has(doc.id))
+
+          if (retryDocs.length > 0) {
+            const retryDocIds = retryDocs.map((doc) => doc.id)
+
+            await tx.delete(embedding).where(inArray(embedding.documentId, retryDocIds))
+
+            await tx
+              .update(document)
+              .set({
+                processingStatus: 'pending',
+                processingStartedAt: null,
+                processingCompletedAt: null,
+                processingError: null,
+                chunkCount: 0,
+                tokenCount: 0,
+                characterCount: 0,
+              })
+              .where(inArray(document.id, retryDocIds))
+          }
+        })
 
         if (retryDocs.length > 0) {
-          const retryDocIds = retryDocs.map((doc) => doc.id)
-
-          await db.delete(embedding).where(inArray(embedding.documentId, retryDocIds))
-
-          await db
-            .update(document)
-            .set({
-              processingStatus: 'pending',
-              processingStartedAt: null,
-              processingCompletedAt: null,
-              processingError: null,
-              chunkCount: 0,
-              tokenCount: 0,
-              characterCount: 0,
-            })
-            .where(inArray(document.id, retryDocIds))
-
           await processDocumentsWithQueue(
             retryDocs.map((doc) => ({
               documentId: doc.id,
