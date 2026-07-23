@@ -1,5 +1,9 @@
 import { isBrowserTheme, isBrowserToolName } from '@sim/browser-protocol'
-import type { DesktopNotificationPayload, DesktopWindowState } from '@sim/desktop-bridge'
+import type {
+  DesktopNotificationPayload,
+  DesktopUpdateState,
+  DesktopWindowState,
+} from '@sim/desktop-bridge'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { ipcMain } from 'electron'
 import { executeTool, getTabsState, handlePanelAction } from '@/main/browser-agent/driver'
@@ -134,6 +138,11 @@ export interface IpcDeps {
   settings: DesktopSettingsService
   getWindowState: () => DesktopWindowState
   beginOAuthConnect: (providerId: string, scope: OAuthConnectScope) => Promise<boolean>
+  updates: {
+    getState: () => DesktopUpdateState
+    check: () => void
+    install: () => void
+  }
   launcher: {
     openChat: (target: LauncherOpenChatTarget) => void
     openApp: () => void
@@ -170,6 +179,95 @@ function isLocalPageSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
 
 function isAppOriginSender(event: IpcMainEvent | IpcMainInvokeEvent, appOrigin: string): boolean {
   return (event.senderFrame?.url ?? '').startsWith(`${appOrigin}/`)
+}
+
+function localFilesystemRequestNeedsUserActivation(request: unknown): boolean {
+  if (typeof request !== 'object' || request === null) return false
+  const operation = (request as { operation?: unknown }).operation
+  return operation === 'mount_directory' || operation === 'forget_mount'
+}
+
+function localFilesystemRequestNeedsToolAuthorization(request: unknown): boolean {
+  if (typeof request !== 'object' || request === null) return false
+  const operation = (request as { operation?: unknown }).operation
+  return (
+    operation === 'list' ||
+    operation === 'glob' ||
+    operation === 'read' ||
+    operation === 'grep' ||
+    operation === 'stat'
+  )
+}
+
+async function rendererHasActiveUserGesture(event: IpcMainInvokeEvent): Promise<boolean> {
+  const frame = event.senderFrame
+  if (!frame || typeof frame.executeJavaScript !== 'function') return false
+  try {
+    return (await frame.executeJavaScript('navigator.userActivation?.isActive === true')) === true
+  } catch {
+    return false
+  }
+}
+
+interface DesktopToolAuthorization {
+  toolName: string
+  args: Record<string, unknown>
+}
+
+async function fetchDesktopToolAuthorization(
+  event: IpcMainInvokeEvent,
+  deps: IpcDeps,
+  toolCallId: unknown
+): Promise<DesktopToolAuthorization | null> {
+  if (typeof toolCallId !== 'string' || toolCallId.length < 1 || toolCallId.length > 256) {
+    return null
+  }
+  try {
+    const response = await event.sender.session.fetch(
+      `${deps.appOrigin()}/api/desktop/tool/authorize`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolCallId }),
+      }
+    )
+    if (!response.ok) return null
+    const authorization = (await response.json()) as {
+      toolName?: unknown
+      args?: unknown
+    }
+    if (
+      typeof authorization.toolName !== 'string' ||
+      typeof authorization.args !== 'object' ||
+      authorization.args === null ||
+      Array.isArray(authorization.args)
+    ) {
+      return null
+    }
+    return {
+      toolName: authorization.toolName,
+      args: authorization.args as Record<string, unknown>,
+    }
+  } catch {
+    return null
+  }
+}
+
+async function authorizeLocalFilesystemTool(
+  event: IpcMainInvokeEvent,
+  deps: IpcDeps,
+  request: unknown
+): Promise<boolean> {
+  if (typeof request !== 'object' || request === null) return false
+  const authorization = await fetchDesktopToolAuthorization(
+    event,
+    deps,
+    (request as { requestId?: unknown }).requestId
+  )
+  return authorization
+    ? deps.localFilesystem.isAuthorizedClientToolRequest(request, authorization)
+    : false
 }
 
 /**
@@ -243,6 +341,22 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       denied: { isFullScreen: false },
       handler: () => deps.getWindowState(),
+    },
+    'desktop:updates:get-state': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: { status: 'idle' },
+      handler: () => deps.updates.getState(),
+    },
+    'desktop:updates:check': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: () => deps.updates.check(),
+    },
+    'desktop:updates:install': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: () => deps.updates.install(),
     },
     'browser-agent:execute-tool': {
       kind: 'invoke',
@@ -350,9 +464,49 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   for (const [channel, spec] of Object.entries(channels)) {
     if (spec.kind === 'invoke') {
-      ipcMain.handle(channel, (event, ...args) =>
-        senderAllowed(event, spec.gate) ? spec.handler(...args) : spec.denied
-      )
+      ipcMain.handle(channel, async (event, ...args) => {
+        if (!senderAllowed(event, spec.gate)) return spec.denied
+        let handlerArgs = args
+        if (channel === 'browser-agent:execute-tool') {
+          const requestedTool = args[1]
+          const authorization = await fetchDesktopToolAuthorization(event, deps, args[0])
+          if (
+            !authorization ||
+            typeof requestedTool !== 'string' ||
+            authorization.toolName !== requestedTool ||
+            !isBrowserToolName(authorization.toolName)
+          ) {
+            return {
+              ok: false,
+              error: 'This browser action is not an authorized pending Copilot tool call.',
+            }
+          }
+          handlerArgs = [authorization.toolName, authorization.args]
+        }
+        if (
+          channel === 'desktop:local-filesystem' &&
+          localFilesystemRequestNeedsUserActivation(args[0]) &&
+          !(await rendererHasActiveUserGesture(event))
+        ) {
+          return {
+            ok: false,
+            code: 'ACCESS_DENIED',
+            error: 'This local filesystem action requires an explicit user click.',
+          }
+        }
+        if (
+          channel === 'desktop:local-filesystem' &&
+          localFilesystemRequestNeedsToolAuthorization(args[0]) &&
+          !(await authorizeLocalFilesystemTool(event, deps, args[0]))
+        ) {
+          return {
+            ok: false,
+            code: 'ACCESS_DENIED',
+            error: 'This local filesystem request is not an authorized pending Copilot tool call.',
+          }
+        }
+        return spec.handler(...handlerArgs)
+      })
     } else {
       ipcMain.on(channel, (event, ...args) => {
         if (senderAllowed(event, spec.gate)) {

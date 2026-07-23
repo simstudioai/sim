@@ -69,7 +69,7 @@ import {
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-context'
-import { isLocalFilesystemToolName } from '@/lib/copilot/tools/local-filesystem'
+import { isDesktopFilesystemToolCall } from '@/lib/copilot/tools/local-filesystem'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import { readSSELines } from '@/lib/core/utils/sse'
 import { getDesktopBridge, getDesktopChatCapabilities } from '@/lib/desktop'
@@ -1612,7 +1612,7 @@ export function useChat(
 
   const startClientLocalFilesystemTool = useCallback(
     (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>) => {
-      if (!isLocalFilesystemToolName(toolName)) {
+      if (!isDesktopFilesystemToolCall(toolName, toolArgs)) {
         return
       }
       if (handledClientLocalFilesystemToolIdsRef.current.has(toolCallId)) {
@@ -1622,6 +1622,7 @@ export function useChat(
       executeLocalFilesystemTool(toolCallId, toolName, toolArgs, {
         workspaceId,
         chatId: chatIdRef.current ?? selectedChatIdRef.current,
+        signal: abortControllerRef.current?.signal,
       })
     },
     [workspaceId]

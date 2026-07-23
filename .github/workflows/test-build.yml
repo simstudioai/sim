@@ -113,6 +113,9 @@ jobs:
       - name: API contract boundary audit
         run: bun run check:api-validation:strict
 
+      - name: Desktop bridge contract audit
+        run: bun run check:desktop-bridge
+
       - name: Shared utils enforcement audit
         run: bun run check:utils
 

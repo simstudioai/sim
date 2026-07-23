@@ -9,9 +9,12 @@ const DEFAULT_MAX_BYTES = 1_000_000
 export type DesktopEventName =
   | 'app_launch'
   | 'update_check'
+  | 'update_feed'
   | 'update_downloaded'
   | 'update_error'
   | 'update_blocked_version'
+  | 'update_manual_mode'
+  | 'update_manual_download'
   | 'handoff_redeem_ok'
   | 'handoff_redeem_fail'
   | 'load_failure'

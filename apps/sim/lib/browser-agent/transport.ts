@@ -76,6 +76,7 @@ export function isBrowserAgentAvailable(): boolean {
  * timeout, e.g. takeovers).
  */
 export async function executeBrowserTool(
+  toolCallId: string,
   tool: BrowserToolName,
   params: Record<string, unknown>,
   timeoutMs: number | null
@@ -84,7 +85,7 @@ export async function executeBrowserTool(
   if (!agent) {
     throw new Error('The Sim desktop browser agent is unavailable.')
   }
-  const invocation = agent.executeTool(tool, params)
+  const invocation = agent.executeTool(toolCallId, tool, params)
   const response =
     timeoutMs === null
       ? await invocation

@@ -168,7 +168,17 @@ export function WorkspaceChrome({
   }, [syncSidebarWidth])
 
   return (
-    <div className='relative flex min-h-0 flex-1'>
+    <div
+      className='desktop-workspace-window-frame relative flex min-h-0 flex-1'
+      data-sidebar-collapsed={isCollapsed || undefined}
+    >
+      <div
+        aria-hidden
+        className={cn(
+          'desktop-window-drag-region desktop-workspace-window-drag-region',
+          isCollapsed ? 'h-9' : 'h-2'
+        )}
+      />
       <div
         className={cn(
           'sidebar-shell-outer shrink-0 overflow-hidden transition-[width]',

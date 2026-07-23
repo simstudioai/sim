@@ -303,6 +303,59 @@ describe('sse-handlers tool lifecycle', () => {
     )
   })
 
+  it('waits for the desktop client when a static VFS read is explicitly user-local', async () => {
+    waitForToolCompletion.mockResolvedValueOnce({
+      status: 'success',
+      data: { content: 'hello', totalLines: 1 },
+    })
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-user-local-read',
+          toolName: 'read',
+          arguments: { path: 'user-local/Project--mount/README.md' },
+          executor: MothershipStreamV1ToolExecutor.client,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent: vi.fn(), interactive: true, timeout: 1000 }
+    )
+
+    await Promise.allSettled(context.pendingToolPromises.values())
+
+    expect(waitForToolCompletion).toHaveBeenCalledWith('tool-user-local-read', 1000, undefined)
+    expect(executeTool).not.toHaveBeenCalled()
+  })
+
+  it('keeps an ordinary static VFS read on the Sim executor', async () => {
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-workspace-read',
+          toolName: 'read',
+          arguments: { path: 'WORKSPACE.md' },
+          executor: MothershipStreamV1ToolExecutor.client,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent: vi.fn(), interactive: true, timeout: 1000 }
+    )
+
+    await Promise.allSettled(context.pendingToolPromises.values())
+
+    expect(executeTool).toHaveBeenCalled()
+    expect(waitForToolCompletion).not.toHaveBeenCalled()
+  })
+
   it('does not add hidden tool calls to content blocks', async () => {
     executeTool.mockResolvedValueOnce({ success: true, output: { skill: 'ok' } })
 

@@ -4,13 +4,14 @@ import { useCallback, useEffect, useState } from 'react'
 import type {
   DesktopPreferenceKey,
   DesktopPreferences,
+  DesktopUpdateState,
   LocalFilesystemMount,
   LocalFilesystemResponse,
 } from '@sim/desktop-bridge'
 import { Chip, ChipConfirmModal, Label, Switch, toast } from '@sim/emcn'
 import { Folder } from '@sim/emcn/icons'
 import { useParams, useRouter } from 'next/navigation'
-import { getDesktopBridge } from '@/lib/desktop'
+import { getDesktopBridge, getDesktopShellVersion, getDesktopUpdates } from '@/lib/desktop'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
@@ -37,6 +38,36 @@ function PreferenceRow({ id, label, checked, disabled, onCheckedChange }: Prefer
   )
 }
 
+interface UpdateChip {
+  label: string
+  disabled?: boolean
+  onClick: () => void
+}
+
+/** The Updates section's single action, driven by the shell update pipeline. */
+function updateChipFor(state: DesktopUpdateState): UpdateChip {
+  const updates = getDesktopUpdates()
+  const check = () => updates?.check()
+  switch (state.status) {
+    case 'checking':
+      return { label: 'Checking...', disabled: true, onClick: () => {} }
+    case 'available':
+      return { label: 'Download update', onClick: check }
+    case 'downloading':
+      return {
+        label: state.percent !== undefined ? `Downloading ${state.percent}%` : 'Downloading...',
+        disabled: true,
+        onClick: () => {},
+      }
+    case 'ready':
+      return { label: 'Restart to update', onClick: () => updates?.install() }
+    case 'error':
+      return { label: 'Try again', onClick: check }
+    default:
+      return { label: 'Check for updates', onClick: check }
+  }
+}
+
 export function Desktop() {
   const params = useParams()
   const router = useRouter()
@@ -46,6 +77,9 @@ export function Desktop() {
   const [pendingPreference, setPendingPreference] = useState<DesktopPreferenceKey | null>(null)
   const [mountToForget, setMountToForget] = useState<LocalFilesystemMount | null>(null)
   const [mountMutationPending, setMountMutationPending] = useState(false)
+  const [updateState, setUpdateState] = useState<DesktopUpdateState>({ status: 'idle' })
+  const [hasUpdatesSurface, setHasUpdatesSurface] = useState(false)
+  const [shellVersion, setShellVersion] = useState<string | undefined>(undefined)
 
   const refreshMounts = useCallback(async () => {
     const bridge = getDesktopBridge()
@@ -69,6 +103,19 @@ export function Desktop() {
       .then(([nextPreferences]) => setPreferences(nextPreferences))
       .catch(() => toast.error('Could not load desktop settings'))
   }, [refreshMounts, router, workspaceId])
+
+  useEffect(() => {
+    setShellVersion(getDesktopShellVersion())
+    const updates = getDesktopUpdates()
+    if (!updates) return
+    setHasUpdatesSurface(true)
+    const unsubscribe = updates.onState(setUpdateState)
+    void updates
+      .getState()
+      .then(setUpdateState)
+      .catch(() => {})
+    return unsubscribe
+  }, [])
 
   const updatePreference = useCallback(async (key: DesktopPreferenceKey, value: boolean) => {
     const settings = getDesktopBridge()?.settings
@@ -166,6 +213,25 @@ export function Desktop() {
               disabled={pendingPreference !== null}
               onCheckedChange={(checked) => void updatePreference('launchAtLogin', checked)}
             />
+          </div>
+        </SettingsSection>
+
+        <SettingsSection
+          label='Updates'
+          action={
+            hasUpdatesSurface
+              ? (() => {
+                  const chip = updateChipFor(updateState)
+                  return (
+                    <Chip onClick={chip.onClick} disabled={chip.disabled}>
+                      {chip.label}
+                    </Chip>
+                  )
+                })()
+              : undefined
+          }
+        >
+          <div className='flex flex-col gap-3'>
             <PreferenceRow
               id='desktop-auto-download-updates'
               label='Automatically download updates'
@@ -173,6 +239,16 @@ export function Desktop() {
               disabled={pendingPreference !== null}
               onCheckedChange={(checked) => void updatePreference('autoDownloadUpdates', checked)}
             />
+            {shellVersion && (
+              <div className='flex items-center justify-between'>
+                <Label>Version</Label>
+                <span className='text-[var(--text-muted)] text-caption'>
+                  {updateState.status === 'ready' && updateState.version
+                    ? `${shellVersion} → ${updateState.version} on restart`
+                    : shellVersion}
+                </span>
+              </div>
+            )}
           </div>
         </SettingsSection>
 
@@ -195,7 +271,7 @@ export function Desktop() {
                   key={mount.id}
                   icon={<Folder />}
                   title={mount.name}
-                  description={mount.path}
+                  description='Read-only access for Mothership'
                   trailing={
                     <div className='flex flex-shrink-0 items-center gap-2'>
                       {!mount.remembered && (

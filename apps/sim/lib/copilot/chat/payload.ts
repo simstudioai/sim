@@ -12,7 +12,6 @@ import {
 import { buildTaggedMcpToolSchemas } from '@/lib/copilot/mcp-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
-import { buildLocalFilesystemToolSchemas } from '@/lib/copilot/tools/local-filesystem'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
@@ -395,10 +394,6 @@ export async function buildCopilotRequestPayload(
     )
   }
 
-  if (effectiveMode === 'build' && params.desktopLocalFilesystem) {
-    mothershipTools.push(...buildLocalFilesystemToolSchemas())
-  }
-
   return {
     message,
     ...(workflowId ? { workflowId } : {}),
@@ -428,8 +423,16 @@ export async function buildCopilotRequestPayload(
     // Tell the copilot file subagent which document toolchain to write. Emitted
     // only in Python mode so the JS path sends no new field (Go defaults to js).
     ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
-    // Advertised only when the desktop app's browser-agent bridge answered the
-    // page handshake — gates the browser subagent server-side.
+    ...(params.desktopLocalFilesystem || params.browserCapable
+      ? {
+          desktopCapabilities: {
+            ...(params.desktopLocalFilesystem ? { localFilesystem: true } : {}),
+            ...(params.browserCapable ? { browser: true } : {}),
+          },
+        }
+      : {}),
+    // Compatibility with mothership deployments that predate the unified
+    // desktop capability object.
     ...(params.browserCapable ? { browserCapable: true } : {}),
     isHosted,
   }

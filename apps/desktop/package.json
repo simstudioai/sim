@@ -35,11 +35,14 @@
     "@sim/logger": "workspace:*",
     "@sim/security": "workspace:*",
     "@sim/utils": "workspace:*",
-    "electron-updater": "6.8.9"
+    "electron-updater": "6.8.9",
+    "micromatch": "4.0.8",
+    "safe-regex2": "5.1.0"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
     "@sim/tsconfig": "workspace:*",
+    "@types/micromatch": "4.0.10",
     "@types/node": "24.2.1",
     "electron": "43.1.1",
     "electron-builder": "26.15.3",

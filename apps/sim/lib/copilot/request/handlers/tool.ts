@@ -30,6 +30,7 @@ import type {
 } from '@/lib/copilot/request/types'
 import { getToolEntry, isSimExecuted } from '@/lib/copilot/tool-executor'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
+import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
@@ -167,7 +168,8 @@ export async function prePersistClientExecutableToolCall(
   if (isInternal) return
 
   const delegateWorkflowRunToClient = isWorkflowToolName(data.toolName)
-  if (isSimExecuted(data.toolName) && !delegateWorkflowRunToClient) return
+  const userLocalVfsCall = isUserLocalVfsToolCall(data.toolName, data.arguments)
+  if (isSimExecuted(data.toolName) && !delegateWorkflowRunToClient && !userLocalVfsCall) return
 
   if (!context.runId) return
 
@@ -584,7 +586,8 @@ async function dispatchToolExecution(
 
   if (clientExecutable) {
     const delegateWorkflowRunToClient = isWorkflowToolName(toolName)
-    if (isSimExecuted(toolName) && !delegateWorkflowRunToClient) {
+    const userLocalVfsCall = isUserLocalVfsToolCall(toolName, args)
+    if (isSimExecuted(toolName) && !delegateWorkflowRunToClient && !userLocalVfsCall) {
       if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
         fireToolExecution()
       }

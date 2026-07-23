@@ -1,43 +1,68 @@
 /**
- * Local dev-install: packages the app from the current checkout and replaces
- * /Applications/Sim.app with it — the "run it like a real Mac app" loop
- * before official distribution. Signing/notarization are not involved; the
- * locally built app never carries a quarantine flag, so Gatekeeper doesn't
- * mind.
+ * Local dev-install: packages the app from the current checkout and installs
+ * it into /Applications — the "run it like a real Mac app" loop before
+ * official distribution. Signing/notarization are not involved; the locally
+ * built app never carries a quarantine flag, so Gatekeeper doesn't mind.
  *
- *   bun run install:local              # build → install → open (origin unchanged)
- *   bun run install:local --local      # …pointed at http://localhost:3000
- *   bun run install:local --dev        # …pointed at https://www.dev.sim.ai
- *   bun run install:local --staging    # …pointed at https://www.staging.sim.ai
- *   bun run install:local --prod       # …pointed at https://www.sim.ai
+ *   bun run install:local              # plain Sim.app (origin unchanged)
+ *   bun run install:local --local      # Sim Local.app  → http://localhost:3000
+ *   bun run install:local --dev        # Sim Dev.app    → https://www.dev.sim.ai
+ *   bun run install:local --staging    # Sim Staging.app → https://www.staging.sim.ai
+ *   bun run install:local --prod       # Sim.app        → https://www.sim.ai
  *   bun run install:local --no-open    # build → install only
  *
- * The origin flag writes the app's persisted settings (same as changing the
- * server URL in Settings), so it survives relaunches; each origin keeps its
- * own isolated session partition. A running installed copy is quit before
- * replacing. Note the installed app and `bun run dev` share the same profile
- * and single-instance lock, so only one can run at a time.
+ * Each environment is a separate app (name, bundle id, install path, userData,
+ * single-instance lock, update feed), so all four can be installed and run
+ * side by side. The flag both bakes the default server origin into the build
+ * and writes the app's persisted settings (same as changing the server URL in
+ * Settings). A running installed copy of the SAME channel is quit before
+ * replacing; other channels keep running.
  */
 import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-const APP_NAME = 'Sim.app'
-const INSTALL_PATH = `/Applications/${APP_NAME}`
-const RELEASE_DIRS = ['release/mac-universal', 'release/mac-arm64', 'release/mac']
-/** Matches the app's userData path (app.setName('Sim') in src/main/index.ts). */
-const SETTINGS_PATH = join(homedir(), 'Library/Application Support/Sim/settings.json')
-
-const ORIGIN_FLAGS: Record<string, string> = {
-  '--local': 'http://localhost:3000',
-  '--dev': 'https://www.dev.sim.ai',
-  '--staging': 'https://www.staging.sim.ai',
-  '--prod': 'https://www.sim.ai',
+interface ChannelIdentity {
+  /** Display + bundle name; also the userData directory name. */
+  name: string
+  appId: string
+  /** Baked default origin + persisted settings origin. Unset = leave as-is. */
+  origin?: string
 }
 
-function run(command: string, args: string[]): void {
-  const result = spawnSync(command, args, { stdio: 'inherit' })
+/** Must stay in sync with APP_NAME_FOR_CHANNEL in src/main/config.ts. */
+const CHANNEL_FLAGS: Record<string, ChannelIdentity> = {
+  '--local': { name: 'Sim Local', appId: 'ai.sim.desktop.local', origin: 'http://localhost:3000' },
+  '--dev': { name: 'Sim Dev', appId: 'ai.sim.desktop.dev', origin: 'https://www.dev.sim.ai' },
+  '--staging': {
+    name: 'Sim Staging',
+    appId: 'ai.sim.desktop.staging',
+    origin: 'https://www.staging.sim.ai',
+  },
+  '--prod': { name: 'Sim', appId: 'ai.sim.desktop', origin: 'https://www.sim.ai' },
+}
+
+const DEFAULT_IDENTITY: ChannelIdentity = { name: 'Sim', appId: 'ai.sim.desktop' }
+
+const channelFlags = process.argv.filter((arg) => arg in CHANNEL_FLAGS)
+if (channelFlags.length > 1) {
+  console.error(`✖ Pass at most one of ${Object.keys(CHANNEL_FLAGS).join(', ')}`)
+  process.exit(1)
+}
+const identity = channelFlags.length === 1 ? CHANNEL_FLAGS[channelFlags[0]] : DEFAULT_IDENTITY
+
+const APP_NAME = `${identity.name}.app`
+const INSTALL_PATH = `/Applications/${APP_NAME}`
+const RELEASE_DIRS = ['release/mac-universal', 'release/mac-arm64', 'release/mac']
+/** Matches the app's userData path (app.setName(...) in src/main/index.ts). */
+const SETTINGS_PATH = join(homedir(), `Library/Application Support/${identity.name}/settings.json`)
+
+function run(command: string, args: string[], env?: Record<string, string>): void {
+  const result = spawnSync(command, args, {
+    stdio: 'inherit',
+    env: env ? { ...process.env, ...env } : process.env,
+  })
   if (result.status !== 0) {
     console.error(`\n✖ ${command} ${args.join(' ')} failed`)
     process.exit(result.status ?? 1)
@@ -55,12 +80,13 @@ function localBuildStamp(): string {
 }
 
 function quitInstalledApp(): void {
-  // Match only processes launched from the installed bundle — never the dev
-  // instance running out of node_modules/electron.
+  // Match only processes launched from this channel's installed bundle —
+  // never the dev instance running out of node_modules/electron, and never
+  // another channel's install.
   const running = spawnSync('pgrep', ['-f', `${INSTALL_PATH}/Contents/MacOS/`]).status === 0
   if (!running) return
   console.log('• Quitting the running installed app…')
-  spawnSync('osascript', ['-e', 'tell application "Sim" to quit'])
+  spawnSync('osascript', ['-e', `tell application "${identity.name}" to quit`])
   // Poll briefly; fall back to a hard kill so the install never half-replaces
   // a live bundle.
   for (let i = 0; i < 20; i++) {
@@ -91,14 +117,12 @@ function applyOrigin(origin: string): void {
   }
 }
 
-const originFlags = process.argv.filter((arg) => arg in ORIGIN_FLAGS)
-if (originFlags.length > 1) {
-  console.error(`✖ Pass at most one of ${Object.keys(ORIGIN_FLAGS).join(', ')}`)
-  process.exit(1)
-}
-
-console.log('• Packaging the app from the current checkout…')
-run('bun', ['run', 'build'])
+console.log(`• Packaging ${identity.name} from the current checkout…`)
+run(
+  'bun',
+  ['run', 'build'],
+  identity.origin ? { SIM_DESKTOP_DEFAULT_ORIGIN: identity.origin } : undefined
+)
 // electron-builder only writes the output dir for the CURRENT target/arch
 // (e.g. mac-arm64); other release dirs from older runs (a universal dmg
 // build, an Intel machine) would survive and win the pick below. Remove all
@@ -111,7 +135,16 @@ for (const dir of RELEASE_DIRS) {
 // framework), which turns local signing into a multi-minute stall. Local
 // installs don't need timestamped signatures — only notarized distribution
 // builds do.
-run('bunx', ['electron-builder', '--mac', 'dir', '--publish', 'never', '-c.mac.timestamp=none'])
+run('bunx', [
+  'electron-builder',
+  '--mac',
+  'dir',
+  '--publish',
+  'never',
+  '-c.mac.timestamp=none',
+  `-c.productName=${identity.name}`,
+  `-c.appId=${identity.appId}`,
+])
 
 const builtApp = RELEASE_DIRS.map((dir) => join(dir, APP_NAME)).find(existsSync)
 if (!builtApp) {
@@ -133,11 +166,11 @@ rmSync(INSTALL_PATH, { recursive: true, force: true })
 // ditto preserves the code signature and extended attributes, unlike cp.
 run('ditto', [builtApp, INSTALL_PATH])
 
-if (originFlags.length === 1) {
-  applyOrigin(ORIGIN_FLAGS[originFlags[0]])
+if (identity.origin) {
+  applyOrigin(identity.origin)
 }
 
-console.log(`✔ Installed Sim (${localBuildStamp()}) to ${INSTALL_PATH}`)
+console.log(`✔ Installed ${identity.name} (${localBuildStamp()}) to ${INSTALL_PATH}`)
 
 if (!process.argv.includes('--no-open')) {
   run('open', [INSTALL_PATH])

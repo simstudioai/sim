@@ -52,13 +52,43 @@ html[data-sim-desktop-title-bar="inset"] {
   min-height: calc(100vh - var(--desktop-title-bar-height));
 }
 
-.desktop-title-bar-page::before {
+.desktop-window-drag-region {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.desktop-login-window-drag-region {
   position: fixed;
   inset: 0 0 auto;
   height: var(--desktop-title-bar-height);
   background: inherit;
-  content: "";
-  pointer-events: none;
+}
+
+.desktop-workspace-window-drag-region {
+  position: absolute;
+  inset: 0 0 auto;
+  display: none;
+}
+
+html[data-sim-desktop-title-bar="inset"] .desktop-workspace-window-drag-region {
+  display: block;
+}
+
+html[data-sim-desktop-title-bar="inset"]
+  .desktop-workspace-window-frame
+  :is(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    [contenteditable="true"],
+    [role="button"],
+    [role="link"],
+    [role="menuitem"],
+    [role="tab"]
+  ) {
+  -webkit-app-region: no-drag;
 }
 
 .workspace-root {

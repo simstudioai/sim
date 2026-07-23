@@ -1,7 +1,9 @@
+import { execFile } from 'node:child_process'
+import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow } from 'electron'
-import { app, dialog } from 'electron'
+import { app, dialog, net, shell } from 'electron'
 import type { EventRecorder } from '@/main/observability'
 
 const logger = createLogger('DesktopUpdater')
@@ -12,8 +14,29 @@ const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
 export type UpdateChannel = 'latest' | 'beta' | 'alpha'
 
 /**
+ * The per-environment update feed served by the Sim deployment this shell is
+ * pointed at (`/api/desktop/update/latest-mac.yml`). Each environment pins
+ * which shell build its clients are offered — dev serves alpha builds,
+ * staging beta, prod stable — so the environment, not the client, is the
+ * channel. Returns null for origins that can't host a feed.
+ */
+export function feedUrlForOrigin(origin: string): string | null {
+  try {
+    const url = new URL(origin)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      return null
+    }
+    return `${url.origin}/api/desktop/update`
+  } catch {
+    return null
+  }
+}
+
+/**
  * Maps the running version to its update channel: prerelease builds follow
  * their prerelease channel, stable builds only ever see stable releases.
+ * Only used on the GitHub fallback feed — the origin feed is already
+ * channel-resolved server-side.
  */
 export function resolveUpdateChannel(version: string): UpdateChannel {
   if (version.includes('-alpha')) {
@@ -120,97 +143,362 @@ export function isDowngrade(currentVersion: string, candidateVersion: string): b
 export interface UpdaterDeps {
   getWindow: () => BrowserWindow | null
   events: EventRecorder
+  /** The Sim origin this shell is pointed at — hosts the per-env update feed. */
+  appOrigin: () => string
   autoDownload?: () => boolean
+  /** Pushed on every pipeline state change (renderer update UI). */
+  onStateChange?: (state: DesktopUpdateState) => void
+  /** Test seam: overrides the lazy electron-updater load. */
+  loadAutoUpdater?: () => typeof import('electron-updater')['autoUpdater']
+  /** Test seam: overrides the origin feed availability probe. */
+  probeOriginFeed?: (feedUrl: string) => Promise<boolean>
+  /**
+   * Test seam: overrides Squirrel self-update capability detection (whether
+   * the running bundle carries a real Developer ID signature).
+   */
+  canSelfUpdate?: () => Promise<boolean>
+  /** Test seam: overrides the manual-mode manifest fetch (body or null). */
+  fetchManifest?: (url: string) => Promise<string | null>
 }
 
 export interface UpdaterHandle {
   setAutoDownload(enabled: boolean): void
+  /** Current pipeline state for the renderer update UI. */
+  getState(): DesktopUpdateState
+  /**
+   * Renderer-initiated advance: checks for an update, or starts the download
+   * when one is already known to be available (auto-download off).
+   */
+  check(): void
+  /** Quit and install a downloaded update. No-op unless state is `ready`. */
+  install(): void
 }
 
 const NOOP_UPDATER_HANDLE: UpdaterHandle = {
   setAutoDownload: () => {},
+  getState: () => ({ status: 'idle' }),
+  check: () => {},
+  install: () => {},
+}
+
+/** True when candidate is strictly newer than current. */
+export function isNewerVersion(candidateVersion: string, currentVersion: string): boolean {
+  if (!parseSemver(candidateVersion)) {
+    return false
+  }
+  return isDowngrade(candidateVersion, currentVersion)
 }
 
 /**
- * Wires electron-updater against the GitHub Releases feed: channel-scoped
- * checks on launch and every four hours, delta downloads in the background,
- * and install only on user confirmation — never mid-session without consent.
+ * Whether Squirrel.Mac can swap this bundle in place. It validates a
+ * downloaded update against the running app's code signature, so only builds
+ * carrying a real Developer ID (a TeamIdentifier) can self-update. Local
+ * `install:local` builds and pre-signing CI prereleases are ad-hoc signed
+ * (`TeamIdentifier=not set`) and would fail the swap — those shells get the
+ * manual pipeline instead.
+ */
+async function detectSelfUpdateCapability(): Promise<boolean> {
+  if (process.platform !== 'darwin') {
+    return true
+  }
+  const exe = app.getPath('exe')
+  const bundleEnd = exe.indexOf('.app/')
+  if (bundleEnd < 0) {
+    return false
+  }
+  const bundlePath = exe.slice(0, bundleEnd + 4)
+  return new Promise((resolve) => {
+    execFile('codesign', ['-dv', '--verbose=2', bundlePath], (error, _stdout, stderr) => {
+      if (error) {
+        resolve(false)
+        return
+      }
+      const team = /^TeamIdentifier=(.+)$/m.exec(stderr ?? '')
+      resolve(team !== null && team[1].trim() !== 'not set')
+    })
+  })
+}
+
+/**
+ * One update pipeline behind the shared handle: `check` looks for an update,
+ * `advance` performs the `available` action (background download vs opening
+ * the download in the browser), `install` performs the `ready` action.
+ */
+interface UpdateEngine {
+  check(): void
+  advance(): void
+  install(): void
+  setAutoDownload(enabled: boolean): void
+}
+
+/**
+ * Keeps installed shells current against the per-environment update feed:
+ * checks on launch and every four hours, and mirrors pipeline state to the
+ * renderer for the settings update UI and the minimum-shell-version gate.
+ *
+ * Developer-ID-signed builds use electron-updater (background download,
+ * install on user confirmation — never mid-session without consent). Builds
+ * that can't self-update (ad-hoc signed: local installs, pre-signing CI
+ * prereleases) still poll the same feed but surface `available` as a manual
+ * download link, so the whole pipeline is testable before signing exists.
  */
 export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
-  if (!app.isPackaged) {
-    return NOOP_UPDATER_HANDLE
-  }
-  let autoUpdater: typeof import('electron-updater')['autoUpdater']
-  try {
-    ;({ autoUpdater } = require('electron-updater') as typeof import('electron-updater'))
-  } catch (error) {
-    logger.error('electron-updater unavailable', { error })
+  if (!app.isPackaged && !deps.loadAutoUpdater && !deps.canSelfUpdate) {
     return NOOP_UPDATER_HANDLE
   }
 
   const currentVersion = app.getVersion()
-  autoUpdater.channel = resolveUpdateChannel(currentVersion)
-  autoUpdater.allowDowngrade = false
-  autoUpdater.autoDownload = deps.autoDownload?.() ?? true
-  // Never install without vetting the downloaded version first. Enabled per
-  // download in the update-downloaded handler, but only for accepted updates
-  // — so a blocked/downgrade build that was already downloaded is never
-  // silently installed on quit.
-  autoUpdater.autoInstallOnAppQuit = false
-  autoUpdater.logger = null
-
-  autoUpdater.on('update-available', (info) => {
-    deps.events.record('update_check', { available: info.version })
-  })
-
-  autoUpdater.on('update-downloaded', (info) => {
-    if (isDowngrade(currentVersion, info.version)) {
-      autoUpdater.autoInstallOnAppQuit = false
-      deps.events.record('update_blocked_version', { version: info.version })
-      return
-    }
-    autoUpdater.autoInstallOnAppQuit = true
-    deps.events.record('update_downloaded', { version: info.version })
-    const win = deps.getWindow()
-    const options = {
-      type: 'info' as const,
-      buttons: ['Restart Now', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-      message: `Sim ${info.version} is ready to install`,
-      detail: 'Restart to finish updating. If you choose Later, the update installs on quit.',
-    }
-    const prompt = win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options)
-    void prompt.then(({ response }) => {
-      if (response === 0) {
-        autoUpdater.quitAndInstall()
-      }
-    })
-  })
-
-  autoUpdater.on('error', (error) => {
-    deps.events.record('update_error', { message: getErrorMessage(error, 'unknown') })
-  })
-
-  const check = () => {
-    autoUpdater.checkForUpdates().catch((error) => {
-      logger.warn('Update check failed', { message: getErrorMessage(error, 'unknown') })
-    })
+  let state: DesktopUpdateState = { status: 'idle' }
+  const setState = (next: DesktopUpdateState) => {
+    state = next
+    deps.onStateChange?.(next)
   }
-  setTimeout(check, INITIAL_CHECK_DELAY_MS)
-  setInterval(check, CHECK_INTERVAL_MS)
+
+  const buildAutoEngine = (): UpdateEngine | null => {
+    let autoUpdater: typeof import('electron-updater')['autoUpdater']
+    try {
+      autoUpdater = deps.loadAutoUpdater
+        ? deps.loadAutoUpdater()
+        : (require('electron-updater') as typeof import('electron-updater')).autoUpdater
+    } catch (error) {
+      logger.error('electron-updater unavailable', { error })
+      return null
+    }
+
+    autoUpdater.channel = resolveUpdateChannel(currentVersion)
+    autoUpdater.allowDowngrade = false
+    autoUpdater.autoDownload = deps.autoDownload?.() ?? true
+    // Never install without vetting the downloaded version first. Enabled per
+    // download in the update-downloaded handler, but only for accepted updates
+    // — so a blocked/downgrade build that was already downloaded is never
+    // silently installed on quit.
+    autoUpdater.autoInstallOnAppQuit = false
+    autoUpdater.logger = null
+
+    autoUpdater.on('checking-for-update', () => {
+      setState({ status: 'checking' })
+    })
+
+    autoUpdater.on('update-not-available', () => {
+      setState({ status: 'idle' })
+    })
+
+    autoUpdater.on('update-available', (info) => {
+      deps.events.record('update_check', { available: info.version })
+      // With auto-download on, download-progress events follow immediately;
+      // `available` is the terminal state only when downloads are manual.
+      setState({
+        status: autoUpdater.autoDownload ? 'downloading' : 'available',
+        version: info.version,
+      })
+    })
+
+    autoUpdater.on('download-progress', (progress) => {
+      setState({
+        status: 'downloading',
+        version: state.version,
+        percent: Math.round(progress.percent),
+      })
+    })
+
+    autoUpdater.on('update-downloaded', (info) => {
+      if (isDowngrade(currentVersion, info.version)) {
+        autoUpdater.autoInstallOnAppQuit = false
+        deps.events.record('update_blocked_version', { version: info.version })
+        setState({ status: 'idle' })
+        return
+      }
+      autoUpdater.autoInstallOnAppQuit = true
+      deps.events.record('update_downloaded', { version: info.version })
+      setState({ status: 'ready', version: info.version })
+      const win = deps.getWindow()
+      const options = {
+        type: 'info' as const,
+        buttons: ['Restart Now', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+        message: `Sim ${info.version} is ready to install`,
+        detail: 'Restart to finish updating. If you choose Later, the update installs on quit.',
+      }
+      const prompt = win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options)
+      void prompt.then(({ response }) => {
+        if (response === 0) {
+          autoUpdater.quitAndInstall()
+        }
+      })
+    })
+
+    autoUpdater.on('error', (error) => {
+      deps.events.record('update_error', { message: getErrorMessage(error, 'unknown') })
+      setState({ status: 'error', version: state.version })
+    })
+
+    /**
+     * Prefer the per-environment feed served by the configured origin; fall
+     * back to the packaged GitHub feed when the origin doesn't serve one (an
+     * older or partial deployment). The origin feed is channel-resolved
+     * server-side, so the client always requests plain `latest-mac.yml`.
+     */
+    const probeOriginFeed =
+      deps.probeOriginFeed ??
+      (async (feedUrl: string) => {
+        const response = await net.fetch(`${feedUrl}/latest-mac.yml`)
+        return response.ok
+      })
+    const feedConfigured = (async () => {
+      const feedUrl = feedUrlForOrigin(deps.appOrigin())
+      if (!feedUrl) {
+        return
+      }
+      try {
+        if (!(await probeOriginFeed(feedUrl))) {
+          throw new Error('feed responded non-OK')
+        }
+        autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl, channel: 'latest' })
+        autoUpdater.channel = 'latest'
+        deps.events.record('update_feed', { url: feedUrl })
+      } catch (error) {
+        logger.warn('Origin update feed unavailable; using default GitHub feed', {
+          feedUrl,
+          message: getErrorMessage(error, 'unknown'),
+        })
+      }
+    })()
+
+    return {
+      check() {
+        void feedConfigured.then(() =>
+          autoUpdater.checkForUpdates().catch((error) => {
+            logger.warn('Update check failed', { message: getErrorMessage(error, 'unknown') })
+          })
+        )
+      },
+      advance() {
+        autoUpdater.downloadUpdate().catch((error) => {
+          logger.warn('Update download failed', { message: getErrorMessage(error, 'unknown') })
+          setState({ status: 'error', version: state.version })
+        })
+      },
+      install() {
+        autoUpdater.quitAndInstall()
+      },
+      setAutoDownload(enabled) {
+        autoUpdater.autoDownload = enabled
+      },
+    }
+  }
+
+  const buildManualEngine = (): UpdateEngine => {
+    const fetchManifest =
+      deps.fetchManifest ??
+      (async (url: string) => {
+        const response = await net.fetch(url)
+        return response.ok ? await response.text() : null
+      })
+    let downloadUrl: string | null = null
+
+    const doCheck = async () => {
+      setState({ status: 'checking', manual: true })
+      try {
+        const feedUrl = feedUrlForOrigin(deps.appOrigin())
+        const manifest = feedUrl ? await fetchManifest(`${feedUrl}/latest-mac.yml`) : null
+        const version = manifest ? (/^version:\s*(\S+)\s*$/m.exec(manifest)?.[1] ?? null) : null
+        if (!manifest || !version || !isNewerVersion(version, currentVersion)) {
+          setState({ status: 'idle', manual: true })
+          return
+        }
+        // The feed rewrites manifest urls to absolute GitHub asset URLs;
+        // prefer the dmg for a human download.
+        const urls = Array.from(manifest.matchAll(/^\s*(?:-\s*)?url:\s*(\S+)\s*$/gm), (m) => m[1])
+        downloadUrl =
+          urls.find((url) => url.endsWith('.dmg')) ??
+          urls.find((url) => url.endsWith('.zip')) ??
+          urls[0] ??
+          null
+        deps.events.record('update_check', { available: version, manual: true })
+        setState({ status: 'available', version, manual: true })
+      } catch (error) {
+        logger.warn('Manual update check failed', { message: getErrorMessage(error, 'unknown') })
+        setState({ status: 'error', version: state.version, manual: true })
+      }
+    }
+
+    const openDownload = () => {
+      if (downloadUrl) {
+        deps.events.record('update_manual_download', { url: downloadUrl })
+        void shell.openExternal(downloadUrl)
+      }
+    }
+
+    return {
+      check: () => void doCheck(),
+      advance: openDownload,
+      install: openDownload,
+      setAutoDownload: () => {},
+    }
+  }
+
+  let engine: UpdateEngine | null = null
+  let pendingAutoDownload: boolean | null = null
+
+  const canSelfUpdate = deps.canSelfUpdate ?? detectSelfUpdateCapability
+  void canSelfUpdate()
+    .catch(() => true)
+    .then((capable) => {
+      engine = capable ? buildAutoEngine() : buildManualEngine()
+      if (!engine) {
+        return
+      }
+      if (pendingAutoDownload !== null) {
+        engine.setAutoDownload(pendingAutoDownload)
+      }
+      if (!capable) {
+        deps.events.record('update_manual_mode', {})
+      }
+      const check = () => engine?.check()
+      setTimeout(check, INITIAL_CHECK_DELAY_MS)
+      setInterval(check, CHECK_INTERVAL_MS)
+    })
 
   return {
     setAutoDownload(enabled) {
-      autoUpdater.autoDownload = enabled
+      if (engine) {
+        engine.setAutoDownload(enabled)
+      } else {
+        pendingAutoDownload = enabled
+      }
+    },
+    getState: () => state,
+    check() {
+      if (!engine || state.status === 'checking' || state.status === 'downloading') {
+        return
+      }
+      if (state.status === 'available') {
+        engine.advance()
+        return
+      }
+      engine.check()
+    },
+    install() {
+      if (!engine) {
+        return
+      }
+      if (state.status === 'ready') {
+        engine.install()
+        return
+      }
+      if (state.status === 'available' && state.manual) {
+        engine.advance()
+      }
     },
   }
 }
 
 /**
- * Menu-triggered manual check with user-visible feedback.
+ * Menu-triggered manual check with user-visible feedback. Uses whatever feed
+ * initUpdater configured on the electron-updater singleton.
  */
-export function checkForUpdatesInteractive(deps: UpdaterDeps): void {
+export function checkForUpdatesInteractive(deps: Pick<UpdaterDeps, 'getWindow' | 'events'>): void {
   if (!app.isPackaged) {
     void dialog.showMessageBox({
       type: 'info',

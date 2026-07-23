@@ -47,15 +47,30 @@ export function hasDesktopSettings(): boolean {
   return Boolean(getDesktopBridge()?.settings)
 }
 
+/**
+ * The installed shell's semver, or undefined in a browser and on shells that
+ * predate version reporting. Input to the minimum-shell-version gate (see
+ * `lib/desktop/min-version.ts`).
+ */
+export function getDesktopShellVersion(): string | undefined {
+  return getDesktopBridge()?.version
+}
+
+/** The shell updater surface, when the installed shell provides one. */
+export function getDesktopUpdates(): SimDesktopApi['updates'] {
+  return getDesktopBridge()?.updates
+}
+
 export interface DesktopChatCapabilities {
-  desktopCapabilities?: { localFilesystem: true }
+  desktopCapabilities?: { localFilesystem?: true; browser?: true }
+  /** Compatibility for mothership deployments predating desktopCapabilities.browser. */
   browserCapable?: true
 }
 
 /**
- * The capability fragment spread into chat request payloads. The server gates
- * desktop-only tool schemas (local filesystem) and the browser subagent on
- * these flags, so in a plain web browser the model never sees the features.
+ * The capability fragment spread into chat request payloads. Mothership gates
+ * user-local VFS guidance/routing and the browser subagent on these flags, so
+ * in a plain web browser the model never sees the features.
  *
  * `includeBrowser: false` is for surfaces that cannot host the browser panel
  * (the Quick Ask launcher) — they still run filesystem tools inline but must
@@ -65,8 +80,17 @@ export function getDesktopChatCapabilities(
   options: { includeBrowser?: boolean } = {}
 ): DesktopChatCapabilities {
   const { includeBrowser = true } = options
+  const localFilesystem = hasLocalFilesystem()
+  const browser = includeBrowser && hasBrowserAgent()
   return {
-    ...(hasLocalFilesystem() ? { desktopCapabilities: { localFilesystem: true } } : {}),
-    ...(includeBrowser && hasBrowserAgent() ? { browserCapable: true } : {}),
+    ...(localFilesystem || browser
+      ? {
+          desktopCapabilities: {
+            ...(localFilesystem ? { localFilesystem: true as const } : {}),
+            ...(browser ? { browser: true as const } : {}),
+          },
+        }
+      : {}),
+    ...(browser ? { browserCapable: true } : {}),
   }
 }

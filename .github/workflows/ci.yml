@@ -52,6 +52,48 @@ jobs:
             echo "ℹ️ Not a release commit"
           fi
 
+  # Detect shell-code changes on dev/staging pushes. Web-only changes never
+  # need a desktop build (installed shells load the web app live); changes to
+  # the Electron app or the bridge packages trigger a per-env prerelease build
+  # (dev → alpha channel, staging → beta) that the env's update feed
+  # (/api/desktop/update) starts offering automatically.
+  detect-desktop-changes:
+    name: Detect Desktop Changes
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/staging')
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 50
+
+      - name: Diff desktop paths
+        id: diff
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # Force pushes (dev resets) can reference a BEFORE we don't have;
+          # fall back to the previous commit, and to no build when even that
+          # is unavailable.
+          if [ -z "$BEFORE" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            BEFORE="$(git rev-parse HEAD^ 2>/dev/null || echo '')"
+          fi
+          if [ -z "$BEFORE" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ No comparable base commit; skipping desktop prerelease"
+            exit 0
+          fi
+          if git diff --name-only "$BEFORE" HEAD | grep -qE '^(apps/desktop/|packages/desktop-bridge/|packages/browser-protocol/)'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Desktop shell code changed"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ No desktop shell changes"
+          fi
+
   # Run database migrations before images are promoted: the ECR latest/staging
   # tag push triggers CodePipeline, so migrating first guarantees the schema is
   # in place before the new app version deploys (replaces the removed ECS
@@ -541,8 +583,10 @@ jobs:
     name: Check Desktop Signing Secrets
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 2
-    needs: [detect-version]
-    if: needs.detect-version.outputs.is_release == 'true'
+    needs: [detect-version, detect-desktop-changes]
+    # !cancelled(): detect-desktop-changes is skipped on main (and
+    # detect-version tags only on main); either path may need the probe.
+    if: ${{ !cancelled() && (needs.detect-version.outputs.is_release == 'true' || needs.detect-desktop-changes.outputs.changed == 'true') }}
     outputs:
       configured: ${{ steps.check.outputs.configured }}
     steps:
@@ -567,3 +611,92 @@ jobs:
       version: ${{ needs.detect-version.outputs.version }}
       publish: true
     secrets: inherit
+
+  # Per-env desktop prereleases: a dev/staging push that touches shell code
+  # publishes a channel-tagged GitHub prerelease (vX.Y.Z-alpha.N from dev,
+  # vX.Y.Z-beta.N from staging). Each environment's /api/desktop/update feed
+  # offers only its channel, so dev-pointed shells pick up alpha builds,
+  # staging-pointed shells beta builds, and prod-pointed shells stable
+  # releases — independently. Unlike stable releases, prereleases build even
+  # before the Apple signing secrets exist — unsigned, so the update pipeline
+  # is testable end to end; installed shells detect the missing Developer ID
+  # and offer a manual download instead of a Squirrel install.
+  create-desktop-prerelease:
+    name: Create Desktop Prerelease
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    needs: [detect-desktop-changes, check-desktop-signing]
+    if: ${{ !cancelled() && needs.detect-desktop-changes.outputs.changed == 'true' }}
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Compute prerelease version and create release
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          SIGNED: ${{ needs.check-desktop-signing.outputs.configured }}
+        run: |
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNEL=alpha; else CHANNEL=beta; fi
+          # Prerelease core = next patch after the latest stable release, so
+          # channel builds always outrank the stable they are built on top of
+          # and are always superseded by the next stable.
+          LATEST="$(gh release list --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName' || true)"
+          LATEST="${LATEST:-v0.0.0}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${LATEST#v}"
+          TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))-${CHANNEL}.${GITHUB_RUN_NUMBER}"
+          NOTES="Automated ${CHANNEL}-channel desktop build from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}."
+          if [ "$SIGNED" != "true" ]; then
+            NOTES="$NOTES
+
+          ⚠️ Unsigned test build (Apple signing secrets not configured). Gatekeeper will quarantine a downloaded copy: right-click → Open, or clear the flag with \`xattr -dr com.apple.quarantine /Applications/Sim.app\`."
+          fi
+          gh release create "$TAG" \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --notes "$NOTES"
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "✅ Created prerelease $TAG"
+
+  desktop-prerelease:
+    name: Desktop Prerelease Build
+    needs: [create-desktop-prerelease, check-desktop-signing]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/desktop-release.yml
+    with:
+      version: ${{ needs.create-desktop-prerelease.outputs.version }}
+      publish: true
+      sign: ${{ needs.check-desktop-signing.outputs.configured == 'true' }}
+    secrets: inherit
+
+  # Keep the release list tidy: per channel, retain the newest 5 prereleases
+  # and delete the rest (with their tags, so dev force-resets don't strand
+  # commits behind stale tags).
+  prune-desktop-prereleases:
+    name: Prune Desktop Prereleases
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    needs: [desktop-prerelease]
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Delete stale prereleases
+        run: |
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNEL=alpha; else CHANNEL=beta; fi
+          gh release list --limit 100 --json tagName,isPrerelease,createdAt \
+            --jq "[.[] | select(.isPrerelease and (.tagName | test(\"-${CHANNEL}\\\\.\")))] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName" |
+          while read -r TAG; do
+            [ -n "$TAG" ] || continue
+            echo "Deleting stale prerelease $TAG"
+            gh release delete "$TAG" --cleanup-tag --yes
+          done

@@ -1,5 +1,4 @@
 import { lstat, readdir, readFile, realpath, stat } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { basename, isAbsolute, resolve, sep } from 'node:path'
 import type {
   LocalFilesystemData,
@@ -11,6 +10,8 @@ import type {
 } from '@sim/desktop-bridge'
 import { generateId } from '@sim/utils/id'
 import { app, dialog } from 'electron'
+import micromatch from 'micromatch'
+import safeRegex from 'safe-regex2'
 import type {
   LocalFilesystemGrantStore,
   PersistedLocalFilesystemGrant,
@@ -23,9 +24,10 @@ const MAX_SCAN_DEPTH = 50
 const MAX_GLOB_RESULTS = 500
 const MAX_GREP_RESULTS = 200
 const MAX_TEXT_FILE_BYTES = 5 * 1024 * 1024
-const MAX_STAGE_FILE_BYTES = 50 * 1024 * 1024
+const MAX_GREP_SCAN_BYTES = 100 * 1024 * 1024
 const MAX_READ_LINES = 2_000
 const MAX_GREP_LINE_LENGTH = 500
+const REQUEST_ID_PATTERN = /^[^\x00-\x1f\x7f]{1,256}$/
 
 type LocalFilesystemErrorCode = Extract<LocalFilesystemResponse, { ok: false }>['code']
 
@@ -63,6 +65,11 @@ interface SelectedDirectory {
   bookmark?: string
 }
 
+export interface LocalFilesystemToolAuthorization {
+  toolName: string
+  args: Record<string, unknown>
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -95,18 +102,16 @@ function localUri(mountId: string, relativePath = ''): string {
   return `localfs://${mountId}/${encodedPath}`
 }
 
-/**
- * Home-relative display form of a granted directory's host path
- * (`/Users/me/Documents/Notes` -> `~/Documents/Notes`). Shown only in trusted
- * desktop UI; agent tool results stay limited to opaque localfs:// URIs.
- */
-function displayPath(rootPath: string): string {
-  const home = homedir()
-  if (rootPath === home) return '~'
-  if (home && rootPath.startsWith(`${home}${sep}`)) {
-    return `~${rootPath.slice(home.length)}`
-  }
-  return rootPath
+function normalizeVfsDisplaySegment(segment: string): string {
+  return segment
+    .normalize('NFC')
+    .trim()
+    .replace(/[\x00-\x1f\x7f]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+function mountVfsRoot(mount: GrantedMount): string {
+  return `user-local/${encodeURIComponent(normalizeVfsDisplaySegment(mount.name))}--${mount.id}`
 }
 
 function parsePositiveInteger(value: unknown, name: string, fallback: number, max: number): number {
@@ -120,7 +125,7 @@ function parsePositiveInteger(value: unknown, name: string, fallback: number, ma
   return value as number
 }
 
-function compileGlob(pattern: string): RegExp {
+function compileGlob(pattern: string): (path: string) => boolean {
   if (!pattern || pattern.length > 512 || pattern.includes('\0') || pattern.includes('\\')) {
     throw new LocalFilesystemError('INVALID_REQUEST', 'Glob pattern is invalid.')
   }
@@ -131,28 +136,13 @@ function compileGlob(pattern: string): RegExp {
     )
   }
 
-  let source = '^'
-  for (let index = 0; index < pattern.length; index++) {
-    const char = pattern[index]
-    if (char === '*') {
-      if (pattern[index + 1] === '*') {
-        index++
-        if (pattern[index + 1] === '/') {
-          index++
-          source += '(?:.*/)?'
-        } else {
-          source += '.*'
-        }
-      } else {
-        source += '[^/]*'
-      }
-    } else if (char === '?') {
-      source += '[^/]'
-    } else {
-      source += char.replace(/[|\\{}()[\]^$+*?.-]/g, '\\$&')
-    }
-  }
-  return new RegExp(`${source}$`)
+  return micromatch.matcher(pattern, {
+    bash: false,
+    dot: false,
+    windows: false,
+    nobrace: true,
+    noext: true,
+  })
 }
 
 function isBinary(buffer: Uint8Array): boolean {
@@ -165,6 +155,12 @@ function isBinary(buffer: Uint8Array): boolean {
 
 function safeError(error: unknown): LocalFilesystemError {
   if (error instanceof LocalFilesystemError) return error
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return new LocalFilesystemError('CANCELLED', 'The local filesystem operation was cancelled.')
+  }
+  if (error instanceof Error && error.name === 'AbortError') {
+    return new LocalFilesystemError('CANCELLED', 'The local filesystem operation was cancelled.')
+  }
   const code =
     error && typeof error === 'object' && 'code' in error
       ? String((error as { code?: unknown }).code)
@@ -178,8 +174,15 @@ function safeError(error: unknown): LocalFilesystemError {
   return new LocalFilesystemError('IO_ERROR', 'The local filesystem operation failed.')
 }
 
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new LocalFilesystemError('CANCELLED', 'The local filesystem operation was cancelled.')
+  }
+}
+
 export class LocalFilesystemService {
   private readonly mounts = new Map<string, GrantedMount>()
+  private readonly activeRequests = new Map<string, AbortController>()
   private readonly chooseDirectory: () => Promise<string | SelectedDirectory | null>
   private readonly grantStore?: LocalFilesystemGrantStore
   private readonly startAccessingBookmark: (bookmark: string) => (() => void) | undefined
@@ -223,6 +226,10 @@ export class LocalFilesystemService {
 
   /** Release active OS handles while keeping encrypted grants for next launch. */
   close(): void {
+    for (const controller of this.activeRequests.values()) {
+      controller.abort()
+    }
+    this.activeRequests.clear()
     for (const mount of this.mounts.values()) {
       mount.stopAccessing?.()
     }
@@ -241,55 +248,205 @@ export class LocalFilesystemService {
         throw new LocalFilesystemError('INVALID_REQUEST', 'Local filesystem request is invalid.')
       }
 
+      if (request.operation === 'cancel') {
+        const requestId = this.requiredRequestId(request)
+        const controller = this.activeRequests.get(requestId)
+        controller?.abort()
+        return { ok: true, data: { cancelled: controller !== undefined } }
+      }
+
+      const requestId =
+        request.requestId === undefined ? undefined : this.requiredRequestId(request)
+      if (requestId && this.activeRequests.has(requestId)) {
+        throw new LocalFilesystemError(
+          'INVALID_REQUEST',
+          'A local filesystem operation with that request id is already running.'
+        )
+      }
+      const controller = requestId ? new AbortController() : undefined
+      if (requestId && controller) {
+        this.activeRequests.set(requestId, controller)
+      }
+
       let data: LocalFilesystemData
-      switch (request.operation) {
-        case 'mount_directory':
-          data = await this.mountDirectory()
-          break
-        case 'list_mounts':
-          data = this.listMounts()
-          break
-        case 'forget_mount':
-          data = await this.forgetMount(this.requiredUri(request))
-          break
-        case 'list':
-          data = await this.listDirectory(this.requiredUri(request))
-          break
-        case 'glob':
-          data = await this.glob(this.requiredUri(request), this.requiredString(request, 'pattern'))
-          break
-        case 'read':
-          data = await this.readText(
-            this.requiredUri(request),
-            request.startLine,
-            request.lineCount
-          )
-          break
-        case 'grep':
-          data = await this.grep(
-            this.requiredUri(request),
-            this.requiredString(request, 'query'),
-            request.include,
-            request.caseSensitive
-          )
-          break
-        case 'stat':
-          data = await this.statPath(this.requiredUri(request))
-          break
-        case 'read_file_bytes':
-          data = await this.readFileBytes(this.requiredUri(request))
-          break
-        default:
-          throw new LocalFilesystemError(
-            'INVALID_REQUEST',
-            'Local filesystem operation is not supported.'
-          )
+      try {
+        switch (request.operation) {
+          case 'mount_directory':
+            data = await this.mountDirectory()
+            break
+          case 'list_mounts':
+            data = this.listMounts()
+            break
+          case 'forget_mount':
+            data = await this.forgetMount(this.requiredUri(request))
+            break
+          case 'list':
+            data = await this.listDirectory(this.requiredUri(request))
+            break
+          case 'glob':
+            data = await this.glob(
+              this.requiredUri(request),
+              this.requiredString(request, 'pattern'),
+              request.pathPrefix,
+              controller?.signal
+            )
+            break
+          case 'read':
+            data = await this.readText(
+              this.requiredUri(request),
+              request.startLine,
+              request.lineCount,
+              controller?.signal
+            )
+            break
+          case 'grep':
+            data = await this.grep(this.requiredUri(request), request, controller?.signal)
+            break
+          case 'stat':
+            data = await this.statPath(this.requiredUri(request))
+            break
+          default:
+            throw new LocalFilesystemError(
+              'INVALID_REQUEST',
+              'Local filesystem operation is not supported.'
+            )
+        }
+      } finally {
+        if (requestId) {
+          this.activeRequests.delete(requestId)
+        }
       }
       return { ok: true, data }
     } catch (error) {
       const safe = safeError(error)
       return { ok: false, code: safe.code, error: safe.message }
     }
+  }
+
+  /**
+   * Bind a privileged read/search request to the canonical args persisted for
+   * one authenticated pending client tool call. Renderer code chooses neither
+   * a different operation nor a different granted path.
+   */
+  isAuthorizedClientToolRequest(
+    request: unknown,
+    authorization: LocalFilesystemToolAuthorization
+  ): boolean {
+    if (!isRecord(request) || typeof request.operation !== 'string') return false
+    if (
+      typeof request.requestId !== 'string' ||
+      request.requestId.length === 0 ||
+      !REQUEST_ID_PATTERN.test(request.requestId)
+    ) {
+      return false
+    }
+    const args = authorization.args
+
+    const expectedUriForPath = (path: unknown): string | null => {
+      if (typeof path !== 'string') return null
+      for (const mount of this.mounts.values()) {
+        const root = mountVfsRoot(mount)
+        if (path === root) return mount.uri
+        if (path.startsWith(`${root}/`)) {
+          return `${mount.uri}${path.slice(root.length + 1)}`
+        }
+      }
+      return null
+    }
+
+    switch (authorization.toolName) {
+      case 'read': {
+        if (request.operation !== 'read') return false
+        const expectedUri = expectedUriForPath(args.path)
+        const offset =
+          typeof args.offset === 'number' && Number.isFinite(args.offset)
+            ? Math.max(0, Math.trunc(args.offset))
+            : 0
+        const limit =
+          typeof args.limit === 'number' && Number.isFinite(args.limit)
+            ? Math.min(2000, Math.max(1, Math.trunc(args.limit)))
+            : 2000
+        return (
+          expectedUri !== null &&
+          request.uri === expectedUri &&
+          request.startLine === offset + 1 &&
+          request.lineCount === limit
+        )
+      }
+      case 'grep': {
+        if (request.operation !== 'grep' || request.pattern !== args.pattern) return false
+        const rawPath = typeof args.path === 'string' ? args.path.replace(/\/+$/, '') : ''
+        const uriAllowed =
+          rawPath === 'user-local'
+            ? [...this.mounts.values()].some((mount) => request.uri === mount.uri)
+            : request.uri === expectedUriForPath(rawPath)
+        const outputMode =
+          args.output_mode === 'files_with_matches' || args.output_mode === 'count'
+            ? args.output_mode
+            : 'content'
+        const maxResults =
+          typeof args.maxResults === 'number' && Number.isFinite(args.maxResults)
+            ? Math.min(MAX_GREP_RESULTS, Math.max(1, Math.trunc(args.maxResults)))
+            : 50
+        const context =
+          typeof args.context === 'number' && Number.isFinite(args.context)
+            ? Math.min(20, Math.max(0, Math.trunc(args.context)))
+            : 0
+        return (
+          uriAllowed &&
+          request.caseSensitive === (args.ignoreCase !== true) &&
+          request.maxResults === maxResults &&
+          request.outputMode === outputMode &&
+          request.lineNumbers === (args.lineNumbers !== false) &&
+          request.context === context
+        )
+      }
+      case 'glob': {
+        if (
+          request.operation !== 'glob' ||
+          typeof args.pattern !== 'string' ||
+          request.pattern !== args.pattern
+        ) {
+          return false
+        }
+        for (const mount of this.mounts.values()) {
+          if (request.uri !== mount.uri) continue
+          return request.pathPrefix === mountVfsRoot(mount)
+        }
+        return false
+      }
+      case 'local_read':
+        return request.operation === 'read' && request.uri === args.uri
+      case 'local_grep':
+        return (
+          request.operation === 'grep' &&
+          request.uri === args.uri &&
+          request.query === args.query &&
+          request.include === args.include &&
+          request.caseSensitive === args.caseSensitive
+        )
+      case 'local_glob':
+        return (
+          request.operation === 'glob' &&
+          request.uri === args.uri &&
+          request.pattern === args.pattern &&
+          request.pathPrefix === undefined
+        )
+      case 'local_list':
+        return request.operation === 'list' && request.uri === args.uri
+      case 'local_stat':
+        return request.operation === 'stat' && request.uri === args.uri
+      default:
+        return false
+    }
+  }
+
+  private requiredRequestId(request: Record<string, unknown>): string {
+    const value = request.requestId
+    if (typeof value !== 'string' || !REQUEST_ID_PATTERN.test(value)) {
+      throw new LocalFilesystemError('INVALID_REQUEST', 'requestId is invalid.')
+    }
+    return value
   }
 
   private requiredUri(request: Record<string, unknown>): string {
@@ -357,7 +514,6 @@ export class LocalFilesystemService {
       id: mount.id,
       name: mount.name,
       uri: mount.uri,
-      path: displayPath(mount.rootPath),
       remembered: mount.remembered,
     }
   }
@@ -563,7 +719,17 @@ export class LocalFilesystemService {
     return { entries, truncated }
   }
 
-  private async glob(uri: string, pattern: string): Promise<LocalFilesystemData> {
+  private async glob(
+    uri: string,
+    pattern: string,
+    rawPathPrefix?: unknown,
+    signal?: AbortSignal
+  ): Promise<LocalFilesystemData> {
+    throwIfAborted(signal)
+    if (rawPathPrefix !== undefined && typeof rawPathPrefix !== 'string') {
+      throw new LocalFilesystemError('INVALID_REQUEST', 'pathPrefix must be a string.')
+    }
+    const pathPrefix = typeof rawPathPrefix === 'string' ? rawPathPrefix.replace(/\/+$/, '') : ''
     const matcher = compileGlob(pattern)
     const resolvedPath = await this.resolveUri(uri)
     const baseStat = await stat(resolvedPath.realPath)
@@ -577,12 +743,14 @@ export class LocalFilesystemService {
     const stack = [{ path: resolvedPath.realPath, relativeFromBase: '', depth: 0 }]
 
     while (stack.length > 0 && !truncated) {
+      throwIfAborted(signal)
       const current = stack.pop()
       if (!current) break
       const children = await readdir(current.path, { withFileTypes: true })
       children.sort((a, b) => b.name.localeCompare(a.name))
 
       for (const child of children) {
+        throwIfAborted(signal)
         scanned++
         if (scanned > MAX_SCAN_ENTRIES) {
           truncated = true
@@ -594,7 +762,8 @@ export class LocalFilesystemService {
           .filter(Boolean)
           .join('/')
 
-        if (matcher.test(relativeFromBase)) {
+        const candidatePath = pathPrefix ? `${pathPrefix}/${relativeFromBase}` : relativeFromBase
+        if (matcher(candidatePath)) {
           const metadata = await lstat(childPath)
           entries.push({
             name: child.name,
@@ -626,8 +795,10 @@ export class LocalFilesystemService {
   private async readText(
     uri: string,
     rawStartLine: unknown,
-    rawLineCount: unknown
+    rawLineCount: unknown,
+    signal?: AbortSignal
   ): Promise<LocalFilesystemData> {
+    throwIfAborted(signal)
     const startLine = parsePositiveInteger(rawStartLine, 'startLine', 1, Number.MAX_SAFE_INTEGER)
     const lineCount = parsePositiveInteger(rawLineCount, 'lineCount', 500, MAX_READ_LINES)
     const resolvedPath = await this.resolveUri(uri)
@@ -638,15 +809,16 @@ export class LocalFilesystemService {
     if (fileStat.size > MAX_TEXT_FILE_BYTES) {
       throw new LocalFilesystemError(
         'FILE_TOO_LARGE',
-        'The file is too large for local_read. Use local_stage_file instead.'
+        'The file is too large to read through user-local/.'
       )
     }
 
-    const buffer = await readFile(resolvedPath.realPath)
+    const buffer = await readFile(resolvedPath.realPath, { signal })
+    throwIfAborted(signal)
     if (isBinary(buffer)) {
       throw new LocalFilesystemError(
         'BINARY_FILE',
-        'The file is binary. Use local_stage_file to upload it.'
+        'The file is binary and cannot be read through user-local/.'
       )
     }
     const content = new TextDecoder().decode(buffer)
@@ -664,40 +836,152 @@ export class LocalFilesystemService {
 
   private async grep(
     uri: string,
-    query: string,
-    rawInclude: unknown,
-    rawCaseSensitive: unknown
+    request: Record<string, unknown>,
+    signal?: AbortSignal
   ): Promise<LocalFilesystemData> {
-    if (query.length > 1000) {
-      throw new LocalFilesystemError('INVALID_REQUEST', 'grep query is too long.')
+    throwIfAborted(signal)
+    const rawPattern = request.pattern
+    const rawQuery = request.query
+    if (rawPattern !== undefined && typeof rawPattern !== 'string') {
+      throw new LocalFilesystemError('INVALID_REQUEST', 'pattern must be a string.')
     }
-    if (rawInclude !== undefined && typeof rawInclude !== 'string') {
+    if (rawQuery !== undefined && typeof rawQuery !== 'string') {
+      throw new LocalFilesystemError('INVALID_REQUEST', 'query must be a string.')
+    }
+    const expression = rawPattern ?? rawQuery
+    if (typeof expression !== 'string' || expression.length < 1 || expression.length > 1000) {
+      throw new LocalFilesystemError('INVALID_REQUEST', 'grep pattern is invalid.')
+    }
+    if (request.include !== undefined && typeof request.include !== 'string') {
       throw new LocalFilesystemError('INVALID_REQUEST', 'include must be a glob string.')
     }
-    if (rawCaseSensitive !== undefined && typeof rawCaseSensitive !== 'boolean') {
+    if (request.caseSensitive !== undefined && typeof request.caseSensitive !== 'boolean') {
       throw new LocalFilesystemError('INVALID_REQUEST', 'caseSensitive must be a boolean.')
     }
+    const outputMode = request.outputMode ?? 'content'
+    if (!['content', 'files_with_matches', 'count'].includes(String(outputMode))) {
+      throw new LocalFilesystemError('INVALID_REQUEST', 'outputMode is invalid.')
+    }
+    if (request.lineNumbers !== undefined && typeof request.lineNumbers !== 'boolean') {
+      throw new LocalFilesystemError('INVALID_REQUEST', 'lineNumbers must be a boolean.')
+    }
+    const rawContext = request.context ?? 0
+    if (
+      !Number.isInteger(rawContext) ||
+      (rawContext as number) < 0 ||
+      (rawContext as number) > 20
+    ) {
+      throw new LocalFilesystemError('INVALID_REQUEST', 'context must be an integer from 0 to 20.')
+    }
+    const contextLines = rawContext as number
+    const maxResults = parsePositiveInteger(request.maxResults, 'maxResults', 50, MAX_GREP_RESULTS)
 
-    const include = rawInclude ?? '**/*'
+    const include = typeof request.include === 'string' ? request.include : '**/*'
     const matcher = compileGlob(include)
-    const caseSensitive = rawCaseSensitive === true
-    const needle = caseSensitive ? query : query.toLocaleLowerCase()
+    const ignoreCase = request.caseSensitive !== true
+    let regex: RegExp
+    try {
+      if (rawPattern !== undefined && !safeRegex(expression)) {
+        throw new LocalFilesystemError(
+          'INVALID_REQUEST',
+          'grep pattern was rejected because it may cause catastrophic backtracking.'
+        )
+      }
+      regex =
+        rawPattern !== undefined
+          ? new RegExp(expression, ignoreCase ? 'i' : '')
+          : new RegExp(expression.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), ignoreCase ? 'i' : '')
+    } catch (error) {
+      if (error instanceof LocalFilesystemError) throw error
+      if (outputMode === 'files_with_matches') {
+        return { files: [], truncated: false }
+      }
+      if (outputMode === 'count') {
+        return { counts: [], truncated: false }
+      }
+      return { matches: [], truncated: false }
+    }
     const resolvedPath = await this.resolveUri(uri)
     const baseStat = await stat(resolvedPath.realPath)
-    if (!baseStat.isDirectory()) {
-      throw new LocalFilesystemError('NOT_A_DIRECTORY', 'The localfs URI is not a directory.')
+    if (!baseStat.isDirectory() && !baseStat.isFile()) {
+      throw new LocalFilesystemError('NOT_A_FILE', 'The localfs URI is not searchable.')
     }
 
     const matches: LocalFilesystemGrepMatch[] = []
+    const files: string[] = []
+    const counts: Array<{ uri: string; count: number }> = []
     let scanned = 0
+    let scannedBytes = 0
     let truncated = false
-    const stack = [{ path: resolvedPath.realPath, relativeFromBase: '', depth: 0 }]
+    const stack = baseStat.isDirectory()
+      ? [{ path: resolvedPath.realPath, relativeFromBase: '', depth: 0 }]
+      : []
+
+    const inspectFile = async (childPath: string, relativeFromBase: string): Promise<void> => {
+      throwIfAborted(signal)
+      if (baseStat.isDirectory() && !matcher(relativeFromBase)) return
+      const fileStat = await stat(childPath)
+      if (fileStat.size > MAX_TEXT_FILE_BYTES) return
+      if (scannedBytes + fileStat.size > MAX_GREP_SCAN_BYTES) {
+        truncated = true
+        return
+      }
+      scannedBytes += fileStat.size
+      const buffer = await readFile(childPath, { signal })
+      if (isBinary(buffer)) return
+      const content = new TextDecoder().decode(buffer)
+      const mountRelativePath = baseStat.isFile()
+        ? resolvedPath.relativePath
+        : [resolvedPath.relativePath, relativeFromBase].filter(Boolean).join('/')
+      const resultUri = localUri(resolvedPath.mount.id, mountRelativePath)
+
+      if (outputMode === 'files_with_matches') {
+        regex.lastIndex = 0
+        if (regex.test(content)) files.push(resultUri)
+        return
+      }
+
+      const lines = content.split(/\r?\n/)
+      let count = 0
+      for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+        throwIfAborted(signal)
+        regex.lastIndex = 0
+        if (!regex.test(lines[lineIndex])) continue
+        count++
+        if (outputMode !== 'content') continue
+
+        const contextStart = Math.max(0, lineIndex - contextLines)
+        const contextEnd = Math.min(lines.length - 1, lineIndex + contextLines)
+        for (let contextIndex = contextStart; contextIndex <= contextEnd; contextIndex++) {
+          const line = lines[contextIndex]
+          matches.push({
+            uri: resultUri,
+            line: request.lineNumbers === false ? 0 : contextIndex + 1,
+            text:
+              line.length > MAX_GREP_LINE_LENGTH ? `${line.slice(0, MAX_GREP_LINE_LENGTH)}…` : line,
+          })
+          if (matches.length >= maxResults) {
+            truncated = true
+            return
+          }
+        }
+      }
+      if (outputMode === 'count' && count > 0) {
+        counts.push({ uri: resultUri, count })
+      }
+    }
+
+    if (baseStat.isFile()) {
+      await inspectFile(resolvedPath.realPath, basename(resolvedPath.realPath))
+    }
 
     while (stack.length > 0 && !truncated) {
+      throwIfAborted(signal)
       const current = stack.pop()
       if (!current) break
       const children = await readdir(current.path, { withFileTypes: true })
       for (const child of children) {
+        throwIfAborted(signal)
         scanned++
         if (scanned > MAX_SCAN_ENTRIES) {
           truncated = true
@@ -713,37 +997,30 @@ export class LocalFilesystemService {
           })
           continue
         }
-        if (!child.isFile() || !matcher.test(relativeFromBase)) continue
-
-        const fileStat = await stat(childPath)
-        if (fileStat.size > MAX_TEXT_FILE_BYTES) continue
-        const buffer = await readFile(childPath)
-        if (isBinary(buffer)) continue
-        const lines = new TextDecoder().decode(buffer).split(/\r?\n/)
-        for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-          const line = lines[lineIndex]
-          const haystack = caseSensitive ? line : line.toLocaleLowerCase()
-          const column = haystack.indexOf(needle)
-          if (column < 0) continue
-          const mountRelativePath = [resolvedPath.relativePath, relativeFromBase]
-            .filter(Boolean)
-            .join('/')
-          matches.push({
-            uri: localUri(resolvedPath.mount.id, mountRelativePath),
-            line: lineIndex + 1,
-            column: column + 1,
-            text:
-              line.length > MAX_GREP_LINE_LENGTH ? `${line.slice(0, MAX_GREP_LINE_LENGTH)}…` : line,
-          })
-          if (matches.length >= MAX_GREP_RESULTS) {
-            truncated = true
-            break
-          }
-        }
+        if (!child.isFile()) continue
+        await inspectFile(childPath, relativeFromBase)
         if (truncated) break
+        const resultCount =
+          outputMode === 'files_with_matches'
+            ? files.length
+            : outputMode === 'count'
+              ? counts.length
+              : matches.length
+        if (resultCount >= maxResults) {
+          truncated = true
+          break
+        }
       }
     }
 
+    if (outputMode === 'files_with_matches') {
+      files.sort()
+      return { files: files.slice(0, maxResults), truncated }
+    }
+    if (outputMode === 'count') {
+      counts.sort((a, b) => a.uri.localeCompare(b.uri))
+      return { counts: counts.slice(0, maxResults), truncated }
+    }
     matches.sort((a, b) => a.uri.localeCompare(b.uri) || a.line - b.line)
     return { matches, truncated }
   }
@@ -757,27 +1034,6 @@ export class LocalFilesystemService {
       kind: entryKind(metadata),
       size: metadata.size,
       modifiedAt: metadata.mtime.toISOString(),
-    }
-  }
-
-  private async readFileBytes(uri: string): Promise<LocalFilesystemData> {
-    const resolvedPath = await this.resolveUri(uri)
-    const fileStat = await stat(resolvedPath.realPath)
-    if (!fileStat.isFile()) {
-      throw new LocalFilesystemError('NOT_A_FILE', 'The localfs URI is not a file.')
-    }
-    if (fileStat.size > MAX_STAGE_FILE_BYTES) {
-      throw new LocalFilesystemError(
-        'FILE_TOO_LARGE',
-        'The local file is larger than the 50 MB staging limit.'
-      )
-    }
-    const buffer = await readFile(resolvedPath.realPath)
-    return {
-      uri,
-      name: basename(resolvedPath.lexicalPath),
-      size: buffer.byteLength,
-      bytes: new Uint8Array(buffer),
     }
   }
 }

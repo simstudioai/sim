@@ -203,7 +203,12 @@ async function doExecuteBrowserTool(
   logger.info('Executing browser tool via the desktop agent browser', { toolCallId, toolName })
 
   try {
-    const result = await executeBrowserTool(toolName, params, timeoutForTool(toolName, params))
+    const result = await executeBrowserTool(
+      toolCallId,
+      toolName,
+      params,
+      timeoutForTool(toolName, params)
+    )
     await reportClientToolCompletion(
       toolCallId,
       ASYNC_TOOL_CONFIRMATION_STATUS.success,

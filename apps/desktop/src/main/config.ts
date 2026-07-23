@@ -7,15 +7,58 @@ const logger = createLogger('DesktopConfig')
 
 /**
  * The server origin fresh installs point at. `scripts/build.ts` can bake an
- * override in via SIM_DESKTOP_DEFAULT_ORIGIN (pre-release builds shared
- * against dev/staging); official builds default to production. The esbuild
+ * override in via SIM_DESKTOP_DEFAULT_ORIGIN (per-environment builds: dev,
+ * staging, localhost); official builds default to production. The esbuild
  * define replaces the env read at bundle time, so a packaged app never
- * consults the runtime environment for this.
+ * consults the runtime environment for this. http is accepted only for
+ * loopback origins (the localhost dev-server channel).
  */
-export const DEFAULT_ORIGIN =
-  (process.env.SIM_DESKTOP_DEFAULT_ORIGIN?.startsWith('https://') &&
-    process.env.SIM_DESKTOP_DEFAULT_ORIGIN) ||
-  'https://sim.ai'
+function isValidBakedOrigin(origin: string | undefined): origin is string {
+  if (!origin) return false
+  try {
+    const url = new URL(origin)
+    if (url.protocol === 'https:') return true
+    return url.protocol === 'http:' && isLoopbackHostname(url.hostname)
+  } catch {
+    return false
+  }
+}
+
+export const DEFAULT_ORIGIN = isValidBakedOrigin(process.env.SIM_DESKTOP_DEFAULT_ORIGIN)
+  ? process.env.SIM_DESKTOP_DEFAULT_ORIGIN
+  : 'https://sim.ai'
+
+/**
+ * The environment a build is keyed to, derived from its baked default origin.
+ * Channel drives the app's identity — its name and therefore its userData
+ * directory and single-instance lock — so one developer can keep a prod,
+ * staging, dev, and localhost install side by side, each with its own
+ * settings, sessions, and update feed.
+ */
+export type DesktopChannel = 'prod' | 'staging' | 'dev' | 'local'
+
+export function channelForOrigin(origin: string): DesktopChannel {
+  try {
+    const host = new URL(origin).hostname.toLowerCase()
+    if (isLoopbackHostname(host)) return 'local'
+    if (host === 'dev.sim.ai' || host.endsWith('.dev.sim.ai')) return 'dev'
+    if (host === 'staging.sim.ai' || host.endsWith('.staging.sim.ai')) return 'staging'
+    return 'prod'
+  } catch {
+    return 'prod'
+  }
+}
+
+/**
+ * Per-channel app names. Prod keeps the plain name every existing install
+ * already has (its userData must not move); the others are distinct apps.
+ */
+export const APP_NAME_FOR_CHANNEL: Record<DesktopChannel, string> = {
+  prod: 'Sim',
+  staging: 'Sim Staging',
+  dev: 'Sim Dev',
+  local: 'Sim Local',
+}
 
 export interface WindowBounds {
   x?: number

@@ -8,9 +8,13 @@ const watch = process.argv.includes('--watch')
 // unlike the SIM_DESKTOP_ORIGIN env var, which only affects terminal-launched
 // processes. Official builds leave it unset (default https://sim.ai).
 const bakedDefaultOrigin = process.env.SIM_DESKTOP_DEFAULT_ORIGIN ?? ''
-if (bakedDefaultOrigin && !/^https:\/\/[^\s/]+$/.test(bakedDefaultOrigin)) {
+if (
+  bakedDefaultOrigin &&
+  !/^https:\/\/[^\s/]+$/.test(bakedDefaultOrigin) &&
+  !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(bakedDefaultOrigin)
+) {
   console.error(
-    `SIM_DESKTOP_DEFAULT_ORIGIN must be a bare https origin (got "${bakedDefaultOrigin}")`
+    `SIM_DESKTOP_DEFAULT_ORIGIN must be a bare https origin or http://localhost (got "${bakedDefaultOrigin}")`
   )
   process.exit(1)
 }
