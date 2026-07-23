@@ -11,6 +11,7 @@ import {
   coerceValue,
   createCsvParser,
   csvParseOptions,
+  dedupeHeaders,
   detectCsvDelimiter,
   inferColumnType,
   inferSchemaFromCsv,
@@ -348,6 +349,26 @@ describe('import', () => {
       const { columns } = inferSchemaFromCsv(headers, rows)
       expect(columns.map((c) => c.name)).toEqual(['a', 'b', 'c'])
     })
+
+    it('collapses duplicate header names to match the parser record keys', async () => {
+      // csv-parse keys duplicate columns onto one object key (last value wins); the reported
+      // headers must match, so schema inference does not invent a phantom empty column.
+      const { headers, rows } = await parseCsvBuffer('a,a,b\n1,2,3\n4,5,6\n')
+      expect(headers).toEqual(['a', 'b'])
+      expect(Object.keys(rows[0])).toEqual(['a', 'b'])
+      const { columns } = inferSchemaFromCsv(headers, rows)
+      expect(columns.map((c) => c.name)).toEqual(['a', 'b'])
+    })
+  })
+
+  describe('dedupeHeaders', () => {
+    it('drops later exact duplicates, preserving first-occurrence order', () => {
+      expect(dedupeHeaders(['a', 'b', 'a', 'c', 'b'])).toEqual(['a', 'b', 'c'])
+    })
+
+    it('keeps case-distinct names (matches csv-parse key sensitivity)', () => {
+      expect(dedupeHeaders(['Name', 'name'])).toEqual(['Name', 'name'])
+    })
   })
 
   describe('detectCsvDelimiter', () => {
@@ -385,6 +406,18 @@ describe('import', () => {
     it('detects the real delimiter when the header itself has quoted commas', async () => {
       const csv = '"last, first";age;city\n"Doe, John";30;NYC\n"Roe, Jane";25;LA\n'
       expect(await detectCsvDelimiter(csv)).toBe(';')
+    })
+
+    it('prefers a wider ragged split over a narrow one that only looks uniform', async () => {
+      // Semicolon is the real delimiter (2- and 3-column rows) while a pipe appears once per
+      // row inside values. Scoring width*consistency keeps the wider semicolon split.
+      expect(await detectCsvDelimiter('a|label;b;c\nx|y;1\nz|w;2;3\n')).toBe(';')
+    })
+
+    it('falls back to comma order only when the split is genuinely ambiguous', async () => {
+      // Both ; and , yield exactly two uniform columns — no content signal distinguishes them,
+      // so the global-default candidate order (comma first) decides and either reading is valid.
+      expect(await detectCsvDelimiter('name;value,unit\na;1,kg\nb;2,kg\n')).toBe(',')
     })
 
     it('drops a partial trailing line so a mid-record byte cut cannot skew detection', async () => {

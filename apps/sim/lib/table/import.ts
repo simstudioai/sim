@@ -46,7 +46,12 @@ export function csvParseOptions(
 ): CsvParseOptions {
   return {
     columns: (header: string[]) => {
-      onHeaders?.(header)
+      // Deliver headers deduped to match the record keys: csv-parse collapses duplicate
+      // column names into a single object key (last value wins), so the consumer's schema
+      // inference and mapping must see the same unique set — not the raw duplicates, which
+      // would invent phantom columns that never receive a value. csv-parse still keys on the
+      // raw array we return here, so returning it unchanged preserves that collapsing.
+      onHeaders?.(dedupeHeaders(header))
       return header
     },
     skip_empty_lines: true,
@@ -72,6 +77,22 @@ export function createCsvParser(delimiter = ',', onHeaders?: (headers: string[])
   return parseCsvStream(csvParseOptions(delimiter, onHeaders))
 }
 
+/**
+ * Drops later exact-duplicate header names, preserving first-occurrence order. Mirrors how
+ * `csv-parse` collapses duplicate column names into a single record key (last value wins), so
+ * the header set stays in lockstep with the object keys the parser actually emits.
+ */
+export function dedupeHeaders(headers: string[]): string[] {
+  const seen = new Set<string>()
+  const unique: string[] = []
+  for (const header of headers) {
+    if (seen.has(header)) continue
+    seen.add(header)
+    unique.push(header)
+  }
+  return unique
+}
+
 /** Decodes CSV bytes as UTF-8, passing strings through unchanged. */
 export function decodeCsvText(input: Buffer | Uint8Array | string): string {
   if (typeof input === 'string') return input
@@ -88,14 +109,22 @@ export function decodeCsvText(input: Buffer | Uint8Array | string): string {
  * semicolon-separated file whose `raw_text` cells are full of commas and
  * newlines, and a naive frequency count picks the comma.
  *
- * Ranking is **consistency first, then column count**. The true delimiter yields
- * a uniform column count across every row; a spurious one (e.g. a comma that
- * happens to appear in an unquoted header of a semicolon file) produces a wide
- * first row but ragged data rows. Ranking on column count alone would wrongly
- * prefer that wide-but-inconsistent split, so consistency dominates and column
- * count only breaks ties. The per-candidate column count is the *modal* (most
- * common) row width, so one stray ragged row doesn't distort it. A single-column
- * file (no candidate reaches two columns) falls back to `fallback`.
+ * Each candidate is scored `modalWidth × consistency` — the modal (most common)
+ * row width times the fraction of rows at that width. This balances the two
+ * failure modes: ranking on width alone lets a delimiter that merely widens the
+ * header win (a comma splitting a semicolon file's unquoted header), while
+ * ranking on consistency alone lets a separator that appears uniformly *inside*
+ * values win over a real delimiter whose rows are legitimately ragged (a pipe
+ * embedded once per row beating a semicolon that yields 2- and 3-column rows).
+ * The product rewards a split that is both wide and uniform; ties break toward
+ * the wider split, then toward candidate order. Using the modal width (not the
+ * first row's) keeps one stray ragged row from distorting the score, and a
+ * single-column file (no candidate reaches two columns) falls back to `fallback`.
+ *
+ * Files that stay exactly tied on both score and width are genuinely ambiguous —
+ * e.g. `name;value,unit` splits into two columns under either `;` or `,` — so the
+ * global-default candidate order (comma first) decides, and both readings still
+ * produce a valid table.
  *
  * All callers funnel through here, so the sample is prepared identically for
  * every import path: a possibly-partial trailing line (from slicing a fixed byte
@@ -114,7 +143,7 @@ export async function detectCsvDelimiter(
   const text = lastNewline > 0 ? decoded.slice(0, lastNewline + 1) : decoded
   if (text.trim() === '') return fallback
 
-  let best: { delimiter: CsvDelimiter; fields: number; consistency: number } | null = null
+  let best: { delimiter: CsvDelimiter; fields: number; score: number } | null = null
 
   for (const delimiter of CSV_DELIMITER_CANDIDATES) {
     let records: string[][]
@@ -149,14 +178,11 @@ export async function detectCsvDelimiter(
     }
     if (fields < 2) continue
 
-    const consistency = modalFreq / records.length
+    // Reward a split that is both wide and uniform; ties break toward the wider split.
+    const score = fields * (modalFreq / records.length)
 
-    if (
-      !best ||
-      consistency > best.consistency ||
-      (consistency === best.consistency && fields > best.fields)
-    ) {
-      best = { delimiter, fields, consistency }
+    if (!best || score > best.score || (score === best.score && fields > best.fields)) {
+      best = { delimiter, fields, score }
     }
   }
 
