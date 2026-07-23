@@ -523,6 +523,17 @@ export async function executeSync(
      * full listing — and its listing-time overhead — for this connector
      * forever. Past the window, this connector stops forcing full syncs on its
      * account; the document itself is unaffected and stays tombstoned either way.
+     *
+     * Known accepted trade-off: once past the window, a still-tombstoned
+     * document that's unchanged-but-genuinely-present at the source can only
+     * be resurrected by a full listing — and nothing here forces one anymore.
+     * On a connector that never runs a full sync again (persistent incremental
+     * syncMode, no manual full resync), that document stays correctly
+     * invisible (excluded everywhere by `isNull(deletedAt)`, so no
+     * search/billing/listing leakage) but unresolved indefinitely. This is
+     * deliberately not "fixed" by hard-deleting it after the window expires —
+     * that would delete a document we have no positive evidence is actually
+     * gone, reintroducing the exact risk this whole design exists to avoid.
      */
     const hasTombstonedDocs = await db
       .select({ id: document.id })
@@ -640,6 +651,7 @@ export async function executeSync(
           id: document.id,
           externalId: document.externalId,
           contentHash: document.contentHash,
+          deletedAt: document.deletedAt,
         })
         .from(document)
         .where(
@@ -649,6 +661,11 @@ export async function executeSync(
             isNotNull(document.deletedAt)
           )
         ),
+      // Not filtered on deletedAt: a document can be both userExcluded and
+      // tombstoned (e.g. excluded via a bulk request that raced a sync marking
+      // it pending-removal). Excluding it here regardless of tombstone state
+      // keeps it short-circuited in the classification loop below instead of
+      // silently reappearing through the normal update/resurrect path.
       db
         .select({ externalId: document.externalId })
         .from(document)
@@ -656,8 +673,7 @@ export async function executeSync(
           and(
             eq(document.connectorId, connectorId),
             eq(document.userExcluded, true),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
+            isNull(document.archivedAt)
           )
         ),
     ])
@@ -922,34 +938,89 @@ export async function executeSync(
       options?.fullSync
     )
 
-    /**
-     * A document reappearing at the source is trustworthy evidence on its own —
-     * unlike absence, presence never depends on the listing being complete — so
-     * resurrection runs unconditionally, even on an incremental or otherwise
-     * gated sync.
-     */
-    if (resurrectIds.length > 0) {
-      await db.update(document).set({ deletedAt: null }).where(inArray(document.id, resurrectIds))
-      logger.info(`Resurrected ${resurrectIds.length} documents that reappeared at the source`, {
-        connectorId,
+    const reconcileDeletionsAllowed = shouldReconcileDeletions(
+      isIncremental,
+      syncContext,
+      options?.fullSync
+    )
+    const gatedSoftDeleteIds = reconcileDeletionsAllowed ? softDeleteIds : []
+    const gatedHardDeleteIds = reconcileDeletionsAllowed ? hardDeleteIds : []
+
+    const candidateIds = [
+      ...new Set([...resurrectIds, ...gatedSoftDeleteIds, ...gatedHardDeleteIds]),
+    ]
+
+    let safeResurrectIds: string[] = []
+    let safeSoftDeleteIds: string[] = []
+    let safeHardDeleteIds: string[] = []
+
+    if (candidateIds.length > 0) {
+      /**
+       * A concurrent "delete connector, keep documents" request detaches these
+       * same documents (connectorId set to NULL) under the same FOR UPDATE lock
+       * the DELETE route takes on this connector row. Taking that lock here
+       * serializes the two requests: whichever commits first wins, and the
+       * loser's re-check below sees the up-to-date connectorId and skips any
+       * document the other request already claimed — instead of resurrecting or
+       * deleting a document that another request just detached (and possibly
+       * already billed) as a standalone KB entry.
+       */
+      await db.transaction(async (tx) => {
+        await tx.execute(
+          sql`SELECT 1 FROM knowledge_connector WHERE id = ${connectorId} FOR UPDATE`
+        )
+
+        const stillOwned = new Set(
+          (
+            await tx
+              .select({ id: document.id })
+              .from(document)
+              .where(and(inArray(document.id, candidateIds), eq(document.connectorId, connectorId)))
+          ).map((d) => d.id)
+        )
+
+        safeResurrectIds = resurrectIds.filter((id) => stillOwned.has(id))
+        safeSoftDeleteIds = gatedSoftDeleteIds.filter((id) => stillOwned.has(id))
+        safeHardDeleteIds = gatedHardDeleteIds.filter((id) => stillOwned.has(id))
+
+        /**
+         * A document reappearing at the source is trustworthy evidence on its
+         * own — unlike absence, presence never depends on the listing being
+         * complete — so resurrection runs unconditionally, even on an
+         * incremental or otherwise gated sync.
+         */
+        if (safeResurrectIds.length > 0) {
+          await tx
+            .update(document)
+            .set({ deletedAt: null })
+            .where(inArray(document.id, safeResurrectIds))
+        }
+        if (safeSoftDeleteIds.length > 0) {
+          await tx
+            .update(document)
+            .set({ deletedAt: new Date() })
+            .where(inArray(document.id, safeSoftDeleteIds))
+        }
       })
     }
 
-    if (shouldReconcileDeletions(isIncremental, syncContext, options?.fullSync)) {
-      if (softDeleteIds.length > 0) {
-        await db
-          .update(document)
-          .set({ deletedAt: new Date() })
-          .where(inArray(document.id, softDeleteIds))
-        logger.info(
-          `Marked ${softDeleteIds.length} documents pending removal — absent from source, confirming on next sync`,
-          { connectorId }
-        )
-      }
-      if (hardDeleteIds.length > 0) {
-        await hardDeleteDocuments(hardDeleteIds, syncLogId)
-        result.docsDeleted += hardDeleteIds.length
-      }
+    if (safeResurrectIds.length > 0) {
+      logger.info(
+        `Resurrected ${safeResurrectIds.length} documents that reappeared at the source`,
+        {
+          connectorId,
+        }
+      )
+    }
+    if (safeSoftDeleteIds.length > 0) {
+      logger.info(
+        `Marked ${safeSoftDeleteIds.length} documents pending removal — absent from source, confirming on next sync`,
+        { connectorId }
+      )
+    }
+    if (safeHardDeleteIds.length > 0) {
+      await hardDeleteDocuments(safeHardDeleteIds, syncLogId)
+      result.docsDeleted += safeHardDeleteIds.length
     }
 
     // Check if connector/KB were deleted before retrying stuck documents
