@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useId, useMemo, useRef, useState } from 'react'
 import {
   Checkbox,
   Chip,
@@ -135,17 +135,22 @@ interface AuthModeFieldProps {
 
 /**
  * The allowed-auth-modes multi-select nested under a platform toggle. Dims and
- * disables together with the toggle that owns it, so the coupling lives here
- * rather than being re-derived at each call site.
+ * disables together with the toggle that owns it. The left padding lines the
+ * sub-label up with its parent's label text (row gutter + checkbox + gap), so
+ * the field reads as subordinate to the toggle rather than as a sibling row.
  */
 function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFieldProps) {
+  const labelId = useId()
   return (
-    <div className={cn('flex flex-col gap-1.5 px-2 pt-1 pb-1', disabled && 'opacity-50')}>
-      <span className='text-[var(--text-muted)] text-caption'>{label}</span>
+    <div className={cn('flex flex-col gap-1.5 pt-1 pr-2 pb-2 pl-[30px]', disabled && 'opacity-50')}>
+      <span id={labelId} className='text-[var(--text-muted)] text-caption'>
+        {label}
+      </span>
       <ChipDropdown
         multiple
         showAllOption={false}
         allLabel='None'
+        aria-labelledby={labelId}
         value={value}
         onChange={onChange}
         options={options}
@@ -156,6 +161,151 @@ function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFi
     </div>
   )
 }
+
+/** Render order for the platform-feature category sections; unlisted ones follow. */
+const PLATFORM_CATEGORY_ORDER = [
+  'Sidebar',
+  'Deploy Tabs',
+  'Chat',
+  'Collaboration',
+  'Workflow Panel',
+  'Tools',
+  'Features',
+  'Settings Tabs',
+  'Logs',
+  'Files',
+]
+
+const PLATFORM_FEATURES = [
+  {
+    id: 'hide-knowledge-base',
+    label: 'Knowledge Base',
+    category: 'Sidebar',
+    configKey: 'hideKnowledgeBaseTab' as const,
+    hint: 'Hide the Knowledge Base module from the sidebar.',
+  },
+  {
+    id: 'hide-tables',
+    label: 'Tables',
+    category: 'Sidebar',
+    configKey: 'hideTablesTab' as const,
+    hint: 'Hide the Tables module from the sidebar.',
+  },
+  {
+    id: 'hide-copilot',
+    label: 'Chat',
+    category: 'Workflow Panel',
+    configKey: 'hideCopilot' as const,
+    hint: 'Hide the Chat panel so users cannot build or edit with natural language.',
+  },
+  {
+    id: 'hide-integrations',
+    label: 'Integrations',
+    category: 'Settings Tabs',
+    configKey: 'hideIntegrationsTab' as const,
+    hint: 'Hide the Integrations settings tab (OAuth connections).',
+  },
+  {
+    id: 'hide-secrets',
+    label: 'Secrets',
+    category: 'Settings Tabs',
+    configKey: 'hideSecretsTab' as const,
+    hint: 'Hide the Secrets (environment variables) settings tab.',
+  },
+  {
+    id: 'hide-api-keys',
+    label: 'API Keys',
+    category: 'Settings Tabs',
+    configKey: 'hideApiKeysTab' as const,
+    hint: 'Hide the API Keys settings tab.',
+  },
+  {
+    id: 'hide-files',
+    label: 'Files',
+    category: 'Settings Tabs',
+    configKey: 'hideFilesTab' as const,
+    hint: 'Hide the Files settings tab.',
+  },
+  {
+    id: 'hide-deploy-api',
+    label: 'API',
+    category: 'Deploy Tabs',
+    configKey: 'hideDeployApi' as const,
+    hint: 'Hide the API deployment option.',
+  },
+  {
+    id: 'hide-deploy-mcp',
+    label: 'MCP',
+    category: 'Deploy Tabs',
+    configKey: 'hideDeployMcp' as const,
+    hint: 'Hide the MCP server deployment option.',
+  },
+  {
+    id: 'disable-mcp',
+    label: 'MCP Tools',
+    category: 'Tools',
+    configKey: 'disableMcpTools' as const,
+    hint: 'Block agents from calling MCP tools.',
+  },
+  {
+    id: 'disable-custom-tools',
+    label: 'Custom Tools',
+    category: 'Tools',
+    configKey: 'disableCustomTools' as const,
+    hint: 'Block agents from calling user-defined custom tools.',
+  },
+  {
+    id: 'disable-skills',
+    label: 'Skills',
+    category: 'Tools',
+    configKey: 'disableSkills' as const,
+    hint: 'Block agents from loading skills.',
+  },
+  {
+    id: 'hide-trace-spans',
+    label: 'Trace Spans',
+    category: 'Logs',
+    configKey: 'hideTraceSpans' as const,
+    hint: 'Hide per-block trace spans in logs.',
+  },
+  {
+    id: 'disable-invitations',
+    label: 'Invitations',
+    category: 'Collaboration',
+    configKey: 'disableInvitations' as const,
+    hint: 'Prevent users from inviting others to workspaces.',
+  },
+  {
+    id: 'hide-inbox',
+    label: 'Sim Mailer',
+    category: 'Features',
+    configKey: 'hideInboxTab' as const,
+    hint: 'Hide the Sim Mailer inbox.',
+  },
+  {
+    id: 'disable-public-api',
+    label: 'Public API',
+    category: 'Features',
+    configKey: 'disablePublicApi' as const,
+    hint: 'Disable public API access to deployed workflows.',
+  },
+  // Chat and Files get a category of their own so their nested auth-mode
+  // dropdown (see `featureExtras`) reads as part of the toggle it qualifies.
+  {
+    id: 'hide-deploy-chatbot',
+    label: 'Deployment',
+    category: 'Chat',
+    configKey: 'hideDeployChatbot' as const,
+    hint: 'Hide the chat deployment option.',
+  },
+  {
+    id: 'disable-public-file-sharing',
+    label: 'Public Sharing',
+    category: 'Files',
+    configKey: 'disablePublicFileSharing' as const,
+    hint: 'Disable public file-share links.',
+  },
+]
 
 interface OrganizationMemberOption {
   userId: string
@@ -755,143 +905,9 @@ export function GroupDetail({
     return map
   }, [allBlocks])
 
-  const platformFeatures = useMemo(
-    () => [
-      {
-        id: 'hide-knowledge-base',
-        label: 'Knowledge Base',
-        category: 'Sidebar',
-        configKey: 'hideKnowledgeBaseTab' as const,
-        hint: 'Hide the Knowledge Base module from the sidebar.',
-      },
-      {
-        id: 'hide-tables',
-        label: 'Tables',
-        category: 'Sidebar',
-        configKey: 'hideTablesTab' as const,
-        hint: 'Hide the Tables module from the sidebar.',
-      },
-      {
-        id: 'hide-copilot',
-        label: 'Chat',
-        category: 'Workflow Panel',
-        configKey: 'hideCopilot' as const,
-        hint: 'Hide the Chat panel so users cannot build or edit with natural language.',
-      },
-      {
-        id: 'hide-integrations',
-        label: 'Integrations',
-        category: 'Settings Tabs',
-        configKey: 'hideIntegrationsTab' as const,
-        hint: 'Hide the Integrations settings tab (OAuth connections).',
-      },
-      {
-        id: 'hide-secrets',
-        label: 'Secrets',
-        category: 'Settings Tabs',
-        configKey: 'hideSecretsTab' as const,
-        hint: 'Hide the Secrets (environment variables) settings tab.',
-      },
-      {
-        id: 'hide-api-keys',
-        label: 'API Keys',
-        category: 'Settings Tabs',
-        configKey: 'hideApiKeysTab' as const,
-        hint: 'Hide the API Keys settings tab.',
-      },
-      {
-        id: 'hide-files',
-        label: 'Files',
-        category: 'Settings Tabs',
-        configKey: 'hideFilesTab' as const,
-        hint: 'Hide the Files settings tab.',
-      },
-      {
-        id: 'hide-deploy-api',
-        label: 'API',
-        category: 'Deploy Tabs',
-        configKey: 'hideDeployApi' as const,
-        hint: 'Hide the API deployment option.',
-      },
-      {
-        id: 'hide-deploy-mcp',
-        label: 'MCP',
-        category: 'Deploy Tabs',
-        configKey: 'hideDeployMcp' as const,
-        hint: 'Hide the MCP server deployment option.',
-      },
-      {
-        id: 'disable-mcp',
-        label: 'MCP Tools',
-        category: 'Tools',
-        configKey: 'disableMcpTools' as const,
-        hint: 'Block agents from calling MCP tools.',
-      },
-      {
-        id: 'disable-custom-tools',
-        label: 'Custom Tools',
-        category: 'Tools',
-        configKey: 'disableCustomTools' as const,
-        hint: 'Block agents from calling user-defined custom tools.',
-      },
-      {
-        id: 'disable-skills',
-        label: 'Skills',
-        category: 'Tools',
-        configKey: 'disableSkills' as const,
-        hint: 'Block agents from loading skills.',
-      },
-      {
-        id: 'hide-trace-spans',
-        label: 'Trace Spans',
-        category: 'Logs',
-        configKey: 'hideTraceSpans' as const,
-        hint: 'Hide per-block trace spans in logs.',
-      },
-      {
-        id: 'disable-invitations',
-        label: 'Invitations',
-        category: 'Collaboration',
-        configKey: 'disableInvitations' as const,
-        hint: 'Prevent users from inviting others to workspaces.',
-      },
-      {
-        id: 'hide-inbox',
-        label: 'Sim Mailer',
-        category: 'Features',
-        configKey: 'hideInboxTab' as const,
-        hint: 'Hide the Sim Mailer inbox.',
-      },
-      {
-        id: 'disable-public-api',
-        label: 'Public API',
-        category: 'Features',
-        configKey: 'disablePublicApi' as const,
-        hint: 'Disable public API access to deployed workflows.',
-      },
-      // Chat and Files get a category of their own so their nested auth-mode
-      // dropdown (see `featureExtras`) reads as part of the toggle it qualifies.
-      {
-        id: 'hide-deploy-chatbot',
-        label: 'Deployment',
-        category: 'Chat',
-        configKey: 'hideDeployChatbot' as const,
-        hint: 'Hide the chat deployment option.',
-      },
-      {
-        id: 'disable-public-file-sharing',
-        label: 'Public Sharing',
-        category: 'Files',
-        configKey: 'disablePublicFileSharing' as const,
-        hint: 'Disable public file-share links.',
-      },
-    ],
-    []
-  )
-
   const filteredPlatformFeatures = useMemo(() => {
     const search = platformSearchTerm.trim().toLowerCase()
-    return platformFeatures.filter((f) => {
+    return PLATFORM_FEATURES.filter((f) => {
       if (
         search &&
         !f.label.toLowerCase().includes(search) &&
@@ -901,10 +917,10 @@ export function GroupDetail({
       }
       return matchesStatusFilter(platformStatusFilter, !editingConfig[f.configKey])
     })
-  }, [platformFeatures, platformSearchTerm, platformStatusFilter, editingConfig])
+  }, [platformSearchTerm, platformStatusFilter, editingConfig])
 
   const platformCategories = useMemo(() => {
-    const categories: Record<string, typeof platformFeatures> = {}
+    const categories: Record<string, typeof PLATFORM_FEATURES> = {}
     for (const feature of filteredPlatformFeatures) {
       if (!categories[feature.category]) {
         categories[feature.category] = []
@@ -915,21 +931,9 @@ export function GroupDetail({
   }, [filteredPlatformFeatures])
 
   const platformCategorySections = useMemo(() => {
-    const order = [
-      'Sidebar',
-      'Deploy Tabs',
-      'Collaboration',
-      'Workflow Panel',
-      'Tools',
-      'Features',
-      'Settings Tabs',
-      'Logs',
-      'Chat',
-      'Files',
-    ]
-    const known = order.filter((c) => platformCategories[c]?.length)
+    const known = PLATFORM_CATEGORY_ORDER.filter((c) => platformCategories[c]?.length)
     const extras = Object.keys(platformCategories).filter(
-      (c) => !order.includes(c) && platformCategories[c]?.length
+      (c) => !PLATFORM_CATEGORY_ORDER.includes(c) && platformCategories[c]?.length
     )
     return [...known, ...extras].map((category) => ({
       category,
@@ -988,8 +992,8 @@ export function GroupDetail({
 
   /**
    * Split from the search pass so the common `all` case returns the searched
-   * list by reference. Only the status pass depends on the allow-list, so a
-   * checkbox toggle no longer invalidates the downstream core/tool splits.
+   * list by reference — only the status pass depends on the allow-list, so a
+   * checkbox toggle no longer invalidates downstream consumers.
    */
   const filteredProviders = useMemo(() => {
     if (providerStatusFilter === 'all') return searchedProviders
@@ -1269,7 +1273,7 @@ export function GroupDetail({
   const setChatDeployAuthTypes = useCallback((values: string[]) => {
     // At least one mode must stay allowed while chat deploy is enabled — an empty
     // allow-list would silently block every chat deployment. To turn chat deploy
-    // off entirely, use the Hide Chat toggle instead.
+    // off entirely, uncheck Chat → Deployment instead.
     if (values.length === 0) return
     setEditingConfig((prev) => ({
       ...prev,
@@ -1280,9 +1284,7 @@ export function GroupDetail({
 
   /**
    * Nested controls rendered under a platform feature's checkbox, keyed by
-   * feature id. Keeping these out of `platformFeatures` leaves that array pure
-   * data (and its memo dependency-free) while the toggles themselves still flow
-   * through the tab's search, status filter, Select All, and empty state.
+   * feature id. Kept out of `PLATFORM_FEATURES` so that array stays pure data.
    */
   const featureExtras: Partial<Record<string, ReactNode>> = {
     'hide-deploy-chatbot': (
@@ -1306,7 +1308,7 @@ export function GroupDetail({
   }
 
   /** Persists the editing buffer — name/description are only sent when they changed. */
-  const handleSaveConfig = useCallback(async () => {
+  const handleSaveConfig = async () => {
     if (!trimmedName) return
     try {
       const result = await updatePermissionGroup.mutateAsync({
@@ -1318,9 +1320,8 @@ export function GroupDetail({
       })
       // Reconcile from the server's copy, like the scope/default writes do, so a
       // server-side normalization can't leave the dirty check comparing against a
-      // baseline that was never persisted. The editing buffers are deliberately
-      // left alone: edits made while the save was in flight stay, and correctly
-      // re-mark the form dirty.
+      // baseline that was never persisted. Editing buffers are left alone so
+      // in-flight edits survive and correctly re-mark the form dirty.
       const saved = result.permissionGroup
       setViewingGroup((prev) => ({
         ...prev,
@@ -1334,23 +1335,13 @@ export function GroupDetail({
         description: getErrorMessage(error, 'Please try again in a moment.'),
       })
     }
-  }, [
-    viewingGroup.id,
-    editingConfig,
-    hasConfigChanges,
-    nameChanged,
-    descriptionChanged,
-    trimmedName,
-    trimmedDescription,
-    organizationId,
-    updatePermissionGroup,
-  ])
+  }
 
-  const handleDiscardConfig = useCallback(() => {
+  const handleDiscardConfig = () => {
     setEditingConfig({ ...viewingGroup.config })
     setEditingName(viewingGroup.name)
     setEditingDescription(viewingGroup.description ?? '')
-  }, [viewingGroup.config, viewingGroup.name, viewingGroup.description])
+  }
 
   const handleBack = useCallback(() => {
     guard.guardBack(onBack)
@@ -1534,9 +1525,7 @@ export function GroupDetail({
                     error={!trimmedName}
                   />
                   {!trimmedName && (
-                    <p className='mt-1.5 text-[var(--text-error)] text-caption'>
-                      Name is required.
-                    </p>
+                    <p className='text-[var(--text-error)] text-caption'>Name is required.</p>
                   )}
                 </SettingRow>
                 <SettingRow label='Description'>
@@ -1679,6 +1668,7 @@ export function GroupDetail({
               />
               <StatusFilterChip value={providerStatusFilter} onChange={setProviderStatusFilter} />
               <Chip
+                flush
                 onClick={() => setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)}
                 disabled={filteredProviders.length === 0}
               >
@@ -1832,6 +1822,7 @@ export function GroupDetail({
                     ),
                   }))
                 }
+                flush
                 disabled={filteredPlatformFeatures.length === 0}
               >
                 {platformAllVisible ? 'Deselect All' : 'Select All'}
