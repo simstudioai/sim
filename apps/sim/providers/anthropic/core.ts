@@ -6,6 +6,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { BlockTokens, IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
+  applyAnthropicPromptCache,
   checkForForcedToolUsage,
   createReadableStreamFromAnthropicStream,
 } from '@/providers/anthropic/utils'
@@ -333,6 +334,8 @@ export async function executeAnthropicProviderRequest(
       logger.info(`Using prompt-based structured outputs for model: ${modelId}`)
     }
   }
+
+  applyAnthropicPromptCache(payload, anthropicTools, request.systemPrompt)
 
   // Add extended thinking configuration if supported and requested
   // The 'none' sentinel means "disable thinking" — skip configuration entirely.
