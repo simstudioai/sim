@@ -250,6 +250,20 @@ describe('/api/auth/sso/providers/[id]', () => {
     )
   })
 
+  it('allows administrator cleanup after the organization loses Enterprise', async () => {
+    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(false)
+
+    const updateResponse = await PATCH(createMockRequest('PATCH', SAML_UPDATE), context)
+    expect(updateResponse.status).toBe(403)
+    expect(mockUpdateSSOProvider).not.toHaveBeenCalled()
+
+    const deleteResponse = await DELETE(createMockRequest('DELETE'), context)
+    expect(deleteResponse.status).toBe(200)
+    expect(mockDeleteSSOProvider).toHaveBeenCalledWith(
+      expect.objectContaining({ body: { providerId: 'acme-saml' } })
+    )
+  })
+
   it('blocks identity changes and deletion while Better Auth account links exist', async () => {
     dbState.accounts = [{ id: 'linked-account' }]
 

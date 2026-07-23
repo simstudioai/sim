@@ -141,7 +141,7 @@ export async function authorizeOrganizationSSO(
 export async function getManagedSSOProvider(
   rowId: string,
   userId: string,
-  options: { requireCreator?: boolean } = {}
+  options: { requireCreator?: boolean; requireEnterprise?: boolean } = {}
 ): Promise<SSOProviderRecord> {
   const [provider] = await db
     .select({
@@ -163,7 +163,11 @@ export async function getManagedSSOProvider(
     throw new SSOManagementError('SSO provider not found', 404, 'SSO_PROVIDER_NOT_FOUND')
   }
 
-  await authorizeOrganizationSSO(userId, provider.organizationId)
+  if (options.requireEnterprise === false) {
+    await authorizeOrganizationSSOAdmin(userId, provider.organizationId)
+  } else {
+    await authorizeOrganizationSSO(userId, provider.organizationId)
+  }
 
   if (options.requireCreator && provider.userId !== userId) {
     throw new SSOManagementError(

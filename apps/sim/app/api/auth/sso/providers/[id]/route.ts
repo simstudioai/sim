@@ -123,7 +123,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
     const parsed = await parseRequest(deleteSsoProviderContract, request, context)
     if (!parsed.success) return parsed.response
 
-    const provider = await getManagedSSOProvider(parsed.data.params.id, session.user.id)
+    const provider = await getManagedSSOProvider(parsed.data.params.id, session.user.id, {
+      requireEnterprise: false,
+    })
     await assertSSOProviderHasNoAccountLinks(provider.providerId)
     await withSSOProviderMutationLock(async () => {
       await assertSSOProviderHasNoAccountLinks(provider.providerId)

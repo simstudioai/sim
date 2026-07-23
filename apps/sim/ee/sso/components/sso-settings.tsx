@@ -199,7 +199,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   }
 
   if (isBillingEnabled) {
-    if (!hasEnterprisePlan) {
+    if (!hasEnterprisePlan && !existingProvider) {
       return (
         <section aria-label='SSO settings' aria-busy={false} data-sso-state='ready'>
           <SettingsEmptyState>
@@ -508,20 +508,28 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
   if (existingProvider && !isEditing) {
     const providerCallbackUrl = `${getBaseUrl()}/api/auth/${existingProvider.providerType === 'saml' ? 'sso/saml2/callback' : 'sso/callback'}/${existingProvider.providerId}`
+    const canConfigureProvider = !isBillingEnabled || hasEnterprisePlan
+    const actions: SettingsAction[] = [
+      ...(canConfigureProvider
+        ? [{ text: 'Edit', variant: 'primary' as const, onSelect: handleEdit }]
+        : []),
+      {
+        text: 'Remove',
+        variant: 'destructive',
+        onSelect: () => setShowRemoveConfirm(true),
+      },
+    ]
 
     return (
       <section aria-label='SSO settings' aria-busy={false} data-sso-state='ready'>
-        <SettingsPanel
-          actions={[
-            { text: 'Edit', variant: 'primary', onSelect: handleEdit },
-            {
-              text: 'Remove',
-              variant: 'destructive',
-              onSelect: () => setShowRemoveConfirm(true),
-            },
-          ]}
-        >
+        <SettingsPanel actions={actions}>
           <div className='flex flex-col gap-4.5'>
+            {!canConfigureProvider ? (
+              <p role='status' className='text-[var(--text-muted)] text-small'>
+                This organization no longer has an Enterprise plan. The existing SSO provider is
+                read-only; only provider removal remains available.
+              </p>
+            ) : null}
             <FormField label='Status'>
               <p aria-label='SSO provider status' className='text-[var(--text-primary)] text-small'>
                 {existingProvider.domainVerified ? 'Active' : 'Pending verification'}
@@ -573,7 +581,9 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               </p>
             </FormField>
 
-            {!existingProvider.domainVerified && existingProvider.canManageVerification ? (
+            {canConfigureProvider &&
+            !existingProvider.domainVerified &&
+            existingProvider.canManageVerification ? (
               <FormField label='Domain verification'>
                 <div className='flex flex-col items-start gap-3'>
                   {verificationDetails ? (

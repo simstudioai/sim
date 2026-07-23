@@ -241,6 +241,25 @@ describe('SSO organization transitions', () => {
     expect(mockCreateMutate).not.toHaveBeenCalled()
   })
 
+  it('keeps a lapsed provider visible and removable without allowing edits', () => {
+    mockUseOrganizationBilling.mockReturnValue({
+      data: { data: { subscriptionPlan: 'free' } },
+      isLoading: false,
+    })
+
+    renderSso('org-a')
+
+    expect(container).toHaveTextContent('org-a.example.com')
+    expect(container.querySelector('[role="status"]')).toHaveTextContent(
+      'The existing SSO provider is read-only; only provider removal remains available.'
+    )
+    const actionLabels = Array.from(container.querySelectorAll('button')).map(
+      (button) => button.textContent
+    )
+    expect(actionLabels).toContain('Remove')
+    expect(actionLabels).not.toContain('Edit')
+  })
+
   it('renders fail-closed loading and error states', () => {
     mockUseSSOProviders.mockReturnValue({ isPending: true, isError: false })
     renderSso('org-a')
