@@ -132,7 +132,23 @@ cd packages/db && bun run db:migrate
 bun run dev:full  # Starts Next.js app and realtime socket server
 ```
 
-Or run separately: `bun run dev` (Next.js) and `cd apps/sim && bun run dev:sockets` (realtime).
+If your machine is memory-constrained or `dev:full` appears stuck, use the capped or minimal
+registry variants:
+
+```bash
+bun run dev:full:capped            # Caps the Next.js dev server heap at 4GB
+bun run dev:full:minimal-registry  # Loads the smaller block registry during local development
+```
+
+Or run the servers separately in two terminals:
+
+```bash
+cd apps/sim && bun run dev       # Next.js app
+cd apps/realtime && bun run dev  # Realtime socket server
+```
+
+If the Next.js dev server keeps reusing a bad cache, clear it once with
+`cd apps/sim && bun run dev:clean`, then start the dev server again.
 
 ## Chat API Keys
 
