@@ -23,6 +23,18 @@ describe('serializeJiraCustomField', () => {
     ).toEqual({ value: 'Blue' })
   })
 
+  it('respects an explicit { value } object over the numeric-id heuristic', () => {
+    expect(
+      serializeJiraCustomField({ fieldId: 'cf', type: 'select', value: { value: '2024' } })
+    ).toEqual({ value: '2024' })
+  })
+
+  it('respects an explicit { id } object when serializing a select', () => {
+    expect(
+      serializeJiraCustomField({ fieldId: 'cf', type: 'select', value: { id: '10' } })
+    ).toEqual({ id: '10' })
+  })
+
   it('serializes a multiselect to an array of options', () => {
     expect(
       serializeJiraCustomField({ fieldId: 'cf', type: 'multiselect', value: ['Red', '42'] })
@@ -39,6 +51,22 @@ describe('serializeJiraCustomField', () => {
     expect(
       serializeJiraCustomField({ fieldId: 'cf', type: 'userpicker', value: 'acc-1' })
     ).toEqual({ accountId: 'acc-1' })
+  })
+
+  it('unwraps a { accountId } object for a userpicker', () => {
+    expect(
+      serializeJiraCustomField({ fieldId: 'cf', type: 'userpicker', value: { accountId: 'acc-1' } })
+    ).toEqual({ accountId: 'acc-1' })
+  })
+
+  it('unwraps mixed scalar and { accountId } objects for a multiuserpicker', () => {
+    expect(
+      serializeJiraCustomField({
+        fieldId: 'cf',
+        type: 'multiuserpicker',
+        value: [{ accountId: 'acc-1' }, 'acc-2'],
+      })
+    ).toEqual([{ accountId: 'acc-1' }, { accountId: 'acc-2' }])
   })
 
   it('serializes a multiuserpicker to an array of { accountId }', () => {

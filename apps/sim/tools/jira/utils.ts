@@ -109,13 +109,28 @@ function optionValue(value: unknown): string {
 }
 
 /**
- * Serializes a select option: a numeric-looking value is treated as an option
+ * Serializes a select option. An explicit `{ value }` or `{ id }` object is
+ * respected as-is (the reliable way to force one or the other). A bare scalar
+ * falls back to the heuristic: a numeric-looking value is treated as an option
  * id (`{ id }`), everything else as an option value (`{ value }`). Mirrors the
  * priority id-or-name heuristic used elsewhere in the Jira tools.
  */
 function toSelectOption(value: unknown): Record<string, string> {
-  const resolved = optionValue(value)
+  if (isRecord(value)) {
+    if (value.id !== undefined) return { id: String(value.id) }
+    if (value.value !== undefined) return { value: String(value.value) }
+  }
+  const resolved = String(value)
   return /^\d+$/.test(resolved) ? { id: resolved } : { value: resolved }
+}
+
+/**
+ * Resolves the accountId a user-picker value refers to. A `{ accountId }` object
+ * is unwrapped; any other scalar is used directly as the accountId.
+ */
+function toAccountId(value: unknown): string {
+  if (isRecord(value) && value.accountId !== undefined) return String(value.accountId)
+  return String(value)
 }
 
 /**
@@ -169,9 +184,9 @@ export function serializeJiraCustomField(entry: JiraCustomFieldEntry): unknown {
     case 'multiselect':
       return toValueArray(value).map(toSelectOption)
     case 'userpicker':
-      return { accountId: String(value) }
+      return { accountId: toAccountId(value) }
     case 'multiuserpicker':
-      return toValueArray(value).map((entryValue) => ({ accountId: String(entryValue) }))
+      return toValueArray(value).map((entryValue) => ({ accountId: toAccountId(entryValue) }))
     case 'cascading':
       return toCascadingOption(entry)
     default:
