@@ -87,9 +87,24 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
       `Revoked live access for user ${socket.userId} on workflow ${workflowId} (socket ${socket.id})`
     )
 
-    // Best-effort room-state cleanup; failure here does not restore access.
-    await roomManager.removeUserFromRoom(socket.id, workflowId)
-    await roomManager.broadcastPresenceUpdate(workflowId)
+    // Best-effort cleanups; each is independent so one failure neither restores
+    // access nor prevents the other from running.
+    try {
+      await roomManager.removeUserFromRoom(socket.id, workflowId)
+    } catch (error) {
+      logger.warn(
+        `Failed to remove evicted socket ${socket.id} from room state for ${workflowId}`,
+        error
+      )
+    }
+    try {
+      await roomManager.broadcastPresenceUpdate(workflowId)
+    } catch (error) {
+      logger.warn(
+        `Failed to broadcast presence after evicting socket ${socket.id} from ${workflowId}`,
+        error
+      )
+    }
   }
 
   async function runOnce(): Promise<void> {

@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { getWorkflowState } from '@/database/operations'
 import type { AuthenticatedSocket } from '@/middleware/auth'
-import { verifyWorkflowAccess } from '@/middleware/permissions'
+import { resolveCurrentWorkflowRole, verifyWorkflowAccess } from '@/middleware/permissions'
 import type { IRoomManager, UserPresence } from '@/rooms'
 
 const logger = createLogger('WorkflowHandlers')
@@ -130,6 +130,27 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
           logger.warn(`Best-effort cleanup failed for socket ${existingUser.socketId}`, error)
         }
       }
+
+      // Re-authorize immediately before joining: the access-revalidation sweep
+      // may have evicted this socket while the awaits above were in flight, and
+      // its eviction is recorded in the shared role cache before it runs — so a
+      // revoked user resolves to null here. No awaits sit between this check
+      // and socket.join, so a sweep eviction cannot interleave after it and be
+      // reversed by this join.
+      const currentRole = await resolveCurrentWorkflowRole(userId, workflowId, userRole)
+      if (currentRole === null) {
+        logger.warn(
+          `User ${userId} (${userName}) lost access to workflow ${workflowId} before join completed`
+        )
+        socket.emit('join-workflow-error', {
+          workflowId,
+          error: 'Access denied to workflow',
+          code: 'ACCESS_DENIED',
+          retryable: false,
+        })
+        return
+      }
+      userRole = currentRole
 
       // Join the new room
       socket.join(workflowId)

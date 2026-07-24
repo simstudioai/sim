@@ -163,6 +163,20 @@ describe('access-revalidation sweep', () => {
     expect(noRoom.leave).not.toHaveBeenCalled()
   })
 
+  it('still broadcasts presence when room-state removal fails', async () => {
+    const socket = makeSocket('sock-1', 'user-1', 'wf-1')
+    const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
+    manager.removeUserFromRoom.mockRejectedValue(new Error('redis down'))
+    mockResolveRole.mockResolvedValue(null)
+
+    const sweep = startAccessRevalidationSweep(manager)
+    await sweep.runOnce()
+    sweep.stop()
+
+    expect(socket.leave).toHaveBeenCalledWith('wf-1')
+    expect(manager.broadcastPresenceUpdate).toHaveBeenCalledWith('wf-1')
+  })
+
   it('still evaluates access when presence lookup fails (falls back safely)', async () => {
     const socket = makeSocket('sock-1', 'user-1', 'wf-1')
     const manager = makeManager([socket])
