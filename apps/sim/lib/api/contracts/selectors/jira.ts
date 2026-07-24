@@ -91,6 +91,135 @@ export const jiraWriteBodySchema = z.object({
   fixVersions: z.array(z.string()).optional(),
 })
 
+const customFieldIdSchema = z.string().min(1, 'fieldId is required')
+
+/**
+ * A non-empty option value/id — a scalar, or an object that sets exactly one of
+ * `value` / `id`. Setting both is rejected: `toSelectOption` would keep one and
+ * silently discard the other, so Jira could store an option the caller didn't
+ * unambiguously request.
+ */
+const optionScalar = z.union([z.string().min(1, 'option value cannot be empty'), z.number()])
+const optionInputSchema = z.union([
+  optionScalar,
+  z
+    .object({ value: optionScalar.optional(), id: optionScalar.optional() })
+    .refine((o) => (o.value !== undefined) !== (o.id !== undefined), {
+      message: 'option object must set exactly one of value or id',
+    }),
+])
+
+/** An accountId string or a `{ accountId }` object for a user picker. */
+const userInputSchema = z.union([
+  z.string().min(1, 'accountId cannot be empty'),
+  z.object({ accountId: z.string().min(1, 'accountId cannot be empty') }),
+])
+
+/** A number or a numeric string for a number field. */
+const numberInputSchema = z.union([
+  z.number(),
+  z
+    .string()
+    .refine((s) => s.trim() !== '' && Number.isFinite(Number(s)), 'number value must be numeric'),
+])
+
+const cascadingScalar = z.union([z.string().min(1, 'cascading value cannot be empty'), z.number()])
+
+/**
+ * Parent scalar, `[parent, child]` array, or `{ parent | value, child }` object.
+ * Parent and child are constrained to scalars (as tightly as select/userpicker)
+ * so an arbitrary record like `{ id: '10' }` — which the serializer cannot turn
+ * into a valid cascading option — is rejected at the boundary instead of being
+ * silently dropped or serialized to `"[object Object]"`.
+ */
+const cascadingInputSchema = z.union([
+  cascadingScalar,
+  z
+    .array(cascadingScalar)
+    .min(1, 'cascading value cannot be empty')
+    .max(2, 'cascading value accepts at most [parent, child]'),
+  z
+    .object({
+      parent: cascadingScalar.optional(),
+      value: cascadingScalar.optional(),
+      child: cascadingScalar.optional(),
+    })
+    .refine((o) => o.parent !== undefined || o.value !== undefined, {
+      message: 'cascading value must include a parent',
+    })
+    .refine((o) => !(o.parent !== undefined && o.value !== undefined), {
+      message: 'cascading value must not set both parent and value (they are aliases)',
+    }),
+])
+
+/**
+ * One structured custom field to write, validated per `type` so a shape/value
+ * mismatch (e.g. a select passed as `{ label }`, a user picker as `{ email }`, a
+ * non-numeric number) is rejected at the boundary instead of serializing into a
+ * malformed Jira value that would reject the whole combined update. `raw` is the
+ * escape hatch: its value is passed through untouched.
+ */
+export const jiraCustomFieldEntrySchema = z
+  .discriminatedUnion('type', [
+    z.object({
+      fieldId: customFieldIdSchema,
+      type: z.literal('text'),
+      value: z.string().min(1, 'text value cannot be empty'),
+    }),
+    z.object({ fieldId: customFieldIdSchema, type: z.literal('number'), value: numberInputSchema }),
+    z.object({ fieldId: customFieldIdSchema, type: z.literal('select'), value: optionInputSchema }),
+    z.object({
+      fieldId: customFieldIdSchema,
+      type: z.literal('multiselect'),
+      value: z.union([
+        z.array(optionInputSchema).min(1, 'multiselect value cannot be empty'),
+        optionInputSchema,
+      ]),
+    }),
+    z.object({
+      fieldId: customFieldIdSchema,
+      type: z.literal('userpicker'),
+      value: userInputSchema,
+    }),
+    z.object({
+      fieldId: customFieldIdSchema,
+      type: z.literal('multiuserpicker'),
+      value: z.union([
+        z.array(userInputSchema).min(1, 'multiuserpicker value cannot be empty'),
+        userInputSchema,
+      ]),
+    }),
+    z.object({
+      fieldId: customFieldIdSchema,
+      type: z.literal('cascading'),
+      value: cascadingInputSchema,
+      child: cascadingScalar.optional(),
+    }),
+    z.object({ fieldId: customFieldIdSchema, type: z.literal('raw'), value: z.unknown() }),
+  ])
+  .superRefine((entry, ctx) => {
+    // Cascading carries a child in two places: the top-level `child`, and one
+    // embedded in `value` — either `value.child` (object form) or `value[1]`
+    // (the `[parent, child]` array form). If a child is given both at the top
+    // level and inside `value`, the serializer would keep one and silently drop
+    // the other, so reject the ambiguity at the boundary in either form.
+    if (entry.type !== 'cascading') return
+    const value: unknown = entry.value
+    let nestedChild: unknown
+    if (Array.isArray(value)) {
+      nestedChild = value[1]
+    } else if (value !== null && typeof value === 'object') {
+      nestedChild = (value as Record<string, unknown>).child
+    }
+    if (entry.child !== undefined && nestedChild !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'cascading child must be set either at the top level or inside value, not both',
+        path: ['child'],
+      })
+    }
+  })
+
 export const jiraUpdateBodySchema = z.object({
   domain: z.string().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
@@ -107,6 +236,30 @@ export const jiraUpdateBodySchema = z.object({
   environment: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
   customFieldId: z.string().optional(),
   customFieldValue: z.string().optional(),
+  customFields: z
+    .array(jiraCustomFieldEntrySchema)
+    .max(50)
+    .superRefine((entries, ctx) => {
+      // Two entries that normalize to the same `customfield_XXXXX` (including a
+      // lookalike pair like `10001` and `customfield_10001`) would last-write-win
+      // in buildJiraCustomFields, silently applying one value. Reject the
+      // collision at the boundary.
+      const seen = new Set<string>()
+      entries.forEach((entry, index) => {
+        const normalized = entry.fieldId.startsWith('customfield_')
+          ? entry.fieldId
+          : `customfield_${entry.fieldId}`
+        if (seen.has(normalized)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `duplicate custom field id: ${entry.fieldId}`,
+            path: [index, 'fieldId'],
+          })
+        }
+        seen.add(normalized)
+      })
+    })
+    .optional(),
   notifyUsers: z.boolean().optional(),
   cloudId: z.string().optional(),
 })

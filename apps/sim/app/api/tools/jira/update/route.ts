@@ -6,7 +6,12 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getJiraCloudId, parseAtlassianErrorMessage, toAdf } from '@/tools/jira/utils'
+import {
+  buildJiraCustomFields,
+  getJiraCloudId,
+  parseAtlassianErrorMessage,
+  toAdf,
+} from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +43,7 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       environment,
       customFieldId,
       customFieldValue,
+      customFields,
       notifyUsers,
       cloudId: providedCloudId,
     } = parsed.data.body
@@ -103,19 +109,12 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       fields.environment = toAdf(environment)
     }
 
-    if (
-      customFieldId !== undefined &&
-      customFieldId !== null &&
-      customFieldId !== '' &&
-      customFieldValue !== undefined &&
-      customFieldValue !== null &&
-      customFieldValue !== ''
-    ) {
-      const fieldId = customFieldId.startsWith('customfield_')
-        ? customFieldId
-        : `customfield_${customFieldId}`
-      fields[fieldId] = customFieldValue
-    }
+    const customFieldMap = buildJiraCustomFields({
+      customFields,
+      legacyFieldId: customFieldId,
+      legacyValue: customFieldValue,
+    })
+    Object.assign(fields, customFieldMap)
 
     const requestBody = { fields }
 
