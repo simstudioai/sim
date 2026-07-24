@@ -31,7 +31,6 @@ function transformChat(chat: {
   title: string | null
   model: string | null
   messages: unknown
-  planArtifact?: unknown
   config?: unknown
   conversationId?: string | null
   resources?: unknown
@@ -44,7 +43,6 @@ function transformChat(chat: {
     model: chat.model,
     messages: Array.isArray(chat.messages) ? chat.messages : [],
     messageCount: Array.isArray(chat.messages) ? chat.messages.length : 0,
-    planArtifact: chat.planArtifact || null,
     config: chat.config || null,
     ...('conversationId' in chat ? { activeStreamId: chat.conversationId || null } : {}),
     ...('resources' in chat

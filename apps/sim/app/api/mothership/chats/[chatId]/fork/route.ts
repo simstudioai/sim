@@ -80,7 +80,6 @@ export const POST = withRouteHandler(
           model: copilotChats.model,
           resources: copilotChats.resources,
           previewYaml: copilotChats.previewYaml,
-          planArtifact: copilotChats.planArtifact,
           config: copilotChats.config,
         })
         .from(copilotChats)
@@ -143,7 +142,6 @@ export const POST = withRouteHandler(
             model: parent.model,
             resources: parentResources,
             previewYaml: parent.previewYaml,
-            planArtifact: parent.planArtifact,
             config: parent.config,
             conversationId: null,
             updatedAt: now,

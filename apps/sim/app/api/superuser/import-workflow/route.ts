@@ -170,7 +170,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         title: copilotChats.title,
         model: copilotChats.model,
         previewYaml: copilotChats.previewYaml,
-        planArtifact: copilotChats.planArtifact,
         config: copilotChats.config,
       })
       .from(copilotChats)
@@ -190,7 +189,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             model: chat.model,
             conversationId: null, // Don't copy conversation ID
             previewYaml: chat.previewYaml,
-            planArtifact: chat.planArtifact,
             config: chat.config,
             createdAt: new Date(),
             updatedAt: new Date(),

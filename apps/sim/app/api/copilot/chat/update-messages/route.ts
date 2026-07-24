@@ -37,7 +37,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
     )
     if (!parsed.success) return parsed.response
-    const { chatId, messages, planArtifact, config } = parsed.data.body
+    const { chatId, messages, config } = parsed.data.body
 
     const lastMsg = messages[messages.length - 1]
     if (lastMsg?.role === 'assistant') {
@@ -77,10 +77,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       updatedAt: new Date(),
     }
 
-    if (planArtifact !== undefined) {
-      updateData.planArtifact = planArtifact
-    }
-
     if (config !== undefined) {
       updateData.config = config
     }
@@ -103,7 +99,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     logger.info(`[${tracker.requestId}] Successfully updated chat`, {
       chatId,
       newMessageCount: normalizedMessages.length,
-      hasPlanArtifact: !!planArtifact,
       hasConfig: !!config,
     })
 

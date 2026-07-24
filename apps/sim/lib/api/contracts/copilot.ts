@@ -258,7 +258,6 @@ const copilotPersistedMessageSchema = z
 export const updateCopilotMessagesBodySchema = z.object({
   chatId: z.string(),
   messages: z.array(copilotPersistedMessageSchema),
-  planArtifact: z.string().nullable().optional(),
   config: z
     .object({
       mode: z.string().optional(),
@@ -411,7 +410,6 @@ const copilotChatGetChatSchema = z
     model: z.string().nullable(),
     messages: z.array(z.unknown()),
     messageCount: z.number(),
-    planArtifact: z.unknown().nullable(),
     config: z.unknown().nullable(),
     activeStreamId: z.string().nullable().optional(),
     resources: z.array(z.unknown()).optional(),

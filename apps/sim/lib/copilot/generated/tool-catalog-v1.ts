@@ -2647,7 +2647,7 @@ export const Grep: ToolCatalogEntry = {
       pattern: {
         type: 'string',
         description:
-          "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, plans, memories) by default; searches a single file's extracted text when path is one files/ or uploads/ file leaf.",
+          "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, memories) by default; searches a single file's extracted text when path is one files/ or uploads/ file leaf.",
       },
       toolTitle: {
         type: 'string',

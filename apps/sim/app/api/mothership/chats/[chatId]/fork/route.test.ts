@@ -68,7 +68,6 @@ vi.mock('@sim/db/schema', () => ({
     model: 'copilotChats.model',
     resources: 'copilotChats.resources',
     previewYaml: 'copilotChats.previewYaml',
-    planArtifact: 'copilotChats.planArtifact',
     config: 'copilotChats.config',
   },
   workspaceFiles: {
@@ -140,7 +139,6 @@ const parentRow = {
   model: 'claude-opus-4-8',
   resources: [{ type: 'file', id: OLD_FILE_ID, title: 'cat.png' }],
   previewYaml: null,
-  planArtifact: null,
   config: null,
 }
 
