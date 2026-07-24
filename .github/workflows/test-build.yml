@@ -272,7 +272,7 @@ jobs:
     # The production Next build peaks above the free GitHub runner's memory
     # ceiling. Keep the break-glass provider predicate aligned with Build App.
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     services:
       postgres:
