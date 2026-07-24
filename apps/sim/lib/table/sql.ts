@@ -30,7 +30,10 @@ export class TableQueryValidationError extends Error {
 }
 
 type ColumnType = ColumnDefinition['type']
-type ColumnTypeMap = ReadonlyMap<string, ColumnType>
+type ColumnMap = ReadonlyMap<string, ColumnDefinition>
+
+/** Operators that make sense on a `select` column (whose values are opaque option ids). */
+const SELECT_OPERATORS = new Set(['$eq', '$ne', '$in', '$nin', '$empty'])
 
 /**
  * Returns the Postgres cast needed to compare a JSONB text value of the given
@@ -50,12 +53,13 @@ function jsonbCastForType(type: ColumnType | undefined): 'numeric' | 'timestampt
 }
 
 /**
- * Maps a column's **stable id** (the JSONB storage key, via `getColumnId`) to
- * its type. Filter/sort objects arrive keyed by column id, so the lookups in the
- * clause builders use ids — not display names.
+ * Maps a column's **stable id** (the JSONB storage key, via `getColumnId`) to its
+ * definition. Filter/sort objects arrive keyed by column id, so the lookups in the
+ * clause builders use ids — not display names. The full definition (not just the
+ * type) is kept so the select branches can read `options`/`multiple`.
  */
-function buildColumnTypeMap(columns: ColumnDefinition[]): ColumnTypeMap {
-  return new Map(columns.map((col) => [getColumnId(col), col.type]))
+function buildColumnMap(columns: ColumnDefinition[]): ColumnMap {
+  return new Map(columns.map((col) => [getColumnId(col), col]))
 }
 
 /**
@@ -120,14 +124,14 @@ export function buildFilterClause(
   tableName: string,
   columns: ColumnDefinition[]
 ): SQL | undefined {
-  const columnTypeMap = buildColumnTypeMap(columns)
-  return buildFilterClauseInternal(filter, tableName, columnTypeMap)
+  const columnMap = buildColumnMap(columns)
+  return buildFilterClauseInternal(filter, tableName, columnMap)
 }
 
 function buildFilterClauseInternal(
   filter: Filter,
   tableName: string,
-  columnTypeMap: ColumnTypeMap
+  columnMap: ColumnMap
 ): SQL | undefined {
   const conditions: SQL[] = []
 
@@ -139,7 +143,7 @@ function buildFilterClauseInternal(
     // This represents a case where the filter is a logical OR of multiple filters
     // e.g. { $or: [{ status: 'active' }, { status: 'pending' }] }
     if (field === '$or' && Array.isArray(condition)) {
-      const orClause = buildLogicalClause(condition as Filter[], tableName, 'OR', columnTypeMap)
+      const orClause = buildLogicalClause(condition as Filter[], tableName, 'OR', columnMap)
       if (orClause) {
         conditions.push(orClause)
       }
@@ -149,7 +153,7 @@ function buildFilterClauseInternal(
     // This represents a case where the filter is a logical AND of multiple filters
     // e.g. { $and: [{ status: 'active' }, { status: 'pending' }] }
     if (field === '$and' && Array.isArray(condition)) {
-      const andClause = buildLogicalClause(condition as Filter[], tableName, 'AND', columnTypeMap)
+      const andClause = buildLogicalClause(condition as Filter[], tableName, 'AND', columnMap)
       if (andClause) {
         conditions.push(andClause)
       }
@@ -168,7 +172,7 @@ function buildFilterClauseInternal(
       tableName,
       field,
       condition as JsonValue | ConditionOperators,
-      columnTypeMap.get(field)
+      columnMap.get(field)
     )
     conditions.push(...fieldConditions)
   }
@@ -210,7 +214,7 @@ export function buildSortClause(
   columns: ColumnDefinition[]
 ): SQL | undefined {
   const clauses: SQL[] = []
-  const columnTypeMap = buildColumnTypeMap(columns)
+  const columnMap = buildColumnMap(columns)
 
   for (const [field, direction] of Object.entries(sort)) {
     validateFieldName(field)
@@ -221,8 +225,7 @@ export function buildSortClause(
       )
     }
 
-    const columnType = columnTypeMap.get(field)
-    clauses.push(buildSortFieldClause(tableName, field, direction, columnType))
+    clauses.push(buildSortFieldClause(tableName, field, direction, columnMap.get(field)))
   }
 
   return clauses.length > 0 ? sql.join(clauses, sql.raw(', ')) : undefined
@@ -306,16 +309,25 @@ function buildFieldCondition(
   tableName: string,
   field: string,
   condition: JsonValue | ConditionOperators,
-  columnType: ColumnType | undefined
+  column: ColumnDefinition | undefined
 ): SQL[] {
   validateFieldName(field)
 
+  const columnType = column?.type
+  const isSelect = columnType === 'select'
+  const isMultiSelect = isSelect && column?.multiple === true
   const conditions: SQL[] = []
 
   if (isRecordLike(condition)) {
     for (const [op, value] of Object.entries(condition)) {
       // Validate operator to ensure only allowed operators are used
       validateOperator(op)
+      // Select values are opaque option ids — range/pattern operators are meaningless.
+      if (isSelect && !SELECT_OPERATORS.has(op)) {
+        throw new TableQueryValidationError(
+          `Operator "${op}" is not supported on select column "${field}". Allowed: ${Array.from(SELECT_OPERATORS).join(', ')}`
+        )
+      }
 
       switch (op) {
         case '$eq':
@@ -393,7 +405,9 @@ function buildFieldCondition(
           break
 
         case '$empty':
-          conditions.push(buildEmptyClause(tableName, field, coerceEmptyFlag(field, value)))
+          conditions.push(
+            buildEmptyClause(tableName, field, coerceEmptyFlag(field, value), isMultiSelect)
+          )
           break
 
         default:
@@ -440,11 +454,11 @@ function buildLogicalClause(
   subFilters: Filter[],
   tableName: string,
   operator: 'OR' | 'AND',
-  columnTypeMap: ColumnTypeMap
+  columnMap: ColumnMap
 ): SQL | undefined {
   const clauses: SQL[] = []
   for (const subFilter of subFilters) {
-    const clause = buildFilterClauseInternal(subFilter, tableName, columnTypeMap)
+    const clause = buildFilterClauseInternal(subFilter, tableName, columnMap)
     if (clause) {
       clauses.push(clause)
     }
@@ -558,11 +572,24 @@ function coerceEmptyFlag(field: string, value: unknown): boolean {
 /**
  * Builds an emptiness check against a JSONB cell. `isEmpty` matches null cells
  * (absent key or JSON null, both surfaced as SQL NULL by `->>`) and empty
- * strings; the negation requires the cell to be present and non-empty.
+ * strings; the negation requires the cell to be present and non-empty. A
+ * multiselect cell holds a JSON array, so `->>'field'` renders `[]` (not '')
+ * when nothing is selected — treat that text as empty too.
  */
-function buildEmptyClause(tableName: string, field: string, isEmpty: boolean): SQL {
+function buildEmptyClause(
+  tableName: string,
+  field: string,
+  isEmpty: boolean,
+  isArray = false
+): SQL {
   const escapedField = field.replace(/'/g, "''")
   const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
+  if (isArray) {
+    // A multiselect renders `[]` when nothing is selected; treat that as empty too.
+    return isEmpty
+      ? sql`(${cell} IS NULL OR ${cell} = '' OR ${cell} = '[]')`
+      : sql`(${cell} IS NOT NULL AND ${cell} <> '' AND ${cell} <> '[]')`
+  }
   return isEmpty
     ? sql`(${cell} IS NULL OR ${cell} = '')`
     : sql`(${cell} IS NOT NULL AND ${cell} <> '')`
@@ -582,7 +609,7 @@ function buildSortFieldClause(
   tableName: string,
   field: string,
   direction: 'asc' | 'desc',
-  columnType: ColumnType | undefined
+  column: ColumnDefinition | undefined
 ): SQL {
   const escapedField = field.replace(/'/g, "''")
   const directionSql = direction.toUpperCase()
@@ -592,7 +619,17 @@ function buildSortFieldClause(
   }
 
   const jsonbExtract = `${tableName}.data->>'${escapedField}'`
-  const cast = jsonbCastForType(columnType)
+
+  // Select cells store opaque option ids; sort by the option **name** so ordering
+  // is alphabetical by the label the user sees, not by the internal id. A stored
+  // id with no matching option (deleted) falls back to the raw text. Multiselect
+  // renders as a JSON array text, which won't match any id and sorts by that text.
+  if (column?.type === 'select') {
+    const orderExpr = buildSelectNameOrderExpr(jsonbExtract, column)
+    return sql.raw(`${orderExpr} ${directionSql} NULLS LAST`)
+  }
+
+  const cast = jsonbCastForType(column?.type)
 
   if (cast === null) {
     // Sort as text (string, boolean, json, or unknown types)
@@ -601,4 +638,19 @@ function buildSortFieldClause(
 
   // NULLS LAST so rows with null/invalid values sort to the bottom regardless of direction
   return sql.raw(`(${jsonbExtract})::${cast} ${directionSql} NULLS LAST`)
+}
+
+/**
+ * Builds a `CASE` expression mapping a select cell's stored option id (the JSONB
+ * text extract) to its option name, so an ORDER BY sorts alphabetically by label.
+ * Ids and names are SQL-escaped and embedded literally (options are trusted schema
+ * data, not caller input); an unmapped id falls through to the raw extract.
+ */
+function buildSelectNameOrderExpr(jsonbExtract: string, column: ColumnDefinition): string {
+  const options = column.options ?? []
+  if (options.length === 0) return jsonbExtract
+  const whens = options
+    .map((o) => `WHEN '${o.id.replace(/'/g, "''")}' THEN '${o.name.replace(/'/g, "''")}'`)
+    .join(' ')
+  return `CASE ${jsonbExtract} ${whens} ELSE ${jsonbExtract} END`
 }

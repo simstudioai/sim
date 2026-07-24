@@ -9,7 +9,9 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
+import { formatCsvCell } from '@/lib/table/export-format'
 import { queryRows } from '@/lib/table/rows/service'
+import { resolveRowSelectValues, selectColumnsOf } from '@/lib/table/select-values'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableExport')
@@ -53,6 +55,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   // Stored row data is id-keyed; CSV headers and JSON keys are display names, so
   // translate id → name on the way out (export is a name-friendly boundary).
   const nameById = buildNameById(table.schema)
+  const selectColumns = selectColumnsOf(columns)
   const safeName = sanitizeFilename(table.name)
   const filename = `${safeName}.${format}`
 
@@ -100,13 +103,14 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
 
           for (const row of result.rows) {
             if (format === 'csv') {
-              const values = columns.map((c) => formatCsvValue(row.data[getColumnId(c)]))
+              const values = columns.map((c) => formatCsvCell(c, row.data[getColumnId(c)]))
               controller.enqueue(encoder.encode(`${toCsvRow(values)}\n`))
             } else {
               const prefix = firstJsonRow ? '' : ','
               firstJsonRow = false
+              const resolved = resolveRowSelectValues(row.data, selectColumns)
               controller.enqueue(
-                encoder.encode(prefix + JSON.stringify(rowDataIdToName(row.data, nameById)))
+                encoder.encode(prefix + JSON.stringify(rowDataIdToName(resolved, nameById)))
               )
             }
           }
@@ -142,18 +146,6 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
 function sanitizeFilename(name: string): string {
   const cleaned = name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
   return cleaned || 'table'
-}
-
-/**
- * Serializes a cell for CSV. Only string cells are formula-neutralized; numbers,
- * booleans, dates, and JSON objects can never form a trigger and pass through verbatim.
- */
-function formatCsvValue(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  if (value instanceof Date) return value.toISOString()
-  if (typeof value === 'object') return JSON.stringify(value)
-  if (typeof value === 'string') return neutralizeCsvFormula(value)
-  return String(value)
 }
 
 function toCsvRow(values: string[]): string {

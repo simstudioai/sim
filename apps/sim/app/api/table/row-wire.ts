@@ -8,6 +8,11 @@ import {
   rowDataNameToId,
   sortNamesToIds,
 } from '@/lib/table'
+import {
+  resolveFilterSelectValues,
+  resolveRowSelectValues,
+  selectColumnsOf,
+} from '@/lib/table/select-values'
 
 export interface RowWireTranslators {
   /** Inbound row data: wire keys → storage column ids. */
@@ -37,10 +42,14 @@ export function rowWireTranslators(
   }
   const idByName = buildIdByName(schema)
   const nameById = buildNameById(schema)
+  const selectColumns = selectColumnsOf(schema.columns)
   return {
+    // Resolve select ids → names while keys are still ids, then rekey id → name.
+    dataOut: (data) => rowDataIdToName(resolveRowSelectValues(data, selectColumns), nameById),
     dataIn: (data) => rowDataNameToId(data, idByName),
-    dataOut: (data) => rowDataIdToName(data, nameById),
-    filterIn: (filter) => filterNamesToIds(filter, idByName),
+    // Rekey field refs name → id, then resolve select operand names → ids.
+    filterIn: (filter) =>
+      resolveFilterSelectValues(filterNamesToIds(filter, idByName), schema.columns),
     sortIn: (sort) => sortNamesToIds(sort, idByName),
   }
 }

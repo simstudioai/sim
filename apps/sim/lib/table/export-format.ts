@@ -4,29 +4,14 @@
  * byte-identical files.
  */
 
+import { selectValueToNames } from '@/lib/table/select-values'
 import type { ColumnDefinition } from '@/lib/table/types'
 
 /**
- * Maps a `select` cell's stored option id(s) to their display names — exports
- * should read the human-readable label, never the internal id. Single columns
- * return the option name (or null); multi columns return an array of names.
- * Ids with no matching option (deleted) are dropped.
+ * @deprecated Use `selectValueToNames` from `@/lib/table/select-values`. Kept as
+ * an alias so existing export callers/tests don't churn.
  */
-export function resolveSelectExportValue(
-  column: ColumnDefinition,
-  value: unknown
-): string | string[] | null {
-  const byId = new Map((column.options ?? []).map((o) => [o.id, o.name]))
-  const ids = Array.isArray(value)
-    ? value
-    : typeof value === 'string' && value !== ''
-      ? [value]
-      : []
-  const names = ids
-    .map((id) => (typeof id === 'string' ? byId.get(id) : undefined))
-    .filter((n): n is string => n != null)
-  return column.multiple ? names : (names[0] ?? null)
-}
+export const resolveSelectExportValue = selectValueToNames
 
 export function sanitizeExportFilename(name: string): string {
   const cleaned = name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')

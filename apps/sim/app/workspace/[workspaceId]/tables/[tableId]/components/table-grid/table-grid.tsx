@@ -245,9 +245,18 @@ interface TableGridProps {
   >
 }
 
-/** Serialize a cell value to its tab-separated clipboard representation. */
-function cellToText(value: unknown): string {
+/**
+ * Serialize a cell value to its tab-separated clipboard representation. A
+ * `select` cell stores option ids, so resolve them to the option name(s)
+ * (comma-joined for multi) — the clipboard shows the label, not the id.
+ */
+function cellToText(value: unknown, column?: DisplayColumn): string {
   if (value === null || value === undefined) return ''
+  if (column?.type === 'select') {
+    return resolveSelectOptions(column, value)
+      .map((o) => o.name)
+      .join(', ')
+  }
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
@@ -2602,7 +2611,7 @@ export function TableGrid({
               ? () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS)
               : async () => ({ rows: rowsRef.current, hasMore: false }),
           selectRow: (row) => rowSelectionIncludes(rowSel, row.id),
-          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key])),
+          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key], col)),
           verb: 'Copied',
           estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : selectAllTotalRef.current,
         })
@@ -2623,10 +2632,12 @@ export function TableGrid({
           const name = cols[c]?.key
           if (name) colNames.push(name)
         }
+        const colByKey = new Map(cols.map((c) => [c.key, c]))
         writeSelectionToClipboard({
           loadRows: () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS),
           selectRow: () => true,
-          buildCells: (row) => colNames.map((name) => cellToText(row.data[name])),
+          buildCells: (row) =>
+            colNames.map((name) => cellToText(row.data[name], colByKey.get(name))),
           verb: 'Copied',
           estimatedCount: selectAllTotalRef.current,
         })
@@ -2639,7 +2650,7 @@ export function TableGrid({
         for (let c = sel.startCol; c <= sel.endCol; c++) {
           if (c >= cols.length) break
           const row = currentRows[r]
-          cells.push(row ? cellToText(row.data[cols[c].key]) : '')
+          cells.push(row ? cellToText(row.data[cols[c].key], cols[c]) : '')
         }
         lines.push(cells.join('\t'))
       }
@@ -2664,7 +2675,7 @@ export function TableGrid({
               ? () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS)
               : async () => ({ rows: rowsRef.current, hasMore: false }),
           selectRow: (row) => rowSelectionIncludes(rowSel, row.id),
-          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key])),
+          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key], col)),
           verb: 'Cut',
           estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : selectAllTotalRef.current,
           afterCopy: (copied) =>
@@ -2690,10 +2701,12 @@ export function TableGrid({
           const name = cols[c]?.key
           if (name) colNames.push(name)
         }
+        const colByKey = new Map(cols.map((c) => [c.key, c]))
         writeSelectionToClipboard({
           loadRows: () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS),
           selectRow: () => true,
-          buildCells: (row) => colNames.map((name) => cellToText(row.data[name])),
+          buildCells: (row) =>
+            colNames.map((name) => cellToText(row.data[name], colByKey.get(name))),
           verb: 'Cut',
           estimatedCount: selectAllTotalRef.current,
           afterCopy: (copied) => clearCutRows(copied, colNames),
@@ -2713,7 +2726,7 @@ export function TableGrid({
         for (let c = sel.startCol; c <= sel.endCol; c++) {
           if (c < cols.length) {
             const colName = cols[c].key
-            cells.push(cellToText(row.data[colName]))
+            cells.push(cellToText(row.data[colName], cols[c]))
             previousData[colName] = row.data[colName] ?? null
             updates[colName] = null
           }

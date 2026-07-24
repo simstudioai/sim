@@ -32,6 +32,11 @@ import {
   validateRowSize,
 } from '@/lib/table'
 import { queryRows } from '@/lib/table/rows/service'
+import {
+  resolveFilterSelectValues,
+  resolveRowSelectValues,
+  selectColumnsOf,
+} from '@/lib/table/select-values'
 import { TableQueryValidationError } from '@/lib/table/sql'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 import {
@@ -69,6 +74,7 @@ async function handleBatchInsert(
   // External callers key row data by column name; storage keys by id.
   const idByName = buildIdByName(table.schema as TableSchema)
   const nameById = buildNameById(table.schema as TableSchema)
+  const selectColumns = selectColumnsOf((table.schema as TableSchema).columns)
   const rows = (validated.rows as RowData[]).map((r) => rowDataNameToId(r, idByName))
 
   const validation = await validateBatchRows({
@@ -95,7 +101,7 @@ async function handleBatchInsert(
       data: {
         rows: insertedRows.map((r) => ({
           id: r.id,
-          data: rowDataIdToName(r.data, nameById),
+          data: rowDataIdToName(resolveRowSelectValues(r.data, selectColumns), nameById),
           position: r.position,
           createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
           updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : r.updatedAt,
@@ -155,8 +161,12 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
     // Translate name-keyed filter/sort fields → column ids; translate rows back.
     const idByName = buildIdByName(table.schema as TableSchema)
     const nameById = buildNameById(table.schema as TableSchema)
+    const selectColumns = selectColumnsOf((table.schema as TableSchema).columns)
     const filter = validated.filter
-      ? filterNamesToIds(validated.filter as Filter, idByName)
+      ? resolveFilterSelectValues(
+          filterNamesToIds(validated.filter as Filter, idByName),
+          (table.schema as TableSchema).columns
+        )
       : undefined
     const sort = validated.sort ? sortNamesToIds(validated.sort, idByName) : undefined
 
@@ -178,7 +188,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       data: {
         rows: result.rows.map((r) => ({
           id: r.id,
-          data: rowDataIdToName(r.data, nameById),
+          data: rowDataIdToName(resolveRowSelectValues(r.data, selectColumns), nameById),
           position: r.position,
           createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
           updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
@@ -254,6 +264,7 @@ export const POST = withRouteHandler(
 
       const idByName = buildIdByName(table.schema as TableSchema)
       const nameById = buildNameById(table.schema as TableSchema)
+      const selectColumns = selectColumnsOf((table.schema as TableSchema).columns)
       const rowData = rowDataNameToId(validated.data as RowData, idByName)
 
       const validation = await validateRowData({
@@ -279,7 +290,7 @@ export const POST = withRouteHandler(
         data: {
           row: {
             id: row.id,
-            data: rowDataIdToName(row.data, nameById),
+            data: rowDataIdToName(resolveRowSelectValues(row.data, selectColumns), nameById),
             position: row.position,
             createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
             updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
@@ -346,7 +357,10 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     const result = await updateRowsByFilter(
       table,
       {
-        filter: filterNamesToIds(validated.filter as Filter, idByName),
+        filter: resolveFilterSelectValues(
+          filterNamesToIds(validated.filter as Filter, idByName),
+          (table.schema as TableSchema).columns
+        ),
         data: patchData,
         limit: validated.limit,
         actorUserId,
@@ -442,7 +456,10 @@ export const DELETE = withRouteHandler(
       const result = await deleteRowsByFilter(
         table,
         {
-          filter: filterNamesToIds(validated.filter as Filter, idByName),
+          filter: resolveFilterSelectValues(
+            filterNamesToIds(validated.filter as Filter, idByName),
+            (table.schema as TableSchema).columns
+          ),
           limit: validated.limit,
         },
         requestId

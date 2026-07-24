@@ -13,6 +13,7 @@ import {
   rowDataNameToId,
   upsertRow,
 } from '@/lib/table'
+import { resolveRowSelectValues, selectColumnsOf } from '@/lib/table/select-values'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -64,6 +65,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
 
     const idByName = buildIdByName(table.schema as TableSchema)
     const nameById = buildNameById(table.schema as TableSchema)
+    const selectColumns = selectColumnsOf((table.schema as TableSchema).columns)
     const upsertResult = await upsertRow(
       {
         tableId,
@@ -81,7 +83,10 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       data: {
         row: {
           id: upsertResult.row.id,
-          data: rowDataIdToName(upsertResult.row.data, nameById),
+          data: rowDataIdToName(
+            resolveRowSelectValues(upsertResult.row.data, selectColumns),
+            nameById
+          ),
           createdAt:
             upsertResult.row.createdAt instanceof Date
               ? upsertResult.row.createdAt.toISOString()

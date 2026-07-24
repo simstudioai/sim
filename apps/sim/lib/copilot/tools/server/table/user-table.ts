@@ -41,6 +41,7 @@ import {
   deleteColumns,
   renameColumn,
   updateColumnConstraints,
+  updateColumnOptions,
   updateColumnType,
 } from '@/lib/table/columns/service'
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
@@ -59,11 +60,17 @@ import {
   updateRow,
   updateRowsByFilter,
 } from '@/lib/table/rows/service'
+import {
+  resolveFilterSelectValues,
+  resolveRowSelectValues,
+  selectColumnsOf,
+} from '@/lib/table/select-values'
 import { createTable, deleteTable, getTableById, renameTable } from '@/lib/table/service'
 import type {
   ColumnDefinition,
   Filter,
   RowData,
+  SelectOption,
   TableDefinition,
   TableDeleteJobPayload,
   TableUpdateJobPayload,
@@ -496,6 +503,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // The LLM authors row data by column name; storage keys by id.
           const idByName = buildIdByName(table.schema)
           const nameById = buildNameById(table.schema)
+          const selectColumns = selectColumnsOf(table.schema.columns)
           const row = await insertRow(
             {
               tableId: args.tableId,
@@ -511,7 +519,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return {
             success: true,
             message: `Inserted row ${row.id}`,
-            data: { row: { ...row, data: rowDataIdToName(row.data, nameById) } },
+            data: {
+              row: {
+                ...row,
+                data: rowDataIdToName(resolveRowSelectValues(row.data, selectColumns), nameById),
+              },
+            },
           }
         }
 
@@ -535,6 +548,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           assertNotAborted()
           const idByName = buildIdByName(table.schema)
           const nameById = buildNameById(table.schema)
+          const selectColumns = selectColumnsOf(table.schema.columns)
           const rows = await batchInsertRows(
             {
               tableId: args.tableId,
@@ -550,7 +564,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             success: true,
             message: `Inserted ${rows.length} rows`,
             data: {
-              rows: rows.map((r) => ({ ...r, data: rowDataIdToName(r.data, nameById) })),
+              rows: rows.map((r) => ({
+                ...r,
+                data: rowDataIdToName(resolveRowSelectValues(r.data, selectColumns), nameById),
+              })),
               insertedCount: rows.length,
             },
           }
@@ -577,11 +594,15 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const nameById = buildNameById(rowTable.schema)
+          const selectColumns = selectColumnsOf(rowTable.schema.columns)
           return {
             success: true,
             message: `Row ${row.id}`,
             data: {
-              row: { ...row, data: rowDataIdToName(row.data, nameById) },
+              row: {
+                ...row,
+                data: rowDataIdToName(resolveRowSelectValues(row.data, selectColumns), nameById),
+              },
             },
           }
         }
@@ -607,13 +628,19 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
           const nameById = buildNameById(table.schema)
+          const selectColumns = selectColumnsOf(table.schema.columns)
           // The model may request any number; we serve at most MAX_QUERY_LIMIT per page so a single
           // tool result can't drain a whole table. `totalCount` in the response signals truncation,
           // and the model pages with `offset`.
           const result = await queryRows(
             table,
             {
-              filter: args.filter ? filterNamesToIds(args.filter, idByName) : undefined,
+              filter: args.filter
+                ? resolveFilterSelectValues(
+                    filterNamesToIds(args.filter, idByName),
+                    table.schema.columns
+                  )
+                : undefined,
               sort: args.sort ? sortNamesToIds(args.sort, idByName) : undefined,
               limit:
                 args.limit !== undefined
@@ -630,7 +657,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             message: `Returned ${result.rows.length} of ${result.totalCount} rows`,
             data: {
               ...result,
-              rows: result.rows.map((r) => ({ ...r, data: rowDataIdToName(r.data, nameById) })),
+              rows: result.rows.map((r) => ({
+                ...r,
+                data: rowDataIdToName(resolveRowSelectValues(r.data, selectColumns), nameById),
+              })),
             },
           }
         }
@@ -658,6 +688,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           assertNotAborted()
           const idByName = buildIdByName(table.schema)
           const nameById = buildNameById(table.schema)
+          const selectColumns = selectColumnsOf(table.schema.columns)
           const updatedRow = await updateRow(
             {
               tableId: args.tableId,
@@ -683,7 +714,15 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return {
             success: true,
             message: `Updated row ${updatedRow.id}`,
-            data: { row: { ...updatedRow, data: rowDataIdToName(updatedRow.data, nameById) } },
+            data: {
+              row: {
+                ...updatedRow,
+                data: rowDataIdToName(
+                  resolveRowSelectValues(updatedRow.data, selectColumns),
+                  nameById
+                ),
+              },
+            },
           }
         }
 
@@ -733,7 +772,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const idFilter = filterNamesToIds(args.filter, idByName)
+          const idFilter = resolveFilterSelectValues(
+            filterNamesToIds(args.filter, idByName),
+            table.schema.columns
+          )
           const idData = rowDataNameToId(args.data, idByName)
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows in one request; a larger operation
@@ -828,7 +870,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const idFilter = filterNamesToIds(args.filter, idByName)
+          const idFilter = resolveFilterSelectValues(
+            filterNamesToIds(args.filter, idByName),
+            table.schema.columns
+          )
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows; a larger delete (an explicit limit
           // above the cap, or unbounded "delete everything matching") hands off to the background
@@ -1392,6 +1437,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 type: string
                 unique?: boolean
                 position?: number
+                options?: SelectOption[]
+                multiple?: boolean
               }
             | undefined
           if (!col?.name || !col?.type) {
@@ -1498,10 +1545,17 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const newType = (args as Record<string, unknown>).newType as string | undefined
           const uniqFlag = (args as Record<string, unknown>).unique as boolean | undefined
-          if (newType === undefined && uniqFlag === undefined) {
+          const options = (args as Record<string, unknown>).options as SelectOption[] | undefined
+          const multiple = (args as Record<string, unknown>).multiple as boolean | undefined
+          if (
+            newType === undefined &&
+            uniqFlag === undefined &&
+            options === undefined &&
+            multiple === undefined
+          ) {
             return {
               success: false,
-              message: 'At least one of newType or unique must be provided',
+              message: 'At least one of newType, unique, options, or multiple must be provided',
             }
           }
           const tableForUpdate = await getTableById(args.tableId)
@@ -1523,7 +1577,22 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 tableId: args.tableId,
                 columnName: colName,
                 newType: newType as (typeof COLUMN_TYPES)[number],
+                options,
+                multiple,
               },
+              requestId
+            )
+          } else if (options !== undefined || multiple !== undefined) {
+            // Editing an existing select column's option set / mode without a type change.
+            if (options === undefined) {
+              return {
+                success: false,
+                message: 'options is required when updating a select column',
+              }
+            }
+            assertNotAborted()
+            result = await updateColumnOptions(
+              { tableId: args.tableId, columnName: colName, options, multiple },
               requestId
             )
           }

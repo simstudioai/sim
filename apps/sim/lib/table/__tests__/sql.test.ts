@@ -427,6 +427,56 @@ describe('SQL Builder', () => {
     })
   })
 
+  describe('select columns', () => {
+    const statusCol: ColumnDefinition = {
+      id: 'status',
+      name: 'status',
+      type: 'select',
+      options: [
+        { id: 'opt_open', name: 'Open', color: 'green' },
+        { id: 'opt_closed', name: 'Closed', color: 'red' },
+      ],
+    }
+    const tagsCol: ColumnDefinition = {
+      id: 'tags',
+      name: 'tags',
+      type: 'select',
+      multiple: true,
+      options: [{ id: 'opt_a', name: 'Alpha', color: 'blue' }],
+    }
+
+    it('filters a select by option id via containment', () => {
+      const out = render(buildFilterClause({ status: 'opt_open' }, TABLE, [statusCol]))
+      expect(out).toContain('user_table_rows.data @>')
+      expect(out).toContain('"status":"opt_open"')
+    })
+
+    it('rejects a range operator on a select column', () => {
+      expect(() => buildFilterClause({ status: { $gt: 'opt_open' } }, TABLE, [statusCol])).toThrow(
+        'not supported on select'
+      )
+    })
+
+    it('rejects a pattern operator on a select column', () => {
+      expect(() =>
+        buildFilterClause({ status: { $contains: 'Open' } }, TABLE, [statusCol])
+      ).toThrow('not supported on select')
+    })
+
+    it('treats a multiselect empty array as $empty', () => {
+      const out = render(buildFilterClause({ tags: { $empty: true } }, TABLE, [tagsCol]))
+      expect(out).toContain("= '[]'")
+    })
+
+    it('sorts a select column alphabetically by option name via CASE', () => {
+      const out = render(buildSortClause({ status: 'asc' }, TABLE, [statusCol]))
+      expect(out).toContain('CASE')
+      expect(out).toContain("WHEN 'opt_open' THEN 'Open'")
+      expect(out).toContain("WHEN 'opt_closed' THEN 'Closed'")
+      expect(out.trim().endsWith('ASC NULLS LAST')).toBe(true)
+    })
+  })
+
   describe('Field name validation', () => {
     it('accepts valid identifiers', () => {
       const valid = ['name', 'user_id', '_private', 'Count123', 'a']

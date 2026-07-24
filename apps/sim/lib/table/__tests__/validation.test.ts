@@ -405,6 +405,50 @@ describe('Validation', () => {
       coerceRowValues(patch as never, schema)
       expect(patch.founded).toBe('nope')
     })
+
+    describe('select coercion', () => {
+      const selectSchema: TableSchema = {
+        columns: [
+          {
+            id: 'status',
+            name: 'status',
+            type: 'select',
+            options: [
+              { id: 'opt_open', name: 'Open', color: 'green' },
+              { id: 'opt_closed', name: 'Closed', color: 'red' },
+            ],
+          },
+          {
+            id: 'tags',
+            name: 'tags',
+            type: 'select',
+            multiple: true,
+            options: [
+              { id: 'opt_a', name: 'Alpha', color: 'blue' },
+              { id: 'opt_b', name: 'Beta', color: 'purple' },
+            ],
+          },
+        ],
+      }
+
+      it('resolves a single-select name to its id', () => {
+        const patch: Record<string, unknown> = { status: 'Open' }
+        coerceRowValues(patch as never, selectSchema)
+        expect(patch.status).toBe('opt_open')
+      })
+
+      it('splits a comma-delimited multiselect string into resolved ids', () => {
+        const patch: Record<string, unknown> = { tags: 'Alpha, Beta' }
+        coerceRowValues(patch as never, selectSchema)
+        expect(patch.tags).toEqual(['opt_a', 'opt_b'])
+      })
+
+      it('resolves a multiselect array of names to ids and dedupes', () => {
+        const patch: Record<string, unknown> = { tags: ['Alpha', 'opt_a', 'Beta'] }
+        coerceRowValues(patch as never, selectSchema)
+        expect(patch.tags).toEqual(['opt_a', 'opt_b'])
+      })
+    })
   })
 
   describe('getUniqueColumns', () => {

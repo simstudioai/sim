@@ -359,7 +359,18 @@ function coerceValueToColumnType(
     case 'select': {
       const options = column.options ?? []
       if (column.multiple) {
-        const raw = Array.isArray(value) ? value : [value]
+        // A multi-select cell may arrive as an array (canonical) or a single
+        // comma-delimited string (CSV import / clipboard paste of the read
+        // format) — split the latter so each label resolves. Option names that
+        // themselves contain commas are an accepted ambiguity here.
+        const raw = Array.isArray(value)
+          ? value
+          : typeof value === 'string'
+            ? value
+                .split(',')
+                .map((part) => part.trim())
+                .filter((part) => part !== '')
+            : [value]
         const ids: string[] = []
         for (const entry of raw) {
           const id = resolveSelectOptionId(entry, options)

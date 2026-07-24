@@ -20,6 +20,7 @@ import {
   rowDataNameToId,
   updateRow,
 } from '@/lib/table'
+import { resolveRowSelectValues, selectColumnsOf } from '@/lib/table/select-values'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -89,12 +90,16 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RowRou
     }
 
     const nameById = buildNameById(result.table.schema as TableSchema)
+    const selectColumns = selectColumnsOf((result.table.schema as TableSchema).columns)
     return NextResponse.json({
       success: true,
       data: {
         row: {
           id: row.id,
-          data: rowDataIdToName(row.data as RowData, nameById),
+          data: rowDataIdToName(
+            resolveRowSelectValues(row.data as RowData, selectColumns),
+            nameById
+          ),
           position: row.position,
           createdAt:
             row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
@@ -143,6 +148,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
 
     const idByName = buildIdByName(table.schema as TableSchema)
     const nameById = buildNameById(table.schema as TableSchema)
+    const selectColumns = selectColumnsOf((table.schema as TableSchema).columns)
     const updatedRow = await updateRow(
       {
         tableId,
@@ -168,7 +174,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       data: {
         row: {
           id: updatedRow.id,
-          data: rowDataIdToName(updatedRow.data, nameById),
+          data: rowDataIdToName(resolveRowSelectValues(updatedRow.data, selectColumns), nameById),
           position: updatedRow.position,
           createdAt:
             updatedRow.createdAt instanceof Date
