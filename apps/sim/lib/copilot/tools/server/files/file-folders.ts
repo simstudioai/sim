@@ -8,7 +8,6 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
-import { isWorkflowAliasBackingPath } from '@/lib/copilot/vfs/workflow-aliases'
 import {
   ensureWorkspaceFileFolderPath,
   findWorkspaceFileFolderIdByPath,
@@ -230,13 +229,6 @@ export const createFileFolderServerTool: BaseServerTool<CreateFileFolderArgs, Fi
         ''
       ).trim()
       if (!name) return { success: false, message: 'name is required' }
-
-      if (pathSegments && isWorkflowAliasBackingPath(`files/${pathSegments.join('/')}`)) {
-        return {
-          success: false,
-          message: `Reserved system path: files/${pathSegments.join('/')} cannot be created or nested into.`,
-        }
-      }
 
       let parentId =
         (await resolveOptionalFolderId(workspaceId, params.parentPath ?? payload?.parentPath)) ??

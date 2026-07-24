@@ -1,18 +1,5 @@
 import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import {
-  ensureWorkflowAliasBacking,
-  ensureWorkspacePlanBacking,
-} from '@/lib/copilot/vfs/workflow-alias-backing'
-import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
-import {
-  isPlanAliasPath,
-  isWorkflowAliasBackingPath,
-  WORKFLOW_CHANGELOG_BACKING_FOLDER,
-  WORKFLOW_PLANS_BACKING_FOLDER,
-  WORKSPACE_PLANS_BACKING_FOLDER,
-  type WorkflowAliasTarget,
-} from '@/lib/copilot/vfs/workflow-aliases'
-import {
   ensureWorkspaceFileFolderPath,
   findWorkspaceFileFolderIdByPath,
   normalizeWorkspaceFileItemName,
@@ -41,7 +28,6 @@ export interface WorkspaceFileWriteResult {
   contentType: string
   downloadUrl?: string
   vfsPath: string
-  backingVfsPath?: string
   mode: WorkspaceFileWriteMode
 }
 
@@ -55,16 +41,14 @@ export type WorkspaceFileWriteValidation =
   | {
       mode: 'create'
       vfsPath: string
-      backingVfsPath?: string
-      fileName: string
+          fileName: string
       /** Null for root targets AND for parent chains that don't exist yet — validation is read-only; missing folders are created at write time. */
       folderId: string | null
     }
   | {
       mode: 'overwrite'
       vfsPath: string
-      backingVfsPath?: string
-      existingFileId: string
+          existingFileId: string
     }
 
 function displayFolderPath(segments: string[]): string {
@@ -122,9 +106,7 @@ async function resolveCreateTarget(
         throw new Error(`Failed to create directory: ${displayFolderPath(parsed.folderSegments)}`)
       }
     } else {
-      folderId = await findWorkspaceFileFolderIdByPath(workspaceId, parsed.folderSegments, {
-        includeReservedSystemFolders: true,
-      })
+      folderId = await findWorkspaceFileFolderIdByPath(workspaceId, parsed.folderSegments)
       if (!folderId) {
         return {
           fileName: parsed.fileName,
@@ -151,138 +133,11 @@ function vfsPathForRecord(record: WorkspaceFileRecord): string {
   return canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name })
 }
 
-function assertNotReservedWorkflowAliasBackingPath(path: string): void {
-  if (isWorkflowAliasBackingPath(path)) {
-    throw new Error(
-      `Reserved workflow alias backing paths must be accessed through their alias path: ${path}`
-    )
-  }
-}
-
-async function resolveWorkflowAliasFileTarget(args: {
-  workspaceId: string
-  userId?: string
-  alias: WorkflowAliasTarget
-}): Promise<ResolvedCreateTarget & { existingFile?: WorkspaceFileRecord | null }> {
-  if (args.alias.kind === 'plans_dir') {
-    throw new Error(`Cannot write file content to plan alias directory: ${args.alias.aliasPath}`)
-  }
-
-  if (args.userId && args.alias.scope === 'workflow') {
-    await ensureWorkflowAliasBacking({
-      workspaceId: args.workspaceId,
-      userId: args.userId,
-      workflowId: args.alias.workflowId,
-      workflowName: args.alias.workflowName,
-    })
-  } else if (args.userId && args.alias.scope === 'workspace') {
-    await ensureWorkspacePlanBacking({
-      workspaceId: args.workspaceId,
-      userId: args.userId,
-    })
-  }
-
-  if (args.alias.kind === 'changelog') {
-    const folderSegments = [WORKFLOW_CHANGELOG_BACKING_FOLDER]
-    const folderId = args.userId
-      ? await ensureWorkspaceFileFolderPath({
-          workspaceId: args.workspaceId,
-          userId: args.userId,
-          pathSegments: folderSegments,
-        })
-      : await findWorkspaceFileFolderIdByPath(args.workspaceId, folderSegments, {
-          includeReservedSystemFolders: true,
-        })
-    if (!folderId) {
-      throw new Error(
-        `Workflow changelog backing folder is not provisioned for ${args.alias.aliasPath}`
-      )
-    }
-    const fileName = `${args.alias.workflowId}.md`
-    return {
-      fileName,
-      folderId,
-      vfsPath: args.alias.aliasPath,
-      existingFile: await getWorkspaceFileByName(args.workspaceId, fileName, { folderId }),
-    }
-  }
-
-  const relativeSegments = decodeVfsPathSegments(args.alias.planRelativePath ?? '')
-  if (relativeSegments.length === 0) {
-    throw new Error(`Workflow plan alias must include a file path: ${args.alias.aliasPath}`)
-  }
-  const fileName = normalizeWorkspaceFileItemName(relativeSegments.at(-1) ?? '', 'File')
-  const folderSegments = [
-    WORKFLOW_PLANS_BACKING_FOLDER,
-    args.alias.scope === 'workflow' ? args.alias.workflowId : WORKSPACE_PLANS_BACKING_FOLDER,
-    ...relativeSegments.slice(0, -1),
-  ].map((segment) => normalizeWorkspaceFileItemName(segment, 'Folder'))
-  const folderId = args.userId
-    ? await ensureWorkspaceFileFolderPath({
-        workspaceId: args.workspaceId,
-        userId: args.userId,
-        pathSegments: folderSegments,
-      })
-    : await findWorkspaceFileFolderIdByPath(args.workspaceId, folderSegments, {
-        includeReservedSystemFolders: true,
-      })
-  if (!folderId) {
-    throw new Error(`Plan backing directory is not provisioned for ${args.alias.aliasPath}.`)
-  }
-
-  return {
-    fileName,
-    folderId,
-    vfsPath: args.alias.aliasPath,
-    existingFile: await getWorkspaceFileByName(args.workspaceId, fileName, { folderId }),
-  }
-}
-
 export async function validateWorkspaceFileWriteTarget(args: {
   workspaceId: string
   userId?: string
   target: WorkspaceFileWriteTarget
 }): Promise<WorkspaceFileWriteValidation> {
-  const alias = await resolveWorkflowAliasForWorkspace({
-    workspaceId: args.workspaceId,
-    path: args.target.path,
-  })
-  if (!alias && isPlanAliasPath(args.target.path)) {
-    throw new Error(`Unsupported plan alias path or missing workflow: ${args.target.path}`)
-  }
-  if (alias) {
-    const resolved = await resolveWorkflowAliasFileTarget({
-      workspaceId: args.workspaceId,
-      userId: args.userId,
-      alias,
-    })
-    if (args.target.mode === 'overwrite') {
-      if (!resolved.existingFile) {
-        throw new Error(`File not found for overwrite: ${alias.aliasPath}`)
-      }
-      return {
-        mode: 'overwrite',
-        vfsPath: alias.aliasPath,
-        backingVfsPath: alias.backingPath,
-        existingFileId: resolved.existingFile.id,
-      }
-    }
-    if (resolved.existingFile) {
-      throw new Error(
-        `File already exists at ${alias.aliasPath}. Use mode "overwrite" to update it.`
-      )
-    }
-    return {
-      mode: 'create',
-      vfsPath: alias.aliasPath,
-      backingVfsPath: alias.backingPath,
-      fileName: resolved.fileName,
-      folderId: resolved.folderId,
-    }
-  }
-
-  assertNotReservedWorkflowAliasBackingPath(args.target.path)
-
   if (args.target.mode === 'overwrite') {
     const existing = await resolveWorkspaceFileReference(args.workspaceId, args.target.path)
     if (!existing) {
@@ -312,77 +167,6 @@ export async function writeWorkspaceFileByPath(args: {
   inferredMimeType: string
 }): Promise<WorkspaceFileWriteResult> {
   const contentType = args.target.mimeType || args.inferredMimeType
-  const alias = await resolveWorkflowAliasForWorkspace({
-    workspaceId: args.workspaceId,
-    path: args.target.path,
-  })
-  if (!alias && isPlanAliasPath(args.target.path)) {
-    throw new Error(`Unsupported plan alias path or missing workflow: ${args.target.path}`)
-  }
-  if (alias) {
-    const resolved = await resolveWorkflowAliasFileTarget({
-      workspaceId: args.workspaceId,
-      userId: args.userId,
-      alias,
-    })
-
-    if (args.target.mode === 'overwrite') {
-      if (!resolved.existingFile) {
-        throw new Error(`File not found for overwrite: ${alias.aliasPath}`)
-      }
-      const updated = await updateWorkspaceFileContent(
-        args.workspaceId,
-        resolved.existingFile.id,
-        args.userId,
-        args.buffer,
-        contentType || resolved.existingFile.type
-      )
-      return {
-        id: updated.id,
-        name: updated.name,
-        size: updated.size,
-        contentType: updated.type,
-        downloadUrl: updated.url,
-        vfsPath: alias.aliasPath,
-        backingVfsPath: vfsPathForRecord(updated),
-        mode: 'overwrite',
-      }
-    }
-
-    if (resolved.existingFile) {
-      throw new Error(
-        `File already exists at ${alias.aliasPath}. Use mode "overwrite" to update it.`
-      )
-    }
-    const uploaded = await uploadWorkspaceFile(
-      args.workspaceId,
-      args.userId,
-      args.buffer,
-      resolved.fileName,
-      contentType,
-      { folderId: resolved.folderId, exactName: true }
-    ).catch((error: unknown) => {
-      if (error instanceof FileConflictError) {
-        throw new Error(
-          `File already exists at ${alias.aliasPath}. Use mode "overwrite" to update it.`
-        )
-      }
-      throw error
-    })
-    return {
-      id: uploaded.id,
-      name: uploaded.name,
-      size: uploaded.size,
-      contentType: uploaded.type,
-      downloadUrl: uploaded.url,
-      vfsPath: alias.aliasPath,
-      backingVfsPath: alias.backingPath,
-      mode: 'create',
-    }
-  }
-
-  assertNotReservedWorkflowAliasBackingPath(args.target.path)
-
   if (args.target.mode === 'overwrite') {
     const existing = await resolveWorkspaceFileReference(args.workspaceId, args.target.path)
     if (!existing) {

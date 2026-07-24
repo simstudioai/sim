@@ -21,11 +21,6 @@ import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import {
-  buildWorkflowAliasWorkflowEntries,
-  resolveWorkflowAliasPath,
-  resolveWorkspacePlanAliasPath,
-} from '@/lib/copilot/vfs/workflow-aliases'
-import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
   LandingWorkflowSeedStorage,
@@ -379,43 +374,18 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     removeResource(resolved.type, resolved.id)
   }
 
-  const workflowAliasEntries = useMemo(
-    () =>
-      buildWorkflowAliasWorkflowEntries(
-        workflows.map((workflow) => ({
-          id: workflow.id,
-          name: workflow.name,
-          folderId: workflow.folderId ?? null,
-        })),
-        folders.map((folder) => ({
-          folderId: folder.id,
-          folderName: folder.name,
-          parentId: folder.parentId ?? null,
-        }))
-      ),
-    [folders, workflows]
-  )
-
   const resolveFileResource = useCallback(
     (resource: MothershipResource): MothershipResource => {
       if (resource.type !== 'file') return resource
 
       const reference = (resource.path || resource.id).trim()
-      const workspacePlanAlias = resolveWorkspacePlanAliasPath(reference)
-      const workflowAlias = workspacePlanAlias
-        ? null
-        : resolveWorkflowAliasPath(reference, workflowAliasEntries)
-      const alias = workspacePlanAlias || workflowAlias
-      const targetPath = alias && alias.kind !== 'plans_dir' ? alias.backingPath : reference
 
       const file = workspaceFiles.find((candidate) => {
         const candidatePath = canonicalWorkspaceFilePath({
           folderPath: candidate.folderPath,
           name: candidate.name,
         })
-        return (
-          candidate.id === reference || candidatePath === reference || candidatePath === targetPath
-        )
+        return candidate.id === reference || candidatePath === reference
       })
 
       if (!file) return resource
@@ -423,10 +393,9 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         ...resource,
         id: file.id,
         title: resource.title || file.name,
-        path: alias ? reference : resource.path,
       }
     },
-    [workflowAliasEntries, workspaceFiles]
+    [workspaceFiles]
   )
 
   function handleWorkspaceResourceSelect(resource: MothershipResource) {

@@ -3,9 +3,8 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { e2bFlag, betaFlag, mockLoadCompiledDoc, mockRunSandboxTask } = vi.hoisted(() => ({
+const { e2bFlag, mockLoadCompiledDoc, mockRunSandboxTask } = vi.hoisted(() => ({
   e2bFlag: { value: true },
-  betaFlag: { value: false },
   mockLoadCompiledDoc: vi.fn(),
   mockRunSandboxTask: vi.fn(),
 }))
@@ -29,7 +28,6 @@ vi.mock('./doc-compiled-store', () => ({
   storeCompiledDoc: vi.fn(),
 }))
 vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: vi.fn(async () => betaFlag.value),
 }))
 vi.mock('@/lib/core/config/env-flags', () => ({
   get isE2BDocEnabled() {
@@ -57,7 +55,6 @@ describe('resolveServableDocBytes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     e2bFlag.value = true
-    betaFlag.value = false
   })
 
   it('swaps generated-doc source for the compiled artifact + binary content type', async () => {
@@ -151,10 +148,9 @@ describe('resolveServableDocBytes', () => {
     expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
   })
 
-  it('throws when a generated XLSX artifact is not ready (E2B + mothership-beta enabled)', async () => {
+  it('throws when a generated XLSX artifact is not ready (E2B enabled)', async () => {
     mockLoadCompiledDoc.mockResolvedValue(null)
     e2bFlag.value = true
-    betaFlag.value = true
 
     await expect(
       resolveServableDocBytes({
@@ -168,7 +164,6 @@ describe('resolveServableDocBytes', () => {
   })
 
   it('returns raw XLSX source when there is no workspaceId (xlsx has no isolated-vm path)', async () => {
-    betaFlag.value = true
 
     const result = await resolveServableDocBytes({
       rawBuffer: XLSX_SOURCE,

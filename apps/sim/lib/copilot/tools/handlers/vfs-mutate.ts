@@ -16,7 +16,6 @@ import {
   decodeVfsPathSegments,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
-import { isWorkflowAliasBackingPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getKnowledgeBases, updateKnowledgeBase } from '@/lib/knowledge/service'
 import { listTables, renameTable } from '@/lib/table/service'
@@ -161,11 +160,6 @@ export async function executeVfsMkdir(
         outcomes.push({ from: path, kind, error: 'Path must include at least one folder segment' })
         continue
       }
-      if (top === 'files' && isWorkflowAliasBackingPath(path)) {
-        outcomes.push({ from: path, kind, error: `Reserved system path: ${path}` })
-        continue
-      }
-
       try {
         assertMutationNotAborted(context)
         let folderId: string | null
@@ -348,15 +342,6 @@ async function mutateWorkspaceFiles(
       error: 'Workspace files cannot be copied — cp only duplicates workflows.',
     }
   }
-  for (const path of [...sources, destination]) {
-    if (isWorkflowAliasBackingPath(path)) {
-      return {
-        success: false,
-        error: `Reserved system paths cannot be moved or renamed: ${path}`,
-      }
-    }
-  }
-
   const dest = await planDestination({
     destination,
     sourceCount: sources.length,

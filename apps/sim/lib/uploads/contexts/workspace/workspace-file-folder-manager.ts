@@ -4,7 +4,6 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, min, type SQL, sql } from 'drizzle-orm'
-import { isReservedWorkflowAliasBackingDisplayPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFolders')
@@ -257,16 +256,8 @@ export async function getWorkspaceFileFolderPath(
 
 export async function findWorkspaceFileFolderIdByPath(
   workspaceId: string,
-  pathSegments: string[],
-  options?: { includeReservedSystemFolders?: boolean }
+  pathSegments: string[]
 ): Promise<string | null> {
-  if (
-    !options?.includeReservedSystemFolders &&
-    isReservedWorkflowAliasBackingDisplayPath(pathSegments.join('/'))
-  ) {
-    return null
-  }
-
   let parentId: string | null = null
 
   for (const rawSegment of pathSegments) {
@@ -287,9 +278,9 @@ export async function findWorkspaceFileFolderIdByPath(
 
 export async function listWorkspaceFileFolders(
   workspaceId: string,
-  options?: { scope?: WorkspaceFileFolderScope; includeReservedSystemFolders?: boolean }
+  options?: { scope?: WorkspaceFileFolderScope }
 ): Promise<WorkspaceFileFolderRecord[]> {
-  const { scope = 'active', includeReservedSystemFolders = false } = options ?? {}
+  const { scope = 'active' } = options ?? {}
   const rows = await db
     .select()
     .from(workspaceFileFolder)
@@ -309,12 +300,7 @@ export async function listWorkspaceFileFolders(
     .orderBy(asc(workspaceFileFolder.sortOrder), asc(workspaceFileFolder.createdAt))
 
   const paths = buildWorkspaceFileFolderPathMap(rows)
-  return rows
-    .map((row) => mapFolder(row, paths))
-    .filter(
-      (folder) =>
-        includeReservedSystemFolders || !isReservedWorkflowAliasBackingDisplayPath(folder.path)
-    )
+  return rows.map((row) => mapFolder(row, paths))
 }
 
 export async function getWorkspaceFileFolder(
@@ -455,9 +441,7 @@ export async function ensureWorkspaceFileFolderPath(params: {
   // Fast path: the whole chain already exists (the common case for repeated
   // writes into known folders) — per-segment indexed lookups instead of
   // loading the workspace's entire folder table.
-  const existing = await findWorkspaceFileFolderIdByPath(params.workspaceId, params.pathSegments, {
-    includeReservedSystemFolders: true,
-  })
+  const existing = await findWorkspaceFileFolderIdByPath(params.workspaceId, params.pathSegments)
   if (existing) return existing
 
   // Load all active folders once and build a lookup keyed by "name|parentId"

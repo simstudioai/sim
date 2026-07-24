@@ -64,13 +64,6 @@ vi.mock('@/lib/copilot/vfs/path-utils', () => ({
   decodeVfsPathSegments: (p: string) => p.split('/'),
   encodeVfsPathSegments: (s: string[]) => s.join('/'),
 }))
-vi.mock('@/lib/copilot/vfs/workflow-alias-resolver', () => ({
-  resolveWorkflowAliasForWorkspace: vi.fn().mockResolvedValue(null),
-}))
-vi.mock('@/lib/copilot/vfs/workflow-aliases', () => ({
-  isPlanAliasPath: () => false,
-  workflowAliasSandboxPath: (p: string) => p,
-}))
 
 import { executeFunctionExecute } from '@/lib/copilot/tools/handlers/function-execute'
 

@@ -273,15 +273,6 @@ describe('vfs mv/cp', () => {
       })
       expect(result.success).toBe(true)
     })
-
-    it('rejects reserved alias backing paths', async () => {
-      const result = await executeVfsMv(
-        { sources: ['files/.plans/wf_1/launch.md'], destination: 'files/launch.md' },
-        context
-      )
-      expect(result.success).toBe(false)
-      expect(result.error).toContain('Reserved system paths')
-    })
   })
 
   describe('workflows', () => {
@@ -420,14 +411,11 @@ describe('vfs mv/cp', () => {
       })
     })
 
-    it('rejects flat namespaces and reserved paths', async () => {
-      const result = await executeVfsMkdir({ paths: ['tables/CRM', 'files/.plans/wf_1'] }, context)
+    it('rejects flat namespaces', async () => {
+      const result = await executeVfsMkdir({ paths: ['tables/CRM'] }, context)
       expect(result.success).toBe(false)
       expect(result.output).toMatchObject({
-        results: [
-          { from: 'tables/CRM', error: expect.stringContaining('flat namespace') },
-          { from: 'files/.plans/wf_1', error: expect.stringContaining('Reserved') },
-        ],
+        results: [{ from: 'tables/CRM', error: expect.stringContaining('flat namespace') }],
       })
       expect(mocks.ensureWorkspaceFileFolderPath).not.toHaveBeenCalled()
     })

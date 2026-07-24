@@ -1343,7 +1343,6 @@ async function maybeExportSandboxFilesToWorkspace(args: {
           fileId: file.id,
           fileName: file.name,
           vfsPath: file.vfsPath,
-          backingVfsPath: file.backingVfsPath,
           downloadUrl: file.downloadUrl,
           sandboxPath: file.sandboxPath,
           size: file.exportedBytes,
