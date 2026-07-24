@@ -150,7 +150,11 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       mockGetSessionCommandLogs.mockImplementation(
         async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
           onStdout('12345')
-          onStdout('6')
+          try {
+            onStdout('6')
+          } catch {
+            // Daytona may finish log delivery after recording a callback error.
+          }
         }
       )
     }

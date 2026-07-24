@@ -222,6 +222,14 @@ class DaytonaSandboxHandle implements SandboxHandle {
       }
 
       const finished = await this.sandbox.process.getSessionCommand(sessionId, commandId)
+      if (limiter.exceeded()) {
+        return {
+          stdout: '',
+          stderr: 'Sandbox command output limit exceeded',
+          exitCode: 137,
+          outputLimitExceeded: true,
+        }
+      }
       return { stdout, stderr, exitCode: finished.exitCode ?? 0 }
     } catch (error) {
       return { stdout, stderr: stderr || getErrorMessage(error), exitCode: 1 }
