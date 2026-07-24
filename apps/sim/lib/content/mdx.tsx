@@ -82,9 +82,16 @@ export const mdxComponents: MDXRemoteProps['components'] = {
     if (isAnchorLink) {
       return <a {...props} className={clsx('text-inherit no-underline', props.className)} />
     }
+    /**
+     * Outbound citations in post bodies open in a new tab and carry
+     * `rel="noopener noreferrer"`, per `.claude/rules/landing-seo-geo.md`. Same-origin
+     * and in-page links keep default navigation so internal linking stays crawlable.
+     */
+    const isExternal = /^https?:\/\//.test(props.href ?? '')
     return (
       <a
         {...props}
+        {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
         className={clsx(
           'font-medium text-[var(--text-primary)] underline hover:text-[var(--text-primary)]',
           props.className
