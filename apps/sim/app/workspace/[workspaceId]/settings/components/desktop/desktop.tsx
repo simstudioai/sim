@@ -12,6 +12,7 @@ import { Chip, ChipConfirmModal, Label, Switch, toast } from '@sim/emcn'
 import { Folder } from '@sim/emcn/icons'
 import { useParams, useRouter } from 'next/navigation'
 import { getDesktopBridge, getDesktopShellVersion, getDesktopUpdates } from '@/lib/desktop'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
@@ -273,7 +274,7 @@ export function Desktop() {
             {shellVersion && (
               <div className='flex items-center justify-between'>
                 <Label>Version</Label>
-                <span className='text-[var(--text-muted)] text-caption'>
+                <span className='text-[var(--text-muted)] text-sm'>
                   {updateState.status === 'ready' && updateState.version
                     ? `${shellVersion} → ${updateState.version} on restart`
                     : shellVersion}
@@ -312,7 +313,16 @@ export function Desktop() {
                           Until app restarts
                         </span>
                       )}
-                      <Chip onClick={() => setMountToForget(mount)}>Revoke</Chip>
+                      <RowActionsMenu
+                        label={`${mount.name} actions`}
+                        actions={[
+                          {
+                            label: 'Revoke access',
+                            destructive: true,
+                            onSelect: () => setMountToForget(mount),
+                          },
+                        ]}
+                      />
                     </div>
                   }
                 />
