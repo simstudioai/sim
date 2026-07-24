@@ -213,6 +213,21 @@ function invalidateTableSchema(queryClient: ReturnType<typeof useQueryClient>, t
 }
 
 /**
+ * Invalidate only the schema, not the rows. Column-definition changes
+ * (add/rename/type/options/constraints) are metadata-only server-side — the
+ * stored row data never changes — so cells re-render from the refetched schema
+ * without a (potentially large) rows refetch. Deleting a column strips keys from
+ * row data, so it must use {@link invalidateTableSchema} instead.
+ */
+function invalidateTableSchemaOnly(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string
+) {
+  queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
+  queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+}
+
+/**
  * Fetch all tables for a workspace.
  */
 export function useTablesList(
@@ -533,7 +548,7 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
-      invalidateTableSchema(queryClient, tableId)
+      invalidateTableSchemaOnly(queryClient, tableId)
     },
   })
 }
@@ -1211,7 +1226,7 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
-      invalidateTableSchema(queryClient, tableId)
+      invalidateTableSchemaOnly(queryClient, tableId)
     },
   })
 }

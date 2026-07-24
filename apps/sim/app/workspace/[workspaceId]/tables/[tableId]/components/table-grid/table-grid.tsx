@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { cn, toast, useToast } from '@sim/emcn'
 import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -42,6 +43,7 @@ import {
 import type { ColumnConfig } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
+import { resolveSelectOptions } from '../select-field'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
@@ -247,6 +249,20 @@ interface TableGridProps {
 function cellToText(value: unknown): string {
   if (value === null || value === undefined) return ''
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
+}
+
+/**
+ * Value-equality for a cell's stored value vs a pending edit. Primitives compare
+ * with `===`; arrays/objects (multiselect id arrays, json) compare structurally
+ * so a no-op edit — e.g. opening a multiselect and closing it unchanged — isn't
+ * treated as a change and doesn't write a row update or push an undo entry.
+ */
+function cellValuesEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
+    return JSON.stringify(a) === JSON.stringify(b)
+  }
+  return false
 }
 
 /**
@@ -1432,6 +1448,12 @@ export function TableGrid({
           }
         } else if (column.type === 'date') {
           text = storageToDisplay(String(val), { seconds: true })
+        } else if (column.type === 'select') {
+          // Cells store option ids; measure the rendered pill labels instead so
+          // auto-fit doesn't size the column to opaque ids.
+          text = resolveSelectOptions(column, val)
+            .map((o) => o.name)
+            .join(', ')
         } else {
           text = String(val)
         }
@@ -2008,6 +2030,16 @@ export function TableGrid({
         return
       }
 
+      // Select: open the inline option dropdown when editable; never the big
+      // text popover. Read-only cells do nothing (like booleans).
+      if (column?.type === 'select') {
+        if (canEditRef.current) {
+          setEditingCell({ rowId, columnName })
+          setInitialCharacter(null)
+        }
+        return
+      }
+
       // Workflow-output cell with no value → let the user write over the status pill.
       if (column?.workflowGroupId && canEditRef.current) {
         const row = rowsRef.current.find((r) => r.id === rowId)
@@ -2494,8 +2526,9 @@ export function TableGrid({
         } catch (error) {
           // Rejects if the row load failed or the payload is too large for the
           // clipboard — either way nothing landed, so report a plain failure
-          // rather than implying a size cap was hit.
-          logger.error(`Failed to ${verbLower} rows`, { error })
+          // rather than implying a size cap was hit. Log the message explicitly:
+          // a DOMException (e.g. lost transient activation) serializes to `{}`.
+          logger.error(`Failed to ${verbLower} rows`, { error: getErrorMessage(error) })
           dismissToastRef.current(loadingToastId)
           toast.error(`Failed to ${verbLower} — please try again`)
           return
@@ -2887,7 +2920,7 @@ export function TableGrid({
 
       const oldValue = row.data[columnName] ?? null
       const normalizedValue = value ?? null
-      const changed = oldValue !== normalizedValue
+      const changed = !cellValuesEqual(oldValue, normalizedValue)
 
       if (changed) {
         pushUndoRef.current({

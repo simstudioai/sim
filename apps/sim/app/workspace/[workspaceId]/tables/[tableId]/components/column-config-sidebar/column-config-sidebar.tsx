@@ -5,13 +5,23 @@ import { Button, ChipCombobox, ChipInput, cn, FieldDivider, Label, Switch, toast
 import { X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
-import type { ColumnDefinition } from '@/lib/table'
+import type { ColumnDefinition, SelectOption } from '@/lib/table'
 import {
   FieldError,
   RequiredLabel,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
+import { SelectOptionsEditor } from '../select-field'
 import { PLAIN_COLUMN_TYPE_OPTIONS } from './column-types'
+
+/** Whether a column type carries an option set. */
+function isSelectType(type: ColumnDefinition['type']): boolean {
+  return type === 'select'
+}
+
+function optionsEqual(a: SelectOption[], b: SelectOption[]): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
+}
 
 /**
  * Discriminates the two flows the column-config sidebar handles. Workflow
@@ -94,15 +104,40 @@ function ColumnConfigBody({
   const [uniqueInput, setUniqueInput] = useState<boolean>(() =>
     config.mode === 'edit' ? !!existingColumn?.unique : false
   )
+  const [optionsInput, setOptionsInput] = useState<SelectOption[]>(() =>
+    config.mode === 'edit' ? (existingColumn?.options ?? []) : []
+  )
+  const [multipleInput, setMultipleInput] = useState<boolean>(() =>
+    config.mode === 'edit' ? !!existingColumn?.multiple : false
+  )
   const [showValidation, setShowValidation] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
+  const [optionsError, setOptionsError] = useState<string | null>(null)
 
   const saveDisabled = updateColumn.isPending || addColumn.isPending
   const trimmedName = nameInput.trim()
+  const wantsOptions = isSelectType(typeInput)
+  const trimmedOptions = optionsInput.map((o) => ({ ...o, name: o.name.trim() }))
+
+  /** Client-side option validation mirroring the server rules; returns an error message or null. */
+  function validateOptions(): string | null {
+    if (!wantsOptions) return null
+    if (trimmedOptions.length === 0) return 'Add at least one option'
+    if (trimmedOptions.some((o) => !o.name)) return 'Option names cannot be empty'
+    const names = trimmedOptions.map((o) => o.name.toLowerCase())
+    if (new Set(names).size !== names.length) return 'Option names must be unique'
+    return null
+  }
 
   async function handleSave() {
     if (!trimmedName) {
       setShowValidation(true)
+      return
+    }
+
+    const optionsIssue = validateOptions()
+    if (optionsIssue) {
+      setOptionsError(optionsIssue)
       return
     }
 
@@ -111,7 +146,10 @@ function ColumnConfigBody({
         await addColumn.mutateAsync({
           name: trimmedName,
           type: typeInput,
-          ...(uniqueInput ? { unique: true } : {}),
+          // Select columns don't expose a unique constraint.
+          ...(!wantsOptions && uniqueInput ? { unique: true } : {}),
+          ...(wantsOptions ? { options: trimmedOptions } : {}),
+          ...(wantsOptions && multipleInput ? { multiple: true } : {}),
         })
         toast.success(`Added "${trimmedName}"`)
         onClose()
@@ -122,12 +160,24 @@ function ColumnConfigBody({
       // name to detect an actual rename.
       const renamed = trimmedName !== (existingColumn?.name ?? config.columnName)
       const typeChanged = !!existingColumn && existingColumn.type !== typeInput
-      const uniqueChanged = !!existingColumn && !!existingColumn.unique !== uniqueInput
+      const uniqueChanged =
+        !wantsOptions && !!existingColumn && !!existingColumn.unique !== uniqueInput
+      const optionsChanged =
+        wantsOptions && !optionsEqual(existingColumn?.options ?? [], trimmedOptions)
+      const multipleChanged = wantsOptions && !!existingColumn?.multiple !== multipleInput
 
-      const updates: { name?: string; type?: ColumnDefinition['type']; unique?: boolean } = {
+      const updates: {
+        name?: string
+        type?: ColumnDefinition['type']
+        unique?: boolean
+        options?: SelectOption[]
+        multiple?: boolean
+      } = {
         ...(renamed ? { name: trimmedName } : {}),
         ...(typeChanged ? { type: typeInput } : {}),
         ...(uniqueChanged ? { unique: uniqueInput } : {}),
+        ...(wantsOptions && (typeChanged || optionsChanged) ? { options: trimmedOptions } : {}),
+        ...(wantsOptions && (typeChanged || multipleChanged) ? { multiple: multipleInput } : {}),
       }
       if (Object.keys(updates).length === 0) {
         onClose()
@@ -207,17 +257,48 @@ function ColumnConfigBody({
           </>
         )}
 
-        <FieldDivider />
-        <div className='flex flex-col gap-[9.5px]'>
-          <div className='flex items-center justify-between pl-0.5'>
-            <Label htmlFor='column-sidebar-unique'>Unique</Label>
-            <Switch
-              id='column-sidebar-unique'
-              checked={uniqueInput}
-              onCheckedChange={(v) => setUniqueInput(!!v)}
-            />
-          </div>
-        </div>
+        {wantsOptions && (
+          <>
+            <FieldDivider />
+            <div className='flex flex-col gap-[9.5px]'>
+              <RequiredLabel>Options</RequiredLabel>
+              <SelectOptionsEditor
+                options={optionsInput}
+                onChange={(next) => {
+                  setOptionsInput(next)
+                  if (optionsError) setOptionsError(null)
+                }}
+              />
+              {optionsError && <FieldError message={optionsError} />}
+            </div>
+            <FieldDivider />
+            <div className='flex items-center justify-between pl-0.5'>
+              <Label htmlFor='column-sidebar-multiple'>Multiselect</Label>
+              <Switch
+                id='column-sidebar-multiple'
+                checked={multipleInput}
+                onCheckedChange={(v) => setMultipleInput(!!v)}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Select columns don't expose a unique constraint. */}
+        {!wantsOptions && (
+          <>
+            <FieldDivider />
+            <div className='flex flex-col gap-[9.5px]'>
+              <div className='flex items-center justify-between pl-0.5'>
+                <Label htmlFor='column-sidebar-unique'>Unique</Label>
+                <Switch
+                  id='column-sidebar-unique'
+                  checked={uniqueInput}
+                  onCheckedChange={(v) => setUniqueInput(!!v)}
+                />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className='flex items-center justify-end gap-2 border-[var(--border)] border-t px-2 py-3'>

@@ -1,7 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Calendar, cn, Popover, PopoverAnchor, PopoverContent, toast } from '@sim/emcn'
+import {
+  Calendar,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  toast,
+} from '@sim/emcn'
+import { Check } from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
 import { isCalendarDateString } from '@/lib/table/dates'
 import { useTimezone } from '@/hooks/queries/general-settings'
@@ -14,6 +26,7 @@ import {
   storageToDisplay,
   todayLocalCalendarDate,
 } from '../../../utils'
+import { SelectPill, selectedOptionIds } from '../../select-field'
 
 interface InlineEditorProps {
   value: unknown
@@ -323,10 +336,102 @@ function InlineTextEditor({
   )
 }
 
+/**
+ * Inline editor for `select`/`multiselect` columns. Renders the canonical
+ * `DropdownMenu` anchored to the cell (an invisible full-cell trigger, no pill
+ * chrome) and opens it immediately. Single-select commits on pick; multiselect
+ * toggles and commits when the menu closes. Escape discards the draft, matching
+ * the text/date inline editors.
+ */
+function InlineSelectEditor({ value, column, onSave, onCancel }: InlineEditorProps) {
+  const isMulti = !!column.multiple
+  const allOptions = column.options ?? []
+  const [draft, setDraft] = useState<string[]>(() => selectedOptionIds(column, value))
+  const [open, setOpen] = useState(true)
+  const latestRef = useRef(draft)
+  const doneRef = useRef(false)
+  const cancelledRef = useRef(false)
+
+  const setDraftAnd = (next: string[]) => {
+    latestRef.current = next
+    setDraft(next)
+  }
+
+  const commit = useCallback(() => {
+    if (doneRef.current) return
+    doneRef.current = true
+    if (cancelledRef.current) {
+      onCancel()
+      return
+    }
+    const ids = latestRef.current
+    onSave(isMulti ? ids : (ids[0] ?? null), 'enter')
+  }, [isMulti, onSave, onCancel])
+
+  // Escape closes the Radix menu (firing `onOpenChange(false)`); capture it
+  // first so the close handler discards instead of committing.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cancelledRef.current = true
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [])
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (!next) commit()
+  }
+
+  const handleSelectOption = (event: Event, id: string) => {
+    if (!isMulti) {
+      // Picking closes the menu → `handleOpenChange` commits the new value.
+      setDraftAnd([id])
+      return
+    }
+    // Keep the menu open across toggles; commit the set on close.
+    event.preventDefault()
+    const has = latestRef.current.includes(id)
+    const next = has ? latestRef.current.filter((v) => v !== id) : [...latestRef.current, id]
+    // A required multiselect can't be emptied — ignore removing the last option.
+    if (column.required && next.length === 0) return
+    setDraftAnd(next)
+  }
+
+  return (
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type='button'
+          aria-label={`Edit ${column.name}`}
+          className='absolute inset-0 cursor-pointer opacity-0'
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='start' sideOffset={2} className='min-w-[180px]'>
+        {!isMulti && !column.required && (
+          <DropdownMenuItem onSelect={() => setDraftAnd([])}>
+            <span className='text-[var(--text-muted)]'>None</span>
+            {draft.length === 0 && <Check className='!ml-auto' />}
+          </DropdownMenuItem>
+        )}
+        {allOptions.map((option) => (
+          <DropdownMenuItem key={option.id} onSelect={(e) => handleSelectOption(e, option.id)}>
+            <SelectPill option={option} />
+            {draft.includes(option.id) && <Check className='!ml-auto' />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 /** Dispatches to the right editor variant based on the column type. */
 export function InlineEditor(props: InlineEditorProps) {
   if (props.column.type === 'date') {
     return <InlineDateEditor {...props} />
+  }
+  if (props.column.type === 'select') {
+    return <InlineSelectEditor {...props} />
   }
   return <InlineTextEditor {...props} />
 }

@@ -148,7 +148,30 @@ export function getTablePlanLimits(): TablePlanLimitsByPlan {
   }
 }
 
-export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as const
+export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json', 'select'] as const
+
+/**
+ * Fixed, theme-aware palette for `select`/`multiselect` options. Each token maps
+ * 1:1 to a `Badge` color variant so options render through the shared badge
+ * tokens. Never store raw hex.
+ */
+export const SELECT_COLORS = [
+  'gray',
+  'blue',
+  'green',
+  'amber',
+  'orange',
+  'red',
+  'purple',
+  'pink',
+  'teal',
+  'cyan',
+] as const
+
+export type SelectColor = (typeof SELECT_COLORS)[number]
+
+/** Maximum number of options a `select`/`multiselect` column may declare. */
+export const MAX_SELECT_OPTIONS = 100
 
 export const NAME_PATTERN = /^[a-z_][a-z0-9_]*$/i
 

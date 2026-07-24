@@ -20,14 +20,18 @@ import { withLockedTable } from '@/lib/table/service'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
 import type {
   DeleteColumnData,
+  JsonValue,
   RenameColumnData,
   RowData,
+  SelectOption,
   TableDefinition,
   TableMetadata,
   TableSchema,
   UpdateColumnConstraintsData,
+  UpdateColumnOptionsData,
   UpdateColumnTypeData,
 } from '@/lib/table/types'
+import { resolveSelectOptionId, validateColumnDefinition } from '@/lib/table/validation'
 import { assertValidSchema, stripGroupDeps } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableColumnService')
@@ -50,6 +54,8 @@ export async function addTableColumn(
     required?: boolean
     unique?: boolean
     position?: number
+    options?: SelectOption[]
+    multiple?: boolean
   },
   requestId: string
 ): Promise<TableDefinition> {
@@ -91,7 +97,15 @@ export async function addTableColumn(
       type: column.type as TableSchema['columns'][number]['type'],
       required: column.required ?? false,
       unique: column.unique ?? false,
+      ...(column.options ? { options: column.options } : {}),
+      ...(column.multiple ? { multiple: true } : {}),
     }
+
+    const columnValidation = validateColumnDefinition(newColumn)
+    if (!columnValidation.valid) {
+      throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
+    }
+
     const newColumnId = getColumnId(newColumn)
 
     const columns = [...schema.columns]
@@ -502,13 +516,19 @@ export async function updateColumnType(
         )
       )
 
+    // Options the column will carry after the change — a `select` value is only
+    // compatible if it resolves against this set.
+    const isSelectType = data.newType === 'select'
+    const targetOptions = data.options ?? column.options ?? []
+    const targetMultiple = data.multiple ?? column.multiple
+
     let incompatibleCount = 0
     for (const row of rows) {
       const rowData = row.data as RowData
       const value = rowData[columnKey]
       if (value === null || value === undefined) continue
 
-      if (!isValueCompatibleWithType(value, data.newType)) {
+      if (!isValueCompatibleWithType(value, data.newType, targetOptions)) {
         incompatibleCount++
       }
     }
@@ -519,9 +539,25 @@ export async function updateColumnType(
       )
     }
 
-    const updatedColumns = schema.columns.map((c, i) =>
-      i === columnIndex ? { ...c, type: data.newType } : c
-    )
+    const updatedColumns = schema.columns.map((c, i) => {
+      if (i !== columnIndex) return c
+      // Drop any prior select config, then re-add when the target type uses it.
+      const { options: _prevOptions, multiple: _prevMultiple, ...rest } = c
+      return isSelectType
+        ? {
+            ...rest,
+            type: data.newType,
+            options: data.options ?? c.options,
+            ...(targetMultiple ? { multiple: true } : {}),
+          }
+        : { ...rest, type: data.newType }
+    })
+
+    const columnValidation = validateColumnDefinition(updatedColumns[columnIndex])
+    if (!columnValidation.valid) {
+      throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
+    }
+
     const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
     const now = new Date()
 
@@ -629,17 +665,109 @@ export async function updateColumnConstraints(
 }
 
 /**
- * Checks if a value is compatible with a target column type.
+ * Updates the option set (and optional single/multi mode) of a `select` column
+ * without changing its type. Existing cell values are left untouched — ids that
+ * no longer match an option render as a neutral fallback pill until reassigned;
+ * a single↔multi toggle is reconciled lazily on the next row write.
+ */
+export async function updateColumnOptions(
+  data: UpdateColumnOptionsData,
+  requestId: string
+): Promise<TableDefinition> {
+  return withLockedTable(data.tableId, async (table, trx) => {
+    const schema = table.schema
+    const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.columnName))
+    if (columnIndex === -1) {
+      throw new Error(`Column "${data.columnName}" not found`)
+    }
+
+    const column = schema.columns[columnIndex]
+    if (column.type !== 'select') {
+      throw new Error(`Cannot set options on column "${column.name}" of type "${column.type}"`)
+    }
+
+    // Switching multiple → single would silently drop all but the first option
+    // in any multi-valued cell — block it instead, mirroring the type-change
+    // compatibility guard.
+    const willBeMultiple = data.multiple ?? column.multiple
+    if (column.multiple && !willBeMultiple) {
+      const timeoutMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
+        baseMs: 60_000,
+        perRowMs: 2,
+      })
+      await setTableTxTimeouts(trx, { statementMs: timeoutMs, idleMs: timeoutMs })
+
+      const columnKey = getColumnId(column)
+      const rows = await trx
+        .select({ data: userTableRows.data })
+        .from(userTableRows)
+        .where(
+          and(eq(userTableRows.tableId, data.tableId), sql`${userTableRows.data} ? ${columnKey}`)
+        )
+
+      let multiValuedCount = 0
+      for (const row of rows) {
+        const value = (row.data as RowData)[columnKey]
+        if (Array.isArray(value) && value.length > 1) multiValuedCount++
+      }
+
+      if (multiValuedCount > 0) {
+        throw new Error(
+          `Cannot switch column "${column.name}" to single-select: ${multiValuedCount} row(s) have multiple options selected. Reduce them to one option first.`
+        )
+      }
+    }
+
+    const { multiple: _prevMultiple, ...columnRest } = column
+    const updatedColumn = {
+      ...columnRest,
+      options: data.options,
+      ...((data.multiple ?? column.multiple) ? { multiple: true } : {}),
+    }
+    const columnValidation = validateColumnDefinition(updatedColumn)
+    if (!columnValidation.valid) {
+      throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
+    }
+
+    const updatedColumns = schema.columns.map((c, i) => (i === columnIndex ? updatedColumn : c))
+    const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
+    const now = new Date()
+
+    await trx
+      .update(userTableDefinitions)
+      .set({ schema: updatedSchema, updatedAt: now })
+      .where(eq(userTableDefinitions.id, data.tableId))
+
+    logger.info(
+      `[${requestId}] Updated options for column "${column.name}" in table ${data.tableId}`
+    )
+
+    return { ...table, schema: updatedSchema, updatedAt: now }
+  })
+}
+
+/**
+ * Checks if a value is compatible with a target column type. For `select`,
+ * `targetOptions` is the option set the column will carry after the change: a
+ * value is compatible only if every part of it resolves to one of those options
+ * (by id or name). This blocks a conversion that would otherwise strand or
+ * silently drop values on the next row write.
  */
 function isValueCompatibleWithType(
   value: unknown,
-  targetType: (typeof COLUMN_TYPES)[number]
+  targetType: (typeof COLUMN_TYPES)[number],
+  targetOptions: SelectOption[] = []
 ): boolean {
-  if (value === null || value === undefined) return true
+  if (value === null || value === undefined || value === '') return true
 
   switch (targetType) {
     case 'string':
       return true
+    case 'select': {
+      // Single or multi, every part of the value must resolve to an option.
+      const parts = Array.isArray(value) ? value : [value]
+      return parts.every((v) => resolveSelectOptionId(v as JsonValue, targetOptions) !== null)
+    }
     case 'number': {
       if (typeof value === 'number') return Number.isFinite(value)
       if (typeof value === 'string') {

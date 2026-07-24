@@ -2,7 +2,7 @@
  * Type definitions for user-defined tables.
  */
 
-import type { COLUMN_TYPES } from '@/lib/table/constants'
+import type { COLUMN_TYPES, SelectColor } from '@/lib/table/constants'
 
 export type ColumnValue = string | number | boolean | null | Date
 export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
@@ -26,6 +26,16 @@ export interface ColumnOption {
   label: string
 }
 
+/**
+ * One choice in a `select`/`multiselect` column. `id` is stable — cell data
+ * references it, so renaming or recoloring an option never rewrites rows.
+ */
+export interface SelectOption {
+  id: string
+  name: string
+  color: SelectColor
+}
+
 export interface ColumnDefinition {
   /**
    * Stable storage key for this column. Row data, metadata, workflow-group
@@ -45,6 +55,13 @@ export interface ColumnDefinition {
    * `row.data[getColumnId(col)]` is populated by the group's per-cell run.
    */
   workflowGroupId?: string
+  /**
+   * Declared options for a `select` column. Cells store option ids — a single
+   * id when `multiple` is falsy, an array of ids when `multiple` is true.
+   */
+  options?: SelectOption[]
+  /** When true, a `select` column accepts several options per cell (string[]). */
+  multiple?: boolean
 }
 
 /** One group output → one plain column. */
@@ -644,6 +661,18 @@ export interface UpdateColumnTypeData {
   tableId: string
   columnName: string
   newType: (typeof COLUMN_TYPES)[number]
+  /** Options to set when changing to a `select` type. */
+  options?: SelectOption[]
+  /** Whether the `select` column accepts multiple options per cell. */
+  multiple?: boolean
+}
+
+export interface UpdateColumnOptionsData {
+  tableId: string
+  columnName: string
+  options: SelectOption[]
+  /** Toggle single/multi selection alongside the options update. */
+  multiple?: boolean
 }
 
 export interface UpdateColumnConstraintsData {

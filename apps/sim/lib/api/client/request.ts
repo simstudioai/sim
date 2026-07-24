@@ -161,6 +161,26 @@ function isSchemaValidationError(error: unknown): boolean {
   )
 }
 
+/**
+ * Compresses a ZodError's issues into a short, readable "field: reason" summary
+ * so a failed response tells you which field was wrong instead of a bare
+ * "Response failed contract validation".
+ */
+function summarizeSchemaIssues(error: unknown): string {
+  const issues = (error as { issues?: unknown }).issues
+  if (!Array.isArray(issues)) return ''
+  const summary = issues
+    .slice(0, 3)
+    .map((issue) => {
+      const path = Array.isArray(issue?.path) ? issue.path.join('.') : ''
+      const message = typeof issue?.message === 'string' ? issue.message : 'invalid'
+      return path ? `${path}: ${message}` : message
+    })
+    .join('; ')
+  const extra = issues.length > 3 ? ` (+${issues.length - 3} more)` : ''
+  return summary ? `${summary}${extra}` : ''
+}
+
 export async function requestJson<C extends AnyApiRouteContract>(
   contract: C,
   input: ApiClientRequest<C>
@@ -199,9 +219,12 @@ export async function requestJson<C extends AnyApiRouteContract>(
     return contract.response.schema.parse(parsed) as ContractJsonResponse<C>
   } catch (error) {
     if (isSchemaValidationError(error)) {
+      const details = summarizeSchemaIssues(error)
       throw new ApiClientError({
         status: response.status,
-        message: 'Response failed contract validation',
+        message: details
+          ? `Response failed contract validation — ${details}`
+          : 'Response failed contract validation',
         body: parsed,
         rawBody: raw,
       })

@@ -14,8 +14,10 @@ import {
   deleteColumn,
   renameColumn,
   updateColumnConstraints,
+  updateColumnOptions,
   updateColumnType,
 } from '@/lib/table'
+import { columnMatchesRef } from '@/lib/table/column-keys'
 import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -138,9 +140,34 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       )
     }
 
-    if (updates.type) {
+    // A payload that repeats the current type must not go through
+    // `updateColumnType` — it early-returns on an unchanged type and would drop
+    // any `options` alongside it. Only a real type change routes there; an
+    // unchanged type with options routes to the options-only update.
+    const currentColumn = table.schema.columns.find((c) =>
+      columnMatchesRef(c, validated.columnName)
+    )
+    const typeChanging = updates.type !== undefined && updates.type !== currentColumn?.type
+
+    if (typeChanging) {
       updatedTable = await updateColumnType(
-        { tableId, columnName: updates.name ?? validated.columnName, newType: updates.type },
+        {
+          tableId,
+          columnName: updates.name ?? validated.columnName,
+          newType: updates.type as NonNullable<typeof updates.type>,
+          ...(updates.options !== undefined ? { options: updates.options } : {}),
+          ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
+        },
+        requestId
+      )
+    } else if (updates.options !== undefined || updates.multiple !== undefined) {
+      updatedTable = await updateColumnOptions(
+        {
+          tableId,
+          columnName: updates.name ?? validated.columnName,
+          options: updates.options ?? currentColumn?.options ?? [],
+          ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
+        },
         requestId
       )
     }
@@ -195,7 +222,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
         msg.includes('Invalid column') ||
         msg.includes('exceeds maximum') ||
         msg.includes('incompatible') ||
-        msg.includes('duplicate')
+        msg.includes('duplicate') ||
+        msg.includes('option')
       ) {
         return NextResponse.json({ error: msg }, { status: 400 })
       }
