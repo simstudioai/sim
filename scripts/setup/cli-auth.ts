@@ -1,13 +1,13 @@
 import { spawnSync } from 'node:child_process'
-import http from 'node:http'
 import { sha256Base64Url } from '@sim/security/hash'
 import { generateSecureToken } from '@sim/security/tokens'
+import { sleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
-import { generateRandomHex } from '@sim/utils/random'
 import * as p from './prompter.ts'
 import { link, theme } from './theme.ts'
 
 const WAIT_MS = 180_000
+const POLL_INTERVAL_MS = 2000
 
 function openBrowser(url: string): void {
   if (process.env.SIM_SETUP_NO_BROWSER) return
@@ -16,148 +16,88 @@ function openBrowser(url: string): void {
   spawnSync(command, [url], { stdio: 'ignore' })
 }
 
-/**
- * PKCE pair. The verifier never leaves this process — only its digest travels
- * through the browser — so a code intercepted in transit cannot be redeemed.
- */
-function createPkcePair(): { verifier: string; challenge: string } {
-  const verifier = generateSecureToken(32)
-  return { verifier, challenge: sha256Base64Url(verifier) }
-}
-
 /** No O/0 or I/1 — this exists to be compared by eye against a browser tab. */
 const PAIRING_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 /**
  * Short human-comparable code, shown in this terminal and on the approval page.
  *
- * PKCE binds the *code* to this process, but it cannot tell you whether the page
- * you're approving belongs to your terminal or to a link someone sent you — the
- * attacker in that case supplies their own callback and challenge. Comparing
- * this value is the only thing that distinguishes the two, so if the page shows
- * a code you don't recognise, the approval isn't yours.
+ * The poll secret binds the *key* to this process, but nothing cryptographic
+ * tells the user whether the page they're approving belongs to their terminal
+ * or to a link someone sent them — an attacker supplies the request id and
+ * challenge. Comparing this code is the only thing that distinguishes the two.
  */
 function createPairingCode(): string {
   const chars = generateShortId(8, PAIRING_ALPHABET)
   return `${chars.slice(0, 4)}-${chars.slice(4)}`
 }
 
-export interface CodeListener {
-  authUrl: string
-  verifier: string
-  pairingCode: string
-  code: Promise<string | null>
-  close: () => void
+interface PollResponse {
+  status: 'pending' | 'complete'
+  key?: { apiKey?: string }
 }
 
 /**
- * Loopback listener for the /cli/auth browser handoff. Contract:
- * GET /callback?code=<code>&state=<state>, where state must echo our nonce.
+ * Device-flow handoff: open the approval page and poll for the key over TLS.
  *
- * `code` resolves with the delivered code, or null on timeout/close/state
- * mismatch.
- */
-export function startCodeListener(origin: string): Promise<CodeListener> {
-  const state = generateRandomHex(32)
-  const { verifier, challenge } = createPkcePair()
-  const pairingCode = createPairingCode()
-
-  return new Promise((resolveListener) => {
-    let settled = false
-    let finish: (code: string | null) => void
-    const code = new Promise<string | null>((resolveCode) => {
-      finish = (value) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timer)
-        server.close()
-        resolveCode(value)
-      }
-    })
-
-    const server = http.createServer((req, res) => {
-      const url = new URL(req.url ?? '/', 'http://127.0.0.1')
-      if (url.pathname !== '/callback') {
-        res.writeHead(404).end()
-        return
-      }
-      const deliveredCode = url.searchParams.get('code')
-      const echoedState = url.searchParams.get('state')
-      if (!deliveredCode || echoedState !== state) {
-        res.writeHead(400, { 'content-type': 'text/plain' }).end('state mismatch — re-run setup')
-        finish(null)
-        return
-      }
-      res.writeHead(302, { location: `${origin}/cli/auth/done` }).end()
-      finish(deliveredCode)
-    })
-
-    const timer = setTimeout(() => finish(null), WAIT_MS)
-
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address()
-      if (!address || typeof address === 'string')
-        throw new Error('loopback listener failed to bind')
-      const callback = `http://127.0.0.1:${address.port}/callback`
-      const query = new URLSearchParams({ callback, state, challenge, pairing: pairingCode })
-      resolveListener({
-        authUrl: `${origin}/cli/auth?${query}`,
-        verifier,
-        pairingCode,
-        code,
-        close: () => finish(null),
-      })
-    })
-  })
-}
-
-/** Single-use, expires in two minutes — a failure means re-running the flow, not retrying. */
-async function exchangeCode(
-  origin: string,
-  code: string,
-  verifier: string
-): Promise<string | null> {
-  try {
-    const response = await fetch(`${origin}/api/cli/auth/token`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ code, verifier }),
-    })
-
-    if (!response.ok) {
-      p.log.warn(`Sim rejected the authorization code (${response.status}). Re-run setup to retry.`)
-      return null
-    }
-
-    const data = (await response.json()) as { key?: { apiKey?: string } }
-    return data.key?.apiKey ?? null
-  } catch {
-    p.log.warn(`Could not reach ${origin} to redeem the authorization code.`)
-    return null
-  }
-}
-
-/**
- * Waits for the browser handoff and redeems the code it returns. Null on
- * timeout or a failed exchange; ctrl-c exits setup via the SIGINT handler.
+ * No loopback listener — the terminal and browser need not share a machine, so
+ * this works over SSH and inside containers. The poll secret never leaves this
+ * process; only its digest reaches the server, so an observer of the request id
+ * cannot mint. Returns the key, or null on timeout / failed poll (re-run to
+ * retry). Ctrl-C exits setup via the SIGINT handler.
  */
 export async function browserKeyFlow(origin: string): Promise<string | null> {
-  const listener = await startCodeListener(origin)
+  const request = generateSecureToken(32)
+  const pollSecret = generateSecureToken(32)
+  const challenge = sha256Base64Url(pollSecret)
+  const pairingCode = createPairingCode()
+
+  const query = new URLSearchParams({ request, challenge, pairing: pairingCode })
+  const authUrl = `${origin}/cli/auth?${query}`
+
   p.note(
-    `${theme.heading(listener.pairingCode)}\n\n${theme.muted('The page should show this code. If it shows a different one,\nthe request is not from this terminal — close the tab.')}`,
+    `${theme.heading(pairingCode)}\n\n${theme.muted('The page should show this code. If it shows a different one,\nthe request is not from this terminal — close the tab.')}`,
     'Confirm this code in your browser'
   )
   p.log.info(
-    `Opening your browser — sign in and approve; the key comes back automatically.\n   If it doesn't open: ${link(listener.authUrl, listener.authUrl)}`
+    `Opening your browser — sign in and approve; the key comes back automatically.\n   If it doesn't open: ${link(authUrl, authUrl)}`
   )
-  openBrowser(listener.authUrl)
+  openBrowser(authUrl)
 
   const spin = p.spinner()
   spin.start('Waiting for approval in your browser')
-  const code = await listener.code
-  spin.stop(code ? 'Approved' : 'Browser handoff timed out')
 
-  if (!code) return null
+  const deadline = Date.now() + WAIT_MS
+  while (Date.now() < deadline) {
+    await sleep(POLL_INTERVAL_MS)
+    // null means still pending or a transient error — either way, keep waiting.
+    const key = await pollOnce(origin, request, pollSecret)
+    if (key) {
+      spin.stop('Approved')
+      return key
+    }
+  }
 
-  return exchangeCode(origin, code, listener.verifier)
+  spin.stop('Browser handoff timed out')
+  return null
+}
+
+/**
+ * One poll. Returns the key when the approval completes, `null` while pending or
+ * on a transient error (the caller keeps waiting until the deadline).
+ */
+async function pollOnce(origin: string, request: string, verifier: string): Promise<string | null> {
+  try {
+    const response = await fetch(`${origin}/api/cli/auth/poll`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ request, verifier }),
+    })
+    if (!response.ok) return null
+
+    const data = (await response.json()) as PollResponse
+    return data.status === 'complete' ? (data.key?.apiKey ?? null) : null
+  } catch {
+    return null
+  }
 }

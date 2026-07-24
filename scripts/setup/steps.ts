@@ -50,7 +50,7 @@ export async function promptCopilotKey(existing?: string): Promise<string | null
   }
   p.log.info('Chat is how you talk to Sim — build and manage everything in natural language.')
   const wants = await p.confirm({
-    message: 'Generate your Chat API key in the browser? (sign in, one click, done)',
+    message: 'Generate your Chat API key in the browser?',
     initialValue: true,
   })
   if (!wants) {

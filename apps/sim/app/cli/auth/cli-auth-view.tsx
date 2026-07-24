@@ -1,21 +1,25 @@
 'use client'
 
 import { getErrorMessage } from '@sim/utils/errors'
+import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { AuthFormMessage, AuthHeader, AuthSubmitButton } from '@/app/(auth)/components'
-import { buildCliHandoffUrl, resolveCliAuthRequest } from '@/app/cli/auth/cli-auth-request'
+import { resolveCliAuthRequest } from '@/app/cli/auth/cli-auth-request'
 import { cliAuthParsers } from '@/app/cli/auth/search-params'
 import { useApproveCliAuth } from '@/hooks/queries/cli-auth'
 
 /**
- * The signed-in half of the CLI key handoff: a consent card that mints a
- * single-use authorization code and hands it to the waiting terminal.
+ * The signed-in half of the CLI key handoff: a consent card that records the
+ * user's approval so the terminal's poll can complete. No key passes through
+ * the browser.
  *
- * The pairing code leads the card because PKCE cannot tell the visitor's own
- * terminal from a link someone sent them — an attacker who opened the page
- * supplies both the callback and the challenge.
+ * The pairing code leads the card because it is the only signal that separates
+ * the visitor's own terminal from a link someone sent them — an attacker who
+ * opened the page supplies the request id and challenge, but not the code the
+ * victim's terminal printed.
  */
 export function CliAuthView() {
+  const router = useRouter()
   const [params] = useQueryStates(cliAuthParsers)
   const approve = useApproveCliAuth()
 
@@ -52,16 +56,12 @@ export function CliAuthView() {
         </div>
         <AuthSubmitButton
           type='button'
-          loading={approve.isPending}
+          loading={approve.isPending || approve.isSuccess}
           loadingLabel='Connecting'
           onClick={() =>
             approve.mutate(
-              { challenge: request.challenge },
-              {
-                onSuccess: (data) => {
-                  window.location.href = buildCliHandoffUrl(request, data.code)
-                },
-              }
+              { request: request.request, challenge: request.challenge },
+              { onSuccess: () => router.push('/cli/auth/done') }
             )
           }
         >

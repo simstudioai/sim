@@ -39,8 +39,7 @@ export default async function CliAuthPage({
 
   if (resolution.valid && !session?.user) {
     const query = new URLSearchParams({
-      callback: resolution.request.callback,
-      state: resolution.request.state,
+      request: resolution.request.request,
       challenge: resolution.request.challenge,
       pairing: resolution.request.pairing,
     })

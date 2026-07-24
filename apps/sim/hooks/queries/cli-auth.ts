@@ -9,7 +9,7 @@ import {
 
 const logger = createLogger('CliAuthQuery')
 
-/** No cache to invalidate: the code is redeemed once, server-side. */
+/** No cache to invalidate: approval is write-only and the terminal polls for the key. */
 export function useApproveCliAuth() {
   return useMutation({
     mutationFn: async (variables: ApproveCliAuthBody): Promise<ApproveCliAuthResult> => {

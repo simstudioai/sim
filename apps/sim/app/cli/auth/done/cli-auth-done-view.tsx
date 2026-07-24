@@ -8,8 +8,8 @@ import { AuthHeader } from '@/app/(auth)/components'
 export function CliAuthDoneView() {
   return (
     <AuthHeader
-      title='Your terminal is connected'
-      description='You can close this tab and return to your terminal.'
+      title='Approved'
+      description='Your terminal is finishing up — you can close this tab.'
     />
   )
 }

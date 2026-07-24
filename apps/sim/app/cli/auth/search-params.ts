@@ -8,8 +8,7 @@ import { createSearchParamsCache, parseAsString } from 'nuqs/server'
  * to fall back from. `resolveCliAuthRequest` validates them; never trusted as-is.
  */
 export const cliAuthParsers = {
-  callback: parseAsString,
-  state: parseAsString,
+  request: parseAsString,
   challenge: parseAsString,
   pairing: parseAsString,
 } as const
