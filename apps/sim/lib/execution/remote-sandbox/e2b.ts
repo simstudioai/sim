@@ -83,6 +83,15 @@ class E2BSandboxHandle implements SandboxHandle {
         onStdout: limiter.stdout,
         onStderr: limiter.stderr,
       })
+      if (limiter.exceeded()) {
+        await Promise.resolve(this.sandbox.kill()).catch(() => {})
+        return {
+          stdout: '',
+          stderr: 'Sandbox command output limit exceeded',
+          exitCode: 137,
+          outputLimitExceeded: true,
+        }
+      }
       return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode }
     } catch (error) {
       if (limiter.exceeded()) {

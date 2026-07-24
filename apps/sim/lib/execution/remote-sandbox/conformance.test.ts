@@ -138,7 +138,11 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       mockE2BCommandsRun.mockImplementation(
         async (_command: string, options: { onStdout: (chunk: string) => void }) => {
           options.onStdout('12345')
-          options.onStdout('6')
+          try {
+            options.onStdout('6')
+          } catch {
+            // E2B may report callback errors separately and still resolve the command.
+          }
           return { stdout: '123456', stderr: '', exitCode: 0 }
         }
       )
