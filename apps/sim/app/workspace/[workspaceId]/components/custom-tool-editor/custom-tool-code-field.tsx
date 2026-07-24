@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ChipTag,
   CODE_LINE_HEIGHT_PX,
-  cn,
   Popover,
   PopoverAnchor,
   PopoverContent,
@@ -50,6 +49,9 @@ interface TriggerState {
   searchTerm: string
 }
 
+/** Trailing identifier under the caret — the unit both the trigger and the completion act on. */
+const SCHEMA_PARAM_WORD = /[a-zA-Z_]\w*$/
+
 function checkSchemaParamTrigger(
   text: string,
   cursorPos: number,
@@ -57,7 +59,7 @@ function checkSchemaParamTrigger(
 ): TriggerState {
   if (parameters.length === 0) return { show: false, searchTerm: '' }
 
-  const currentWord = text.slice(0, cursorPos).match(/[a-zA-Z_]\w*$/)?.[0] ?? ''
+  const currentWord = text.slice(0, cursorPos).match(SCHEMA_PARAM_WORD)?.[0] ?? ''
   if (!currentWord) return { show: false, searchTerm: '' }
 
   const lower = currentWord.toLowerCase()
@@ -96,6 +98,14 @@ export function CustomToolCodeField({
   const busy = generation.isLoading || generation.isStreaming
   const resolvedMinHeight = schemaParameters.length > 0 ? '380px' : '420px'
 
+  /** Generation writes bypass `handleChange`, so close any open menu here instead. */
+  useEffect(() => {
+    if (!busy) return
+    setShowEnvVars(false)
+    setShowTags(false)
+    setShowSchemaParams(false)
+  }, [busy])
+
   useEffect(() => {
     if (!showSchemaParams || schemaParamSelectedIndex < 0) return
     const element = schemaParamItemRefs.current?.get(schemaParamSelectedIndex)
@@ -106,8 +116,9 @@ export function CustomToolCodeField({
     onChange(newValue)
     if (busy) return
 
-    const textarea = codeEditorRef.current?.querySelector('textarea')
-    if (!textarea) return
+    const container = codeEditorRef.current
+    const textarea = container?.querySelector('textarea')
+    if (!container || !textarea) return
 
     const pos = textarea.selectionStart
     setCursorPosition(pos)
@@ -117,17 +128,11 @@ export function CustomToolCodeField({
     const currentLine = lines.length
     const currentCol = lines[lines.length - 1].length
 
-    try {
-      if (codeEditorRef.current) {
-        const editorRect = codeEditorRef.current.getBoundingClientRect()
-        setDropdownPosition({
-          top: currentLine * CODE_LINE_HEIGHT_PX + 5,
-          left: Math.min(currentCol * 8, editorRect.width - 260),
-        })
-      }
-    } catch (error) {
-      logger.error('Error calculating cursor position:', { error })
-    }
+    const editorRect = container.getBoundingClientRect()
+    setDropdownPosition({
+      top: currentLine * CODE_LINE_HEIGHT_PX + 5,
+      left: Math.min(currentCol * 8, editorRect.width - 260),
+    })
 
     const envVarTrigger = checkEnvVarTrigger(newValue, pos)
     setShowEnvVars(envVarTrigger.show)
@@ -158,9 +163,10 @@ export function CustomToolCodeField({
     const beforeCursor = value.substring(0, pos)
     const afterCursor = value.substring(pos)
 
-    const words = beforeCursor.split(/[\s=();,{}[\]]+/)
-    const currentWord = words[words.length - 1] || ''
-    const wordStart = beforeCursor.lastIndexOf(currentWord)
+    // Must match checkSchemaParamTrigger's boundary exactly — a looser split
+    // here would replace text the trigger never matched (e.g. eat `data.`).
+    const currentWord = beforeCursor.match(SCHEMA_PARAM_WORD)?.[0] ?? ''
+    const wordStart = pos - currentWord.length
 
     onChange(beforeCursor.substring(0, wordStart) + paramName + afterCursor)
     setShowSchemaParams(false)
@@ -252,7 +258,6 @@ export function CustomToolCodeField({
           placeholder={CODE_PLACEHOLDER}
           minHeight={resolvedMinHeight}
           error={error && !generation.isStreaming}
-          className={cn(busy && 'cursor-not-allowed opacity-50')}
           highlightVariables={true}
           disabled={busy}
           onKeyDown={handleKeyDown}

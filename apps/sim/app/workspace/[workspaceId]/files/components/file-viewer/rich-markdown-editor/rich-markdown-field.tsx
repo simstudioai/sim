@@ -238,8 +238,19 @@ function RawMarkdownField({
     if (!autoGrow) return
     const el = textareaRef.current
     if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${Math.max(el.scrollHeight, minHeight)}px`
+
+    const measure = () => {
+      el.style.height = 'auto'
+      el.style.height = `${Math.max(el.scrollHeight, minHeight)}px`
+    }
+    measure()
+
+    // The box is `overflow-hidden` while uncapped, so a width change that
+    // re-wraps lines without touching `value` would clip the tail with no
+    // scrollbar to reach it — re-measure whenever the element resizes.
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
   }, [autoGrow, value, minHeight])
 
   return (

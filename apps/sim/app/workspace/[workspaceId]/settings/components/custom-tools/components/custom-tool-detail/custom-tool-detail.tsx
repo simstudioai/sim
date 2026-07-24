@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipConfirmModal } from '@sim/emcn'
+import { ChipConfirmModal, toast } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -176,7 +176,9 @@ export function CustomToolDetail({ workspaceId, tool, onBack }: CustomToolDetail
       onBack()
     } catch (error) {
       logger.error('Failed to delete custom tool', error)
-      setSchemaError(getErrorMessage(error, 'Failed to delete custom tool'))
+      toast.error("Couldn't delete tool", {
+        description: getErrorMessage(error, 'Please try again in a moment.'),
+      })
     }
   }
 

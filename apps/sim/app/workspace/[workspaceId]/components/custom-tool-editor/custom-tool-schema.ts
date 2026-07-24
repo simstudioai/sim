@@ -1,7 +1,7 @@
 /**
  * Shared parsing/validation for a custom tool's OpenAI function-calling JSON
- * schema. Used by every custom-tool editing surface (the canvas modal and the
- * `/tools` pages) so they agree on what a valid schema is.
+ * schema. Used by both custom-tool editing surfaces (the canvas modal and the
+ * Settings > Custom Tools detail page) so they agree on what a valid schema is.
  */
 
 export interface SchemaParameter {

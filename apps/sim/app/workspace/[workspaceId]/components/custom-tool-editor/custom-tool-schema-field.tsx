@@ -1,6 +1,5 @@
 'use client'
 
-import { cn } from '@sim/emcn'
 import { SCHEMA_PLACEHOLDER } from '@/app/workspace/[workspaceId]/components/custom-tool-editor/custom-tool-schema'
 import type { useSchemaGeneration } from '@/app/workspace/[workspaceId]/components/custom-tool-editor/use-custom-tool-generation'
 import { CodeEditor } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/code-editor/code-editor'
@@ -33,7 +32,6 @@ export function CustomToolSchemaField({
       placeholder={SCHEMA_PLACEHOLDER}
       minHeight='420px'
       error={error}
-      className={cn(busy && 'cursor-not-allowed opacity-50')}
       disabled={busy}
     />
   )

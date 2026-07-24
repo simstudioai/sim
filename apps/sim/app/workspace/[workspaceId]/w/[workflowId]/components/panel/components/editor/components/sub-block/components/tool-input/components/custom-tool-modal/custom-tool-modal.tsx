@@ -8,6 +8,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipModalTabs,
+  toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -310,9 +311,10 @@ export function CustomToolModal({
       handleClose()
     } catch (error) {
       logger.error('Error deleting custom tool:', error)
-      const errorMessage = getErrorMessage(error, 'Failed to delete custom tool')
-      setSchemaError(`${errorMessage}. Please try again.`)
-      setActiveSection('schema')
+      // A delete failure is not a schema problem — keep it out of the Schema slot.
+      toast.error("Couldn't delete tool", {
+        description: getErrorMessage(error, 'Please try again in a moment.'),
+      })
       setShowDeleteConfirm(false)
     }
   }

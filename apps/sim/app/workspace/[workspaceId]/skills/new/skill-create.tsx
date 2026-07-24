@@ -73,7 +73,11 @@ export function SkillCreate({ workspaceId }: SkillCreateProps) {
   const [contentSeed, setContentSeed] = useState(0)
   const [errors, setErrors] = useState<FieldErrors>({})
 
-  const isDirty = !!nameDraft.trim() || !!descriptionDraft.trim() || !!contentDraft.trim()
+  // Drops on success so the guard pops its history sentinel before we navigate —
+  // otherwise Back from the new skill lands on a stale, empty create form.
+  const isDirty =
+    !createSkill.isSuccess &&
+    (!!nameDraft.trim() || !!descriptionDraft.trim() || !!contentDraft.trim())
 
   const guard = useUnsavedChangesGuard({ isDirty, backHref: skillsHref })
 
@@ -195,6 +199,7 @@ export function SkillCreate({ workspaceId }: SkillCreateProps) {
             autoComplete='off'
             data-lpignore='true'
             disabled={createSkill.isPending}
+            error={!!errors.description}
           />
           {errors.description && (
             <p className='mt-[9px] text-[var(--text-error)] text-caption'>{errors.description}</p>
