@@ -467,6 +467,14 @@ kubectl --namespace sim logs deploy/sim-app -c migrations
 
 ---
 
+## Upgrading to 1.1.0
+
+No action is required for working configurations. Notes:
+
+* Pods for `app` and `realtime` roll once on upgrade (their rollout checksum now also covers the ExternalSecret manifest, fixing missed rollouts in ESO mode).
+* Two values keys that were never consumed by any template were removed: `app.secrets.existingSecret.keys` and `*.existingSecret.passwordKey`. Existing secrets must use the standard key names (`BETTER_AUTH_SECRET`, ..., `POSTGRES_PASSWORD`, `EXTERNAL_DB_PASSWORD`); leftover keys in your values file are ignored, not rejected.
+* `telemetry.jaeger` now exports over OTLP (`otlp/jaeger`) — point `telemetry.jaeger.endpoint` at Jaeger's OTLP gRPC port (4317). The previous `jaeger` exporter did not exist in the pinned collector image, so any prior jaeger-enabled config was already failing at collector startup.
+
 ## Support
 
 * **Docs:** https://docs.sim.ai
