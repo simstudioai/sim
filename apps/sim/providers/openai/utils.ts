@@ -21,26 +21,48 @@ export interface ResponsesUsageTokens {
 export const OPENAI_CACHE_WRITE_MULTIPLIER = 1.25
 
 /**
- * Normalizes OpenAI usage into the shared {@link ModelUsage} shape.
- *
- * `cached_tokens` is a subset of `input_tokens`, so the uncached remainder is
- * the subtraction — the opposite of Anthropic, whose `input_tokens` already
- * excludes cache tokens.
+ * One OpenAI response's tokens split into the buckets that price differently.
+ * `input` is the uncached remainder, so `input + cacheRead + cacheWrite` is the
+ * prompt total OpenAI reported.
  */
-export function toOpenAIModelUsage(usage: ResponsesUsageTokens): ModelUsage {
+export interface OpenAITokenSplit {
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+}
+
+/**
+ * Splits a cache-inclusive OpenAI prompt total into its billing buckets.
+ *
+ * `cached_tokens` and `cache_write_tokens` are subsets of `input_tokens`, so the
+ * uncached remainder is the subtraction — the opposite of Anthropic, whose
+ * `input_tokens` already excludes cache tokens.
+ *
+ * Both buckets are clamped to what the request actually contained. OpenAI has
+ * shipped payloads where reads plus writes summed past the prompt total, so
+ * without this a vendor reporting bug becomes an overcharge.
+ */
+export function splitOpenAIUsage(usage: ResponsesUsageTokens): OpenAITokenSplit {
   const promptTokens = Math.max(0, usage.promptTokens)
   const cacheRead = Math.min(Math.max(0, usage.cachedTokens), promptTokens)
-  /**
-   * A write can only cover tokens this request processed uncached, so it can
-   * never exceed the remainder. OpenAI has shipped usage payloads where reads
-   * plus writes summed past the prompt total; clamping keeps a vendor
-   * reporting bug from over-charging the run.
-   */
   const cacheWrite = Math.min(Math.max(0, usage.cacheWriteTokens), promptTokens - cacheRead)
 
   return {
     input: promptTokens - cacheRead - cacheWrite,
     output: usage.completionTokens,
+    cacheRead,
+    cacheWrite,
+  }
+}
+
+/** Adapts a {@link splitOpenAIUsage} result to the shared pricing shape. */
+export function toOpenAIModelUsage(usage: ResponsesUsageTokens): ModelUsage {
+  const { input, output, cacheRead, cacheWrite } = splitOpenAIUsage(usage)
+
+  return {
+    input,
+    output,
     cacheRead,
     cacheWrites: [{ tokens: cacheWrite, inputRateMultiplier: OPENAI_CACHE_WRITE_MULTIPLIER }],
   }

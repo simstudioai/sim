@@ -1,14 +1,9 @@
 import type { BlockTokens } from '@/executor/types'
-import {
-  LIST_PRICE_POLICY,
-  type ModelCostPolicy,
-  type ModelUsage,
-  priceModelUsage,
-} from '@/providers/cost-policy'
+import { LIST_PRICE_POLICY, type ModelUsage, priceModelUsage } from '@/providers/cost-policy'
 import {
   OPENAI_CACHE_WRITE_MULTIPLIER,
   type ResponsesUsageTokens,
-  toOpenAIModelUsage,
+  splitOpenAIUsage,
 } from '@/providers/openai/utils'
 import type { ModelPricing } from '@/providers/types'
 
@@ -34,10 +29,6 @@ interface OpenAIUsageCost {
   pricing: ModelPricing
 }
 
-function tokenCount(value: number | undefined): number {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0
-}
-
 function roundedCost(value: number): number {
   return Number.parseFloat(value.toFixed(8))
 }
@@ -59,7 +50,7 @@ export function createOpenAIUsageAccumulator(): OpenAIUsageAccumulator {
  * Adds one Responses API turn's usage without counting cache tokens as
  * uncached input.
  *
- * Normalization goes through {@link toOpenAIModelUsage} so that subtracting the
+ * Normalization goes through {@link splitOpenAIUsage} so that subtracting the
  * cache buckets out of the prompt total — and clamping a vendor payload that
  * reports more cache tokens than it processed — stays in one place.
  */
@@ -69,15 +60,13 @@ export function addOpenAIUsage(
 ): void {
   if (!usage) return
 
-  const normalized = toOpenAIModelUsage(usage)
+  const split = splitOpenAIUsage(usage)
 
-  accumulator.input += tokenCount(normalized.input)
-  accumulator.output += tokenCount(normalized.output)
-  accumulator.cacheRead += tokenCount(normalized.cacheRead)
-  for (const write of normalized.cacheWrites ?? []) {
-    accumulator.cacheWrite += tokenCount(write.tokens)
-  }
-  accumulator.total += tokenCount(usage.totalTokens)
+  accumulator.input += split.input
+  accumulator.output += split.output
+  accumulator.cacheRead += split.cacheRead
+  accumulator.cacheWrite += split.cacheWrite
+  accumulator.total += usage.totalTokens
 }
 
 /**
@@ -117,14 +106,17 @@ export function buildOpenAIModelUsage(accumulator: OpenAIUsageAccumulator): Mode
 /**
  * Prices one OpenAI request, cache reads and writes included, through the
  * shared pricing function.
+ *
+ * Always at list price. Billability and the margin are applied once, centrally,
+ * by `executeProviderRequest` — a provider applying them here would double-count
+ * the multiplier.
  */
 export function buildOpenAIUsageCost(
   model: string,
   accumulator: OpenAIUsageAccumulator,
-  toolCost = 0,
-  policy: ModelCostPolicy = LIST_PRICE_POLICY
+  toolCost = 0
 ): OpenAIUsageCost {
-  const cost = priceModelUsage(model, buildOpenAIModelUsage(accumulator), policy)
+  const cost = priceModelUsage(model, buildOpenAIModelUsage(accumulator), LIST_PRICE_POLICY)
 
   return {
     input: cost.input,

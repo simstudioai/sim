@@ -1,10 +1,5 @@
 import type { BlockTokens } from '@/executor/types'
-import {
-  LIST_PRICE_POLICY,
-  type ModelCostPolicy,
-  type ModelUsage,
-  priceModelUsage,
-} from '@/providers/cost-policy'
+import { LIST_PRICE_POLICY, type ModelUsage, priceModelUsage } from '@/providers/cost-policy'
 import type { ModelPricing } from '@/providers/types'
 
 export interface AnthropicUsageLike {
@@ -128,14 +123,17 @@ export function buildAnthropicModelUsage(accumulator: AnthropicUsageAccumulator)
 /**
  * Prices one Anthropic request, cache tiers included, through the shared
  * pricing function.
+ *
+ * Always at list price. Billability and the margin are applied once, centrally,
+ * by `executeProviderRequest` — a provider applying them here would double-count
+ * the multiplier.
  */
 export function buildAnthropicUsageCost(
   model: string,
   accumulator: AnthropicUsageAccumulator,
-  toolCost = 0,
-  policy: ModelCostPolicy = LIST_PRICE_POLICY
+  toolCost = 0
 ): AnthropicUsageCost {
-  const cost = priceModelUsage(model, buildAnthropicModelUsage(accumulator), policy)
+  const cost = priceModelUsage(model, buildAnthropicModelUsage(accumulator), LIST_PRICE_POLICY)
 
   return {
     input: cost.input,

@@ -179,27 +179,21 @@ export async function executeProviderRequest(
   const costPolicy = resolveModelCostPolicy(response.model, isBYOK)
 
   if (response.tokens) {
-    const {
-      input: promptTokens = 0,
-      output: completionTokens = 0,
-      cacheRead,
-      cacheWrite,
-    } = response.tokens
+    const { input: promptTokens = 0, output: completionTokens = 0 } = response.tokens
 
     /**
-     * A provider that priced its own usage knows cache tiers this layer cannot
-     * reconstruct from token counts alone (Anthropic's 5m vs 1h writes), so its
-     * cost is authoritative and only the policy is applied on top. Everything
-     * else is priced from reported tokens. Tool cost is stripped either way —
-     * it is re-derived from `toolResults` below and must not be counted twice.
+     * Any provider that reports cache buckets also prices itself, because only
+     * it knows the tiers involved — Anthropic's 5m vs 1h writes cannot be
+     * reconstructed from a single `cacheWrite` count. Its cost is therefore
+     * authoritative and only the policy is applied on top. The fallback prices
+     * providers that report no cache usage at all.
+     *
+     * Tool cost is stripped either way: it is re-derived from `toolResults`
+     * below and must not be counted twice.
      */
     response.cost = response.cost
       ? (applyModelCostPolicy(withoutToolCost(response.cost), costPolicy) as typeof response.cost)
-      : calculateBillableModelCost(response.model, promptTokens, completionTokens, {
-          cacheRead,
-          ...(cacheWrite ? { cacheWrites: [{ tokens: cacheWrite, inputRateMultiplier: 1 }] } : {}),
-          isBYOK,
-        })
+      : calculateBillableModelCost(response.model, promptTokens, completionTokens, { isBYOK })
 
     if (!costPolicy.billable) {
       logger.info(

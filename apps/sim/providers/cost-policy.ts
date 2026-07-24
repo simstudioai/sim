@@ -93,7 +93,7 @@ export function applyModelCostPolicy(
   cost: ModelCost | undefined,
   policy: ModelCostPolicy
 ): ModelCost {
-  const toolCost = typeof cost?.toolCost === 'number' ? cost.toolCost : 0
+  const toolCost = cost?.toolCost ?? 0
 
   if (!cost || !policy.billable) {
     return notBilledCost(toolCost)
@@ -103,7 +103,7 @@ export function applyModelCostPolicy(
     return cost
   }
 
-  const modelTotal = (cost.total ?? cost.input + cost.output) - toolCost
+  const modelTotal = cost.total - toolCost
 
   return {
     ...cost,
@@ -139,10 +139,6 @@ export interface ModelUsage {
   cacheWrites?: CacheWriteUsage[]
 }
 
-function nonNegative(value: number | undefined): number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
-}
-
 /**
  * The single cache-aware pricing function.
  *
@@ -150,6 +146,11 @@ function nonNegative(value: number | undefined): number {
  * hit is priced identically whether it came from Anthropic, OpenAI, Gemini, or
  * an OpenAI-compatible vendor. Callers must not pre-apply the policy multiplier
  * or the cached rate themselves.
+ *
+ * Token counts are validated by the provider adapter that builds the
+ * {@link ModelUsage}, which is the only layer that knows the vendor's shape and
+ * can enforce that cache buckets are a subset of the prompt total. This function
+ * re-validates nothing.
  */
 export function priceModelUsage(
   model: string,
@@ -163,16 +164,15 @@ export function priceModelUsage(
   const multiplier = policy.multiplier
   const base = calculateCost(model, usage.input, usage.output, false, multiplier, multiplier)
 
-  const cacheRead = nonNegative(usage.cacheRead)
+  const cacheRead = usage.cacheRead ?? 0
   const read = cacheRead > 0 ? calculateCost(model, cacheRead, 0, true, multiplier, 0) : undefined
 
   let writeInputCost = 0
   for (const write of usage.cacheWrites ?? []) {
-    const tokens = nonNegative(write.tokens)
-    if (tokens === 0 || !Number.isFinite(write.inputRateMultiplier)) continue
+    if (write.tokens <= 0) continue
     writeInputCost += calculateCost(
       model,
-      tokens,
+      write.tokens,
       0,
       false,
       multiplier * write.inputRateMultiplier,
@@ -194,21 +194,19 @@ export function priceModelUsage(
 /**
  * Prices tokens for a model and applies the billing policy in one step. Use
  * wherever a caller holds raw token counts and needs the charge Sim records.
+ *
+ * Cache-free by design: a caller that has cache usage also knows its tiers, so
+ * it builds a {@link ModelUsage} and calls {@link priceModelUsage} directly.
  */
 export function calculateBillableModelCost(
   model: string,
   promptTokens = 0,
   completionTokens = 0,
-  options: { cacheRead?: number; cacheWrites?: CacheWriteUsage[]; isBYOK?: boolean } = {}
+  options: { isBYOK?: boolean } = {}
 ): PricedModelCost {
   return priceModelUsage(
     model,
-    {
-      input: promptTokens,
-      output: completionTokens,
-      cacheRead: options.cacheRead,
-      cacheWrites: options.cacheWrites,
-    },
+    { input: promptTokens, output: completionTokens },
     resolveModelCostPolicy(model, options.isBYOK)
   )
 }

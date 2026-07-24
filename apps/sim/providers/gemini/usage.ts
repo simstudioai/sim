@@ -1,9 +1,4 @@
-import {
-  LIST_PRICE_POLICY,
-  type ModelCostPolicy,
-  type PricedModelCost,
-  priceModelUsage,
-} from '@/providers/cost-policy'
+import { LIST_PRICE_POLICY, type PricedModelCost, priceModelUsage } from '@/providers/cost-policy'
 import type { GeminiUsage } from '@/providers/gemini/types'
 
 /**
@@ -33,11 +28,13 @@ export function splitGeminiTokens(
   candidatesTokens: number,
   cachedTokens: number
 ): GeminiTokenSplit {
+  const prompt = Math.max(0, promptTokens)
   // Clamped to the prompt total: a payload reporting more cached tokens than it
   // processed would otherwise bill more input than the request contained.
-  const cacheRead = Math.min(Math.max(0, cachedTokens), Math.max(0, promptTokens))
+  const cacheRead = Math.min(Math.max(0, cachedTokens), prompt)
+
   return {
-    input: Math.max(0, promptTokens) - cacheRead,
+    input: prompt - cacheRead,
     output: candidatesTokens,
     cacheRead,
   }
@@ -55,11 +52,11 @@ export function splitGeminiUsage(usage: GeminiUsage): GeminiTokenSplit {
 /**
  * Prices a split through the shared cache-aware pricing function. With no cache
  * hit this matches pricing the whole prompt total at the base input rate.
+ *
+ * Always at list price. Billability and the margin are applied once, centrally,
+ * by `executeProviderRequest` — a provider applying them here would double-count
+ * the multiplier.
  */
-export function priceGeminiTokens(
-  model: string,
-  split: GeminiTokenSplit,
-  policy: ModelCostPolicy = LIST_PRICE_POLICY
-): PricedModelCost {
-  return priceModelUsage(model, split, policy)
+export function priceGeminiTokens(model: string, split: GeminiTokenSplit): PricedModelCost {
+  return priceModelUsage(model, split, LIST_PRICE_POLICY)
 }

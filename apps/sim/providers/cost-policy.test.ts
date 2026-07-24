@@ -133,21 +133,6 @@ describe('priceModelUsage', () => {
     expect(cost).toMatchObject({ input: 0, output: 0, total: 0 })
   })
 
-  it('ignores negative and non-finite token counts rather than crediting the run', () => {
-    const cost = priceModelUsage(
-      PRICED_MODEL,
-      {
-        input: 1000,
-        output: 0,
-        cacheRead: -5000,
-        cacheWrites: [{ tokens: 1000, inputRateMultiplier: Number.NaN }],
-      },
-      LIST_PRICE_POLICY
-    )
-
-    expect(cost.input).toBeCloseTo(1000 * PER_TOKEN_INPUT, 8)
-  })
-
   /**
    * The regression this guards: Anthropic reports `input_tokens` already
    * excluding cache tokens while OpenAI and Gemini report a cached subset of
