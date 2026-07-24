@@ -80,7 +80,7 @@ Per-model support is generated from the model registry on the [Agent block page]
 |--------|----------|------------|
 | Anthropic / Azure Anthropic | Yes (incl. redacted blocks in traces). The newest Claude generations omit full thinking; Sim requests summarized thinking for them on streaming runs | Yes |
 | Gemini / Vertex | Yes when a thinking level is set (thought summaries requested on agent-events runs) | Yes |
-| OpenAI Responses | Reasoning **summaries** when streamed (requires OpenAI organization verification; unverified orgs fall back to no summaries) | Silent tool loop today (answer streams; chips may be absent) |
+| OpenAI Responses | Reasoning **summaries** when streamed (requires OpenAI organization verification; unverified orgs fall back to no summaries) | Silent tool loop; tool chips arrive settled (start + end together) once tools finish, ahead of the streamed answer — no live in-progress chips yet |
 | OpenAI-compat (Groq, DeepSeek, …) | Only if vendor streams `reasoning` / `reasoning_content` | Live loop where wired (e.g. Groq, DeepSeek) |
 | Bedrock | Not invented | Yes when streaming tool loop is used |
 

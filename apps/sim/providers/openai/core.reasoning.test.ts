@@ -193,12 +193,15 @@ describe('executeResponsesProviderRequest reasoning payload', () => {
       })
     }
 
-    async function drain(stream: ReadableStream<unknown>) {
+    async function collect(stream: ReadableStream<unknown>) {
+      const events: unknown[] = []
       const reader = stream.getReader()
       while (true) {
-        const { done } = await reader.read()
+        const { done, value } = await reader.read()
         if (done) break
+        events.push(value)
       }
+      return events
     }
 
     it('forces tool_choice none and keeps the tool-loop answer when the stream has no text', async () => {
@@ -220,7 +223,15 @@ describe('executeResponsesProviderRequest reasoning payload', () => {
       // The regeneration exists to stream prose; streamed calls are never executed.
       expect(streamBody.tool_choice).toBe('none')
 
-      await drain(result.stream)
+      const events = await collect(result.stream)
+      // Settled chips for the silent loop's executed calls ride ahead of the answer.
+      expect(events[0]).toEqual({ type: 'tool_call_start', id: 'call_1', name: 'exa_search' })
+      expect(events[1]).toEqual({
+        type: 'tool_call_end',
+        id: 'call_1',
+        name: 'exa_search',
+        status: 'success',
+      })
       expect(result.execution.output.content).toBe('Settled answer from loop')
     })
   })
