@@ -1,6 +1,7 @@
 import { createServer } from 'http'
 import { createLogger } from '@sim/logger'
 import type { Server as SocketIOServer } from 'socket.io'
+import { startAccessRevalidationSweep } from '@/access-revalidation'
 import { createSocketIOServer, shutdownSocketIOAdapter } from '@/config/socket'
 import { assertSchemaCompatibility } from '@/database/preflight'
 import { env } from '@/env'
@@ -94,6 +95,10 @@ async function main() {
     setupAllHandlers(socket, roomManager)
   })
 
+  // Bound read-access staleness: periodically re-validate connected sockets and
+  // evict any whose workspace permission has been revoked, matching the write path.
+  const accessRevalidation = startAccessRevalidationSweep(roomManager)
+
   await assertSchemaCompatibility()
 
   httpServer.listen(PORT, '0.0.0.0', () => {
@@ -103,6 +108,8 @@ async function main() {
 
   const shutdown = async () => {
     logger.info('Shutting down Socket.IO server...')
+
+    accessRevalidation.stop()
 
     try {
       await roomManager.shutdown()

@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { createLogger } from '@sim/logger'
 import type {
+  AccessRevokedBroadcast,
   CursorUpdateBroadcast,
   OperationConfirmedBroadcast,
   OperationFailedBroadcast,
@@ -104,6 +105,7 @@ interface SocketContextType {
   onCursorUpdate: (handler: (data: CursorUpdateBroadcast) => void) => void
   onSelectionUpdate: (handler: (data: SelectionUpdateBroadcast) => void) => void
   onWorkflowDeleted: (handler: (data: WorkflowDeletedBroadcast) => void) => void
+  onAccessRevoked: (handler: (data: AccessRevokedBroadcast) => void) => void
   onWorkflowReverted: (handler: (data: WorkflowRevertedBroadcast) => void) => void
   onWorkflowUpdated: (handler: (data: WorkflowUpdatedBroadcast) => void) => void
   onWorkflowDeployed: (handler: (data: WorkflowDeployedBroadcast) => void) => void
@@ -135,6 +137,7 @@ const SocketContext = createContext<SocketContextType>({
   onCursorUpdate: () => {},
   onSelectionUpdate: () => {},
   onWorkflowDeleted: () => {},
+  onAccessRevoked: () => {},
   onWorkflowReverted: () => {},
   onWorkflowUpdated: () => {},
   onWorkflowDeployed: () => {},
@@ -182,6 +185,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     cursorUpdate?: (data: CursorUpdateBroadcast) => void
     selectionUpdate?: (data: SelectionUpdateBroadcast) => void
     workflowDeleted?: (data: WorkflowDeletedBroadcast) => void
+    accessRevoked?: (data: AccessRevokedBroadcast) => void
     workflowReverted?: (data: WorkflowRevertedBroadcast) => void
     workflowUpdated?: (data: WorkflowUpdatedBroadcast) => void
     workflowDeployed?: (data: WorkflowDeployedBroadcast) => void
@@ -593,6 +597,20 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           }
           executeJoinCommands(result.commands)
           eventHandlers.current.workflowDeleted?.(data)
+        })
+
+        socketInstance.on('access-revoked', (data: AccessRevokedBroadcast) => {
+          logger.warn(`Access to workflow ${data.workflowId} has been revoked`)
+          const result = joinControllerRef.current.handleAccessRevoked(data.workflowId)
+          if (result.shouldClearCurrent) {
+            clearJoinedWorkflowState(true)
+            // Surface the same blocked-join UX as a denied join: persistent
+            // toast plus read-only enforcement while the user is still on the
+            // revoked workflow.
+            setBlockedJoinWorkflowId(data.workflowId)
+          }
+          executeJoinCommands(result.commands)
+          eventHandlers.current.accessRevoked?.(data)
         })
 
         socketInstance.on('workflow-reverted', (data: WorkflowRevertedBroadcast) => {
@@ -1154,6 +1172,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     eventHandlers.current.workflowDeleted = handler
   }, [])
 
+  const onAccessRevoked = useCallback((handler: (data: AccessRevokedBroadcast) => void) => {
+    eventHandlers.current.accessRevoked = handler
+  }, [])
+
   const onWorkflowReverted = useCallback((handler: (data: WorkflowRevertedBroadcast) => void) => {
     eventHandlers.current.workflowReverted = handler
   }, [])
@@ -1202,6 +1224,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       onCursorUpdate,
       onSelectionUpdate,
       onWorkflowDeleted,
+      onAccessRevoked,
       onWorkflowReverted,
       onWorkflowUpdated,
       onWorkflowDeployed,
@@ -1232,6 +1255,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       onCursorUpdate,
       onSelectionUpdate,
       onWorkflowDeleted,
+      onAccessRevoked,
       onWorkflowReverted,
       onWorkflowUpdated,
       onWorkflowDeployed,

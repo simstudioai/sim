@@ -18,7 +18,11 @@ const SOCKET_PRESENCE_WORKFLOW_KEY_TTL = 24 * 60 * 60
 
 /**
  * Lua script for atomic user removal from room.
- * Returns workflowId if user was removed, null otherwise.
+ * The hint, when provided, is the target room to remove membership from; the
+ * socket's current mapping is only the fallback. Socket-level keys are cleared
+ * only when the socket is not mapped to a different room, so removing a stale
+ * room cannot destroy the mapping of a room the socket has since moved to.
+ * Returns the target workflowId, or null when no target could be resolved.
  * Handles room cleanup atomically to prevent race conditions.
  */
 const REMOVE_USER_SCRIPT = `
@@ -30,12 +34,13 @@ local workflowMetaPrefix = ARGV[2]
 local socketId = ARGV[3]
 local workflowIdHint = ARGV[4]
 
-local workflowId = redis.call('GET', socketWorkflowKey)
-if not workflowId then
-  workflowId = redis.call('GET', socketPresenceWorkflowKey)
+local currentWorkflowId = redis.call('GET', socketWorkflowKey)
+if not currentWorkflowId then
+  currentWorkflowId = redis.call('GET', socketPresenceWorkflowKey)
 end
 
-if not workflowId and workflowIdHint ~= '' then
+local workflowId = currentWorkflowId
+if workflowIdHint ~= '' then
   workflowId = workflowIdHint
 end
 
@@ -47,7 +52,10 @@ local workflowUsersKey = workflowUsersPrefix .. workflowId .. ':users'
 local workflowMetaKey = workflowMetaPrefix .. workflowId .. ':meta'
 
 redis.call('HDEL', workflowUsersKey, socketId)
-redis.call('DEL', socketWorkflowKey, socketSessionKey, socketPresenceWorkflowKey)
+
+if (not currentWorkflowId) or currentWorkflowId == workflowId then
+  redis.call('DEL', socketWorkflowKey, socketSessionKey, socketPresenceWorkflowKey)
+end
 
 local remaining = redis.call('HLEN', workflowUsersKey)
 if remaining == 0 then
