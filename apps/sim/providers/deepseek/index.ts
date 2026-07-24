@@ -152,8 +152,8 @@ export const deepseekProvider: ProviderConfig = {
               providerName: 'Deepseek',
               request,
               basePayload: payload,
-              // double-cast-allowed: formatMessagesForProvider returns loosely-typed provider messages that are wire-compatible with the OpenAI chat.completions message params the shared loop expects
               messages:
+                // double-cast-allowed: formatMessagesForProvider returns loosely-typed provider messages that are wire-compatible with the OpenAI chat.completions message params the shared loop expects
                 formattedMessages as unknown as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
               createStream: async (params, options) =>
                 deepseek.chat.completions.create({ ...params, stream: true }, options),

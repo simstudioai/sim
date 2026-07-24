@@ -172,10 +172,10 @@ export const groqProvider: ProviderConfig = {
             // double-cast-allowed: formatMessagesForProvider returns loosely-typed provider messages that are wire-compatible with the OpenAI chat.completions message params the shared loop expects
             messages: formattedMessages as unknown as ChatCompletionMessageParam[],
             createStream: async (params, options) => {
-              // double-cast-allowed: groq-sdk chat params are wire-compatible with the OpenAI-typed payload built by the shared compat tool loop
               const groqParams = {
                 ...params,
                 stream: true,
+                // double-cast-allowed: groq-sdk chat params are wire-compatible with the OpenAI-typed payload built by the shared compat tool loop
               } as unknown as GroqChatCompletionCreateParamsStreaming
               const stream = await groq.chat.completions.create(groqParams, options)
               // double-cast-allowed: groq-sdk stream chunks are wire-compatible with the OpenAI ChatCompletionChunk shape the shared compat loop consumes

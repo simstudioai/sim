@@ -228,6 +228,7 @@ export function extractResponseReasoning(output: OpenAI.Responses.ResponseOutput
   const parts: string[] = []
   for (const item of output) {
     if (!item || item.type !== 'reasoning') continue
+    // double-cast-allowed: the Responses SDK types summary entries as non-null, but the wire can carry null entries/text on partial reasoning items; widen to read defensively
     const summary = (item as unknown as { summary?: Array<{ text?: string | null } | null> })
       .summary
     if (!Array.isArray(summary)) continue
