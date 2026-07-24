@@ -55,6 +55,8 @@ export interface WorkspaceMoveCandidate {
   workspaceMode: string
   organizationId: string | null
   billedAccountUserId: string
+  /** Archived workspaces are movable; surfaced so admin UIs can label them. */
+  archived: boolean
 }
 
 export interface WorkspaceMovePreflight {
@@ -123,7 +125,7 @@ export async function searchWorkspaceMoveCandidates(
   const query = search.trim()
   if (!query) return []
 
-  return db
+  const rows = await db
     .select({
       id: workspace.id,
       name: workspace.name,
@@ -133,6 +135,7 @@ export async function searchWorkspaceMoveCandidates(
       workspaceMode: workspace.workspaceMode,
       organizationId: workspace.organizationId,
       billedAccountUserId: workspace.billedAccountUserId,
+      archivedAt: workspace.archivedAt,
     })
     .from(workspace)
     .innerJoin(user, eq(user.id, workspace.ownerId))
@@ -144,6 +147,8 @@ export async function searchWorkspaceMoveCandidates(
     )
     .orderBy(asc(workspace.name))
     .limit(Math.min(Math.max(limit, 1), 50))
+
+  return rows.map(({ archivedAt, ...row }) => ({ ...row, archived: archivedAt !== null }))
 }
 
 /** Builds the human-reviewable summary shown before a workspace move. */
@@ -435,7 +440,7 @@ export async function moveWorkspaceToOrganization(params: {
 }
 
 async function searchWorkspaceById(workspaceId: string): Promise<WorkspaceMoveCandidate[]> {
-  return db
+  const rows = await db
     .select({
       id: workspace.id,
       name: workspace.name,
@@ -451,6 +456,8 @@ async function searchWorkspaceById(workspaceId: string): Promise<WorkspaceMoveCa
     .innerJoin(user, eq(user.id, workspace.ownerId))
     .where(eq(workspace.id, workspaceId))
     .limit(1)
+
+  return rows.map(({ archivedAt, ...row }) => ({ ...row, archived: archivedAt !== null }))
 }
 
 /**

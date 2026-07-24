@@ -35,6 +35,8 @@ const adminDashboardWorkspaceCandidateSchema = z.object({
   workspaceMode: z.string(),
   organizationId: z.string().nullable(),
   billedAccountUserId: z.string(),
+  /** Archived workspaces are movable; the flag lets admin UIs label them. */
+  archived: z.boolean(),
 })
 
 const adminDashboardWorkspacePreflightSchema = z.object({

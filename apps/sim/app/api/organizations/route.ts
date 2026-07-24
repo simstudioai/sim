@@ -186,9 +186,16 @@ export const POST = withRouteHandler(async (request: Request) => {
       organizationId = existingAdminMembership.organizationId
 
       if (activeOrgSubscription.referenceId === organizationId) {
+        /**
+         * keep-external, matching the Pro→Team conversion: different-org
+         * collaborators (including ones on archived workspaces the sweep now
+         * covers) stay external workspace members instead of aborting the
+         * whole org recovery with a conflict.
+         */
         await attachOwnedWorkspacesToOrganization({
           ownerUserId: user.id,
           organizationId,
+          externalMemberPolicy: 'keep-external',
           includeArchived: true,
         })
       } else {
