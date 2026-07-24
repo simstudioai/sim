@@ -117,7 +117,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const domain = normalizeSSODomain(body.domain)
     if (!domain) {
-      return NextResponse.json({ error: 'Enter a valid domain like company.com' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Enter a valid domain, for example acme.com' },
+        { status: 400 }
+      )
     }
 
     // Security gate: configuring org SSO for a domain requires the org to have

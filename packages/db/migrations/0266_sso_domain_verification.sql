@@ -25,6 +25,11 @@ CREATE UNIQUE INDEX "sso_domain_verified_unique" ON "sso_domain" USING btree ("d
 -- keeps the DISTINCT ON dedup key identical to the inserted value, so the
 -- global partial unique index on verified rows can never be violated. The
 -- token is a placeholder since these rows are already verified.
+-- NOTE: if two orgs somehow share a domain (possible only for data predating the
+-- register-route conflict check), DISTINCT ON grandfathers the lowest org_id and
+-- the other org gets no row. Its existing SSO login is unaffected (login never
+-- reads sso_domain); it just can't re-register that domain until an admin
+-- resolves the duplicate. Validated against prod: no such duplicates exist.
 INSERT INTO "sso_domain" ("id", "organization_id", "domain", "status", "verification_token", "verified_at", "created_at", "updated_at")
 SELECT DISTINCT ON ("norm_domain")
 	gen_random_uuid()::text,

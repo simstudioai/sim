@@ -561,7 +561,7 @@ async function registerSSOProvider(): Promise<boolean> {
     }
 
     const existingProviders = await db
-      .select()
+      .select({ id: ssoProvider.id })
       .from(ssoProvider)
       .where(eq(ssoProvider.providerId, ssoConfig.providerId))
 

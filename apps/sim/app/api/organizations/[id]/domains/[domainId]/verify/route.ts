@@ -90,7 +90,7 @@ export const POST = withRouteHandler(
       .limit(1)
     if (verifiedElsewhere && verifiedElsewhere.organizationId !== organizationId) {
       return NextResponse.json(
-        { error: 'This domain was verified by another organization' },
+        { error: 'This domain is already verified by another organization' },
         { status: 409 }
       )
     }
@@ -117,7 +117,7 @@ export const POST = withRouteHandler(
     } catch (error) {
       if (getPostgresErrorCode(error) === '23505') {
         return NextResponse.json(
-          { error: 'This domain was verified by another organization' },
+          { error: 'This domain is already verified by another organization' },
           { status: 409 }
         )
       }
