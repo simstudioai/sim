@@ -34,10 +34,10 @@ interface SelectPillProps {
   className?: string
 }
 
-/** A single colored option pill, rendered through the shared `Badge` palette. */
+/** A single option pill, rendered through the shared neutral `Badge`. */
 export function SelectPill({ option, size = 'sm', className }: SelectPillProps) {
   return (
-    <Badge variant={option.color} size={size} className={cn('max-w-full', className)}>
+    <Badge variant='gray' size={size} className={cn('max-w-full', className)}>
       <span className='truncate'>{option.name}</span>
     </Badge>
   )

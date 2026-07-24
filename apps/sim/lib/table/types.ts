@@ -2,7 +2,7 @@
  * Type definitions for user-defined tables.
  */
 
-import type { COLUMN_TYPES, SelectColor } from '@/lib/table/constants'
+import type { COLUMN_TYPES } from '@/lib/table/constants'
 
 export type ColumnValue = string | number | boolean | null | Date
 export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
@@ -28,12 +28,11 @@ export interface ColumnOption {
 
 /**
  * One choice in a `select`/`multiselect` column. `id` is stable — cell data
- * references it, so renaming or recoloring an option never rewrites rows.
+ * references it, so renaming an option never rewrites rows.
  */
 export interface SelectOption {
   id: string
   name: string
-  color: SelectColor
 }
 
 export interface ColumnDefinition {

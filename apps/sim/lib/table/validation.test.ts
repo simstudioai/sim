@@ -15,8 +15,8 @@ const selectColumn: ColumnDefinition = {
   name: 'status',
   type: 'select',
   options: [
-    { id: 'opt_open', name: 'Open', color: 'green' },
-    { id: 'opt_closed', name: 'Closed', color: 'red' },
+    { id: 'opt_open', name: 'Open' },
+    { id: 'opt_closed', name: 'Closed' },
   ],
 }
 
@@ -26,8 +26,8 @@ const multiselectColumn: ColumnDefinition = {
   type: 'select',
   multiple: true,
   options: [
-    { id: 'opt_a', name: 'Alpha', color: 'blue' },
-    { id: 'opt_b', name: 'Beta', color: 'purple' },
+    { id: 'opt_a', name: 'Alpha' },
+    { id: 'opt_b', name: 'Beta' },
   ],
 }
 
@@ -152,8 +152,8 @@ describe('validateColumnDefinition — select options', () => {
     const result = validateColumnDefinition({
       ...selectColumn,
       options: [
-        { id: 'dup', name: 'One', color: 'green' },
-        { id: 'dup', name: 'Two', color: 'red' },
+        { id: 'dup', name: 'One' },
+        { id: 'dup', name: 'Two' },
       ],
     })
     expect(result.valid).toBe(false)
@@ -163,17 +163,9 @@ describe('validateColumnDefinition — select options', () => {
     const result = validateColumnDefinition({
       ...selectColumn,
       options: [
-        { id: 'a', name: 'Same', color: 'green' },
-        { id: 'b', name: 'same', color: 'red' },
+        { id: 'a', name: 'Same' },
+        { id: 'b', name: 'same' },
       ],
-    })
-    expect(result.valid).toBe(false)
-  })
-
-  it('rejects an invalid color', () => {
-    const result = validateColumnDefinition({
-      ...selectColumn,
-      options: [{ id: 'a', name: 'One', color: 'chartreuse' as never }],
     })
     expect(result.valid).toBe(false)
   })
@@ -183,7 +175,7 @@ describe('validateColumnDefinition — select options', () => {
       id: 'c',
       name: 'plain',
       type: 'string',
-      options: [{ id: 'a', name: 'One', color: 'green' }],
+      options: [{ id: 'a', name: 'One' }],
     })
     expect(result.valid).toBe(false)
   })

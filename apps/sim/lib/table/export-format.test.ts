@@ -10,8 +10,8 @@ const singleSelect: ColumnDefinition = {
   name: 'status',
   type: 'select',
   options: [
-    { id: 'opt_open', name: 'Open', color: 'green' },
-    { id: 'opt_closed', name: 'Closed', color: 'red' },
+    { id: 'opt_open', name: 'Open' },
+    { id: 'opt_closed', name: 'Closed' },
   ],
 }
 
@@ -21,8 +21,8 @@ const multiSelect: ColumnDefinition = {
   type: 'select',
   multiple: true,
   options: [
-    { id: 'opt_a', name: 'Alpha', color: 'blue' },
-    { id: 'opt_b', name: 'Beta', color: 'purple' },
+    { id: 'opt_a', name: 'Alpha' },
+    { id: 'opt_b', name: 'Beta' },
   ],
 }
 

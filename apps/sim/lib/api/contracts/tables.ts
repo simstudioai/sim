@@ -13,13 +13,7 @@ import type {
   TableRow,
   TableRowsCursor,
 } from '@/lib/table'
-import {
-  COLUMN_TYPES,
-  MAX_SELECT_OPTIONS,
-  NAME_PATTERN,
-  SELECT_COLORS,
-  TABLE_LIMITS,
-} from '@/lib/table/constants'
+import { COLUMN_TYPES, MAX_SELECT_OPTIONS, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 
 export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
@@ -30,9 +24,6 @@ export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
  */
 export const columnTypeSchema = z.enum(COLUMN_TYPES)
 
-/** Fixed palette token for a `select` option. */
-export const selectColorSchema = z.enum(SELECT_COLORS)
-
 /** One choice in a `select` column. `id` is the stable cell key. */
 export const selectOptionSchema = z.object({
   id: z.string().min(1, 'Option id is required'),
@@ -40,7 +31,6 @@ export const selectOptionSchema = z.object({
     .string()
     .min(1, 'Option name is required')
     .max(100, 'Option name must be 100 characters or less'),
-  color: selectColorSchema,
 })
 
 export const selectOptionsSchema = z

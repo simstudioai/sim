@@ -433,8 +433,8 @@ describe('SQL Builder', () => {
       name: 'status',
       type: 'select',
       options: [
-        { id: 'opt_open', name: 'Open', color: 'green' },
-        { id: 'opt_closed', name: 'Closed', color: 'red' },
+        { id: 'opt_open', name: 'Open' },
+        { id: 'opt_closed', name: 'Closed' },
       ],
     }
     const tagsCol: ColumnDefinition = {
@@ -442,7 +442,7 @@ describe('SQL Builder', () => {
       name: 'tags',
       type: 'select',
       multiple: true,
-      options: [{ id: 'opt_a', name: 'Alpha', color: 'blue' }],
+      options: [{ id: 'opt_a', name: 'Alpha' }],
     }
 
     it('filters a select by option id via containment', () => {

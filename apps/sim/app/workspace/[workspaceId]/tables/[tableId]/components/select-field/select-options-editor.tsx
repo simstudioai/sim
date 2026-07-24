@@ -15,9 +15,7 @@ interface SelectOptionsEditorProps {
  * Add/remove/rename the options of a `select` column. Option ids are stable
  * across edits so existing cell data survives renames. New options are added by
  * typing into the trailing empty row — the first keystroke materializes the
- * option and focus jumps into it so typing flows straight through. Options
- * default to the neutral `gray` pill (per-option colors aren't exposed yet; the
- * `color` field stays in the model so a picker can be re-added later).
+ * option and focus jumps into it so typing flows straight through.
  */
 export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorProps) {
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
@@ -50,7 +48,7 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
   /** Typing into the trailing row promotes it to a real option and keeps focus. */
   const materialize = (name: string) => {
     const id = generateShortId()
-    onChange([...options, { id, name, color: 'gray' }])
+    onChange([...options, { id, name }])
     setPendingFocusId(id)
   }
 

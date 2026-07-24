@@ -12,8 +12,6 @@ import {
   getMaxRowSizeBytes,
   MAX_SELECT_OPTIONS,
   NAME_PATTERN,
-  SELECT_COLORS,
-  type SelectColor,
   TABLE_LIMITS,
 } from '@/lib/table/constants'
 import { normalizeDateCellValue } from '@/lib/table/dates'
@@ -785,7 +783,6 @@ function validateSelectOptions(column: ColumnDefinition): string[] {
   }
   const ids = new Set<string>()
   const names = new Set<string>()
-  const validColors = new Set<SelectColor>(SELECT_COLORS)
   for (const opt of options) {
     if (!opt.id || typeof opt.id !== 'string') {
       errors.push(`Column "${column.name}" has an option missing an id`)
@@ -803,9 +800,6 @@ function validateSelectOptions(column: ColumnDefinition): string[] {
       } else {
         names.add(key)
       }
-    }
-    if (!validColors.has(opt.color)) {
-      errors.push(`Column "${column.name}" has an option with invalid color "${opt.color}"`)
     }
   }
   return errors
