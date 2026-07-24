@@ -883,7 +883,7 @@ async function getMovedWorkspaceSummary(
   workspaceId: string,
   destination: WorkspaceMoveDestination
 ): Promise<WorkspaceMovePreflight> {
-  const [workspaceRow] = await executor
+  const [movedRow] = await executor
     .select({
       id: workspace.id,
       name: workspace.name,
@@ -893,13 +893,19 @@ async function getMovedWorkspaceSummary(
       workspaceMode: workspace.workspaceMode,
       organizationId: workspace.organizationId,
       billedAccountUserId: workspace.billedAccountUserId,
+      archivedAt: workspace.archivedAt,
     })
     .from(workspace)
     .innerJoin(user, eq(user.id, workspace.ownerId))
     .where(eq(workspace.id, workspaceId))
     .limit(1)
-  if (!workspaceRow) {
+  if (!movedRow) {
     throw new WorkspaceMoveError('Moved workspace could not be reloaded', 'workspace-not-found')
+  }
+  const { archivedAt, ...movedWorkspace } = movedRow
+  const workspaceRow: WorkspaceMoveCandidate = {
+    ...movedWorkspace,
+    archived: archivedAt !== null,
   }
 
   const collaboratorRows = await executor

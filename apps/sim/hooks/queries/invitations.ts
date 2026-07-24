@@ -21,8 +21,15 @@ export const invitationKeys = {
   lists: () => [...invitationKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...invitationKeys.lists(), workspaceId] as const,
   details: () => [...invitationKeys.all, 'detail'] as const,
-  detail: (invitationId: string, token: string | null) =>
-    [...invitationKeys.details(), invitationId, token ?? ''] as const,
+  /**
+   * Scoped by viewer: the response is viewer-dependent (the join preview is
+   * invitee-only, and authorization differs per account), so a cached entry
+   * must never be reused across a sign-out/sign-in on the same invite link —
+   * doing so would let a stale "nothing moves" preview become the disclosure
+   * basis for a different user.
+   */
+  detail: (invitationId: string, token: string | null, viewerId: string | null) =>
+    [...invitationKeys.details(), invitationId, token ?? '', viewerId ?? ''] as const,
 }
 
 export const WORKSPACE_INVITATION_LIST_STALE_TIME = 30 * 1000
@@ -48,10 +55,11 @@ async function fetchInvitationDetails(
 export function useInvitationDetails(
   invitationId: string | undefined,
   token: string | null,
+  viewerId: string | null,
   options?: { enabled?: boolean }
 ) {
   return useQuery({
-    queryKey: invitationKeys.detail(invitationId ?? '', token),
+    queryKey: invitationKeys.detail(invitationId ?? '', token, viewerId),
     queryFn: ({ signal }) => fetchInvitationDetails(invitationId as string, token, signal),
     enabled: Boolean(invitationId) && (options?.enabled ?? true),
     staleTime: INVITATION_DETAILS_STALE_TIME,

@@ -86,12 +86,21 @@ export function RemoveMemberDialog({
       confirm={{
         label: isSelfRemoval ? 'Leave Organization' : 'Remove',
         onClick: () => onConfirmRemove(),
-        pending: isSubmitting || credentialImpactPending,
-        pendingLabel:
-          credentialImpactPending && !isSubmitting ? 'Checking credentials…' : undefined,
+        pending: isSubmitting,
+        /**
+         * `disabled`, not `pending`: the impact check is a precondition, and
+         * `pending` means "the confirm is in flight" — the primitive also
+         * disables the dismiss button while pending, which must stay available
+         * while we are merely loading the disclosure.
+         */
+        disabled: credentialImpactPending,
       }}
     >
-      {credentialWarning ? (
+      {credentialImpactPending ? (
+        <p className='mt-1 px-2 text-[var(--text-muted)] text-caption'>
+          Checking which connected credentials this affects…
+        </p>
+      ) : credentialWarning ? (
         <p className='mt-1 px-2 text-[var(--text-muted)] text-caption'>{credentialWarning}</p>
       ) : null}
       {errorMessage ? (

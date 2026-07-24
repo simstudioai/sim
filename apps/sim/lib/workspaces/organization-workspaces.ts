@@ -227,6 +227,7 @@ export async function attachOwnedWorkspacesToOrganizationTx(
       id: workspace.id,
       billedAccountUserId: workspace.billedAccountUserId,
       organizationId: workspace.organizationId,
+      archivedAt: workspace.archivedAt,
     })
     .from(workspace)
     .where(
@@ -257,12 +258,27 @@ export async function attachOwnedWorkspacesToOrganizationTx(
   }
 
   const ownedWorkspaceIds = ownedWorkspaces.map((row) => row.id)
-  const permissionRows = await tx
-    .select({ userId: permissions.userId })
-    .from(permissions)
-    .where(
-      and(eq(permissions.entityType, 'workspace'), inArray(permissions.entityId, ownedWorkspaceIds))
-    )
+  /**
+   * Collaborators are enumerated from ACTIVE workspaces only. Archived
+   * workspaces still attach (so unarchiving can never dodge the organization),
+   * but sweeping them must not change who becomes a member: a forgotten
+   * collaborator on an archived workspace would otherwise be joined — and
+   * billed as a seat — by an upgrade they had nothing to do with. Anyone
+   * reachable only through an archived workspace stays an external member.
+   */
+  const activeWorkspaceIds = ownedWorkspaces.filter((row) => !row.archivedAt).map((row) => row.id)
+  const permissionRows =
+    activeWorkspaceIds.length > 0
+      ? await tx
+          .select({ userId: permissions.userId })
+          .from(permissions)
+          .where(
+            and(
+              eq(permissions.entityType, 'workspace'),
+              inArray(permissions.entityId, activeWorkspaceIds)
+            )
+          )
+      : []
   const workspaceMemberIds = [...new Set(permissionRows.map((row) => row.userId))].sort()
   const memberships =
     workspaceMemberIds.length > 0

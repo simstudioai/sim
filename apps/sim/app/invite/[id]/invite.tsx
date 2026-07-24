@@ -240,7 +240,7 @@ export default function Invite() {
     }
   }, [searchParams, inviteId, inviteTokenStorageKey])
 
-  const invitationQuery = useInvitationDetails(inviteId, token, {
+  const invitationQuery = useInvitationDetails(inviteId, token, session?.user?.id ?? null, {
     enabled: Boolean(session?.user),
   })
   const invitation = invitationQuery.data?.invitation ?? null
@@ -492,7 +492,13 @@ export default function Invite() {
   }
 
   const isOrg = invitation?.kind === 'organization'
-  const organizationLabel = invitation?.organizationName || 'the organization'
+  /**
+   * Prefer the preview's organization (the one acceptance will really join)
+   * over the invitation's stamped name — a granted workspace may have moved
+   * organizations since the invite was sent.
+   */
+  const organizationLabel =
+    joinPreview?.organizationName || invitation?.organizationName || 'the organization'
   /**
    * When the server could not compute the preview, fall back to a generic
    * migration notice for membership invites — a missing preview must never

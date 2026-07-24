@@ -188,8 +188,45 @@ async function stampedOrganizationAllowsEscalation(
   )
 }
 
+/**
+ * True when a member-role organization invitation still has at least one
+ * granted workspace inside the organization it was stamped with. All grants
+ * leaving that organization would strand the new member with nowhere to land,
+ * so acceptance refuses and the preview must predict the same — both consume
+ * this single predicate so they cannot drift.
+ */
+async function hasLiveGrantInStampedOrganization(
+  inv: InvitationWithGrants,
+  executor: DbOrTx = db
+): Promise<boolean> {
+  if (inv.kind !== 'organization' || !inv.organizationId) return true
+  if (isOrgAdminRole(inv.role)) return true
+  if (inv.grants.length === 0) return true
+  const [liveGrant] = await executor
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(
+      and(
+        inArray(
+          workspace.id,
+          inv.grants.map((grant) => grant.workspaceId)
+        ),
+        eq(workspace.organizationId, inv.organizationId)
+      )
+    )
+    .limit(1)
+  return Boolean(liveGrant)
+}
+
 export interface InvitationJoinPreviewResult {
   willJoinOrganization: boolean
+  /**
+   * Name of the organization acceptance will actually join. For a workspace
+   * invite this is the granted workspace's LIVE organization, which can differ
+   * from the stamped `invitation.organizationName` — the disclosure must name
+   * the organization that will really gain control of the user's workspaces.
+   */
+  organizationName: string | null
   workspacesToMove: string[]
   /**
    * Stable ids behind `workspacesToMove`; the accept screen echoes them back
@@ -212,6 +249,7 @@ export async function getInvitationJoinPreview(
 ): Promise<InvitationJoinPreviewResult> {
   const noJoin: InvitationJoinPreviewResult = {
     willJoinOrganization: false,
+    organizationName: null,
     workspacesToMove: [],
     workspaceIdsToMove: [],
   }
@@ -245,32 +283,7 @@ export async function getInvitationJoinPreview(
 
   if (!(await stampedOrganizationAllowsEscalation(inv, workspaceOrganizationId))) return noJoin
 
-  /**
-   * Mirror of acceptance's stale-grant gate: a member-role organization
-   * invite whose grants ALL left the stamped organization rolls back at
-   * accept, so the preview must not promise a migration for it.
-   */
-  if (
-    inv.kind === 'organization' &&
-    inv.organizationId &&
-    !isOrgAdminRole(inv.role) &&
-    inv.grants.length > 0
-  ) {
-    const [liveGrant] = await db
-      .select({ id: workspace.id })
-      .from(workspace)
-      .where(
-        and(
-          inArray(
-            workspace.id,
-            inv.grants.map((grant) => grant.workspaceId)
-          ),
-          eq(workspace.organizationId, inv.organizationId)
-        )
-      )
-      .limit(1)
-    if (!liveGrant) return noJoin
-  }
+  if (!(await hasLiveGrantInStampedOrganization(inv))) return noJoin
 
   /**
    * Mirror acceptance's billing gates: an unusable organization subscription
@@ -301,8 +314,19 @@ export async function getInvitationJoinPreview(
     .where(ownedAttachableWorkspacesWhere({ userId: inviteeUserId, includeArchived: true }))
     .orderBy(asc(workspace.name))
 
+  let targetOrganizationName: string | null = null
+  if (workspaceOrganizationId) {
+    const [targetOrg] = await db
+      .select({ name: organization.name })
+      .from(organization)
+      .where(eq(organization.id, workspaceOrganizationId))
+      .limit(1)
+    targetOrganizationName = targetOrg?.name ?? null
+  }
+
   return {
     willJoinOrganization: true,
+    organizationName: targetOrganizationName,
     workspacesToMove: ownedWorkspaces.map((row) => row.name),
     workspaceIdsToMove: ownedWorkspaces.map((row) => row.id),
   }
@@ -719,29 +743,8 @@ async function acceptLockedInvitation(
    * real cause. The grant rows are advisory-locked, so this read cannot
    * change for the rest of the transaction.
    */
-  if (
-    shouldJoinOrganization &&
-    inv.kind === 'organization' &&
-    inv.organizationId &&
-    !isOrgAdminRole(inv.role) &&
-    inv.grants.length > 0
-  ) {
-    const [liveGrant] = await tx
-      .select({ id: workspace.id })
-      .from(workspace)
-      .where(
-        and(
-          inArray(
-            workspace.id,
-            inv.grants.map((grant) => grant.workspaceId)
-          ),
-          eq(workspace.organizationId, inv.organizationId)
-        )
-      )
-      .limit(1)
-    if (!liveGrant) {
-      return { success: false, kind: 'workspace-not-found' }
-    }
+  if (shouldJoinOrganization && !(await hasLiveGrantInStampedOrganization(inv, tx))) {
+    return { success: false, kind: 'workspace-not-found' }
   }
 
   let targetOrganizationId = workspaceOrganizationId
@@ -805,8 +808,37 @@ async function acceptLockedInvitation(
       }
       membershipAlreadyExists = membershipResult.alreadyMember
 
-      if (!membershipResult.alreadyMember) {
+      /**
+       * `membershipResult.alreadyMember` is true both for a genuinely
+       * pre-existing member AND for an invitee this very transaction just
+       * auto-joined (the Pro→Team conversion's `keep-external` attach joins
+       * org-less collaborators of the billing owner's workspaces before we
+       * reach here). Only the FORMER may skip the join side effects, so key
+       * them off the pre-acceptance membership snapshot instead — otherwise a
+       * collaborator-invitee silently keeps their workspaces personal, pays
+       * no seat, and loses their invited role.
+       */
+      const joinedDuringThisAcceptance = !alreadyMemberOfTarget
+
+      if (joinedDuringThisAcceptance) {
         effects.memberRole = inv.role || 'member'
+      }
+
+      /**
+       * An in-transaction auto-join lands everyone as `member`; restore the
+       * role the invitation actually granted when it is higher.
+       */
+      if (
+        joinedDuringThisAcceptance &&
+        membershipResult.alreadyMember &&
+        isOrgAdminRole(inv.role)
+      ) {
+        await tx
+          .update(member)
+          .set({ role: inv.role })
+          .where(
+            and(eq(member.userId, input.userId), eq(member.organizationId, targetOrganizationId))
+          )
       }
 
       // Grow the paid seat count to match the new member and push the charge
@@ -814,7 +846,7 @@ async function acceptLockedInvitation(
       // fixed). Best-effort: the member is already in, and a transient
       // failure self-heals on the next join/removal reconcile, matching the
       // removal path's seat accounting.
-      if (billingManagesSeats && !membershipResult.alreadyMember) {
+      if (billingManagesSeats && joinedDuringThisAcceptance) {
         effects.reconcileSeats = true
       }
 
@@ -833,7 +865,7 @@ async function acceptLockedInvitation(
        * rolled back (retry succeeds with the fresh set) instead of committing
        * a member whose workspace dodged the sweep.
        */
-      if (!membershipResult.alreadyMember) {
+      if (joinedDuringThisAcceptance) {
         const currentOwnedIds = (
           await tx
             .select({ id: workspace.id })
@@ -863,7 +895,9 @@ async function acceptLockedInvitation(
         }
 
         if (lockPlan.joinerAttachWorkspaceIds.length > 0) {
-          await acquireOrganizationMutationLock(tx, targetOrganizationId)
+          // No acquireOrganizationMutationLock here: ensureUserInOrganizationTx
+          // above already took it for this organization, and advisory locks are
+          // transaction-scoped, so re-taking it is two wasted round trips.
           const attachResult = await attachOwnedWorkspacesToOrganizationTx(tx, {
             ownerUserId: input.userId,
             organizationId: targetOrganizationId,

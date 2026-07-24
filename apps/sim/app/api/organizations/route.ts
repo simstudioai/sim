@@ -187,15 +187,16 @@ export const POST = withRouteHandler(async (request: Request) => {
 
       if (activeOrgSubscription.referenceId === organizationId) {
         /**
-         * keep-external, matching the Pro→Team conversion: different-org
-         * collaborators (including ones on archived workspaces the sweep now
-         * covers) stay external workspace members instead of aborting the
-         * whole org recovery with a conflict.
+         * Keeps the default `reject` policy: manual organization creation
+         * surfaces a different-org collaborator as an explicit conflict (409
+         * with actionable copy) rather than silently demoting them to an
+         * external member. Safe alongside `includeArchived` because the attach
+         * only enumerates collaborators of ACTIVE workspaces, so sweeping
+         * archived rows cannot manufacture a conflict.
          */
         await attachOwnedWorkspacesToOrganization({
           ownerUserId: user.id,
           organizationId,
-          externalMemberPolicy: 'keep-external',
           includeArchived: true,
         })
       } else {

@@ -151,6 +151,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       organizationId: creationPolicy.organizationId,
       workspaceMode: creationPolicy.workspaceMode,
       billedAccountUserId: creationPolicy.billedAccountUserId,
+      observedOrganizationId: creationPolicy.observedOrganizationId,
     })
 
     captureServerEvent(
@@ -210,6 +211,7 @@ async function createDefaultWorkspace(
     organizationId: string | null
     workspaceMode: WorkspaceMode
     billedAccountUserId: string
+    observedOrganizationId: string | null
   }
 ) {
   const firstName = userName?.split(' ')[0] || null
@@ -220,11 +222,14 @@ async function createDefaultWorkspace(
     organizationId: creationPolicy.organizationId,
     workspaceMode: creationPolicy.workspaceMode,
     billedAccountUserId: creationPolicy.billedAccountUserId,
+    observedOrganizationId: creationPolicy.observedOrganizationId,
   })
 }
 
 interface CreateWorkspaceParams {
   userId: string
+  /** Membership the creation policy observed; see WorkspaceCreationPolicy. */
+  observedOrganizationId: string | null
   name: string
   skipDefaultWorkflow?: boolean
   explicitColor?: string
@@ -235,6 +240,7 @@ interface CreateWorkspaceParams {
 
 async function createWorkspace({
   userId,
+  observedOrganizationId,
   name,
   skipDefaultWorkflow = false,
   explicitColor,
@@ -259,12 +265,19 @@ async function createWorkspace({
        */
       if (!organizationId) {
         await acquireUserBillingIdentityLock(tx, userId)
-        const [existingMembership] = await tx
-          .select({ id: member.id })
+        const [currentMembership] = await tx
+          .select({ organizationId: member.organizationId })
           .from(member)
           .where(eq(member.userId, userId))
           .limit(1)
-        if (existingMembership) {
+        /**
+         * Only a CHANGE since the policy read means the decision is stale. An
+         * unchanged membership is legitimately personal — the policy returns
+         * a personal decision for members whose organization has no usable
+         * Team/Enterprise plan (a dormant org), and those users must still be
+         * able to create workspaces.
+         */
+        if ((currentMembership?.organizationId ?? null) !== observedOrganizationId) {
           throw new PersonalWorkspaceCreationRacedError()
         }
       }

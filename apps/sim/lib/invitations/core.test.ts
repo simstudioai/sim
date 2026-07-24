@@ -602,6 +602,88 @@ describe('acceptInvitation', () => {
     })
   })
 
+  it('still sweeps when the same transaction auto-joined the invitee', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner-1',
+    })
+    /**
+     * No membership before acceptance, but ensureUserInOrganizationTx reports
+     * alreadyMember — i.e. the Pro→Team conversion's keep-external attach
+     * joined this collaborator moments earlier in the same transaction. The
+     * sweep and the seat reconcile must still run.
+     */
+    mockEnsureTeamOrganizationForAcceptance.mockResolvedValueOnce({
+      success: true,
+      organizationId: 'org-1',
+      fixedSeats: false,
+    })
+    mockEnsureUserInOrganization.mockResolvedValueOnce({
+      success: true,
+      alreadyMember: true,
+      billingActions: { proUsageSnapshotted: false, proCancelledAtPeriodEnd: false },
+    })
+    mockAttachOwnedWorkspacesToOrganizationTx.mockResolvedValueOnce({
+      attachedWorkspaceIds: ['joiner-ws-1'],
+      addedMemberIds: [],
+      skippedMembers: [],
+      usageLimitUserIds: [],
+    })
+
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'invitee@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [{ id: 'joiner-ws-1' }],
+      // Post-join owned-set re-check under the billing-identity lock.
+      [{ id: 'joiner-ws-1' }],
+      // Grant-txn membership re-check under the lock: member still present.
+      [{ id: 'member-1' }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockAttachOwnedWorkspacesToOrganizationTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ ownerUserId: 'invitee-user', workspaceIds: ['joiner-ws-1'] })
+    )
+    expect(mockReconcileOrganizationSeats).toHaveBeenCalled()
+  })
+
   it('attaches the invitee-owned personal workspaces when joining the organization', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
@@ -1070,10 +1152,15 @@ describe('acceptInvitation', () => {
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
-    mockEnsureTeamOrganizationForAcceptance.mockResolvedValueOnce({
-      success: true,
+    /**
+     * A genuinely pre-existing member: the membership is visible BEFORE
+     * acceptance runs. (An `alreadyMember` result with no prior membership
+     * means this transaction just auto-joined them, which must still sweep.)
+     */
+    mockGetUserOrganization.mockResolvedValue({
       organizationId: 'org-1',
-      fixedSeats: false,
+      role: 'member',
+      memberId: 'member-1',
     })
     mockEnsureUserInOrganization.mockResolvedValueOnce({
       success: true,

@@ -16,6 +16,9 @@ import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
 
 const logger = createLogger('WorkspacePage')
 
+/** Bounds the one-shot reload after a creation-vs-membership 409. */
+const WORKSPACE_RACE_RETRY_KEY = 'workspaceRaceRetry'
+
 /**
  * A 401 while the session claims we're authenticated means the auth cookies
  * are stale or inconsistent (e.g. after an impersonation session expired or
@@ -130,7 +133,7 @@ export default function WorkspacePage() {
         return
       }
       hasRedirectedRef.current = true
-      handleNoWorkspaces(router)
+      handleNoWorkspaces(router, () => setRecoveryFailed(true))
       return
     }
 
@@ -171,7 +174,7 @@ export default function WorkspacePage() {
         description={
           blockedPolicy.workspaceMode === 'organization'
             ? "Your account is linked to an organization, but you don't have access to any of its workspaces. Ask an organization admin for workspace access, then check again — or sign out and back in if you recently left the organization."
-            : 'All of your workspaces are archived and your plan has reached its workspace limit. Unarchive a workspace or upgrade your plan to continue.'
+            : 'Your plan has reached its workspace limit and none of your workspaces are active. Upgrade your plan to create another workspace, or contact support to restore an archived one.'
         }
         primaryLabel='Check again'
         onPrimary={() => window.location.reload()}
@@ -232,7 +235,10 @@ async function handleWorkflowRedirect(
   router.replace(`/workspace/${fallbackWorkspaceId}/home`)
 }
 
-async function handleNoWorkspaces(router: ReturnType<typeof useRouter>): Promise<void> {
+async function handleNoWorkspaces(
+  router: ReturnType<typeof useRouter>,
+  onUnrecoverable: () => void
+): Promise<void> {
   logger.warn('No workspaces found, creating default workspace')
   try {
     const data = await requestJson(createWorkspaceContract, {
@@ -240,18 +246,28 @@ async function handleNoWorkspaces(router: ReturnType<typeof useRouter>): Promise
     })
     if (data.workspace?.id) {
       logger.info(`Created default workspace: ${data.workspace.id}`)
+      sessionStorage.removeItem(WORKSPACE_RACE_RETRY_KEY)
       router.replace(`/workspace/${data.workspace.id}/home`)
       return
     }
     logger.error('Failed to create default workspace')
   } catch (error) {
     /**
-     * 409 means the user joined an organization while the default workspace
-     * was being created — they are still authenticated and likely have org
-     * workspaces now, so re-resolve instead of falling into the login path.
+     * 409 means the caller's organization membership changed while the
+     * default workspace was being created — they are still authenticated and
+     * their workspaces likely exist now, so re-resolve ONCE. A second 409
+     * means something other than a race, so surface the error card instead of
+     * reloading forever.
      */
     if (isApiClientError(error) && error.status === 409) {
-      logger.info('Default workspace creation raced an organization join; re-resolving')
+      if (sessionStorage.getItem(WORKSPACE_RACE_RETRY_KEY)) {
+        logger.error('Default workspace creation kept conflicting after a retry')
+        sessionStorage.removeItem(WORKSPACE_RACE_RETRY_KEY)
+        onUnrecoverable()
+        return
+      }
+      sessionStorage.setItem(WORKSPACE_RACE_RETRY_KEY, '1')
+      logger.info('Default workspace creation raced an organization change; re-resolving')
       window.location.reload()
       return
     }

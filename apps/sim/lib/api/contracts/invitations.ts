@@ -2,6 +2,13 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
 
+/**
+ * Shared cap for the disclosure token: the preview's id list and the accept
+ * body's echo of it must agree, or a large owned-workspace set would produce a
+ * preview the accept endpoint rejects as over-long.
+ */
+export const DISCLOSED_WORKSPACE_ID_LIMIT = 500
+
 export const invitationParamsSchema = z.object({
   id: z.string({ error: 'Invitation ID is required' }).min(1, 'Invitation ID is required'),
 })
@@ -80,7 +87,7 @@ export const invitationActionBodySchema = z.object({
    * the set it would actually sweep differs — consent is only valid for the
    * set the user saw.
    */
-  disclosedWorkspaceIds: z.array(z.string()).max(200).optional(),
+  disclosedWorkspaceIds: z.array(z.string()).max(DISCLOSED_WORKSPACE_ID_LIMIT).optional(),
 })
 
 export const invitationDetailsSchema = z.object({
@@ -107,13 +114,17 @@ export const invitationDetailsSchema = z.object({
 
 export const invitationJoinPreviewSchema = z.object({
   willJoinOrganization: z.boolean(),
-  workspacesToMove: z.array(z.string()),
+  /** Name of the organization acceptance will actually join. */
+  organizationName: z.string().nullable(),
+  workspacesToMove: z.array(z.string()).max(DISCLOSED_WORKSPACE_ID_LIMIT),
   /**
    * Stable ids behind `workspacesToMove`, echoed back on accept as the
    * disclosure token: acceptance rejects when the set it would sweep no
-   * longer matches what this preview disclosed.
+   * longer matches what this preview disclosed. Capped at the same limit as
+   * the accept body's echo so a large owned set can never render an invite
+   * permanently un-acceptable.
    */
-  workspaceIdsToMove: z.array(z.string()),
+  workspaceIdsToMove: z.array(z.string()).max(DISCLOSED_WORKSPACE_ID_LIMIT),
 })
 
 export const acceptInvitationResponseSchema = z.object({

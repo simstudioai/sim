@@ -96,7 +96,6 @@ describe('POST /api/organizations', () => {
     expect(mockAttachOwnedWorkspacesToOrganization).toHaveBeenCalledWith({
       ownerUserId: 'user-1',
       organizationId: 'legacy-org-id',
-      externalMemberPolicy: 'keep-external',
       includeArchived: true,
     })
     expect(mockCreateOrganizationForTeamPlan).not.toHaveBeenCalled()

@@ -79,6 +79,14 @@ export interface WorkspaceCreationPolicy {
   currentWorkspaceCount: number
   reason: string | null
   status: number
+  /**
+   * The organization the caller belonged to when this decision was made
+   * (`null` for none). A PERSONAL decision is legitimate for an existing
+   * member whose organization has no usable Team/Enterprise plan, so
+   * creation compares membership against this snapshot instead of treating
+   * any membership as a mid-create join.
+   */
+  observedOrganizationId: string | null
 }
 
 interface GetWorkspaceCreationPolicyParams {
@@ -283,6 +291,7 @@ export async function getWorkspaceCreationPolicy({
       currentWorkspaceCount: 0,
       reason: 'Only organization owners and admins can create organization workspaces.',
       status: 403,
+      observedOrganizationId: membership?.organizationId ?? null,
     }
   }
 
@@ -300,6 +309,7 @@ export async function getWorkspaceCreationPolicy({
           currentWorkspaceCount: 0,
           reason: 'Only organization owners and admins can create organization workspaces.',
           status: 403,
+          observedOrganizationId: membership?.organizationId ?? null,
         }
       }
 
@@ -312,6 +322,7 @@ export async function getWorkspaceCreationPolicy({
         currentWorkspaceCount: 0,
         reason: null,
         status: 200,
+        observedOrganizationId: membership?.organizationId ?? null,
       }
     }
 
@@ -326,6 +337,7 @@ export async function getWorkspaceCreationPolicy({
       currentWorkspaceCount,
       reason: null,
       status: 200,
+      observedOrganizationId: membership?.organizationId ?? null,
     }
   }
 
@@ -349,6 +361,7 @@ export async function getWorkspaceCreationPolicy({
           currentWorkspaceCount: 0,
           reason: 'Only organization owners and admins can create organization workspaces.',
           status: 403,
+          observedOrganizationId: membership?.organizationId ?? null,
         }
       }
 
@@ -361,6 +374,7 @@ export async function getWorkspaceCreationPolicy({
         currentWorkspaceCount: 0,
         reason: null,
         status: 200,
+        observedOrganizationId: membership?.organizationId ?? null,
       }
     }
   }
@@ -380,6 +394,7 @@ export async function getWorkspaceCreationPolicy({
       currentWorkspaceCount,
       reason: `This plan supports up to ${maxWorkspaces} personal workspace${maxWorkspaces === 1 ? '' : 's'}.`,
       status: 403,
+      observedOrganizationId: membership?.organizationId ?? null,
     }
   }
 
@@ -392,6 +407,7 @@ export async function getWorkspaceCreationPolicy({
     currentWorkspaceCount,
     reason: null,
     status: 200,
+    observedOrganizationId: membership?.organizationId ?? null,
   }
 }
 
