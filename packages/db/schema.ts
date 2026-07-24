@@ -276,6 +276,40 @@ export const workflowSubflows = pgTable(
   })
 )
 
+/**
+ * Team comments attached to individual workflow blocks.
+ *
+ * blockId intentionally has NO foreign key to workflow_blocks: block rows are
+ * deleted and reinserted on every workflow save (see workflow-persistence save),
+ * so an FK would cascade-delete comments on unrelated edits. Rows whose blockId
+ * no longer exists are filtered client-side and removed when the workflow is
+ * deleted via the workflowId cascade.
+ */
+export const workflowBlockAnnotation = pgTable(
+  'workflow_block_annotation',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    blockId: text('block_id').notNull(),
+    content: text('content').notNull(),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    resolved: boolean('resolved').notNull().default(false),
+    resolvedBy: text('resolved_by').references(() => user.id, { onDelete: 'set null' }),
+    resolvedAt: timestamp('resolved_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workflowIdIdx: index('workflow_block_annotation_workflow_id_idx').on(table.workflowId),
+    workflowBlockIdx: index('workflow_block_annotation_workflow_block_idx').on(
+      table.workflowId,
+      table.blockId
+    ),
+  })
+)
+
 export const waitlist = pgTable('waitlist', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),

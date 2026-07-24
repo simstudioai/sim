@@ -137,6 +137,18 @@ export const schemaMock = {
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
   },
+  workflowBlockAnnotation: {
+    id: 'id',
+    workflowId: 'workflowId',
+    blockId: 'blockId',
+    content: 'content',
+    createdBy: 'createdBy',
+    resolved: 'resolved',
+    resolvedBy: 'resolvedBy',
+    resolvedAt: 'resolvedAt',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  },
   waitlist: {
     id: 'id',
     email: 'email',
