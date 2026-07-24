@@ -354,19 +354,14 @@ export function setupWorkspaceFileDocHandlers(
 
       const entry = getOrCreateRoom(io, room)
 
-      // A same socket rejoining with a NEW client id: clear its old caret so it
-      // doesn't linger as a ghost after the binding is overwritten below.
-      const previous = entry.owners.get(socket.id)
-      if (previous !== undefined && previous.clientId !== clientId) {
-        awarenessProtocol.removeAwarenessStates(entry.awareness, [previous.clientId], null)
-      }
-
       // A client id must be owned by at most one user, or a peer could bind an
       // active collaborator's id and pass the per-frame ownership check to
       // spoof/clear its caret. Distinguish a reconnect from a spoof by the owning
       // user: the same user reclaiming its own client id (a dropped socket
       // reconnecting reuses the Yjs client id, and its prior socket may not be
-      // cleaned up yet) takes over the stale binding; a DIFFERENT user is rejected.
+      // cleaned up yet) takes over the stale binding; a DIFFERENT user is
+      // rejected. This runs BEFORE any state mutation below, so a rejected rebind
+      // leaves the socket's existing binding and caret untouched.
       for (const [otherSid, owner] of entry.owners) {
         if (owner.clientId !== clientId || otherSid === socket.id) continue
         if (owner.userId !== userId) {
@@ -375,6 +370,13 @@ export function setupWorkspaceFileDocHandlers(
         }
         entry.owners.delete(otherSid)
         awarenessProtocol.removeAwarenessStates(entry.awareness, [owner.clientId], null)
+      }
+
+      // Accepted: a same socket rebinding to a NEW client id clears its old caret
+      // so it doesn't linger as a ghost after the binding is overwritten.
+      const previous = entry.owners.get(socket.id)
+      if (previous !== undefined && previous.clientId !== clientId) {
+        awarenessProtocol.removeAwarenessStates(entry.awareness, [previous.clientId], null)
       }
 
       entry.owners.set(socket.id, { clientId, userId })

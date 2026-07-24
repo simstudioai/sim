@@ -333,6 +333,33 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(removal).toBeDefined()
   })
 
+  it('preserves the existing caret when a rebind to a foreign client id is rejected', async () => {
+    const { io, sent } = createIo()
+    const { frame: awFrame } = awarenessFrame(10, 'A')
+    const a = setup('socket-a', io)
+    const b = setup('socket-b', io, { userId: 'user-b' })
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 10 })
+    a.handlers[FILE_DOC_EVENTS.MESSAGE](awFrame) // a publishes its caret for client 10
+    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 20 })
+    sent.length = 0
+
+    // socket-a (owns 10) tries to rebind to 20, owned by a different user → reject.
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 20 })
+
+    expect(a.socket.emit).toHaveBeenCalledWith(
+      FILE_DOC_EVENTS.JOIN_ERROR,
+      expect.objectContaining({ code: 'CLIENT_ID_IN_USE' })
+    )
+    // The rejected rebind must NOT have removed a's existing caret (no awareness
+    // removal broadcast fires).
+    const removal = sent.find(
+      (m) =>
+        m.event === FILE_DOC_EVENTS.MESSAGE &&
+        (m.payload as Uint8Array)[0] === FILE_DOC_MESSAGE_TYPE.AWARENESS
+    )
+    expect(removal).toBeUndefined()
+  })
+
   it('drops a malformed frame without throwing', async () => {
     const { io } = createIo()
     const a = setup('socket-a', io)
