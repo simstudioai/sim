@@ -1191,6 +1191,14 @@
         }
       }
     },
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the fully qualified release name used in resource names"
+    },
     "affinity": {
       "type": "object",
       "description": "Pod affinity/anti-affinity rules applied to app and realtime pods"
