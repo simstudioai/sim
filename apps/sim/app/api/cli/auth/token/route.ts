@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { exchangeCliAuthCodeContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { consumeAuthCode } from '@/lib/cli-auth/code-store'
-import { CopilotApiKeyError, generateCopilotApiKey } from '@/lib/copilot/server/generate-api-key'
+import { CopilotApiKeyError, generateCopilotApiKey } from '@/lib/copilot/server/api-keys'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 

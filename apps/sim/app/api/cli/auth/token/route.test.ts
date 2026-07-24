@@ -16,7 +16,7 @@ vi.mock('@/lib/cli-auth/code-store', () => ({
   consumeAuthCode: mockConsumeAuthCode,
 }))
 
-vi.mock('@/lib/copilot/server/generate-api-key', () => ({
+vi.mock('@/lib/copilot/server/api-keys', () => ({
   generateCopilotApiKey: mockGenerateCopilotApiKey,
   CopilotApiKeyError: class extends Error {},
 }))
