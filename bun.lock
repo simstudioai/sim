@@ -446,6 +446,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@sim/db": "workspace:*",
+        "@sim/realtime-protocol": "workspace:*",
         "drizzle-orm": "^0.45.2",
       },
       "devDependencies": {
@@ -463,6 +464,7 @@
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
         "typescript": "^7.0.2",
+        "vitest": "^4.1.0",
       },
     },
     "packages/runtime-secrets": {

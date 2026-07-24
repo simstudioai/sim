@@ -21,10 +21,16 @@
     "./schemas": {
       "types": "./src/schemas.ts",
       "default": "./src/schemas.ts"
+    },
+    "./rooms": {
+      "types": "./src/rooms.ts",
+      "default": "./src/rooms.ts"
     }
   },
   "scripts": {
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
     "format": "biome format --write .",
@@ -35,6 +41,7 @@
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.0"
   }
 }
