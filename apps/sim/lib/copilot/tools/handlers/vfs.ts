@@ -2,6 +2,14 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
+import {
+  couldMatchDocsScope,
+  DocsCorpusError,
+  globDocs,
+  grepDocsPage,
+  isDocsPath,
+  readDocsPage,
+} from '@/lib/copilot/docs/docs-corpus'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
@@ -107,13 +115,16 @@ export async function executeVfsGrep(
 
     // Routing mirrors read/glob:
     //  - uploads/<file>  -> grep one chat upload's content (chat-scoped)
+    //  - docs/<page>     -> grep one docs.sim.ai page (one page only — each is a fetch)
     //  - files/<file>    -> grep one workspace file's content (one file only)
     //  - everything else -> grep the in-memory VFS map (workflow JSON, metadata)
-    // Chat uploads are opt-in like recently-deleted/: they are never in the VFS
-    // map, so an unscoped grep can't touch them — only an explicit uploads/<file>
-    // path does, and only one upload at a time.
+    // Chat uploads and the docs corpus are opt-in like recently-deleted/: they are
+    // never in the VFS map, so an unscoped grep can't touch them — only an explicit
+    // uploads/<file> or docs/<page> path does, and only one at a time.
     let result: GrepMatch[] | string[] | GrepCountEntry[]
-    if (isChatUploadGrepPath(rawPath)) {
+    if (rawPath !== undefined && isDocsPath(rawPath)) {
+      result = await grepDocsPage(rawPath, pattern, grepOptions)
+    } else if (isChatUploadGrepPath(rawPath)) {
       if (!context.chatId) {
         return { success: false, error: 'No chat context available for uploads/' }
       }
@@ -157,8 +168,8 @@ export async function executeVfsGrep(
   } catch (err) {
     // Expected single-file scoping / no-text / too-large conditions: surface the
     // message verbatim instead of logging an internal failure.
-    if (err instanceof WorkspaceFileGrepError) {
-      logger.debug('vfs_grep workspace file rejected', {
+    if (err instanceof WorkspaceFileGrepError || err instanceof DocsCorpusError) {
+      logger.debug('vfs_grep single-file scope rejected', {
         pattern,
         path: rawPath,
         error: err.message,
@@ -189,6 +200,15 @@ export async function executeVfsGlob(
   }
 
   try {
+    // The docs corpus is a lazy view of docs.sim.ai built from the generated
+    // manifest, not part of the workspace VFS — an explicit docs/ pattern is the
+    // only way to see it.
+    if (couldMatchDocsScope(pattern)) {
+      const files = globDocs(pattern)
+      logger.debug('vfs_glob docs result', { pattern, fileCount: files.length })
+      return { success: true, output: { files } }
+    }
+
     const vfs = await getGatedVFS(workspaceId, context.userId)
     let files = vfs.glob(pattern)
 
@@ -246,6 +266,21 @@ export async function executeVfsRead(
         ...result,
         content: lines.slice(start, end).join('\n'),
       }
+    }
+
+    // Docs pages are fetched from the live docs site on demand — the manifest
+    // path is the URL path, so there is nothing workspace-scoped to resolve.
+    if (isDocsPath(path)) {
+      const page = await readDocsPage(path)
+      const windowed = applyWindow(page)
+      if (serializedResultSize(windowed) > TOOL_RESULT_MAX_INLINE_CHARS) {
+        return {
+          success: false,
+          error: `${path} is too large to return inline. Grep that one page for the relevant section, then retry read with offset/limit.`,
+        }
+      }
+      logger.debug('vfs_read resolved docs page', { path, totalLines: page.totalLines })
+      return { success: true, output: windowed }
     }
 
     // Handle chat-scoped uploads via the uploads/ virtual prefix.
@@ -364,6 +399,12 @@ export async function executeVfsRead(
       output: result,
     }
   } catch (err) {
+    // Expected docs-corpus conditions (unknown page, directory path, site
+    // unreachable): surface the message verbatim.
+    if (err instanceof DocsCorpusError) {
+      logger.debug('vfs_read docs page rejected', { path, error: err.message })
+      return { success: false, error: err.message }
+    }
     logger.error('vfs_read failed', {
       path,
       error: toError(err).message,

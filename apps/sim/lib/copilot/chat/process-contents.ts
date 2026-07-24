@@ -30,7 +30,6 @@ import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders } from '@/lib/workflows/utils'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
-import { escapeRegExp } from '@/executor/constants'
 import type { ChatContext } from '@/stores/panel'
 
 type AgentContextType =
@@ -69,7 +68,8 @@ const logger = createLogger('ProcessContents')
 export async function processContextsServer(
   contexts: ChatContext[] | undefined,
   userId: string,
-  userMessage?: string,
+  /** Retained for call-site compatibility; unused while @docs tagging is disabled. */
+  _userMessage: string | undefined,
   currentWorkspaceId?: string,
   chatId?: string
 ): Promise<AgentContext[]> {
@@ -202,21 +202,9 @@ export async function processContextsServer(
           path: result.path,
         }
       }
-      if (ctx.kind === 'docs') {
-        try {
-          const { searchDocsServerTool } = await import(
-            '@/lib/copilot/tools/server/docs/search-docs'
-          )
-          const rawQuery = (userMessage || '').trim() || ctx.label || 'Sim documentation'
-          const query = sanitizeMessageForDocs(rawQuery, contexts)
-          const res = await searchDocsServerTool.execute({ query, topK: 10 })
-          const content = JSON.stringify(res?.results || [])
-          return { type: 'docs', tag: ctx.label ? `@${ctx.label}` : '@', content }
-        } catch (e) {
-          logger.error('Failed to process docs context', e)
-          return null
-        }
-      }
+      // `docs` contexts are intentionally inert: @docs tagging is disabled while
+      // the docs corpus moves to the `docs/` VFS tree. A tagged context resolves
+      // to nothing and is filtered out below.
       return null
     } catch (error) {
       logger.error('Failed processing context (server)', { ctx, error })
@@ -236,53 +224,6 @@ export async function processContextsServer(
     kinds: Array.from(filtered.reduce((s, r) => s.add(r.type), new Set<string>())),
   })
   return filtered
-}
-
-function sanitizeMessageForDocs(rawMessage: string, contexts: ChatContext[] | undefined): string {
-  if (!rawMessage) return ''
-  if (!Array.isArray(contexts) || contexts.length === 0) {
-    // No context mapping; conservatively strip all @mentions-like tokens
-    const stripped = rawMessage
-      .replace(/(^|\s)@([^\s]+)/g, ' ')
-      .replace(/\s{2,}/g, ' ')
-      .trim()
-    return stripped
-  }
-
-  // Gather labels by kind
-  const blockLabels = new Set(
-    contexts
-      .filter((c) => c.kind === 'blocks')
-      .map((c) => c.label)
-      .filter((l): l is string => typeof l === 'string' && l.length > 0)
-  )
-  const nonBlockLabels = new Set(
-    contexts
-      .filter((c) => c.kind !== 'blocks')
-      .map((c) => c.label)
-      .filter((l): l is string => typeof l === 'string' && l.length > 0)
-  )
-
-  let result = rawMessage
-
-  // 1) Remove all non-block mentions entirely
-  for (const label of nonBlockLabels) {
-    const pattern = new RegExp(`(^|\\s)@${escapeRegExp(label)}(?!\\S)`, 'g')
-    result = result.replace(pattern, ' ')
-  }
-
-  // 2) For block mentions, strip the '@' but keep the block name
-  for (const label of blockLabels) {
-    const pattern = new RegExp(`@${escapeRegExp(label)}(?!\\S)`, 'g')
-    result = result.replace(pattern, label)
-  }
-
-  // 3) Remove any remaining @mentions (unknown or not in contexts)
-  result = result.replace(/(^|\s)@([^\s]+)/g, ' ')
-
-  // Normalize whitespace
-  result = result.replace(/\s{2,}/g, ' ').trim()
-  return result
 }
 
 async function processSkillFromDb(

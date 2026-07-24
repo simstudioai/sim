@@ -49,28 +49,22 @@ describe('resolveToolDisplay', () => {
     ).toBe('Read RET XYZ')
   })
 
-  it('formats docs corpus reads as Section/filename', () => {
+  it('formats docs corpus reads as Section/page', () => {
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
-        path: 'docs/documentation/workflows/index.mdx',
+        path: 'docs/workflows/blocks/agent.mdx',
       })?.text
-    ).toBe('Read Workflows/index')
+    ).toBe('Read Workflows/agent')
 
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {
-        path: 'docs/academy/agents/block.mdx',
+        path: 'docs/integrations/gmail.mdx',
       })?.text
-    ).toBe('Reading Agents/block')
-
-    expect(
-      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
-        path: 'docs/api-reference/workflows.json',
-      })?.text
-    ).toBe('Read Workflows')
+    ).toBe('Reading Integrations/gmail')
 
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.error, {
-        path: 'docs/documentation/getting-started.mdx',
+        path: 'docs/getting-started.mdx',
       })?.text
     ).toBe('Attempted to read Getting-started')
   })

@@ -85,7 +85,7 @@ export interface ToolCatalogEntry {
     | 'scheduled_task'
     | 'scrape_page'
     | 'search'
-    | 'search_documentation'
+    | 'search_docs'
     | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
@@ -183,7 +183,7 @@ export interface ToolCatalogEntry {
     | 'scheduled_task'
     | 'scrape_page'
     | 'search'
-    | 'search_documentation'
+    | 'search_docs'
     | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
@@ -3659,16 +3659,21 @@ export const Search: ToolCatalogEntry = {
   internal: true,
 }
 
-export const SearchDocumentation: ToolCatalogEntry = {
-  id: 'search_documentation',
-  name: 'search_documentation',
+export const SearchDocs: ToolCatalogEntry = {
+  id: 'search_docs',
+  name: 'search_docs',
   route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
     properties: {
+      path: {
+        type: 'string',
+        description:
+          'Optional docs/ VFS path (a page such as docs/workflows/blocks/agent.mdx, or a section such as docs/workflows) that limits the search scope',
+      },
       query: { type: 'string', description: 'The search query' },
-      topK: { type: 'number', description: 'Number of results (max 10)' },
+      topK: { type: 'number', description: 'Number of results (default 10, max 25)' },
     },
     required: ['query'],
   },
@@ -4928,7 +4933,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ScheduledTask.id]: ScheduledTask,
   [ScrapePage.id]: ScrapePage,
   [Search.id]: Search,
-  [SearchDocumentation.id]: SearchDocumentation,
+  [SearchDocs.id]: SearchDocs,
   [SearchIntegrationTools.id]: SearchIntegrationTools,
   [SearchKnowledgeBase.id]: SearchKnowledgeBase,
   [SearchLibraryDocs.id]: SearchLibraryDocs,

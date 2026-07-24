@@ -150,6 +150,9 @@ jobs:
       - name: Verify agent stream capability docs are in sync
         run: bun run agent-stream-docs:check
 
+      - name: Verify docs manifest is in sync
+        run: bun run docs-manifest:check
+
       - name: Migration safety (zero-downtime) audit
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then

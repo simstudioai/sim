@@ -144,19 +144,13 @@ function describeFileReadTarget(segments: string[]): string {
   return lastSegment
 }
 
-const DOCS_TAB_SEGMENTS = new Set(['documentation', 'academy', 'api-reference'])
-
 /**
- * Labels a docs/ corpus read as `<Section>/<filename>` (e.g. `Workflows/index`
- * for docs/documentation/workflows/index.mdx). The tab segment is dropped and
- * single-level pages show just their capitalized name (e.g. `Getting-started`,
- * or `Workflows` for the api-reference tag file workflows.json).
+ * Labels a docs/ corpus read as `<Section>/<page>` (e.g. `Workflows/agent` for
+ * docs/workflows/blocks/agent.mdx). Top-level pages show just their capitalized
+ * name (e.g. `Getting-started` for docs/getting-started.mdx).
  */
 function describeDocsReadTarget(segments: string[]): string {
-  let rest = segments.slice(1)
-  if (rest.length > 0 && DOCS_TAB_SEGMENTS.has(rest[0])) {
-    rest = rest.slice(1)
-  }
+  const rest = segments.slice(1)
   if (rest.length === 0) return 'docs'
   const leaf = stripExtension(rest[rest.length - 1])
   if (rest.length === 1) return capitalizeFirst(leaf)
