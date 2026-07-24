@@ -20,7 +20,7 @@ export const sendTemplateTool: ToolConfig<WhatsAppSendTemplateParams, WhatsAppSe
   id: 'whatsapp_send_template',
   name: 'WhatsApp Send Template',
   description:
-    'Send a pre-approved WhatsApp template message with a language and optional variable components.',
+    'Send a pre-approved WhatsApp template message. Required to start a conversation or to message a user outside the 24-hour customer service window.',
   version: '1.0.0',
 
   params: {

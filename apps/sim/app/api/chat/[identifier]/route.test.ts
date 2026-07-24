@@ -36,6 +36,7 @@ function createMockNextRequest(
     method,
     headers: headersObj,
     nextUrl: parsedUrl,
+    signal: AbortSignal.timeout(60_000),
     cookies: {
       get: vi.fn().mockReturnValue(undefined),
     },
@@ -106,6 +107,7 @@ vi.mock('@/lib/uploads', () => ({
 
 vi.mock('@/lib/workflows/streaming/streaming', () => ({
   createStreamingResponse: vi.fn().mockImplementation(async () => createMockStream()),
+  agentStreamProtocolResponseHeaders: vi.fn().mockReturnValue({}),
 }))
 
 vi.mock('@/lib/workflows/executor/execute-workflow', () => ({
@@ -124,6 +126,7 @@ vi.mock('@/lib/core/utils/sse', () => ({
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { preprocessExecution } from '@/lib/execution/preprocessing'
+import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { GET, POST } from '@/app/api/chat/[identifier]/route'
 
@@ -142,6 +145,8 @@ describe('Chat Identifier API Route', () => {
         primaryColor: '#000000',
       },
       outputConfigs: [{ blockId: 'block-1', path: 'output' }],
+      includeThinking: false,
+      includeToolCalls: null,
     },
   ]
 
@@ -235,6 +240,7 @@ describe('Chat Identifier API Route', () => {
       expect(data).toHaveProperty('description', 'Test chat description')
       expect(data).toHaveProperty('customizations')
       expect(data.customizations).toHaveProperty('welcomeMessage', 'Welcome to the test chat')
+      expect(data).toHaveProperty('includeToolCalls', false)
     })
 
     it('should return 404 for non-existent identifier', async () => {
@@ -395,12 +401,157 @@ describe('Chat Identifier API Route', () => {
       expect(createStreamingResponse).toHaveBeenCalledWith(
         expect.objectContaining({
           executeFn: expect.any(Function),
+          requestSignal: expect.any(AbortSignal),
+          requestHeaders: expect.anything(),
           streamConfig: expect.objectContaining({
             isSecureMode: true,
             workflowTriggerType: 'chat',
+            includeThinking: false,
+            includeToolCalls: false,
           }),
         })
       )
+    }, 10000)
+
+    it('preserves the legacy tool policy when includeToolCalls is null', async () => {
+      const thinkingChatResult = [
+        { ...mockChatResult[0], includeThinking: true, includeToolCalls: null },
+      ]
+      dbChainMockFns.select.mockImplementation((fields: Record<string, unknown>) => {
+        if (fields && fields.isDeployed !== undefined) {
+          return {
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue(mockWorkflowResult),
+              }),
+            }),
+          }
+        }
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue(thinkingChatResult),
+            }),
+          }),
+        }
+      })
+
+      const req = createMockNextRequest(
+        'POST',
+        { input: 'Hello world' },
+        { 'X-Sim-Stream-Protocol': 'agent-events-v1' }
+      )
+      const response = await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
+      expect(response.status).toBe(200)
+
+      const options = vi.mocked(createStreamingResponse).mock.calls[0][0]
+      expect(options.streamConfig).toMatchObject({
+        includeThinking: true,
+        includeToolCalls: true,
+      })
+
+      await options.executeFn({
+        onStream: vi.fn(),
+        onBlockComplete: vi.fn(),
+        abortSignal: new AbortController().signal,
+      })
+      const executeOptions = vi.mocked(executeWorkflow).mock.calls[0][4]
+      expect(executeOptions).toMatchObject({
+        includeThinking: true,
+        includeToolCalls: true,
+        agentEvents: true,
+      })
+    }, 10000)
+
+    it('enables agent events for an independent tool-only policy', async () => {
+      const toolChatResult = [
+        { ...mockChatResult[0], includeThinking: false, includeToolCalls: true },
+      ]
+      dbChainMockFns.select.mockImplementation((fields: Record<string, unknown>) => {
+        if (fields && fields.isDeployed !== undefined) {
+          return {
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue(mockWorkflowResult),
+              }),
+            }),
+          }
+        }
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue(toolChatResult),
+            }),
+          }),
+        }
+      })
+
+      const req = createMockNextRequest(
+        'POST',
+        { input: 'Hello world' },
+        { 'X-Sim-Stream-Protocol': 'agent-events-v1' }
+      )
+      const response = await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
+      expect(response.status).toBe(200)
+
+      const options = vi.mocked(createStreamingResponse).mock.calls[0][0]
+      expect(options.streamConfig).toMatchObject({
+        includeThinking: false,
+        includeToolCalls: true,
+      })
+
+      await options.executeFn({
+        onStream: vi.fn(),
+        onBlockComplete: vi.fn(),
+        abortSignal: new AbortController().signal,
+      })
+      const executeOptions = vi.mocked(executeWorkflow).mock.calls[0][4]
+      expect(executeOptions).toMatchObject({
+        includeThinking: false,
+        includeToolCalls: true,
+        agentEvents: true,
+      })
+    }, 10000)
+
+    it('keeps agent events off when the protocol header is missing, even with policy on', async () => {
+      const thinkingChatResult = [
+        { ...mockChatResult[0], includeThinking: true, includeToolCalls: false },
+      ]
+      dbChainMockFns.select.mockImplementation((fields: Record<string, unknown>) => {
+        if (fields && fields.isDeployed !== undefined) {
+          return {
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue(mockWorkflowResult),
+              }),
+            }),
+          }
+        }
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue(thinkingChatResult),
+            }),
+          }),
+        }
+      })
+
+      const req = createMockNextRequest('POST', { input: 'Hello world' })
+      const response = await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
+      expect(response.status).toBe(200)
+
+      const options = vi.mocked(createStreamingResponse).mock.calls[0][0]
+      await options.executeFn({
+        onStream: vi.fn(),
+        onBlockComplete: vi.fn(),
+        abortSignal: new AbortController().signal,
+      })
+      const executeOptions = vi.mocked(executeWorkflow).mock.calls[0][4]
+      expect(executeOptions).toMatchObject({
+        includeThinking: true,
+        includeToolCalls: false,
+        agentEvents: false,
+      })
     }, 10000)
 
     it('should handle streaming response body correctly', async () => {

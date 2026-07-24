@@ -22,7 +22,6 @@ import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   assertActiveWorkspaceAccess,
-  getUserEntityPermissions,
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
 import type { ChatContext } from '@/stores/panel'
@@ -130,7 +129,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
     const userId = auth.userId ?? bodyUserId
 
-    await assertActiveWorkspaceAccess(workspaceId, userId)
+    const workspaceAccess = await assertActiveWorkspaceAccess(workspaceId, userId)
     const billingAttribution = requireBillingAttributionHeader(req.headers, {
       actorUserId: userId,
       workspaceId,
@@ -152,38 +151,32 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       context.kind === 'mcp' && context.serverId ? [context.serverId] : []
     )
     const nonMcpAgentMentions = agentMentions?.filter((context) => context.kind !== 'mcp')
-    const [
-      workspaceContext,
-      integrationTools,
-      mothershipTools,
-      userPermission,
-      entitlements,
-      agentContexts,
-    ] = await Promise.all([
-      generateWorkspaceContext(workspaceId, userId),
-      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-      Promise.all([
-        buildSelectedMcpToolSchemas(userId, workspaceId, mcpTools ?? []),
-        buildTaggedMcpToolSchemas(userId, workspaceId, taggedMcpServerIds),
-      ]).then((groups) => {
-        const byName = new Map(groups.flat().map((tool) => [tool.name, tool]))
-        return [...byName.values()]
-      }),
-      getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
-      computeWorkspaceEntitlements(workspaceId, userId),
-      processContextsServer(
-        nonMcpAgentMentions,
-        userId,
-        lastUserMessage,
-        workspaceId,
-        effectiveChatId
-      ).catch((error) => {
-        reqLogger.warn('Failed to resolve agent contexts for execution', {
-          error: toError(error).message,
-        })
-        return []
-      }),
-    ])
+    const userPermission = workspaceAccess.permission
+    const [workspaceContext, integrationTools, mothershipTools, entitlements, agentContexts] =
+      await Promise.all([
+        generateWorkspaceContext(workspaceId, userId, { workspaceAccess }),
+        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+        Promise.all([
+          buildSelectedMcpToolSchemas(userId, workspaceId, mcpTools ?? []),
+          buildTaggedMcpToolSchemas(userId, workspaceId, taggedMcpServerIds),
+        ]).then((groups) => {
+          const byName = new Map(groups.flat().map((tool) => [tool.name, tool]))
+          return [...byName.values()]
+        }),
+        computeWorkspaceEntitlements(workspaceId, userId),
+        processContextsServer(
+          nonMcpAgentMentions,
+          userId,
+          lastUserMessage,
+          workspaceId,
+          effectiveChatId
+        ).catch((error) => {
+          reqLogger.warn('Failed to resolve agent contexts for execution', {
+            error: toError(error).message,
+          })
+          return []
+        }),
+      ])
     const requestPayload: Record<string, unknown> = {
       messages,
       responseFormat,

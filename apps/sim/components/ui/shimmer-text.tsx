@@ -1,10 +1,12 @@
+import type { ComponentPropsWithoutRef, ElementType } from 'react'
 import { cn } from '@sim/emcn'
 import styles from '@/components/ui/shimmer-text.module.css'
 
-interface ShimmerTextProps {
+type ShimmerTextProps<T extends ElementType = 'span'> = {
+  as?: T
   children: React.ReactNode
   className?: string
-}
+} & Omit<ComponentPropsWithoutRef<T>, 'as' | 'children' | 'className'>
 
 /**
  * Sweeping-highlight shimmer over a text phrase — the same treatment as the
@@ -12,6 +14,16 @@ interface ShimmerTextProps {
  * Size and weight come from the consumer's className; the gradient replaces
  * the text color, so color classes are ignored while shimmering.
  */
-export function ShimmerText({ children, className }: ShimmerTextProps) {
-  return <span className={cn(styles.shimmer, className)}>{children}</span>
+export function ShimmerText<T extends ElementType = 'span'>({
+  as,
+  children,
+  className,
+  ...props
+}: ShimmerTextProps<T>) {
+  const Comp = as ?? 'span'
+  return (
+    <Comp className={cn(styles.shimmer, className)} {...props}>
+      {children}
+    </Comp>
+  )
 }

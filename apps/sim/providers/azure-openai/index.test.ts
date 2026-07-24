@@ -3,7 +3,8 @@
  */
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ProviderRequest } from '@/providers/types'
+import type { AgentStreamEvent } from '@/providers/stream-events'
+import type { ProviderRequest, ProviderToolConfig } from '@/providers/types'
 
 const {
   mockAzureOpenAI,
@@ -15,6 +16,8 @@ const {
   sentinelFetch,
   mockIsChatCompletionsEndpoint,
   mockIsResponsesEndpoint,
+  mockPrepareTools,
+  mockExecuteTool,
 } = vi.hoisted(() => {
   const azureOpenAIArgs: Array<Record<string, unknown>> = []
   const sentinelFetch = vi.fn()
@@ -35,6 +38,8 @@ const {
     sentinelFetch,
     mockIsChatCompletionsEndpoint: vi.fn(() => false),
     mockIsResponsesEndpoint: vi.fn(() => false),
+    mockPrepareTools: vi.fn(),
+    mockExecuteTool: vi.fn(),
   }
 })
 
@@ -73,19 +78,35 @@ vi.mock('@/providers/trace-enrichment', () => ({
 vi.mock('@/providers/utils', () => ({
   calculateCost: vi.fn(() => ({ input: 0, output: 0, total: 0 })),
   prepareToolExecution: vi.fn((_tool, args) => ({ toolParams: args, executionParams: args })),
-  prepareToolsWithUsageControl: vi.fn(() => ({
-    tools: [],
-    toolChoice: undefined,
-    forcedTools: [],
-  })),
+  prepareToolsWithUsageControl: mockPrepareTools,
   sumToolCosts: vi.fn(() => 0),
 }))
-vi.mock('@/tools', () => ({ executeTool: vi.fn() }))
+vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 
 import { azureOpenAIProvider } from '@/providers/azure-openai/index'
 
 function request(overrides: Partial<ProviderRequest>): ProviderRequest {
   return { model: 'azure/gpt-4o', apiKey: 'k', messages: [], ...overrides }
+}
+
+function makeTool(id: string): ProviderToolConfig {
+  return {
+    id,
+    name: id,
+    description: '',
+    params: {},
+    parameters: { type: 'object', properties: {}, required: [] },
+  }
+}
+
+async function readAgentEvents(stream: ReadableStream<AgentStreamEvent>) {
+  const events: AgentStreamEvent[] = []
+  const reader = stream.getReader()
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) return events
+    events.push(value)
+  }
 }
 
 /** Config object passed to the Responses core on the Nth call. */
@@ -101,6 +122,12 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
     mockIsChatCompletionsEndpoint.mockReturnValue(false)
     mockIsResponsesEndpoint.mockReturnValue(false)
     mockExecuteResponses.mockResolvedValue({ content: 'ok' })
+    mockPrepareTools.mockReturnValue({
+      tools: [],
+      toolChoice: undefined,
+      forcedTools: [],
+    })
+    mockExecuteTool.mockResolvedValue({ success: true, output: { ok: true } })
   })
 
   describe('Responses API path', () => {
@@ -187,6 +214,62 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
 
       expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
       expect(azureOpenAIArgs[0]).not.toHaveProperty('fetch')
+    })
+
+    it('projects the settled tool-loop answer without a final streaming request', async () => {
+      mockIsChatCompletionsEndpoint.mockReturnValue(true)
+      mockValidate.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
+      mockPrepareTools.mockReturnValue({
+        tools: [{ type: 'function', function: { name: 'lookup' } }],
+        toolChoice: 'auto',
+        forcedTools: [],
+      })
+      mockChatCreate
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                content: null,
+                tool_calls: [
+                  {
+                    id: 'call_1',
+                    type: 'function',
+                    function: { name: 'lookup', arguments: '{}' },
+                  },
+                ],
+              },
+            },
+          ],
+          usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 },
+        })
+        .mockResolvedValueOnce({
+          choices: [{ message: { content: 'done', tool_calls: undefined } }],
+          usage: { prompt_tokens: 4, completion_tokens: 2, total_tokens: 6 },
+        })
+
+      const result = await azureOpenAIProvider.executeRequest(
+        request({
+          azureEndpoint: 'https://rebind.attacker.tld/openai/deployments/gpt-4o/chat/completions',
+          stream: true,
+          tools: [makeTool('lookup')],
+        })
+      )
+
+      expect(mockChatCreate).toHaveBeenCalledTimes(2)
+      expect(mockExecuteTool).toHaveBeenCalledTimes(1)
+      expect('stream' in result).toBe(true)
+      if (!('stream' in result)) throw new Error('Expected streaming execution')
+      expect(result.execution.output.content).toBe('done')
+      expect(result.execution.output.tokens).toEqual({ input: 6, output: 3, total: 9 })
+      expect(result.execution.output.providerTiming?.iterations).toBe(2)
+      expect(
+        result.execution.output.providerTiming?.timeSegments?.filter(
+          (segment) => segment.type === 'model'
+        )
+      ).toHaveLength(2)
+      await expect(
+        readAgentEvents(result.stream as ReadableStream<AgentStreamEvent>)
+      ).resolves.toEqual([{ type: 'text_delta', text: 'done', turn: 'final' }])
     })
   })
 })

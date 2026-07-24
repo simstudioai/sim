@@ -1,0 +1,124 @@
+---
+slug: what-is-an-mcp-server
+title: 'What Is an MCP Server?'
+description: 'Learn what an MCP server is, how Model Context Protocol discovery, tools, and transports work, and how Sim consumes and publishes MCP tools for AI agents.'
+date: 2026-07-24
+updated: 2026-07-24
+authors:
+  - andrew
+readingTime: 10
+tags: [MCP, AI Agents, Model Context Protocol, Sim]
+ogImage: /library/what-is-an-mcp-server/cover.jpg
+canonical: https://www.sim.ai/library/what-is-an-mcp-server
+draft: false
+faq:
+  - q: "What does an MCP server do?"
+    a: "An MCP server exposes tools, resources, and prompts through the Model Context Protocol so a compatible AI client can discover and use those capabilities through a standard interface."
+  - q: "How is an MCP server different from a REST API?"
+    a: "A REST integration usually requires client-specific endpoint, schema, and authentication code. MCP adds a standard discovery and invocation layer, allowing compatible clients to list a server's capabilities and call its tools through the same protocol."
+  - q: "Which MCP transport should I use?"
+    a: "Use stdio when the client and server run on the same machine. Use Streamable HTTP for remote or multi-client deployments. HTTP+SSE is the deprecated legacy transport and is mainly relevant for backwards compatibility."
+  - q: "Can Sim use and publish MCP tools?"
+    a: "Yes. Sim can connect to external MCP servers and execute their tools inside workflows. It can also expose deployed workflows as tools on a workflow MCP server for compatible clients to discover and call."
+---
+
+## TL;DR
+
+An MCP server is a program that exposes tools, data, and prompts to AI models through the [Model Context Protocol](https://modelcontextprotocol.io/specification/2025-06-18/architecture), a standard interface any MCP-compatible client can call.
+
+- An MCP server lets an LLM or agent [discover and call external capabilities](https://modelcontextprotocol.io/specification/2025-06-18/server/tools) without a developer hardcoding each one.
+- [Anthropic introduced and open-sourced MCP in November 2024](https://www.anthropic.com/news/model-context-protocol). It uses [JSON-RPC 2.0 messages](https://modelcontextprotocol.io/specification/2025-06-18/basic) and is supported by clients including [Claude Desktop](https://modelcontextprotocol.io/quickstart/user), [Cursor](https://docs.cursor.com/context/model-context-protocol), and [VS Code](https://code.visualstudio.com/docs/copilot/chat/mcp-servers).
+- MCP replaces dozens of bespoke API integrations with a [single client-server architecture](https://modelcontextprotocol.io/specification/2025-06-18/architecture), so compatible clients can use the same server.
+- Sim works in both directions. It calls external MCP servers as tools, and it publishes deployed Sim workflows as tools that other AI systems can call through MCP.
+- The [spec defines two current transports](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports), stdio for local processes and Streamable HTTP for remote calls. The older HTTP+SSE transport is deprecated and should not be used for new builds.
+- The comparison table below shows how MCP servers, traditional API integrations, and Sim workflows-as-MCP-tools differ on setup effort, discovery, and reusability.
+
+## What is an MCP server?
+
+An MCP server is a program that exposes tools, data sources, and prompts to an AI model through the [Model Context Protocol](https://modelcontextprotocol.io/specification/2025-06-18/architecture), a shared standard for connecting language models to external capabilities.
+
+The point of an MCP server is to give an LLM or agent a consistent way to reach the outside world. Instead of writing custom glue for every API a model needs, you run an MCP server that advertises its capabilities in a format the model understands. An [MCP-compatible client](https://modelcontextprotocol.io/specification/2025-06-18/architecture) can then connect, list what the server offers, and call it. If you are new to the software on the other side of that connection, this guide to [AI agents and chatbots](https://www.sim.ai/library/ai-agent-vs-chatbot) explains why tool use matters.
+
+[Model Context Protocol](https://modelcontextprotocol.io) was [introduced and open-sourced by Anthropic in November 2024](https://www.anthropic.com/news/model-context-protocol) to solve a coordination problem. Each new tool, database, or service used to require its own integration written against a specific model or framework, and none of that work carried over. MCP defines one interface for all of them, built on [JSON-RPC 2.0](https://modelcontextprotocol.io/specification/2025-06-18/basic), so a server built once works with clients that speak the protocol. Adoption moved fast: [Claude Desktop](https://modelcontextprotocol.io/quickstart/user), [Cursor](https://docs.cursor.com/context/model-context-protocol), and [VS Code](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) all document MCP client support.
+
+A single MCP server can expose three kinds of capability. [**Tools**](https://modelcontextprotocol.io/specification/2025-06-18/server/tools) are actions the model can invoke, like sending an email or querying a database. [**Resources**](https://modelcontextprotocol.io/specification/2025-06-18/server/resources) are data the model can read, like files or records. [**Prompts**](https://modelcontextprotocol.io/specification/2025-06-18/server/prompts) are reusable templates the server offers to guide a task. The client asks the server what it supports, and the model or user decides what to call.
+
+Because the interface is standardized, the same MCP server can work across [compatible clients](https://modelcontextprotocol.io/specification/2025-06-18/architecture) without modification. A server you build for one agent can answer calls from another when it connects and negotiates a supported protocol version and capability set.
+
+## How does an MCP server differ from a traditional API integration?
+
+A traditional API integration forces a developer to hardcode each endpoint by hand, while an MCP server lets a client [discover the available tools at runtime](https://modelcontextprotocol.io/specification/2025-06-18/server/tools). When you connect to a REST API, you read the docs, map the request and response shapes, and write code specific to that one service. Connect to a second service, and you repeat the process with a different auth scheme and schema. An MCP server flips this. Through the protocol's [tool discovery flow](https://modelcontextprotocol.io/specification/2025-06-18/server/tools), a client queries the server and receives tool names, descriptions, and input schemas. It can then call those tools without the developer wiring each underlying endpoint into that client ahead of time. The server owns its tool definitions rather than forcing every client to maintain a field-by-field mapping.
+
+Authentication becomes a per-server concern from the client's perspective. Every conventional API may use a different scheme, which can mean new token handling, headers, and refresh logic for each integration. For HTTP transports, MCP defines an [authorization framework based on OAuth 2.1](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization), so a client authenticates to the MCP server rather than directly implementing auth for every downstream tool it exposes. The server still has to manage its downstream credentials. Adding another tool behind an existing server does not necessarily require new auth code in the client. REST APIs can publish machine-readable descriptions through formats such as the [OpenAPI Specification](https://spec.openapis.org/oas/latest.html), but that description is separate from the invocation layer and is not shared automatically by every client. MCP makes capability discovery part of the protocol, which is what lets exposed tools travel across compatible clients.
+
+## How is an MCP server built?
+
+Three things determine how a server behaves once an agent connects to it. Discovery answers "what can you do?", tool wrapping defines the individual actions, and the transport layer decides how bytes move between client and server. Build all three well and any compatible client can use your server without a custom adapter.
+
+### Discovery
+
+[Discovery](https://modelcontextprotocol.io/specification/2025-06-18/architecture) lets a client query an MCP server for its available tools, resources, and prompts at connection time. The protocol provides [list operations and capability negotiation](https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle), and a [tool list](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#listing-tools) includes each tool's name, description, and input schema. An agent reads that response and decides which tool to call, so endpoint shapes do not have to be hardcoded into the client. [Servers can also notify clients that a tool list changed](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#list-changed-notification) when both sides declare support for that capability.
+
+### Tool wrapping
+
+Tool wrapping turns an existing function, database query, or REST API into a callable MCP tool. You write a thin adapter that declares the tool's schema and maps the model's arguments onto whatever the underlying code expects. A weather API becomes a `get_forecast` tool, a SQL query becomes a `search_orders` tool, and the agent calls both through the same [MCP tool invocation interface](https://modelcontextprotocol.io/specification/2025-06-18/server/tools). Wrapping is where most of your build effort goes, since it defines the contract the model reasons about.
+
+### Transport options
+
+The [MCP transport specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports) defines two current transports. A third, the original HTTP+SSE design, is deprecated and should not be used for new builds.
+
+- [**stdio**](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#stdio) runs the server as a local subprocess and pipes JSON-RPC messages over standard input and output. Use it for local tools, desktop clients, and processes on the same machine where you want no network setup. Messages are newline-delimited UTF-8, and the server can write logs to stderr.
+- [**Streamable HTTP**](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http) exposes a single MCP endpoint that handles both directions. The client POSTs JSON-RPC requests to it, and the server returns either a standard HTTP response or an SSE stream. This is the transport for remote, multi-client, or horizontally scaled deployments.
+- [**HTTP+SSE (legacy, deprecated)**](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#backwards-compatibility) was the original network design. It used separate SSE and POST endpoints. Streamable HTTP replaced it, and the specification retains compatibility guidance for clients and servers that still need to interoperate with older implementations.
+
+A point worth clearing up, because it trips up a lot of teams: "SSE" and "HTTP" are not two peer transports sitting alongside stdio. [SSE is a response mechanism used by Streamable HTTP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http), while "the SSE transport" commonly refers to the deprecated two-endpoint HTTP+SSE design. If you are building something new, use Streamable HTTP. If you maintain a legacy server, plan migration around the clients you need to support.
+
+You can wire the same set of wrapped tools to either current transport without rewriting the tools themselves, since the [protocol architecture separates server capabilities from transports](https://modelcontextprotocol.io/specification/2025-06-18/architecture). A common pattern is stdio for local development and Streamable HTTP for production.
+
+The [Sim MCP docs](https://docs.sim.ai/mcp) show how discovery, wrapping, and transport selection appear when you connect a server in practice, including which transport to pick for local versus deployed setups.
+
+## Can Sim act as both an MCP client and an MCP server?
+
+Yes. Sim works in both directions, which means you can consume external tools and expose your own from the same platform.
+
+As an MCP client, Sim calls external MCP servers as tools inside your workflows. You configure a server in a Sim workspace, select its tools for an agent or MCP block, and Sim can invoke those published tools. If you run an MCP server for a database, search index, or internal service, Sim discovers its tools and calls them alongside native integrations. You get access to the MCP ecosystem without writing a custom Sim integration for each server.
+
+As an MCP server, Sim can publish deployed workflows as tools on a workflow MCP server that other AI systems call. Build and deploy a workflow in Sim, add it to a workflow MCP server, and a compatible client can discover and invoke it. Whatever logic you assembled inside Sim, whether it chains models, calls APIs, or runs branching decisions, appears to the caller as a tool with a defined schema. For the broader build-and-deploy flow, see [how to create an AI agent with Sim](https://www.sim.ai/library/how-to-create-an-ai-agent).
+
+That two-way capability changes how you compose systems. You can connect Sim to a third-party MCP server, build a workflow on top of it, and then publish that workflow as an MCP tool for something else to consume. One Sim deployment can sit in the middle of a chain, acting as a client to the servers below it and a server to the clients above it.
+
+The practical payoff is reuse. You build a workflow once, deploy it, and compatible clients can call it without knowing how it works internally. You skip the usual step of writing and maintaining a separate API wrapper for each consumer.
+
+Setup for both roles lives in the [Sim MCP docs](https://docs.sim.ai/mcp), which walk through connecting external servers as tools and publishing deployed workflows through a workflow MCP server.
+
+## Why teams run MCP servers on Sim
+
+Standing up an MCP server yourself means writing the wrapper, hosting it, handling auth, and maintaining it as the specification evolves. Sim provides a workflow layer around that work, and three qualities matter for teams that need to control their deployment.
+
+**It is Apache 2.0 licensed.** Sim's repository ships under Apache 2.0, a permissive open-source license that allows use, modification, commercial distribution, and sublicensing and includes an express patent grant. The practical implications are covered in [Apache 2.0 vs fair-code](https://www.sim.ai/library/apache-2-0-vs-fair-code).
+
+**You can run it on your own infrastructure, including isolated environments.** A self-hosted Sim deployment keeps the workflow and MCP execution layer within infrastructure you control. That matters when exposed tools touch regulated or private data. Teams comparing deployment and governance models can also review these [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
+
+**Admins control access to MCP capabilities.** Sim's workspace permissions govern MCP server management, and permission-group settings can hide MCP deployment or disable MCP tools for selected users. Workflow execution traces record activity block by block, giving operators a detailed view of what the workflow did when a tool was called.
+
+You can build the workflow behind the server in natural language with Mothership, assemble it on the visual canvas, or define it through the API. The exposed MCP tool presents the same deployed workflow logic either way.
+
+## MCP server vs traditional API integration vs Sim workflow-as-MCP-tool
+
+Three approaches let an AI system reach an external tool, and they differ in how much work you do up front and how far the result travels. The table below compares them on setup effort, discovery support, reusability across clients, and who can call the result.
+
+|  | Setup effort | Discovery support | Reusability across clients | Who can call it |
+| --- | --- | --- | --- | --- |
+| **MCP server** | Moderate. You wrap tools once behind the protocol. | [Built in](https://modelcontextprotocol.io/specification/2025-06-18/server/tools). Clients query the server for its available tools. | High. [Compatible clients](https://modelcontextprotocol.io/specification/2025-06-18/architecture) connect without a bespoke integration. | Any MCP client that supports the server's transport and protocol version. |
+| **Traditional API integration** | High. You implement endpoints, auth flows, and schemas for each client integration. | Not required by REST itself. Discovery depends on documentation or an additional description format. | Low by default. Each new client needs integration code. | Applications with code written for that API. |
+| **Sim workflow-as-MCP-tool** | Low. You build and deploy a workflow, then add it to a workflow MCP server. | Built in. Sim exposes the deployed workflow as a discoverable tool. | High. Compatible AI systems can connect to its MCP server. | MCP clients that can reach and authenticate to the Sim endpoint. |
+
+A traditional API integration can lock a tool to one application and force the next team to repeat the client work. An MCP server breaks that pattern by exposing tools through a discovery layer compatible clients can read, so one server serves many callers. A Sim workflow-as-MCP-tool pushes the effort down further: you build and deploy the logic in Sim, then publish it through a workflow MCP server. See [docs.sim.ai/mcp](https://docs.sim.ai/mcp) for setup details.
+
+## Conclusion
+
+MCP servers solve a real problem for anyone building agentic systems. Instead of writing a custom integration for every tool an agent needs, you expose those tools through one standard interface that compatible clients can discover and call. That standardization is why the protocol spread quickly after Anthropic released it.
+
+Sim gives you both directions in one place. You can wire external MCP servers into a workflow as tools, and you can expose deployed Sim workflows through an MCP server for other AI systems to call, on infrastructure you control under the Apache 2.0 license.
+
+Start by reading [docs.sim.ai/mcp](https://docs.sim.ai/mcp) and deploy your first MCP server today.
