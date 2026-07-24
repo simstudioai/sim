@@ -206,7 +206,8 @@ export const deepseekProvider: ProviderConfig = {
           streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
             createReadableStreamFromDeepseekStream(
-              streamResponse as any,
+              // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
+              streamResponse as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
               (content, usage, thinking) => {
                 output.content = content
                 output.tokens = {
@@ -591,7 +592,8 @@ export const deepseekProvider: ProviderConfig = {
           streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
             createReadableStreamFromDeepseekStream(
-              streamResponse as any,
+              // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
+              streamResponse as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
               (content, usage, thinking) => {
                 output.content = content
                 output.tokens = {
