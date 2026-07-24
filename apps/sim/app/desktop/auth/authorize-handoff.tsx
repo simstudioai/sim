@@ -22,7 +22,7 @@ export function AuthorizeHandoff({ state, port, email }: AuthorizeHandoffProps) 
   const authorize = async () => {
     setStatus('working')
     try {
-      const response = await fetch('/api/auth/one-time-token/generate', { method: 'POST' })
+      const response = await fetch('/api/auth/one-time-token/generate', { method: 'GET' })
       if (response.status === 400 || response.status === 401 || response.status === 403) {
         // Dead or revoked session: re-login, then come back here.
         window.location.assign(
