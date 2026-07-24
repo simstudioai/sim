@@ -112,6 +112,8 @@ let events: AgentSessionEvents | null = null
 let getMainWindow: () => BrowserWindow | null = () => null
 let pinnedTabPersistence: PinnedTabPersistence | null = null
 let pinnedTabsRestored = false
+/** Serialized form of the last saved pinned-tab list, for change detection. */
+let lastPersistedPinnedTabs: string | null = null
 /** Where the panel sits in the main window (CSS px); null = panel hidden. */
 let panelBounds: BrowserPanelBounds | null = null
 /** Browser-resource focus, including native pages and renderer-owned chrome. */
@@ -219,13 +221,25 @@ function pinnedUrl(tab: AgentTab): string {
   return tab.view.webContents.getURL() || 'about:blank'
 }
 
+/**
+ * Writes the pinned-tab list only when it actually changed.
+ *
+ * This runs on `did-navigate` and `did-navigate-in-page` for every tab, so any
+ * single-page app fires it on each route change. The settings store compares
+ * with `===`, so a freshly built array never matches and every call would
+ * otherwise mean a synchronous mkdir + write + rename of the whole settings
+ * file on the main thread — including writing `[]` over `[]` when nothing is
+ * pinned at all.
+ */
 function persistPinnedTabs(): void {
   if (!pinnedTabPersistence || !pinnedTabsRestored) return
-  pinnedTabPersistence.save(
-    tabs
-      .filter((tab) => tab.pinned && !tab.view.webContents.isDestroyed())
-      .map((tab) => pinnedUrl(tab))
-  )
+  const urls = tabs
+    .filter((tab) => tab.pinned && !tab.view.webContents.isDestroyed())
+    .map((tab) => pinnedUrl(tab))
+  const fingerprint = JSON.stringify(urls)
+  if (fingerprint === lastPersistedPinnedTabs) return
+  lastPersistedPinnedTabs = fingerprint
+  pinnedTabPersistence.save(urls)
 }
 
 /** Read cookie metadata from the dedicated profile without exposing values. */
@@ -722,6 +736,9 @@ function restorePinnedTabs(): void {
   if (pinnedTabsRestored) return
   pinnedTabsRestored = true
   const urls = sanitizePinnedTabUrls(pinnedTabPersistence?.load())
+  // Seed the change detector from what is already on disk, so the first
+  // navigation after launch does not rewrite an identical list.
+  lastPersistedPinnedTabs = JSON.stringify(urls)
   for (const url of urls) {
     const tab = addTabInternal({ pinned: true, activate: false, notify: false })
     if (url !== 'about:blank') {
@@ -959,6 +976,7 @@ export async function clearBrowserProfile(): Promise<void> {
   // Stays true so a later restore cannot re-read the list being erased here.
   pinnedTabsRestored = true
   pinnedTabPersistence?.save([])
+  lastPersistedPinnedTabs = '[]'
   events?.onTabsChanged()
   layout()
 

@@ -649,6 +649,39 @@ describe('browser-agent session', () => {
     expect(clearCache).toHaveBeenCalled()
   })
 
+  it('does not rewrite the settings file when the pinned tabs have not changed', async () => {
+    const save = vi.fn()
+    session = await freshSession(win, {}, { load: () => [], save })
+    const tab = session.ensureTab()
+    const contents = (tab.view as unknown as MockView).webContents
+    const onNavigate = contents.on.mock.calls.find(
+      ([eventName]) => eventName === 'did-navigate-in-page'
+    )?.[1] as () => void
+    save.mockClear()
+
+    // Any single-page app fires this on every route change, and the settings
+    // store's `===` comparison never matches a freshly built array — so each
+    // one used to mean a synchronous whole-file write on the main thread.
+    onNavigate()
+    onNavigate()
+    onNavigate()
+
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('persists once when a tab actually becomes pinned', async () => {
+    const save = vi.fn()
+    session = await freshSession(win, {}, { load: () => [], save })
+    const tab = session.ensureTab()
+    ;(tab.view as unknown as MockView).webContents.getURL.mockReturnValue('https://example.com/')
+    save.mockClear()
+
+    session.setTabPinned(tab.id, true)
+
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save).toHaveBeenLastCalledWith(['https://example.com/'])
+  })
+
   it('hardens every distinct session, not only the first one configured', () => {
     // Guards against tracking this with one process-wide flag: the second
     // session would then be left with no permission handlers, no SSRF request

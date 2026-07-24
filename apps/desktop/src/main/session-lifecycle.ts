@@ -184,6 +184,13 @@ export interface SessionLifecycleDeps {
 
 export interface SessionLifecycleCoordinator {
   attachWindow(win: BrowserWindow): void
+  /**
+   * Signs out through the same path web sign-out takes. Callers must use this
+   * rather than calling {@link tearDownSession} directly: a direct call skips
+   * the in-progress guard, and its own cookie removal then trips the cookie
+   * watcher into a second concurrent teardown.
+   */
+  signOut(): void
 }
 
 interface SessionLifecycleCoordinatorDeps extends SessionLifecycleDeps {
@@ -271,6 +278,7 @@ export function createSessionLifecycleCoordinator(
   })
 
   return {
+    signOut: runTeardown,
     attachWindow(win) {
       const onNavigation = (url: string) => {
         if (isLogoutNavigation(url, deps.origin())) {

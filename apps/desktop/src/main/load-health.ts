@@ -63,12 +63,25 @@ export function attachLoadHealth(win: BrowserWindow, deps: LoadHealthDeps): Load
     retryTimer = undefined
   }
 
+  const startWatchdog = () => {
+    clearTimeout(watchdogTimer)
+    watchdogTimer = setTimeout(() => {
+      if (!win.isDestroyed() && win.webContents.isLoading()) {
+        showOffline('timeout', 'The app took too long to load')
+      }
+    }, LOAD_WATCHDOG_MS)
+  }
+
   const retry = () => {
     if (win.isDestroyed()) {
       return
     }
     const target = intendedUrl ?? deps.getStartUrl()
     logger.info('Retrying load', { url: scrubUrl(target) })
+    // Re-arm before loading. The caller has already stopped auto-retry, so if
+    // this load hangs — the exact case the watchdog exists for — no load event
+    // ever fires and without this no timer is left to recover the window.
+    startWatchdog()
     void win.loadURL(target)
   }
 
@@ -137,15 +150,5 @@ export function attachLoadHealth(win: BrowserWindow, deps: LoadHealthDeps): Load
     clearTimeout(watchdogTimer)
   })
 
-  return {
-    retry,
-    startWatchdog() {
-      clearTimeout(watchdogTimer)
-      watchdogTimer = setTimeout(() => {
-        if (!win.isDestroyed() && win.webContents.isLoading()) {
-          showOffline('timeout', 'The app took too long to load')
-        }
-      }, LOAD_WATCHDOG_MS)
-    },
-  }
+  return { retry, startWatchdog }
 }

@@ -37,7 +37,6 @@ import {
   decideStartRoute,
   handleConnectIntercept,
   resolveStartRoute,
-  tearDownSession,
 } from '@/main/session-lifecycle'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
 import { installTray, newChatRoute, settingsRoute, type TrayHandle } from '@/main/tray'
@@ -350,15 +349,16 @@ function main(): void {
     setTrayEnabled,
   })
 
-  async function signOutFromMenu(): Promise<void> {
-    await localFilesystem.forgetAll()
-    const ses = session.fromPartition(partitionForOrigin(appOrigin()))
-    await tearDownSession(ses, () => handoff.clear(), events)
-    for (const win of getWindows()) {
-      try {
-        await win.loadURL(`${appOrigin()}/login`)
-      } catch {}
-    }
+  /**
+   * Routes through the coordinator rather than tearing down directly: the
+   * coordinator holds the in-progress guard, clears the same handoff and grant
+   * state, and reloads every window to /login. Doing it here instead meant the
+   * teardown's own cookie removal tripped the coordinator's cookie watcher into
+   * a second concurrent teardown.
+   */
+  function signOutFromMenu(): void {
+    ensureAppSession()
+    sessionLifecycle?.signOut()
   }
 
   app.on('second-instance', () => {
@@ -459,7 +459,7 @@ function main(): void {
       closeFocusedBrowserTab: (win) => closeFocusedBrowserTab(win),
       reopenClosedBrowserTab: (win) => reopenClosedBrowserTab(win),
       toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
-      signOut: () => void signOutFromMenu(),
+      signOut: signOutFromMenu,
       checkForUpdates: () =>
         checkForUpdatesInteractive({ getWindow: getMainWindow, events, handle: updater }),
     })
