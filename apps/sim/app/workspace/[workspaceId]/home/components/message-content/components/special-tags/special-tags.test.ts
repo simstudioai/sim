@@ -137,6 +137,20 @@ describe('parseSpecialTags with <question>', () => {
     expect(segments).toEqual([{ type: 'text', content: 'Thinking about it. ' }])
   })
 
+  it('renders an unclosed tag as text once the message is complete', () => {
+    const content =
+      'The `<workspace_resource>` file chip only renders when its path points to a real file.'
+    const { segments, hasPendingTag } = parseSpecialTags(content, false)
+    expect(hasPendingTag).toBe(false)
+    expect(segments).toEqual([
+      { type: 'text', content: 'The `' },
+      {
+        type: 'text',
+        content: '<workspace_resource>` file chip only renders when its path points to a real file.',
+      },
+    ])
+  })
+
   it('strips a trailing partial opening tag while streaming', () => {
     const { segments, hasPendingTag } = parseSpecialTags('Let me ask. <ques', true)
     expect(hasPendingTag).toBe(true)

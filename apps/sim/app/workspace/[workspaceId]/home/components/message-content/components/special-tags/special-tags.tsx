@@ -498,8 +498,18 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
     const closeIdx = content.indexOf(closeTag, bodyStart)
 
     if (closeIdx === -1) {
-      hasPendingTag = true
-      cursor = content.length
+      if (isStreaming) {
+        hasPendingTag = true
+        cursor = content.length
+        break
+      }
+      // A completed message can never finish an unclosed tag — the marker was
+      // literal text mentioning the tag (e.g. "the `<workspace_resource>`
+      // chip"), not a real tag. Render the remainder instead of swallowing it.
+      const remaining = content.slice(nearestStart)
+      if (remaining.trim()) {
+        segments.push({ type: 'text', content: remaining })
+      }
       break
     }
 
