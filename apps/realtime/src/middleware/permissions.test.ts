@@ -518,4 +518,33 @@ describe('verifyWorkflowAccess role-cache refresh', () => {
     mockAuthorize.mockRejectedValue(new Error('must not re-query'))
     expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBe('write')
   })
+
+  it('does not let a stale in-flight resolution overwrite a fresher verify decision', async () => {
+    const userId = 'vw-user-2'
+    const workflowId = 'vw-wf-2'
+
+    // A sweep-style resolution starts against pre-re-grant state and stalls.
+    let resolveStaleQuery!: (value: {
+      allowed: boolean
+      workspacePermission: string | null
+    }) => void
+    mockAuthorize.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveStaleQuery = resolve
+      })
+    )
+    const staleResolution = resolveCurrentWorkflowRole(userId, workflowId, 'read')
+
+    // Access is re-granted and a fresh join-time verify records it mid-flight.
+    mockAuthorize.mockResolvedValueOnce({ allowed: true, workspacePermission: 'write' })
+    await verifyWorkflowAccess(userId, workflowId)
+
+    // The stale query now completes with the pre-re-grant revocation — it must
+    // yield to the fresher recorded decision, not overwrite it.
+    resolveStaleQuery({ allowed: false, workspacePermission: null })
+    expect(await staleResolution).toBe('write')
+
+    mockAuthorize.mockRejectedValue(new Error('must not re-query'))
+    expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBe('write')
+  })
 })

@@ -150,6 +150,7 @@ async function resolveRoleUncached(
   workflowId: string,
   fallbackRole: string
 ): Promise<string | null> {
+  const entryBeforeQuery = roleCache.get(key)
   try {
     const authorization = await authorizeWorkflowByWorkspacePermission({
       workflowId,
@@ -157,6 +158,14 @@ async function resolveRoleUncached(
       action: 'read',
     })
     const role = authorization.allowed ? (authorization.workspacePermission ?? null) : null
+    // A fresh authoritative read (e.g. a join-time verifyWorkflowAccess) may
+    // have recorded a decision while this query was in flight. That write is
+    // newer than this query's read snapshot, so prefer it instead of
+    // overwriting it with a potentially stale result.
+    const entryAfterQuery = roleCache.get(key)
+    if (entryAfterQuery !== undefined && entryAfterQuery !== entryBeforeQuery) {
+      return entryAfterQuery.role
+    }
     recordRoleDecision(key, role)
     return role
   } catch (error) {
