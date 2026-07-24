@@ -189,6 +189,7 @@ export const POST = withRouteHandler(async (request: Request) => {
         await attachOwnedWorkspacesToOrganization({
           ownerUserId: user.id,
           organizationId,
+          includeArchived: true,
         })
       } else {
         const resolvedSubscription =
