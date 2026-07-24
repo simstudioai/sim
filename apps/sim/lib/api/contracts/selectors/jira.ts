@@ -149,6 +149,9 @@ const cascadingInputSchema = z.union([
     })
     .refine((o) => o.parent !== undefined || o.value !== undefined, {
       message: 'cascading value must include a parent',
+    })
+    .refine((o) => !(o.parent !== undefined && o.value !== undefined), {
+      message: 'cascading value must not set both parent and value (they are aliases)',
     }),
 ])
 
