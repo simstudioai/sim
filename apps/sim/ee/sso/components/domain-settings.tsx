@@ -18,18 +18,6 @@ interface DomainSettingsProps {
   organizationId: string
 }
 
-/**
- * The bare challenge label (e.g. `_sim-challenge`) from the full challenge host.
- * Providers such as GoDaddy and Namecheap append the zone to whatever is entered,
- * so pasting the FQDN there yields `_sim-challenge.acme.com.acme.com` and
- * verification silently fails — those admins need the label on its own. Derived
- * from the server-supplied host rather than importing the prefix constant, which
- * lives in a module that pulls in `node:dns`.
- */
-function challengeHostLabel(challengeHost: string): string {
-  return challengeHost.split('.')[0]
-}
-
 interface CopyFieldProps {
   label: string
   value: string
@@ -88,7 +76,7 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
           <CopyField
             label='Host / name'
             value={domain.challengeHost}
-            hint={`Some DNS providers add your domain automatically. If yours does, enter just ${challengeHostLabel(domain.challengeHost)}.`}
+            hint='Some DNS providers append your zone automatically. If yours does, enter this host with the trailing zone removed.'
           />
           <CopyField label='Value' value={domain.txtRecordValue} />
           <div>
