@@ -1,4 +1,4 @@
-import type { WhatsAppSendResponse } from '@/tools/whatsapp/types'
+import type { WhatsAppMediaType, WhatsAppSendResponse } from '@/tools/whatsapp/types'
 
 /** WhatsApp Cloud API Graph version used by every outbound tool. */
 export const WHATSAPP_GRAPH_VERSION = 'v25.0'
@@ -9,6 +9,49 @@ export function buildMessagesUrl(phoneNumberId: string | undefined): string {
     throw new Error('WhatsApp Phone Number ID is required')
   }
   return `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/${phoneNumberId.trim()}/messages`
+}
+
+/** Build the media upload endpoint for a given business phone number ID. */
+export function buildMediaUploadUrl(phoneNumberId: string): string {
+  return `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/${encodeURIComponent(phoneNumberId.trim())}/media`
+}
+
+/** Build the media metadata endpoint for a media ID, optionally scoped to a phone number. */
+export function buildMediaUrl(mediaId: string, phoneNumberId?: string): string {
+  const base = `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/${encodeURIComponent(mediaId.trim())}`
+  return phoneNumberId
+    ? `${base}?phone_number_id=${encodeURIComponent(phoneNumberId.trim())}`
+    : base
+}
+
+/**
+ * Per-type upload ceilings documented in the WhatsApp Cloud API media reference.
+ * Enforced before any bytes leave Sim so oversized files fail with an actionable
+ * message instead of WhatsApp's generic error 131052.
+ */
+const WHATSAPP_MEDIA_LIMITS = [
+  { prefix: 'image/', maxBytes: 5 * 1024 * 1024, label: 'Images (5 MB)' },
+  { prefix: 'video/', maxBytes: 16 * 1024 * 1024, label: 'Videos (16 MB)' },
+  { prefix: 'audio/', maxBytes: 16 * 1024 * 1024, label: 'Audio (16 MB)' },
+] as const
+
+/** Stickers are `image/webp` but carry a far tighter cap than other images. */
+const WHATSAPP_STICKER_MAX_BYTES = 500 * 1024
+
+/** Documents carry the largest documented ceiling, so it doubles as the overall cap. */
+export const WHATSAPP_MEDIA_MAX_BYTES = 100 * 1024 * 1024
+
+/**
+ * Resolve the documented upload ceiling for a MIME type. Unknown types fall back to
+ * the 100 MB document ceiling, which is also the largest WhatsApp accepts.
+ */
+export function whatsappMediaLimitFor(mimeType: string): { maxBytes: number; label: string } {
+  const normalized = mimeType.toLowerCase()
+  if (normalized === 'image/webp') {
+    return { maxBytes: WHATSAPP_STICKER_MAX_BYTES, label: 'Stickers (500 KB)' }
+  }
+  const match = WHATSAPP_MEDIA_LIMITS.find((limit) => normalized.startsWith(limit.prefix))
+  return match ?? { maxBytes: WHATSAPP_MEDIA_MAX_BYTES, label: 'Documents (100 MB)' }
 }
 
 /** Build the shared Bearer auth headers for the WhatsApp Cloud API. */
@@ -26,23 +69,91 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-async function parseWhatsAppResponse(response: Response): Promise<Record<string, unknown>> {
+export async function parseWhatsAppResponse(response: Response): Promise<Record<string, unknown>> {
   const responseText = await response.text()
   const parsed = responseText ? (JSON.parse(responseText) as unknown) : {}
   return isRecord(parsed) ? parsed : {}
 }
 
-/** Extract a human-readable error message from a WhatsApp API error payload. */
-function extractErrorMessage(data: Record<string, unknown>, status: number): string {
+/**
+ * Extract a human-readable error message from a WhatsApp API error payload.
+ *
+ * The Cloud API error envelope is `{ error: { message, type, code, error_subcode,
+ * error_data: { details }, fbtrace_id } }`. `error_data.details` usually carries the
+ * actionable explanation while `message` carries the summary, so both are surfaced,
+ * along with the numeric `code` that the error-code reference is keyed on.
+ */
+export function extractWhatsAppErrorMessage(data: Record<string, unknown>, status: number): string {
   const error = isRecord(data.error) ? data.error : undefined
-  return (
-    (typeof error?.message === 'string' ? error.message : undefined) ||
-    (typeof error?.error_user_msg === 'string' ? error.error_user_msg : undefined) ||
-    (isRecord(error?.error_data) && typeof error.error_data.details === 'string'
+  const summary = typeof error?.message === 'string' ? error.message : undefined
+  const details =
+    isRecord(error?.error_data) && typeof error.error_data.details === 'string'
       ? error.error_data.details
-      : undefined) ||
-    `WhatsApp API error (${status})`
-  )
+      : undefined
+  const code = typeof error?.code === 'number' ? error.code : undefined
+
+  const base = [summary, details].filter(Boolean).join(' — ') || `WhatsApp API error (${status})`
+  return code === undefined || base.includes(`${code}`) ? base : `${base} (code ${code})`
+}
+
+export const WHATSAPP_MEDIA_TYPES = [
+  'image',
+  'document',
+  'video',
+  'audio',
+  'sticker',
+] as const satisfies readonly WhatsAppMediaType[]
+
+/** Audio and sticker messages have no `caption` field; only documents accept `filename`. */
+const CAPTION_TYPES: ReadonlySet<WhatsAppMediaType> = new Set(['image', 'video', 'document'])
+
+interface MediaMessageInput {
+  phoneNumber?: string
+  mediaType?: string
+  mediaId?: string
+  mediaLink?: string
+  caption?: string
+  filename?: string
+}
+
+/**
+ * Build the `/messages` body for a media send. Exactly one of `mediaId` or `mediaLink`
+ * must be set — the Cloud API treats `id` and `link` as mutually exclusive.
+ */
+export function buildMediaMessageBody(params: MediaMessageInput): Record<string, unknown> {
+  if (!params.phoneNumber) {
+    throw new Error('Phone number is required but was not provided')
+  }
+
+  const mediaType = params.mediaType?.trim() as WhatsAppMediaType
+  if (!WHATSAPP_MEDIA_TYPES.includes(mediaType)) {
+    throw new Error(`Media type must be one of: ${WHATSAPP_MEDIA_TYPES.join(', ')}`)
+  }
+
+  const link = params.mediaLink?.trim()
+  const id = params.mediaId?.trim()
+  if (!link && !id) {
+    throw new Error('Either a file, a media ID, or a media link is required')
+  }
+  if (link && id) {
+    throw new Error('Provide either a media ID or a media link, not both')
+  }
+
+  const media: Record<string, string> = id ? { id } : { link: link as string }
+  if (params.caption && CAPTION_TYPES.has(mediaType)) {
+    media.caption = params.caption
+  }
+  if (params.filename && mediaType === 'document') {
+    media.filename = params.filename
+  }
+
+  return {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: params.phoneNumber.trim(),
+    type: mediaType,
+    [mediaType]: media,
+  }
 }
 
 /**
@@ -55,7 +166,7 @@ export async function transformWhatsAppSendResponse(
   const data = await parseWhatsAppResponse(response)
 
   if (!response.ok) {
-    throw new Error(extractErrorMessage(data, response.status))
+    throw new Error(extractWhatsAppErrorMessage(data, response.status))
   }
 
   const contacts = Array.isArray(data.contacts)
@@ -98,7 +209,8 @@ export const whatsappSendOutputs = {
   messageId: { type: 'string', description: 'Unique WhatsApp message identifier' },
   messageStatus: {
     type: 'string',
-    description: 'Initial delivery state returned by the API',
+    description:
+      'Message pacing status when WhatsApp returns one: accepted, held_for_quality_assessment, or paused. Acceptance is not delivery — subscribe to the webhook trigger for delivery status.',
     optional: true,
   },
   messagingProduct: {

@@ -88,9 +88,21 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
       id: 'audioFile',
       title: 'Audio File',
       type: 'file-upload',
+      canonicalParamId: 'audioSource',
       placeholder: 'Upload an audio file',
+      mode: 'basic',
       multiple: false,
       acceptedTypes: '.mp3,.m4a,.wav,.webm,.ogg,.flac,.aac,.opus',
+      condition: { field: 'operation', value: AUDIO_INPUT_OPERATIONS },
+      required: { field: 'operation', value: AUDIO_INPUT_OPERATIONS },
+    },
+    {
+      id: 'audioFileRef',
+      title: 'Audio File',
+      type: 'short-input',
+      canonicalParamId: 'audioSource',
+      placeholder: 'Reference a file from a previous block',
+      mode: 'advanced',
       condition: { field: 'operation', value: AUDIO_INPUT_OPERATIONS },
       required: { field: 'operation', value: AUDIO_INPUT_OPERATIONS },
     },
@@ -282,13 +294,13 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
     config: {
       tool: (params) => `elevenlabs_${params.operation || 'tts'}`,
       params: (params) => {
-        const audioFile = normalizeFileInput(params.audioFile, { single: true })
+        const sourceAudio = normalizeFileInput(params.audioSource, { single: true })
         return {
           apiKey: params.apiKey,
           text: params.text,
           voiceId: params.voiceId,
           modelId: params.modelId,
-          audioFile,
+          audioFile: sourceAudio,
           search: params.search,
           category: params.category || undefined,
           nextPageToken: params.nextPageToken || undefined,
@@ -317,7 +329,7 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
     operation: { type: 'string', description: 'Operation to perform' },
     text: { type: 'string', description: 'Text to convert or sound prompt' },
     voiceId: { type: 'string', description: 'Voice identifier' },
-    audioFile: { type: 'json', description: 'Source audio file (UserFile)' },
+    audioSource: { type: 'json', description: 'Source audio file (UserFile)' },
     modelId: { type: 'string', description: 'Model identifier' },
     stability: { type: 'number', description: 'Voice stability 0.0-1.0' },
     similarityBoost: { type: 'number', description: 'Similarity boost 0.0-1.0' },
