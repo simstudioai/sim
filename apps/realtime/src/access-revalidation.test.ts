@@ -39,11 +39,15 @@ function makeManager(sockets: FakeSocket[], presence: Partial<UserPresence>[] = 
     io: { sockets: { sockets: socketMap } },
     isReady: () => true,
     getWorkflowUsers: vi.fn().mockResolvedValue(presence),
-    removeUserFromRoom: vi.fn().mockResolvedValue(null),
+    getWorkflowIdForSocket: vi.fn().mockResolvedValue(null),
+    removeUserFromRoom: vi
+      .fn()
+      .mockImplementation(async (_socketId: string, workflowId?: string) => workflowId ?? null),
     broadcastPresenceUpdate: vi.fn().mockResolvedValue(undefined),
   }
   return manager as unknown as IRoomManager & {
     getWorkflowUsers: ReturnType<typeof vi.fn>
+    getWorkflowIdForSocket: ReturnType<typeof vi.fn>
     removeUserFromRoom: ReturnType<typeof vi.fn>
     broadcastPresenceUpdate: ReturnType<typeof vi.fn>
   }
@@ -183,6 +187,47 @@ describe('access-revalidation sweep', () => {
 
     expect(manager.removeUserFromRoom).toHaveBeenCalledTimes(2)
     expect(manager.broadcastPresenceUpdate).toHaveBeenCalledWith('wf-1')
+  })
+
+  it('defers cleanup when the manager swallows a removal failure into null', async () => {
+    const socket = makeSocket('sock-1', 'user-1', 'wf-1')
+    const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
+    // Live mapping but the removal reports nothing removed — the Redis manager
+    // swallows transport errors into null, so this is the only failure signal.
+    manager.getWorkflowIdForSocket.mockResolvedValue('wf-1')
+    manager.removeUserFromRoom.mockResolvedValueOnce(null)
+    mockResolveRole.mockResolvedValue(null)
+
+    const sweep = startAccessRevalidationSweep(manager)
+    await sweep.runOnce()
+
+    expect(socket.leave).toHaveBeenCalledWith('wf-1')
+    expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
+
+    // Next pass: the socket left the room, and the removal now succeeds.
+    socket.rooms = new Set(['sock-1'])
+    await sweep.runOnce()
+    sweep.stop()
+
+    expect(manager.removeUserFromRoom).toHaveBeenCalledTimes(2)
+    expect(manager.broadcastPresenceUpdate).toHaveBeenCalledWith('wf-1')
+  })
+
+  it('skips removal when the socket has since moved to a different workflow', async () => {
+    const socket = makeSocket('sock-1', 'user-1', 'wf-1')
+    const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
+    // Between the membership snapshot and cleanup, the socket switched to a
+    // workflow it can still access — removal must not touch its new presence.
+    manager.getWorkflowIdForSocket.mockResolvedValue('wf-2')
+    mockResolveRole.mockResolvedValue(null)
+
+    const sweep = startAccessRevalidationSweep(manager)
+    await sweep.runOnce()
+    sweep.stop()
+
+    expect(socket.leave).toHaveBeenCalledWith('wf-1')
+    expect(manager.removeUserFromRoom).not.toHaveBeenCalled()
+    expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
   })
 
   it('drops a deferred cleanup when the socket legitimately re-joined the room', async () => {

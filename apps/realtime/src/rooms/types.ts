@@ -64,9 +64,14 @@ export interface IRoomManager {
   addUserToRoom(workflowId: string, socketId: string, presence: UserPresence): Promise<void>
 
   /**
-   * Remove a user from their current room
-   * Optional workflowIdHint is used when socket mapping keys are missing/expired.
-   * Returns the workflowId they were in, or null if not in any room.
+   * Remove a user's membership of a workflow room.
+   * When workflowIdHint is provided it is the target room; the socket's current
+   * mapping is only the fallback (and covers missing/expired mapping keys).
+   * Socket-level mappings are cleared only when the socket is not mapped to a
+   * different room, so removing a stale room cannot destroy the mapping of a
+   * room the socket has since moved to.
+   * Returns the target workflowId, or null when no target could be resolved
+   * (or, for the Redis manager, when the removal failed).
    */
   removeUserFromRoom(socketId: string, workflowIdHint?: string): Promise<string | null>
 

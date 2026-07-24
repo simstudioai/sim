@@ -84,7 +84,24 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
   async function cleanupEvictedSocket(socketId: string, workflowId: string): Promise<void> {
     const key = `${socketId}:${workflowId}`
     try {
-      await roomManager.removeUserFromRoom(socketId, workflowId)
+      // Unlike removeUserFromRoom, this read does not swallow transport errors,
+      // so a Redis outage lands in the catch below and defers the cleanup.
+      const currentWorkflowId = await roomManager.getWorkflowIdForSocket(socketId)
+      if (currentWorkflowId !== null && currentWorkflowId !== workflowId) {
+        // The socket has since moved to a different workflow it can still
+        // access; that join's room switch already removed this room's presence
+        // entry, so there is nothing stale left to clean here.
+        pendingCleanups.delete(key)
+        return
+      }
+
+      const removed = await roomManager.removeUserFromRoom(socketId, workflowId)
+      if (removed === null && currentWorkflowId !== null) {
+        // The Redis manager swallows transport errors into null — a live
+        // mapping with no reported removal means the removal did not happen.
+        throw new Error('room-state removal not confirmed')
+      }
+
       await roomManager.broadcastPresenceUpdate(workflowId)
       pendingCleanups.delete(key)
     } catch (error) {
