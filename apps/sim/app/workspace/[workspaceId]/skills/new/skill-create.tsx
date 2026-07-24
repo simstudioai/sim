@@ -96,7 +96,10 @@ export function SkillCreate({ workspaceId }: SkillCreateProps) {
         skill: { name: nameDraft, description: descriptionDraft, content: contentDraft },
       })
       setErrors({})
-      const createdId = created[0]?.id
+      // The upsert responds with the caller's whole skill list (built-ins
+      // included), not just the new row — match by name, which is unique per
+      // workspace, rather than trusting the first element.
+      const createdId = created.find((skill) => skill.name === nameDraft)?.id
       router.push(createdId ? `${skillsHref}/${createdId}` : skillsHref)
     } catch (error) {
       if (isSkillNameConflictError(error)) {

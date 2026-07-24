@@ -129,7 +129,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
 
     const now = new Date()
     // Conflict-safe against a concurrent add racing the unique (skillId, userId) index.
-    await db
+    const [inserted] = await db
       .insert(skillMember)
       .values({
         id: generateId(),
@@ -140,6 +140,14 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
         updatedAt: now,
       })
       .onConflictDoNothing({ target: [skillMember.skillId, skillMember.userId] })
+      .returning({ id: skillMember.id })
+
+    // A concurrent request won the race and created the row. The editor exists,
+    // so this is still a success — but this request added nothing, and emitting
+    // the share event or audit entry here would record an add that never happened.
+    if (!inserted) {
+      return NextResponse.json({ success: true })
+    }
 
     captureServerEvent(
       session.user.id,

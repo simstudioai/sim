@@ -79,12 +79,11 @@ export function IntegrationSkillsSection({
         skill_count: skills.length,
       })
     } catch (error) {
-      // A name conflict means someone already added this skill but restricted
-      // it — retrying can never succeed, so say what to actually do.
+      // A name conflict just means the skill is already in this workspace —
+      // everyone with workspace access can already see and use it, so there is
+      // nothing to request and retrying can never succeed.
       if (isSkillNameConflictError(error)) {
-        toast.error(
-          `"${skill.name}" already exists in this workspace but isn't shared with you — ask a skill admin for access`
-        )
+        toast.error(`"${skill.name}" is already in this workspace`)
       } else {
         toast.error(`Failed to add "${skill.name}" — please try again`)
       }
