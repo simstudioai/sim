@@ -40,6 +40,7 @@ type InviteErrorCode =
   | 'already-processed'
   | 'email-mismatch'
   | 'workspace-not-found'
+  | 'disclosure-outdated'
   | 'user-not-found'
   | 'already-member'
   | 'already-in-organization'
@@ -87,6 +88,12 @@ function getInviteError(code: string): InviteError {
     'workspace-not-found': {
       code: 'workspace-not-found',
       message: 'The workspace associated with this invitation could not be found.',
+    },
+    'disclosure-outdated': {
+      code: 'disclosure-outdated',
+      message:
+        'Your workspaces changed since this page loaded. Review the updated notice and accept again.',
+      canRetry: true,
     },
     'user-not-found': {
       code: 'user-not-found',
@@ -261,7 +268,16 @@ export default function Invite() {
     try {
       const data = await requestJson(acceptInvitationContract, {
         params: { id: inviteId },
-        body: { token: token ?? undefined },
+        body: {
+          token: token ?? undefined,
+          /**
+           * Disclosure token: acceptance rejects with disclosure-outdated if
+           * the sweep set no longer matches what this screen showed.
+           */
+          disclosedWorkspaceIds: joinPreview?.willJoinOrganization
+            ? joinPreview.workspaceIdsToMove
+            : undefined,
+        },
       })
 
       setAccepted(true)

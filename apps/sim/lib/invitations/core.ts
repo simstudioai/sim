@@ -191,6 +191,12 @@ async function stampedOrganizationAllowsEscalation(
 export interface InvitationJoinPreviewResult {
   willJoinOrganization: boolean
   workspacesToMove: string[]
+  /**
+   * Stable ids behind `workspacesToMove`; the accept screen echoes them back
+   * as the disclosure token so acceptance can reject when the sweep set no
+   * longer matches what was disclosed.
+   */
+  workspaceIdsToMove: string[]
 }
 
 /**
@@ -204,7 +210,11 @@ export async function getInvitationJoinPreview(
   inviteeUserId: string,
   inv: InvitationWithGrants
 ): Promise<InvitationJoinPreviewResult> {
-  const noJoin: InvitationJoinPreviewResult = { willJoinOrganization: false, workspacesToMove: [] }
+  const noJoin: InvitationJoinPreviewResult = {
+    willJoinOrganization: false,
+    workspacesToMove: [],
+    workspaceIdsToMove: [],
+  }
   if (inv.membershipIntent === 'external') return noJoin
 
   let workspaceOrganizationId = inv.organizationId
@@ -286,7 +296,7 @@ export async function getInvitationJoinPreview(
   }
 
   const ownedWorkspaces = await db
-    .select({ name: workspace.name })
+    .select({ id: workspace.id, name: workspace.name })
     .from(workspace)
     .where(ownedAttachableWorkspacesWhere({ userId: inviteeUserId, includeArchived: true }))
     .orderBy(asc(workspace.name))
@@ -294,6 +304,7 @@ export async function getInvitationJoinPreview(
   return {
     willJoinOrganization: true,
     workspacesToMove: ownedWorkspaces.map((row) => row.name),
+    workspaceIdsToMove: ownedWorkspaces.map((row) => row.id),
   }
 }
 
@@ -368,6 +379,7 @@ export async function expireStalePendingInvitationsForWorkspaces(
 export type AcceptInvitationFailure =
   | { kind: 'not-found' }
   | { kind: 'workspace-not-found' }
+  | { kind: 'disclosure-outdated' }
   | { kind: 'already-processed' }
   | { kind: 'expired' }
   | { kind: 'email-mismatch' }
@@ -395,6 +407,12 @@ export interface AcceptInvitationInput {
   actorName?: string | null
   invitationId: string
   token: string | null
+  /**
+   * Workspace ids the accept screen disclosed as moving. When provided,
+   * acceptance fails with `disclosure-outdated` if the set it would sweep
+   * differs — the user must see the refreshed notice before consenting.
+   */
+  disclosedWorkspaceIds?: string[]
   request?: { headers: { get(name: string): string | null } }
 }
 
@@ -432,6 +450,18 @@ class AllGrantsStaleDuringAcceptError extends Error {
   constructor() {
     super('All organization-invite grants turned stale during acceptance')
     this.name = 'AllGrantsStaleDuringAcceptError'
+  }
+}
+
+/**
+ * Thrown when the workspace set acceptance would sweep no longer matches the
+ * set the accept screen disclosed. Rolls the acceptance back so the user
+ * consents to the refreshed notice instead of a silent migration.
+ */
+class DisclosureOutdatedDuringAcceptError extends Error {
+  constructor() {
+    super('Disclosed workspace set no longer matches the sweep set')
+    this.name = 'DisclosureOutdatedDuringAcceptError'
   }
 }
 
@@ -618,6 +648,13 @@ export async function acceptInvitation(
         })
         return { success: false, kind: 'workspace-not-found' }
       }
+      if (error instanceof DisclosureOutdatedDuringAcceptError) {
+        logger.warn('Invite acceptance rolled back: disclosed workspace set is outdated', {
+          invitationId: input.invitationId,
+          userId: input.userId,
+        })
+        return { success: false, kind: 'disclosure-outdated' }
+      }
       throw error
     })
   if (result.success) {
@@ -774,6 +811,21 @@ async function acceptLockedInvitation(
           [...lockPlan.joinerAttachWorkspaceIds].sort().join()
         ) {
           throw new JoinerWorkspacesChangedDuringAcceptError()
+        }
+
+        /**
+         * Consent is only valid for the workspace set the user saw: when the
+         * client supplies the disclosed ids from the join preview, a sweep
+         * set that differs (a workspace created or removed since the preview
+         * rendered) rolls the acceptance back so the refreshed notice is
+         * shown before any migration happens.
+         */
+        if (
+          input.disclosedWorkspaceIds !== undefined &&
+          [...input.disclosedWorkspaceIds].sort().join() !==
+            [...lockPlan.joinerAttachWorkspaceIds].sort().join()
+        ) {
+          throw new DisclosureOutdatedDuringAcceptError()
         }
 
         if (lockPlan.joinerAttachWorkspaceIds.length > 0) {

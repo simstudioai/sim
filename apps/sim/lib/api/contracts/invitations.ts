@@ -74,6 +74,13 @@ export const invitationActionParamsSchema = z.object({
 
 export const invitationActionBodySchema = z.object({
   token: z.string().min(1).optional(),
+  /**
+   * The workspace ids the accept screen disclosed as moving (from the join
+   * preview). When present, acceptance fails with `disclosure-outdated` if
+   * the set it would actually sweep differs — consent is only valid for the
+   * set the user saw.
+   */
+  disclosedWorkspaceIds: z.array(z.string()).max(200).optional(),
 })
 
 export const invitationDetailsSchema = z.object({
@@ -101,6 +108,12 @@ export const invitationDetailsSchema = z.object({
 export const invitationJoinPreviewSchema = z.object({
   willJoinOrganization: z.boolean(),
   workspacesToMove: z.array(z.string()),
+  /**
+   * Stable ids behind `workspacesToMove`, echoed back on accept as the
+   * disclosure token: acceptance rejects when the set it would sweep no
+   * longer matches what this preview disclosed.
+   */
+  workspaceIdsToMove: z.array(z.string()),
 })
 
 export const acceptInvitationResponseSchema = z.object({

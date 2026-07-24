@@ -748,6 +748,68 @@ describe('acceptInvitation', () => {
     expect(auditMock.recordAudit).not.toHaveBeenCalled()
   })
 
+  it('rolls back acceptance when the sweep set differs from the disclosed set', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner-1',
+    })
+    mockEnsureTeamOrganizationForAcceptance.mockResolvedValueOnce({
+      success: true,
+      organizationId: 'org-1',
+      fixedSeats: false,
+    })
+
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'invitee@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [{ id: 'joiner-ws-1' }],
+      // Post-join owned-set re-check under the billing-identity lock.
+      [{ id: 'joiner-ws-1' }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+      // The accept screen rendered before joiner-ws-1 existed.
+      disclosedWorkspaceIds: [],
+    })
+
+    expect(result).toEqual({ success: false, kind: 'disclosure-outdated' })
+    expect(mockAttachOwnedWorkspacesToOrganizationTx).not.toHaveBeenCalled()
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
+  })
+
   it('rolls back acceptance when the owned-workspace set changes concurrently', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',

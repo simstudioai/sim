@@ -27,6 +27,7 @@ export const POST = withRouteHandler(
       actorName: session.user.name ?? undefined,
       invitationId: id,
       token: parsed.data.body.token ?? null,
+      disclosedWorkspaceIds: parsed.data.body.disclosedWorkspaceIds,
       request,
     })
 
@@ -34,6 +35,7 @@ export const POST = withRouteHandler(
       const statusMap: Record<string, number> = {
         'not-found': 404,
         'workspace-not-found': 404,
+        'disclosure-outdated': 409,
         'invalid-token': 400,
         'already-processed': 400,
         expired: 400,
