@@ -110,14 +110,6 @@ describe('tool events (dispatch → model + side effects)', () => {
     expect(toolNode(ctx, 'tc-3').status).toBe('error')
   })
 
-  it('starts a desktop local filesystem tool once its complete call arrives', () => {
-    const startClientLocalFilesystemTool = vi.fn()
-    const ctx = createStreamLoopContext(makeStreamLoopDeps({ startClientLocalFilesystemTool }))
-    dispatchStreamEvent(ctx, toolCall('local-1', 'local_list_mounts'))
-
-    expect(startClientLocalFilesystemTool).toHaveBeenCalledWith('local-1', 'local_list_mounts', {})
-  })
-
   it('routes an ordinary read call to the desktop only for an explicit user-local path', () => {
     const startClientLocalFilesystemTool = vi.fn()
     const ctx = createStreamLoopContext(makeStreamLoopDeps({ startClientLocalFilesystemTool }))

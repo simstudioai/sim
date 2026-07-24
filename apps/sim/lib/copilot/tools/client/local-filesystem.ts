@@ -9,11 +9,7 @@ import { toError } from '@sim/utils/errors'
 import micromatch from 'micromatch'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import { reportClientToolCompletion } from '@/lib/copilot/tools/client/completion'
-import {
-  isUserLocalVfsToolCall,
-  LOCAL_FILESYSTEM_TOOL_NAMES,
-  USER_LOCAL_VFS_ROOT,
-} from '@/lib/copilot/tools/local-filesystem'
+import { USER_LOCAL_VFS_ROOT } from '@/lib/copilot/tools/local-filesystem'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import { getDesktopBridge } from '@/lib/desktop'
 
@@ -142,59 +138,6 @@ function mountForPath(mounts: LocalFilesystemMount[], path: string): LocalFilesy
     )
   }
   return match
-}
-
-function requestForLegacyTool(
-  toolName: string,
-  args: Record<string, unknown>,
-  requestId: string
-): LocalFilesystemRequest {
-  switch (toolName) {
-    case LOCAL_FILESYSTEM_TOOL_NAMES.mountDirectory:
-      throw new Error(
-        'Folder access requires an explicit user click. Ask the user to use the folder access control.'
-      )
-    case LOCAL_FILESYSTEM_TOOL_NAMES.listMounts:
-      return { operation: 'list_mounts' }
-    case LOCAL_FILESYSTEM_TOOL_NAMES.forgetMount:
-      throw new Error(
-        'Revoking folder access requires an explicit user action in Desktop settings.'
-      )
-    case LOCAL_FILESYSTEM_TOOL_NAMES.list:
-      return { operation: 'list', uri: requiredString(args, 'uri'), requestId }
-    case LOCAL_FILESYSTEM_TOOL_NAMES.glob:
-      return {
-        operation: 'glob',
-        uri: requiredString(args, 'uri'),
-        pattern: requiredString(args, 'pattern'),
-        requestId,
-      }
-    case LOCAL_FILESYSTEM_TOOL_NAMES.read:
-      return {
-        operation: 'read',
-        uri: requiredString(args, 'uri'),
-        ...(typeof args.startLine === 'number' ? { startLine: args.startLine } : {}),
-        ...(typeof args.lineCount === 'number' ? { lineCount: args.lineCount } : {}),
-        requestId,
-      }
-    case LOCAL_FILESYSTEM_TOOL_NAMES.grep:
-      return {
-        operation: 'grep',
-        uri: requiredString(args, 'uri'),
-        query: requiredString(args, 'query'),
-        ...(typeof args.include === 'string' ? { include: args.include } : {}),
-        ...(typeof args.caseSensitive === 'boolean' ? { caseSensitive: args.caseSensitive } : {}),
-        requestId,
-      }
-    case LOCAL_FILESYSTEM_TOOL_NAMES.stat:
-      return { operation: 'stat', uri: requiredString(args, 'uri'), requestId }
-    case LOCAL_FILESYSTEM_TOOL_NAMES.stageFile:
-      throw new Error(
-        'local_stage_file is retired. Local files are read-only under user-local/ and cannot be uploaded by the model.'
-      )
-    default:
-      throw new Error(`Unsupported local filesystem tool: ${toolName}`)
-  }
 }
 
 function omitHostPaths(data: LocalFilesystemData): LocalFilesystemData {
@@ -388,18 +331,9 @@ async function execute(
   args: Record<string, unknown>,
   context: LocalFilesystemExecutionContext
 ): Promise<unknown> {
-  if (isUserLocalVfsToolCall(toolName, args)) {
-    if (toolName === 'glob') return executeUserLocalGlob(toolCallId, args, context.signal)
-    if (toolName === 'grep') return executeUserLocalGrep(toolCallId, args, context.signal)
-    return executeUserLocalRead(toolCallId, args, context.signal)
-  }
-
-  return omitHostPaths(
-    await invokeBridge(
-      requestForLegacyTool(toolName, args, requestIdForToolCall(toolCallId)),
-      context.signal
-    )
-  )
+  if (toolName === 'glob') return executeUserLocalGlob(toolCallId, args, context.signal)
+  if (toolName === 'grep') return executeUserLocalGrep(toolCallId, args, context.signal)
+  return executeUserLocalRead(toolCallId, args, context.signal)
 }
 
 export function executeLocalFilesystemTool(

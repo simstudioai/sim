@@ -189,24 +189,6 @@ describe('executeLocalFilesystemTool', () => {
     })
   })
 
-  it('does not let a legacy model call open a picker, revoke a grant, or upload bytes', async () => {
-    for (const [id, name, args] of [
-      ['mount', 'local_mount_directory', {}],
-      ['forget', 'local_forget_mount', { uri: mount.uri }],
-      ['stage', 'local_stage_file', { uri: `${mount.uri}README.md` }],
-    ] as const) {
-      executeLocalFilesystemTool(id, name, args, { workspaceId: 'ws-1' })
-    }
-
-    await vi.waitFor(() => {
-      expect(mockReportCompletion).toHaveBeenCalledTimes(3)
-    })
-    expect(localFilesystem).not.toHaveBeenCalled()
-    for (const call of mockReportCompletion.mock.calls) {
-      expect(call[1]).toBe('error')
-    }
-  })
-
   it('cancels an in-flight native read on abort and never reports a stale completion', async () => {
     let finishRead:
       | ((response: { ok: false; code: 'CANCELLED'; error: string }) => void)

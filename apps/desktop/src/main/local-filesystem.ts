@@ -485,27 +485,6 @@ export class LocalFilesystemService {
         }
         return false
       }
-      case 'local_read':
-        return request.operation === 'read' && request.uri === args.uri
-      case 'local_grep':
-        return (
-          request.operation === 'grep' &&
-          request.uri === args.uri &&
-          request.query === args.query &&
-          request.include === args.include &&
-          request.caseSensitive === args.caseSensitive
-        )
-      case 'local_glob':
-        return (
-          request.operation === 'glob' &&
-          request.uri === args.uri &&
-          request.pattern === args.pattern &&
-          request.pathPrefix === undefined
-        )
-      case 'local_list':
-        return request.operation === 'list' && request.uri === args.uri
-      case 'local_stat':
-        return request.operation === 'stat' && request.uri === args.uri
       default:
         return false
     }

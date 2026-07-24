@@ -895,7 +895,7 @@ const FolderGrantIcon = ({ className }: { className?: string }) => (
  * Inline grant chip rendered for
  * `<credential>{"type":"folder_access","name":"Desktop"}</credential>`.
  * Clicking opens the desktop app's native folder picker (read-only grant,
- * same flow as the local_mount_directory tool). Renders nothing outside the
+ * same flow as the Desktop settings folder picker). Renders nothing outside the
  * desktop app — there is no local filesystem bridge to grant against.
  */
 function FolderAccessDisplay({ data }: { data: CredentialTagData }) {
