@@ -589,9 +589,8 @@
     },
   },
   "trustedDependencies": [
-    "ffmpeg-static",
-    "isolated-vm",
     "sharp",
+    "isolated-vm",
   ],
   "overrides": {
     "@next/env": "16.2.11",
