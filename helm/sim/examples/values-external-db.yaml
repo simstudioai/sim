@@ -19,7 +19,7 @@
 #     --set externalDatabase.username=simstudio_user \
 #     --set externalDatabase.password="$DB_PASSWORD" \
 #     --set externalDatabase.database=simstudio_prod \
-#     --set "networkPolicy.egress[0].to[0].ipBlock.cidr=<YOUR_DB_CIDR>" \
+#     --set "networkPolicy.egress[0].to[0].ipBlock.cidr=10.20.0.0/24" \   # your database subnet
 #     --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
 #     --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
 #     --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET"
@@ -175,8 +175,9 @@ networkPolicy:
   # `networkPolicy.egress` is a LIST of NetworkPolicy egress rules. With the
   # policy on, the chart's egress allowlist only covers the in-cluster
   # Postgres, so this rule is what lets the pods reach your external database.
-  # The CIDR is a placeholder: REQUIRED — set your database's subnet (or /32
-  # host) via the --set line in the install commands below (or edit it here).
+  # The CIDR below is an example, exactly like `your-db.example.com` in the
+  # install command: REQUIRED to change — set your database's subnet (or /32
+  # host) via the --set line in the install commands below, or edit it here.
   # A wrong CIDR blocks migrations and every database connection; an empty
   # `to:` would allow ANY host on 5432 and defeat the isolation.
   egress:
@@ -194,7 +195,7 @@ networkPolicy:
 #   --set externalDatabase.username="your-db-user" \
 #   --set externalDatabase.password="your-db-password" \
 #   --set externalDatabase.database="your-db-name" \
-#   --set "networkPolicy.egress[0].to[0].ipBlock.cidr=<YOUR_DB_CIDR>" \
+#   --set "networkPolicy.egress[0].to[0].ipBlock.cidr=10.20.0.0/24" \   # your database subnet
 #   --set app.env.BETTER_AUTH_SECRET="$(openssl rand -hex 32)" \
 #   --set app.env.ENCRYPTION_KEY="$(openssl rand -hex 32)" \
 #   --set app.env.INTERNAL_API_SECRET="$(openssl rand -hex 32)" \
