@@ -630,23 +630,30 @@ async function registerSSOProvider(): Promise<boolean> {
     // can never leave a live provider without its ownership row. Both commit or
     // neither does.
     await db.transaction(async (tx) => {
-      // Decide update-vs-insert from the row count INSIDE the transaction, not
-      // from the pre-transaction `existingProviders` read: a provider deleted
-      // between that read and here would make a blind UPDATE match zero rows
-      // silently, leaving the verified-domain upsert below to commit an orphaned
-      // ownership record. Update first; if nothing matched, insert.
-      const updated = await tx
-        .update(ssoProvider)
-        .set({
-          issuer: providerData.issuer,
-          domain: providerData.domain,
-          oidcConfig: providerData.oidcConfig,
-          samlConfig: providerData.samlConfig,
-          userId: providerData.userId,
-          organizationId: providerData.organizationId,
-        })
-        .where(eq(ssoProvider.providerId, ssoConfig.providerId))
-        .returning({ id: ssoProvider.id })
+      // Update the specific row observed above by its primary-key id, NOT the
+      // logical providerId: if that row was deregistered and another
+      // registration created a replacement with the same providerId, a
+      // providerId-keyed update would clobber the replacement's config and
+      // ownership. Targeting the observed id touches only our row; if it is gone
+      // (zero rows) we insert, which then fails cleanly on the providerId unique
+      // constraint instead of overwriting the replacement. The insert-fallback
+      // is decided from the update's row count, so a row deleted before the
+      // transaction can never leave an orphaned verified-domain record below.
+      const priorId = existingProviders[0]?.id
+      const updated = priorId
+        ? await tx
+            .update(ssoProvider)
+            .set({
+              issuer: providerData.issuer,
+              domain: providerData.domain,
+              oidcConfig: providerData.oidcConfig,
+              samlConfig: providerData.samlConfig,
+              userId: providerData.userId,
+              organizationId: providerData.organizationId,
+            })
+            .where(eq(ssoProvider.id, priorId))
+            .returning({ id: ssoProvider.id })
+        : []
       if (updated.length === 0) {
         await tx.insert(ssoProvider).values(providerData)
       }
