@@ -22,6 +22,23 @@ const MAX_LIST_ENTRIES = 500
 const MAX_SCAN_ENTRIES = 10_000
 const MAX_SCAN_DEPTH = 50
 const MAX_GLOB_RESULTS = 500
+const MAX_GLOB_LENGTH = 128
+/**
+ * Measured cost of one match against a single 46-character path: six wildcards
+ * 1.8ms, eight 96ms, ten 2.7s, twelve 43s. Six keeps the worst case around 2ms
+ * per scanned entry while leaving headroom over real patterns, which top out
+ * around four (`**\/node_modules\/**`, `**\/*spec*`).
+ */
+const MAX_GLOB_WILDCARDS = 6
+/**
+ * Backstop only. Deliberately far above the ~0.1ms real patterns cost, because
+ * elapsed time varies with JIT warmth and machine load — a tight budget here
+ * rejects legitimate patterns on a busy machine and accepts bad ones on an idle
+ * one. {@link MAX_GLOB_WILDCARDS} is the deterministic bound.
+ */
+const GLOB_PROBE_BUDGET_MS = 100
+/** Repeated-literal path that provokes backtracking in a pathological glob. */
+const GLOB_PROBE_PATH = `${'a'.repeat(32)}/${'a'.repeat(32)}.txt`
 const MAX_GREP_RESULTS = 200
 const MAX_TEXT_FILE_BYTES = 5 * 1024 * 1024
 const MAX_GREP_SCAN_BYTES = 100 * 1024 * 1024
@@ -125,8 +142,30 @@ function parsePositiveInteger(value: unknown, name: string, fallback: number, ma
   return value as number
 }
 
+/**
+ * Compiles a glob, refusing patterns that would be ruinously expensive to
+ * evaluate.
+ *
+ * Micromatch produces a backtracking regex whose cost grows exponentially with
+ * the number of wildcards separated by literals. Measured against a single
+ * 46-character path with the options below, `**\/*a*a*a*a*a*a*a*b` takes 2.7s
+ * and two more wildcards take 43s. The matcher runs once per scanned entry, up
+ * to {@link MAX_SCAN_ENTRIES}, inside one synchronous call — so the abort
+ * checks around it never get a turn and an unbounded pattern freezes the whole
+ * main process, taking every window, the menu bar and the tray with it.
+ * `safeRegex` does not catch this: it reports the generated source as safe.
+ *
+ * The wildcard cap is the real bound and is deterministic. The probe is a
+ * backstop for a shape the cap does not anticipate, with a budget loose enough
+ * that timing variance cannot make it fire on a legitimate pattern.
+ */
 function compileGlob(pattern: string): (path: string) => boolean {
-  if (!pattern || pattern.length > 512 || pattern.includes('\0') || pattern.includes('\\')) {
+  if (
+    !pattern ||
+    pattern.length > MAX_GLOB_LENGTH ||
+    pattern.includes('\0') ||
+    pattern.includes('\\')
+  ) {
     throw new LocalFilesystemError('INVALID_REQUEST', 'Glob pattern is invalid.')
   }
   if (isAbsolute(pattern) || pattern.split('/').some((segment) => segment === '..')) {
@@ -135,14 +174,31 @@ function compileGlob(pattern: string): (path: string) => boolean {
       'Glob patterns must stay within the selected directory.'
     )
   }
+  const wildcards = (pattern.match(/[*?]/g) ?? []).length
+  if (wildcards > MAX_GLOB_WILDCARDS) {
+    throw new LocalFilesystemError(
+      'INVALID_REQUEST',
+      `Glob patterns may use at most ${MAX_GLOB_WILDCARDS} wildcards.`
+    )
+  }
 
-  return micromatch.matcher(pattern, {
+  const matcher = micromatch.matcher(pattern, {
     bash: false,
     dot: false,
     windows: false,
     nobrace: true,
     noext: true,
   })
+
+  const startedAt = performance.now()
+  matcher(GLOB_PROBE_PATH)
+  if (performance.now() - startedAt > GLOB_PROBE_BUDGET_MS) {
+    throw new LocalFilesystemError(
+      'INVALID_REQUEST',
+      'Glob pattern is too expensive to evaluate. Use fewer wildcards.'
+    )
+  }
+  return matcher
 }
 
 function isBinary(buffer: Uint8Array): boolean {
@@ -377,7 +433,21 @@ export class LocalFilesystemService {
         )
       }
       case 'grep': {
-        if (request.operation !== 'grep' || request.pattern !== args.pattern) return false
+        // `typeof` first, mirroring the glob case below: without it, a tool
+        // call whose args carry no pattern makes this `undefined !== undefined`
+        // and the guard passes.
+        if (
+          request.operation !== 'grep' ||
+          typeof args.pattern !== 'string' ||
+          request.pattern !== args.pattern
+        ) {
+          return false
+        }
+        // `grep()` falls back to `query` when `pattern` is absent, and narrows
+        // the file set by `include`. The authorized path sends neither, so a
+        // request carrying them is the renderer searching for something the
+        // model did not ask for, or hiding results it believes are complete.
+        if (request.query !== undefined || request.include !== undefined) return false
         const rawPath = typeof args.path === 'string' ? args.path.replace(/\/+$/, '') : ''
         const uriAllowed =
           rawPath === 'user-local'

@@ -79,21 +79,33 @@ function cdpModifiers(combo: ParsedCombo): number {
   return (combo.alt ? 1 : 0) | (combo.ctrl ? 2 : 0) | (combo.meta ? 4 : 0) | (combo.shift ? 8 : 0)
 }
 
+/**
+ * Clipboard shortcuts are deliberately absent. Paste would let an agent move
+ * the user's clipboard — which routinely holds a password copied out of a
+ * password manager — into a page field, where the next snapshot reports it as
+ * an ordinary `value`. Copy and cut would let it overwrite the clipboard. See
+ * {@link comboTouchesClipboard}, which refuses them outright.
+ */
 function editingCommandFor(combo: ParsedCombo): string | null {
   switch (combo.key.toLowerCase()) {
     case 'a':
       return 'selectAll'
-    case 'c':
-      return 'copy'
-    case 'x':
-      return 'cut'
-    case 'v':
-      return 'paste'
     case 'z':
       return combo.shift ? 'redo' : 'undo'
     default:
       return null
   }
+}
+
+/**
+ * Whether a combo would drive the system clipboard. Checked before dispatch
+ * rather than by withholding the CDP `commands` array: off macOS these are
+ * Blink-native, so a key event alone still performs them.
+ */
+export function comboTouchesClipboard(combo: ParsedCombo): boolean {
+  if (!combo.ctrl && !combo.meta) return false
+  const key = combo.key.toLowerCase()
+  return key === 'v' || key === 'c' || key === 'x'
 }
 
 /**

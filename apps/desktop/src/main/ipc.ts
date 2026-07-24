@@ -17,7 +17,7 @@ import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
 import type { LocalFilesystemService } from '@/main/local-filesystem'
-import { openExternalSafe } from '@/main/navigation'
+import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 
 /** Workspace/chat ids are opaque tokens; anything else never reaches a URL. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
@@ -151,11 +151,20 @@ type ChannelSpec =
     }
 
 function isLocalPageSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
-  return (event.senderFrame?.url ?? '').startsWith('file:')
+  try {
+    return new URL(event.senderFrame?.url ?? '').protocol === 'file:'
+  } catch {
+    return false
+  }
 }
 
+/**
+ * Compared by parsed origin, not `startsWith`. This is the renderer-to-main
+ * boundary, and prefix matching admits lookalike hosts — see the warning on
+ * {@link isAppOrigin}.
+ */
 function isAppOriginSender(event: IpcMainEvent | IpcMainInvokeEvent, appOrigin: string): boolean {
-  return (event.senderFrame?.url ?? '').startsWith(`${appOrigin}/`)
+  return isAppOrigin(event.senderFrame?.url ?? '', appOrigin)
 }
 
 function localFilesystemRequestNeedsUserActivation(request: unknown): boolean {

@@ -283,6 +283,21 @@ describe('registerIpcHandlers', () => {
     expect(deps.retryLoad).toHaveBeenCalledWith(fileSender)
   })
 
+  it('compares the sender by parsed origin, not by prefix', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('desktop:settings:get')
+
+    // A lookalike host is a prefix of the app origin, so a `startsWith` gate
+    // is one missing trailing slash away from admitting it.
+    const lookalike = { senderFrame: { url: `${APP}.evil.example/workspace/ws1` } }
+    expect(await handler?.(lookalike)).toBeNull()
+
+    // Origin equality also normalizes the default port, which a prefix
+    // comparison rejects even though it is the same origin.
+    const explicitPort = { senderFrame: { url: 'https://sim.ai:443/workspace/ws1' } }
+    expect(await handler?.(explicitPort)).toMatchObject({ notificationsEnabled: true })
+  })
+
   it('handles a missing senderFrame safely', async () => {
     const { invoke } = collectHandlers()
     expect(await invoke.get('desktop:oauth-connect')?.({ senderFrame: null }, 'slack')).toBe(false)

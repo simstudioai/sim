@@ -28,7 +28,12 @@ import { sleep } from '@sim/utils/helpers'
 import type { BrowserWindow, WebContents } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import { ToolError } from '@/main/browser-agent/errors'
-import { comboInsertsText, dispatchKeyCombo, parseKeyCombo } from '@/main/browser-agent/keyboard'
+import {
+  comboInsertsText,
+  comboTouchesClipboard,
+  dispatchKeyCombo,
+  parseKeyCombo,
+} from '@/main/browser-agent/keyboard'
 import { BrowserKnownSessionRegistry } from '@/main/browser-agent/known-sessions'
 import {
   activeElementSecrecy,
@@ -617,6 +622,16 @@ async function executeToolInner(
     case 'browser_press_key': {
       const combo = parseKeyCombo(requireStr(params, 'key'))
       const contents = session.requireTab().view.webContents
+      // Pasting would move the user's clipboard into the page, where the next
+      // snapshot reports it as an ordinary field value — clipboards routinely
+      // hold a password copied out of a password manager. Copy and cut would
+      // overwrite whatever the user had there.
+      if (comboTouchesClipboard(combo)) {
+        throw new ToolError(
+          'Refusing to use a clipboard shortcut. The clipboard belongs to the user and may ' +
+            'hold credentials. Use browser_type to enter text.'
+        )
+      }
       // Trusted CDP key events never enter the page, so they cannot be vetted
       // from inside it — a focused credential field has to be ruled out here,
       // before dispatch. Probe failures (blank or uninjectable page) fall

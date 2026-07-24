@@ -241,6 +241,31 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
   })
 
+  it.each(['Cmd+V', 'Control+V', 'Cmd+C', 'Cmd+X'])(
+    'refuses the clipboard shortcut %s',
+    async (key) => {
+      const contents = await openPage()
+      respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })
+
+      const result = await driver.executeTool('browser_press_key', { key })
+
+      // Paste would move a password copied out of a manager into the page,
+      // where the next snapshot reports it as an ordinary field value.
+      expect(result.ok).toBe(false)
+      expect(result.error).toMatch(/clipboard/i)
+      expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(0)
+    }
+  )
+
+  it('still allows select-all, which carries no clipboard content', async () => {
+    const contents = await openPage()
+    respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })
+
+    const result = await driver.executeTool('browser_press_key', { key: 'Cmd+A' })
+
+    expect(result.ok).toBe(true)
+  })
+
   it('surfaces the page-side refusal for element-targeted actions', async () => {
     const contents = await openPage()
     respondWith(contents, { clickElement: { error: 'password' } })

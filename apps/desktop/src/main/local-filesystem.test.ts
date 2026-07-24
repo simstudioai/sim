@@ -65,6 +65,29 @@ describe('LocalFilesystemService', () => {
     expect(listData).toEqual({ mounts: [granted] })
   })
 
+  it('refuses glob patterns that would be ruinously expensive to evaluate', async () => {
+    const granted = await mount(service)
+    // Micromatch backtracking is exponential in wildcard count. Measured
+    // against a single 46-character path, the 10-wildcard pattern below took
+    // 2.7s and a 12-wildcard one 43s — per scanned entry, in one synchronous
+    // call that no abort check can interrupt, on the main process.
+    const pathological = ['**/*a*a*a*a*a*b', '**/*a*a*a*a*a*a*a*b', '*'.repeat(40)]
+
+    for (const pattern of pathological) {
+      const response = await service.handle({ operation: 'glob', uri: granted.uri, pattern })
+      expect(response.ok).toBe(false)
+    }
+  })
+
+  it('still accepts the glob patterns people actually write', async () => {
+    const granted = await mount(service)
+
+    for (const pattern of ['**/*.ts', 'src/**/*.tsx', '**/node_modules/**', '**/*spec*']) {
+      const response = await service.handle({ operation: 'glob', uri: granted.uri, pattern })
+      expect(response.ok).toBe(true)
+    }
+  })
+
   it('lists, reads, globs, greps, and stats inside the selected directory', async () => {
     const granted = await mount(service)
 
@@ -279,6 +302,43 @@ describe('LocalFilesystemService', () => {
           maxResults: 20,
           requestId: 'grep-tool',
         },
+        grepAuthorization
+      )
+    ).toBe(false)
+
+    const authorizedGrepRequest = {
+      operation: 'grep',
+      uri: granted.uri,
+      pattern: 'TODO',
+      caseSensitive: false,
+      outputMode: 'files_with_matches',
+      lineNumbers: true,
+      context: 0,
+      maxResults: 20,
+      requestId: 'grep-tool',
+    }
+
+    // A tool call whose args carry no pattern once made the comparison
+    // `undefined !== undefined`, so the guard passed and grep fell back to
+    // searching the renderer's own `query`.
+    expect(
+      service.isAuthorizedClientToolRequest(
+        { ...authorizedGrepRequest, pattern: undefined, query: 'PASSWORD' },
+        { toolName: 'grep', args: { ...grepAuthorization.args, pattern: undefined } }
+      )
+    ).toBe(false)
+
+    // `query` and `include` are read by grep() but never sent by the authorized
+    // path, so smuggling either widens or silently narrows the search.
+    expect(
+      service.isAuthorizedClientToolRequest(
+        { ...authorizedGrepRequest, query: 'PASSWORD' },
+        grepAuthorization
+      )
+    ).toBe(false)
+    expect(
+      service.isAuthorizedClientToolRequest(
+        { ...authorizedGrepRequest, include: '**/nothing-here/**' },
         grepAuthorization
       )
     ).toBe(false)
