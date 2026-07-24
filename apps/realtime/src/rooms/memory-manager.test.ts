@@ -115,6 +115,18 @@ describe('MemoryRoomManager multi-room', () => {
     expect(await manager.getUserSession('socket-2')).not.toBeNull()
   })
 
+  it('ignores removal of a room the socket is not in (id-guarded)', async () => {
+    await manager.addUserToRoom(FILES, 'socket-1', presence(FILES, 'socket-1', 'user-1'))
+
+    // Removing a workflow room the socket never joined must be a no-op — it must
+    // not wipe the files mapping or the shared session.
+    const removed = await manager.removeUserFromRoom(WORKFLOW, 'socket-1')
+    expect(removed).toBe(false)
+    expect(await manager.hasRoom(FILES)).toBe(true)
+    expect(await manager.getUserSession('socket-1')).not.toBeNull()
+    expect(await manager.getRoomForSocket('socket-1', ROOM_TYPES.WORKSPACE_FILES)).toEqual(FILES)
+  })
+
   it('broadcasts presence on the room-type-specific event name', async () => {
     const { emit, io } = fakeIo()
     const m = new MemoryRoomManager(io)

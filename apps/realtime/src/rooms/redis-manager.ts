@@ -40,7 +40,7 @@ const SESSION_TTL = 60 * 60
  * one room would break the socket's other rooms). Cleans up empty room state.
  *
  * KEYS: [socketRooms, socketSession, roomUsers, roomMeta]
- * ARGV: [roomType, socketId]
+ * ARGV: [roomType, socketId, roomId]
  * Returns 1 if the socket was a member of the room, else 0.
  */
 const REMOVE_ROOM_SCRIPT = `
@@ -50,12 +50,18 @@ local roomUsersKey = KEYS[3]
 local roomMetaKey = KEYS[4]
 local roomType = ARGV[1]
 local socketId = ARGV[2]
+local roomId = ARGV[3]
 
 local removed = redis.call('HDEL', roomUsersKey, socketId)
-redis.call('HDEL', socketRoomsKey, roomType)
 
-if redis.call('HLEN', socketRoomsKey) == 0 then
-  redis.call('DEL', socketRoomsKey, socketSessionKey)
+-- Only drop the socket's mapping for this type if it points at THIS room, so
+-- removing a room the socket isn't in can't wipe a different room's mapping or
+-- spuriously trigger the last-room session cleanup (mirrors the memory manager).
+if redis.call('HGET', socketRoomsKey, roomType) == roomId then
+  redis.call('HDEL', socketRoomsKey, roomType)
+  if redis.call('HLEN', socketRoomsKey) == 0 then
+    redis.call('DEL', socketRoomsKey, socketSessionKey)
+  end
 end
 
 if redis.call('HLEN', roomUsersKey) == 0 then
@@ -220,7 +226,7 @@ export class RedisRoomManager implements IRoomManager {
           KEYS.roomUsers(room),
           KEYS.roomMeta(room),
         ],
-        arguments: [room.type, socketId],
+        arguments: [room.type, socketId, room.id],
       })
       return typeof removed === 'number' ? removed > 0 : Number(removed) > 0
     } catch (error) {
