@@ -2377,6 +2377,52 @@ export function DocumentIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function ArtifactIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      width='24'
+      height='24'
+      viewBox='0 0 24 24'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <rect
+        x='2'
+        y='3'
+        width='20'
+        height='18'
+        rx='2.5'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path
+        d='M2 8.5H22'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path
+        d='M6 5.75H6.01M9 5.75H9.01'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path
+        d='M7 14.5L9.5 12.5L12 15.5L15.5 12L17 13.5'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>
+  )
+}
+
 export function MistralIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   const clipId = `mistral_clip_${id}`

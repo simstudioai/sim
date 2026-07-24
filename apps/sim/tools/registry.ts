@@ -198,6 +198,7 @@ import {
   appConfigUpdateConfigurationProfileTool,
   appConfigUpdateEnvironmentTool,
 } from '@/tools/appconfig'
+import { artifactGenerateTool } from '@/tools/artifact'
 import { arxivGetAuthorPapersTool, arxivGetPaperTool, arxivSearchTool } from '@/tools/arxiv'
 import {
   asanaAddCommentTool,
@@ -4778,6 +4779,7 @@ export const tools: Record<string, ToolConfig> = {
   amplitude_get_revenue: amplitudeGetRevenueTool,
   amplitude_funnels: amplitudeFunnelsTool,
   amplitude_retention: amplitudeRetentionTool,
+  artifact_generate: artifactGenerateTool,
   arxiv_get_author_papers: arxivGetAuthorPapersTool,
   arxiv_get_paper: arxivGetPaperTool,
   arxiv_search: arxivSearchTool,

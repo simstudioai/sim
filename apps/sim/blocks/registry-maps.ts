@@ -13,6 +13,7 @@ import { ApiTriggerBlock } from '@/blocks/blocks/api_trigger'
 import { ApifyBlock, ApifyBlockMeta } from '@/blocks/blocks/apify'
 import { ApolloBlock, ApolloBlockMeta } from '@/blocks/blocks/apollo'
 import { AppConfigBlock, AppConfigBlockMeta } from '@/blocks/blocks/appconfig'
+import { ArtifactBlock } from '@/blocks/blocks/artifact'
 import { ArxivBlock, ArxivBlockMeta } from '@/blocks/blocks/arxiv'
 import { AsanaBlock, AsanaBlockMeta } from '@/blocks/blocks/asana'
 import { AshbyBlock, AshbyBlockMeta } from '@/blocks/blocks/ashby'
@@ -357,6 +358,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   apify: ApifyBlock,
   appconfig: AppConfigBlock,
   apollo: ApolloBlock,
+  artifact: ArtifactBlock,
   arxiv: ArxivBlock,
   asana: AsanaBlock,
   ashby: AshbyBlock,
