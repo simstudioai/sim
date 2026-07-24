@@ -212,7 +212,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                       type: 'mcp',
                       content: [
                         'The following MCP tools are explicitly enabled for this request.',
-                        'Load one with load_custom_tool({ type: "mcp", name: "<exact name>" }) before calling it.',
+                        'Load one with load_mcp_tool({ name: "<exact name>" }) before calling it.',
                         'Do not narrate discovery, loading, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
                         ...mothershipTools.map(
                           (tool) => `- ${tool.name}: ${tool.description || tool.name}`
