@@ -440,6 +440,21 @@ export class RedisRoomManager implements IRoomManager {
     logger.info(`Notified ${userCount} users about workflow update: ${workflowId}`)
   }
 
+  async notifyAnnotationsUpdated(workflowId: string): Promise<void> {
+    const hasRoom = await this.hasWorkflowRoom(workflowId)
+    if (!hasRoom) {
+      logger.debug(`No active room found for annotated workflow ${workflowId}`)
+      return
+    }
+
+    this._io.to(workflowId).emit('annotations-updated', {
+      workflowId,
+      timestamp: Date.now(),
+    })
+
+    logger.debug(`Notified users about annotation change: ${workflowId}`)
+  }
+
   async handleWorkflowDeployed(workflowId: string): Promise<void> {
     logger.info(`Handling workflow deployed notification for ${workflowId}`)
 

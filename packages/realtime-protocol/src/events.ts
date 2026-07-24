@@ -108,6 +108,12 @@ export interface WorkflowDeployedBroadcast {
   timestamp: number
 }
 
+/** `annotations-updated` broadcast: block annotations changed, clients refetch. */
+export interface AnnotationsUpdatedBroadcast {
+  workflowId: string
+  timestamp: number
+}
+
 /** `operation-confirmed` ack for a previously-emitted operation. */
 export interface OperationConfirmedBroadcast {
   operationId: string

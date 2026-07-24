@@ -69,6 +69,7 @@ function createRoomManager(overrides?: Partial<IRoomManager>): IRoomManager {
     handleWorkflowDeletion: vi.fn().mockResolvedValue(undefined),
     handleWorkflowRevert: vi.fn().mockResolvedValue(undefined),
     handleWorkflowUpdate: vi.fn().mockResolvedValue(undefined),
+    notifyAnnotationsUpdated: vi.fn().mockResolvedValue(undefined),
     shutdown: vi.fn().mockResolvedValue(undefined),
     initialize: vi.fn().mockResolvedValue(undefined),
     io: {

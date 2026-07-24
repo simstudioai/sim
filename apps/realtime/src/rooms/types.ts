@@ -143,4 +143,9 @@ export interface IRoomManager {
    * Handle workflow deployment change - notify users to refresh deployment state
    */
   handleWorkflowDeployed(workflowId: string): Promise<void>
+
+  /**
+   * Handle block annotation change - notify users to refetch annotations
+   */
+  notifyAnnotationsUpdated(workflowId: string): Promise<void>
 }

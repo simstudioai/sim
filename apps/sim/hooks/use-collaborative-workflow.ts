@@ -29,6 +29,7 @@ import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { getSubBlocksDependingOnChange } from '@/blocks/utils'
 import { invalidateDeploymentQueries } from '@/hooks/queries/deployments'
+import { workflowAnnotationKeys } from '@/hooks/queries/utils/workflow-annotation-keys'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import {
   registerEmitFunctions,
@@ -156,6 +157,7 @@ export function useCollaborativeWorkflow() {
     onWorkflowReverted,
     onWorkflowUpdated,
     onWorkflowDeployed,
+    onAnnotationsUpdated,
     onOperationConfirmed,
     onOperationFailed,
   } = useSocket()
@@ -890,6 +892,13 @@ export function useCollaborativeWorkflow() {
       invalidateDeploymentQueries(queryClient, workflowId)
     }
 
+    const handleAnnotationsUpdated = (data: any) => {
+      const { workflowId } = data
+      if (workflowId !== activeWorkflowId) return
+
+      queryClient.invalidateQueries({ queryKey: workflowAnnotationKeys.list(workflowId) })
+    }
+
     const handleOperationConfirmed = (data: any) => {
       const { operationId } = data
       logger.debug('Operation confirmed', { operationId })
@@ -916,6 +925,7 @@ export function useCollaborativeWorkflow() {
     onWorkflowReverted(handleWorkflowReverted)
     onWorkflowUpdated(handleWorkflowUpdated)
     onWorkflowDeployed(handleWorkflowDeployed)
+    onAnnotationsUpdated(handleAnnotationsUpdated)
     onOperationConfirmed(handleOperationConfirmed)
     onOperationFailed(handleOperationFailed)
     window.addEventListener(WORKFLOW_DIFF_SETTLED_EVENT, handleDiffSettled)
@@ -938,6 +948,7 @@ export function useCollaborativeWorkflow() {
     onWorkflowReverted,
     onWorkflowUpdated,
     onWorkflowDeployed,
+    onAnnotationsUpdated,
     onOperationConfirmed,
     onOperationFailed,
     activeWorkflowId,

@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { createLogger } from '@sim/logger'
 import type {
+  AnnotationsUpdatedBroadcast,
   CursorUpdateBroadcast,
   OperationConfirmedBroadcast,
   OperationFailedBroadcast,
@@ -107,6 +108,7 @@ interface SocketContextType {
   onWorkflowReverted: (handler: (data: WorkflowRevertedBroadcast) => void) => void
   onWorkflowUpdated: (handler: (data: WorkflowUpdatedBroadcast) => void) => void
   onWorkflowDeployed: (handler: (data: WorkflowDeployedBroadcast) => void) => void
+  onAnnotationsUpdated: (handler: (data: AnnotationsUpdatedBroadcast) => void) => void
   onOperationConfirmed: (handler: (data: OperationConfirmedBroadcast) => void) => void
   onOperationFailed: (handler: (data: OperationFailedBroadcast) => void) => void
 }
@@ -137,6 +139,7 @@ const SocketContext = createContext<SocketContextType>({
   onWorkflowDeleted: () => {},
   onWorkflowReverted: () => {},
   onWorkflowUpdated: () => {},
+  onAnnotationsUpdated: () => {},
   onWorkflowDeployed: () => {},
   onOperationConfirmed: () => {},
   onOperationFailed: () => {},
@@ -185,6 +188,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     workflowReverted?: (data: WorkflowRevertedBroadcast) => void
     workflowUpdated?: (data: WorkflowUpdatedBroadcast) => void
     workflowDeployed?: (data: WorkflowDeployedBroadcast) => void
+    annotationsUpdated?: (data: AnnotationsUpdatedBroadcast) => void
     operationConfirmed?: (data: OperationConfirmedBroadcast) => void
     operationFailed?: (data: OperationFailedBroadcast) => void
   }>({})
@@ -608,6 +612,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('workflow-deployed', (data: WorkflowDeployedBroadcast) => {
           logger.info(`Workflow ${data.workflowId} deployment state changed`)
           eventHandlers.current.workflowDeployed?.(data)
+        })
+
+        socketInstance.on('annotations-updated', (data: AnnotationsUpdatedBroadcast) => {
+          eventHandlers.current.annotationsUpdated?.(data)
         })
 
         /**
@@ -1166,6 +1174,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     eventHandlers.current.workflowDeployed = handler
   }, [])
 
+  const onAnnotationsUpdated = useCallback(
+    (handler: (data: AnnotationsUpdatedBroadcast) => void) => {
+      eventHandlers.current.annotationsUpdated = handler
+    },
+    []
+  )
+
   const onOperationConfirmed = useCallback(
     (handler: (data: OperationConfirmedBroadcast) => void) => {
       eventHandlers.current.operationConfirmed = handler
@@ -1205,6 +1220,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       onWorkflowReverted,
       onWorkflowUpdated,
       onWorkflowDeployed,
+      onAnnotationsUpdated,
       onOperationConfirmed,
       onOperationFailed,
     }),
@@ -1235,6 +1251,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       onWorkflowReverted,
       onWorkflowUpdated,
       onWorkflowDeployed,
+      onAnnotationsUpdated,
       onOperationConfirmed,
       onOperationFailed,
     ]

@@ -239,6 +239,21 @@ export class MemoryRoomManager implements IRoomManager {
     logger.info(`Notified ${room.users.size} users about workflow update: ${workflowId}`)
   }
 
+  async notifyAnnotationsUpdated(workflowId: string): Promise<void> {
+    const room = this.workflowRooms.get(workflowId)
+    if (!room) {
+      logger.debug(`No active room found for annotated workflow ${workflowId}`)
+      return
+    }
+
+    this._io.to(workflowId).emit('annotations-updated', {
+      workflowId,
+      timestamp: Date.now(),
+    })
+
+    logger.debug(`Notified ${room.users.size} users about annotation change: ${workflowId}`)
+  }
+
   async handleWorkflowDeployed(workflowId: string): Promise<void> {
     logger.info(`Handling workflow deployed notification for ${workflowId}`)
 

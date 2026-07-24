@@ -122,6 +122,20 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       return
     }
 
+    // Handle block annotation change notifications from the main API
+    if (req.method === 'POST' && req.url === '/api/workflow-annotations-updated') {
+      try {
+        const body = await readRequestBody(req)
+        const { workflowId } = JSON.parse(body)
+        await roomManager.notifyAnnotationsUpdated(workflowId)
+        sendSuccess(res)
+      } catch (error) {
+        logger.error('Error handling annotations update notification:', error)
+        sendError(res, 'Failed to process annotations update notification')
+      }
+      return
+    }
+
     // Handle workflow deployment change notifications from the main API
     if (req.method === 'POST' && req.url === '/api/workflow-deployed') {
       try {
