@@ -16,6 +16,71 @@ export function docker(args: string[]): void {
   }
 }
 
+function dockerOutput(args: string[]): string | null {
+  const result = spawnSync('docker', args, { encoding: 'utf8' })
+  return result.status === 0 ? result.stdout.trim() : null
+}
+
+interface ManagedContainer {
+  running: boolean
+  dsn: string
+}
+
+/**
+ * Recovers everything needed to reach an existing managed container from Docker
+ * itself, so re-running the wizard is idempotent.
+ *
+ * Both facts used to be unrecoverable: the password is generated at creation and
+ * only lived in the env files the run wrote, and the host port varies (5433 when
+ * 5432 is taken). Reading them back turns "a container already exists" from a
+ * fatal name collision into a reuse.
+ */
+function inspectManagedContainer(): ManagedContainer | null {
+  const running = dockerOutput(['inspect', DB_CONTAINER, '--format', '{{.State.Running}}'])
+  if (running === null) return null
+
+  const env = dockerOutput([
+    'inspect',
+    DB_CONTAINER,
+    '--format',
+    '{{range .Config.Env}}{{println .}}{{end}}',
+  ])
+  const password = env
+    ?.split('\n')
+    .find((line) => line.startsWith('POSTGRES_PASSWORD='))
+    ?.slice('POSTGRES_PASSWORD='.length)
+  if (!password) return null
+
+  // `docker port` only reports a published port while the container runs; the
+  // static config carries it either way.
+  const hostPort = dockerOutput([
+    'inspect',
+    DB_CONTAINER,
+    '--format',
+    '{{(index .HostConfig.PortBindings "5432/tcp" 0).HostPort}}',
+  ])
+  if (!hostPort) return null
+
+  return {
+    running: running === 'true',
+    dsn: `postgresql://postgres:${password}@localhost:${hostPort}/simstudio`,
+  }
+}
+
+/** Starts the container if needed and returns its DSN, or null if it won't answer. */
+async function reuseManagedContainer(container: ManagedContainer): Promise<string | null> {
+  if (!container.running) docker(['start', DB_CONTAINER])
+  const spin = p.spinner()
+  spin.start(`Reusing existing ${DB_CONTAINER} container…`)
+  const healthy = await waitFor(async () => (await pgProbe(container.dsn)).ok, 30_000, 1500)
+  spin.stop(
+    healthy
+      ? `Postgres running in ${DB_CONTAINER} on :${new URL(container.dsn).port}`
+      : `${glyph.warn} ${DB_CONTAINER} exists but is not answering`
+  )
+  return healthy ? container.dsn : null
+}
+
 async function probeWithSpinner(dsn: string, label: string): Promise<boolean> {
   const spin = p.spinner()
   spin.start(label)
@@ -57,7 +122,32 @@ async function promptExternalDsn(): Promise<string> {
   }
 }
 
+/**
+ * Provisions the managed container, reconciling with one that already exists
+ * rather than colliding on the name. Recreating is always an explicit choice —
+ * the data volume outlives the container, so a silent recreate would quietly
+ * re-point setup at data the user may not expect.
+ */
 async function startManagedContainer(detection: Detection): Promise<string> {
+  const existing = inspectManagedContainer()
+  if (existing) {
+    const reused = await reuseManagedContainer(existing)
+    if (reused) return reused
+
+    const recreate = await p.confirm({
+      message: `${DB_CONTAINER} exists but is not answering. Remove and recreate it? Its data volume is kept.`,
+      initialValue: true,
+    })
+    if (!recreate) {
+      throw new SetupError(`the existing ${DB_CONTAINER} container is not usable.`, [
+        `inspect: ${theme.command(`docker logs ${DB_CONTAINER}`)}`,
+        `remove it: ${theme.command(`docker rm -f ${DB_CONTAINER}`)}`,
+        `start clean: ${theme.command('docker volume rm sim-postgres-data')} drops its data too`,
+      ])
+    }
+    docker(['rm', '-f', DB_CONTAINER])
+  }
+
   const password = generateSecret().slice(0, 24)
   const hostPort = detection.postgresPortOpen ? 5433 : 5432
   const dsn = `postgresql://postgres:${password}@localhost:${hostPort}/simstudio`
@@ -96,26 +186,6 @@ async function startManagedContainer(detection: Detection): Promise<string> {
   return dsn
 }
 
-async function restartManagedContainer(existingDsn: string | undefined): Promise<string> {
-  if (!existingDsn) {
-    throw new SetupError(
-      `found a stopped ${DB_CONTAINER} container but no DATABASE_URL to reach it (the generated password lived in your env files).`,
-      [
-        `remove it: ${theme.command(`docker rm ${DB_CONTAINER}`)}`,
-        `also drop its data volume if you don't need it: ${theme.command('docker volume rm sim-postgres-data')}`,
-        'then re-run the wizard to provision a fresh one',
-      ]
-    )
-  }
-  docker(['start', DB_CONTAINER])
-  const spin = p.spinner()
-  spin.start(`Starting existing ${DB_CONTAINER} container…`)
-  const healthy = await waitFor(async () => (await pgProbe(existingDsn)).ok, 30_000, 1500)
-  spin.stop(healthy ? `${DB_CONTAINER} running` : `${glyph.fail} ${DB_CONTAINER} did not come up`)
-  if (!healthy) throw new Error(`${DB_CONTAINER} started but is not answering on ${existingDsn}`)
-  return existingDsn
-}
-
 /**
  * The mode-B database ladder: reuse a working DSN, offer (never silently adopt)
  * a Postgres already on 5432, start/reuse the wizard-managed pgvector
@@ -127,8 +197,12 @@ export async function resolveDatabase(detection: Detection, existingDsn?: string
     return existingDsn
   }
 
-  if (detection.dbContainer?.managed && detection.dbContainer.state === 'stopped') {
-    return restartManagedContainer(existingDsn)
+  // Any managed container, running or stopped — a running one used to fall
+  // through to `docker run` and die on the name collision.
+  if (detection.dbContainer?.managed) {
+    const existing = inspectManagedContainer()
+    const reused = existing && (await reuseManagedContainer(existing))
+    if (reused) return reused
   }
 
   if (
