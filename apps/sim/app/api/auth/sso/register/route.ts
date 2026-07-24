@@ -1,7 +1,7 @@
 import { db, member, ssoDomain, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -225,7 +225,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (rawClientSecret === REDACTED_MARKER) {
         const ownerClause = orgId
           ? and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.organizationId, orgId))
-          : and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.userId, session.user.id))
+          : and(
+              eq(ssoProvider.providerId, providerId),
+              eq(ssoProvider.userId, session.user.id),
+              isNull(ssoProvider.organizationId)
+            )
         const [existing] = await db
           .select({ oidcConfig: ssoProvider.oidcConfig })
           .from(ssoProvider)
@@ -562,9 +566,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     // edit through updateSSOProvider so re-saving an SSO config works instead of
     // failing. The verification gate above already ran against the target domain,
     // so an edit that moves SSO to an unverified domain is still blocked.
+    // The personal branch MUST require a null org: org providers store
+    // userId = their creator, so without it an org admin could send a
+    // personal-mode request (which skips the membership check and the
+    // verification gate) yet still match — and then update — their org's
+    // provider, moving it to an unverified domain. Mirrors isOwnedByCaller.
     const ownerClause = orgId
       ? and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.organizationId, orgId))
-      : and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.userId, session.user.id))
+      : and(
+          eq(ssoProvider.providerId, providerId),
+          eq(ssoProvider.userId, session.user.id),
+          isNull(ssoProvider.organizationId)
+        )
     const [existingOwnedProvider] = await db
       .select({ id: ssoProvider.id })
       .from(ssoProvider)
