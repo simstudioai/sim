@@ -577,6 +577,42 @@ export const workspaceBYOKKeys = pgTable(
   })
 )
 
+export const piSearchCapabilities = pgTable(
+  'pi_search_capabilities',
+  {
+    id: text('id').primaryKey(),
+    capabilityHash: text('capability_hash').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    providerKeyId: text('provider_key_id').notNull(),
+    executionId: text('execution_id').notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    maxCalls: integer('max_calls').notNull(),
+    callCount: integer('call_count').notNull().default(0),
+    maxOutputBytes: integer('max_output_bytes').notNull(),
+    settledOutputBytes: integer('settled_output_bytes').notNull().default(0),
+    reservedOutputBytes: integer('reserved_output_bytes').notNull().default(0),
+    leaseToken: text('lease_token'),
+    leaseGeneration: integer('lease_generation').notNull().default(0),
+    leaseExpiresAt: timestamp('lease_expires_at'),
+    revokedAt: timestamp('revoked_at'),
+    fingerprintVersion: integer('fingerprint_version').notNull(),
+    fingerprintKeyId: text('fingerprint_key_id').notNull(),
+    secretFingerprints: jsonb('secret_fingerprints').notNull().default(sql`'[]'::jsonb`),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    capabilityHashUnique: uniqueIndex('pi_search_capabilities_hash_unique').on(
+      table.capabilityHash
+    ),
+    expiresAtIdx: index('pi_search_capabilities_expires_at_idx').on(table.expiresAt),
+    revokedAtIdx: index('pi_search_capabilities_revoked_at_idx').on(table.revokedAt),
+    workspaceIdx: index('pi_search_capabilities_workspace_id_idx').on(table.workspaceId),
+  })
+)
+
 export const settings = pgTable('settings', {
   id: text('id').primaryKey(), // Use the user id as the key
   userId: text('user_id')

@@ -36,7 +36,7 @@ vi.mock('@/stores/providers/store', () => ({
   useProvidersStore: { getState: vi.fn() },
 }))
 
-import { getBYOKKey } from '@/lib/api-key/byok'
+import { getBYOKKey, resolveBYOKKey, resolveBYOKKeyById } from '@/lib/api-key/byok'
 
 /**
  * Rotation counters in the module under test are keyed by
@@ -150,5 +150,37 @@ describe('getBYOKKey', () => {
     dbChainMockFns.orderBy.mockRejectedValue(new Error('database unavailable'))
 
     expect(await getBYOKKey(uniqueWorkspaceId(), 'openai')).toBeNull()
+  })
+
+  it('distinguishes a missing key from infrastructure failures', async () => {
+    const missingWorkspaceId = uniqueWorkspaceId()
+    expect(await resolveBYOKKey(missingWorkspaceId, 'exa')).toEqual({ status: 'missing' })
+
+    dbChainMockFns.orderBy.mockRejectedValue(new Error('database unavailable'))
+    const failed = await resolveBYOKKey(uniqueWorkspaceId(), 'exa')
+    expect(failed.status).toBe('infrastructure_error')
+    if (failed.status === 'infrastructure_error') {
+      expect(failed.error.message).toBe('database unavailable')
+    }
+  })
+
+  it('reports an infrastructure failure when every stored key fails to decrypt', async () => {
+    dbChainMockFns.orderBy.mockResolvedValue([storedKey('key-1'), storedKey('key-2')])
+    mockDecryptSecret.mockRejectedValue(new Error('corrupt ciphertext'))
+
+    const result = await resolveBYOKKey(uniqueWorkspaceId(), 'exa')
+    expect(result.status).toBe('infrastructure_error')
+  })
+
+  it('resolves an exact workspace/provider key id without rotation', async () => {
+    dbChainMockFns.limit.mockResolvedValue([storedKey('exa-key-id')])
+    await expect(resolveBYOKKeyById('workspace-1', 'exa', 'exa-key-id')).resolves.toEqual({
+      status: 'found',
+      value: {
+        apiKey: 'decrypted-exa-key-id',
+        isBYOK: true,
+        keyId: 'exa-key-id',
+      },
+    })
   })
 })

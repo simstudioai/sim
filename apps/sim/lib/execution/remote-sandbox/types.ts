@@ -61,6 +61,7 @@ export interface SandboxCommandResult {
   stdout: string
   stderr: string
   exitCode: number
+  outputLimitExceeded?: boolean
 }
 
 /**
@@ -91,6 +92,9 @@ export interface RunCommandOptions {
   rootUser?: boolean
   onStdout?: (chunk: string) => void
   onStderr?: (chunk: string) => void
+  maxStdoutBytes?: number
+  maxStderrBytes?: number
+  maxCombinedBytes?: number
 }
 
 /**

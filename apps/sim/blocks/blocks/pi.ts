@@ -62,6 +62,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
     'The Pi Coding Agent runs the Pi harness against a real repository. Create PR spins up an isolated sandbox, clones a GitHub repo, edits with native shell + git, and opens a pull request. Review Code checks out a pinned PR snapshot with read-only tools and posts a structured review with optional inline comments. Local Dev edits files on your own machine over SSH. Create PR and Local Dev can reuse skills and multi-turn memory; Review Code runs without either because PR contents are untrusted.',
   bestPractices: `
   - Use Create PR for hands-off changes against a GitHub repo where a reviewable PR is the deliverable.
+  - Enable internet search in Create PR only when the task needs current external documentation; it requires workspace Exa BYOK.
   - Use Review Code to analyze an existing PR and leave summary + inline review comments.
   - Use Local Dev to edit a repo on your own machine; expose the machine on a public hostname/tunnel so Sim can reach it over SSH.
   - Create PR requires your own provider API key because the model runs in the sandbox. Review Code keeps the model key in Sim and can use either BYOK or a hosted key.
@@ -173,6 +174,19 @@ export const PiBlock: BlockConfig<PiResponse> = {
       defaultValue: true,
       mode: 'advanced',
       condition: CLOUD,
+    },
+    {
+      id: 'enableInternetSearch',
+      title: 'Enable internet search',
+      type: 'switch',
+      defaultValue: false,
+      mode: 'advanced',
+      condition: () =>
+        isTruthy(getEnv('NEXT_PUBLIC_PI_CREATE_PR_SEARCH_ENABLED'))
+          ? CLOUD
+          : { field: 'mode', value: '__pi_search_disabled__' },
+      tooltip:
+        'Adds a bounded Exa search tool to Create PR. Requires an Exa key in Workspace Settings > BYOK and never uses Sim-hosted Exa credentials.',
     },
     {
       id: 'prTitle',
@@ -412,6 +426,10 @@ export const PiBlock: BlockConfig<PiResponse> = {
     baseBranch: { type: 'string', description: 'Base branch for the PR (Create PR)' },
     branchName: { type: 'string', description: 'Branch to create (Create PR)' },
     draft: { type: 'boolean', description: 'Open the PR as a draft (Create PR)' },
+    enableInternetSearch: {
+      type: 'boolean',
+      description: 'Enable workspace-BYOK Exa search in Create PR',
+    },
     prTitle: { type: 'string', description: 'Pull request title (Create PR)' },
     prBody: { type: 'string', description: 'Pull request body (Create PR)' },
     pullNumber: { type: 'number', description: 'Pull request number (Review Code)' },

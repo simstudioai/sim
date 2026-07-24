@@ -24,6 +24,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:pi-search-integration": "vitest run --config vitest.pi-search.integration.config.ts",
     "email:dev": "email dev --dir components/emails",
     "type-check": "NODE_OPTIONS='--max-old-space-size=8192' tsc --noEmit",
     "lint": "biome check --write --unsafe .",

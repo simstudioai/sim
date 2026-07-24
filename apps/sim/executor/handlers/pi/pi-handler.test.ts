@@ -6,7 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockRunLocal,
   mockRunCloud,
+  mockRunCloudSearch,
   mockRunCloudReview,
+  mockPreflightSearch,
   mockResolveKey,
   mockResolveSkills,
   mockLoadMemory,
@@ -17,7 +19,9 @@ const {
 } = vi.hoisted(() => ({
   mockRunLocal: vi.fn(),
   mockRunCloud: vi.fn(),
+  mockRunCloudSearch: vi.fn(),
   mockRunCloudReview: vi.fn(),
+  mockPreflightSearch: vi.fn(),
   mockResolveKey: vi.fn(),
   mockResolveSkills: vi.fn(),
   mockLoadMemory: vi.fn(),
@@ -41,8 +45,14 @@ vi.mock('@/executor/handlers/pi/sim-tools', () => ({
 }))
 vi.mock('@/executor/handlers/pi/local-backend', () => ({ runLocalPi: mockRunLocal }))
 vi.mock('@/executor/handlers/pi/cloud-backend', () => ({ runCloudPi: mockRunCloud }))
+vi.mock('@/executor/handlers/pi/cloud-search-backend', () => ({
+  runCloudPiSearch: mockRunCloudSearch,
+}))
 vi.mock('@/executor/handlers/pi/cloud-review-backend', () => ({
   runCloudReviewPi: mockRunCloudReview,
+}))
+vi.mock('@/executor/handlers/pi/search-preflight', () => ({
+  preflightPiSearch: mockPreflightSearch,
 }))
 vi.mock('@/providers/pi-providers', () => ({
   isPiSupportedProvider: mockIsPiSupportedProvider,
@@ -121,6 +131,20 @@ describe('PiBlockHandler', () => {
       changedFiles: ['a.ts'],
       diff: 'diff',
     })
+    mockRunCloudSearch.mockResolvedValue({
+      totals: { finalText: 'searched', inputTokens: 0, outputTokens: 0, toolCalls: [] },
+      prUrl: 'https://github.com/o/r/pull/2',
+      branch: 'pi/search',
+      changedFiles: ['b.ts'],
+      diff: 'search diff',
+    })
+    mockPreflightSearch.mockResolvedValue({
+      brokerBaseUrl: 'https://sim.example.com',
+      workspaceId: 'ws',
+      executionId: 'exec',
+      exaApiKey: 'exa-key',
+      exaKeyId: 'exa-key-id',
+    })
     mockRunCloudReview.mockResolvedValue({
       totals: { finalText: 'looks good', inputTokens: 0, outputTokens: 0, toolCalls: [] },
       reviewUrl: 'https://github.com/o/r/pull/7#pullrequestreview-1',
@@ -179,6 +203,37 @@ describe('PiBlockHandler', () => {
     expect(mockRunCloudReview).not.toHaveBeenCalled()
     expect(output.prUrl).toBe('https://github.com/o/r/pull/1')
     expect(output.branch).toBe('pi/abc')
+    expect(mockPreflightSearch).not.toHaveBeenCalled()
+    expect(mockRunCloudSearch).not.toHaveBeenCalled()
+  })
+
+  it('preflights and routes enabled Create PR search to its isolated backend', async () => {
+    const output = (await handler.execute(ctx({ executionId: 'exec' }), block, {
+      mode: 'cloud',
+      task: 'research then edit',
+      model: 'claude',
+      owner: 'o',
+      repo: 'r',
+      githubToken: 'ghp',
+      enableInternetSearch: true,
+    })) as Record<string, unknown>
+
+    expect(mockPreflightSearch).toHaveBeenCalledWith({
+      workspaceId: 'ws',
+      executionId: 'exec',
+      userId: 'user',
+    })
+    expect(mockRunCloud).not.toHaveBeenCalled()
+    expect(mockRunCloudSearch).toHaveBeenCalledTimes(1)
+    expect(mockRunCloudSearch.mock.calls[0][0].search).toEqual({
+      enabled: true,
+      brokerBaseUrl: 'https://sim.example.com',
+      workspaceId: 'ws',
+      executionId: 'exec',
+      exaApiKey: 'exa-key',
+      exaKeyId: 'exa-key-id',
+    })
+    expect(output.prUrl).toBe('https://github.com/o/r/pull/2')
   })
 
   it('routes cloud_review mode and surfaces review output', async () => {

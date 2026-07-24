@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { env } from '@/lib/core/config/env'
 import { CodeLanguage } from '@/lib/execution/languages'
+import { createSandboxOutputLimiter } from '@/lib/execution/remote-sandbox/output-limits'
 import type {
   CreateSandboxOptions,
   RunCommandOptions,
@@ -98,7 +99,13 @@ class DaytonaSandboxHandle implements SandboxHandle {
 
   async runCommand(command: string, options: RunCommandOptions): Promise<SandboxCommandResult> {
     // `rootUser` needs no handling: Daytona already executes commands as uid 0.
-    if (options.onStdout || options.onStderr) {
+    if (
+      options.onStdout ||
+      options.onStderr ||
+      options.maxStdoutBytes !== undefined ||
+      options.maxStderrBytes !== undefined ||
+      options.maxCombinedBytes !== undefined
+    ) {
       return this.runStreamingCommand(command, options)
     }
     try {
@@ -134,6 +141,7 @@ class DaytonaSandboxHandle implements SandboxHandle {
     // failure, rather than blanking the output.
     let stdout = ''
     let stderr = ''
+    const limiter = createSandboxOutputLimiter(options)
     try {
       let script = command
       if (options.envs && Object.keys(options.envs).length > 0) {
@@ -166,12 +174,12 @@ class DaytonaSandboxHandle implements SandboxHandle {
           sessionId,
           commandId,
           (chunk: string) => {
+            limiter.stdout(chunk)
             stdout += chunk
-            options.onStdout?.(chunk)
           },
           (chunk: string) => {
+            limiter.stderr(chunk)
             stderr += chunk
-            options.onStderr?.(chunk)
           }
         )
         .then(() => 'done' as const)
@@ -202,6 +210,14 @@ class DaytonaSandboxHandle implements SandboxHandle {
         }
       }
       if (outcome === 'error') {
+        if (limiter.exceeded()) {
+          return {
+            stdout: '',
+            stderr: 'Sandbox command output limit exceeded',
+            exitCode: 137,
+            outputLimitExceeded: true,
+          }
+        }
         return { stdout, stderr: stderr || getErrorMessage(streamError), exitCode: 1 }
       }
 

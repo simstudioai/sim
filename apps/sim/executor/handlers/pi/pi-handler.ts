@@ -20,6 +20,7 @@ import type {
 } from '@/executor/handlers/pi/backend'
 import { runCloudPi } from '@/executor/handlers/pi/cloud-backend'
 import { runCloudReviewPi } from '@/executor/handlers/pi/cloud-review-backend'
+import { runCloudPiSearch } from '@/executor/handlers/pi/cloud-search-backend'
 import {
   appendPiMemory,
   loadPiMemory,
@@ -29,6 +30,7 @@ import {
 import { streamTextForEvent } from '@/executor/handlers/pi/events'
 import { computePiCost, resolvePiModelKey } from '@/executor/handlers/pi/keys'
 import { runLocalPi } from '@/executor/handlers/pi/local-backend'
+import { preflightPiSearch } from '@/executor/handlers/pi/search-preflight'
 import { buildSimToolSpecs } from '@/executor/handlers/pi/sim-tools'
 import type {
   BlockHandler,
@@ -181,6 +183,17 @@ export class PiBlockHandler implements BlockHandler {
     if (!owner || !repo || !githubToken) {
       throw new Error('Create PR requires repository owner, name, and a GitHub token')
     }
+    const search =
+      inputs.enableInternetSearch === true
+        ? {
+            enabled: true as const,
+            ...(await preflightPiSearch({
+              workspaceId: ctx.workspaceId,
+              executionId: ctx.executionId,
+              userId: ctx.userId,
+            })),
+          }
+        : undefined
     const params: PiCloudRunParams = {
       ...contextualBase,
       mode: 'cloud',
@@ -192,8 +205,9 @@ export class PiBlockHandler implements BlockHandler {
       draft: inputs.draft !== false,
       prTitle: asOptString(inputs.prTitle),
       prBody: asOptString(inputs.prBody),
+      search,
     }
-    return this.runPi(ctx, block, runCloudPi, params, memoryConfig)
+    return this.runPi(ctx, block, search ? runCloudPiSearch : runCloudPi, params, memoryConfig)
   }
 
   private isContentSelectedForStreaming(ctx: ExecutionContext, block: SerializedBlock): boolean {

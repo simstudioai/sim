@@ -82,6 +82,16 @@ export interface PiCloudRunParams extends PiContextualRunParams {
   draft: boolean
   prTitle?: string
   prBody?: string
+  search?: {
+    enabled: true
+    workspaceId: string
+    executionId: string
+    brokerBaseUrl: string
+    /** Host-only workspace BYOK value used to derive non-plaintext scan fingerprints. */
+    exaApiKey: string
+    /** Host-only identifier pins the exact workspace BYOK key for the broker. */
+    exaKeyId: string
+  }
 }
 
 /** Parameters for a cloud (E2B) Pi run that reviews an existing PR. */

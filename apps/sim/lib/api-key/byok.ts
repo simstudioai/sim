@@ -18,6 +18,11 @@ export interface BYOKKeyResult {
   isBYOK: true
 }
 
+export type BYOKKeyResolution =
+  | { status: 'found'; value: BYOKKeyResult & { keyId: string } }
+  | { status: 'missing' }
+  | { status: 'infrastructure_error'; error: Error }
+
 const rotationCounters = new Map<string, number>()
 
 /**
@@ -40,12 +45,12 @@ function nextRotationIndex(poolKey: string, poolSize: number): number {
  * The key list is read fresh every call (not cached): BYOK is not a hot query,
  * and reading fresh keeps revocation immediate across ECS tasks.
  */
-export async function getBYOKKey(
+export async function resolveBYOKKey(
   workspaceId: string | undefined | null,
   providerId: BYOKProviderId
-): Promise<BYOKKeyResult | null> {
+): Promise<BYOKKeyResolution> {
   if (!workspaceId) {
-    return null
+    return { status: 'missing' }
   }
 
   try {
@@ -61,16 +66,18 @@ export async function getBYOKKey(
       .orderBy(asc(workspaceBYOKKeys.createdAt), asc(workspaceBYOKKeys.id))
 
     if (!keys.length) {
-      return null
+      return { status: 'missing' }
     }
 
     const startIndex = nextRotationIndex(`${workspaceId}:${providerId}`, keys.length)
+    let lastDecryptError: Error | undefined
     for (let offset = 0; offset < keys.length; offset++) {
       const key = keys[(startIndex + offset) % keys.length]
       try {
         const { decrypted } = await decryptSecret(key.encryptedApiKey)
-        return { apiKey: decrypted, isBYOK: true }
+        return { status: 'found', value: { apiKey: decrypted, isBYOK: true, keyId: key.id } }
       } catch (error) {
+        lastDecryptError = error instanceof Error ? error : new Error(String(error))
         logger.error('Failed to decrypt BYOK key, skipping', {
           workspaceId,
           providerId,
@@ -80,10 +87,57 @@ export async function getBYOKKey(
       }
     }
 
-    return null
+    return {
+      status: 'infrastructure_error',
+      error: lastDecryptError ?? new Error(`Unable to decrypt ${providerId} BYOK keys`),
+    }
   } catch (error) {
     logger.error('Failed to get BYOK key', { workspaceId, providerId, error })
-    return null
+    return {
+      status: 'infrastructure_error',
+      error: error instanceof Error ? error : new Error(String(error)),
+    }
+  }
+}
+
+export async function getBYOKKey(
+  workspaceId: string | undefined | null,
+  providerId: BYOKProviderId
+): Promise<BYOKKeyResult | null> {
+  const result = await resolveBYOKKey(workspaceId, providerId)
+  return result.status === 'found'
+    ? { apiKey: result.value.apiKey, isBYOK: result.value.isBYOK }
+    : null
+}
+
+export async function resolveBYOKKeyById(
+  workspaceId: string,
+  providerId: BYOKProviderId,
+  keyId: string
+): Promise<BYOKKeyResolution> {
+  try {
+    const [key] = await db
+      .select({ id: workspaceBYOKKeys.id, encryptedApiKey: workspaceBYOKKeys.encryptedApiKey })
+      .from(workspaceBYOKKeys)
+      .where(
+        and(
+          eq(workspaceBYOKKeys.id, keyId),
+          eq(workspaceBYOKKeys.workspaceId, workspaceId),
+          eq(workspaceBYOKKeys.providerId, providerId)
+        )
+      )
+      .limit(1)
+    if (!key) return { status: 'missing' }
+    const { decrypted } = await decryptSecret(key.encryptedApiKey)
+    return {
+      status: 'found',
+      value: { apiKey: decrypted, isBYOK: true, keyId: key.id },
+    }
+  } catch (error) {
+    return {
+      status: 'infrastructure_error',
+      error: error instanceof Error ? error : new Error(String(error)),
+    }
   }
 }
 

@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import { CodeLanguage } from '@/lib/execution/languages'
+import { createSandboxOutputLimiter } from '@/lib/execution/remote-sandbox/output-limits'
 import type {
   CreateSandboxOptions,
   RunCommandOptions,
@@ -73,16 +74,20 @@ class E2BSandboxHandle implements SandboxHandle {
   }
 
   async runCommand(command: string, options: RunCommandOptions): Promise<SandboxCommandResult> {
+    const limiter = createSandboxOutputLimiter(options)
     try {
       const result = await this.sandbox.commands.run(command, {
         ...(options.envs ? { envs: options.envs } : {}),
         timeoutMs: options.timeoutMs,
         ...(options.rootUser ? { user: 'root' as const } : {}),
-        ...(options.onStdout ? { onStdout: options.onStdout } : {}),
-        ...(options.onStderr ? { onStderr: options.onStderr } : {}),
+        onStdout: limiter.stdout,
+        onStderr: limiter.stderr,
       })
       return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode }
     } catch (error) {
+      if (limiter.exceeded()) {
+        await Promise.resolve(this.sandbox.kill()).catch(() => {})
+      }
       // The SDK throws on non-zero exit; callers want the streams, not a throw.
       const failure = error as {
         stdout?: string
@@ -91,9 +96,12 @@ class E2BSandboxHandle implements SandboxHandle {
         exitCode?: number
       }
       return {
-        stdout: failure.stdout ?? '',
-        stderr: failure.stderr ?? failure.message ?? getErrorMessage(error),
-        exitCode: failure.exitCode ?? 1,
+        stdout: limiter.exceeded() ? '' : (failure.stdout ?? ''),
+        stderr: limiter.exceeded()
+          ? 'Sandbox command output limit exceeded'
+          : (failure.stderr ?? failure.message ?? getErrorMessage(error)),
+        exitCode: limiter.exceeded() ? 137 : (failure.exitCode ?? 1),
+        ...(limiter.exceeded() ? { outputLimitExceeded: true } : {}),
       }
     }
   }

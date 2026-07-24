@@ -473,6 +473,8 @@ export const env = createEnv({
     DATA_DRAINS_ENABLED:                  z.boolean().optional(),                 // Enable data drains on self-hosted (bypasses hosted requirements)
     FORKING_ENABLED:                      z.boolean().optional(),                 // Enable workspace forking on self-hosted (bypasses hosted requirements)
     DEPLOY_AS_BLOCK:                      z.boolean().optional(),                 // Enable deploy-as-block (publish a workflow as a reusable org-wide custom block)
+    PI_CREATE_PR_SEARCH_ENABLED:          z.boolean().optional(),                 // Enable BYOK Exa search for Pi Create PR
+    PI_EXA_BROKER_BASE_URL:               z.string().optional(),                  // Public origin reachable by Pi cloud sandboxes
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)
@@ -577,6 +579,7 @@ export const env = createEnv({
     NEXT_PUBLIC_DATA_DRAINS_ENABLED:      z.boolean().optional(),                   // Enable data drains on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_SESSION_POLICIES_ENABLED: z.boolean().optional(),                   // Enable org session policies on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_FORKING_ENABLED:          z.boolean().optional(),                   // Enable workspace forking on self-hosted (bypasses hosted requirements)
+    NEXT_PUBLIC_PI_CREATE_PR_SEARCH_ENABLED: z.boolean().optional(),                // Show Pi Create PR internet search setting
     NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED: z.boolean().optional(),                   // Show the "Workflow" column type in user tables (defaults to false)
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED:     z.boolean().optional(),                   // Enable organizations on self-hosted (bypasses plan requirements)
     NEXT_PUBLIC_DISABLE_INVITATIONS:       z.boolean().optional(),                   // Disable workspace invitations globally (for self-hosted deployments)
@@ -618,6 +621,8 @@ export const env = createEnv({
     NEXT_PUBLIC_DATA_DRAINS_ENABLED: process.env.NEXT_PUBLIC_DATA_DRAINS_ENABLED,
     NEXT_PUBLIC_SESSION_POLICIES_ENABLED: process.env.NEXT_PUBLIC_SESSION_POLICIES_ENABLED,
     NEXT_PUBLIC_FORKING_ENABLED: process.env.NEXT_PUBLIC_FORKING_ENABLED,
+    NEXT_PUBLIC_PI_CREATE_PR_SEARCH_ENABLED:
+      process.env.NEXT_PUBLIC_PI_CREATE_PR_SEARCH_ENABLED,
     NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED: process.env.NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED,
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED: process.env.NEXT_PUBLIC_ORGANIZATIONS_ENABLED,
     NEXT_PUBLIC_DISABLE_INVITATIONS: process.env.NEXT_PUBLIC_DISABLE_INVITATIONS,

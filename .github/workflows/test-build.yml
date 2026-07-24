@@ -12,6 +12,20 @@ jobs:
     name: Lint and Test
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: simstudio
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Checkout code
@@ -54,6 +68,18 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Migrate test database
+        working-directory: packages/db
+        env:
+          DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
+        run: bun run db:migrate
+
+      - name: Run Pi search capability integration tests
+        working-directory: apps/sim
+        env:
+          DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
+        run: bun run test:pi-search-integration
 
       # Surfaces known CVEs in the dependency tree. Non-blocking until the
       # existing advisory backlog is triaged, then flip to a required gate by
@@ -143,6 +169,9 @@ jobs:
       - name: Verify agent stream capability docs are in sync
         run: bun run agent-stream-docs:check
 
+      - name: Verify Pi sandbox extension contract
+        run: bun run ./apps/sim/scripts/check-pi-sandbox-contract.ts
+
       - name: Migration safety (zero-downtime) audit
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -197,11 +226,11 @@ jobs:
   # harmless), but the Turbo cache gets its own key: with a shared key, only
   # the last committer's new entries survive each run, so the test and build
   # Turbo entries would evict each other nondeterministically.
-  # Same next build as the app image, so it needs the same larger runner in
-  # GitHub mode: it peaks ~21.9 GB and SIGKILLs on the free 16 GB ones.
+  # Next static generation can exceed 32 GB on large app/docs diffs, so use the
+  # 64 GB Blacksmith runner; GitHub mode already uses the largest hosted option.
   build:
     name: Build App
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
     timeout-minutes: 15
 
     steps:

@@ -133,6 +133,40 @@ beforeEach(() => {
 describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
   beforeEach(() => useProvider(provider))
 
+  it('terminates a Pi command when provider output exceeds the configured cap', async () => {
+    if (provider === 'e2b') {
+      mockE2BCommandsRun.mockImplementation(
+        async (_command: string, options: { onStdout: (chunk: string) => void }) => {
+          options.onStdout('12345')
+          options.onStdout('6')
+          return { stdout: '123456', stderr: '', exitCode: 0 }
+        }
+      )
+    } else {
+      mockGetSessionCommandLogs.mockImplementation(
+        async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
+          onStdout('12345')
+          onStdout('6')
+        }
+      )
+    }
+
+    const result = await withPiSandbox((runner) =>
+      runner.run('produce output', {
+        timeoutMs: 1_000,
+        maxStdoutBytes: 5,
+        maxCombinedBytes: 5,
+      })
+    )
+
+    expect(result).toMatchObject({
+      stdout: '',
+      exitCode: 137,
+      outputLimitExceeded: true,
+    })
+    if (provider === 'daytona') expect(mockDeleteSession).toHaveBeenCalled()
+  })
+
   it('parses the __SIM_RESULT__ marker and strips it from stdout', async () => {
     stubCodeRun(provider, `hello\n${SIM_RESULT_PREFIX}{"ok":true}`)
 

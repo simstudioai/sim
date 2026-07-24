@@ -1,4 +1,4 @@
-import { fetchAppConfigProfile } from '@/lib/core/config/appconfig'
+import { fetchAppConfigProfile, fetchAppConfigProfileState } from '@/lib/core/config/appconfig'
 import type { AppConfigGateContext, AppConfigGateRule } from '@/lib/core/config/appconfig-rules'
 import { matchesRule, parseGateConfig } from '@/lib/core/config/appconfig-rules'
 import { env, isTruthy } from '@/lib/core/config/env'
@@ -112,6 +112,12 @@ const FEATURE_FLAGS = {
       'custom-block publish/list routes. Off-AppConfig falls back to DEPLOY_AS_BLOCK.',
     fallback: 'DEPLOY_AS_BLOCK',
   },
+  'pi-create-pr-search': {
+    description:
+      'Expose workspace-BYOK Exa search to Pi Create PR. Hosted evaluation fails closed on a cold ' +
+      'AppConfig outage; self-hosted and local deployments use PI_CREATE_PR_SEARCH_ENABLED.',
+    fallback: 'PI_CREATE_PR_SEARCH_ENABLED',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**
@@ -186,4 +192,35 @@ export async function isFeatureEnabled(
 ): Promise<boolean> {
   const flags = await getFeatureFlags()
   return evaluate(flags[flag], ctx)
+}
+
+export interface StrictFeatureFlagResult {
+  enabled: boolean
+  source: 'appconfig' | 'stale_appconfig' | 'fallback' | 'unavailable'
+}
+
+export async function isFeatureEnabledStrict(
+  flag: FeatureFlagName,
+  ctx: FeatureFlagContext = {}
+): Promise<StrictFeatureFlagResult> {
+  if (!isAppConfigEnabled) {
+    return { enabled: await evaluate(fallbackFlags()[flag], ctx), source: 'fallback' }
+  }
+
+  const state = await fetchAppConfigProfileState(
+    {
+      application: env.APPCONFIG_APPLICATION as string,
+      environment: env.APPCONFIG_ENVIRONMENT as string,
+      profile: FEATURE_FLAGS_PROFILE,
+    },
+    parseGateConfig
+  )
+  if (!state.loaded || state.value === null) {
+    return { enabled: false, source: 'unavailable' }
+  }
+
+  return {
+    enabled: await evaluate(state.value[flag], ctx),
+    source: state.available ? 'appconfig' : 'stale_appconfig',
+  }
 }

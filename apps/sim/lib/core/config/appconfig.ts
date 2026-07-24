@@ -29,6 +29,14 @@ interface CacheEntry<T> {
   expiresAt: number
   /** In-flight poll, shared so concurrent callers don't each hit AppConfig. */
   inflight: Promise<T | null> | null
+  /** Whether the latest network poll reached AppConfig successfully. */
+  available: boolean
+}
+
+export interface AppConfigProfileState<T> {
+  value: T | null
+  loaded: boolean
+  available: boolean
 }
 
 const cache = new Map<string, CacheEntry<unknown>>()
@@ -94,12 +102,15 @@ async function poll<T>(
     entry.nextToken = undefined
     entry.expiresAt = Date.now() + DEFAULT_TTL_MS
     entry.loaded = true
+    entry.available = false
     logger.error('AppConfig fetch failed; serving last known value', {
       profile: cacheKey(ids),
       error: getErrorMessage(error),
     })
     return entry.value
   }
+
+  entry.available = true
 
   // Parse outside the network try: a decode/parse error must NOT discard the
   // already-rotated session token — the round trip succeeded, so the next poll
@@ -144,6 +155,7 @@ export async function fetchAppConfigProfile<T>(
     nextToken: undefined,
     expiresAt: 0,
     inflight: null,
+    available: false,
   }
   cache.set(key, entry)
 
@@ -164,4 +176,17 @@ export async function fetchAppConfigProfile<T>(
   }
 
   return entry.value
+}
+
+export async function fetchAppConfigProfileState<T>(
+  ids: AppConfigProfileIdentifiers,
+  parse: (json: unknown) => T
+): Promise<AppConfigProfileState<T>> {
+  await fetchAppConfigProfile(ids, parse)
+  const entry = cache.get(cacheKey(ids)) as CacheEntry<T> | undefined
+  return {
+    value: entry?.value ?? null,
+    loaded: entry?.loaded ?? false,
+    available: entry?.available ?? false,
+  }
 }

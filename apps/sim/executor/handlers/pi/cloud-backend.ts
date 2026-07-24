@@ -100,11 +100,11 @@ function buildPrBody(task: string, finalText: string): string {
 }
 
 /** The commit message and PR title share one default, derived from the PR title or task. */
-function defaultTitle(params: PiCloudRunParams): string {
+export function defaultTitle(params: PiCloudRunParams): string {
   return params.prTitle?.trim() || truncate(`Pi: ${params.task}`, COMMIT_TITLE_MAX)
 }
 
-async function openPullRequest(
+export async function openPullRequest(
   params: PiCloudRunParams,
   branch: string,
   detectedBase: string | undefined,

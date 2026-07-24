@@ -5,19 +5,22 @@ import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FeatureFlagContext, FeatureFlagName } from '@/lib/core/config/feature-flags'
 
-const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
+const { mockFetch, mockFetchState, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
+  mockFetchState: vi.fn(),
   mockIsPlatformAdmin: vi.fn(),
   envRef: {
     APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
     FORKING_ENABLED: undefined as boolean | undefined,
     DEPLOY_AS_BLOCK: undefined as boolean | undefined,
+    PI_CREATE_PR_SEARCH_ENABLED: undefined as boolean | undefined,
   },
 }))
 
 vi.mock('@/lib/core/config/appconfig', () => ({
   fetchAppConfigProfile: mockFetch,
+  fetchAppConfigProfileState: mockFetchState,
 }))
 
 vi.mock('@/lib/core/config/env', () => ({
@@ -48,6 +51,7 @@ declare module '@/lib/core/config/feature-flags?feature-flags-test' {
 import {
   getFeatureFlags,
   isFeatureEnabled,
+  isFeatureEnabledStrict,
 } from '@/lib/core/config/feature-flags?feature-flags-test'
 
 /** Make `getFeatureFlags` resolve to `doc` via the AppConfig path (also exercises parseConfig). */
@@ -123,6 +127,41 @@ describe('isFeatureEnabled', () => {
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.FORKING_ENABLED = undefined
     envRef.DEPLOY_AS_BLOCK = undefined
+    envRef.PI_CREATE_PR_SEARCH_ENABLED = undefined
+  })
+
+  describe('pi-create-pr-search strict flag', () => {
+    it('fails closed on a cold AppConfig outage even when fallback is true', async () => {
+      setEnvFlags({ isAppConfigEnabled: true })
+      envRef.PI_CREATE_PR_SEARCH_ENABLED = true
+      mockFetchState.mockResolvedValue({ value: null, loaded: true, available: false })
+
+      await expect(
+        isFeatureEnabledStrict('pi-create-pr-search', { userId: 'u1', orgId: 'o1' })
+      ).resolves.toEqual({ enabled: false, source: 'unavailable' })
+    })
+
+    it('uses the default-false fallback when AppConfig is disabled', async () => {
+      await expect(
+        isFeatureEnabledStrict('pi-create-pr-search', { userId: 'u1', orgId: 'o1' })
+      ).resolves.toEqual({ enabled: false, source: 'fallback' })
+      envRef.PI_CREATE_PR_SEARCH_ENABLED = true
+      await expect(
+        isFeatureEnabledStrict('pi-create-pr-search', { userId: 'u1', orgId: 'o1' })
+      ).resolves.toEqual({ enabled: true, source: 'fallback' })
+    })
+
+    it('uses an explicit stale last-known AppConfig value after a warm outage', async () => {
+      setEnvFlags({ isAppConfigEnabled: true })
+      mockFetchState.mockResolvedValue({
+        value: { 'pi-create-pr-search': { orgIds: ['o1'] } },
+        loaded: true,
+        available: false,
+      })
+      await expect(
+        isFeatureEnabledStrict('pi-create-pr-search', { userId: 'u1', orgId: 'o1' })
+      ).resolves.toEqual({ enabled: true, source: 'stale_appconfig' })
+    })
   })
 
   describe('workspace-forking flag', () => {

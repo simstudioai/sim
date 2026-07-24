@@ -205,6 +205,11 @@ app:
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: ""               # Show permission groups UI ("true" to enable)
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED: ""                # Show organizations UI ("true" to enable)
 
+    # Pi Create PR internet search (workspace Exa BYOK only)
+    PI_CREATE_PR_SEARCH_ENABLED: ""                       # Server rollout gate ("true" to enable)
+    NEXT_PUBLIC_PI_CREATE_PR_SEARCH_ENABLED: ""           # Show the Create PR search switch
+    PI_EXA_BROKER_BASE_URL: ""                            # Canonical HTTPS app origin reachable by Pi sandboxes
+
     # LLM Provider/Model Restrictions (leave empty if not restricting)
     BLACKLISTED_PROVIDERS: ""                            # Comma-separated provider IDs to hide from UI (e.g., "openai,anthropic,google")
     BLACKLISTED_MODELS: ""                               # Comma-separated model names/prefixes to hide (e.g., "gpt-4,claude-*")
@@ -1212,6 +1217,15 @@ cronjobs:
   
   # Individual job configurations
   jobs:
+    piSearchCapabilityCleanup:
+      enabled: true
+      name: pi-search-capability-cleanup
+      schedule: "17 * * * *"
+      path: "/api/cron/cleanup-pi-search-capabilities"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     scheduleExecution:
       enabled: true
       name: schedule-execution

@@ -13,6 +13,9 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
       - BETTER_AUTH_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - PI_CREATE_PR_SEARCH_ENABLED=${PI_CREATE_PR_SEARCH_ENABLED:-false}
+      - NEXT_PUBLIC_PI_CREATE_PR_SEARCH_ENABLED=${NEXT_PUBLIC_PI_CREATE_PR_SEARCH_ENABLED:-false}
+      - PI_EXA_BROKER_BASE_URL=${PI_EXA_BROKER_BASE_URL:-}
       # TRUSTED_ORIGINS: comma-separated public origins to trust for auth in
       # addition to NEXT_PUBLIC_APP_URL. Use when serving from multiple domains
       # (apex + www, alias hostnames, reverse-proxy IPs). Empty by default.

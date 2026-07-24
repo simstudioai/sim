@@ -398,6 +398,7 @@ export interface PiSandboxCommandResult {
   stdout: string
   stderr: string
   exitCode: number
+  outputLimitExceeded?: boolean
 }
 
 /** Runs commands and moves files inside a live Pi sandbox. */
@@ -409,6 +410,9 @@ export interface PiSandboxRunner {
       timeoutMs: number
       onStdout?: (chunk: string) => void
       onStderr?: (chunk: string) => void
+      maxStdoutBytes?: number
+      maxStderrBytes?: number
+      maxCombinedBytes?: number
     }
   ): Promise<PiSandboxCommandResult>
   readFile(path: string): Promise<string>
@@ -439,6 +443,9 @@ export async function withPiSandbox<T>(fn: (runner: PiSandboxRunner) => Promise<
         rootUser: true,
         onStdout: options.onStdout,
         onStderr: options.onStderr,
+        maxStdoutBytes: options.maxStdoutBytes,
+        maxStderrBytes: options.maxStderrBytes,
+        maxCombinedBytes: options.maxCombinedBytes,
       }),
     readFile: (path) => sandbox.readFile(path),
     writeFile: (path, content) => sandbox.writeFile(path, content),

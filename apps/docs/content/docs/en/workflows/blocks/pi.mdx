@@ -74,6 +74,17 @@ Your key for the chosen provider. On hosted Sim it is optional for Local Dev and
 - **Branch Name** *(advanced)* — the branch to push. Auto-generated when blank.
 - **Open as Draft PR** *(advanced)* — opens the PR as a draft. On by default.
 - **PR Title / PR Body** *(advanced)* — generated from the run when blank.
+- **Enable internet search** *(advanced)* — gives the Create PR agent one bounded `exa_search` operation. It is off by default and requires a workspace Exa key under **Settings → BYOK**.
+
+#### Create PR internet search
+
+Internet search is workspace-BYOK only. Sim checks for the workspace Exa key before starting a sandbox and never falls back to a Sim-hosted `EXA_API_KEY`. The Exa key stays in Sim; the sandbox receives a short-lived capability that can call only the bounded search route.
+
+The model can provide only a query and result count. It cannot use Exa research, content fetching, arbitrary Exa parameters, arbitrary Sim integrations, or the Exa key. Returned titles, URLs, snippets, and dates are marked as untrusted reference data and cannot change system instructions or credential boundaries.
+
+Search-enabled Create PR uses a fresh finalizer for committing and pushing, so the model process never receives the GitHub token. Its coding shell otherwise retains the normal Create PR network access. Agent-generated search queries are sent to Exa, so do not enable search for repositories whose data-handling policy prohibits that external processing.
+
+Credential filtering covers exact and URL-encoded active model, GitHub, Exa, and broker-capability values plus common credential prefixes. It cannot guarantee detection of arbitrarily transformed or encrypted secrets. Each run allows at most 10 sequential searches, 10 results per search, bounded snippets, and 500 KiB cumulative normalized search output.
 
 ### Review Code fields
 
@@ -149,6 +160,13 @@ Create PR runs in a sandbox image with the Pi CLI and git baked in.
 3. **Create a GitHub token** with permission to clone, push, and open a PR:
    - *Fine-grained:* select the repo, then **Contents: Read and write** + **Pull requests: Read and write**.
    - *Classic:* the **`repo`** scope. For org repos, authorize the token for SSO.
+4. **Optional: enable Exa search.** Store an Exa API key in the workspace under **Settings → BYOK → Exa**, then turn on **Enable internet search** in the block. Self-hosted deployments must set `PI_CREATE_PR_SEARCH_ENABLED=true`, `NEXT_PUBLIC_PI_CREATE_PR_SEARCH_ENABLED=true`, and `PI_EXA_BROKER_BASE_URL` to a canonical HTTPS app origin reachable from the cloud sandbox.
+
+Before enabling the server flag in a hosted environment, mint a short-lived smoke capability and run the protected **Pi Search Staging Smoke** workflow. The capability expires with the normal Pi execution window and should be provisioned immediately before dispatch rather than stored long-term.
+
+Operators must also schedule an authenticated hourly `GET /api/cron/cleanup-pi-search-capabilities` request. The Helm chart includes this CronJob; non-Helm hosted deployments must wire the equivalent external scheduler before enabling the feature.
+
+If search is enabled without an Exa BYOK key, the run stops before the coding agent starts and directs you to the BYOK settings. If the branch push succeeds but PR creation fails, Sim reports the pushed branch and does not delete it automatically.
 
 ### Review Code [#setup-cloud-code-review]
 

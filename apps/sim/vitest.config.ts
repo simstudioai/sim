@@ -16,7 +16,12 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['**/*.test.{ts,tsx}'],
-    exclude: [...configDefaults.exclude, '**/node_modules/**', '**/dist/**'],
+    exclude: [
+      ...configDefaults.exclude,
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/*.pi-search.integration.test.ts',
+    ],
     setupFiles: ['./vitest.setup.ts'],
     pool: 'threads',
     isolate: true,

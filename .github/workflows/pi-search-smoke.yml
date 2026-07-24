@@ -1,0 +1,33 @@
+name: Pi Search Staging Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Verify deployed Pi search boundary
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run remote Pi search smoke
+        env:
+          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+          E2B_PI_TEMPLATE_ID: ${{ secrets.E2B_PI_TEMPLATE_ID }}
+          INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
+          PI_EXA_BROKER_BASE_URL: ${{ vars.PI_EXA_BROKER_BASE_URL }}
+          PI_SEARCH_SMOKE_CAPABILITY: ${{ secrets.PI_SEARCH_SMOKE_CAPABILITY }}
+        run: bun run ./apps/sim/scripts/check-pi-sandbox-contract.ts --remote

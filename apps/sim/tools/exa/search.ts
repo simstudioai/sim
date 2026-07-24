@@ -1,3 +1,4 @@
+import { buildExaSearchBody } from '@/tools/exa/search-client'
 import type { ExaSearchParams, ExaSearchResponse } from '@/tools/exa/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -138,65 +139,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
     }),
-    body: (params) => {
-      const body: Record<string, any> = {
-        query: params.query,
-      }
-
-      // Add optional parameters if provided
-      if (params.numResults) body.numResults = Number(params.numResults)
-      if (params.useAutoprompt !== undefined) body.useAutoprompt = params.useAutoprompt
-      if (params.type) body.type = params.type
-
-      // Domain filtering
-      if (params.includeDomains) {
-        body.includeDomains = params.includeDomains
-          .split(',')
-          .map((d: string) => d.trim())
-          .filter((d: string) => d.length > 0)
-      }
-      if (params.excludeDomains) {
-        body.excludeDomains = params.excludeDomains
-          .split(',')
-          .map((d: string) => d.trim())
-          .filter((d: string) => d.length > 0)
-      }
-
-      // Category filtering
-      if (params.category) body.category = params.category
-
-      // Date filtering
-      if (params.startCrawlDate) body.startCrawlDate = params.startCrawlDate
-      if (params.endCrawlDate) body.endCrawlDate = params.endCrawlDate
-      if (params.startPublishedDate) body.startPublishedDate = params.startPublishedDate
-      if (params.endPublishedDate) body.endPublishedDate = params.endPublishedDate
-
-      // Build contents object for content options
-      const contents: Record<string, any> = {}
-
-      if (params.text !== undefined) {
-        contents.text = params.text
-      }
-
-      if (params.highlights !== undefined) {
-        contents.highlights = params.highlights
-      }
-
-      if (params.summary !== undefined) {
-        contents.summary = params.summary
-      }
-
-      if (params.livecrawl) {
-        contents.livecrawl = params.livecrawl
-      }
-
-      // Add contents to body if not empty
-      if (Object.keys(contents).length > 0) {
-        body.contents = contents
-      }
-
-      return body
-    },
+    body: buildExaSearchBody,
   },
 
   transformResponse: async (response: Response) => {

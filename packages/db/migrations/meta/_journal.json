@@ -1877,6 +1877,13 @@
       "when": 1784861741441,
       "tag": "0268_sso_domain_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 269,
+      "version": "7",
+      "when": 1784890528252,
+      "tag": "0269_swift_talisman",
+      "breakpoints": true
     }
   ]
 }
