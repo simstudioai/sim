@@ -3,7 +3,11 @@
  */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { resolveSkillContent, resolveSkillContentById, resolveSkillMetadata } from './skills-resolver'
+import {
+  resolveSkillContent,
+  resolveSkillContentById,
+  resolveSkillMetadata,
+} from './skills-resolver'
 
 // resolveSkillContent is the shared resolver invoked when a workflow agent
 // block calls load_skill. Skill editors gate editing only — resolution never
