@@ -71,16 +71,23 @@ function commandOutput(command: string, args: string[]): string | null {
 
 function detectContainer(dockerRunning: boolean, name: string): Detection['dbContainer'] {
   if (!dockerRunning) return null
+  // Docker's `name=^x$` anchor matches against the internal `/x` form and often
+  // misses, so filter loosely (substring) and pin the exact name in code.
   const out = commandOutput('docker', [
     'ps',
     '-a',
     '--filter',
-    `name=^${name}$`,
+    `name=${name}`,
     '--format',
-    '{{.State}}\t{{.Labels}}',
+    '{{.Names}}\t{{.State}}\t{{.Labels}}',
   ])
   if (!out) return null
-  const [state, labels = ''] = out.split('\t')
+  const row = out
+    .split('\n')
+    .map((line) => line.split('\t'))
+    .find(([containerName]) => containerName === name)
+  if (!row) return null
+  const [, state, labels = ''] = row
   return {
     state: state === 'running' ? 'running' : 'stopped',
     managed: labels.includes(MANAGED_LABEL),

@@ -69,10 +69,11 @@ describe('cli-auth approval store', () => {
         status: 'approved',
         userId: 'user-1',
       })
-      // NX lock on the mint key with a TTL; the approval itself is NOT deleted here.
+      // NX lock on the mint key; TTL matches the approval so they expire together
+      // and a failed cleanup can't leave a re-mintable window. Record not deleted here.
       const [key, val, px, ttl, nx] = mockSet.mock.calls[0]
       expect(key).toContain('cli:auth:mint:')
-      expect([val, px, ttl, nx]).toEqual(['1', 'PX', 30_000, 'NX'])
+      expect([val, px, ttl, nx]).toEqual(['1', 'PX', 120_000, 'NX'])
       expect(mockDel).not.toHaveBeenCalled()
     })
 

@@ -16,7 +16,9 @@ const LOCAL_CONTEXT_PREFIXES = ['kind-', 'docker-desktop', 'minikube', 'orbstack
  * by any process on the machine, so secrets must never travel that way.
  */
 function run(command: string, args: string[], failMessage: string, input?: string): string {
-  const result = spawnSync(command, args, { encoding: 'utf8', input })
+  // `helm upgrade --install ./helm/sim` uses chart paths relative to the repo
+  // root, so pin cwd regardless of where the wizard was invoked from.
+  const result = spawnSync(command, args, { encoding: 'utf8', input, cwd: ROOT })
   if (result.status !== 0) {
     throw new Error(`${failMessage}: ${result.stderr.trim() || result.stdout.trim()}`)
   }

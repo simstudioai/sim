@@ -375,7 +375,8 @@ function checkCoherence(ctx: CheckContext): Finding[] {
       status: 'fail',
       message: `${setSide} is set but its twin ${missingSide} disagrees — server and browser will render different features`,
       fix: `doctor --fix sets ${missingSide}=${value}`,
-      autofix: () => writeEnvValues('sim', { [missingSide]: value }),
+      // Write to the layout's primary env (root on a compose install), not always sim.
+      autofix: () => writeEnvValues(sim.target, { [missingSide]: value }),
     })
   }
 

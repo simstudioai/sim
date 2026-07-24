@@ -81,6 +81,19 @@ describe('POST /api/cli/auth/poll', () => {
     expect(mockCompleteApproval).not.toHaveBeenCalled()
   })
 
+  it('still returns the key when post-mint cleanup fails — never releases the lock', async () => {
+    mockPollApproval.mockResolvedValue({ status: 'approved', userId: 'user-1' })
+    mockCompleteApproval.mockRejectedValue(new Error('redis blip'))
+    const response = await POST(pollRequest({ request: REQUEST, verifier: VERIFIER }))
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      status: 'complete',
+      key: { id: 'key-1', apiKey: 'sk-test' },
+    })
+    // A cleanup failure must not release the mint lock — that would allow a re-mint.
+    expect(mockReleaseMint).not.toHaveBeenCalled()
+  })
+
   it('rejects a malformed verifier before touching the store', async () => {
     const response = await POST(pollRequest({ request: REQUEST, verifier: 'too-short' }))
     expect(response.status).toBe(400)

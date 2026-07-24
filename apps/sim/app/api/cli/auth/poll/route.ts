@@ -35,12 +35,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ status: 'pending' })
   }
 
+  let key: Awaited<ReturnType<typeof generateCopilotApiKey>>
   try {
-    const key = await generateCopilotApiKey(result.userId, cliKeyName())
-    await completeApproval(requestId)
-    logger.info('Minted CLI key on approved poll', { userId: result.userId })
-    return NextResponse.json({ status: 'complete', key })
+    key = await generateCopilotApiKey(result.userId, cliKeyName())
   } catch (error) {
+    // Mint failed — release the reservation so a later poll can retry.
     await releaseMint(requestId)
     const status = error instanceof CopilotApiKeyError ? error.upstreamStatus : undefined
     return NextResponse.json(
@@ -48,4 +47,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       { status: status ?? 500 }
     )
   }
+
+  // Mint succeeded — the key exists. Consuming the approval is best-effort: a
+  // cleanup failure must NOT release the lock (that would let a later poll mint
+  // a second, orphaned key). The record and lock share a TTL and expire together.
+  await completeApproval(requestId).catch((error) => {
+    logger.error('Failed to consume CLI approval after minting', {
+      error,
+      userId: result.userId,
+    })
+  })
+  logger.info('Minted CLI key on approved poll', { userId: result.userId })
+  return NextResponse.json({ status: 'complete', key })
 })

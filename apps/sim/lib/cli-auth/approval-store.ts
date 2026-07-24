@@ -17,7 +17,12 @@ import { getRedisClient } from '@/lib/core/config/redis'
  */
 
 const APPROVAL_TTL_MS = 120_000
-const MINT_LOCK_TTL_MS = 30_000
+// The mint lock must outlive the approval it guards: if a mint succeeds but the
+// cleanup delete fails, the still-held lock is what stops a later poll from
+// re-minting the now-orphaned key. Matching the approval TTL means the record
+// and the lock expire together, so there is never a window where the approval
+// is redeemable but the lock is gone.
+const MINT_LOCK_TTL_MS = APPROVAL_TTL_MS
 
 interface ApprovalRecord {
   /** BASE64URL(SHA256(pollSecret)) — the CLI proves possession of the secret at poll time. */

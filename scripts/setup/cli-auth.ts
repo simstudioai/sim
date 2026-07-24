@@ -11,8 +11,13 @@ const POLL_INTERVAL_MS = 2000
 
 function openBrowser(url: string): void {
   if (process.env.SIM_SETUP_NO_BROWSER) return
-  const command =
-    process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open'
+  if (process.platform === 'win32') {
+    // `start` is a cmd builtin, not an executable — spawning it directly ENOENTs.
+    // The empty '' is start's window-title argument, which it needs before the URL.
+    spawnSync('cmd', ['/c', 'start', '', url], { stdio: 'ignore' })
+    return
+  }
+  const command = process.platform === 'darwin' ? 'open' : 'xdg-open'
   spawnSync(command, [url], { stdio: 'ignore' })
 }
 
