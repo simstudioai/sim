@@ -11,7 +11,10 @@
 #   - Network reachability from the cluster (peering, private link, or public
 #     endpoint with TLS)
 #
-# Install:
+# Install — generate each secret first in the same shell, e.g.:
+#   export BETTER_AUTH_SECRET=$(openssl rand -hex 32)   # likewise ENCRYPTION_KEY,
+#   export DB_PASSWORD=$(openssl rand -hex 24)          # INTERNAL_API_SECRET, CRON_SECRET
+#
 #   helm install sim ./helm/sim \
 #     --namespace sim --create-namespace \
 #     --values ./helm/sim/examples/values-external-db.yaml \
@@ -22,7 +25,8 @@
 #     --set "networkPolicy.egress[0].to[0].ipBlock.cidr=10.20.0.0/24" \
 #     --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
 #     --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
-#     --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET"
+#     --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+#     --set app.env.CRON_SECRET="$CRON_SECRET"
 
 # Global configuration
 global:
