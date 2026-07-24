@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { SetupError } from './errors.ts'
 import { waitFor } from './probes.ts'
 import * as p from './prompter.ts'
-import { theme } from './theme.ts'
+import { glyph, theme } from './theme.ts'
 
 const INSTALL_HINTS = [
   'install Docker Desktop: https://docker.com/products/docker-desktop',
@@ -56,7 +56,7 @@ export async function ensureDocker(required: boolean): Promise<boolean> {
   const spin = p.spinner()
   spin.start('Waiting for the Docker daemon…')
   const up = await waitFor(async () => daemonUp(), 90_000, 2000)
-  spin.stop(up ? 'Docker is running' : `${theme.error('✗')} daemon did not come up`)
+  spin.stop(up ? 'Docker is running' : `${glyph.fail} daemon did not come up`)
   if (!up) {
     throw new SetupError('Docker Desktop did not start within 90s.', [
       'first-ever launch needs a GUI license acceptance — open Docker Desktop manually once, then re-run',

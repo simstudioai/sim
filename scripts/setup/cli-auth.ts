@@ -1,6 +1,9 @@
 import { spawnSync } from 'node:child_process'
-import { createHash, randomBytes } from 'node:crypto'
 import http from 'node:http'
+import { sha256Base64Url } from '@sim/security/hash'
+import { generateSecureToken } from '@sim/security/tokens'
+import { generateShortId } from '@sim/utils/id'
+import { generateRandomHex } from '@sim/utils/random'
 import * as p from './prompter.ts'
 import { link, theme } from './theme.ts'
 
@@ -18,8 +21,8 @@ function openBrowser(url: string): void {
  * through the browser — so a code intercepted in transit cannot be redeemed.
  */
 function createPkcePair(): { verifier: string; challenge: string } {
-  const verifier = randomBytes(32).toString('base64url')
-  return { verifier, challenge: createHash('sha256').update(verifier).digest('base64url') }
+  const verifier = generateSecureToken(32)
+  return { verifier, challenge: sha256Base64Url(verifier) }
 }
 
 /** No O/0 or I/1 — this exists to be compared by eye against a browser tab. */
@@ -35,9 +38,8 @@ const PAIRING_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
  * a code you don't recognise, the approval isn't yours.
  */
 function createPairingCode(): string {
-  const bytes = randomBytes(8)
-  const chars = Array.from(bytes, (byte) => PAIRING_ALPHABET[byte % PAIRING_ALPHABET.length])
-  return `${chars.slice(0, 4).join('')}-${chars.slice(4).join('')}`
+  const chars = generateShortId(8, PAIRING_ALPHABET)
+  return `${chars.slice(0, 4)}-${chars.slice(4)}`
 }
 
 export interface CodeListener {
@@ -56,7 +58,7 @@ export interface CodeListener {
  * mismatch.
  */
 export function startCodeListener(origin: string): Promise<CodeListener> {
-  const state = randomBytes(16).toString('hex')
+  const state = generateRandomHex(32)
   const { verifier, challenge } = createPkcePair()
   const pairingCode = createPairingCode()
 

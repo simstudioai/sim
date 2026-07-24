@@ -14,7 +14,7 @@ export interface PgProbeResult {
   migrations?: { applied: number | null; journal: number }
 }
 
-export function journalMigrationCount(): number {
+function journalMigrationCount(): number {
   const journalPath = path.join(ROOT, 'packages/db/migrations/meta/_journal.json')
   const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as { entries: unknown[] }
   return journal.entries.length

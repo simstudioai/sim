@@ -5,9 +5,11 @@ import {
   generateSecret,
   isPlaceholder,
   isTruthy,
+  isUsableSecret,
   readEnvFile,
   SECRET_KEYS,
   SHARED_KEYS,
+  secretRequirement,
   writeEnvValues,
 } from './env-files.ts'
 import { httpHealth, pgProbe, redisPing } from './probes.ts'
@@ -153,11 +155,11 @@ function checkSchema(ctx: CheckContext): Finding[] {
         })
         continue
       }
-      if (MIN_32_KEYS.has(key) && value.length < 32) {
+      if (MIN_32_KEYS.has(key) && !isUsableSecret(key, value)) {
         findings.push({
           group: 'schema',
           status: 'fail',
-          message: `${rel(file)}: ${key} is shorter than 32 chars — the realtime server rejects it`,
+          message: `${rel(file)}: ${key} ${secretRequirement(key)}`,
           fix: 'generate a new one with `openssl rand -hex 32` (rotating it invalidates existing sessions/encrypted data)',
         })
         continue
@@ -436,9 +438,8 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   return findings
 }
 
-async function checkLive(ctx: CheckContext): Promise<Finding[]> {
+async function checkDatabase(sim: EnvFile): Promise<Finding[]> {
   const findings: Finding[] = []
-  const sim = ctx.env.sim
   const dsn = sim.vars.get('DATABASE_URL')
   const dsnPassword = (() => {
     try {
@@ -497,53 +498,73 @@ async function checkLive(ctx: CheckContext): Promise<Finding[]> {
     })
   }
 
-  const redisUrl = sim.vars.get('REDIS_URL')
-  if (redisUrl) {
-    const ping = await redisPing(redisUrl)
-    findings.push(
-      ping.ok
-        ? { group: 'live', status: 'pass', message: 'redis reachable' }
-        : {
-            group: 'live',
-            status: 'fail',
-            message: `redis unreachable: ${ping.error}`,
-            fix: 'fix REDIS_URL or remove it (optional for single-replica)',
-          }
-    )
-  }
-
-  for (const [label, port, url] of [
-    ['app', 3000, 'http://localhost:3000/api/health'],
-    ['realtime', 3002, 'http://localhost:3002/health'],
-  ] as const) {
-    if (!(await portOpen(port))) {
-      findings.push({ group: 'live', status: 'skip', message: `${label}: not running on :${port}` })
-    } else if (await httpHealth(url)) {
-      findings.push({ group: 'live', status: 'pass', message: `${label} healthy on :${port}` })
-    } else {
-      findings.push({
-        group: 'live',
-        status: 'fail',
-        message: `${label}: something is on :${port} but ${url} is not answering`,
-        fix: 'check the dev server logs',
-      })
-    }
-  }
-
-  const ollamaUrl = sim.vars.get('OLLAMA_URL')
-  if (ollamaUrl) {
-    findings.push(
-      (await httpHealth(`${ollamaUrl.replace(/\/$/, '')}/api/tags`))
-        ? { group: 'live', status: 'pass', message: 'ollama reachable' }
-        : {
-            group: 'live',
-            status: 'warn',
-            message: 'OLLAMA_URL is set but Ollama is not answering',
-            fix: 'start Ollama or remove OLLAMA_URL',
-          }
-    )
-  }
   return findings
+}
+
+async function checkRedis(sim: EnvFile): Promise<Finding[]> {
+  const redisUrl = sim.vars.get('REDIS_URL')
+  if (!redisUrl) return []
+  const ping = await redisPing(redisUrl)
+  return [
+    ping.ok
+      ? { group: 'live', status: 'pass', message: 'redis reachable' }
+      : {
+          group: 'live',
+          status: 'fail',
+          message: `redis unreachable: ${ping.error}`,
+          fix: 'fix REDIS_URL or remove it (optional for single-replica)',
+        },
+  ]
+}
+
+async function checkService(label: string, port: number, url: string): Promise<Finding[]> {
+  if (!(await portOpen(port))) {
+    return [{ group: 'live', status: 'skip', message: `${label}: not running on :${port}` }]
+  }
+  if (await httpHealth(url)) {
+    return [{ group: 'live', status: 'pass', message: `${label} healthy on :${port}` }]
+  }
+  return [
+    {
+      group: 'live',
+      status: 'fail',
+      message: `${label}: something is on :${port} but ${url} is not answering`,
+      fix: 'check the dev server logs',
+    },
+  ]
+}
+
+async function checkOllama(sim: EnvFile): Promise<Finding[]> {
+  const ollamaUrl = sim.vars.get('OLLAMA_URL')
+  if (!ollamaUrl) return []
+  return [
+    (await httpHealth(`${ollamaUrl.replace(/\/$/, '')}/api/tags`))
+      ? { group: 'live', status: 'pass', message: 'ollama reachable' }
+      : {
+          group: 'live',
+          status: 'warn',
+          message: 'OLLAMA_URL is set but Ollama is not answering',
+          fix: 'start Ollama or remove OLLAMA_URL',
+        },
+  ]
+}
+
+/**
+ * The five probes are independent, so they run concurrently — serially this is
+ * the sum of every timeout (~17s worst case) on a command whose whole job is to
+ * tell you what's broken. Results are concatenated in a fixed order so the
+ * report stays deterministic regardless of which probe settles first.
+ */
+async function checkLive(ctx: CheckContext): Promise<Finding[]> {
+  const sim = ctx.env.sim
+  const [database, redis, app, realtime, ollama] = await Promise.all([
+    checkDatabase(sim),
+    checkRedis(sim),
+    checkService('app', 3000, 'http://localhost:3000/api/health'),
+    checkService('realtime', 3002, 'http://localhost:3002/health'),
+    checkOllama(sim),
+  ])
+  return [...database, ...redis, ...app, ...realtime, ...ollama]
 }
 
 export async function runChecks(ctx: CheckContext, groups?: CheckGroup[]): Promise<Finding[]> {

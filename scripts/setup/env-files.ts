@@ -1,7 +1,7 @@
-import { randomBytes } from 'node:crypto'
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { generateRandomHex } from '@sim/utils/random'
 
 export const ROOT = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '../..')
 
@@ -130,14 +130,46 @@ export function archiveEnvFile(target: EnvTarget): string | null {
 }
 
 export function generateSecret(): string {
-  return randomBytes(32).toString('hex')
+  return generateRandomHex(64)
+}
+
+/**
+ * `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` are read as raw AES-256 material,
+ * so the app requires exactly 64 hex characters and throws on anything else
+ * (`lib/core/security/encryption.ts`, `lib/api-key/crypto.ts`). A merely-long
+ * passphrase passes a length check and then fails every encryption path at
+ * runtime, so those two are validated on format rather than length.
+ *
+ * Lives here so setup (which replaces an unusable secret) and doctor (which
+ * reports one) apply the same rule — they disagreed while it was duplicated.
+ */
+const HEX_KEY_PATTERN = /^[0-9a-f]{64}$/i
+const HEX_SECRET_KEYS = new Set<string>(['ENCRYPTION_KEY', 'API_ENCRYPTION_KEY'])
+
+export function isUsableSecret(key: string, value: string): boolean {
+  if (isPlaceholder(value)) return false
+  return HEX_SECRET_KEYS.has(key) ? HEX_KEY_PATTERN.test(value) : value.length >= 32
+}
+
+/** Human-readable reason a secret is unusable, for doctor's finding message. */
+export function secretRequirement(key: string): string {
+  return HEX_SECRET_KEYS.has(key)
+    ? 'must be exactly 64 hex characters (32-byte AES key)'
+    : 'must be at least 32 characters'
 }
 
 export function isPlaceholder(value: string): boolean {
   return PLACEHOLDER_VALUES.has(value) || value.startsWith('your_')
 }
 
-/** Mirrors the app's isTruthy env coercion (apps/sim/lib/core/config/env.ts). */
+/**
+ * Mirrors the app's `isTruthy` (apps/sim/lib/core/config/env.ts:633) exactly —
+ * `true` or `1` only. The app's separate `envBoolean` additionally accepts
+ * `yes`/`on`, but feature flags read through `isTruthy`, so accepting the wider
+ * set here made the wizard and doctor report a flag as on that the app treats
+ * as off.
+ */
 export function isTruthy(value: string | undefined): boolean {
-  return value !== undefined && ['true', '1', 'yes', 'on'].includes(value.toLowerCase())
+  if (value === undefined) return false
+  return value.toLowerCase() === 'true' || value === '1'
 }

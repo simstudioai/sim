@@ -5,7 +5,7 @@ import { ensureDocker } from '../docker.ts'
 import { generateSecret, ROOT } from '../env-files.ts'
 import { SetupError } from '../errors.ts'
 import * as p from '../prompter.ts'
-import { theme } from '../theme.ts'
+import { glyph, theme } from '../theme.ts'
 
 const RELEASE = 'sim-dev'
 const NAMESPACE = 'sim-dev'
@@ -153,7 +153,7 @@ export async function runK8sMode(detection: Detection): Promise<void> {
       secretValues(secrets)
     )
   } catch (error) {
-    spin.stop(`${theme.error('✗')} helm install failed`)
+    spin.stop(`${glyph.fail} helm install failed`)
     throw new SetupError(getErrorMessage(error), [
       `pod status: ${theme.command(`kubectl -n ${NAMESPACE} get pods`)}`,
       `stuck pods: ${theme.command(`kubectl -n ${NAMESPACE} describe pod <name> | tail -20`)}`,
@@ -169,7 +169,7 @@ export async function runK8sMode(detection: Detection): Promise<void> {
     cwd: ROOT,
   })
   if (test.status !== 0) {
-    testSpin.stop(`${theme.error('✗')} helm test failed`)
+    testSpin.stop(`${glyph.fail} helm test failed`)
     throw new SetupError(`helm test failed:\n${test.stdout}${test.stderr}`, [
       `pod status: ${theme.command(`kubectl -n ${NAMESPACE} get pods`)}`,
       `app logs: ${theme.command(`kubectl -n ${NAMESPACE} logs deploy/${RELEASE}-app --tail 50`)}`,

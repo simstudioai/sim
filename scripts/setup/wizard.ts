@@ -105,11 +105,14 @@ async function finalVerify(): Promise<void> {
 }
 
 export async function runWizard(flags: WizardFlags): Promise<void> {
+  // Detection is ~600ms of subprocess work and the banner is ~600ms of animation
+  // with nothing to do — overlap them so the spinner below usually resolves at once.
+  const detecting = runDetection()
   await showBanner()
 
   const spin = p.spinner()
   spin.start('Looking at what you already have…')
-  const detection = await runDetection()
+  const detection = await detecting
   spin.stop(
     `Detected: docker ${detection.dockerRunning ? '✓' : '✗'} · postgres ${detection.postgresPortOpen ? '✓' : '✗'} · ` +
       `${detection.shellLlmKeys.length} shell LLM key${detection.shellLlmKeys.length === 1 ? '' : 's'}` +

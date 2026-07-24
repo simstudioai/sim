@@ -5,7 +5,7 @@ import { ensureDocker } from './docker.ts'
 import { SetupError } from './errors.ts'
 import { redisPing, waitFor } from './probes.ts'
 import * as p from './prompter.ts'
-import { theme } from './theme.ts'
+import { glyph, theme } from './theme.ts'
 
 const LOCAL_URL = 'redis://localhost:6379'
 
@@ -25,7 +25,7 @@ async function pingWithSpinner(url: string, label: string): Promise<boolean> {
   const spin = p.spinner()
   spin.start(label)
   const ping = await redisPing(url)
-  spin.stop(ping.ok ? 'Redis reachable' : `${theme.warn('!')} ${ping.error}`)
+  spin.stop(ping.ok ? 'Redis reachable' : `${glyph.warn} ${ping.error}`)
   return ping.ok
 }
 
@@ -49,7 +49,7 @@ async function startManagedRedis(detection: Detection): Promise<string> {
   spin.stop(
     healthy
       ? `Redis running in ${REDIS_CONTAINER} on :${hostPort}`
-      : `${theme.error('✗')} container did not become healthy`
+      : `${glyph.fail} container did not become healthy`
   )
   if (!healthy) {
     throw new SetupError('the Redis container failed to start.', [

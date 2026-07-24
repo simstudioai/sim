@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import net from 'node:net'
 import os from 'node:os'
-import { ENV_PATHS, ROOT, readEnvFile } from './env-files.ts'
+import { ROOT, readEnvFile } from './env-files.ts'
 
 export const MANAGED_LABEL = 'managed-by=sim-setup'
 export const DB_CONTAINER = 'sim-postgres'
@@ -147,5 +147,3 @@ export async function runDetection(): Promise<Detection> {
     specs: detectSpecs(dockerRunning),
   }
 }
-
-export { ENV_PATHS }

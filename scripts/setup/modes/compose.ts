@@ -15,7 +15,7 @@ import {
   promptStorage,
   promptUnlocks,
 } from '../steps.ts'
-import { theme } from '../theme.ts'
+import { glyph, theme } from '../theme.ts'
 
 interface BusyPort {
   port: number
@@ -158,7 +158,7 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
   const realtimeHealthy =
     appHealthy && (await waitFor(() => httpHealth('http://localhost:3002/health'), 60_000, 2000))
   if (!appHealthy || !realtimeHealthy) {
-    spin.stop(`${theme.error('✗')} services did not become healthy`)
+    spin.stop(`${glyph.fail} services did not become healthy`)
     throw new SetupError(
       `${!appHealthy ? 'the app (:3000)' : 'realtime (:3002)'} never answered its health check.`,
       [

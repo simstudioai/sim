@@ -1,24 +1,16 @@
 import { browserKeyFlow } from './cli-auth.ts'
 import type { Detection } from './detect.ts'
-import { type EnvFile, generateSecret, isPlaceholder, isTruthy, SECRET_KEYS } from './env-files.ts'
+import {
+  type EnvFile,
+  generateSecret,
+  isPlaceholder,
+  isTruthy,
+  isUsableSecret,
+  SECRET_KEYS,
+} from './env-files.ts'
 import * as p from './prompter.ts'
 import { link, theme } from './theme.ts'
 import { FLAG_TWINS, hasMailProvider, LOGIN_PROVIDERS, SELF_HOST_UNLOCKS } from './twins.ts'
-
-/**
- * `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` are read as raw AES-256 material,
- * so the app requires exactly 64 hex characters and throws on anything else
- * (`lib/core/security/encryption.ts`, `lib/api-key/crypto.ts`). A merely-long
- * passphrase passes a length check here and then fails every encryption path at
- * runtime, so those two are validated on format rather than length.
- */
-const HEX_KEY_PATTERN = /^[0-9a-f]{64}$/i
-const HEX_SECRET_KEYS = new Set(['ENCRYPTION_KEY', 'API_ENCRYPTION_KEY'])
-
-function isUsableSecret(key: string, value: string): boolean {
-  if (isPlaceholder(value)) return false
-  return HEX_SECRET_KEYS.has(key) ? HEX_KEY_PATTERN.test(value) : value.length >= 32
-}
 
 /** Reuses existing valid secrets (never regenerates them) and generates the rest. */
 export function collectSecrets(existing: EnvFile): Record<string, string> {

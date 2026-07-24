@@ -5,7 +5,7 @@ import { generateSecret } from './env-files.ts'
 import { SetupError } from './errors.ts'
 import { pgProbe, waitFor } from './probes.ts'
 import * as p from './prompter.ts'
-import { theme } from './theme.ts'
+import { glyph, theme } from './theme.ts'
 
 const DEFAULT_DSN = 'postgresql://postgres:postgres@localhost:5432/simstudio'
 
@@ -21,12 +21,10 @@ async function probeWithSpinner(dsn: string, label: string): Promise<boolean> {
   spin.start(label)
   const probe = await pgProbe(dsn)
   if (probe.ok && probe.pgvectorAvailable === false) {
-    spin.stop(`${theme.warn('!')} connected, but pgvector is missing on that Postgres`)
+    spin.stop(`${glyph.warn} connected, but pgvector is missing on that Postgres`)
     return false
   }
-  spin.stop(
-    probe.ok ? 'database reachable (pgvector available)' : `${theme.warn('!')} ${probe.error}`
-  )
+  spin.stop(probe.ok ? 'database reachable (pgvector available)' : `${glyph.warn} ${probe.error}`)
   return probe.ok
 }
 
@@ -84,7 +82,7 @@ async function startManagedContainer(detection: Detection): Promise<string> {
   spin.start(`Starting ${DB_CONTAINER} container on :${hostPort}…`)
   const healthy = await waitFor(async () => (await pgProbe(dsn)).ok, 45_000, 1500)
   if (!healthy) {
-    spin.stop(`${theme.error('✗')} container did not become healthy`)
+    spin.stop(`${glyph.fail} container did not become healthy`)
     const logs = spawnSync('docker', ['logs', '--tail', '20', DB_CONTAINER], { encoding: 'utf8' })
     throw new SetupError(
       `the Postgres container failed to start. Last logs:\n${logs.stdout}${logs.stderr}`,
@@ -113,9 +111,7 @@ async function restartManagedContainer(existingDsn: string | undefined): Promise
   const spin = p.spinner()
   spin.start(`Starting existing ${DB_CONTAINER} container…`)
   const healthy = await waitFor(async () => (await pgProbe(existingDsn)).ok, 30_000, 1500)
-  spin.stop(
-    healthy ? `${DB_CONTAINER} running` : `${theme.error('✗')} ${DB_CONTAINER} did not come up`
-  )
+  spin.stop(healthy ? `${DB_CONTAINER} running` : `${glyph.fail} ${DB_CONTAINER} did not come up`)
   if (!healthy) throw new Error(`${DB_CONTAINER} started but is not answering on ${existingDsn}`)
   return existingDsn
 }

@@ -18,7 +18,7 @@ import {
   promptStorage,
   promptUnlocks,
 } from '../steps.ts'
-import { theme } from '../theme.ts'
+import { glyph, theme } from '../theme.ts'
 
 const APP_URL = 'http://localhost:3000'
 
@@ -38,7 +38,7 @@ async function runMigrations(dsn: string): Promise<void> {
     spin.stop('Migrations applied')
     return
   }
-  spin.stop(`${theme.error('✗')} migrations failed`)
+  spin.stop(`${glyph.fail} migrations failed`)
   const error = truncate(`${result.stdout}\n${result.stderr}`.trim(), 2000)
   const probe = await pgProbe(dsn)
   const applied = probe.ok ? (probe.migrations?.applied ?? 0) : 0

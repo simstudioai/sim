@@ -1,6 +1,5 @@
-import { createHash } from 'node:crypto'
 import { safeCompare } from '@sim/security/compare'
-import { sha256Hex } from '@sim/security/hash'
+import { sha256Base64Url, sha256Hex } from '@sim/security/hash'
 import { generateShortId } from '@sim/utils/id'
 import { getRedisClient } from '@/lib/core/config/redis'
 
@@ -40,9 +39,9 @@ function codeKey(code: string): string {
   return `cli:auth:code:${sha256Hex(code)}`
 }
 
-/** Base64url rather than hex: RFC 7636 defines the PKCE challenge that way. */
+/** Shares its implementation with the CLI so the two sides cannot drift apart. */
 function challengeFor(verifier: string): string {
-  return createHash('sha256').update(verifier).digest('base64url')
+  return sha256Base64Url(verifier)
 }
 
 /** Returns the plaintext code, which is never stored. */

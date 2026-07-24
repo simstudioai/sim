@@ -104,12 +104,5 @@ export function note(message: string, title?: string): void {
   clack.note(message, title && isRich() ? theme.heading(title) : title)
 }
 
-export const intro = clack.intro
 export const outro = clack.outro
 export const log = clack.log
-export const isCancel = clack.isCancel
-
-export function cancelAndExit(): never {
-  clack.cancel('Setup cancelled.')
-  exitWith(130)
-}
