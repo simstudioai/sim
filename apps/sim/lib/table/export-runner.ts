@@ -4,8 +4,9 @@ import { generateId } from '@sim/utils/id'
 import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
 import { appendTableEvent } from '@/lib/table/events'
 import {
-  formatCsvValue,
+  formatCsvCell,
   neutralizeCsvFormula,
+  resolveSelectExportValue,
   sanitizeExportFilename,
   toCsvRow,
 } from '@/lib/table/export-format'
@@ -59,6 +60,8 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
     if (!table) throw new Error(`Export target table ${tableId} not found`)
 
     const columns = table.schema.columns
+    // Select cells store option ids; exports resolve them to option names below.
+    const selectColumns = columns.filter((c) => c.type === 'select')
     // Stored row data is id-keyed; CSV headers and JSON keys are display names, so translate
     // id → name on the way out (export is a name-friendly boundary).
     const nameById = buildNameById(table.schema)
@@ -91,12 +94,21 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
       for (const row of page) {
         if (format === 'csv') {
           pageChunks.push(
-            `${toCsvRow(columns.map((c) => formatCsvValue(row.data[getColumnId(c)])))}\n`
+            `${toCsvRow(columns.map((c) => formatCsvCell(c, row.data[getColumnId(c)])))}\n`
           )
         } else {
           const prefix = firstJsonRow ? '' : ','
           firstJsonRow = false
-          pageChunks.push(prefix + JSON.stringify(rowDataIdToName(row.data, nameById)))
+          // Resolve select ids → names before the id → name key translation.
+          let data = row.data
+          if (selectColumns.length > 0) {
+            data = { ...data }
+            for (const c of selectColumns) {
+              const key = getColumnId(c)
+              if (key in data) data[key] = resolveSelectExportValue(c, data[key])
+            }
+          }
+          pageChunks.push(prefix + JSON.stringify(rowDataIdToName(data, nameById)))
         }
       }
       await handle.write(pageChunks.join(''))
