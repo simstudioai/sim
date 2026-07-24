@@ -70,11 +70,32 @@ export const GET = withRouteHandler(async (request: Request) => {
       return NextResponse.json({ workspaces: [], lastActiveWorkspaceId, creationPolicy })
     }
 
-    const defaultWorkspace = await createDefaultWorkspace(
-      session.user.id,
-      session.user.name,
-      creationPolicy
-    )
+    let defaultWorkspace: Awaited<ReturnType<typeof createDefaultWorkspace>>
+    try {
+      defaultWorkspace = await createDefaultWorkspace(
+        session.user.id,
+        session.user.name,
+        creationPolicy
+      )
+    } catch (error) {
+      /**
+       * The user joined an organization between the empty list read and the
+       * default-workspace insert. Their workspaces (the join sweep's output)
+       * exist now — re-list and return that instead of failing the load.
+       */
+      if (error instanceof PersonalWorkspaceCreationRacedError) {
+        logger.info('Default workspace creation raced an organization join; re-listing', {
+          userId: session.user.id,
+        })
+        const refreshedPayload = await listWorkspacesForViewer({
+          userId: session.user.id,
+          activeOrganizationId,
+          scope,
+        })
+        return NextResponse.json(refreshedPayload)
+      }
+      throw error
+    }
 
     await migrateExistingWorkflows(session.user.id, defaultWorkspace.id)
 

@@ -76,9 +76,14 @@ export function TeamManagement({
   const [orgName, setOrgName] = useState('')
   const [orgSlug, setOrgSlug] = useState('')
 
+  /**
+   * `isFetching` (not `isLoading`) gates the confirm button: a background
+   * refetch of cached data must also hold removal so the admin never
+   * confirms against a stale credential-impact list.
+   */
   const {
     data: removalImpactCredentials,
-    isLoading: isRemovalImpactLoading,
+    isFetching: isRemovalImpactFetching,
     isError: isRemovalImpactError,
   } = useMemberRemovalImpact(organizationId, removeMemberDialog.memberId, {
     enabled: removeMemberDialog.open,
@@ -387,7 +392,7 @@ export function TeamManagement({
         breakingCredentials={[
           ...new Set(removalImpactCredentials?.map((c) => c.displayName) ?? []),
         ]}
-        credentialImpactPending={isRemovalImpactLoading}
+        credentialImpactPending={isRemovalImpactFetching}
         credentialImpactFailed={isRemovalImpactError}
         isSubmitting={removeMemberMutation.isPending}
         error={removeMemberMutation.error}
