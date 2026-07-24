@@ -132,7 +132,10 @@ vi.mock('@/lib/table/billing', () => ({
   getWorkspaceTableLimits: mockGetWorkspaceTableLimits,
 }))
 
-import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
+import {
+  normalizeSelectOptionsInput,
+  userTableServerTool,
+} from '@/lib/copilot/tools/server/table/user-table'
 
 function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
   return {
@@ -162,6 +165,31 @@ async function flushDetached(): Promise<void> {
   await Promise.resolve()
   await Promise.resolve()
 }
+
+describe('normalizeSelectOptionsInput', () => {
+  it('generates a stable id for a bare-name string option', () => {
+    const [opt] = normalizeSelectOptionsInput(['Open']) ?? []
+    expect(opt.name).toBe('Open')
+    expect(typeof opt.id).toBe('string')
+    expect(opt.id.length).toBeGreaterThan(0)
+  })
+
+  it('generates an id for an object option without one', () => {
+    const [opt] = normalizeSelectOptionsInput([{ name: 'Closed' }]) ?? []
+    expect(opt.name).toBe('Closed')
+    expect(opt.id.length).toBeGreaterThan(0)
+  })
+
+  it('preserves an existing id so cell data survives an options edit', () => {
+    const result = normalizeSelectOptionsInput([{ id: 'opt_keep', name: 'Open' }])
+    expect(result).toEqual([{ id: 'opt_keep', name: 'Open' }])
+  })
+
+  it('returns undefined for a non-array (validation rejects it downstream)', () => {
+    expect(normalizeSelectOptionsInput(undefined)).toBeUndefined()
+    expect(normalizeSelectOptionsInput('Open')).toBeUndefined()
+  })
+})
 
 describe('userTableServerTool.import_file', () => {
   beforeEach(() => {

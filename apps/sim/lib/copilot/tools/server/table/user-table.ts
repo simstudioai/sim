@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
+import { generateId, generateShortId } from '@sim/utils/id'
 import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -73,6 +73,7 @@ import type {
   SelectOption,
   TableDefinition,
   TableDeleteJobPayload,
+  TableSchema,
   TableUpdateJobPayload,
   WorkflowGroup,
   WorkflowGroupDependencies,
@@ -312,6 +313,36 @@ function limitError(limit: unknown): string | null {
   return null
 }
 
+/**
+ * Normalizes agent-authored `select` options into the stored `{ id, name }`
+ * shape. The copilot agent supplies option **names** (a bare string, or an
+ * object with a `name`); the stable option id is generated here so the model
+ * never authors the cell key. An entry that already carries a non-empty `id`
+ * (e.g. re-sending an existing option on an options edit) keeps it, so existing
+ * cell data survives the update. Non-array input returns `undefined`, letting
+ * downstream validation reject a malformed / missing option set.
+ */
+export function normalizeSelectOptionsInput(raw: unknown): SelectOption[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  return raw.map((entry) => {
+    if (typeof entry === 'string') return { id: generateShortId(), name: entry }
+    const e = (entry ?? {}) as { id?: unknown; name?: unknown }
+    const id = typeof e.id === 'string' && e.id.length > 0 ? e.id : generateShortId()
+    return { id, name: typeof e.name === 'string' ? e.name : String(e.name ?? '') }
+  })
+}
+
+/** Rewrites every `select` column's options in an agent-authored create schema. */
+function normalizeSchemaSelectColumns(schema: TableSchema): TableSchema {
+  if (!schema || !Array.isArray(schema.columns)) return schema
+  return {
+    ...schema,
+    columns: schema.columns.map((col) =>
+      col.type === 'select' ? { ...col, options: normalizeSelectOptionsInput(col.options) } : col
+    ),
+  }
+}
+
 async function batchInsertAll(
   tableId: string,
   rows: RowData[],
@@ -374,7 +405,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             {
               name: args.name,
               description: args.description,
-              schema: args.schema,
+              // Agent authors select options by name; generate their stable ids here.
+              schema: normalizeSchemaSelectColumns(args.schema as TableSchema),
               workspaceId,
               userId: context.userId,
               maxTables: planLimits.maxTables,
@@ -1437,7 +1469,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 type: string
                 unique?: boolean
                 position?: number
-                options?: SelectOption[]
+                options?: unknown
                 multiple?: boolean
               }
             | undefined
@@ -1453,7 +1485,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const updated = await addTableColumn(args.tableId, col, requestId)
+          // Agent authors select options by name; generate their stable ids here.
+          const columnToAdd =
+            col.type === 'select'
+              ? { ...col, options: normalizeSelectOptionsInput(col.options) }
+              : { ...col, options: undefined }
+          const updated = await addTableColumn(args.tableId, columnToAdd, requestId)
           return {
             success: true,
             message: `Added column "${col.name}" (${col.type}) to table`,
@@ -1545,7 +1582,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const newType = (args as Record<string, unknown>).newType as string | undefined
           const uniqFlag = (args as Record<string, unknown>).unique as boolean | undefined
-          const options = (args as Record<string, unknown>).options as SelectOption[] | undefined
+          // Agent authors select options by name; generate their stable ids here.
+          const options = normalizeSelectOptionsInput((args as Record<string, unknown>).options)
           const multiple = (args as Record<string, unknown>).multiple as boolean | undefined
           if (
             newType === undefined &&
