@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import {
   extractBlockIdFromOutputId,
@@ -366,6 +366,23 @@ async function buildMinimalResult(
     return minimalResult
   }
 
+  /**
+   * Selected outputs are extracted from the sanitized block output, not the raw
+   * log. A deployment can select `toolCalls` or `providerTiming` directly, so
+   * sanitizing per selected path would leave the leak open for whichever path
+   * was missed; sanitizing the source closes it for every path at once. Cached
+   * per block because several descriptors can target the same one.
+   */
+  const sanitizedBlockOutputs = new Map<string, Record<string, unknown>>()
+  const sanitizedOutputFor = (blockId: string, output: Record<string, unknown>) => {
+    const cached = sanitizedBlockOutputs.get(blockId)
+    if (cached) return cached
+
+    const sanitized = sanitizeOutputForEnvelope(output, envelopeOptions)
+    sanitizedBlockOutputs.set(blockId, sanitized)
+    return sanitized
+  }
+
   let selectedOutputBytes = assertSelectedOutputBytes(minimalResult.output)
   for (const descriptor of getSelectedOutputDescriptors(selectedOutputs)) {
     const { blockId, path } = descriptor
@@ -406,7 +423,11 @@ async function buildMinimalResult(
         getBase64DecodedByteBudget(remainingBytes)
       ),
     }
-    const value = await extractOutputValue(blockLog.output, path, extractionContext)
+    const value = await extractOutputValue(
+      sanitizedOutputFor(blockId, blockLog.output),
+      path,
+      extractionContext
+    )
     if (value === undefined) {
       continue
     }
@@ -692,6 +713,18 @@ export async function createStreamingResponse(
           (descriptor) => descriptor.blockId === blockId
         )
 
+        /**
+         * A selected output is streamed here and then skipped in the `final`
+         * envelope, so this is the reachable path for a deployment that selects
+         * `toolCalls` or `providerTiming` — sanitizing only the envelope would
+         * leave the payload flowing through the chunk frame instead.
+         */
+        const sanitizedOutput = isRecordLike(output)
+          ? sanitizeOutputForEnvelope(output, {
+              redactToolPayloads: streamConfig.isSecureMode === true,
+            })
+          : output
+
         for (const descriptor of matchingOutputs) {
           if (state.selectedOutputError) {
             break
@@ -714,7 +747,11 @@ export async function createStreamingResponse(
               ),
             }
             const materializationContext = buildMaterializationContext(extractionContext)
-            const outputValue = await extractOutputValue(output, descriptor.path, extractionContext)
+            const outputValue = await extractOutputValue(
+              sanitizedOutput,
+              descriptor.path,
+              extractionContext
+            )
 
             if (outputValue !== undefined) {
               const materializedOutput = await materializeInlineExecutionValue(

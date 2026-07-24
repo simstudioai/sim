@@ -660,6 +660,44 @@ describe('final envelope tool payloads', () => {
     expect(JSON.stringify(final)).not.toContain('72')
   })
 
+  /**
+   * A deployment almost always selects outputs, so redaction that only covered
+   * the empty-selection branch would be dead in the case it exists for.
+   */
+  it('redacts tool payloads when the deployment selects toolCalls directly', async () => {
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      streamConfig: { isSecureMode: true, selectedOutputs: ['block_toolCalls'] },
+      executeFn: async ({ onBlockComplete }) => {
+        const toolOnlyOutput = { toolCalls: agentOutput.toolCalls }
+        await onBlockComplete('block', toolOnlyOutput)
+        return {
+          success: true,
+          output: {},
+          logs: [
+            {
+              blockId: 'block',
+              output: toolOnlyOutput,
+              startedAt: new Date().toISOString(),
+              endedAt: new Date().toISOString(),
+              durationMs: 1,
+              success: true,
+            },
+          ],
+        } as any
+      },
+    })
+
+    // The payload rides the chunk frame, not `final`, so assert on the whole
+    // stream — sanitizing only the envelope would still leak here.
+    const events = await collectSSEEvents(stream)
+    const serialized = JSON.stringify(events)
+
+    expect(serialized).not.toContain('private')
+    expect(serialized).not.toContain('72')
+    expect(serialized).toContain('get_weather')
+  })
+
   it('keeps tool results for the authenticated workflow API', async () => {
     const stream = await createStreamingResponse({
       requestId: 'request-1',
