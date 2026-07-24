@@ -1,7 +1,31 @@
 import clsx from 'clsx'
 import type { MDXRemoteProps } from 'next-mdx-remote/rsc'
 import { CodeBlock } from '@/lib/content/code'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import { ContentImage } from '@/app/(landing)/components/content-image'
+
+/**
+ * Apex host for every Sim-owned property, derived from the canonical site URL
+ * rather than the environment so a post renders identically in dev, preview,
+ * and production.
+ */
+const SITE_APEX_HOST = new URL(SITE_URL).hostname.replace(/^www\./, '')
+
+/**
+ * True only for links that leave Sim entirely. Relative hrefs, in-page anchors,
+ * the apex host, and any Sim subdomain (`www.`, `docs.`) are first-party and keep
+ * default same-tab navigation so internal linking stays crawlable. The leading dot
+ * in the suffix check keeps lookalike domains such as `evil-sim.ai` external.
+ */
+function isExternalHref(href: string | undefined): boolean {
+  if (!href || !/^https?:\/\//i.test(href)) return false
+  try {
+    const { hostname } = new URL(href)
+    return hostname !== SITE_APEX_HOST && !hostname.endsWith(`.${SITE_APEX_HOST}`)
+  } catch {
+    return false
+  }
+}
 
 export const mdxComponents: MDXRemoteProps['components'] = {
   img: (props: any) => (
@@ -84,10 +108,9 @@ export const mdxComponents: MDXRemoteProps['components'] = {
     }
     /**
      * Outbound citations in post bodies open in a new tab and carry
-     * `rel="noopener noreferrer"`, per `.claude/rules/landing-seo-geo.md`. Same-origin
-     * and in-page links keep default navigation so internal linking stays crawlable.
+     * `rel="noopener noreferrer"`, per `.claude/rules/landing-seo-geo.md`.
      */
-    const isExternal = /^https?:\/\//.test(props.href ?? '')
+    const isExternal = isExternalHref(props.href)
     return (
       <a
         {...props}
