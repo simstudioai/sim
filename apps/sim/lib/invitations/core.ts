@@ -14,12 +14,14 @@ import {
   workspaceEnvironment,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { PERMISSION_RANK, type PermissionType } from '@sim/platform-authz/workspace'
+import { isOrgAdminRole, PERMISSION_RANK, type PermissionType } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, eq, inArray, isNull, lte, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
   acquireOrganizationMutationLock,
@@ -32,13 +34,18 @@ import {
   ensureTeamOrganizationForAcceptance,
 } from '@/lib/billing/organizations/provision-seat'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
+import { isPro, isTeam } from '@/lib/billing/plan-helpers'
+import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { captureServerEvent } from '@/lib/posthog/server'
+import {
+  attachOwnedWorkspacesToOrganizationTx,
+  ownedAttachableWorkspacesWhere,
+} from '@/lib/workspaces/organization-workspaces'
 import { getWorkspaceWithOwner, type WorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
-import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('InvitationCore')
 
@@ -151,6 +158,157 @@ export function isInvitationExpired(inv: Pick<InvitationWithGrants, 'expiresAt'>
 }
 
 /**
+ * A workspace invitation only escalates into an EXISTING organization when
+ * that organization matches what was stamped at send time — a workspace that
+ * entered an organization after the invite went out (a member's owned
+ * workspaces attaching on join, an admin move) never asked that org for a
+ * seat, so escalation requires the inviter to currently hold admin standing
+ * there. A workspace with no current organization is deliberately exempt:
+ * acceptance trusts the live workspace over stale stamped metadata and falls
+ * back to the standard personal-workspace regime (Pro→Team conversion of the
+ * current billed account), matching long-standing tested behavior.
+ * Organization-kind invitations always join their STAMPED organization (the
+ * join target is never re-derived from a granted workspace, whose org can
+ * change after send), so they pass trivially here. Acceptance and the
+ * accept-screen preview both consume this predicate so the disclosure can
+ * never contradict the accepted outcome.
+ */
+async function stampedOrganizationAllowsEscalation(
+  inv: InvitationWithGrants,
+  workspaceOrganizationId: string | null,
+  executor: DbOrTx = db
+): Promise<boolean> {
+  if (inv.kind !== 'workspace') return true
+  if (!workspaceOrganizationId) return true
+  if (inv.organizationId === workspaceOrganizationId) return true
+  const inviterMembership = await getUserOrganization(inv.inviterId, executor)
+  return (
+    inviterMembership?.organizationId === workspaceOrganizationId &&
+    isOrgAdminRole(inviterMembership.role)
+  )
+}
+
+export interface InvitationJoinPreviewResult {
+  willJoinOrganization: boolean
+  workspacesToMove: string[]
+  /**
+   * Stable ids behind `workspacesToMove`; the accept screen echoes them back
+   * as the disclosure token so acceptance can reject when the sweep set no
+   * longer matches what was disclosed.
+   */
+  workspaceIdsToMove: string[]
+}
+
+/**
+ * Best-effort preview of what accepting will do for the invitee: whether a
+ * member row will be created and which of their owned personal workspaces
+ * (archived included) will follow them into the organization. Mirrors the
+ * acceptance decision flow without taking locks — races resolve at accept
+ * time; the preview only feeds disclosure copy.
+ */
+export async function getInvitationJoinPreview(
+  inviteeUserId: string,
+  inv: InvitationWithGrants
+): Promise<InvitationJoinPreviewResult> {
+  const noJoin: InvitationJoinPreviewResult = {
+    willJoinOrganization: false,
+    workspacesToMove: [],
+    workspaceIdsToMove: [],
+  }
+  if (inv.membershipIntent === 'external') return noJoin
+
+  let workspaceOrganizationId = inv.organizationId
+  let billedAccountUserId: string | null = null
+  const primaryGrantWorkspaceId = inv.grants[0]?.workspaceId
+  if (primaryGrantWorkspaceId) {
+    const primaryWorkspace = await getWorkspaceWithOwner(primaryGrantWorkspaceId)
+    if (primaryWorkspace) {
+      billedAccountUserId = primaryWorkspace.billedAccountUserId
+      if (inv.kind === 'workspace') {
+        workspaceOrganizationId = primaryWorkspace.organizationId
+      }
+    }
+  }
+
+  /**
+   * Personal-workspace invites only produce an organization through billing's
+   * Pro→Team provisioning; with billing disabled there is nothing to join.
+   */
+  if (!workspaceOrganizationId && !isBillingEnabled) return noJoin
+
+  /**
+   * Already in the target organization (nothing changes) or in a different
+   * one (acceptance downgrades to external or rejects).
+   */
+  const existingMembership = await getUserOrganization(inviteeUserId)
+  if (existingMembership) return noJoin
+
+  if (!(await stampedOrganizationAllowsEscalation(inv, workspaceOrganizationId))) return noJoin
+
+  /**
+   * Mirror of acceptance's stale-grant gate: a member-role organization
+   * invite whose grants ALL left the stamped organization rolls back at
+   * accept, so the preview must not promise a migration for it.
+   */
+  if (
+    inv.kind === 'organization' &&
+    inv.organizationId &&
+    !isOrgAdminRole(inv.role) &&
+    inv.grants.length > 0
+  ) {
+    const [liveGrant] = await db
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(
+        and(
+          inArray(
+            workspace.id,
+            inv.grants.map((grant) => grant.workspaceId)
+          ),
+          eq(workspace.organizationId, inv.organizationId)
+        )
+      )
+      .limit(1)
+    if (!liveGrant) return noJoin
+  }
+
+  /**
+   * Mirror acceptance's billing gates: an unusable organization subscription
+   * (or, for personal-workspace invites, a billed owner without a convertible
+   * paid plan) makes acceptance fail with upgrade-required — the disclosure
+   * must not promise a migration that cannot happen.
+   */
+  if (isBillingEnabled) {
+    if (workspaceOrganizationId) {
+      const orgSub = await getOrganizationSubscription(workspaceOrganizationId)
+      if (!orgSub || !hasUsableSubscriptionStatus(orgSub.status)) return noJoin
+    } else {
+      const payerUserId = billedAccountUserId ?? inv.inviterId
+      const personalSub = await getHighestPriorityPersonalSubscription(payerUserId)
+      if (
+        !personalSub ||
+        !hasUsableSubscriptionStatus(personalSub.status) ||
+        !(isPro(personalSub.plan) || isTeam(personalSub.plan))
+      ) {
+        return noJoin
+      }
+    }
+  }
+
+  const ownedWorkspaces = await db
+    .select({ id: workspace.id, name: workspace.name })
+    .from(workspace)
+    .where(ownedAttachableWorkspacesWhere({ userId: inviteeUserId, includeArchived: true }))
+    .orderBy(asc(workspace.name))
+
+  return {
+    willJoinOrganization: true,
+    workspacesToMove: ownedWorkspaces.map((row) => row.name),
+    workspaceIdsToMove: ownedWorkspaces.map((row) => row.id),
+  }
+}
+
+/**
  * Flip any still-pending invitations for the given organization whose
  * `expiresAt` has already passed to `expired`. Best-effort housekeeping
  * — callers can rely on this for display freshness, but seat math also
@@ -220,6 +378,8 @@ export async function expireStalePendingInvitationsForWorkspaces(
 
 export type AcceptInvitationFailure =
   | { kind: 'not-found' }
+  | { kind: 'workspace-not-found' }
+  | { kind: 'disclosure-outdated' }
   | { kind: 'already-processed' }
   | { kind: 'expired' }
   | { kind: 'email-mismatch' }
@@ -247,6 +407,12 @@ export interface AcceptInvitationInput {
   actorName?: string | null
   invitationId: string
   token: string | null
+  /**
+   * Workspace ids the accept screen disclosed as moving. When provided,
+   * acceptance fails with `disclosure-outdated` if the set it would sweep
+   * differs — the user must see the refreshed notice before consenting.
+   */
+  disclosedWorkspaceIds?: string[]
   request?: { headers: { get(name: string): string | null } }
 }
 
@@ -263,55 +429,124 @@ class MembershipRevokedDuringAcceptError extends Error {
   }
 }
 
+/**
+ * Thrown after the member insert when the invitee's owned-workspace set no
+ * longer matches the pre-lock plan (a workspace was created concurrently and
+ * would escape the sweep). Rolls the whole acceptance back; safe to retry.
+ */
+class JoinerWorkspacesChangedDuringAcceptError extends Error {
+  constructor() {
+    super('Owned workspaces changed during invite acceptance')
+    this.name = 'JoinerWorkspacesChangedDuringAcceptError'
+  }
+}
+
+/**
+ * Thrown when every grant on a member-role organization invite turned stale
+ * (the workspaces left the stamped organization), which would strand the new
+ * member with no workspace. Rolls the whole acceptance back.
+ */
+class AllGrantsStaleDuringAcceptError extends Error {
+  constructor() {
+    super('All organization-invite grants turned stale during acceptance')
+    this.name = 'AllGrantsStaleDuringAcceptError'
+  }
+}
+
+/**
+ * Thrown when the workspace set acceptance would sweep no longer matches the
+ * set the accept screen disclosed. Rolls the acceptance back so the user
+ * consents to the refreshed notice instead of a silent migration.
+ */
+class DisclosureOutdatedDuringAcceptError extends Error {
+  constructor() {
+    super('Disclosed workspace set no longer matches the sweep set')
+    this.name = 'DisclosureOutdatedDuringAcceptError'
+  }
+}
+
 interface InvitationAcceptancePostCommitEffects {
   organizationId: string | null
   memberRole: string | null
   reconcileSeats: boolean
   acceptedWorkspaceIds: string[]
+  /** Owned personal workspaces that followed the invitee into the org. */
+  attachedWorkspaceIds: string[]
   syncUsageLimitUserIds: string[]
   planConversions: AcceptancePlanConversion[]
   acceptedInvitation: InvitationWithGrants | null
   membershipAlreadyExists: boolean
 }
 
-/**
- * Compute the complete workspace lock set before taking any workspace lock.
- * A personal Pro→Team conversion attaches the billing owner's other personal
- * workspaces in the same transaction, so those rows must participate in the
- * same deterministic lock ordering as the invitation grants.
- */
+interface InvitationAcceptanceLockPlan {
+  /**
+   * Invitation grant workspaces plus the billing owner's attachable
+   * workspaces (a personal Pro→Team conversion attaches those in the same
+   * transaction). Passed through to acceptance provisioning unchanged.
+   */
+  workspaceIds: string[]
+  /**
+   * Workspaces the invitee owns outside any organization. When acceptance
+   * joins them into an organization, these rows attach in the same
+   * transaction, so they participate in the same deterministic lock ordering.
+   */
+  joinerAttachWorkspaceIds: string[]
+  primaryWorkspace: WorkspaceWithOwner | null
+}
+
+/** Compute the complete workspace lock set before taking any workspace lock. */
 async function getInvitationAcceptanceWorkspaceLockIds(
   tx: DbOrTx,
-  inv: InvitationWithGrants
-): Promise<{ workspaceIds: string[]; primaryWorkspace: WorkspaceWithOwner | null }> {
+  inv: InvitationWithGrants,
+  inviteeUserId: string
+): Promise<InvitationAcceptanceLockPlan> {
   const grantWorkspaceIds = inv.grants.map((grant) => grant.workspaceId)
   const primaryWorkspace = grantWorkspaceIds[0]
     ? await getWorkspaceWithOwner(grantWorkspaceIds[0], { executor: tx })
     : null
-  if (
-    !isBillingEnabled ||
-    inv.membershipIntent === 'external' ||
-    !primaryWorkspace ||
-    primaryWorkspace.organizationId
-  ) {
-    return { workspaceIds: [...new Set(grantWorkspaceIds)].sort(), primaryWorkspace }
-  }
 
-  const attachableWorkspaces = await tx
-    .select({ id: workspace.id })
-    .from(workspace)
-    .where(
-      and(
-        eq(workspace.billedAccountUserId, primaryWorkspace.billedAccountUserId),
-        isNull(workspace.organizationId),
-        ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION)
-      )
-    )
+  /**
+   * Computed for every non-external invite. The post-lock workspace re-read
+   * can reveal an organization this pre-lock snapshot does not have (a
+   * concurrent attach or move), and the join-attach sweep must already hold
+   * these locks in that case — so no billing/organization short-circuit is
+   * safe here. Only external intent (immutable: it is never upgraded
+   * in-flight) provably rules a join out.
+   */
+  const joinerAttachWorkspaceIds =
+    inv.membershipIntent === 'external'
+      ? []
+      : (
+          await tx
+            .select({ id: workspace.id })
+            .from(workspace)
+            .where(ownedAttachableWorkspacesWhere({ userId: inviteeUserId, includeArchived: true }))
+        ).map((row) => row.id)
+
+  const billingOwnerCanAttach =
+    isBillingEnabled &&
+    inv.membershipIntent !== 'external' &&
+    primaryWorkspace !== null &&
+    !primaryWorkspace.organizationId
+
+  const billingOwnerWorkspaceIds = billingOwnerCanAttach
+    ? (
+        await tx
+          .select({ id: workspace.id })
+          .from(workspace)
+          .where(
+            ownedAttachableWorkspacesWhere({
+              userId: primaryWorkspace.billedAccountUserId,
+              ownerMatch: 'billing-account',
+              includeArchived: true,
+            })
+          )
+      ).map((row) => row.id)
+    : []
 
   return {
-    workspaceIds: [
-      ...new Set([...grantWorkspaceIds, ...attachableWorkspaces.map((row) => row.id)]),
-    ].sort(),
+    workspaceIds: [...new Set([...grantWorkspaceIds, ...billingOwnerWorkspaceIds])].sort(),
+    joinerAttachWorkspaceIds: [...new Set(joinerAttachWorkspaceIds)].sort(),
     primaryWorkspace,
   }
 }
@@ -324,49 +559,104 @@ export async function acceptInvitation(
     memberRole: null,
     reconcileSeats: false,
     acceptedWorkspaceIds: [],
+    attachedWorkspaceIds: [],
     syncUsageLimitUserIds: [],
     planConversions: [],
     acceptedInvitation: null,
     membershipAlreadyExists: false,
   }
-  const result = await db.transaction(async (tx): Promise<AcceptInvitationResult> => {
-    await acquireInvitationMutationLocks(tx, {
-      invitationIds: [input.invitationId],
-      workspaceIds: [],
+  const result = await db
+    .transaction(async (tx): Promise<AcceptInvitationResult> => {
+      await acquireInvitationMutationLocks(tx, {
+        invitationIds: [input.invitationId],
+        workspaceIds: [],
+      })
+
+      await tx.execute(sql`select id from invitation where id = ${input.invitationId} for update`)
+
+      const inv = await getInvitationById(input.invitationId, tx)
+      if (!inv) {
+        return { success: false, kind: 'not-found' }
+      }
+
+      /**
+       * Cheap validity checks run before the workspace lock plan so replayed,
+       * expired, or mismatched accepts pay no workspace queries or advisory
+       * locks. The invitation row is already advisory- and row-locked above,
+       * so these reads cannot race a concurrent acceptance.
+       */
+      if (input.token && inv.token !== input.token) {
+        return { success: false, kind: 'invalid-token' }
+      }
+      if (inv.status !== 'pending') {
+        return { success: false, kind: 'already-processed' }
+      }
+      if (isInvitationExpired(inv)) {
+        await tx
+          .update(invitation)
+          .set({ status: 'expired', updatedAt: new Date() })
+          .where(and(eq(invitation.id, inv.id), eq(invitation.status, 'pending')))
+        return { success: false, kind: 'expired' }
+      }
+      if (normalizeEmail(input.userEmail) !== normalizeEmail(inv.email)) {
+        return { success: false, kind: 'email-mismatch' }
+      }
+
+      const lockPlan = await getInvitationAcceptanceWorkspaceLockIds(tx, inv, input.userId)
+      await acquireInvitationMutationLocks(tx, {
+        invitationIds: [],
+        workspaceIds: [
+          ...new Set([...lockPlan.workspaceIds, ...lockPlan.joinerAttachWorkspaceIds]),
+        ],
+      })
+
+      // Re-read and row-lock the primary workspace only after the shared
+      // workspace advisory lock is held. If a move won the lock first, every
+      // billing and membership decision below now uses the committed post-move
+      // organization/billing identity rather than the pre-lock snapshot.
+      const lockedPrimaryWorkspace = inv.grants[0]
+        ? await getWorkspaceWithOwner(inv.grants[0].workspaceId, {
+            executor: tx,
+            forUpdate: true,
+          })
+        : null
+
+      return acceptLockedInvitation(
+        input,
+        inv,
+        { ...lockPlan, primaryWorkspace: lockedPrimaryWorkspace },
+        tx,
+        effects
+      )
     })
-
-    await tx.execute(sql`select id from invitation where id = ${input.invitationId} for update`)
-
-    const inv = await getInvitationById(input.invitationId, tx)
-    if (!inv) {
-      return { success: false, kind: 'not-found' }
-    }
-
-    const lockPlan = await getInvitationAcceptanceWorkspaceLockIds(tx, inv)
-    await acquireInvitationMutationLocks(tx, {
-      invitationIds: [],
-      workspaceIds: lockPlan.workspaceIds,
-    })
-
-    // Re-read and row-lock the primary workspace only after the shared
-    // workspace advisory lock is held. If a move won the lock first, every
-    // billing and membership decision below now uses the committed post-move
-    // organization/billing identity rather than the pre-lock snapshot.
-    const lockedPrimaryWorkspace = inv.grants[0]
-      ? await getWorkspaceWithOwner(inv.grants[0].workspaceId, {
-          executor: tx,
-          forUpdate: true,
+    .catch((error): AcceptInvitationResult => {
+      if (error instanceof JoinerWorkspacesChangedDuringAcceptError) {
+        logger.warn('Invite acceptance rolled back: owned workspaces changed concurrently', {
+          invitationId: input.invitationId,
+          userId: input.userId,
         })
-      : null
-
-    return acceptLockedInvitation(
-      input,
-      inv,
-      { ...lockPlan, primaryWorkspace: lockedPrimaryWorkspace },
-      tx,
-      effects
-    )
-  })
+        return {
+          success: false,
+          kind: 'server-error',
+          message: 'Your workspaces changed while accepting — please try again.',
+        }
+      }
+      if (error instanceof AllGrantsStaleDuringAcceptError) {
+        logger.warn('Invite acceptance rolled back: every grant turned stale', {
+          invitationId: input.invitationId,
+          userId: input.userId,
+        })
+        return { success: false, kind: 'workspace-not-found' }
+      }
+      if (error instanceof DisclosureOutdatedDuringAcceptError) {
+        logger.warn('Invite acceptance rolled back: disclosed workspace set is outdated', {
+          invitationId: input.invitationId,
+          userId: input.userId,
+        })
+        return { success: false, kind: 'disclosure-outdated' }
+      }
+      throw error
+    })
   if (result.success) {
     await runInvitationAcceptancePostCommitEffects(input, effects)
   }
@@ -376,40 +666,35 @@ export async function acceptInvitation(
 async function acceptLockedInvitation(
   input: AcceptInvitationInput,
   inv: InvitationWithGrants,
-  lockPlan: { workspaceIds: string[]; primaryWorkspace: WorkspaceWithOwner | null },
+  lockPlan: InvitationAcceptanceLockPlan,
   tx: DbOrTx,
   effects: InvitationAcceptancePostCommitEffects
 ): Promise<AcceptInvitationResult> {
-  if (input.token && inv.token !== input.token) {
-    return { success: false, kind: 'invalid-token' }
-  }
-
-  if (inv.status !== 'pending') {
-    return { success: false, kind: 'already-processed' }
-  }
-
-  if (isInvitationExpired(inv)) {
-    await tx
-      .update(invitation)
-      .set({ status: 'expired', updatedAt: new Date() })
-      .where(and(eq(invitation.id, inv.id), eq(invitation.status, 'pending')))
-    return { success: false, kind: 'expired' }
-  }
-
-  if (normalizeEmail(input.userEmail) !== normalizeEmail(inv.email)) {
-    return { success: false, kind: 'email-mismatch' }
-  }
-
   let membershipAlreadyExists = false
   let acceptedMembershipIntent = inv.membershipIntent
   let shouldJoinOrganization = inv.membershipIntent !== 'external'
 
+  /**
+   * Workspace-kind invites derive their join target from the granted
+   * workspace's LIVE organization (the workspace is what was shared).
+   * Organization-kind invites always target their STAMPED organization: a
+   * granted workspace whose org changed after send must never redirect the
+   * membership into an organization the invitee was not invited to.
+   */
   const primaryGrant = inv.grants[0]
   let billingOwnerUserId = inv.inviterId
   let workspaceOrganizationId = inv.organizationId
-  if (primaryGrant && lockPlan.primaryWorkspace) {
+  if (primaryGrant && lockPlan.primaryWorkspace && inv.kind === 'workspace') {
     billingOwnerUserId = lockPlan.primaryWorkspace.billedAccountUserId
     workspaceOrganizationId = lockPlan.primaryWorkspace.organizationId
+  }
+
+  if (
+    shouldJoinOrganization &&
+    !(await stampedOrganizationAllowsEscalation(inv, workspaceOrganizationId, tx))
+  ) {
+    acceptedMembershipIntent = 'external'
+    shouldJoinOrganization = false
   }
 
   const existingMembership = await getUserOrganization(input.userId, tx)
@@ -423,6 +708,40 @@ async function acceptLockedInvitation(
     }
     acceptedMembershipIntent = 'external'
     shouldJoinOrganization = false
+  }
+
+  /**
+   * A member-role organization invite whose grants ALL left the stamped
+   * organization can never land its member anywhere — fail before any
+   * mutation. This must precede the disclosure check: the preview mirrors
+   * this gate with an empty disclosure, and rejecting on disclosure first
+   * would loop the client on disclosure-outdated instead of surfacing the
+   * real cause. The grant rows are advisory-locked, so this read cannot
+   * change for the rest of the transaction.
+   */
+  if (
+    shouldJoinOrganization &&
+    inv.kind === 'organization' &&
+    inv.organizationId &&
+    !isOrgAdminRole(inv.role) &&
+    inv.grants.length > 0
+  ) {
+    const [liveGrant] = await tx
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(
+        and(
+          inArray(
+            workspace.id,
+            inv.grants.map((grant) => grant.workspaceId)
+          ),
+          eq(workspace.organizationId, inv.organizationId)
+        )
+      )
+      .limit(1)
+    if (!liveGrant) {
+      return { success: false, kind: 'workspace-not-found' }
+    }
   }
 
   let targetOrganizationId = workspaceOrganizationId
@@ -498,9 +817,83 @@ async function acceptLockedInvitation(
       if (billingManagesSeats && !membershipResult.alreadyMember) {
         effects.reconcileSeats = true
       }
+
+      /**
+       * A new member's owned personal workspaces follow them into the
+       * organization so members never operate outside the org's purview.
+       * Collaborators on those workspaces stay external (`external-all`) —
+       * membership and seats never grow as a side effect of someone else's
+       * join. Fresh joins only: pre-existing members' estates are left
+       * untouched until an announced backfill.
+       *
+       * ensureUserInOrganizationTx holds the user's billing-identity lock,
+       * which personal workspace creation also takes — so the owned set is
+       * re-read here race-free. A set that changed since the pre-lock plan
+       * means a workspace escaped the advisory locks: the acceptance is
+       * rolled back (retry succeeds with the fresh set) instead of committing
+       * a member whose workspace dodged the sweep.
+       */
+      if (!membershipResult.alreadyMember) {
+        const currentOwnedIds = (
+          await tx
+            .select({ id: workspace.id })
+            .from(workspace)
+            .where(ownedAttachableWorkspacesWhere({ userId: input.userId, includeArchived: true }))
+        ).map((row) => row.id)
+        if (
+          [...currentOwnedIds].sort().join() !==
+          [...lockPlan.joinerAttachWorkspaceIds].sort().join()
+        ) {
+          throw new JoinerWorkspacesChangedDuringAcceptError()
+        }
+
+        /**
+         * Consent is only valid for the workspace set the user saw: when the
+         * client supplies the disclosed ids from the join preview, a sweep
+         * set that differs (a workspace created or removed since the preview
+         * rendered) rolls the acceptance back so the refreshed notice is
+         * shown before any migration happens.
+         */
+        if (
+          input.disclosedWorkspaceIds !== undefined &&
+          [...input.disclosedWorkspaceIds].sort().join() !==
+            [...lockPlan.joinerAttachWorkspaceIds].sort().join()
+        ) {
+          throw new DisclosureOutdatedDuringAcceptError()
+        }
+
+        if (lockPlan.joinerAttachWorkspaceIds.length > 0) {
+          await acquireOrganizationMutationLock(tx, targetOrganizationId)
+          const attachResult = await attachOwnedWorkspacesToOrganizationTx(tx, {
+            ownerUserId: input.userId,
+            organizationId: targetOrganizationId,
+            workspaceIds: lockPlan.joinerAttachWorkspaceIds,
+            externalMemberPolicy: 'external-all',
+            ownerMatch: 'owner',
+            includeArchived: true,
+          })
+          effects.syncUsageLimitUserIds.push(...attachResult.usageLimitUserIds)
+          effects.attachedWorkspaceIds = attachResult.attachedWorkspaceIds
+        }
+      }
     } else {
       shouldJoinOrganization = false
     }
+  }
+
+  /**
+   * Reverse disclosure guard: a will-join notice (non-empty disclosed set)
+   * whose acceptance resolved to no-join must not silently succeed as an
+   * external grant — the user consented to membership plus a migration that
+   * will not happen. Nothing has been written on the no-join path, so a
+   * plain failure return suffices; retry renders the refreshed preview.
+   */
+  if (
+    !shouldJoinOrganization &&
+    input.disclosedWorkspaceIds !== undefined &&
+    input.disclosedWorkspaceIds.length > 0
+  ) {
+    return { success: false, kind: 'disclosure-outdated' }
   }
 
   const acceptedWorkspaceIds: string[] = []
@@ -534,6 +927,28 @@ async function acceptLockedInvitation(
       .where(and(eq(invitation.id, inv.id), eq(invitation.status, 'pending')))
 
     for (const grant of inv.grants) {
+      /**
+       * Organization-invite grants are only honored while the workspace still
+       * belongs to the stamped organization: a workspace that detached or
+       * moved after the invite went out is no longer the org's to share.
+       */
+      if (inv.kind === 'organization' && inv.organizationId) {
+        const [grantWorkspace] = await tx
+          .select({ organizationId: workspace.organizationId })
+          .from(workspace)
+          .where(eq(workspace.id, grant.workspaceId))
+          .limit(1)
+        if (!grantWorkspace || grantWorkspace.organizationId !== inv.organizationId) {
+          logger.warn('Skipping stale organization-invite grant; workspace left the organization', {
+            invitationId: inv.id,
+            workspaceId: grant.workspaceId,
+            stampedOrganizationId: inv.organizationId,
+            currentOrganizationId: grantWorkspace?.organizationId ?? null,
+          })
+          continue
+        }
+      }
+
       const [existingPermission] = await tx
         .select({ id: permissions.id, permissionType: permissions.permissionType })
         .from(permissions)
@@ -572,6 +987,24 @@ async function acceptLockedInvitation(
 
       acceptedWorkspaceIds.push(grant.workspaceId)
     }
+
+    /**
+     * A member-role organization invite whose grants ALL turned stale would
+     * create a member with no workspace to land in — the exact dead end the
+     * invite-time grant requirement exists to prevent. Roll the whole
+     * acceptance (including the member insert) back instead; admins are
+     * exempt since they derive access to every organization workspace.
+     */
+    if (
+      inv.kind === 'organization' &&
+      shouldJoinOrganization &&
+      !membershipAlreadyExists &&
+      !isOrgAdminRole(inv.role) &&
+      inv.grants.length > 0 &&
+      acceptedWorkspaceIds.length === 0
+    ) {
+      throw new AllGrantsStaleDuringAcceptError()
+    }
   } catch (grantError) {
     if (grantError instanceof MembershipRevokedDuringAcceptError) {
       logger.warn('Aborted invite acceptance: org membership revoked concurrently', {
@@ -599,9 +1032,7 @@ async function acceptLockedInvitation(
   effects.membershipAlreadyExists = membershipAlreadyExists
 
   const redirectPath =
-    inv.kind === 'workspace' && acceptedWorkspaceIds.length > 0
-      ? `/workspace/${acceptedWorkspaceIds[0]}/home`
-      : '/workspace'
+    acceptedWorkspaceIds.length > 0 ? `/workspace/${acceptedWorkspaceIds[0]}/home` : '/workspace'
 
   return {
     success: true,
@@ -658,7 +1089,11 @@ async function runInvitationAcceptancePostCommitEffects(
       resourceType: AuditResourceType.ORGANIZATION,
       resourceId: effects.organizationId,
       description: `Joined organization as ${effects.memberRole} via invite acceptance`,
-      metadata: { invitationId: input.invitationId, memberRole: effects.memberRole },
+      metadata: {
+        invitationId: input.invitationId,
+        memberRole: effects.memberRole,
+        attachedWorkspaceIds: effects.attachedWorkspaceIds,
+      },
     })
     captureServerEvent(
       input.userId,

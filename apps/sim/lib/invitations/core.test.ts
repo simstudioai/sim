@@ -23,6 +23,7 @@ const {
   mockSyncUsageLimitsFromSubscription,
   mockSyncWorkspaceEnvCredentials,
   mockIsWorkspaceOnEnterprisePlan,
+  mockAttachOwnedWorkspacesToOrganizationTx,
 } = vi.hoisted(() => ({
   mockEnsureUserInOrganization: vi.fn(),
   mockGetUserOrganization: vi.fn(),
@@ -35,6 +36,7 @@ const {
   mockSyncUsageLimitsFromSubscription: vi.fn(),
   mockSyncWorkspaceEnvCredentials: vi.fn(),
   mockIsWorkspaceOnEnterprisePlan: vi.fn(async () => true),
+  mockAttachOwnedWorkspacesToOrganizationTx: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
@@ -70,6 +72,11 @@ vi.mock('@/lib/billing/core/usage', () => ({
 
 vi.mock('@/lib/credentials/environment', () => ({
   syncWorkspaceEnvCredentials: mockSyncWorkspaceEnvCredentials,
+}))
+
+vi.mock('@/lib/workspaces/organization-workspaces', () => ({
+  attachOwnedWorkspacesToOrganizationTx: mockAttachOwnedWorkspacesToOrganizationTx,
+  ownedAttachableWorkspacesWhere: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -124,6 +131,12 @@ describe('acceptInvitation', () => {
       success: true,
       alreadyMember: false,
       billingActions: { proUsageSnapshotted: false, proCancelledAtPeriodEnd: false },
+    })
+    mockAttachOwnedWorkspacesToOrganizationTx.mockResolvedValue({
+      attachedWorkspaceIds: [],
+      addedMemberIds: [],
+      skippedMembers: [],
+      usageLimitUserIds: [],
     })
   })
 
@@ -306,6 +319,8 @@ describe('acceptInvitation', () => {
       ],
       [{ name: 'Acme' }],
       [{ name: 'Inviter', email: 'inviter@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [],
       [],
       [],
       [{ variables: {} }],
@@ -444,7 +459,11 @@ describe('acceptInvitation', () => {
       ],
       [{ name: 'Stale organization' }],
       [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [],
       // Candidate personal workspaces covered by the acceptance lock set.
+      [],
+      // Post-join owned-set re-check under the billing-identity lock.
       [],
       // Grant-txn membership re-check under the lock: member still present.
       [{ id: 'member-1' }],
@@ -516,6 +535,15 @@ describe('acceptInvitation', () => {
         workspaceMode: 'organization',
         billedAccountUserId: 'destination-owner',
       })
+    // The stamped organization (null) no longer matches the post-lock
+    // workspace organization, so escalation requires the inviter to hold
+    // admin standing in the destination org — as the conversion's billing
+    // owner does.
+    mockGetUserOrganization.mockImplementation(async (userId: string) =>
+      userId === 'owner-1'
+        ? { organizationId: 'org-1', role: 'owner', memberId: 'member-owner' }
+        : null
+    )
 
     queueWhereResponses([
       [
@@ -543,6 +571,10 @@ describe('acceptInvitation', () => {
         },
       ],
       [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [],
+      [],
+      // Post-join owned-set re-check under the billing-identity lock.
       [],
       [{ id: 'member-1' }],
       [],
@@ -568,6 +600,465 @@ describe('acceptInvitation', () => {
       executor: dbChainMock.db,
       forUpdate: true,
     })
+  })
+
+  it('attaches the invitee-owned personal workspaces when joining the organization', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner-1',
+    })
+    mockEnsureTeamOrganizationForAcceptance.mockResolvedValueOnce({
+      success: true,
+      organizationId: 'org-1',
+      fixedSeats: false,
+    })
+    mockAttachOwnedWorkspacesToOrganizationTx.mockResolvedValueOnce({
+      attachedWorkspaceIds: ['joiner-ws-1'],
+      addedMemberIds: [],
+      skippedMembers: [],
+      usageLimitUserIds: ['invitee-user'],
+    })
+
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'invitee@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [{ id: 'joiner-ws-1' }],
+      // Post-join owned-set re-check under the billing-identity lock.
+      [{ id: 'joiner-ws-1' }],
+      // Grant-txn membership re-check under the lock: member still present.
+      [{ id: 'member-1' }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.redirectPath).toBe('/workspace/workspace-1/home')
+    }
+    expect(mockAttachOwnedWorkspacesToOrganizationTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        ownerUserId: 'invitee-user',
+        organizationId: 'org-1',
+        workspaceIds: ['joiner-ws-1'],
+        externalMemberPolicy: 'external-all',
+        ownerMatch: 'owner',
+        includeArchived: true,
+      })
+    )
+    expect(mockSyncUsageLimitsFromSubscription).toHaveBeenCalledWith('invitee-user')
+  })
+
+  it('rolls back a member-role org acceptance when every grant turned stale', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner-1',
+    })
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'organization',
+          email: 'invitee@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [],
+      // Pre-join staleness gate: no grant workspace remains in the stamped org.
+      [],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+    })
+
+    expect(result).toEqual({ success: false, kind: 'workspace-not-found' })
+    expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('rejects a will-join disclosure when acceptance downgrades to external', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner-1',
+    })
+    // Invitee joined a different organization after the preview rendered.
+    mockGetUserOrganization.mockImplementation(async (userId: string) =>
+      userId === 'invitee-user'
+        ? { organizationId: 'org-2', role: 'member', memberId: 'member-2' }
+        : null
+    )
+
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'invitee@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [{ id: 'joiner-ws-1' }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+      // The accept screen promised a membership migration of joiner-ws-1.
+      disclosedWorkspaceIds: ['joiner-ws-1'],
+    })
+
+    expect(result).toEqual({ success: false, kind: 'disclosure-outdated' })
+    expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('rolls back acceptance when the sweep set differs from the disclosed set', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner-1',
+    })
+    mockEnsureTeamOrganizationForAcceptance.mockResolvedValueOnce({
+      success: true,
+      organizationId: 'org-1',
+      fixedSeats: false,
+    })
+
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'invitee@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [{ id: 'joiner-ws-1' }],
+      // Post-join owned-set re-check under the billing-identity lock.
+      [{ id: 'joiner-ws-1' }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+      // The accept screen rendered before joiner-ws-1 existed.
+      disclosedWorkspaceIds: [],
+    })
+
+    expect(result).toEqual({ success: false, kind: 'disclosure-outdated' })
+    expect(mockAttachOwnedWorkspacesToOrganizationTx).not.toHaveBeenCalled()
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('rolls back acceptance when the owned-workspace set changes concurrently', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner-1',
+    })
+    mockEnsureTeamOrganizationForAcceptance.mockResolvedValueOnce({
+      success: true,
+      organizationId: 'org-1',
+      fixedSeats: false,
+    })
+
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'invitee@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [{ id: 'joiner-ws-1' }],
+      // Post-join re-check sees a workspace created after the lock plan.
+      [{ id: 'joiner-ws-1' }, { id: 'joiner-ws-2' }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+    })
+
+    expect(result).toEqual({
+      success: false,
+      kind: 'server-error',
+      message: 'Your workspaces changed while accepting — please try again.',
+    })
+    expect(mockAttachOwnedWorkspacesToOrganizationTx).not.toHaveBeenCalled()
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('grants external access without joining when the workspace entered an org after the invite was sent', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'org-owner',
+    })
+    // Inviter is a plain member of org-1 (their own join attached this
+    // workspace), so the stale-stamped invite must not escalate to membership.
+    mockGetUserOrganization.mockImplementation(async (userId: string) =>
+      userId === 'inviter-1'
+        ? { organizationId: 'org-1', role: 'member', memberId: 'member-inviter' }
+        : null
+    )
+
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'invitee@example.com',
+          organizationId: null,
+          membershipIntent: 'internal',
+          inviterId: 'inviter-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Inviter', email: 'inviter@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [],
+      [],
+      [],
+      [{ variables: {} }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.invitation.membershipIntent).toBe('external')
+      expect(result.acceptedWorkspaceIds).toEqual(['workspace-1'])
+    }
+    expect(mockEnsureTeamOrganizationForAcceptance).not.toHaveBeenCalled()
+    expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
+    expect(mockAttachOwnedWorkspacesToOrganizationTx).not.toHaveBeenCalled()
+    expect(mockSetActiveOrganizationForCurrentSession).not.toHaveBeenCalled()
+  })
+
+  it('redirects organization invitations with grants into the first granted workspace', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner-1',
+    })
+    mockEnsureTeamOrganizationForAcceptance.mockResolvedValueOnce({
+      success: true,
+      organizationId: 'org-1',
+      fixedSeats: false,
+    })
+
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'organization',
+          email: 'invitee@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [],
+      // Pre-join staleness gate: the granted workspace is still in the org.
+      [{ id: 'workspace-1' }],
+      // Post-join owned-set re-check under the billing-identity lock.
+      [],
+      // Grant-txn membership re-check under the lock: member still present.
+      [{ id: 'member-1' }],
+      // Invitation status update under the lock.
+      [],
+      // Live workspace organization for the org-invite grant staleness check.
+      [{ organizationId: 'org-1' }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.redirectPath).toBe('/workspace/workspace-1/home')
+    }
   })
 
   it('does not record an ORG_MEMBER_ADDED audit for a user who is already a member', async () => {
@@ -617,6 +1108,8 @@ describe('acceptInvitation', () => {
       ],
       [{ name: 'Acme' }],
       [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [],
       [{ id: 'member-1' }],
     ])
 
@@ -678,6 +1171,10 @@ describe('acceptInvitation', () => {
       ],
       [{ name: 'Acme' }],
       [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [],
+      // Post-join owned-set re-check under the billing-identity lock.
+      [],
       // Grant-txn membership re-check under the lock: member still present.
       [{ id: 'member-1' }],
     ])
@@ -750,6 +1247,10 @@ describe('acceptInvitation', () => {
       ],
       [{ name: 'Acme' }],
       [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [],
+      // Post-join owned-set re-check under the billing-identity lock.
+      [],
       [{ id: 'member-1' }],
     ])
 

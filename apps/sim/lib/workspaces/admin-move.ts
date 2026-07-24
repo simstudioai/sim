@@ -39,7 +39,6 @@ export class WorkspaceMoveError extends Error {
     readonly code:
       | 'workspace-not-found'
       | 'organization-not-found'
-      | 'workspace-archived'
       | 'already-organization-workspace'
   ) {
     super(message)
@@ -56,6 +55,8 @@ export interface WorkspaceMoveCandidate {
   workspaceMode: string
   organizationId: string | null
   billedAccountUserId: string
+  /** Archived workspaces are movable; surfaced so admin UIs can label them. */
+  archived: boolean
 }
 
 export interface WorkspaceMovePreflight {
@@ -124,7 +125,7 @@ export async function searchWorkspaceMoveCandidates(
   const query = search.trim()
   if (!query) return []
 
-  return db
+  const rows = await db
     .select({
       id: workspace.id,
       name: workspace.name,
@@ -134,18 +135,20 @@ export async function searchWorkspaceMoveCandidates(
       workspaceMode: workspace.workspaceMode,
       organizationId: workspace.organizationId,
       billedAccountUserId: workspace.billedAccountUserId,
+      archivedAt: workspace.archivedAt,
     })
     .from(workspace)
     .innerJoin(user, eq(user.id, workspace.ownerId))
     .where(
       and(
-        isNull(workspace.archivedAt),
         ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION),
         or(eq(workspace.id, query), ilike(workspace.name, `%${query}%`))
       )
     )
     .orderBy(asc(workspace.name))
     .limit(Math.min(Math.max(limit, 1), 50))
+
+  return rows.map(({ archivedAt, ...row }) => ({ ...row, archived: archivedAt !== null }))
 }
 
 /** Builds the human-reviewable summary shown before a workspace move. */
@@ -437,7 +440,7 @@ export async function moveWorkspaceToOrganization(params: {
 }
 
 async function searchWorkspaceById(workspaceId: string): Promise<WorkspaceMoveCandidate[]> {
-  return db
+  const rows = await db
     .select({
       id: workspace.id,
       name: workspace.name,
@@ -453,12 +456,16 @@ async function searchWorkspaceById(workspaceId: string): Promise<WorkspaceMoveCa
     .innerJoin(user, eq(user.id, workspace.ownerId))
     .where(eq(workspace.id, workspaceId))
     .limit(1)
+
+  return rows.map(({ archivedAt, ...row }) => ({ ...row, archived: archivedAt !== null }))
 }
 
+/**
+ * Archived workspaces are deliberately movable: leaving them behind keeps an
+ * unarchive-later escape hatch outside the organization's purview, and
+ * join-attach already sweeps them (`includeArchived`).
+ */
 function assertWorkspaceMovable(row: { archivedAt?: Date | null; workspaceMode: string }): void {
-  if (row.archivedAt) {
-    throw new WorkspaceMoveError('Archived workspaces cannot be moved', 'workspace-archived')
-  }
   if (row.workspaceMode === WORKSPACE_MODE.ORGANIZATION) {
     throw new WorkspaceMoveError(
       'Inter-organization workspace transfers are not supported',

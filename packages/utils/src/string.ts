@@ -45,3 +45,21 @@ export function isVersionedType(value: string): boolean {
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
 }
+
+/**
+ * Formats a list of names as quoted values with an overflow tail, listing at
+ * most `maxListed` names.
+ *
+ * @example
+ * formatQuotedNameList(['A', 'B'], 3)            // '"A", "B"'
+ * formatQuotedNameList(['A', 'B', 'C', 'D'], 3)  // '"A", "B", "C" and 1 more'
+ * formatQuotedNameList([], 3)                    // ''
+ */
+export function formatQuotedNameList(names: string[], maxListed: number): string {
+  const listed = names
+    .slice(0, maxListed)
+    .map((name) => `"${name}"`)
+    .join(', ')
+  const overflow = names.length - maxListed
+  return overflow > 0 ? `${listed} and ${overflow} more` : listed
+}

@@ -5,6 +5,7 @@ import {
   type BatchInvitationResult as BatchInvitationResultContract,
   batchWorkspaceInvitationsContract,
   cancelInvitationContract,
+  getInvitationContract,
   listWorkspaceInvitationsContract,
   type PendingInvitationRow,
   removeWorkspaceMemberContract,
@@ -19,9 +20,44 @@ export const invitationKeys = {
   all: ['invitations'] as const,
   lists: () => [...invitationKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...invitationKeys.lists(), workspaceId] as const,
+  details: () => [...invitationKeys.all, 'detail'] as const,
+  detail: (invitationId: string, token: string | null) =>
+    [...invitationKeys.details(), invitationId, token ?? ''] as const,
 }
 
 export const WORKSPACE_INVITATION_LIST_STALE_TIME = 30 * 1000
+export const INVITATION_DETAILS_STALE_TIME = 30 * 1000
+
+async function fetchInvitationDetails(
+  invitationId: string,
+  token: string | null,
+  signal?: AbortSignal
+) {
+  return requestJson(getInvitationContract, {
+    params: { id: invitationId },
+    query: { token: token ?? undefined },
+    signal,
+  })
+}
+
+/**
+ * Fetches an invitation (with the invitee-only join preview) for the accept
+ * screen. `retry: false` preserves one-shot semantics — 403/404/expired
+ * responses drive UX states and must surface immediately, not after backoff.
+ */
+export function useInvitationDetails(
+  invitationId: string | undefined,
+  token: string | null,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: invitationKeys.detail(invitationId ?? '', token),
+    queryFn: ({ signal }) => fetchInvitationDetails(invitationId as string, token, signal),
+    enabled: Boolean(invitationId) && (options?.enabled ?? true),
+    staleTime: INVITATION_DETAILS_STALE_TIME,
+    retry: false,
+  })
+}
 
 export interface WorkspaceInvitation {
   email: string
@@ -89,11 +125,13 @@ export function useBatchSendWorkspaceInvitations() {
     mutationFn: async ({
       workspaceId,
       invitations,
+      membershipIntent,
     }: BatchSendInvitationsParams): Promise<BatchInvitationResult> => {
       const result = await requestJson(batchWorkspaceInvitationsContract, {
         body: {
           workspaceId,
           invitations,
+          membershipIntent,
         },
       })
 

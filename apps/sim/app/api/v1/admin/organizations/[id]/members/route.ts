@@ -30,7 +30,7 @@
 
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, organization, user, userStats } from '@sim/db/schema'
+import { member, organization, user, userStats, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
 import {
@@ -39,9 +39,15 @@ import {
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
-import { addUserToOrganization } from '@/lib/billing/organizations/membership'
+import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import { ensureUserInOrganizationTx } from '@/lib/billing/organizations/membership'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import {
+  attachOwnedWorkspacesToOrganizationTx,
+  ownedAttachableWorkspacesWhere,
+} from '@/lib/workspaces/organization-workspaces'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminInvalidJsonResponse,
@@ -57,6 +63,18 @@ import {
   type AdminMemberDetail,
   createPaginationMeta,
 } from '@/app/api/v1/admin/types'
+
+/**
+ * The target's owned-workspace set changed between the advisory-lock capture
+ * and the membership commit; the add is aborted so no workspace escapes the
+ * sweep. Safe to retry immediately.
+ */
+class WorkspaceSetChangedDuringAddError extends Error {
+  constructor() {
+    super('Owned workspaces changed while adding the member')
+    this.name = 'WorkspaceSetChangedDuringAddError'
+  }
+}
 
 const logger = createLogger('AdminOrganizationMembersAPI')
 
@@ -253,19 +271,102 @@ export const POST = withRouteHandler(
         )
       }
 
-      const result = await addUserToOrganization({
-        userId,
-        organizationId,
-        role,
-        skipBillingLogic: !isBillingEnabled,
+      /**
+       * Membership and the workspace sweep commit or roll back together:
+       * every workspace the new member owns follows them into the org
+       * (collaborators stay external), and an attach failure aborts the whole
+       * add instead of leaving a member whose workspaces escaped the sweep.
+       * Lock order mirrors invitation acceptance: workspace advisory locks
+       * first, then the organization lock inside ensureUserInOrganizationTx.
+       */
+      const result = await db.transaction(async (tx) => {
+        const ownedWorkspaceIds = (
+          await tx
+            .select({ id: workspace.id })
+            .from(workspace)
+            .where(ownedAttachableWorkspacesWhere({ userId, includeArchived: true }))
+        ).map((row) => row.id)
+        if (ownedWorkspaceIds.length > 0) {
+          await acquireInvitationMutationLocks(tx, {
+            invitationIds: [],
+            workspaceIds: ownedWorkspaceIds,
+          })
+        }
+
+        const membership = await ensureUserInOrganizationTx(tx, {
+          userId,
+          organizationId,
+          role,
+          skipBillingLogic: !isBillingEnabled,
+        })
+        if (!membership.success || !membership.memberId || membership.alreadyMember) {
+          return { membership, attachedWorkspaceIds: [], usageLimitUserIds: [] }
+        }
+
+        /**
+         * ensureUserInOrganizationTx holds the user's billing-identity lock,
+         * which personal workspace creation also takes — so re-reading the
+         * owned set here is race-free. A set that changed since the pre-lock
+         * capture means a workspace escaped the advisory-lock plan: abort the
+         * whole add (rolling back the membership) rather than committing a
+         * member whose workspace dodged the sweep.
+         */
+        const currentOwnedIds = (
+          await tx
+            .select({ id: workspace.id })
+            .from(workspace)
+            .where(ownedAttachableWorkspacesWhere({ userId, includeArchived: true }))
+        ).map((row) => row.id)
+        if ([...currentOwnedIds].sort().join() !== [...ownedWorkspaceIds].sort().join()) {
+          throw new WorkspaceSetChangedDuringAddError()
+        }
+
+        if (ownedWorkspaceIds.length === 0) {
+          return { membership, attachedWorkspaceIds: [], usageLimitUserIds: [] }
+        }
+        const attach = await attachOwnedWorkspacesToOrganizationTx(tx, {
+          ownerUserId: userId,
+          organizationId,
+          workspaceIds: ownedWorkspaceIds,
+          externalMemberPolicy: 'external-all',
+          ownerMatch: 'owner',
+          includeArchived: true,
+        })
+        return {
+          membership,
+          attachedWorkspaceIds: attach.attachedWorkspaceIds,
+          usageLimitUserIds: attach.usageLimitUserIds,
+        }
       })
 
-      if (!result.success) {
-        return badRequestResponse(result.error || 'Failed to add member')
+      if (!result.membership.success || !result.membership.memberId) {
+        return badRequestResponse(result.membership.error || 'Failed to add member')
+      }
+      if (result.membership.alreadyMember) {
+        return badRequestResponse('User is already a member of this organization')
+      }
+
+      if (result.attachedWorkspaceIds.length > 0) {
+        logger.info('Attached new member workspaces to organization', {
+          userId,
+          organizationId,
+          attachedWorkspaceCount: result.attachedWorkspaceIds.length,
+        })
+      }
+      for (const limitUserId of new Set(result.usageLimitUserIds)) {
+        try {
+          await syncUsageLimitsFromSubscription(limitUserId)
+        } catch (syncError) {
+          logger.error('Failed to sync usage limits after admin member add', {
+            userId: limitUserId,
+            organizationId,
+            error: syncError,
+          })
+        }
       }
 
       const data: AdminMember = {
-        id: result.memberId!,
+        id: result.membership.memberId,
         userId,
         organizationId,
         role,
@@ -276,8 +377,9 @@ export const POST = withRouteHandler(
 
       logger.info(`Admin API: Added user ${userId} to organization ${organizationId}`, {
         role,
-        memberId: result.memberId,
-        billingActions: result.billingActions,
+        memberId: result.membership.memberId,
+        billingActions: result.membership.billingActions,
+        attachedWorkspaceCount: result.attachedWorkspaceIds.length,
       })
 
       recordAudit({
@@ -287,7 +389,12 @@ export const POST = withRouteHandler(
         resourceType: AuditResourceType.ORGANIZATION,
         resourceId: organizationId,
         description: `Admin API added member to organization as ${role}`,
-        metadata: { targetUserId: userId, role, memberId: result.memberId },
+        metadata: {
+          targetUserId: userId,
+          role,
+          memberId: result.membership.memberId,
+          attachedWorkspaceIds: result.attachedWorkspaceIds,
+        },
         request,
       })
 
@@ -295,11 +402,16 @@ export const POST = withRouteHandler(
         ...data,
         action: 'created' as const,
         billingActions: {
-          proUsageSnapshotted: result.billingActions.proUsageSnapshotted,
-          proCancelledAtPeriodEnd: result.billingActions.proCancelledAtPeriodEnd,
+          proUsageSnapshotted: result.membership.billingActions.proUsageSnapshotted,
+          proCancelledAtPeriodEnd: result.membership.billingActions.proCancelledAtPeriodEnd,
         },
       })
     } catch (error) {
+      if (error instanceof WorkspaceSetChangedDuringAddError) {
+        return badRequestResponse(
+          "The user's workspaces changed while adding them — retry the add."
+        )
+      }
       logger.error('Admin API: Failed to add organization member', { error, organizationId })
       return internalErrorResponse('Failed to add organization member')
     }

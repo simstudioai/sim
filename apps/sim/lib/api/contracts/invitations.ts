@@ -47,6 +47,11 @@ export const batchWorkspaceInvitationBodySchema = z.object({
       })
     )
     .min(1, 'At least one invitation is required'),
+  /**
+   * Only valid on organization workspaces. `external` invites workspace-only
+   * collaborators: no org membership, no seat.
+   */
+  membershipIntent: z.enum(['internal', 'external']).optional(),
 })
 
 export const batchInvitationResultSchema = z
@@ -69,6 +74,13 @@ export const invitationActionParamsSchema = z.object({
 
 export const invitationActionBodySchema = z.object({
   token: z.string().min(1).optional(),
+  /**
+   * The workspace ids the accept screen disclosed as moving (from the join
+   * preview). When present, acceptance fails with `disclosure-outdated` if
+   * the set it would actually sweep differs — consent is only valid for the
+   * set the user saw.
+   */
+  disclosedWorkspaceIds: z.array(z.string()).max(200).optional(),
 })
 
 export const invitationDetailsSchema = z.object({
@@ -91,6 +103,17 @@ export const invitationDetailsSchema = z.object({
       permission: workspacePermissionSchema,
     })
   ),
+})
+
+export const invitationJoinPreviewSchema = z.object({
+  willJoinOrganization: z.boolean(),
+  workspacesToMove: z.array(z.string()),
+  /**
+   * Stable ids behind `workspacesToMove`, echoed back on accept as the
+   * disclosure token: acceptance rejects when the set it would sweep no
+   * longer matches what this preview disclosed.
+   */
+  workspaceIdsToMove: z.array(z.string()),
 })
 
 export const acceptInvitationResponseSchema = z.object({
@@ -151,6 +174,15 @@ export const getInvitationContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       invitation: invitationDetailsSchema,
+      /** Invitee-only preview of what accepting will do; null for other viewers. */
+      joinPreview: invitationJoinPreviewSchema.nullable(),
+      /**
+       * True when the preview could not be computed for a pending
+       * invitee-viewed invitation. Accepting may still move owned workspaces,
+       * so the client must fall back to a generic migration notice rather
+       * than treating the missing preview as "nothing moves".
+       */
+      joinPreviewUnavailable: z.boolean().optional(),
     }),
   },
 })
@@ -211,3 +243,4 @@ export const removeWorkspaceMemberContract = defineRouteContract({
 export type PendingInvitationRow = z.infer<typeof pendingWorkspaceInvitationSchema>
 export type BatchInvitationResult = z.infer<typeof batchInvitationResultSchema>
 export type InvitationDetails = z.infer<typeof invitationDetailsSchema>
+export type InvitationJoinPreview = z.infer<typeof invitationJoinPreviewSchema>

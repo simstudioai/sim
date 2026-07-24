@@ -117,15 +117,38 @@ export async function prepareWorkspaceInvitationContext({
   }
 }
 
+/**
+ * Throws the invite-flow seat error when the organization cannot take one
+ * more internal member.
+ */
+async function assertSeatAvailable(organizationId: string, email: string): Promise<void> {
+  const seatValidation = await validateSeatAvailability(organizationId, 1)
+  if (!seatValidation.canInvite) {
+    throw new WorkspaceInvitationError({
+      message: seatValidation.reason || 'No available seats for this organization.',
+      status: 400,
+      email,
+    })
+  }
+}
+
 export async function createWorkspaceInvitation({
   context,
   email,
   permission = 'read',
+  membershipIntent: requestedIntent,
   request,
 }: {
   context: WorkspaceInvitationContext
   email: string
   permission?: string
+  /**
+   * Explicit inviter choice for organization workspaces: `external` keeps the
+   * invitee a workspace-only collaborator — no org membership, no seat, and
+   * their own workspaces stay theirs. Defaults to the derived intent
+   * (internal unless the invitee already belongs to another organization).
+   */
+  membershipIntent?: InvitationMembershipIntent
   request: NextRequest
 }): Promise<WorkspaceInvitationResult> {
   const validPermissions: PermissionType[] = ['admin', 'write', 'read']
@@ -138,8 +161,22 @@ export async function createWorkspaceInvitation({
   }
   const invitationPermission = permission as PermissionType
 
+  /**
+   * External is only meaningful when there is an organization to stay outside
+   * of. On a personal workspace it would also skip the Pro→Team conversion
+   * that acceptance performs, so it is rejected rather than ignored.
+   */
+  if (requestedIntent === 'external' && !context.workspaceDetails.organizationId) {
+    throw new WorkspaceInvitationError({
+      message: 'External invitations are only available on organization workspaces.',
+      status: 400,
+      email,
+    })
+  }
+
   const normalizedEmail = normalizeEmail(email)
-  let membershipIntent: InvitationMembershipIntent = 'internal'
+  let membershipIntent: InvitationMembershipIntent =
+    requestedIntent === 'external' ? 'external' : 'internal'
 
   const existingUser = await db
     .select()
@@ -216,26 +253,20 @@ export async function createWorkspaceInvitation({
     if (workspaceOrganizationId) {
       if (existingMembership && existingMembership.organizationId !== workspaceOrganizationId) {
         membershipIntent = 'external'
-      } else if (context.invitePolicy.requiresSeat && !existingMembership) {
-        const seatValidation = await validateSeatAvailability(workspaceOrganizationId, 1)
-        if (!seatValidation.canInvite) {
-          throw new WorkspaceInvitationError({
-            message: seatValidation.reason || 'No available seats for this organization.',
-            status: 400,
-            email: normalizedEmail,
-          })
-        }
+      } else if (
+        membershipIntent === 'internal' &&
+        context.invitePolicy.requiresSeat &&
+        !existingMembership
+      ) {
+        await assertSeatAvailable(workspaceOrganizationId, normalizedEmail)
       }
     }
-  } else if (context.invitePolicy.requiresSeat && context.invitePolicy.organizationId) {
-    const seatValidation = await validateSeatAvailability(context.invitePolicy.organizationId, 1)
-    if (!seatValidation.canInvite) {
-      throw new WorkspaceInvitationError({
-        message: seatValidation.reason || 'No available seats for this organization.',
-        status: 400,
-        email: normalizedEmail,
-      })
-    }
+  } else if (
+    membershipIntent === 'internal' &&
+    context.invitePolicy.requiresSeat &&
+    context.invitePolicy.organizationId
+  ) {
+    await assertSeatAvailable(context.invitePolicy.organizationId, normalizedEmail)
   }
 
   const existingInvitation = await findPendingGrantForWorkspaceEmail({

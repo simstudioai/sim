@@ -155,6 +155,31 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
       }
 
+      /**
+       * Member-role invites must carry workspace access so the invitee has a
+       * workspace to land in after accepting — a member with no workspace
+       * grants (and no admin-derived access) would hit a workspace-less dead
+       * end. Admin invites are exempt: admins derive access to every
+       * organization workspace. Both checks run before the validate-only path
+       * so validation never approves a request the send would reject; the
+       * domain-layer backstop lives in createPendingInvitation.
+       */
+      if (!isBatch && !isOrgAdminRole(role)) {
+        return NextResponse.json(
+          {
+            error:
+              'Member invitations must include at least one workspace. Send batch=true with workspaceInvitations so the invitee has a workspace to land in.',
+          },
+          { status: 400 }
+        )
+      }
+      if (isBatch && (!Array.isArray(workspaceInvitations) || workspaceInvitations.length === 0)) {
+        return NextResponse.json(
+          { error: 'Select at least one organization workspace for this invitation.' },
+          { status: 400 }
+        )
+      }
+
       if (validateOnly) {
         const validationResult = await validateBulkInvitations(organizationId, invitationEmails)
         return NextResponse.json({
@@ -192,14 +217,7 @@ export const POST = withRouteHandler(
 
       const validGrants: WorkspaceGrantPayload[] = []
       const workspaceNameById = new Map<string, string>()
-      if (isBatch) {
-        if (!Array.isArray(workspaceInvitations) || workspaceInvitations.length === 0) {
-          return NextResponse.json(
-            { error: 'Select at least one organization workspace for this invitation.' },
-            { status: 400 }
-          )
-        }
-
+      if (isBatch && Array.isArray(workspaceInvitations)) {
         for (const wsInvitation of workspaceInvitations) {
           if (validGrants.some((grant) => grant.workspaceId === wsInvitation.workspaceId)) {
             continue

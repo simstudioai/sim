@@ -210,7 +210,7 @@ export const POST = withRouteHandler(
 
       await validateInvitationsAllowed(session.user.id, { organizationId })
 
-      const { email, role = 'member' } = parsed.data.body
+      const { email, role } = parsed.data.body
 
       // Validate and normalize email
       const normalizedEmail = normalizeEmail(email)
@@ -238,6 +238,23 @@ export const POST = withRouteHandler(
 
       if (!isOrgAdminRole(memberEntry[0].role)) {
         return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
+      }
+
+      /**
+       * Member-role invites must carry workspace access so the invitee has a
+       * workspace to land in after accepting — a member with no workspace
+       * grants (and no admin-derived access) would hit a workspace-less dead
+       * end. Admin invites are exempt: admins derive access to every
+       * organization workspace.
+       */
+      if (!isOrgAdminRole(role)) {
+        return NextResponse.json(
+          {
+            error:
+              'Member invitations must include at least one workspace. Use the invitations endpoint with workspaceInvitations so the invitee has a workspace to land in.',
+          },
+          { status: 400 }
+        )
       }
 
       // Check seat availability
