@@ -165,12 +165,12 @@ export function collectSnapshot(): unknown {
     const parts: string[] = []
     if (isSecretField(el)) {
       role = 'password-field'
-    } else if (
-      el instanceof HTMLInputElement ||
-      el instanceof HTMLTextAreaElement ||
-      el instanceof HTMLSelectElement
-    ) {
-      if (el.value) parts.push(`value="${cut(String(el.value), 120)}"`)
+    } else if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
+      // Tag comparison so fields inside same-origin iframes report their value
+      // like any other. Redaction above is realm-safe and runs first, so
+      // widening this cannot expose a credential field.
+      const value = (el as HTMLInputElement).value
+      if (value) parts.push(`value="${cut(String(value), 120)}"`)
     }
     if (el.tagName === 'A') {
       const href = el.getAttribute('href')
@@ -292,12 +292,16 @@ export function clickElement(id: number): unknown {
     clientY: rect.y + rect.height / 2,
     button: 0,
   }
+  // Duck-typed rather than `instanceof HTMLElement`: an element reached
+  // through a same-origin iframe belongs to that frame's realm, so the check
+  // is false there and the click would skip focus entirely.
+  const html = el as HTMLElement
   el.dispatchEvent(new PointerEvent('pointerdown', opts))
   el.dispatchEvent(new MouseEvent('mousedown', opts))
-  if (el instanceof HTMLElement) el.focus()
+  if (typeof html.focus === 'function') html.focus()
   el.dispatchEvent(new PointerEvent('pointerup', opts))
   el.dispatchEvent(new MouseEvent('mouseup', opts))
-  if (el instanceof HTMLElement) el.click()
+  if (typeof html.click === 'function') html.click()
   else el.dispatchEvent(new MouseEvent('click', opts))
   const label = (el.getAttribute('aria-label') || (el as HTMLElement).innerText || '')
     .replace(/\s+/g, ' ')
@@ -329,18 +333,23 @@ export function focusElementForTyping(id: number): unknown {
     return { error: 'password' }
   }
 
-  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-    el.focus()
-    el.select()
-    return { focused: true, kind: el instanceof HTMLInputElement ? 'input' : 'textarea' }
+  // Tag comparisons, not `instanceof`: element wrappers are realm-bound, so an
+  // input inside a same-origin iframe — a framed login form, a TinyMCE body —
+  // fails every `instanceof` against the top frame's constructors and would be
+  // reported back as "not a text input".
+  const tag = el.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA') {
+    const field = el as HTMLInputElement | HTMLTextAreaElement
+    field.focus()
+    field.select()
+    return { focused: true, kind: tag === 'INPUT' ? 'input' : 'textarea' }
   }
 
   // Editors often register a wrapper as the interactive element while the
   // actual editable surface is a descendant.
-  const editable =
-    el instanceof HTMLElement && el.isContentEditable
-      ? el
-      : el.querySelector<HTMLElement>('[contenteditable="true"], [contenteditable=""]')
+  const editable = (el as HTMLElement).isContentEditable
+    ? (el as HTMLElement)
+    : el.querySelector<HTMLElement>('[contenteditable="true"], [contenteditable=""]')
   if (editable) {
     editable.focus()
     const selection = editable.ownerDocument.defaultView?.getSelection()
@@ -406,9 +415,10 @@ export function readActiveElementState(): unknown {
   }
   let value = ''
   let selectedChars = 0
-  if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
-    value = active.value
-    selectedChars = Math.abs((active.selectionEnd ?? 0) - (active.selectionStart ?? 0))
+  if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') {
+    const field = active as HTMLInputElement | HTMLTextAreaElement
+    value = field.value
+    selectedChars = Math.abs((field.selectionEnd ?? 0) - (field.selectionStart ?? 0))
   } else {
     value = active.innerText || active.textContent || ''
     selectedChars = window.getSelection()?.toString().length ?? 0
@@ -488,15 +498,21 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
     return { error: 'password' }
   }
 
-  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-    el.focus()
+  const tag = el.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA') {
+    const field = el as HTMLInputElement | HTMLTextAreaElement
+    field.focus()
+    // The native setter must come from the element's OWN realm. A same-origin
+    // iframe has its own constructors, and calling the top frame's setter on
+    // one of its nodes throws "Illegal invocation".
+    const view = el.ownerDocument.defaultView ?? window
     const proto =
-      el instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype
+      tag === 'INPUT' ? view.HTMLInputElement.prototype : view.HTMLTextAreaElement.prototype
     const descriptor = Object.getOwnPropertyDescriptor(proto, 'value')
-    if (descriptor?.set) descriptor.set.call(el, text)
-    else el.value = text
-    el.dispatchEvent(new Event('input', { bubbles: true }))
-    el.dispatchEvent(new Event('change', { bubbles: true }))
+    if (descriptor?.set) descriptor.set.call(field, text)
+    else field.value = text
+    field.dispatchEvent(new Event('input', { bubbles: true }))
+    field.dispatchEvent(new Event('change', { bubbles: true }))
   } else if ((el as HTMLElement).isContentEditable) {
     const editable = el as HTMLElement
     editable.focus()
@@ -581,22 +597,23 @@ export function scrollPage(direction: string, amount?: number): unknown {
 export function selectOptionInElement(id: number, value: string): unknown {
   const el = (window.__simAgentElements || [])[id]
   if (!el || !el.isConnected) return { error: 'stale' }
-  if (!(el instanceof HTMLSelectElement)) return { error: 'not-select' }
+  if (el.tagName !== 'SELECT') return { error: 'not-select' }
+  const select = el as HTMLSelectElement
   const wanted = value.trim().toLowerCase()
-  const option = Array.from(el.options).find(
+  const option = Array.from(select.options).find(
     (o) => o.value.trim().toLowerCase() === wanted || o.label.trim().toLowerCase() === wanted
   )
   if (!option) {
     return {
       error: 'no-option',
-      options: Array.from(el.options)
+      options: Array.from(select.options)
         .slice(0, 50)
         .map((o) => o.label.trim()),
     }
   }
-  el.value = option.value
-  el.dispatchEvent(new Event('input', { bubbles: true }))
-  el.dispatchEvent(new Event('change', { bubbles: true }))
+  select.value = option.value
+  select.dispatchEvent(new Event('input', { bubbles: true }))
+  select.dispatchEvent(new Event('change', { bubbles: true }))
   return { selected: option.label.trim() }
 }
 

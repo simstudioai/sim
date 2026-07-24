@@ -105,7 +105,7 @@ export function createHandoffManager(
    */
   interface LoopbackRoute {
     html: string
-    parse: (url: URL) => (() => void) | null
+    parse: (url: URL) => { state: string; dispatch: () => void } | null
   }
   const routes: Record<string, LoopbackRoute> = {
     [CALLBACK_PATH]: {
@@ -116,7 +116,7 @@ export function createHandoffManager(
         if (!TOKEN_PATTERN.test(token) || !STATE_PATTERN.test(state)) {
           return null
         }
-        return () => callbacks.onLogin({ token, state })
+        return { state, dispatch: () => callbacks.onLogin({ token, state }) }
       },
     },
     [CONNECT_CALLBACK_PATH]: {
@@ -127,28 +127,63 @@ export function createHandoffManager(
         if (!STATE_PATTERN.test(state) || (error !== null && !ERROR_SLUG_PATTERN.test(error))) {
           return null
         }
-        return () => callbacks.onConnect({ state, ...(error !== null ? { error } : {}) })
+        return {
+          state,
+          dispatch: () => callbacks.onConnect({ state, ...(error !== null ? { error } : {}) }),
+        }
       },
     },
+  }
+
+  /**
+   * Non-consuming state check, so a caller that does not know the state cannot
+   * shut the loopback down. The authoritative single-use consume still happens
+   * in the callback.
+   */
+  const matchesPending = (state: string): boolean =>
+    pending !== null &&
+    now() - pending.createdAt <= HANDOFF_TTL_MS &&
+    safeCompare(pending.state, state)
+
+  /**
+   * The listener is reachable by any local process, and by any web page the
+   * user has open via a no-CORS GET. Requiring a loopback Host blocks the
+   * DNS-rebinding shape, where an attacker's hostname resolves to 127.0.0.1.
+   */
+  const isLoopbackHost = (host: string | undefined): boolean => {
+    const hostname = (host ?? '').replace(/:\d+$/, '')
+    return hostname === '127.0.0.1' || hostname === 'localhost'
   }
 
   const startLoopback = async (): Promise<number | undefined> => {
     stopLoopback()
     const server = createServer((request, response) => {
+      if (!isLoopbackHost(request.headers.host)) {
+        response.writeHead(403, { 'Content-Type': 'text/plain' }).end('Forbidden')
+        return
+      }
       const url = new URL(request.url ?? '/', 'http://127.0.0.1')
       const route = request.method === 'GET' ? routes[url.pathname] : undefined
       if (!route) {
         response.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found')
         return
       }
-      const dispatch = route.parse(url)
-      if (!dispatch) {
+      const callback = route.parse(url)
+      if (!callback) {
         response.writeHead(400, { 'Content-Type': 'text/plain' }).end('Invalid request')
+        return
+      }
+      // Check the state BEFORE tearing anything down. Previously any request
+      // with a well-formed state killed this one-shot server, so a local
+      // process — or any page the user had open — could cancel a sign-in it
+      // could not otherwise touch.
+      if (!matchesPending(callback.state)) {
+        response.writeHead(403, { 'Content-Type': 'text/plain' }).end('Forbidden')
         return
       }
       response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(route.html)
       stopLoopback()
-      dispatch()
+      callback.dispatch()
     })
     loopbackServer = server
     try {

@@ -1,3 +1,4 @@
+import { get as httpGet } from 'node:http'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -111,6 +112,65 @@ describe('createHandoffManager', () => {
     await expect(
       fetch(`${base}/auth/callback?token=${VALID_TOKEN}&state=${state}`)
     ).rejects.toThrow()
+  })
+
+  it('rejects a wrong-state callback without killing the sign-in', async () => {
+    const received: HandoffCallback[] = []
+    const deps = makeDeps()
+    const manager = createHandoffManager(
+      deps,
+      makeCallbacks({ onLogin: (callback) => received.push(callback) })
+    )
+    await manager.begin()
+    const landing = new URL(vi.mocked(deps.openExternal).mock.calls[0][0])
+    const base = `http://127.0.0.1:${landing.searchParams.get('port')}`
+    const state = landing.searchParams.get('state') as string
+
+    // This port is reachable by any local process, and by any page the user
+    // has open via a no-CORS GET. Tearing the one-shot server down before
+    // checking the state let any of them cancel the sign-in.
+    const wrongState = await fetch(
+      `${base}/auth/callback?token=${VALID_TOKEN}&state=${'z'.repeat(32)}`
+    )
+    expect(wrongState.status).toBe(403)
+    expect(received).toHaveLength(0)
+
+    const ok = await fetch(`${base}/auth/callback?token=${VALID_TOKEN}&state=${state}`)
+    expect(ok.status).toBe(200)
+    expect(received).toEqual([{ token: VALID_TOKEN, state }])
+  })
+
+  it('refuses a request that does not address the loopback by name', async () => {
+    const received: HandoffCallback[] = []
+    const deps = makeDeps()
+    const manager = createHandoffManager(
+      deps,
+      makeCallbacks({ onLogin: (callback) => received.push(callback) })
+    )
+    await manager.begin()
+    const landing = new URL(vi.mocked(deps.openExternal).mock.calls[0][0])
+    const state = landing.searchParams.get('state') as string
+
+    // The DNS-rebinding shape: an attacker hostname resolving to 127.0.0.1.
+    const status = await new Promise<number>((resolvePromise, rejectPromise) => {
+      const request = httpGet(
+        {
+          host: '127.0.0.1',
+          port: Number(landing.searchParams.get('port')),
+          path: `/auth/callback?token=${VALID_TOKEN}&state=${state}`,
+          headers: { Host: 'attacker.example' },
+        },
+        (response) => {
+          response.resume()
+          resolvePromise(response.statusCode ?? 0)
+        }
+      )
+      request.on('error', rejectPromise)
+    })
+
+    expect(status).toBe(403)
+    expect(received).toHaveLength(0)
+    manager.clear()
   })
 
   it('cleans up the pending handoff when the browser cannot be opened', async () => {

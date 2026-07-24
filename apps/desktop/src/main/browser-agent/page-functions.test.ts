@@ -193,6 +193,77 @@ describe('secret-field detection', () => {
   })
 })
 
+describe('elements inside a same-origin iframe', () => {
+  /**
+   * The snapshot walks into same-origin frames and hands the model ids for
+   * what it finds, so every interaction has to work on them. `instanceof`
+   * against the top frame's constructors is false for those nodes, which used
+   * to make the driver report a real `<input>` as "not a text input" —
+   * breaking framed login forms and editors like TinyMCE.
+   */
+  function framedBody(html: string): Document {
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const inner = frame.contentDocument as Document
+    // The frame is its own realm, so the shims installed on the top document's
+    // prototypes do not apply here — the same property that makes `instanceof`
+    // fail across frames.
+    const innerWindow = inner.defaultView as Window & typeof globalThis
+    innerWindow.Element.prototype.scrollIntoView = () => {}
+    inner.body.innerHTML = html
+    return inner
+  }
+
+  it('types into a framed input', () => {
+    const inner = framedBody('<input type="text" />')
+    const field = inner.querySelector('input') as HTMLInputElement
+    register(field)
+
+    expect(field instanceof HTMLInputElement).toBe(false)
+    expect(typeIntoElement(0, 'hello', false)).toMatchObject({ typed: true })
+    expect(field.value).toBe('hello')
+  })
+
+  it('focuses a framed input for native typing', () => {
+    const inner = framedBody('<input type="text" value="existing" />')
+    register(inner.querySelector('input') as HTMLInputElement)
+
+    expect(focusElementForTyping(0)).toMatchObject({ focused: true, kind: 'input' })
+  })
+
+  it('selects an option in a framed select', () => {
+    const inner = framedBody(
+      '<select><option value="a">A</option><option value="b">B</option></select>'
+    )
+    const select = inner.querySelector('select') as HTMLSelectElement
+    register(select)
+
+    expect(selectOptionInElement(0, 'B')).toMatchObject({ selected: 'B' })
+    expect(select.value).toBe('b')
+  })
+
+  it('focuses a framed element when clicking it', () => {
+    const inner = framedBody('<button>Go</button>')
+    const button = visible(inner.querySelector('button') as HTMLButtonElement)
+    register(button)
+    let focused = false
+    button.addEventListener('focus', () => {
+      focused = true
+    })
+
+    expect(clickElement(0)).toMatchObject({ clicked: true })
+    expect(focused).toBe(true)
+  })
+
+  it('still refuses a framed password field', () => {
+    const inner = framedBody('<input type="password" />')
+    register(inner.querySelector('input') as HTMLInputElement)
+
+    expect(typeIntoElement(0, 'hunter2', false)).toEqual({ error: 'password' })
+    expect(focusElementForTyping(0)).toEqual({ error: 'password' })
+  })
+})
+
 describe('collectSnapshot', () => {
   it('labels a password field and never emits its value', () => {
     document.body.innerHTML = '<input type="password" value="hunter2" aria-label="Password" />'
