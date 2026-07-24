@@ -91,6 +91,27 @@ describe('Jira update route custom-field serialization', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('rejects a cascading array with more than [parent, child]', async () => {
+    const { response } = await update({
+      customFields: [{ fieldId: 'customfield_10005', type: 'cascading', value: ['A', 'B', 'C'] }],
+    })
+    expect(response.status).toBe(400)
+  })
+
+  it('rejects a text entry passed a bare number', async () => {
+    const { response } = await update({
+      customFields: [{ fieldId: 'customfield_10007', type: 'text', value: 42 }],
+    })
+    expect(response.status).toBe(400)
+  })
+
+  it('rejects a select entry with an empty option value', async () => {
+    const { response } = await update({
+      customFields: [{ fieldId: 'customfield_10001', type: 'select', value: { value: '' } }],
+    })
+    expect(response.status).toBe(400)
+  })
+
   it('serializes a multiselect custom field to an array of options', async () => {
     await update({
       customFields: [

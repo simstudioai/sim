@@ -104,12 +104,12 @@ export const jiraCustomFieldTypeSchema = z.enum([
 
 const customFieldIdSchema = z.string().min(1, 'fieldId is required')
 
-/** A scalar or `{ value }` / `{ id }` option object for a select/multiselect. */
+/** A non-empty option value/id — as a scalar or a `{ value }` / `{ id }` object. */
+const optionScalar = z.union([z.string().min(1, 'option value cannot be empty'), z.number()])
 const optionInputSchema = z.union([
-  z.string(),
-  z.number(),
-  z.object({ value: z.union([z.string(), z.number()]) }),
-  z.object({ id: z.union([z.string(), z.number()]) }),
+  optionScalar,
+  z.object({ value: optionScalar }),
+  z.object({ id: optionScalar }),
 ])
 
 /** An accountId string or a `{ accountId }` object for a user picker. */
@@ -137,7 +137,10 @@ const cascadingScalar = z.union([z.string(), z.number()])
  */
 const cascadingInputSchema = z.union([
   cascadingScalar,
-  z.array(cascadingScalar).min(1, 'cascading value cannot be empty'),
+  z
+    .array(cascadingScalar)
+    .min(1, 'cascading value cannot be empty')
+    .max(2, 'cascading value accepts at most [parent, child]'),
   z
     .object({
       parent: cascadingScalar.optional(),
@@ -160,7 +163,7 @@ export const jiraCustomFieldEntrySchema = z.discriminatedUnion('type', [
   z.object({
     fieldId: customFieldIdSchema,
     type: z.literal('text'),
-    value: z.union([z.string(), z.number()]),
+    value: z.string(),
   }),
   z.object({ fieldId: customFieldIdSchema, type: z.literal('number'), value: numberInputSchema }),
   z.object({ fieldId: customFieldIdSchema, type: z.literal('select'), value: optionInputSchema }),
