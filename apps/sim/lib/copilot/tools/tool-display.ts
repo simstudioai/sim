@@ -486,7 +486,7 @@ const TOOL_TITLES: Record<string, string> = {
   rename_workflow: 'Renaming workflow',
   restore_resource: 'Restoring resource',
   run_block: 'Running block',
-  search_documentation: 'Searching documentation',
+  search_docs: 'Searching docs',
   search_patterns: 'Searching patterns',
   set_block_enabled: 'Toggling block',
   set_environment_variables: 'Setting environment variables',

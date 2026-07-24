@@ -116,6 +116,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  browser_list_sessions: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: undefined,
+  },
   browser_list_tabs: {
     parameters: {
       type: 'object',
@@ -179,6 +186,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        purpose: {
+          type: 'string',
+          description:
+            'Why takeover is needed. Set sign_in for a login/password flow so the desktop can remember a privacy-preserving session hint after the user finishes.',
+          enum: ['sign_in', 'captcha', 'payment', 'sensitive_confirmation', 'other'],
+        },
         reason: {
           type: 'string',
           description:
@@ -3696,17 +3709,22 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  search_documentation: {
+  search_docs: {
     parameters: {
       type: 'object',
       properties: {
+        path: {
+          type: 'string',
+          description:
+            'Optional VFS path prefix starting with docs/documentation/ that limits the search scope',
+        },
         query: {
           type: 'string',
           description: 'The search query',
         },
         topK: {
           type: 'number',
-          description: 'Number of results (max 10)',
+          description: 'Number of results (default 10, max 25)',
         },
       },
       required: ['query'],
