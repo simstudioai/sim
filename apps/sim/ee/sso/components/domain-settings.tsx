@@ -141,8 +141,8 @@ export function DomainSettings({ organizationId }: DomainSettingsProps) {
         <div className='flex flex-col gap-7'>
           <div className='flex flex-col gap-[9px]'>
             <p className='text-[var(--text-muted)] text-caption'>
-              Verify domains your organization owns. A verified domain is required before you can
-              enforce SSO or auto-join for it.
+              Verify domains your organization owns. A domain must be verified before you can
+              configure SSO for it.
             </p>
             <div className='flex items-center gap-2'>
               <ChipInput

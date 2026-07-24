@@ -550,7 +550,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     docsLink: 'https://docs.sim.ai/platform/enterprise/verified-domains',
     unified: {
       id: 'domains',
-      description: 'Prove ownership of your email domains to unlock SSO and provisioning.',
+      description: 'Prove ownership of your email domains before configuring SSO.',
       group: 'enterprise',
       requiresHosted: true,
       requiresEnterprise: true,

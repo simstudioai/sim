@@ -1,12 +1,12 @@
 ---
 title: Verified Domains
-description: Prove ownership of your email domains to unlock SSO and domain-based provisioning
+description: Prove ownership of your email domains before configuring single sign-on
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 
-Verified Domains let organization owners and admins on Enterprise plans prove they control an email domain (like `acme.com`) with a DNS TXT record. Verifying a domain is the security precondition for configuring single sign-on for it — and, in a later release, for enforcing SSO and auto-joining members from that domain.
+Verified Domains let organization owners and admins on Enterprise plans prove they control an email domain (like `acme.com`) with a DNS TXT record. Verifying a domain is the security precondition for configuring single sign-on for it.
 
 <Callout type="warning">
   Configuring SSO for a domain requires it to be verified first. Verifying proves your organization controls the domain — without it, anyone could point another company's domain at their own identity provider. Domains you had already configured for SSO are automatically treated as verified.

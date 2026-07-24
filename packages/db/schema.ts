@@ -3005,11 +3005,11 @@ export const ssoProvider = pgTable(
  * An email domain an organization has claimed, and its verification state.
  *
  * A domain must be **verified** (via a DNS TXT challenge — the org places
- * `verificationToken` in a `_sim-challenge.<domain>` record) before it can
- * back SSO enforcement or domain auto-join: verifying proves the org controls
- * the domain, which is the security precondition for those account-capture
- * features. Existing `sso_provider` domains are grandfathered as `verified` by
- * the backfill in migration 0266.
+ * `verificationToken` in a `_sim-challenge.<domain>` record) before it can be
+ * configured for single sign-on: verifying proves the org controls the domain,
+ * which is the security precondition for wiring it to an identity provider.
+ * Existing `sso_provider` domains are grandfathered as `verified` by the
+ * backfill in migration 0266.
  */
 export const ssoDomain = pgTable(
   'sso_domain',
