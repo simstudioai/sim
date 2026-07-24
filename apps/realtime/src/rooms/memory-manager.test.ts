@@ -8,6 +8,7 @@
 import { ROOM_TYPES, type RoomRef } from '@sim/realtime-protocol/rooms'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRoomManager } from '@/rooms/memory-manager'
+import { sweepStalePresence } from '@/rooms/presence-visibility'
 import type { UserPresence } from '@/rooms/types'
 
 function fakeIo(liveSocketIds: string[] = []) {
@@ -118,6 +119,28 @@ describe('MemoryRoomManager multi-room', () => {
     await manager.removeUserFromRoom(FILES, 'socket-1')
     expect(await manager.hasRoom(FILES)).toBe(true)
     expect(await manager.getUserSession('socket-2')).not.toBeNull()
+  })
+
+  it('sweepStalePresence reclaims not-live stale entries but keeps live and fresh ones', async () => {
+    const { io } = fakeIo(['socket-live'])
+    const m = new MemoryRoomManager(io)
+    await m.initialize()
+
+    const staleMs = 76 * 60 * 1000
+    await m.addUserToRoom(FILES, 'socket-live', presence(FILES, 'socket-live', 'u1'))
+    await m.addUserToRoom(FILES, 'socket-dead', {
+      ...presence(FILES, 'socket-dead', 'u2'),
+      joinedAt: Date.now() - staleMs,
+      lastActivity: Date.now() - staleMs,
+    })
+    await m.addUserToRoom(FILES, 'socket-recent', presence(FILES, 'socket-recent', 'u3'))
+
+    await sweepStalePresence(m, FILES)
+
+    const remaining = (await m.getRoomUsers(FILES)).map((u) => u.socketId).sort()
+    // socket-dead: not live + stale → removed. socket-live: live → kept.
+    // socket-recent: not live but fresh (transient) → kept.
+    expect(remaining).toEqual(['socket-live', 'socket-recent'])
   })
 
   it('deleteRoom unconditionally drops all room state', async () => {
