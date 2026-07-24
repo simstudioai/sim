@@ -53,29 +53,32 @@ async function selectMode(detection: Detection, flags: WizardFlags): Promise<Wiz
   if (flags.mode) return flags.mode
   const { dockerMemGb } = detection.specs
   const vm = dockerMemGb !== null ? ` · VM ${dockerMemGb}GB` : ''
+  const composeState = detection.dockerRunning ? `Docker ready${vm}` : 'Docker is NOT running'
+  const k8sState = detection.kubeContext
+    ? `context: ${detection.kubeContext}${vm}`
+    : detection.binaries.kind
+      ? `kind available${vm}`
+      : 'needs kind or Docker Desktop k8s'
   return p.select({
     message: 'How do you want to run Sim?',
     options: [
       {
         value: 'compose',
         label: 'Docker Compose',
-        hint: detection.dockerRunning
-          ? `Docker running ✓${vm} — simplest, everything bundled`
-          : 'Docker is NOT running',
+        // Self-host or just try Sim without touching the code.
+        hint: `Run a bundled Sim — self-hosting or evaluating · ${composeState}`,
       },
       {
         value: 'dev',
         label: 'Local dev (bun run dev:full)',
-        hint: 'for working on Sim itself — app :3000 + realtime :3002',
+        // Iterate on the source with hot reload.
+        hint: 'Work on Sim itself — contributing · app :3000 + realtime :3002',
       },
       {
         value: 'k8s',
         label: 'Kubernetes (helm)',
-        hint: detection.kubeContext
-          ? `context: ${detection.kubeContext}${vm}`
-          : detection.binaries.kind
-            ? `kind available${vm}`
-            : 'needs kind or Docker Desktop k8s',
+        // Rehearse a real cluster deploy on kind / Docker Desktop.
+        hint: `Test a production-style deploy — self-hosting on k8s · ${k8sState}`,
       },
     ],
     initialValue: detection.dockerRunning ? 'compose' : 'dev',
