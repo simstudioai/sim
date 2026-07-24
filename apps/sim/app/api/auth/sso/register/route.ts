@@ -574,18 +574,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     // Close the residual TOCTOU between the re-check above and Better Auth
     // persisting the provider: the verified sso_domain row could be removed in
-    // that window. Only roll back a provider this request just created (guarded
-    // by providerExistedBefore), scoped to (providerId, orgId). Personal SSO is
+    // that window. Roll back only the exact row this request created — delete by
+    // its primary-key `id`, not the logical (providerId, orgId): providerId is
+    // unique, so if our row were deleted and recreated by a concurrent
+    // registration in this window, a logical-key delete would remove that other
+    // request's row. Guarded by providerExistedBefore so a hypothetical future
+    // update of a pre-existing provider is never rolled back. Personal SSO is
     // not gated, so this only runs for org-scoped registration.
     if (orgId && !providerExistedBefore && !(await isOrgDomainVerified())) {
+      // double-cast-allowed: registerSSOProvider spreads the created row's `id` at runtime but Better Auth's return type omits it
+      const createdRowId = (registration as unknown as { id: string }).id
       await db
         .delete(ssoProvider)
-        .where(
-          and(
-            eq(ssoProvider.providerId, registration.providerId),
-            eq(ssoProvider.organizationId, orgId)
-          )
-        )
+        .where(and(eq(ssoProvider.id, createdRowId), eq(ssoProvider.organizationId, orgId)))
       logger.warn('Rolled back SSO provider: domain verification revoked mid-registration', {
         domain,
         orgId,
