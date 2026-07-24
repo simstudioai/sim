@@ -141,16 +141,12 @@ export const POST = withRouteHandler(
 
     const existing = orgDomains.find((d) => d.domain === domain)
     if (existing) {
-      // Idempotent: re-adding a domain this org already has returns it (with a
-      // fresh token if it is still pending, so the admin can retry cleanly).
-      if (existing.status === 'pending') {
-        const [rotated] = await db
-          .update(ssoDomain)
-          .set({ verificationToken: generateVerificationToken(), updatedAt: new Date() })
-          .where(eq(ssoDomain.id, existing.id))
-          .returning()
-        return NextResponse.json({ success: true, data: { domain: toDomainResponse(rotated) } })
-      }
+      // Idempotent: re-adding a domain the org already has returns the existing
+      // row unchanged. We deliberately do NOT rotate the token — the pending
+      // token is always shown in the UI (so it is never "lost"), rotating would
+      // invalidate a TXT record the admin may have already published, and under
+      // concurrent re-adds a rotation could hand back a token that a racing
+      // write has already superseded.
       return NextResponse.json({ success: true, data: { domain: toDomainResponse(existing) } })
     }
 

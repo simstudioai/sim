@@ -135,6 +135,30 @@ describe('org domains route', () => {
       )
     })
 
+    it('re-adds an existing pending domain idempotently without rotating its token', async () => {
+      queueTableRows(member, [{ role: 'owner' }]) // membership
+      queueTableRows(ssoDomain, []) // verified-elsewhere check → none
+      queueTableRows(ssoDomain, [
+        {
+          id: 'd-existing',
+          domain: 'acme.com',
+          status: 'pending',
+          verificationToken: 'tok-existing',
+          verifiedAt: null,
+        },
+      ]) // org-domains read → already claimed, still pending
+      const res = await POST(req({ domain: 'acme.com' }), routeContext)
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.data.domain).toMatchObject({
+        id: 'd-existing',
+        status: 'pending',
+        txtRecordValue: 'sim-domain-verification=tok-existing', // unchanged, not rotated
+      })
+      // No write occurred — the existing row is returned as-is.
+      expect(dbChainMockFns.returning).not.toHaveBeenCalled()
+    })
+
     it('stays idempotent when a concurrent claim wins the unique index race', async () => {
       queueTableRows(member, [{ role: 'owner' }]) // membership
       queueTableRows(ssoDomain, []) // verified-elsewhere check → none
