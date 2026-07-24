@@ -46,6 +46,22 @@ describe('domain-verification helpers', () => {
       })
     })
 
+    it('redacts the pending TXT value when includeToken is false', () => {
+      const redacted = toDomainResponse(
+        {
+          id: 'd1',
+          domain: 'acme.com',
+          status: 'pending',
+          verificationToken: 'tok',
+          verifiedAt: null,
+        },
+        { includeToken: false }
+      )
+      expect(redacted.status).toBe('pending')
+      expect(redacted.txtRecordValue).toBeNull()
+      expect(redacted.challengeHost).toBe('_sim-challenge.acme.com')
+    })
+
     it('never leaks the token for a verified domain', () => {
       const verifiedAt = new Date('2026-07-23T00:00:00.000Z')
       const verified = toDomainResponse({

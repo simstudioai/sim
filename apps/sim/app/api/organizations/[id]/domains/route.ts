@@ -36,7 +36,7 @@ export const GET = withRouteHandler(
     const { id: organizationId } = await params
 
     const [memberEntry] = await db
-      .select({ id: member.id })
+      .select({ role: member.role })
       .from(member)
       .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
@@ -48,18 +48,29 @@ export const GET = withRouteHandler(
       )
     }
 
-    const [isEnterprise, rows] = await Promise.all([
-      isBillingEnabled ? isOrganizationOnEnterprisePlan(organizationId) : Promise.resolve(true),
-      db
-        .select()
-        .from(ssoDomain)
-        .where(eq(ssoDomain.organizationId, organizationId))
-        .orderBy(asc(ssoDomain.createdAt)),
-    ])
+    const isEnterprise = !isBillingEnabled || (await isOrganizationOnEnterprisePlan(organizationId))
+    // Domain management is Enterprise-only, so a non-Enterprise org has no
+    // domains to return — surface only the entitlement flag (which drives the
+    // upgrade prompt) and never the list/tokens.
+    if (!isEnterprise) {
+      return NextResponse.json({ success: true, data: { isEnterprise: false, domains: [] } })
+    }
 
+    const rows = await db
+      .select()
+      .from(ssoDomain)
+      .where(eq(ssoDomain.organizationId, organizationId))
+      .orderBy(asc(ssoDomain.createdAt))
+
+    // The pending TXT token is a management secret; only owner/admins (who can
+    // add/verify/remove) may read it. Members see the list and status without it.
+    const includeToken = isOrgAdminRole(memberEntry.role)
     return NextResponse.json({
       success: true,
-      data: { isEnterprise, domains: rows.map(toDomainResponse) },
+      data: {
+        isEnterprise: true,
+        domains: rows.map((row) => toDomainResponse(row, { includeToken })),
+      },
     })
   }
 )

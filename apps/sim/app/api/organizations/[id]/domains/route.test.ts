@@ -62,26 +62,47 @@ describe('org domains route', () => {
       expect(res.status).toBe(403)
     })
 
-    it('returns mapped domains for members (token hidden on verified)', async () => {
-      queueTableRows(member, [{ id: 'm1' }])
-      queueTableRows(ssoDomain, [
-        {
-          id: 'd1',
-          domain: 'acme.com',
-          status: 'verified',
-          verificationToken: 'secret',
-          verifiedAt: new Date('2026-07-23T00:00:00.000Z'),
-        },
-      ])
+    const PENDING = {
+      id: 'd1',
+      domain: 'acme.com',
+      status: 'pending',
+      verificationToken: 'secret',
+      verifiedAt: null,
+    }
+
+    it('returns the pending TXT token to admins', async () => {
+      queueTableRows(member, [{ role: 'admin' }])
+      queueTableRows(ssoDomain, [PENDING])
       const res = await GET(createMockRequest('GET'), routeContext)
       expect(res.status).toBe(200)
       const body = await res.json()
       expect(body.data.domains[0]).toMatchObject({
         domain: 'acme.com',
-        status: 'verified',
-        txtRecordValue: null,
-        challengeHost: '_sim-challenge.acme.com',
+        status: 'pending',
+        txtRecordValue: 'sim-domain-verification=secret',
       })
+    })
+
+    it('redacts the pending TXT token for non-admin members', async () => {
+      queueTableRows(member, [{ role: 'member' }])
+      queueTableRows(ssoDomain, [PENDING])
+      const res = await GET(createMockRequest('GET'), routeContext)
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.data.domains[0]).toMatchObject({
+        domain: 'acme.com',
+        status: 'pending',
+        txtRecordValue: null, // secret hidden from members
+      })
+    })
+
+    it('returns an empty list (no domains/tokens) for non-Enterprise orgs', async () => {
+      queueTableRows(member, [{ role: 'admin' }])
+      mockIsEnterprise.mockResolvedValue(false)
+      const res = await GET(createMockRequest('GET'), routeContext)
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.data).toEqual({ isEnterprise: false, domains: [] })
     })
   })
 

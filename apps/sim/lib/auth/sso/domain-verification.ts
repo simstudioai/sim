@@ -15,11 +15,18 @@ interface SsoDomainRow {
 }
 
 /**
- * Maps a stored `sso_domain` row to its API shape. The TXT value (which
- * embeds the verification token) is only returned for `pending` domains — an
- * already-verified row has no reason to expose its token.
+ * Maps a stored `sso_domain` row to its API shape. The TXT value (which embeds
+ * the verification token) is only returned for `pending` domains, and only when
+ * `includeToken` is set — an already-verified row has no reason to expose its
+ * token, and the token is a management secret that non-admin readers must not
+ * see. Callers that gate on owner/admin (add/verify) leave it defaulted; a
+ * member-readable listing passes `includeToken: false` for non-admins.
  */
-export function toDomainResponse(row: SsoDomainRow): OrganizationDomain {
+export function toDomainResponse(
+  row: SsoDomainRow,
+  options: { includeToken?: boolean } = {}
+): OrganizationDomain {
+  const { includeToken = true } = options
   const status = row.status === 'verified' ? 'verified' : 'pending'
   return {
     id: row.id,
@@ -27,7 +34,8 @@ export function toDomainResponse(row: SsoDomainRow): OrganizationDomain {
     status,
     verifiedAt: row.verifiedAt ? row.verifiedAt.toISOString() : null,
     challengeHost: buildChallengeHost(row.domain),
-    txtRecordValue: status === 'pending' ? buildTxtRecordValue(row.verificationToken) : null,
+    txtRecordValue:
+      status === 'pending' && includeToken ? buildTxtRecordValue(row.verificationToken) : null,
   }
 }
 

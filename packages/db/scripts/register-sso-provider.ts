@@ -630,19 +630,24 @@ async function registerSSOProvider(): Promise<boolean> {
     // can never leave a live provider without its ownership row. Both commit or
     // neither does.
     await db.transaction(async (tx) => {
-      if (existingProviders.length > 0) {
-        await tx
-          .update(ssoProvider)
-          .set({
-            issuer: providerData.issuer,
-            domain: providerData.domain,
-            oidcConfig: providerData.oidcConfig,
-            samlConfig: providerData.samlConfig,
-            userId: providerData.userId,
-            organizationId: providerData.organizationId,
-          })
-          .where(eq(ssoProvider.providerId, ssoConfig.providerId))
-      } else {
+      // Decide update-vs-insert from the row count INSIDE the transaction, not
+      // from the pre-transaction `existingProviders` read: a provider deleted
+      // between that read and here would make a blind UPDATE match zero rows
+      // silently, leaving the verified-domain upsert below to commit an orphaned
+      // ownership record. Update first; if nothing matched, insert.
+      const updated = await tx
+        .update(ssoProvider)
+        .set({
+          issuer: providerData.issuer,
+          domain: providerData.domain,
+          oidcConfig: providerData.oidcConfig,
+          samlConfig: providerData.samlConfig,
+          userId: providerData.userId,
+          organizationId: providerData.organizationId,
+        })
+        .where(eq(ssoProvider.providerId, ssoConfig.providerId))
+        .returning({ id: ssoProvider.id })
+      if (updated.length === 0) {
         await tx.insert(ssoProvider).values(providerData)
       }
 
