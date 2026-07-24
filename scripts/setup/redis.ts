@@ -32,6 +32,10 @@ async function pingWithSpinner(url: string, label: string): Promise<boolean> {
 async function startManagedRedis(detection: Detection): Promise<string> {
   const hostPort = detection.redisPortOpen ? 6380 : 6379
   const url = `redis://localhost:${hostPort}`
+  // A prior sim-redis (unhealthy, or bound to a stale port) would collide on the
+  // name. Unlike Postgres this container has no data volume, so removing it
+  // loses nothing — no prompt needed. `rm -f` is a no-op when none exists.
+  spawnSync('docker', ['rm', '-f', REDIS_CONTAINER], { stdio: 'ignore' })
   docker([
     'run',
     '-d',
@@ -113,7 +117,7 @@ export async function resolveRedis(detection: Detection, existing?: string): Pro
       return managedUrl
     }
     p.log.warn(
-      `${REDIS_CONTAINER} exists but is not answering — remove it with ${theme.command(`docker rm -f ${REDIS_CONTAINER}`)} before starting a new one.`
+      `${REDIS_CONTAINER} exists but is not answering — starting a fresh one will replace it (it holds no data).`
     )
   }
 

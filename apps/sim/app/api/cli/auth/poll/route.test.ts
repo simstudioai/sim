@@ -4,14 +4,24 @@
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockPollApproval, mockGenerateCopilotApiKey, mockEnforceIpRateLimit } = vi.hoisted(() => ({
+const {
+  mockPollApproval,
+  mockCompleteApproval,
+  mockReleaseMint,
+  mockGenerateCopilotApiKey,
+  mockEnforceIpRateLimit,
+} = vi.hoisted(() => ({
   mockPollApproval: vi.fn(),
+  mockCompleteApproval: vi.fn(),
+  mockReleaseMint: vi.fn(),
   mockGenerateCopilotApiKey: vi.fn(),
   mockEnforceIpRateLimit: vi.fn(),
 }))
 
 vi.mock('@/lib/cli-auth/approval-store', () => ({
   pollApproval: mockPollApproval,
+  completeApproval: mockCompleteApproval,
+  releaseMint: mockReleaseMint,
 }))
 
 vi.mock('@/lib/copilot/server/api-keys', () => ({
@@ -37,6 +47,8 @@ describe('POST /api/cli/auth/poll', () => {
     vi.clearAllMocks()
     mockEnforceIpRateLimit.mockResolvedValue(null)
     mockGenerateCopilotApiKey.mockResolvedValue({ id: 'key-1', apiKey: 'sk-test' })
+    mockCompleteApproval.mockResolvedValue(undefined)
+    mockReleaseMint.mockResolvedValue(undefined)
   })
 
   it('returns pending without minting while unapproved', async () => {
@@ -47,7 +59,7 @@ describe('POST /api/cli/auth/poll', () => {
     expect(mockGenerateCopilotApiKey).not.toHaveBeenCalled()
   })
 
-  it('mints for the approving user once approved', async () => {
+  it('mints, then consumes the approval, once approved', async () => {
     mockPollApproval.mockResolvedValue({ status: 'approved', userId: 'user-1' })
     const response = await POST(pollRequest({ request: REQUEST, verifier: VERIFIER }))
     expect(response.status).toBe(200)
@@ -56,6 +68,17 @@ describe('POST /api/cli/auth/poll', () => {
       key: { id: 'key-1', apiKey: 'sk-test' },
     })
     expect(mockGenerateCopilotApiKey).toHaveBeenCalledWith('user-1', expect.stringMatching(/^CLI /))
+    expect(mockCompleteApproval).toHaveBeenCalledWith(REQUEST)
+    expect(mockReleaseMint).not.toHaveBeenCalled()
+  })
+
+  it('releases the reservation (keeps the approval) when minting fails', async () => {
+    mockPollApproval.mockResolvedValue({ status: 'approved', userId: 'user-1' })
+    mockGenerateCopilotApiKey.mockRejectedValue(new Error('mothership down'))
+    const response = await POST(pollRequest({ request: REQUEST, verifier: VERIFIER }))
+    expect(response.status).toBe(500)
+    expect(mockReleaseMint).toHaveBeenCalledWith(REQUEST)
+    expect(mockCompleteApproval).not.toHaveBeenCalled()
   })
 
   it('rejects a malformed verifier before touching the store', async () => {

@@ -17,6 +17,7 @@ import { getRedisClient } from '@/lib/core/config/redis'
  */
 
 const APPROVAL_TTL_MS = 120_000
+const MINT_LOCK_TTL_MS = 30_000
 
 interface ApprovalRecord {
   /** BASE64URL(SHA256(pollSecret)) — the CLI proves possession of the secret at poll time. */
@@ -46,6 +47,11 @@ function approvalKey(requestId: string): string {
   return `cli:auth:req:${sha256Hex(requestId)}`
 }
 
+/** Guards the mint step so two concurrent valid polls can't both mint a key. */
+function mintLockKey(requestId: string): string {
+  return `cli:auth:mint:${sha256Hex(requestId)}`
+}
+
 /** Records a signed-in user's approval. Overwrites any prior approval for the same request. */
 export async function createApproval(
   userId: string,
@@ -58,30 +64,45 @@ export async function createApproval(
 }
 
 /**
- * Polls for an approval, consuming it exactly once.
+ * Polls for an approval and reserves the mint slot, without consuming the
+ * approval itself.
  *
- * `pending` covers every non-terminal state — not yet approved, expired, or a
- * wrong `pollSecret` — so the endpoint is not an oracle for which requests
- * exist or whether a secret is close. The approving user is returned only to a
- * caller that proves possession of the secret.
+ * `pending` covers every non-terminal state — not yet approved, expired, a wrong
+ * `pollSecret`, or another poll already minting — so the endpoint is not an
+ * oracle for which requests exist or whether a secret is close. The approving
+ * user is returned only to a caller that proves possession of the secret.
  *
- * Verifies *before* deleting: an attacker who knows the semi-public `requestId`
- * but not the secret can never trigger the delete, so they cannot cancel a
- * pending approval. The atomic `del` (returns the count removed) then makes the
- * claim single-use — two concurrent valid polls can't both mint.
+ * Verifies *before* reserving: an attacker who knows the semi-public `requestId`
+ * but not the secret can never touch the record. The reservation is an atomic
+ * `SET NX` lock (not a delete) so two concurrent valid polls can't both mint,
+ * while the approval survives a *failed* mint — the caller releases the lock and
+ * a later poll retries, instead of forcing a fresh browser approval. Its short
+ * TTL frees the slot if the minting caller dies. Callers MUST finish with
+ * {@link completeApproval} on success or {@link releaseMint} on failure.
  */
 export async function pollApproval(requestId: string, pollSecret: string): Promise<PollResult> {
   const redis = requireRedis()
-  const key = approvalKey(requestId)
 
-  const raw = await redis.get(key)
+  const raw = await redis.get(approvalKey(requestId))
   if (!raw) return { status: 'pending' }
 
   const record = JSON.parse(raw) as ApprovalRecord
   if (!safeCompare(sha256Base64Url(pollSecret), record.challenge)) return { status: 'pending' }
 
-  const claimed = await redis.del(key)
-  if (claimed !== 1) return { status: 'pending' }
+  const reserved = await redis.set(mintLockKey(requestId), '1', 'PX', MINT_LOCK_TTL_MS, 'NX')
+  if (reserved !== 'OK') return { status: 'pending' }
 
   return { status: 'approved', userId: record.userId }
+}
+
+/** Consumes the approval after a successful mint — single-use from here on. */
+export async function completeApproval(requestId: string): Promise<void> {
+  const redis = requireRedis()
+  await redis.del(approvalKey(requestId), mintLockKey(requestId))
+}
+
+/** Releases the mint reservation after a failed mint so a later poll can retry. */
+export async function releaseMint(requestId: string): Promise<void> {
+  const redis = requireRedis()
+  await redis.del(mintLockKey(requestId))
 }

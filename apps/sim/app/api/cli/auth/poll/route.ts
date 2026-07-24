@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { pollCliAuthContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
-import { pollApproval } from '@/lib/cli-auth/approval-store'
+import { completeApproval, pollApproval, releaseMint } from '@/lib/cli-auth/approval-store'
 import { CopilotApiKeyError, generateCopilotApiKey } from '@/lib/copilot/server/api-keys'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -18,7 +18,8 @@ function cliKeyName(): string {
  * The CLI's poll endpoint. Unauthenticated by necessity — the CLI has no
  * session — but the request id is only a rendezvous handle and minting requires
  * the poll secret, which never leaves the CLI. Returns `pending` until the user
- * approves; on the first authorized poll it consumes the approval and mints.
+ * approves; on an authorized poll it mints, then consumes the approval — a
+ * failed mint releases the reservation so a later poll can retry.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const rateLimited = await enforceIpRateLimit('cli-auth-poll', request)
@@ -36,9 +37,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const key = await generateCopilotApiKey(result.userId, cliKeyName())
+    await completeApproval(requestId)
     logger.info('Minted CLI key on approved poll', { userId: result.userId })
     return NextResponse.json({ status: 'complete', key })
   } catch (error) {
+    await releaseMint(requestId)
     const status = error instanceof CopilotApiKeyError ? error.upstreamStatus : undefined
     return NextResponse.json(
       { error: 'Failed to generate copilot API key' },

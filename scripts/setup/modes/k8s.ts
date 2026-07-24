@@ -155,8 +155,8 @@ export async function runK8sMode(detection: Detection): Promise<void> {
   } catch (error) {
     spin.stop(`${glyph.fail} helm install failed`)
     throw new SetupError(getErrorMessage(error), [
-      `pod status: ${theme.command(`kubectl -n ${NAMESPACE} get pods`)}`,
-      `stuck pods: ${theme.command(`kubectl -n ${NAMESPACE} describe pod <name> | tail -20`)}`,
+      `pod status: ${theme.command(`kubectl --context ${context} -n ${NAMESPACE} get pods`)}`,
+      `stuck pods: ${theme.command(`kubectl --context ${context} -n ${NAMESPACE} describe pod <name> | tail -20`)}`,
       'ImagePullBackOff on ghcr.io/simstudioai/* usually means the chart appVersion tag was never published — check Chart.yaml against ghcr',
     ])
   }
@@ -171,8 +171,8 @@ export async function runK8sMode(detection: Detection): Promise<void> {
   if (test.status !== 0) {
     testSpin.stop(`${glyph.fail} helm test failed`)
     throw new SetupError(`helm test failed:\n${test.stdout}${test.stderr}`, [
-      `pod status: ${theme.command(`kubectl -n ${NAMESPACE} get pods`)}`,
-      `app logs: ${theme.command(`kubectl -n ${NAMESPACE} logs deploy/${RELEASE}-app --tail 50`)}`,
+      `pod status: ${theme.command(`kubectl --context ${context} -n ${NAMESPACE} get pods`)}`,
+      `app logs: ${theme.command(`kubectl --context ${context} -n ${NAMESPACE} logs deploy/${RELEASE}-app --tail 50`)}`,
     ])
   }
   testSpin.stop('helm test passed')

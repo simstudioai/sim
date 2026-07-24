@@ -70,6 +70,19 @@ async function ensurePortsFree(composeFile: string): Promise<void> {
       p.log.step(
         `Killed ${killable.map((b) => `${b.owner?.command} (pid ${b.owner?.pid})`).join(', ')}`
       )
+      // SIGKILL is async — the kernel releases the listening socket a beat after
+      // the process dies, so re-checking immediately would still see the port
+      // held. Wait for the killed ports to actually free before looping.
+      await waitFor(
+        async () => {
+          for (const b of killable) {
+            if (await portOpen(b.port)) return false
+          }
+          return true
+        },
+        5000,
+        250
+      )
     } else if (choice === 'abort') {
       throw new SetupError(
         'ports 3000/3002 are in use',

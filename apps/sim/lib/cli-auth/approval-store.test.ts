@@ -15,7 +15,12 @@ vi.mock('@/lib/core/config/redis', () => ({
   getRedisClient: mockGetRedisClient,
 }))
 
-import { createApproval, pollApproval } from '@/lib/cli-auth/approval-store'
+import {
+  completeApproval,
+  createApproval,
+  pollApproval,
+  releaseMint,
+} from '@/lib/cli-auth/approval-store'
 
 const REQUEST = 'a'.repeat(43)
 const SECRET = 'b'.repeat(43)
@@ -48,38 +53,57 @@ describe('cli-auth approval store', () => {
   })
 
   describe('pollApproval', () => {
+    const storedApproval = () =>
+      JSON.stringify({ challenge: CHALLENGE, userId: 'user-1', createdAt: Date.now() })
+
     it('returns pending when no approval exists yet', async () => {
       mockGet.mockResolvedValue(null)
       await expect(pollApproval(REQUEST, SECRET)).resolves.toEqual({ status: 'pending' })
-      expect(mockDel).not.toHaveBeenCalled()
+      expect(mockSet).not.toHaveBeenCalled()
     })
 
-    it('returns the user for a matching secret and consumes the approval', async () => {
-      mockGet.mockResolvedValue(
-        JSON.stringify({ challenge: CHALLENGE, userId: 'user-1', createdAt: Date.now() })
-      )
-      mockDel.mockResolvedValue(1)
+    it('reserves the mint (does not consume) for a matching secret', async () => {
+      mockGet.mockResolvedValue(storedApproval())
+      mockSet.mockResolvedValue('OK')
       await expect(pollApproval(REQUEST, SECRET)).resolves.toEqual({
         status: 'approved',
         userId: 'user-1',
       })
-      expect(mockDel).toHaveBeenCalledTimes(1)
-    })
-
-    it('does NOT delete the approval when the secret is wrong', async () => {
-      mockGet.mockResolvedValue(
-        JSON.stringify({ challenge: CHALLENGE, userId: 'user-1', createdAt: Date.now() })
-      )
-      await expect(pollApproval(REQUEST, 'c'.repeat(43))).resolves.toEqual({ status: 'pending' })
+      // NX lock on the mint key with a TTL; the approval itself is NOT deleted here.
+      const [key, val, px, ttl, nx] = mockSet.mock.calls[0]
+      expect(key).toContain('cli:auth:mint:')
+      expect([val, px, ttl, nx]).toEqual(['1', 'PX', 30_000, 'NX'])
       expect(mockDel).not.toHaveBeenCalled()
     })
 
-    it('yields to a concurrent poll that already claimed it', async () => {
-      mockGet.mockResolvedValue(
-        JSON.stringify({ challenge: CHALLENGE, userId: 'user-1', createdAt: Date.now() })
-      )
-      mockDel.mockResolvedValue(0)
+    it('does NOT touch the record when the secret is wrong', async () => {
+      mockGet.mockResolvedValue(storedApproval())
+      await expect(pollApproval(REQUEST, 'c'.repeat(43))).resolves.toEqual({ status: 'pending' })
+      expect(mockSet).not.toHaveBeenCalled()
+    })
+
+    it('yields to a concurrent poll already holding the mint lock', async () => {
+      mockGet.mockResolvedValue(storedApproval())
+      mockSet.mockResolvedValue(null) // NX lost — someone else is minting
       await expect(pollApproval(REQUEST, SECRET)).resolves.toEqual({ status: 'pending' })
+    })
+  })
+
+  describe('completeApproval / releaseMint', () => {
+    it('completeApproval deletes both the approval and the mint lock', async () => {
+      mockDel.mockResolvedValue(2)
+      await completeApproval(REQUEST)
+      const keys = mockDel.mock.calls[0]
+      expect(keys.some((k: string) => k.includes('cli:auth:req:'))).toBe(true)
+      expect(keys.some((k: string) => k.includes('cli:auth:mint:'))).toBe(true)
+    })
+
+    it('releaseMint drops only the mint lock, leaving the approval for a retry', async () => {
+      mockDel.mockResolvedValue(1)
+      await releaseMint(REQUEST)
+      expect(mockDel).toHaveBeenCalledTimes(1)
+      expect(mockDel.mock.calls[0][0]).toContain('cli:auth:mint:')
+      expect(mockDel.mock.calls[0].join(' ')).not.toContain('cli:auth:req:')
     })
   })
 
