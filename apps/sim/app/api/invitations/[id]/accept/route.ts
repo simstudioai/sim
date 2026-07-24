@@ -45,7 +45,13 @@ export const POST = withRouteHandler(
       }
       const status = statusMap[result.kind] ?? 500
       logger.warn('Invitation accept rejected', { invitationId: id, reason: result.kind })
-      return NextResponse.json({ error: result.kind }, { status })
+      /**
+       * `error` stays the machine-readable kind (the client maps it to UX
+       * states); `message` carries the human copy when the failure provides
+       * one — e.g. the retryable concurrent-workspace-change conflict.
+       */
+      const message = result.kind === 'server-error' ? result.message : undefined
+      return NextResponse.json({ error: result.kind, ...(message ? { message } : {}) }, { status })
     }
 
     const inv = result.invitation

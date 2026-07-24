@@ -18,6 +18,7 @@ import { useInvitationDetails } from '@/hooks/queries/invitations'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { refreshSessionQuery } from '@/hooks/queries/session'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
+import { workspaceKeys } from '@/hooks/queries/workspace'
 
 const logger = createLogger('InviteById')
 
@@ -274,13 +275,32 @@ export default function Invite() {
       runBestEffortCacheRefresh('organization', () =>
         queryClient.invalidateQueries({ queryKey: organizationKeys.all })
       )
+      /**
+       * Acceptance can attach the invitee's owned workspaces into the org —
+       * the workspace list must not keep serving the stale personal set.
+       */
+      runBestEffortCacheRefresh('workspaces', () =>
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.all })
+      )
     } catch (acceptError) {
       logger.error('Error accepting invitation:', acceptError)
       const code =
         acceptError instanceof ApiClientError
           ? codeFromApiClientError(acceptError)
           : 'network-error'
-      setActionError(getInviteError(code))
+      const serverMessage =
+        acceptError instanceof ApiClientError &&
+        acceptError.body &&
+        typeof acceptError.body === 'object' &&
+        typeof (acceptError.body as { message?: unknown }).message === 'string'
+          ? ((acceptError.body as { message: string }).message as string)
+          : null
+      const baseError = getInviteError(code)
+      setActionError(
+        code === 'server-error' && serverMessage
+          ? { ...baseError, message: serverMessage }
+          : baseError
+      )
       setIsAccepting(false)
     }
   }

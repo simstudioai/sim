@@ -281,6 +281,6 @@ describe('Invite', () => {
       cache: 'session',
       error: 'Session refresh denied',
     })
-    expect(mockLogger.warn).toHaveBeenCalledTimes(3)
+    expect(mockLogger.warn).toHaveBeenCalledTimes(4)
   })
 })
