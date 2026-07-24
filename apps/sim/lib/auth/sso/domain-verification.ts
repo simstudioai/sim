@@ -54,14 +54,29 @@ const TXT_VALUE_PREFIX = 'sim-domain-verification='
  * depend on (or get poisoned by) the host's local resolver/split-horizon DNS. */
 const VERIFICATION_NAMESERVERS = ['1.1.1.1', '8.8.8.8']
 
-const DNS_TIMEOUT_MS = 5000
+/**
+ * Per-attempt timeout. c-ares multiplies this across servers and retries by
+ * more than the nominal `tries` (measured ~7x with two servers), so keep the
+ * base low: 2s x 1 try over two servers bounds a fully-unreachable-resolver
+ * lookup at a few seconds rather than the ~35s a 5s/2-try config produced.
+ */
+const DNS_TIMEOUT_MS = 2000
+
+/**
+ * DNS error codes that genuinely mean "the record is not published yet" — the
+ * expected state while an admin is still adding it. Anything else (timeout,
+ * refused, SERVFAIL) indicates an infrastructure problem on our side and is
+ * logged loudly, because it is otherwise indistinguishable to the admin from a
+ * missing record.
+ */
+const RECORD_ABSENT_DNS_CODES = new Set(['ENODATA', 'ENOTFOUND', 'NXDOMAIN'])
 
 /**
  * Shared resolver pinned to the public nameservers. Its config is fully static
  * and `resolveTxt` is safe to call concurrently, so a single module-scope
  * instance avoids re-allocating one per verification.
  */
-const verificationResolver = new Resolver({ timeout: DNS_TIMEOUT_MS, tries: 2 })
+const verificationResolver = new Resolver({ timeout: DNS_TIMEOUT_MS, tries: 1 })
 verificationResolver.setServers(VERIFICATION_NAMESERVERS)
 
 /** The fully-qualified host an org must create the TXT record on. */
@@ -95,13 +110,29 @@ export async function checkDomainTxtRecord(domain: string, token: string): Promi
 
   try {
     const records = await verificationResolver.resolveTxt(host)
-    // Each TXT record may be split into multiple strings — join the chunks.
-    return records.some((chunks) => chunks.join('') === expected)
+    // Each TXT record may be split into 255-char chunks — join before comparing.
+    // Trim the joined value: several DNS panels pad the stored string, which
+    // would otherwise fail an exact match forever with no way for the admin to
+    // tell why. Concatenation happens first, so trimming cannot corrupt a
+    // legitimate chunk boundary.
+    return records.some((chunks) => chunks.join('').trim() === expected)
   } catch (error) {
-    logger.debug('TXT verification lookup failed (treated as unverified)', {
-      host,
-      error: getErrorMessage(error),
-    })
+    const code = (error as NodeJS.ErrnoException)?.code
+    if (code && RECORD_ABSENT_DNS_CODES.has(code)) {
+      logger.debug('TXT verification record not published yet', { host, code })
+    } else {
+      // Not a missing record — our resolver path itself is failing (blocked
+      // egress, timeout, SERVFAIL). Log at ERROR, not warn: the default minimum
+      // level in production is ERROR, so anything below it is dropped and the
+      // fault stays invisible while the admin is told their record "isn't
+      // published yet". This is a genuine infrastructure fault, so ERROR is also
+      // the honest severity.
+      logger.error('TXT verification lookup failed for an infrastructure reason', {
+        host,
+        code,
+        error: getErrorMessage(error),
+      })
+    }
     return false
   }
 }
