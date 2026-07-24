@@ -17,6 +17,9 @@ describe('stream-events contract', () => {
         { type: 'text_delta', text: 'hi' },
         { type: 'text_delta', text: 'mid', turn: 'intermediate' },
         { type: 'text_delta', text: 'bye', turn: 'final' },
+        { type: 'text_delta', text: 'live', turn: 'pending' },
+        { type: 'turn_end', turn: 'intermediate' },
+        { type: 'turn_end', turn: 'final' },
         { type: 'thinking_delta', text: 'hmm' },
         { type: 'tool_call_start', id: 't1', name: 'search' },
         { type: 'tool_call_end', id: 't1', name: 'search', status: 'success' },
@@ -34,6 +37,9 @@ describe('stream-events contract', () => {
       expect(isAgentStreamEvent({ type: 'error', message: 'x' })).toBe(false)
       expect(isAgentStreamEvent({ type: 'text_delta' })).toBe(false)
       expect(isAgentStreamEvent({ type: 'text_delta', text: 'x', turn: 'other' })).toBe(false)
+      // turn_end classifies a settled turn — 'pending' is not a valid classification.
+      expect(isAgentStreamEvent({ type: 'turn_end', turn: 'pending' })).toBe(false)
+      expect(isAgentStreamEvent({ type: 'turn_end' })).toBe(false)
       expect(isAgentStreamEvent({ type: 'tool_call_start', id: 't1' })).toBe(false)
       expect(
         isAgentStreamEvent({ type: 'tool_call_end', id: 't1', name: 'search', status: 'ok' })

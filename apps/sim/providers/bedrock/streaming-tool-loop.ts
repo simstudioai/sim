@@ -2,8 +2,9 @@
  * Live Bedrock ConverseStream tool loop.
  *
  * Capability-honest: text + tool_call_start/end only — Sim does not request
- * Bedrock reasoning, so no thinking is invented. Final-turn-only answer
- * projection via `turn` tags. Abort → cancelled.
+ * Bedrock reasoning, so no thinking is invented. Text emits live as `pending`
+ * deltas and a `turn_end` event classifies each turn, so the pump projects
+ * only final-turn text to the answer channel. Abort → cancelled.
  */
 
 import {
@@ -74,14 +75,12 @@ async function drainBedrockTurn(
   openTools: Map<string, string>
 ): Promise<{
   text: string
-  textChunks: string[]
   toolUses: AssembledToolUse[]
   inputTokens: number
   outputTokens: number
   stopReason?: string
 }> {
   let text = ''
-  const textChunks: string[] = []
   const toolsByIndex = new Map<number, AssembledToolUse>()
   let currentIndex: number | undefined
   let inputTokens = 0
@@ -111,7 +110,9 @@ async function drainBedrockTurn(
       const delta = event.contentBlockDelta.delta
       if (delta?.text) {
         text += delta.text
-        textChunks.push(delta.text)
+        // Live pending text: sinks render it now; the pump projects it to the
+        // answer only when this turn's turn_end says 'final'.
+        controller.enqueue({ type: 'text_delta', text: delta.text, turn: 'pending' })
       }
       if (delta && 'toolUse' in delta && delta.toolUse?.input && typeof idx === 'number') {
         const pending = toolsByIndex.get(idx)
@@ -135,7 +136,6 @@ async function drainBedrockTurn(
 
   return {
     text,
-    textChunks,
     toolUses: [...toolsByIndex.values()],
     inputTokens,
     outputTokens,
@@ -258,9 +258,7 @@ export function createBedrockStreamingToolLoopStream(
           const executableToolUses = toolsExecutable ? drained.toolUses : []
 
           const turnTag = executableToolUses.length > 0 ? 'intermediate' : 'final'
-          for (const chunk of drained.textChunks) {
-            controller.enqueue({ type: 'text_delta', text: chunk, turn: turnTag })
-          }
+          controller.enqueue({ type: 'turn_end', turn: turnTag })
           if (drained.text) {
             content = drained.text
           }

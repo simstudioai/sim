@@ -88,7 +88,10 @@ import {
   loadWorkflowDeploymentVersionState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
-import { forwardAgentStreamToExecutionEvents } from '@/lib/workflows/streaming/forward-agent-stream-events'
+import {
+  forwardAgentStreamToExecutionEvents,
+  shouldForwardAnswerTextFromSink,
+} from '@/lib/workflows/streaming/forward-agent-stream-events'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
@@ -1725,12 +1728,19 @@ async function handleExecutePost(
           const onStream = async (streamingExec: StreamingExecution) => {
             const blockId = (streamingExec.execution as any).blockId
 
+            // Live answer text rides the sink when available (pending deltas
+            // stream as the model generates; chunk_reset clears intermediate
+            // turns). The byte stream is then drained without re-emitting
+            // chunks — its text is the same final-turn content.
+            const answerTextFromSink = shouldForwardAnswerTextFromSink(streamingExec)
+
             // Sync window: attach sink before first await so pump delivers thinking/tools.
             const unsubscribe = forwardAgentStreamToExecutionEvents(streamingExec, {
               blockId,
               executionId,
               workflowId,
               sendEvent,
+              forwardAnswerText: answerTextFromSink,
             })
 
             const reader = streamingExec.stream.getReader()
@@ -1748,6 +1758,8 @@ async function handleExecutePost(
                 const { done, value } = await reader.read()
                 if (timeoutController.signal.aborted || isStreamClosed) break
                 if (done) break
+
+                if (answerTextFromSink) continue
 
                 const chunk = decoder.decode(value, { stream: true })
                 await sendEvent({

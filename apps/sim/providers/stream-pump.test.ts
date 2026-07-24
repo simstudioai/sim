@@ -61,6 +61,72 @@ describe('createAgentStreamPump', () => {
     expect(seen).toEqual(events)
   })
 
+  it('buffers pending text per turn and projects it only on turn_end final', async () => {
+    const events: AgentStreamEvent[] = [
+      { type: 'text_delta', text: 'Let me ', turn: 'pending' },
+      { type: 'text_delta', text: 'check…', turn: 'pending' },
+      { type: 'tool_call_start', id: '1', name: 'search' },
+      { type: 'turn_end', turn: 'intermediate' },
+      { type: 'tool_call_end', id: '1', name: 'search', status: 'success' },
+      { type: 'text_delta', text: 'Answer ', turn: 'pending' },
+      { type: 'text_delta', text: 'here.', turn: 'pending' },
+      { type: 'turn_end', turn: 'final' },
+    ]
+
+    const pump = createAgentStreamPump({
+      source: createAgentEventReadableStream(events),
+      streamFormat: 'agent-events-v1',
+    })
+    const { sink, events: seen } = collectingSink()
+    pump.subscribe(sink)
+
+    const textPromise = readAllText(pump.textStream)
+    const result = await pump.run()
+    const text = await textPromise
+
+    // Intermediate turn discarded; only the final turn reaches the answer.
+    expect(result.answerText).toBe('Answer here.')
+    expect(text).toBe('Answer here.')
+    // Sinks see the full live timeline including pending deltas + boundaries.
+    expect(seen).toEqual(events)
+  })
+
+  it('folds dangling pending text into answerText when the drain ends without turn_end', async () => {
+    const pump = createAgentStreamPump({
+      source: createAgentEventReadableStream([
+        { type: 'text_delta', text: 'partial answer', turn: 'pending' },
+      ]),
+      streamFormat: 'agent-events-v1',
+    })
+
+    const textPromise = readAllText(pump.textStream)
+    const result = await pump.run()
+
+    expect(result.answerText).toBe('partial answer')
+    expect(await textPromise).toBe('partial answer')
+  })
+
+  it('keeps pending text in answerText on abort so logs match what clients rendered', async () => {
+    const controller = new AbortController()
+    const source = new ReadableStream<AgentStreamEvent>({
+      start(c) {
+        c.enqueue({ type: 'text_delta', text: 'seen live', turn: 'pending' })
+        queueMicrotask(() => controller.abort('user'))
+      },
+    })
+
+    const pump = createAgentStreamPump({
+      source,
+      streamFormat: 'agent-events-v1',
+      sinkMode: true,
+      abortSignal: controller.signal,
+    })
+
+    const result = await pump.run()
+    expect(result.cancelled).toBe(true)
+    expect(result.answerText).toBe('seen live')
+  })
+
   it('treats legacy text streams as final-turn answer bytes and sink text_delta', async () => {
     const encoder = new TextEncoder()
     const source = new ReadableStream<Uint8Array>({
@@ -494,6 +560,21 @@ describe('projectStreamingExecutionToByteStream', () => {
         { type: 'thinking_delta', text: 'secret' },
         { type: 'text_delta', text: 'Looking…', turn: 'intermediate' },
         { type: 'text_delta', text: 'Answer', turn: 'final' },
+      ]),
+      streamFormat: 'agent-events-v1',
+    })
+
+    expect(await readAllText(byteStream)).toBe('Answer')
+  })
+
+  it('projects pending turns classified by turn_end (live loop shape)', async () => {
+    const { projectStreamingExecutionToByteStream } = await import('@/providers/stream-pump')
+    const byteStream = projectStreamingExecutionToByteStream({
+      stream: createAgentEventReadableStream([
+        { type: 'text_delta', text: 'Preamble…', turn: 'pending' },
+        { type: 'turn_end', turn: 'intermediate' },
+        { type: 'text_delta', text: 'Answer', turn: 'pending' },
+        { type: 'turn_end', turn: 'final' },
       ]),
       streamFormat: 'agent-events-v1',
     })

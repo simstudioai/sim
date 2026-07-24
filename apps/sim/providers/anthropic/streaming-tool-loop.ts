@@ -2,11 +2,11 @@
  * Live Anthropic streaming tool loop.
  *
  * Each model turn is streamed via `messages.stream` + `finalMessage()` so thinking
- * signatures round-trip correctly. Thinking and `tool_call_start` emit live;
- * text is buffered until the turn completes so it can be tagged
- * `intermediate` (tool-use turns) or `final` (answer channel / SSE `chunk`).
- * Tool ends emit in actual completion order; abort settles in-flight tools as
- * `cancelled`.
+ * signatures round-trip correctly. Thinking, `tool_call_start`, and `pending`
+ * text deltas emit live; a `turn_end` event classifies the turn as
+ * `intermediate` (tool-use turns) or `final` so the pump projects only final
+ * text to the answer channel. Tool ends emit in actual completion order; abort
+ * settles in-flight tools as `cancelled`.
  */
 
 import type Anthropic from '@anthropic-ai/sdk'
@@ -218,6 +218,9 @@ export function createAnthropicStreamingToolLoopStream(
               }
               if (delta.type === 'text_delta' && typeof delta.text === 'string') {
                 textChunks.push(delta.text)
+                // Live pending text: sinks render it now; the pump projects it
+                // to the answer only when this turn's turn_end says 'final'.
+                controller.enqueue({ type: 'text_delta', text: delta.text, turn: 'pending' })
               }
             }
 
@@ -270,13 +273,12 @@ export function createAnthropicStreamingToolLoopStream(
             const executableToolUses = toolsExecutable ? toolUses : []
 
             const turnTag = executableToolUses.length > 0 ? 'intermediate' : 'final'
-            for (const chunk of textChunks) {
-              controller.enqueue({ type: 'text_delta', text: chunk, turn: turnTag })
+            // If the SDK assembled text but we somehow missed deltas, still emit it
+            // before the boundary so the turn_end classification covers it.
+            if (textChunks.length === 0 && textContent) {
+              controller.enqueue({ type: 'text_delta', text: textContent, turn: 'pending' })
             }
-            // If the SDK assembled text but we somehow missed deltas, still project final text.
-            if (textChunks.length === 0 && textContent && turnTag === 'final') {
-              controller.enqueue({ type: 'text_delta', text: textContent, turn: 'final' })
-            }
+            controller.enqueue({ type: 'turn_end', turn: turnTag })
             if (textChunks.length > 0 || textContent) {
               // Streamed deltas are the answer bytes; fall back to assembled text.
               // Intermediate text is kept so a MAX_TOOL_ITERATIONS exit still has content.

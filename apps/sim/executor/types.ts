@@ -547,6 +547,13 @@ export interface StreamingExecution {
    * the executor pump starts draining. Late subscribers receive future events only.
    */
   subscribe?: (sink: AgentStreamSink) => UnsubscribeAgentStreamSink
+  /**
+   * True when {@link stream} is a response-format projection (selected JSON
+   * fields extracted from structured output) rather than raw answer text. Sink
+   * `text_delta` events then do NOT match the byte stream, so consumers must
+   * keep sourcing answer text from {@link stream} instead of the sink.
+   */
+  clientStreamTransformed?: boolean
   execution: ExecutionResult & { isStreaming?: boolean }
   /**
    * Invoked with the assembled response text after the stream drains. Lets agent

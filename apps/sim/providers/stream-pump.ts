@@ -2,10 +2,12 @@
  * Executor-facing agent stream pump.
  *
  * Owns a single drain of a provider {@link StreamingExecution} source and:
- * - projects final-turn answer text to an optional legacy byte stream
- * - pushes the full ordered timeline (including text deltas, which current
- *   sinks ignore — answer text reaches clients via the byte projection) to
- *   optional sinks
+ * - projects final-turn answer text to an optional legacy byte stream;
+ *   `turn: 'pending'` deltas from streaming tool loops are buffered per turn
+ *   and projected only when `turn_end` classifies the turn as final
+ * - pushes the full ordered timeline (including live pending text deltas and
+ *   turn boundaries, so opted-in surfaces can render the answer as it streams)
+ *   to optional sinks
  * - awaits each sink per event (simple backpressure; SSE enqueues are cheap)
  *
  * Wired into {@link BlockExecutor} `handleStreamingExecution`.
@@ -86,8 +88,8 @@ function resolveCancelReason(signal: AbortSignal): AgentStreamPumpCancelReason {
   return 'unknown'
 }
 
-function isFinalTurnText(event: Extract<AgentStreamEvent, { type: 'text_delta' }>): boolean {
-  return event.turn !== 'intermediate'
+function isImmediateFinalText(event: Extract<AgentStreamEvent, { type: 'text_delta' }>): boolean {
+  return event.turn === undefined || event.turn === 'final'
 }
 
 /**
@@ -227,6 +229,13 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
   /** Open tool_call_start ids → names; settled on abort/error so sinks never hang. */
   const openTools = new Map<string, string>()
 
+  /**
+   * Live text from the current unclassified turn (`turn: 'pending'`). Projected
+   * to the byte stream only when `turn_end { turn: 'final' }` arrives; discarded
+   * on `turn_end { turn: 'intermediate' }` (tools follow — the text is preamble).
+   */
+  let pendingTurnText = ''
+
   async function settleOpenTools(status: 'cancelled' | 'error'): Promise<void> {
     if (openTools.size === 0) return
     const pending = [...openTools.entries()]
@@ -250,8 +259,20 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
 
     if (event.type === 'text_delta') {
       await dispatchToSinks(event)
-      if (isFinalTurnText(event)) {
+      if (event.turn === 'pending') {
+        pendingTurnText += event.text
+      } else if (isImmediateFinalText(event)) {
         await enqueueAnswerText(event.text)
+      }
+      return
+    }
+
+    if (event.type === 'turn_end') {
+      await dispatchToSinks(event)
+      const buffered = pendingTurnText
+      pendingTurnText = ''
+      if (buffered && event.turn === 'final') {
+        await enqueueAnswerText(buffered)
       }
       return
     }
@@ -360,6 +381,22 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
       await settleOpenTools('cancelled')
     } else if (drainError) {
       await settleOpenTools('error')
+    }
+
+    /**
+     * Pending text without a closing `turn_end` (cancel/error mid-turn, or a
+     * loop that ended without classifying). Keep it in `answerText` so logs
+     * match what live consumers already rendered; project to the byte stream
+     * only on a clean drain (the stream is closing on cancel/error anyway).
+     */
+    if (pendingTurnText) {
+      const dangling = pendingTurnText
+      pendingTurnText = ''
+      if (!cancelled && !drainError) {
+        await enqueueAnswerText(dangling)
+      } else {
+        answerText += dangling
+      }
     }
 
     if (drainError && !cancelled) {

@@ -878,6 +878,9 @@ export class BlockExecutor {
           stream: processedClientStream,
           streamFormat: 'text',
           subscribe: pump.subscribe,
+          // processStream returns the input stream identity when no
+          // response-format extraction applies.
+          clientStreamTransformed: processedClientStream !== pump.textStream,
         })
         .catch(async (error) => {
           this.execLogger.error('Error in onStream callback', { blockId, error })

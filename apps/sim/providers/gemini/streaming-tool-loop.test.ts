@@ -144,14 +144,19 @@ describe('createGeminiStreamingToolLoopStream', () => {
       },
     ])
 
+    // Text streams live as `pending`; the turn_end sequence classifies turns.
     const textEvents = events.filter((e) => e.type === 'text_delta')
-    expect(textEvents.some((e) => e.type === 'text_delta' && e.turn === 'final')).toBe(true)
+    expect(textEvents.every((e) => e.type === 'text_delta' && e.turn === 'pending')).toBe(true)
     expect(
       textEvents
-        .filter((e) => e.type === 'text_delta' && e.turn === 'final')
+        .filter((e) => e.type === 'text_delta')
         .map((e) => e.text)
         .join('')
     ).toContain('Done:')
+    expect(events.filter((e) => e.type === 'turn_end').map((e) => e.turn)).toEqual([
+      'intermediate',
+      'final',
+    ])
 
     expect(onComplete).toHaveBeenCalledWith(
       expect.objectContaining({

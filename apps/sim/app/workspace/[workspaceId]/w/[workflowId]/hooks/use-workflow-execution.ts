@@ -632,6 +632,18 @@ export function useWorkflowExecution() {
               streamReadingPromises.push(promise)
             }
 
+            /**
+             * Intermediate-turn reconciliation: drop the block's streamed text
+             * (chunk_reset frame) and re-arm separator bookkeeping so the
+             * final turn's text starts a clean segment.
+             */
+            const onStreamReset = (blockId: string) => {
+              if (!streamedChunks.has(blockId)) return
+              streamedChunks.set(blockId, [])
+              processedFirstChunk.delete(blockId)
+              safeEnqueue(encodeSSE({ blockId, event: 'chunk_reset' }))
+            }
+
             // Handle non-streaming blocks (like Function blocks)
             const onBlockComplete = async (blockId: string, output: any) => {
               // Skip if this block already had streaming content (avoid duplicates)
@@ -689,7 +701,9 @@ export function useWorkflowExecution() {
                 onStream,
                 executionId,
                 onBlockComplete,
-                'chat'
+                'chat',
+                undefined,
+                onStreamReset
               )
 
               // Check if execution was cancelled
@@ -853,7 +867,8 @@ export function useWorkflowExecution() {
     executionId?: string,
     onBlockComplete?: (blockId: string, output: any) => Promise<void>,
     overrideTriggerType?: 'chat' | 'manual' | 'api',
-    stopAfterBlockId?: string
+    stopAfterBlockId?: string,
+    onStreamReset?: (blockId: string) => void
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use diff workflow for execution when available, regardless of canvas view state
     const executionWorkflowState = null as {
@@ -1228,6 +1243,15 @@ export function useWorkflowExecution() {
                 onStream(streamingExec).catch((error) => {
                   logger.error('Error in onStream callback:', error)
                 })
+              }
+            },
+
+            onStreamChunkReset: (data) => {
+              // Live-streamed text belonged to an intermediate turn (tools
+              // follow); the final turn re-streams as regular chunks.
+              streamedChunks.set(data.blockId, [])
+              if (onStreamReset && isExecutingFromChat) {
+                onStreamReset(data.blockId)
               }
             },
 

@@ -2,12 +2,12 @@
  * Shared OpenAI Chat Completions streaming tool loop.
  *
  * Capability-honest: reasoning deltas only when the vendor streams them.
- * Final-turn-only answer projection via `turn` tags. Tool ends in completion
- * order; abort → cancelled.
+ * Tool ends in completion order; abort → cancelled.
  *
- * Streams each model turn live (thinking + tool_call_start). Answer text is
- * buffered until the turn is classified intermediate vs final — same contract
- * as Anthropic/Gemini/Bedrock loops. Tool args are assembled from streamed
+ * Streams each model turn live (thinking + tool_call_start + `pending` text
+ * deltas) and classifies the turn with a `turn_end` event — same contract as
+ * the Anthropic/Gemini/Bedrock loops. The pump projects pending text to the
+ * answer channel only for final turns. Tool args are assembled from streamed
  * `tool_calls` deltas (no blocking hybrid).
  */
 
@@ -132,12 +132,11 @@ export function createOpenAICompatStreamingToolLoopStream(
           let turnReasoning = ''
           let turnFinishReason: string | undefined
           let assembledTools: OpenAICompatAssembledToolCall[] = []
-          const bufferedText: string[] = []
+          const liveText: string[] = []
 
           const eventStream = createOpenAICompatibleAgentEventStream(stream, {
             providerName,
             emitToolCallStarts: true,
-            bufferTextDeltas: true,
             onComplete: (result) => {
               turnUsage = {
                 prompt_tokens: result.usage.prompt_tokens ?? 0,
@@ -163,8 +162,10 @@ export function createOpenAICompatStreamingToolLoopStream(
                 }
                 controller.enqueue(value)
               } else if (value.type === 'text_delta') {
-                // Should not arrive when bufferTextDeltas is true; keep for safety.
-                bufferedText.push(value.text)
+                liveText.push(value.text)
+                // Live pending text: sinks render it now; the pump projects it
+                // to the answer only when this turn's turn_end says 'final'.
+                controller.enqueue({ type: 'text_delta', text: value.text, turn: 'pending' })
               }
             }
           }
@@ -185,11 +186,16 @@ export function createOpenAICompatStreamingToolLoopStream(
           }
           const pendingTools = toolsExecutable ? assembledPendingTools : []
           const turnTag = pendingTools.length > 0 ? 'intermediate' : 'final'
-          const textToFlush = turnContent || bufferedText.join('')
-          if (textToFlush) {
-            controller.enqueue({ type: 'text_delta', text: textToFlush, turn: turnTag })
+          const turnText = turnContent || liveText.join('')
+          // If the parser assembled text but we somehow missed deltas, still emit
+          // it before the boundary so the turn_end classification covers it.
+          if (turnText && liveText.length === 0) {
+            controller.enqueue({ type: 'text_delta', text: turnText, turn: 'pending' })
+          }
+          controller.enqueue({ type: 'turn_end', turn: turnTag })
+          if (turnText) {
             // Keep the latest turn's text so a MAX_TOOL_ITERATIONS exit still has content.
-            content = textToFlush
+            content = turnText
           }
 
           const modelEnd = Date.now()
@@ -236,7 +242,7 @@ export function createOpenAICompatStreamingToolLoopStream(
             reasoning?: string
           } = {
             role: 'assistant',
-            content: textToFlush || null,
+            content: turnText || null,
             tool_calls: pendingTools,
           }
           if (preserveAssistantReasoning) {

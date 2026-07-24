@@ -147,6 +147,82 @@ describe('useChatStreaming thinking + abort', () => {
     expect(assistant?.isThinkingStreaming).toBe(false)
   })
 
+  it('clears a block’s live text on chunk_reset and keeps the re-streamed final turn', async () => {
+    mockReadSSEEvents.mockImplementation(async (_source, options) => {
+      // Turn 1: live preamble, then tools follow → reset.
+      await options.onEvent({ blockId: 'agent-1', chunk: 'Let me check the weather…' })
+      await options.onEvent({
+        blockId: 'agent-1',
+        event: 'tool',
+        phase: 'start',
+        id: 't1',
+        name: 'get_weather',
+      })
+      await options.onEvent({ blockId: 'agent-1', event: 'chunk_reset' })
+      await options.onEvent({
+        blockId: 'agent-1',
+        event: 'tool',
+        phase: 'end',
+        id: 't1',
+        name: 'get_weather',
+        status: 'success',
+      })
+      // Turn 2: final answer streams live.
+      await options.onEvent({ blockId: 'agent-1', chunk: 'It is ' })
+      await options.onEvent({ blockId: 'agent-1', chunk: '68°F.' })
+      await options.onEvent({
+        event: 'final',
+        data: { success: true, output: {} },
+      })
+    })
+
+    await act(async () => {
+      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
+    })
+    await flushUiBatch()
+
+    const assistant = messages.find((m) => m.id === 'msg-assistant-1')
+    expect(assistant?.content).toBe('It is 68°F.')
+    expect(assistant?.content).not.toContain('Let me check')
+  })
+
+  it('settles thinking chrome when a tool starts', async () => {
+    let midStreamThinking: boolean | undefined
+    mockReadSSEEvents.mockImplementation(async (_source, options) => {
+      await options.onEvent({ blockId: 'agent-1', event: 'thinking', data: 'planning…' })
+      await options.onEvent({
+        blockId: 'agent-1',
+        event: 'tool',
+        phase: 'start',
+        id: 't1',
+        name: 'get_weather',
+      })
+      // UI flush is synchronous in tests (rAF mocked) — capture mid-stream state.
+      midStreamThinking = messages.find((m) => m.type === 'assistant')?.isThinkingStreaming
+      await options.onEvent({
+        blockId: 'agent-1',
+        event: 'tool',
+        phase: 'end',
+        id: 't1',
+        name: 'get_weather',
+        status: 'success',
+      })
+      await options.onEvent({
+        event: 'final',
+        data: { success: true, output: {} },
+      })
+    })
+
+    await act(async () => {
+      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
+    })
+    await flushUiBatch()
+
+    expect(midStreamThinking).toBe(false)
+    const assistant = messages.find((m) => m.id === 'msg-assistant-1')
+    expect(assistant?.thinking).toBe('planning…')
+  })
+
   it('ignores non-terminal stream_error frames and keeps streaming', async () => {
     mockReadSSEEvents.mockImplementation(async (_source, options) => {
       await options.onEvent({

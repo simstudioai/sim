@@ -37,15 +37,10 @@ export interface OpenAICompatStreamComplete {
 
 export interface CreateOpenAICompatibleAgentEventStreamOptions {
   providerName: string
-  /** Tag for answer text (default `final`). Use `intermediate` inside tool loops. */
+  /** Tag for answer text (default `final`). */
   turn?: TextDeltaTurn
   /** Emit tool_call_start from delta.tool_calls when id+name known. Default false for no-tools path. */
   emitToolCallStarts?: boolean
-  /**
-   * When true, accumulate text but do not enqueue text_delta until the caller
-   * flushes with a known turn tag (tool loops need this).
-   */
-  bufferTextDeltas?: boolean
   onComplete?: (result: OpenAICompatStreamComplete) => void
 }
 
@@ -92,13 +87,7 @@ export function createOpenAICompatibleAgentEventStream(
   stream: AsyncIterable<ChatCompletionChunk>,
   options: CreateOpenAICompatibleAgentEventStreamOptions
 ): ReadableStream<AgentStreamEvent> {
-  const {
-    providerName,
-    turn = 'final',
-    emitToolCallStarts = false,
-    bufferTextDeltas = false,
-    onComplete,
-  } = options
+  const { providerName, turn = 'final', emitToolCallStarts = false, onComplete } = options
   const streamLogger = createLogger(`${providerName}Utils`)
 
   return new ReadableStream<AgentStreamEvent>({
@@ -150,9 +139,7 @@ export function createOpenAICompatibleAgentEventStream(
           const content = typeof delta?.content === 'string' ? delta.content : ''
           if (content) {
             fullContent += content
-            if (!bufferTextDeltas) {
-              controller.enqueue({ type: 'text_delta', text: content, turn })
-            }
+            controller.enqueue({ type: 'text_delta', text: content, turn })
           }
 
           if (emitToolCallStarts && Array.isArray(delta?.tool_calls)) {

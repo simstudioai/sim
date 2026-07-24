@@ -15,8 +15,31 @@ export type ToolCallEndStatus = 'success' | 'error' | 'cancelled'
 
 export type TextDeltaTurn = 'intermediate' | 'final'
 
+/**
+ * Classification of a `text_delta`:
+ * - `'final'` / omitted — answer text; the pump projects it to the byte stream
+ *   immediately (single-turn adapters, MAX-iterations flush, legacy text streams).
+ * - `'intermediate'` — pre-tool commentary flushed at turn end; never projected.
+ * - `'pending'` — live text from a streaming tool loop whose turn is not yet
+ *   classified. The pump buffers it per turn and projects it only when the
+ *   matching `turn_end` arrives with `turn: 'final'`. Sinks receive it live so
+ *   opted-in clients can render the answer as it streams.
+ */
+export type TextDeltaClassification = TextDeltaTurn | 'pending'
+
 export type AgentStreamEvent =
-  | { type: 'text_delta'; text: string; turn?: TextDeltaTurn }
+  | { type: 'text_delta'; text: string; turn?: TextDeltaClassification }
+  | {
+      /**
+       * Emitted by streaming tool loops when a model turn resolves. Classifies
+       * every `'pending'` text_delta since the previous turn boundary:
+       * `'final'` keeps the text (pump projects it to the byte stream),
+       * `'intermediate'` discards it (tools follow; sinks should clear any
+       * provisionally rendered text).
+       */
+      type: 'turn_end'
+      turn: TextDeltaTurn
+    }
   | { type: 'thinking_delta'; text: string }
   | { type: 'tool_call_start'; id: string; name: string }
   | {
@@ -45,6 +68,10 @@ export function isTextDeltaTurn(value: unknown): value is TextDeltaTurn {
   return value === 'intermediate' || value === 'final'
 }
 
+export function isTextDeltaClassification(value: unknown): value is TextDeltaClassification {
+  return isTextDeltaTurn(value) || value === 'pending'
+}
+
 export function isAgentStreamEvent(value: unknown): value is AgentStreamEvent {
   if (!isRecord(value) || typeof value.type !== 'string') {
     return false
@@ -53,8 +80,11 @@ export function isAgentStreamEvent(value: unknown): value is AgentStreamEvent {
   switch (value.type) {
     case 'text_delta':
       return (
-        typeof value.text === 'string' && (value.turn === undefined || isTextDeltaTurn(value.turn))
+        typeof value.text === 'string' &&
+        (value.turn === undefined || isTextDeltaClassification(value.turn))
       )
+    case 'turn_end':
+      return isTextDeltaTurn(value.turn)
     case 'thinking_delta':
       return typeof value.text === 'string'
     case 'tool_call_start':

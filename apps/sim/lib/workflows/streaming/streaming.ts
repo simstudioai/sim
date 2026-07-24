@@ -29,6 +29,7 @@ import {
   AGENT_STREAM_PROTOCOL_HEADER,
   AGENT_STREAM_PROTOCOL_V1,
   type ChatStreamChunkFrame,
+  type ChatStreamChunkResetFrame,
   type ChatStreamErrorFrame,
   type ChatStreamFinalFrame,
   type ChatStreamStreamErrorFrame,
@@ -59,11 +60,15 @@ const SELECTED_OUTPUT_TOO_LARGE_MESSAGE =
  * Simple SSE stream contract — frame shapes are the `ChatStreamFrame` union in
  * `agent-stream-protocol.ts`, consumed by both these emitters and the chat client:
  * - Answer text: `{ blockId, chunk }` only (`chunk` is forever answer text).
+ *   Legacy clients get settled final-turn text; dual-gated clients get answer
+ *   text live from the agent-events sink, reconciled by
+ *   `{ blockId, event: 'chunk_reset' }` when a turn resolves to tool calls.
  * - Thinking (opt-in): `{ blockId, event: 'thinking', data }` — never uses `chunk`.
  * - Success terminal: `{ event: 'final', data }` then `[DONE]`.
  * - Failure terminal: exactly one `{ event: 'error', ... }` then `[DONE]`. No `final` after failure.
  * - Mid-block read issues may emit non-terminal `{ event: 'stream_error', blockId, error }`.
- * - Thinking never enters `streamedChunks` / log rewrite / tokenization.
+ * - Thinking never enters `streamedChunks` / log rewrite / tokenization — the
+ *   log/tokenization source is always the byte stream (final-turn text only).
  */
 
 interface StreamingConfig {
@@ -548,6 +553,33 @@ export async function createStreamingResponse(
           return
         }
 
+        /**
+         * Dual-gated clients get answer text live from the sink (pending deltas
+         * stream as the model generates; `chunk_reset` clears an intermediate
+         * turn). The byte stream then only feeds `streamedChunks` for logs.
+         * Response-format projections rewrite the bytes, so those blocks keep
+         * the byte stream as the frame source.
+         */
+        const sinkAnswerText =
+          emitAgentEvents &&
+          Boolean(streamingExec.subscribe) &&
+          streamingExec.clientStreamTransformed !== true
+
+        /** False until the first chunk since block start or since a reset. */
+        let emittedSinceReset = false
+
+        const emitAnswerChunk = (text: string) => {
+          if (!text) return
+          if (!emittedSinceReset) {
+            // sendChunk adds the cross-block separator + output bookkeeping.
+            sendChunk(blockId, text)
+            emittedSinceReset = true
+          } else {
+            const frame: ChatStreamChunkFrame = { blockId, chunk: text }
+            controller.enqueue(encodeSSE(frame))
+          }
+        }
+
         let unsubscribe: (() => void) | undefined
         if (emitAgentEvents && streamingExec.subscribe) {
           unsubscribe = streamingExec.subscribe({
@@ -558,6 +590,18 @@ export async function createStreamingResponse(
                 sendTool(blockId, 'start', event.id, event.name)
               } else if (event.type === 'tool_call_end') {
                 sendTool(blockId, 'end', event.id, event.name, event.status)
+              } else if (sinkAnswerText && event.type === 'text_delta') {
+                if (event.turn !== 'intermediate') {
+                  emitAnswerChunk(event.text)
+                }
+              } else if (sinkAnswerText && event.type === 'turn_end') {
+                if (event.turn === 'intermediate' && emittedSinceReset) {
+                  const frame: ChatStreamChunkResetFrame = { blockId, event: 'chunk_reset' }
+                  controller.enqueue(encodeSSE(frame))
+                  // Re-arm separator bookkeeping so re-streamed text starts clean.
+                  emittedSinceReset = false
+                  state.processedOutputs.delete(blockId)
+                }
               }
             },
           })
@@ -565,7 +609,6 @@ export async function createStreamingResponse(
 
         const reader = streamingExec.stream.getReader()
         const decoder = new TextDecoder()
-        let isFirstChunk = true
 
         try {
           while (true) {
@@ -581,12 +624,8 @@ export async function createStreamingResponse(
             }
             state.streamedChunks.get(blockId)!.push(textChunk)
 
-            if (isFirstChunk) {
-              sendChunk(blockId, textChunk)
-              isFirstChunk = false
-            } else {
-              const frame: ChatStreamChunkFrame = { blockId, chunk: textChunk }
-              controller.enqueue(encodeSSE(frame))
+            if (!sinkAnswerText) {
+              emitAnswerChunk(textChunk)
             }
           }
         } catch (error) {

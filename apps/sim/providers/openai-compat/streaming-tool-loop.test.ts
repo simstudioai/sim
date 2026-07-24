@@ -257,7 +257,16 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
     expect(createStream).toHaveBeenCalledTimes(2)
     expect(toolChoices[0]).toEqual({ type: 'function', function: { name: 'lookup' } })
     expect(toolChoices[1]).toBe('auto')
-    expect(events.some((e) => e.type === 'text_delta' && e.text === 'final answer')).toBe(true)
+    // Text streams live as `pending`; turn_end classifies each turn.
+    expect(
+      events.some(
+        (e) => e.type === 'text_delta' && e.text === 'final answer' && e.turn === 'pending'
+      )
+    ).toBe(true)
+    expect(events.filter((e) => e.type === 'turn_end').map((e) => e.turn)).toEqual([
+      'intermediate',
+      'final',
+    ])
     expect(logger.info).toHaveBeenCalledWith(
       'All forced tools have been used, switching to auto tool_choice'
     )

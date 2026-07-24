@@ -38,7 +38,10 @@ import {
   normalizeAutomaticResumeWaitingReason,
   resolveAutomaticResumeAdmissionFailure,
 } from '@/lib/workflows/executor/resume-policy'
-import { forwardAgentStreamToExecutionEvents } from '@/lib/workflows/streaming/forward-agent-stream-events'
+import {
+  forwardAgentStreamToExecutionEvents,
+  shouldForwardAnswerTextFromSink,
+} from '@/lib/workflows/streaming/forward-agent-stream-events'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
   ChildWorkflowContext,
@@ -1423,11 +1426,16 @@ export class PauseResumeManager {
           : undefined
         const blockId = typeof blockIdValue === 'string' ? blockIdValue : ''
 
+        // Live answer text rides the sink when available; the byte stream is
+        // then drained without re-emitting chunks (same final-turn content).
+        const answerTextFromSink = shouldForwardAnswerTextFromSink(streamingExec)
+
         const unsubscribe = forwardAgentStreamToExecutionEvents(streamingExec, {
           blockId,
           executionId: resumeExecutionId,
           workflowId,
           sendEvent: writeBufferedEvent,
+          forwardAnswerText: answerTextFromSink,
         })
 
         const reader = streamingExec.stream.getReader()
@@ -1436,6 +1444,7 @@ export class PauseResumeManager {
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
+            if (answerTextFromSink) continue
             const chunk = decoder.decode(value, { stream: true })
             await writeBufferedEvent({
               type: 'stream:chunk',

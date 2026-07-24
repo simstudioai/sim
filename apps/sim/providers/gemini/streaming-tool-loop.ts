@@ -3,8 +3,9 @@
  *
  * Each model turn uses generateContentStream. Thought parts → thinking_delta
  * live; functionCall parts → tool_call_start (with local ids when the model
- * omits them); text buffered until the turn is classified intermediate vs
- * final. Tool ends emit in completion order; abort → cancelled.
+ * omits them); text parts → `pending` text deltas live, classified by a
+ * `turn_end` event as intermediate vs final. Tool ends emit in completion
+ * order; abort → cancelled.
  *
  * Function-call parts are echoed back into request history verbatim — Google
  * requires signatures/ids to round-trip exactly as received, so local ids are
@@ -114,12 +115,10 @@ async function drainGeminiTurn(
   thinking: string
   functionCalls: StreamedFunctionCall[]
   usage: GeminiUsage
-  textChunks: string[]
   finishReason?: string
 }> {
   let text = ''
   let thinking = ''
-  const textChunks: string[] = []
   const functionCalls: StreamedFunctionCall[] = []
   const seenKeys = new Set<string>()
   let usage: GeminiUsage = { promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0 }
@@ -140,7 +139,7 @@ async function drainGeminiTurn(
       const fallback = chunk.text
       if (fallback) {
         text += fallback
-        textChunks.push(fallback)
+        controller.enqueue({ type: 'text_delta', text: fallback, turn: 'pending' })
       }
       continue
     }
@@ -166,12 +165,14 @@ async function drainGeminiTurn(
         controller.enqueue({ type: 'thinking_delta', text: part.text })
       } else {
         text += part.text
-        textChunks.push(part.text)
+        // Live pending text: sinks render it now; the pump projects it to the
+        // answer only when this turn's turn_end says 'final'.
+        controller.enqueue({ type: 'text_delta', text: part.text, turn: 'pending' })
       }
     }
   }
 
-  return { text, thinking, functionCalls, usage, textChunks, finishReason }
+  return { text, thinking, functionCalls, usage, finishReason }
 }
 
 /**
@@ -270,9 +271,7 @@ export function createGeminiStreamingToolLoopStream(
           latestPricing = turnCost.pricing
 
           const turnTag = drained.functionCalls.length > 0 ? 'intermediate' : 'final'
-          for (const chunk of drained.textChunks) {
-            controller.enqueue({ type: 'text_delta', text: chunk, turn: turnTag })
-          }
+          controller.enqueue({ type: 'turn_end', turn: turnTag })
           if (drained.text) {
             content = drained.text
           }

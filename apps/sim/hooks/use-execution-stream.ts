@@ -14,6 +14,7 @@ import type {
   ExecutionPausedData,
   ExecutionStartedData,
   StreamChunkData,
+  StreamChunkResetData,
   StreamDoneData,
   StreamThinkingData,
   StreamToolData,
@@ -123,6 +124,9 @@ export async function processSSEStream(
             case 'stream:chunk':
               await callbacks.onStreamChunk?.(event.data)
               break
+            case 'stream:chunk_reset':
+              await callbacks.onStreamChunkReset?.(event.data)
+              break
             case 'stream:done':
               await callbacks.onStreamDone?.(event.data)
               break
@@ -172,6 +176,7 @@ export interface ExecutionStreamCallbacks {
   onBlockError?: (data: BlockErrorData) => void | Promise<void>
   onBlockChildWorkflowStarted?: (data: BlockChildWorkflowStartedData) => void | Promise<void>
   onStreamChunk?: (data: StreamChunkData) => void | Promise<void>
+  onStreamChunkReset?: (data: StreamChunkResetData) => void | Promise<void>
   onStreamDone?: (data: StreamDoneData) => void | Promise<void>
   onStreamThinking?: (data: StreamThinkingData) => void | Promise<void>
   onStreamTool?: (data: StreamToolData) => void | Promise<void>

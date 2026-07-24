@@ -26,10 +26,27 @@ export const AGENT_STREAM_PROTOCOL_V1 = 'agent-events-v1' as const
 
 export type AgentStreamProtocol = typeof AGENT_STREAM_PROTOCOL_V1
 
-/** Final-turn answer text. The only frame legacy clients append to the answer. */
+/**
+ * Answer text. The only frame legacy clients append to the answer.
+ *
+ * Legacy clients (no protocol header) receive only settled final-turn text.
+ * Dual-gated clients receive answer text live as it streams — including text
+ * from a turn that may later resolve to tool calls — reconciled by
+ * {@link ChatStreamChunkResetFrame} when a turn turns out to be intermediate.
+ */
 export interface ChatStreamChunkFrame {
   blockId: string
   chunk: string
+}
+
+/**
+ * Dual-gated only: the live-streamed answer text for `blockId` belonged to an
+ * intermediate turn (tool calls follow). Clients discard the block's
+ * accumulated answer text; the final turn re-streams after tools settle.
+ */
+export interface ChatStreamChunkResetFrame {
+  blockId: string
+  event: 'chunk_reset'
 }
 
 /** Thinking / reasoning-summary delta. Dual-gated; never reuses `chunk`. */
@@ -76,6 +93,7 @@ export interface ChatStreamStreamErrorFrame {
  */
 export type ChatStreamFrame =
   | ChatStreamChunkFrame
+  | ChatStreamChunkResetFrame
   | ChatStreamThinkingFrame
   | ChatStreamToolFrame
   | ChatStreamFinalFrame
@@ -99,6 +117,11 @@ export function isChatChunkFrame(value: unknown): value is ChatStreamChunkFrame 
     value.chunk.length > 0 &&
     value.event === undefined
   )
+}
+
+export function isChatChunkResetFrame(value: unknown): value is ChatStreamChunkResetFrame {
+  if (!isRecord(value)) return false
+  return value.event === 'chunk_reset' && typeof value.blockId === 'string'
 }
 
 export function isChatThinkingFrame(value: unknown): value is ChatStreamThinkingFrame {

@@ -121,12 +121,17 @@ describe('createBedrockStreamingToolLoopStream', () => {
     expect(events.filter((e) => e.type === 'tool_call_end')).toEqual([
       { type: 'tool_call_end', id: 'tooluse_1', name: 'http_request', status: 'success' },
     ])
+    // Text streams live as `pending`; the turn_end sequence classifies turns.
     expect(
       events
-        .filter((e) => e.type === 'text_delta' && e.turn === 'final')
+        .filter((e) => e.type === 'text_delta' && e.turn === 'pending')
         .map((e) => e.text)
         .join('')
     ).toBe('Request completed.')
+    expect(events.filter((e) => e.type === 'turn_end').map((e) => e.turn)).toEqual([
+      'intermediate',
+      'final',
+    ])
 
     expect(onComplete).toHaveBeenCalledWith(
       expect.objectContaining({

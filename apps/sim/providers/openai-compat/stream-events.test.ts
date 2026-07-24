@@ -95,16 +95,21 @@ describe('createOpenAICompatibleAgentEventStream', () => {
     ])
   })
 
-  it('buffers text deltas when bufferTextDeltas is true', async () => {
+  it('always enqueues text deltas live and assembles content for onComplete', async () => {
     const onComplete = vi.fn()
     const stream = createOpenAICompatibleAgentEventStream(
       (async function* () {
         yield* openaiCompatTextOnlyChunks as any
       })(),
-      { providerName: 'DeepSeek', bufferTextDeltas: true, onComplete }
+      { providerName: 'DeepSeek', onComplete }
     )
     const events = await collectEvents(stream)
-    expect(events.some((e) => e.type === 'text_delta')).toBe(false)
+    expect(
+      events
+        .filter((e) => e.type === 'text_delta')
+        .map((e) => e.text)
+        .join('')
+    ).toBe('Hello world')
     expect(onComplete.mock.calls[0][0].content).toBe('Hello world')
   })
 })

@@ -1,8 +1,8 @@
 /**
  * @vitest-environment node
  *
- * Anthropic streaming tool loop — live tool_call_start/end, final-turn-only
- * answer text, abort → cancelled, per-turn usage accumulation.
+ * Anthropic streaming tool loop — live tool_call_start/end, live `pending`
+ * text classified by turn_end, abort → cancelled, per-turn usage accumulation.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -90,7 +90,7 @@ describe('createAnthropicStreamingToolLoopStream', () => {
     })
   })
 
-  it('emits tool_call_start/end, intermediate then final text, and accumulates usage', async () => {
+  it('emits tool_call_start/end, live pending text with turn_end classification, and accumulates usage', async () => {
     const toolTurnEvents = anthropicThinkingTextToolStreamEvents
     const toolTurnMessage = makeFinalMessage({
       content: [
@@ -198,10 +198,22 @@ describe('createAnthropicStreamingToolLoopStream', () => {
       status: 'success',
     })
 
+    // All text streams live as `pending`; the pump classifies via turn_end.
     const textEvents = events.filter((e) => e.type === 'text_delta')
-    expect(textEvents.some((e) => e.turn === 'intermediate')).toBe(true)
-    expect(textEvents.some((e) => e.turn === 'final')).toBe(true)
-    expect(textEvents.find((e) => e.turn === 'final')?.text).toContain('68°F')
+    expect(textEvents.every((e) => e.turn === 'pending')).toBe(true)
+    expect(textEvents.some((e) => e.text.includes('Let me check'))).toBe(true)
+    expect(textEvents.some((e) => e.text.includes('68°F'))).toBe(true)
+
+    const turnEnds = events.filter((e) => e.type === 'turn_end')
+    expect(turnEnds.map((e) => e.turn)).toEqual(['intermediate', 'final'])
+
+    // Ordering: the tool turn's pending text precedes its intermediate turn_end,
+    // and the final turn's text precedes the final turn_end.
+    const eventKinds = events.map((e) =>
+      e.type === 'turn_end' ? `turn_end:${e.turn}` : e.type === 'text_delta' ? 'text' : e.type
+    )
+    expect(eventKinds.indexOf('text')).toBeLessThan(eventKinds.indexOf('turn_end:intermediate'))
+    expect(eventKinds.lastIndexOf('text')).toBeLessThan(eventKinds.indexOf('turn_end:final'))
 
     // Assistant history must keep thinking signature for multi-iteration round-trip.
     const secondPayload = anthropic.messages.stream.mock.calls[1][0]

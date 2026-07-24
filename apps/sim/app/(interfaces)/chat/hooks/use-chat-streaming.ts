@@ -14,6 +14,7 @@ import { readSSEEvents } from '@/lib/core/utils/sse'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
   isChatChunkFrame,
+  isChatChunkResetFrame,
   isChatErrorFrame,
   isChatFinalFrame,
   isChatStreamErrorFrame,
@@ -182,7 +183,19 @@ export function useChatStreaming() {
       return
     }
 
+    /**
+     * Answer text tracked per block so a `chunk_reset` (dual-gated streams:
+     * a live-streamed turn resolved to tool calls) can clear one block's
+     * contribution. `accumulatedText` is re-derived on every mutation —
+     * cross-block separators arrive baked into the chunks.
+     */
+    const blockTextOrder: string[] = []
+    const blockTextSegments = new Map<string, string>()
     let accumulatedText = ''
+    const recomputeAccumulatedText = () => {
+      accumulatedText = blockTextOrder.map((id) => blockTextSegments.get(id) ?? '').join('')
+      accumulatedTextRef.current = accumulatedText
+    }
     let accumulatedThinking = ''
     let isThinkingStreaming = false
     let lastAudioPosition = 0
@@ -355,6 +368,11 @@ export function useChatStreaming() {
             const { blockId } = json
             if (!messageIdMap.has(blockId)) {
               messageIdMap.set(blockId, messageId)
+            }
+            // Tools starting means the turn's thinking phase is over — settle
+            // the thinking chrome (it re-opens if more thinking streams later).
+            if (json.phase === 'start' && isThinkingStreaming) {
+              isThinkingStreaming = false
             }
             applyToolCallPhase(
               toolCallsMap,
@@ -531,6 +549,21 @@ export function useChatStreaming() {
             return true
           }
 
+          if (isChatChunkResetFrame(json)) {
+            // The block's live-streamed text belonged to an intermediate turn
+            // (tool calls follow); drop it — the final turn re-streams after.
+            const { blockId } = json
+            if (blockTextSegments.has(blockId)) {
+              blockTextSegments.set(blockId, '')
+              recomputeAccumulatedText()
+              // Spoken audio cannot be unplayed; clamp so slicing stays valid.
+              lastAudioPosition = Math.min(lastAudioPosition, accumulatedText.length)
+              uiDirty = true
+              scheduleUIFlush()
+            }
+            return false
+          }
+
           // Answer text only — never append thinking/tool/unknown chunk frames blindly.
           if (isChatChunkFrame(json)) {
             const { blockId, chunk: contentChunk } = json
@@ -543,8 +576,12 @@ export function useChatStreaming() {
               isThinkingStreaming = false
             }
 
-            accumulatedText += contentChunk
-            accumulatedTextRef.current = accumulatedText
+            if (!blockTextSegments.has(blockId)) {
+              blockTextOrder.push(blockId)
+              blockTextSegments.set(blockId, '')
+            }
+            blockTextSegments.set(blockId, blockTextSegments.get(blockId)! + contentChunk)
+            recomputeAccumulatedText()
             logger.debug('[useChatStreaming] Received chunk', {
               blockId,
               chunkLength: contentChunk.length,

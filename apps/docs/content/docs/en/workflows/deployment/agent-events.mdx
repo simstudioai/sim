@@ -31,7 +31,8 @@ Answer text stays on `chunk`. Thinking and tools never reuse `chunk` (so older c
 
 | Frame | Meaning |
 |-------|---------|
-| `{ "blockId", "chunk": "…" }` | Final-turn answer text only |
+| `{ "blockId", "chunk": "…" }` | Answer text. Legacy clients receive settled final-turn text; opted-in clients receive it live as the model generates (see below) |
+| `{ "blockId", "event": "chunk_reset" }` | Opted-in only: discard the block’s streamed answer text — it belonged to a turn that resolved to tool calls |
 | `{ "blockId", "event": "thinking", "data": "…" }` | Thinking / reasoning summary delta |
 | `{ "blockId", "event": "tool", "phase": "start"\|"end", "id", "name", "status?" }` | Tool lifecycle (no args / results) |
 | `{ "event": "final", "data": … }` | Terminal success envelope |
@@ -39,9 +40,14 @@ Answer text stays on `chunk`. Thinking and tools never reuse `chunk` (so older c
 | `{ "event": "stream_error", "blockId?", "error" }` | Non-terminal mid-block read issue; the stream keeps going |
 | `data: [DONE]` | Stream closed (always follows the terminal `final` or `error` frame) |
 
-### Intermediate-turn text
+### Live answer text and intermediate turns
 
-During a live tool loop, the model may emit preamble text before calling a tool. That text is tagged **intermediate** internally and is **not** projected into the user-facing answer channel. Only the **final** turn’s text appears as `chunk`.
+During a live tool loop, the model can’t be classified mid-turn: text it emits may turn out to be the final answer or preamble before a tool call (the stop reason arrives only at turn end).
+
+- **Opted-in clients** (protocol header + `includeThinking`) receive answer text as `chunk` frames **live**, token by token. If the turn then resolves to tool calls, a `chunk_reset` frame tells the client to discard that block’s streamed text — the final turn re-streams live after tools settle. Append `chunk`, honor `chunk_reset`, and the displayed answer always converges to the block’s final content.
+- **Legacy clients** (no header) never see provisional text: only settled final-turn text is emitted as `chunk`, delivered when the turn completes.
+
+Logs, memory, and the block’s `content` output always contain final-turn text only — intermediate preamble is never persisted.
 
 ### Abort
 
@@ -49,7 +55,7 @@ Client disconnect or Stop aborts the provider stream. In-flight tools settle as 
 
 ### Reconnect
 
-Canvas execution-events `stream:chunk`, `stream:thinking`, and `stream:tool` are **live-only** (not buffered for reconnect replay), same as answer chunks. Guaranteed `seq` replay is out of scope.
+Canvas execution-events `stream:chunk`, `stream:chunk_reset`, `stream:thinking`, and `stream:tool` are **live-only** (not buffered for reconnect replay), same as answer chunks. Guaranteed `seq` replay is out of scope.
 
 ## Canvas (draft Run)
 
@@ -57,7 +63,8 @@ When you click **Run** in the builder, the execution-events SSE path forwards th
 
 - `stream:thinking` — `{ blockId, text }`
 - `stream:tool` — `{ blockId, phase, id, name, status? }`
-- `stream:chunk` — answer text (unchanged)
+- `stream:chunk` — answer text, live on agent-events runs
+- `stream:chunk_reset` — `{ blockId }`; discard the block’s streamed text (intermediate turn)
 
 The terminal output panel shows Thinking / Tools chrome above the block output when those events arrive. PII redaction on block output still disables live forwarding (executor rule).
 

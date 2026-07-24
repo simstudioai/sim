@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
-import { forwardAgentStreamToExecutionEvents } from '@/lib/workflows/streaming/forward-agent-stream-events'
+import {
+  forwardAgentStreamToExecutionEvents,
+  shouldForwardAnswerTextFromSink,
+} from '@/lib/workflows/streaming/forward-agent-stream-events'
 import type { StreamingExecution } from '@/executor/types'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 
@@ -65,7 +68,7 @@ describe('forwardAgentStreamToExecutionEvents', () => {
     expect(unsubscribe).toHaveBeenCalled()
   })
 
-  it('never forwards text deltas (answer text rides the byte stream)', async () => {
+  it('does not forward text deltas by default (answer text rides the byte stream)', async () => {
     let sinkHandler: ((event: AgentStreamEvent) => void | Promise<void>) | undefined
     const sendEvent = vi.fn()
 
@@ -78,6 +81,63 @@ describe('forwardAgentStreamToExecutionEvents', () => {
 
     await sinkHandler!({ type: 'text_delta', text: 'answer', turn: 'final' })
     await sinkHandler!({ type: 'text_delta', text: 'preamble', turn: 'intermediate' })
+    await sinkHandler!({ type: 'turn_end', turn: 'intermediate' })
+    expect(sendEvent).not.toHaveBeenCalled()
+  })
+
+  it('forwardAnswerText streams live text and resets intermediate turns', async () => {
+    let sinkHandler: ((event: AgentStreamEvent) => void | Promise<void>) | undefined
+    const sendEvent = vi.fn()
+
+    forwardAgentStreamToExecutionEvents(
+      makeStreamingExec((handler) => {
+        sinkHandler = handler
+      }),
+      {
+        blockId: 'agent-1',
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        sendEvent,
+        forwardAnswerText: true,
+      }
+    )
+
+    // Turn 1: preamble text, then tools follow → reset.
+    await sinkHandler!({ type: 'text_delta', text: 'Let me check…', turn: 'pending' })
+    await sinkHandler!({ type: 'turn_end', turn: 'intermediate' })
+    // Turn 2: final answer.
+    await sinkHandler!({ type: 'text_delta', text: 'Answer', turn: 'pending' })
+    await sinkHandler!({ type: 'turn_end', turn: 'final' })
+    // Intermediate-tagged deltas never forward.
+    await sinkHandler!({ type: 'text_delta', text: 'hidden', turn: 'intermediate' })
+
+    const calls = sendEvent.mock.calls.map(([event]) => ({ type: event.type, data: event.data }))
+    expect(calls).toEqual([
+      { type: 'stream:chunk', data: { blockId: 'agent-1', chunk: 'Let me check…' } },
+      { type: 'stream:chunk_reset', data: { blockId: 'agent-1' } },
+      { type: 'stream:chunk', data: { blockId: 'agent-1', chunk: 'Answer' } },
+    ])
+  })
+
+  it('skips chunk_reset when no text was forwarded for the turn', async () => {
+    let sinkHandler: ((event: AgentStreamEvent) => void | Promise<void>) | undefined
+    const sendEvent = vi.fn()
+
+    forwardAgentStreamToExecutionEvents(
+      makeStreamingExec((handler) => {
+        sinkHandler = handler
+      }),
+      {
+        blockId: 'agent-1',
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        sendEvent,
+        forwardAnswerText: true,
+      }
+    )
+
+    // Tool-only turn (no text) resolves intermediate — nothing to clear.
+    await sinkHandler!({ type: 'turn_end', turn: 'intermediate' })
     expect(sendEvent).not.toHaveBeenCalled()
   })
 
@@ -94,5 +154,21 @@ describe('forwardAgentStreamToExecutionEvents', () => {
       sendEvent: vi.fn(),
     })
     expect(() => unsub()).not.toThrow()
+  })
+})
+
+describe('shouldForwardAnswerTextFromSink', () => {
+  it('requires a sink and an untransformed client stream', () => {
+    const base = {
+      stream: new ReadableStream(),
+      execution: { success: true, output: {} },
+    } as StreamingExecution
+    const subscribe = () => () => {}
+
+    expect(shouldForwardAnswerTextFromSink(base)).toBe(false)
+    expect(shouldForwardAnswerTextFromSink({ ...base, subscribe })).toBe(true)
+    expect(
+      shouldForwardAnswerTextFromSink({ ...base, subscribe, clientStreamTransformed: true })
+    ).toBe(false)
   })
 })

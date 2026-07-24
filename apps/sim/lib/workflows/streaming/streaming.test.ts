@@ -666,6 +666,8 @@ describe('createStreamingResponse agent-events-v1', () => {
       for (const toolEvent of options.tools ?? []) {
         await sink?.onEvent(toolEvent)
       }
+      // Mirror the pump: text dispatches to the sink first, then projects to bytes.
+      await sink?.onEvent({ type: 'text_delta', text: options.answer, turn: 'final' })
       textController.enqueue(new TextEncoder().encode(options.answer))
       textController.close()
       await onStreamPromise
@@ -805,6 +807,160 @@ describe('createStreamingResponse agent-events-v1', () => {
           (String(event.chunk).includes('toolu_1') || String(event.chunk).includes('get_weather'))
       )
     ).toBe(false)
+  })
+
+  it('dual gate streams pending text live and resets intermediate turns', async () => {
+    const headers = new Headers({
+      'x-sim-stream-protocol': 'agent-events-v1',
+    })
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      requestHeaders: headers,
+      streamConfig: {
+        includeThinking: true,
+        selectedOutputs: ['agent-1_content'],
+      },
+      executeFn: async ({ onStream }) => {
+        let textController!: ReadableStreamDefaultController<Uint8Array>
+        let sink: { onEvent: (event: unknown) => void | Promise<void> } | undefined
+        const textStream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            textController = controller
+          },
+        })
+
+        const onStreamPromise = onStream({
+          stream: textStream,
+          streamFormat: 'text',
+          subscribe: (nextSink: { onEvent: (event: unknown) => void | Promise<void> }) => {
+            sink = nextSink
+            return () => {}
+          },
+          execution: {
+            blockId: 'agent-1',
+            success: true,
+            output: { content: 'Final answer' },
+            logs: [],
+            metadata: {},
+          },
+        } as any)
+
+        // Turn 1: live preamble, then tools follow → intermediate turn_end.
+        await sink?.onEvent({ type: 'text_delta', text: 'Checking…', turn: 'pending' })
+        await sink?.onEvent({ type: 'tool_call_start', id: 'toolu_1', name: 'get_weather' })
+        await sink?.onEvent({ type: 'turn_end', turn: 'intermediate' })
+        await sink?.onEvent({
+          type: 'tool_call_end',
+          id: 'toolu_1',
+          name: 'get_weather',
+          status: 'success',
+        })
+        // Turn 2: live final answer; pump projects it to bytes at turn_end.
+        await sink?.onEvent({ type: 'text_delta', text: 'Final ', turn: 'pending' })
+        await sink?.onEvent({ type: 'text_delta', text: 'answer', turn: 'pending' })
+        await sink?.onEvent({ type: 'turn_end', turn: 'final' })
+        textController.enqueue(new TextEncoder().encode('Final answer'))
+        textController.close()
+        await onStreamPromise
+
+        return {
+          success: true,
+          output: { content: 'Final answer' },
+          logs: [
+            {
+              blockId: 'agent-1',
+              output: { content: '' },
+              startedAt: new Date().toISOString(),
+              endedAt: new Date().toISOString(),
+              durationMs: 1,
+              success: true,
+            },
+          ],
+        } as any
+      },
+    })
+
+    const events = await collectSSEEvents(stream)
+
+    // Live text arrives as chunk frames in stream order, with a reset between turns.
+    const answerFlow = events
+      .filter((event) => event.chunk !== undefined || event.event === 'chunk_reset')
+      .map((event) => (event.event === 'chunk_reset' ? 'RESET' : event.chunk))
+    expect(answerFlow).toEqual(['Checking…', 'RESET', 'Final ', 'answer'])
+
+    // The byte-path flush of the same final text must not duplicate chunk frames.
+    expect(events.filter((event) => event.chunk !== undefined).map((event) => event.chunk)).toEqual(
+      ['Checking…', 'Final ', 'answer']
+    )
+  })
+
+  it('dual gate keeps byte-path chunks for response-format transformed streams', async () => {
+    const headers = new Headers({
+      'x-sim-stream-protocol': 'agent-events-v1',
+    })
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      requestHeaders: headers,
+      streamConfig: {
+        includeThinking: true,
+        selectedOutputs: ['agent-1_content'],
+      },
+      executeFn: async ({ onStream }) => {
+        let textController!: ReadableStreamDefaultController<Uint8Array>
+        let sink: { onEvent: (event: unknown) => void | Promise<void> } | undefined
+        const textStream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            textController = controller
+          },
+        })
+
+        const onStreamPromise = onStream({
+          stream: textStream,
+          streamFormat: 'text',
+          subscribe: (nextSink: { onEvent: (event: unknown) => void | Promise<void> }) => {
+            sink = nextSink
+            return () => {}
+          },
+          clientStreamTransformed: true,
+          execution: {
+            blockId: 'agent-1',
+            success: true,
+            output: { content: '{"answer":"extracted"}' },
+            logs: [],
+            metadata: {},
+          },
+        } as any)
+
+        // Sink text must NOT become chunk frames — bytes are a different projection.
+        await sink?.onEvent({ type: 'text_delta', text: '{"answer":"', turn: 'pending' })
+        await sink?.onEvent({ type: 'text_delta', text: 'extracted"}', turn: 'pending' })
+        await sink?.onEvent({ type: 'turn_end', turn: 'final' })
+        textController.enqueue(new TextEncoder().encode('extracted'))
+        textController.close()
+        await onStreamPromise
+
+        return {
+          success: true,
+          output: { content: '{"answer":"extracted"}' },
+          logs: [
+            {
+              blockId: 'agent-1',
+              output: { content: '' },
+              startedAt: new Date().toISOString(),
+              endedAt: new Date().toISOString(),
+              durationMs: 1,
+              success: true,
+            },
+          ],
+        } as any
+      },
+    })
+
+    const events = await collectSSEEvents(stream)
+    expect(events.filter((event) => event.chunk !== undefined).map((event) => event.chunk)).toEqual(
+      ['extracted']
+    )
+    expect(events.some((event) => event.event === 'chunk_reset')).toBe(false)
   })
 
   it('protocol header without includeThinking does not emit tool frames', async () => {
