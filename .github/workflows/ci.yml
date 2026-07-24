@@ -407,6 +407,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Non-app images sit at 4 vCPU rather than the finer x64 split: the ARM
+        # sizing data is job-level (8 -> 4 for the whole matrix), not per-image,
+        # and this job only runs on push to main — an unprovisioned label would
+        # hang a release in `queued` rather than fail a PR.
         include:
           - dockerfile: ./docker/app.Dockerfile
             image: ghcr.io/simstudioai/simstudio
