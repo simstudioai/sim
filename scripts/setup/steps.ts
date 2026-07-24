@@ -7,6 +7,7 @@ import {
   isTruthy,
   isUsableSecret,
   SECRET_KEYS,
+  secretRequirement,
 } from './env-files.ts'
 import * as p from './prompter.ts'
 import { link, theme } from './theme.ts'
@@ -30,9 +31,8 @@ export function collectSecrets(existing: EnvFile): Record<string, string> {
     }
   }
   if (replaced.length > 0) {
-    p.log.warn(
-      `Replaced ${replaced.join(', ')} — the existing value is not a 64-character hex key, which the app rejects at runtime.`
-    )
+    const detail = replaced.map((key) => `${key} (${secretRequirement(key)})`).join(', ')
+    p.log.warn(`Replaced ${detail} — the app rejects the existing value at runtime.`)
   }
   if (generated.length > 0) {
     p.log.step(`Generated ${generated.join(', ')}`)
