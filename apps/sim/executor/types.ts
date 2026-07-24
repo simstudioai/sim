@@ -10,6 +10,7 @@ import type {
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
+import type { AgentStreamSink, UnsubscribeAgentStreamSink } from '@/providers/stream-events'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
@@ -314,6 +315,11 @@ interface ExecutionMetadata {
   resumeFromSnapshot?: boolean
   resumeTerminalNoop?: boolean
   executionMode?: 'sync' | 'stream' | 'async'
+  /**
+   * Run-level agent-events opt-in (see the snapshot ExecutionMetadata).
+   * Gates streaming tool loops and provider thinking-summary requests.
+   */
+  agentEvents?: boolean
 }
 
 export interface BlockState {
@@ -522,7 +528,32 @@ export interface ExecutionResult {
 }
 
 export interface StreamingExecution {
+  /**
+   * Provider stream payload. Format is declared by {@link streamFormat}:
+   * - `'text'` (default): UTF-8 answer bytes (`ReadableStream<Uint8Array>`)
+   * - `'agent-events-v1'`: in-process `ReadableStream` of `AgentStreamEvent` objects
+   *
+   * Never sniff the payload; always read {@link streamFormat}.
+   * After the executor pump, {@link stream} is always projected UTF-8 answer text.
+   */
   stream: ReadableStream
+  /**
+   * Discriminator for {@link stream}. Defaults to `'text'` when omitted so
+   * existing providers remain byte-stream consumers without changes.
+   */
+  streamFormat?: 'text' | 'agent-events-v1'
+  /**
+   * Optional sink subscription installed synchronously during `onStream` before
+   * the executor pump starts draining. Late subscribers receive future events only.
+   */
+  subscribe?: (sink: AgentStreamSink) => UnsubscribeAgentStreamSink
+  /**
+   * True when {@link stream} is a response-format projection (selected JSON
+   * fields extracted from structured output) rather than raw answer text. Sink
+   * `text_delta` events then do NOT match the byte stream, so consumers must
+   * keep sourcing answer text from {@link stream} instead of the sink.
+   */
+  clientStreamTransformed?: boolean
   execution: ExecutionResult & { isStreaming?: boolean }
   /**
    * Invoked with the assembled response text after the stream drains. Lets agent

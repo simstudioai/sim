@@ -74,6 +74,7 @@ describe('Workflow Chat Status Route', () => {
         authType: 'public',
         allowedEmails: [],
         outputConfigs: [{ blockId: 'agent-1', path: 'content' }],
+        includeThinking: false,
         password: 'secret',
         isActive: true,
       },
@@ -88,5 +89,6 @@ describe('Workflow Chat Status Route', () => {
     expect(data.deployment.id).toBe('chat-1')
     expect(data.deployment.hasPassword).toBe(true)
     expect(data.deployment.outputConfigs).toEqual([{ blockId: 'agent-1', path: 'content' }])
+    expect(data.deployment.includeThinking).toBe(false)
   })
 })

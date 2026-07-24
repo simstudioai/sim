@@ -89,6 +89,11 @@ export interface SolutionsCardRowConfig {
   title: string
   /** Supporting subtitle beneath the title, in the body color, naming "Sim". */
   subtitle: string
+  /**
+   * Optional second subtitle paragraph - a self-contained follow-on point that
+   * would overload {@link subtitle} if merged into it (e.g. self-hosting).
+   */
+  note?: string
   /** The row's single pill CTA. */
   cta: SolutionsPillCta
   /** The cards in this row - 3 or 4. The grid derives its columns from this length. */

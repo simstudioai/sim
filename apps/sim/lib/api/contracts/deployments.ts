@@ -176,6 +176,7 @@ export const chatDetailSchema = z.object({
       })
     )
   ),
+  includeThinking: z.preprocess((value) => value ?? false, z.boolean()),
   customizations: z.preprocess(
     (value) => value ?? undefined,
     z

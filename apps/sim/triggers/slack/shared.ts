@@ -271,7 +271,16 @@ export const slackEventById = new Map<string, SlackEventCatalogEntry>(
   SLACK_EVENT_CATALOG.map((entry) => [entry.id, entry])
 )
 
-/** Dropdown options for the event picker — every event (manifest generated on demand). */
+/**
+ * Event ids the official shared Sim app subscribes to. Single source of truth
+ * for the deploy-time gate that rejects a native Sim-app trigger configured with
+ * an event the shared app can't deliver.
+ */
+export const SIM_SUBSCRIBED_EVENTS: readonly string[] = SLACK_EVENT_CATALOG.filter(
+  (entry) => entry.simSubscribed
+).map((entry) => entry.id)
+
+/** Dropdown options for the event picker — every selectable event. */
 export const SLACK_ALL_EVENT_OPTIONS = SLACK_EVENT_CATALOG.map((entry) => ({
   label: entry.label,
   id: entry.id,

@@ -847,12 +847,6 @@ export interface ShopifyAdjustInventoryParams extends ShopifyBaseParams {
   delta: number
 }
 
-interface ShopifySetInventoryParams extends ShopifyBaseParams {
-  inventoryItemId: string
-  locationId: string
-  quantity: number
-}
-
 // Fulfillment Tool Params
 export interface ShopifyCreateFulfillmentParams extends ShopifyBaseParams {
   fulfillmentOrderId: string

@@ -7,8 +7,8 @@
 # Prerequisites:
 #   - AKS cluster (Kubernetes 1.25+)
 #   - NGINX ingress controller installed
-#   - (optional) cert-manager for TLS
-#   - (optional) GPU node pool labeled with role: datalake / accelerator: nvidia
+#   - cert-manager installed with a ClusterIssuer (issues the ingress TLS secret)
+#   - (optional) GPU node pool tainted with sku=gpu:NoSchedule for Ollama
 #
 # Install:
 #   helm install sim ./helm/sim \
@@ -127,7 +127,11 @@ app:
 # Realtime service
 realtime:
   enabled: true
-  replicaCount: 2
+  # Keep realtime at 1 replica unless REDIS_URL is set (in app.env — realtime
+  # shares the app secret): Socket.IO only bridges events across pods through
+  # its Redis adapter, so multi-replica realtime without Redis silently drops
+  # cross-pod collaboration updates.
+  replicaCount: 1
 
   # Node selector for realtime pods
   # Uncomment and customize based on your AKS node labels:
@@ -242,6 +246,10 @@ ingress:
 
   annotations:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # cert-manager issues the certificate into ingress.tls.secretName below —
+    # without this annotation (and cert-manager installed) nginx serves its
+    # self-signed fake certificate forever.
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
 
   # Main application
   app:

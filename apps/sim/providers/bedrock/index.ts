@@ -15,9 +15,10 @@ import {
 } from '@aws-sdk/client-bedrock-runtime'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import type { IterationToolCall, StreamingExecution } from '@/executor/types'
+import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { buildBedrockMessageContent } from '@/providers/attachments'
+import { createBedrockStreamingToolLoopStream } from '@/providers/bedrock/streaming-tool-loop'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromBedrockStream,
@@ -347,7 +348,66 @@ export const bedrockProvider: ProviderConfig = {
       inferenceConfig.maxTokens = Number.parseInt(String(request.maxTokens))
     }
 
-    const shouldStreamToolCalls = request.streamToolCalls ?? false
+    /**
+     * The live tool loop cannot honor responseFormat — structured output on
+     * Bedrock rides a final forced `structured_output` tool call that only the
+     * silent loop performs — so those requests fall back to the silent path.
+     */
+    const shouldStreamToolCalls = (request.streamToolCalls ?? false) && !request.responseFormat
+
+    if (request.stream && shouldStreamToolCalls && bedrockTools && bedrockTools.length > 0) {
+      logger.info('Using streaming tool loop for Bedrock request')
+
+      const providerStartTime = Date.now()
+      const providerStartTimeISO = new Date(providerStartTime).toISOString()
+      const timeSegments: TimeSegment[] = []
+      const forcedTools = preparedTools?.forcedTools || []
+
+      return createStreamingExecution({
+        model: request.model,
+        providerStartTime,
+        providerStartTimeISO,
+        timing: {
+          kind: 'accumulated',
+          modelTime: 0,
+          toolsTime: 0,
+          firstResponseTime: 0,
+          iterations: 1,
+          timeSegments,
+        },
+        initialTokens: { input: 0, output: 0, total: 0 },
+        initialCost: { total: 0.0, input: 0.0, output: 0.0 },
+        isStreaming: true,
+        streamFormat: 'agent-events-v1',
+        createStream: ({ output, finalizeTiming }) =>
+          createBedrockStreamingToolLoopStream({
+            client,
+            modelId: bedrockModelId,
+            request,
+            messages,
+            system: systemPromptWithSchema.length > 0 ? systemPromptWithSchema : undefined,
+            inferenceConfig,
+            bedrockTools,
+            toolChoice,
+            logger,
+            timeSegments,
+            forcedTools,
+            onComplete: (result) => {
+              output.content = result.content
+              output.tokens = result.tokens
+              output.cost = result.cost
+              output.toolCalls = result.toolCalls as NormalizedBlockOutput['toolCalls']
+              if (output.providerTiming) {
+                output.providerTiming.modelTime = result.modelTime
+                output.providerTiming.toolsTime = result.toolsTime
+                output.providerTiming.firstResponseTime = result.firstResponseTime
+                output.providerTiming.iterations = result.iterations
+              }
+              finalizeTiming()
+            },
+          }),
+      })
+    }
 
     if (request.stream && (!bedrockTools || bedrockTools.length === 0)) {
       logger.info('Using streaming response for Bedrock request (no tools)')
@@ -380,6 +440,7 @@ export const bedrockProvider: ProviderConfig = {
         initialTokens: { input: 0, output: 0, total: 0 },
         initialCost: { total: 0.0, input: 0.0, output: 0.0 },
         isStreaming: true,
+        streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
           createReadableStreamFromBedrockStream(bedrockStream, (content, usage) => {
             output.content = content
@@ -878,6 +939,7 @@ export const bedrockProvider: ProviderConfig = {
           toolCalls:
             toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
           isStreaming: true,
+          streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
             createReadableStreamFromBedrockStream(bedrockStream, (streamContent, usage) => {
               output.content = streamContent

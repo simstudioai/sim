@@ -240,6 +240,7 @@ export const vllmProvider: ProviderConfig = {
           timing: { kind: 'simple', segmentName: request.model },
           initialTokens: { input: 0, output: 0, total: 0 },
           initialCost: { input: 0, output: 0, total: 0 },
+          streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
             createReadableStreamFromVLLMStream(streamResponse, (content, usage) => {
               let cleanContent = content
@@ -582,6 +583,7 @@ export const vllmProvider: ProviderConfig = {
                   count: toolCalls.length,
                 }
               : undefined,
+          streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
             createReadableStreamFromVLLMStream(streamResponse, (content, usage) => {
               let cleanContent = content

@@ -3,7 +3,7 @@ slug: apache-2-0-vs-fair-code
 title: "Apache 2.0 vs Fair-Code: Why Sim's License Beats n8n's for Self-Hosting"
 description: Apache 2.0 vs n8n's fair-code Sustainable Use License - what OSI open source actually means, what each license permits for self-hosting, embedding, and resale, and how Sim, n8n, Dify, and Zapier compare.
 date: 2026-07-14
-updated: 2026-07-14
+updated: 2026-07-23
 authors:
   - andrew
 readingTime: 9
@@ -39,19 +39,19 @@ If "open source" is part of your decision, the license is the detail that decide
 
 ## What "open source" actually means
 
-The term has a formal definition maintained by the Open Source Initiative. To qualify, a license must allow free use, modification, and redistribution with no restriction on the field of use, commercial use included. Apache 2.0, MIT, GPL, and MPL all clear that bar. Under any of them you can run the software for any purpose, including building a competing product, and no one can revoke that right later.
+The term has a [formal definition](https://opensource.org/osd) maintained by the Open Source Initiative. To qualify, a license must allow free use, modification, and redistribution with no restriction on the field of use, commercial use included. Apache 2.0, MIT, GPL, and MPL all clear that bar. Under any of them you can run the software for any purpose, including building a competing product, and no one can revoke that right later.
 
 "Source available" is a different thing. You can read the code and often modify it, but the license attaches conditions an OSI-approved license would not permit. The code sits on GitHub, which feels open, but the legal rights are narrower than the label suggests.
 
 ## Fair-code and the Sustainable Use License
 
-"Fair-code" is a term n8n popularized. It is not an OSI category. n8n's core ships under the Sustainable Use License, which grants broad rights for internal business use and self-hosting but restricts using the software to offer a competing hosted service or to redistribute it as a commercial product.
+"Fair-code" is a term n8n popularized. It is not an OSI category. n8n's core ships under the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license) ([full text in the repo](https://github.com/n8n-io/n8n/blob/master/LICENSE.md)), which grants broad rights for internal business use and self-hosting but restricts using the software to offer a competing hosted service or to redistribute it as a commercial product.
 
 That model is legitimate and widely adopted. n8n uses it to stop cloud providers from wrapping the open code and reselling it at scale, which is a real commercial risk permissive licenses do nothing about. Calling fair-code a lesser license misreads it. It solves a different problem than Apache 2.0 does, and for a team automating its own operations, the internal-use grant covers everything they need. The distinction only turns decisive when your plans cross the line the license draws.
 
 ## What Apache 2.0 unlocks that fair-code restricts
 
-Apache 2.0 permits four things the Sustainable Use License holds back, and each maps to a concrete plan.
+[Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0) permits four things the Sustainable Use License holds back, and each maps to a concrete plan.
 
 **Run it as a multi-tenant service.** Spin up one Sim deployment, put separate customer workspaces on it, charge for access, and Apache 2.0 permits that with no commercial conversation. Hosting the product as a paid multi-tenant service for other people is the exact use a fair-code license carves out.
 
@@ -129,3 +129,5 @@ The right license depends on what you plan to do with the software, not on which
 - **Automating internal deterministic workflows and never reselling or multi-tenanting?** n8n's Sustainable Use License permits exactly that, and its community edition is the right starting point.
 
 For the Sim path, [start with `npx simstudio`](https://sim.ai) to run locally, then move to Docker or Kubernetes for production. For internal-automation-only, n8n's community edition covers the job without cost or friction.
+
+If licensing is what pushed you to look elsewhere, [10 best n8n alternatives](/library/n8n-alternatives) and [open-source AI agent platforms](/library/open-source-ai-agent-platforms) both compare the field with license terms called out explicitly.

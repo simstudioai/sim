@@ -32,6 +32,7 @@ Configure the following fields, then click **Launch Chat**:
 | **Output** | Output fields from your workflow blocks returned as the chat response. At least one must be selected. |
 | **Welcome Message** | Greeting shown before the user sends their first message. Defaults to `"Hi there! How can I help you today?"`. |
 | **Access Control** | Controls who can access the chat. See [Access Control](#access-control) below. |
+| **Include thinking** | When enabled, the hosted chat can show provider-exposed thinking and tool lifecycle (name + status). Requires the chat client to send `X-Sim-Stream-Protocol: agent-events-v1` (the hosted UI always does). Default is off. See [Agent stream events](/docs/workflows/deployment/agent-events). |
 
 ### Output Selection
 

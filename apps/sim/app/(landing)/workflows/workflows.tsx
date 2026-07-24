@@ -58,7 +58,7 @@ const WORKFLOWS_CONFIG: SolutionsPageConfig = {
   rows: [
     {
       id: 'build',
-      title: 'Build agents the way that fits.',
+      title: 'Build AI agents the way that fits.',
       subtitle:
         'Sim lets teams build agents visually, in natural language, or with code, wiring up any model and 1,000+ integrations in one workspace.',
       cta: { label: 'Explore the workflow builder', href: '/signup' },

@@ -86,8 +86,8 @@ export function Hero() {
         headingId='hero-heading'
         heading={
           <>
-            Sim is the AI workspace <br />
-            for building AI agents.
+            Sim is the AI workspace for <br />
+            building and managing AI agents.
           </>
         }
         description='Open source, with 1,000+ integrations and every major LLM. Build, deploy, and manage agents visually, conversationally, or with code.'

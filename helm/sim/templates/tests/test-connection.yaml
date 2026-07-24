@@ -25,7 +25,7 @@ spec:
       type: RuntimeDefault
   containers:
     - name: probe
-      image: "{{ .Values.tests.image.repository }}:{{ .Values.tests.image.tag }}"
+      image: {{ include "sim.image" (dict "imageRoot" .Values.tests.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
       imagePullPolicy: {{ .Values.tests.image.pullPolicy }}
       securityContext:
         allowPrivilegeEscalation: false

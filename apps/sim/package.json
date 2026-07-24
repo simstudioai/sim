@@ -36,7 +36,7 @@
   "dependencies": {
     "@1password/sdk": "0.3.1",
     "@a2a-js/sdk": "1.0.0-alpha.0",
-    "@anthropic-ai/sdk": "0.71.2",
+    "@anthropic-ai/sdk": "0.114.0",
     "@aws-sdk/client-appconfigdata": "3.1032.0",
     "@aws-sdk/client-athena": "3.1032.0",
     "@aws-sdk/client-bedrock-runtime": "3.1032.0",
@@ -65,6 +65,7 @@
     "@browserbasehq/stagehand": "^3.2.1",
     "@calcom/embed-react": "1.5.3",
     "@cerebras/cerebras_cloud_sdk": "^1.23.0",
+    "@daytonaio/sdk": "0.197.0",
     "@e2b/code-interpreter": "^2.0.0",
     "@earendil-works/pi-ai": "0.80.10",
     "@earendil-works/pi-coding-agent": "0.80.10",
@@ -178,7 +179,7 @@
     "mongodb": "6.19.0",
     "mysql2": "3.14.3",
     "neo4j-driver": "6.0.1",
-    "next": "16.2.6",
+    "next": "16.2.11",
     "next-mdx-remote": "^6.0.0",
     "next-runtime-env": "3.3.0",
     "next-themes": "^0.4.6",
@@ -264,8 +265,8 @@
     "sharp"
   ],
   "overrides": {
-    "next": "16.2.6",
-    "@next/env": "16.2.6",
+    "next": "16.2.11",
+    "@next/env": "16.2.11",
     "mermaid": "11.15.0",
     "react-floater": {
       "react": "$react",

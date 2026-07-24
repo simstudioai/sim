@@ -94,10 +94,6 @@
                 "name": {
                   "type": "string",
                   "description": "Name of the existing Kubernetes secret"
-                },
-                "keys": {
-                  "type": "object",
-                  "description": "Key name mappings in the existing secret"
                 }
               }
             }
@@ -577,10 +573,6 @@
                 "name": {
                   "type": "string",
                   "description": "Name of the existing Kubernetes secret"
-                },
-                "passwordKey": {
-                  "type": "string",
-                  "description": "Key in the secret containing the password"
                 }
               }
             }
@@ -634,10 +626,6 @@
             "name": {
               "type": "string",
               "description": "Name of the existing Kubernetes secret"
-            },
-            "passwordKey": {
-              "type": "string",
-              "description": "Key in the secret containing the password"
             }
           }
         }

@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import { SITE_URL } from '@/lib/core/utils/urls'
-import { HOME_PAGE_DESCRIPTION } from '@/app/(landing)/components/home-structured-data'
+import {
+  HOME_PAGE_DESCRIPTION,
+  HOME_PAGE_TITLE,
+} from '@/app/(landing)/components/home-structured-data'
 import Landing from '@/app/(landing)/landing'
 
 export const revalidate = 3600
@@ -8,7 +11,7 @@ export const revalidate = 3600
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    absolute: 'Sim, The AI Workspace | Build, Deploy & Manage AI Agents',
+    absolute: HOME_PAGE_TITLE,
   },
   description: HOME_PAGE_DESCRIPTION,
   keywords:
@@ -22,7 +25,7 @@ export const metadata: Metadata = {
     telephone: false,
   },
   openGraph: {
-    title: 'Sim, The AI Workspace | Build, Deploy & Manage AI Agents',
+    title: HOME_PAGE_TITLE,
     description: HOME_PAGE_DESCRIPTION,
     type: 'website',
     url: SITE_URL,
@@ -42,7 +45,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     site: '@simdotai',
     creator: '@simdotai',
-    title: 'Sim, The AI Workspace | Build, Deploy & Manage AI Agents',
+    title: HOME_PAGE_TITLE,
     description: HOME_PAGE_DESCRIPTION,
     images: {
       url: '/logo/426-240/reverse/small.png',

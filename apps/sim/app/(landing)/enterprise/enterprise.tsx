@@ -50,7 +50,7 @@ import {
  * `WebPage.description` via {@link SolutionsPageConfig.seoDescription}.
  */
 export const ENTERPRISE_SEO_DESCRIPTION =
-  'Sim is the AI workspace where teams build, deploy, and govern enterprise AI agents with SOC2, role-based access, audit trails, and 1,000+ integrations.'
+  'Build and govern enterprise AI agents in Sim with SSO, approvals, audit trails, versioning, and 1,000+ integrations.'
 
 const ENTERPRISE_CONFIG: SolutionsPageConfig = {
   module: 'Enterprise',
@@ -60,9 +60,9 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
   hero: {
     heading: 'Sim is the AI workspace for enterprise AI agents.',
     description:
-      'IT, operations, and technical teams build, deploy, and govern agents in Sim, with SOC2, role-based access, approvals, and full audit trails.',
+      'The enterprise AI agent platform. Build, deploy, and govern agents with role-based access, approvals, and full audit trails.',
     summary:
-      'Sim is the open-source AI workspace where IT, operations, and technical teams build, deploy, and govern enterprise AI agents. Connect 1,000+ integrations and every major LLM, with role-based access, approvals, versioning, and full audit trails.',
+      'Sim is the open-source AI workspace where IT, operations, and technical teams build, deploy, and govern enterprise AI agents across 1,000+ integrations and every major LLM. An enterprise AI agent uses AI models, business data, and connected tools to complete multi-step work within the permissions, approval policies, and human oversight your organization defines.',
     /**
      * The shared {@link PlatformHeroVisual} backdrop-plus-demo-window
      * composition, filled by the {@link EnterprisePlatformLoop} - a sibling of
@@ -80,14 +80,15 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
   rows: [
     {
       id: 'build',
-      title: 'Build, Deploy, and Manage AI Agents in One Workspace',
+      title: 'Build, Deploy, and Manage Enterprise AI Agents',
       subtitle:
-        'Sim carries agents from first draft to production, with versioning and monitoring built in.',
+        'Sim takes enterprise AI agents from initial design to production in one workspace. Build visually or with code, validate changes, deploy approved versions, and monitor every run without connecting separate development and operations tools.',
       cta: { label: 'Start building', href: SIGNUP_HREF },
       cards: [
         {
           title: 'Build visually or with code',
-          description: "Create agents in Sim's visual builder, through chat, or directly in code.",
+          description:
+            "Create enterprise AI agents in Sim's visual builder, describe the workflow in plain English, or write custom logic directly in code.",
           visual: <BuildMethodsGraphic />,
         },
         {
@@ -100,7 +101,8 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
         },
         {
           title: 'Manage the full lifecycle',
-          description: 'Version, monitor, and edit every agent in Sim as your workflows evolve.',
+          description:
+            'Version, monitor, and update every enterprise AI agent in Sim as your business requirements, integrations, and governance policies evolve.',
           visual: <LifecycleGraphic />,
         },
       ],
@@ -109,7 +111,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
       id: 'governance',
       title: 'Governance and Security for Enterprise AI Agents',
       subtitle:
-        'Sim gives security teams role-based access, approval paths, and a complete audit trail for every deployment.',
+        'Control how enterprise AI agents access data, use tools, and take action. Sim provides SSO, permission groups, approval paths, configurable data retention, and append-only audit logs for every security-relevant change.',
       cta: { label: 'See security', href: DEMO_HREF },
       cards: [
         {
@@ -137,7 +139,8 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
       id: 'deploy',
       title: 'Deploy Enterprise Workflow Agents with Confidence',
       subtitle:
-        'Test in staging, watch live runs, and roll back in seconds. Sim versions every deployment.',
+        'Enterprise workflow agents need controlled release processes. Test changes in staging, observe production runs, version every deployment, and restore a stable version if updates cause an issue.',
+      note: 'Deploy Sim on your own infrastructure with Docker or Kubernetes when your organization requires greater control over its environment and data.',
       cta: { label: 'Explore deployment', href: SIGNUP_HREF },
       cards: [
         {

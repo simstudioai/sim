@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import * as sdk from '@earendil-works/pi-coding-agent'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PiSandboxRunner } from '@/lib/execution/e2b'
+import type { PiSandboxRunner } from '@/lib/execution/remote-sandbox'
 import {
   CLOUD_REVIEW_TOOL_NAMES,
   createCloudReviewTools,

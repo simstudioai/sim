@@ -58,7 +58,7 @@ const mockModelRuntime = {
   removeRuntimeApiKey: mockRemoveRuntimeApiKey,
 }
 
-vi.mock('@/lib/execution/e2b', () => ({
+vi.mock('@/lib/execution/remote-sandbox', () => ({
   withPiSandbox: (fn: (runner: unknown) => unknown) =>
     fn({ run: mockRun, writeFile: mockWriteFile }),
 }))
