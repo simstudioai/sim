@@ -400,7 +400,9 @@ export function useChatStreaming() {
             flushUI()
             const finalData = json.data as ChatFinalData
             isThinkingStreaming = false
-            settleRunningToolCalls(toolCallsMap, 'success')
+            // A failed run can still terminate with `final` (success: false) —
+            // straggler running chips must not settle green in that case.
+            settleRunningToolCalls(toolCallsMap, finalData.success === false ? 'error' : 'success')
             syncToolCallsRef()
             const toolsSnapshot = snapshotToolCalls(toolCallOrder, toolCallsMap)
 

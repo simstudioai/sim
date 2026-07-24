@@ -664,4 +664,28 @@ describe('useChatStreaming tool lifecycle', () => {
 
     expect(messages.find((m) => m.id === 'msg-assistant-1')?.toolCalls?.[0]?.status).toBe('success')
   })
+
+  it('settles straggler running tools to error when final reports failure', async () => {
+    mockReadSSEEvents.mockImplementation(async (_source, options) => {
+      await options.onEvent({
+        blockId: 'agent-1',
+        event: 'tool',
+        phase: 'start',
+        id: 'toolu_open',
+        name: 'http_request',
+      })
+      // Failed runs can still terminate with `final` carrying success: false.
+      await options.onEvent({
+        event: 'final',
+        data: { success: false, error: 'Workflow failed', output: {} },
+      })
+    })
+
+    await act(async () => {
+      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
+    })
+    await flushUiBatch()
+
+    expect(messages.find((m) => m.id === 'msg-assistant-1')?.toolCalls?.[0]?.status).toBe('error')
+  })
 })
