@@ -91,6 +91,29 @@ export const jiraWriteBodySchema = z.object({
   fixVersions: z.array(z.string()).optional(),
 })
 
+export const jiraCustomFieldTypeSchema = z.enum([
+  'text',
+  'number',
+  'select',
+  'multiselect',
+  'userpicker',
+  'multiuserpicker',
+  'cascading',
+  'raw',
+])
+
+/**
+ * One structured custom field to write. `value` is intentionally `unknown` — its
+ * meaning depends on `type` and is serialized into the Jira REST v3 shape by
+ * `serializeJiraCustomField` in the route.
+ */
+export const jiraCustomFieldEntrySchema = z.object({
+  fieldId: z.string().min(1, 'fieldId is required'),
+  type: jiraCustomFieldTypeSchema,
+  value: z.unknown(),
+  child: z.unknown().optional(),
+})
+
 export const jiraUpdateBodySchema = z.object({
   domain: z.string().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
@@ -107,6 +130,7 @@ export const jiraUpdateBodySchema = z.object({
   environment: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
   customFieldId: z.string().optional(),
   customFieldValue: z.string().optional(),
+  customFields: z.array(jiraCustomFieldEntrySchema).max(50).optional(),
   notifyUsers: z.boolean().optional(),
   cloudId: z.string().optional(),
 })

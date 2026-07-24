@@ -91,13 +91,21 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Custom field ID to update (e.g., customfield_10001)',
+      description:
+        'Legacy single custom field ID (e.g., customfield_10001). Sets one field to a raw string value. Prefer `customFields` for structured or multiple fields.',
     },
     customFieldValue: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Value for the custom field',
+      description: 'Raw value for the legacy single custom field. Prefer `customFields`.',
+    },
+    customFields: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Structured custom fields to set, as an array of { fieldId, type, value }. type is one of text | number | select | multiselect | userpicker | multiuserpicker | cascading | raw. Serialization: select→{value} (or {id} for numeric option ids); multiselect→[{value}]; userpicker→{accountId}; multiuserpicker→[{accountId}]; cascading→{value, child:{value}} (value = [parent, child] or {parent, child}); text/number→scalar; raw→passed through untouched.',
     },
     notifyUsers: {
       type: 'boolean',
@@ -136,6 +144,7 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
         environment: params.environment,
         customFieldId: params.customFieldId,
         customFieldValue: params.customFieldValue,
+        customFields: params.customFields,
         notifyUsers: params.notifyUsers,
         cloudId: params.cloudId,
       }

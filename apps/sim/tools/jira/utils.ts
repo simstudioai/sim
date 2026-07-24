@@ -52,6 +52,173 @@ export function toAdf(value: string | Record<string, unknown>): Record<string, u
 }
 
 /**
+ * Supported serialization modes for a Jira custom field. Each maps to the exact
+ * value shape the Jira REST v3 `PUT /issue/{key}` endpoint expects under `fields`.
+ */
+export type JiraCustomFieldType =
+  | 'text'
+  | 'number'
+  | 'select'
+  | 'multiselect'
+  | 'userpicker'
+  | 'multiuserpicker'
+  | 'cascading'
+  | 'raw'
+
+/**
+ * A single structured custom field to write. `fieldId` may be given with or
+ * without the `customfield_` prefix; `child` is an optional explicit child value
+ * for cascading selects (otherwise it is derived from `value`).
+ */
+export interface JiraCustomFieldEntry {
+  fieldId: string
+  type: JiraCustomFieldType
+  value: unknown
+  child?: unknown
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isEmptyScalar(value: unknown): boolean {
+  return value === undefined || value === null || value === ''
+}
+
+/**
+ * Coerces an unknown value into an array. Arrays pass through; empty scalars
+ * become `[]`; any other single value is wrapped in a one-element array.
+ */
+function toValueArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value
+  if (isEmptyScalar(value)) return []
+  return [value]
+}
+
+/**
+ * Resolves the string an option is identified by. If the value is an option
+ * object (`{ value }` / `{ id }`), that inner value is used; otherwise the value
+ * is stringified.
+ */
+function optionValue(value: unknown): string {
+  if (isRecord(value)) {
+    if (value.value !== undefined) return String(value.value)
+    if (value.id !== undefined) return String(value.id)
+  }
+  return String(value)
+}
+
+/**
+ * Serializes a select option: a numeric-looking value is treated as an option
+ * id (`{ id }`), everything else as an option value (`{ value }`). Mirrors the
+ * priority id-or-name heuristic used elsewhere in the Jira tools.
+ */
+function toSelectOption(value: unknown): Record<string, string> {
+  const resolved = optionValue(value)
+  return /^\d+$/.test(resolved) ? { id: resolved } : { value: resolved }
+}
+
+/**
+ * Serializes a cascading select into `{ value: <parent>, child: { value: <child> } }`.
+ * The parent/child pair is taken from an explicit `entry.child`, a `{ parent, child }`
+ * or `{ value, child }` object, or a two-element `[parent, child]` array.
+ */
+function toCascadingOption(entry: JiraCustomFieldEntry): Record<string, unknown> {
+  let parent: unknown = entry.value
+  let child: unknown = entry.child
+
+  if (Array.isArray(entry.value)) {
+    parent = entry.value[0]
+    if (child === undefined) child = entry.value[1]
+  } else if (isRecord(entry.value)) {
+    const rec = entry.value
+    parent = rec.parent !== undefined ? rec.parent : rec.value
+    if (child === undefined) child = rec.child
+  }
+
+  const result: Record<string, unknown> = { value: optionValue(parent) }
+  if (!isEmptyScalar(child)) {
+    result.child = { value: optionValue(child) }
+  }
+  return result
+}
+
+/**
+ * Serializes one custom-field entry into the Jira REST v3 value shape for its type:
+ * - `text` / `raw` → value untouched
+ * - `number` → numeric-string values coerced to a number, otherwise untouched
+ * - `select` → `{ value }` (or `{ id }` for numeric option ids)
+ * - `multiselect` → array of `{ value }` / `{ id }`
+ * - `userpicker` → `{ accountId }`
+ * - `multiuserpicker` → array of `{ accountId }`
+ * - `cascading` → `{ value, child: { value } }`
+ */
+export function serializeJiraCustomField(entry: JiraCustomFieldEntry): unknown {
+  const { type, value } = entry
+  switch (type) {
+    case 'number': {
+      if (typeof value === 'number') return value
+      if (typeof value === 'string' && value.trim() !== '') {
+        const parsed = Number(value)
+        if (Number.isFinite(parsed)) return parsed
+      }
+      return value
+    }
+    case 'select':
+      return toSelectOption(value)
+    case 'multiselect':
+      return toValueArray(value).map(toSelectOption)
+    case 'userpicker':
+      return { accountId: String(value) }
+    case 'multiuserpicker':
+      return toValueArray(value).map((entryValue) => ({ accountId: String(entryValue) }))
+    case 'cascading':
+      return toCascadingOption(entry)
+    default:
+      return value
+  }
+}
+
+function normalizeCustomFieldId(fieldId: string): string {
+  return fieldId.startsWith('customfield_') ? fieldId : `customfield_${fieldId}`
+}
+
+/**
+ * Merges the legacy single `customFieldId` + `customFieldValue` pair with the
+ * structured `customFields` array into a `customfield_XXXXX` → serialized-value
+ * map ready to spread onto the Jira `fields` object. The legacy pair is applied
+ * first as a `raw` passthrough (preserving prior behavior); `customFields` entries
+ * are applied second so they win on `fieldId` collision. Blank entries are skipped.
+ */
+export function buildJiraCustomFields(args: {
+  customFields?: JiraCustomFieldEntry[]
+  legacyFieldId?: string | null
+  legacyValue?: unknown
+}): Record<string, unknown> {
+  const { customFields, legacyFieldId, legacyValue } = args
+  const result: Record<string, unknown> = {}
+
+  if (typeof legacyFieldId === 'string' && legacyFieldId !== '' && !isEmptyScalar(legacyValue)) {
+    result[normalizeCustomFieldId(legacyFieldId)] = serializeJiraCustomField({
+      fieldId: legacyFieldId,
+      type: 'raw',
+      value: legacyValue,
+    })
+  }
+
+  if (Array.isArray(customFields)) {
+    for (const entry of customFields) {
+      if (!entry || typeof entry.fieldId !== 'string' || entry.fieldId === '') continue
+      const valueIsEmpty = !Array.isArray(entry.value) && isEmptyScalar(entry.value)
+      if (entry.type !== 'raw' && valueIsEmpty && entry.child === undefined) continue
+      result[normalizeCustomFieldId(entry.fieldId)] = serializeJiraCustomField(entry)
+    }
+  }
+
+  return result
+}
+
+/**
  * Extracts plain text from Atlassian Document Format (ADF) content.
  * Returns null if content is falsy.
  */
