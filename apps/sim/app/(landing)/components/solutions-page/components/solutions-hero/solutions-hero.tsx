@@ -67,7 +67,6 @@ export function SolutionsHero({ hero, align = 'left', variant = 'solutions' }: S
           heading={hero.heading}
           headingId='solutions-hero-heading'
           description={hero.description}
-          definition={hero.definition}
         />
 
         <div
