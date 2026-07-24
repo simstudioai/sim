@@ -128,6 +128,13 @@ describe('Jira update route custom-field serialization', () => {
     expect(response.status).toBe(400)
   })
 
+  it('rejects an empty multiselect array (clearing is not implicit)', async () => {
+    const { response } = await update({
+      customFields: [{ fieldId: 'customfield_10002', type: 'multiselect', value: [] }],
+    })
+    expect(response.status).toBe(400)
+  })
+
   it('rejects a cascading object that sets both parent and value aliases', async () => {
     const { response } = await update({
       customFields: [

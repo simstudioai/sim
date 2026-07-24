@@ -91,17 +91,6 @@ export const jiraWriteBodySchema = z.object({
   fixVersions: z.array(z.string()).optional(),
 })
 
-export const jiraCustomFieldTypeSchema = z.enum([
-  'text',
-  'number',
-  'select',
-  'multiselect',
-  'userpicker',
-  'multiuserpicker',
-  'cascading',
-  'raw',
-])
-
 const customFieldIdSchema = z.string().min(1, 'fieldId is required')
 
 /**
@@ -182,7 +171,10 @@ export const jiraCustomFieldEntrySchema = z
     z.object({
       fieldId: customFieldIdSchema,
       type: z.literal('multiselect'),
-      value: z.union([z.array(optionInputSchema), optionInputSchema]),
+      value: z.union([
+        z.array(optionInputSchema).min(1, 'multiselect value cannot be empty'),
+        optionInputSchema,
+      ]),
     }),
     z.object({
       fieldId: customFieldIdSchema,
@@ -192,7 +184,10 @@ export const jiraCustomFieldEntrySchema = z
     z.object({
       fieldId: customFieldIdSchema,
       type: z.literal('multiuserpicker'),
-      value: z.union([z.array(userInputSchema), userInputSchema]),
+      value: z.union([
+        z.array(userInputSchema).min(1, 'multiuserpicker value cannot be empty'),
+        userInputSchema,
+      ]),
     }),
     z.object({
       fieldId: customFieldIdSchema,
