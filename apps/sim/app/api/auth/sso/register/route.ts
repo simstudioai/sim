@@ -617,17 +617,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     // which a concurrent delete+recreate could point at a different row). Personal
     // SSO is not gated, so this only runs for org-scoped registration.
     if (orgId && !(await isOrgDomainVerified())) {
-      // double-cast-allowed: registerSSOProvider spreads the created row's `id` at runtime but Better Auth's return type omits it
-      const createdRowId = (registration as unknown as { id: string }).id
-      await db
-        .delete(ssoProvider)
-        .where(and(eq(ssoProvider.id, createdRowId), eq(ssoProvider.organizationId, orgId)))
-      logger.warn('Rolled back SSO provider: domain verification revoked mid-registration', {
-        domain,
-        orgId,
-        providerId: registration.providerId,
-        userId: session.user.id,
-      })
+      // registerSSOProvider spreads the created row's `id` at runtime, but the
+      // typed return omits it — read it defensively and only delete when it's a
+      // real id, so a future shape change can't turn the rollback into a silent
+      // no-op that leaves a provider on an unverified domain.
+      // double-cast-allowed: Better Auth's return type omits the runtime `id`
+      const createdRowId = (registration as unknown as { id?: unknown }).id
+      if (typeof createdRowId === 'string' && createdRowId.length > 0) {
+        await db
+          .delete(ssoProvider)
+          .where(and(eq(ssoProvider.id, createdRowId), eq(ssoProvider.organizationId, orgId)))
+        logger.warn('Rolled back SSO provider: domain verification revoked mid-registration', {
+          domain,
+          orgId,
+          providerId: registration.providerId,
+          userId: session.user.id,
+        })
+      } else {
+        logger.error('Could not roll back SSO provider: registration returned no usable id', {
+          domain,
+          orgId,
+          providerId: registration.providerId,
+          userId: session.user.id,
+        })
+      }
       return domainNotVerifiedResponse()
     }
 
