@@ -683,6 +683,71 @@ describe('acceptInvitation', () => {
     expect(mockSyncUsageLimitsFromSubscription).toHaveBeenCalledWith('invitee-user')
   })
 
+  it('rolls back a member-role org acceptance when every grant turned stale', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner-1',
+    })
+    mockEnsureTeamOrganizationForAcceptance.mockResolvedValueOnce({
+      success: true,
+      organizationId: 'org-1',
+      fixedSeats: false,
+    })
+
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'organization',
+          email: 'invitee@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [],
+      // Post-join owned-set re-check under the billing-identity lock.
+      [],
+      // Grant-txn membership re-check under the lock: member still present.
+      [{ id: 'member-1' }],
+      // Invitation status update under the lock.
+      [],
+      // The granted workspace left the stamped organization.
+      [{ organizationId: 'org-elsewhere' }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+    })
+
+    expect(result).toEqual({ success: false, kind: 'workspace-not-found' })
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
+  })
+
   it('rolls back acceptance when the owned-workspace set changes concurrently', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',

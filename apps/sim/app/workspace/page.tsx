@@ -245,6 +245,16 @@ async function handleNoWorkspaces(router: ReturnType<typeof useRouter>): Promise
     }
     logger.error('Failed to create default workspace')
   } catch (error) {
+    /**
+     * 409 means the user joined an organization while the default workspace
+     * was being created — they are still authenticated and likely have org
+     * workspaces now, so re-resolve instead of falling into the login path.
+     */
+    if (isApiClientError(error) && error.status === 409) {
+      logger.info('Default workspace creation raced an organization join; re-resolving')
+      window.location.reload()
+      return
+    }
     logger.error('Error creating default workspace:', error)
   }
   router.replace('/login')

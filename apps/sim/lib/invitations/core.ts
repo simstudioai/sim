@@ -340,6 +340,7 @@ export async function expireStalePendingInvitationsForWorkspaces(
 
 export type AcceptInvitationFailure =
   | { kind: 'not-found' }
+  | { kind: 'workspace-not-found' }
   | { kind: 'already-processed' }
   | { kind: 'expired' }
   | { kind: 'email-mismatch' }
@@ -392,6 +393,18 @@ class JoinerWorkspacesChangedDuringAcceptError extends Error {
   constructor() {
     super('Owned workspaces changed during invite acceptance')
     this.name = 'JoinerWorkspacesChangedDuringAcceptError'
+  }
+}
+
+/**
+ * Thrown when every grant on a member-role organization invite turned stale
+ * (the workspaces left the stamped organization), which would strand the new
+ * member with no workspace. Rolls the whole acceptance back.
+ */
+class AllGrantsStaleDuringAcceptError extends Error {
+  constructor() {
+    super('All organization-invite grants turned stale during acceptance')
+    this.name = 'AllGrantsStaleDuringAcceptError'
   }
 }
 
@@ -570,6 +583,13 @@ export async function acceptInvitation(
           kind: 'server-error',
           message: 'Your workspaces changed while accepting — please try again.',
         }
+      }
+      if (error instanceof AllGrantsStaleDuringAcceptError) {
+        logger.warn('Invite acceptance rolled back: every grant turned stale', {
+          invitationId: input.invitationId,
+          userId: input.userId,
+        })
+        return { success: false, kind: 'workspace-not-found' }
       }
       throw error
     })
@@ -838,6 +858,24 @@ async function acceptLockedInvitation(
       }
 
       acceptedWorkspaceIds.push(grant.workspaceId)
+    }
+
+    /**
+     * A member-role organization invite whose grants ALL turned stale would
+     * create a member with no workspace to land in — the exact dead end the
+     * invite-time grant requirement exists to prevent. Roll the whole
+     * acceptance (including the member insert) back instead; admins are
+     * exempt since they derive access to every organization workspace.
+     */
+    if (
+      inv.kind === 'organization' &&
+      shouldJoinOrganization &&
+      !membershipAlreadyExists &&
+      !isOrgAdminRole(inv.role) &&
+      inv.grants.length > 0 &&
+      acceptedWorkspaceIds.length === 0
+    ) {
+      throw new AllGrantsStaleDuringAcceptError()
     }
   } catch (grantError) {
     if (grantError instanceof MembershipRevokedDuringAcceptError) {

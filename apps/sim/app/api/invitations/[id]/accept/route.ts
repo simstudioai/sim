@@ -33,6 +33,7 @@ export const POST = withRouteHandler(
     if (!result.success) {
       const statusMap: Record<string, number> = {
         'not-found': 404,
+        'workspace-not-found': 404,
         'invalid-token': 400,
         'already-processed': 400,
         expired: 400,
