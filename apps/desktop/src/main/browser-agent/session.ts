@@ -363,6 +363,16 @@ function createTabView(): WebContentsView {
   contents.on('will-prevent-unload', (event) => {
     event.preventDefault()
   })
+  // A crashed renderer would otherwise stay in `tabs` forever: `activeTab()`
+  // filters it out and returns null while `activeTabId` still names it, so
+  // `requireTab()` reports "no page is open" even with other tabs open, and
+  // the panel goes blank with no way back.
+  contents.on('render-process-gone', (_event, details) => {
+    const tab = tabs.find((entry) => entry.view === view)
+    if (!tab) return
+    logger.warn('Browser tab renderer exited; dropping the tab', { reason: details.reason })
+    forgetTab(tab)
+  })
   contents.on('before-input-event', (event, input) => {
     const shortcut = browserShortcutForInput(input)
     if (!shortcut) return
@@ -816,6 +826,42 @@ export function reorderTab(tabId: string, targetIndex: number): AgentTab {
   if (tab.pinned) persistPinnedTabs()
   events?.onTabsChanged()
   return tab
+}
+
+/**
+ * Drops a tab whose renderer is already gone. Unlike {@link closeTab} this
+ * takes no view down (there is nothing left to close), applies to pinned tabs
+ * too — a crashed pinned tab is no more usable than any other — and does not
+ * offer the page for Reopen Closed Tab, since the user did not close it.
+ */
+function forgetTab(tab: AgentTab): void {
+  const index = tabs.indexOf(tab)
+  if (index < 0) return
+  tabs.splice(index, 1)
+  const transferBrowserFocus = focusedBrowserTabId === tab.id
+  clearFocusedBrowserTab(tab.id)
+  if (attachedView === tab.view) {
+    detachAttachedView()
+  }
+  if (tab.pinned) persistPinnedTabs()
+  if (activeTabId === tab.id) {
+    activeTabId = (tabs[index] ?? tabs[index - 1])?.id ?? null
+    layout()
+    const active = activeTab()
+    if (active) {
+      events?.onActiveTabChanged(active.view.webContents)
+    }
+  }
+  if (!hasSession() && panelBounds !== null) {
+    addTab()
+    if (transferBrowserFocus) focusedBrowserTabId = activeTabId
+    return
+  }
+  if (transferBrowserFocus) focusedBrowserTabId = activeTabId
+  events?.onTabsChanged()
+  if (!hasSession()) {
+    events?.onSessionClosed()
+  }
 }
 
 export function closeTab(tabId: string): void {

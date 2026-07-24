@@ -85,6 +85,20 @@ describe('executeTool', () => {
     }
   )
 
+  it('leaves no watchdog timer pending once a tool finishes', async () => {
+    vi.useFakeTimers()
+    try {
+      // Racing against an uncancellable sleep left one timer alive per call for
+      // the full watchdog window — up to two minutes, dozens deep in a run.
+      const before = vi.getTimerCount()
+      await driver.executeTool('browser_list_tabs', {})
+
+      expect(vi.getTimerCount()).toBe(before)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('releases the serialized queue before the renderer timeout when a page call hangs', async () => {
     vi.useFakeTimers()
     try {

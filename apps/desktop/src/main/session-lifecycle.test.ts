@@ -203,6 +203,7 @@ describe('createSessionLifecycleCoordinator', () => {
       origin: () => APP,
       events: { filePath: '/tmp/events.log', record: vi.fn() },
       clearHandoffState,
+      clearBrowserProfile: vi.fn(async () => {}),
       onReauthRequested: vi.fn(),
       getWindow: () => first,
       getWindows: () => [first, second],

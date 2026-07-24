@@ -2,7 +2,10 @@ import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import type { Session, WebContents } from 'electron'
 import { app, BrowserWindow, crashReporter, net, session } from 'electron'
-import { initDriver as initBrowserAgentDriver } from '@/main/browser-agent/driver'
+import {
+  clearBrowserProfile as clearAgentBrowserProfile,
+  initDriver as initBrowserAgentDriver,
+} from '@/main/browser-agent/driver'
 import {
   canReportPanelBounds,
   closeFocusedTab as closeFocusedBrowserTab,
@@ -192,6 +195,7 @@ function main(): void {
         handoff.clear()
         await localFilesystem.forgetAll()
       },
+      clearBrowserProfile: clearAgentBrowserProfile,
       onReauthRequested: () => void authFlow.beginLoginHandoff(),
     })
     return ses

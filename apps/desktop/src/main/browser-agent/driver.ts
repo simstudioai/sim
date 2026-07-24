@@ -366,6 +366,29 @@ async function navigationResult(contents: WebContents): Promise<Record<string, u
 }
 
 /**
+ * Bounds a tool call, always clearing the timer once the race settles.
+ *
+ * Not `sleep()` — that timer cannot be cancelled, so racing against it leaves
+ * one pending for the full watchdog window (up to two minutes) after the tool
+ * has already finished, dozens at a time over an agent run.
+ */
+function raceAgainstWatchdog<T>(execution: Promise<T>, watchdogMs: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  const expiry = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () =>
+        reject(
+          new ToolError(
+            'The browser did not finish this action in time. Take a browser_snapshot to see the current page state.'
+          )
+        ),
+      watchdogMs
+    )
+  })
+  return Promise.race([execution, expiry]).finally(() => clearTimeout(timer))
+}
+
+/**
  * Post-action readback so the model sees the real effect (selection size,
  * value length) instead of assuming the key "worked".
  */
@@ -740,18 +763,9 @@ export async function executeTool(
     try {
       const execution = executeToolInner(tool, params)
       const watchdogMs = browserToolWatchdogMs(tool, params)
-      const raced =
-        watchdogMs === null
-          ? execution
-          : Promise.race([
-              execution,
-              sleep(watchdogMs).then(() => {
-                throw new ToolError(
-                  'The browser did not finish this action in time. Take a browser_snapshot to see the current page state.'
-                )
-              }),
-            ])
-      return withNotices(await raced)
+      return withNotices(
+        await (watchdogMs === null ? execution : raceAgainstWatchdog(execution, watchdogMs))
+      )
     } finally {
       if (keepHiddenPageActive) {
         session.setAutomationActive(false)

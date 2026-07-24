@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -281,6 +283,28 @@ describe('registerIpcHandlers', () => {
     expect(deps.retryLoad).not.toHaveBeenCalled()
     on.get('offline:retry')?.(fileEvent)
     expect(deps.retryLoad).toHaveBeenCalledWith(fileSender)
+  })
+
+  it('registers every channel the preload bridge invokes or sends', () => {
+    // The two files share ~20 channel names as bare string literals with
+    // nothing tying them together, so a typo on either side is a silently dead
+    // feature that type-checks, lints, and ships.
+    const { invoke, on } = collectHandlers()
+    const registered = new Set([...invoke.keys(), ...on.keys()])
+    const preloadSource = readFileSync(
+      fileURLToPath(new URL('../preload/index.ts', import.meta.url)),
+      'utf8'
+    )
+    const used = [
+      ...new Set(
+        [...preloadSource.matchAll(/ipcRenderer\.(?:invoke|send)\(\s*'([^']+)'/g)].map(
+          (match) => match[1]
+        )
+      ),
+    ]
+
+    expect(used.length).toBeGreaterThan(0)
+    expect(used.filter((channel) => !registered.has(channel))).toEqual([])
   })
 
   it('compares the sender by parsed origin, not by prefix', async () => {

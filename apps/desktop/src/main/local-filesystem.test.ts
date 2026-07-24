@@ -79,6 +79,20 @@ describe('LocalFilesystemService', () => {
     }
   })
 
+  it('reports an invalid grep regex instead of claiming there are no matches', async () => {
+    const granted = await mount(service)
+
+    const response = await service.handle({
+      operation: 'grep',
+      uri: granted.uri,
+      pattern: '([unclosed',
+    })
+
+    // Returning an empty match set would tell the model the string appears
+    // nowhere in the user's files, which it would then act on as fact.
+    expect(response.ok).toBe(false)
+  })
+
   it('still accepts the glob patterns people actually write', async () => {
     const granted = await mount(service)
 

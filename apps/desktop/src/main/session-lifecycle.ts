@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { Session, WebContents } from 'electron'
 import { BrowserWindow, dialog } from 'electron'
-import { clearBrowserProfile as clearAgentBrowserProfile } from '@/main/browser-agent/driver'
 import { isSafeInternalPath } from '@/main/config'
 import { isAuthSurfacePath, openExternalSafe } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
@@ -126,15 +125,18 @@ export async function probeSession(
   origin: string,
   timeoutMs: number = SESSION_PROBE_TIMEOUT_MS
 ): Promise<SessionProbeResult> {
+  const controller = new AbortController()
+  // `finally`, not an inline clear after the await: a thrown fetch is the case
+  // this function exists for, and an inline clear is skipped on that path.
+  // The body read is inside the deadline too, so a stalled response cannot
+  // outlive the timeout.
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
     const response = await session.fetch(`${origin}/api/auth/get-session`, {
       signal: controller.signal,
       headers: { accept: 'application/json' },
       cache: 'no-store',
     })
-    clearTimeout(timer)
     if (!response.ok) {
       return 'unknown'
     }
@@ -145,6 +147,8 @@ export async function probeSession(
     return data && (data.session || data.user) ? 'valid' : 'invalid'
   } catch {
     return 'unknown'
+  } finally {
+    clearTimeout(timer)
   }
 }
 
@@ -154,15 +158,15 @@ export async function probeSession(
  *
  * The embedded browser has its own partition, which this clears too: it holds
  * the signed-in user's cookies for third-party sites, so leaving it behind
- * would hand the next account on this machine a set of live sessions. Passed
- * as a defaulted parameter purely so tests can observe it without a live
- * browser session.
+ * would hand the next account on this machine a set of live sessions. Injected
+ * rather than imported, so this module does not pull the whole browser-agent
+ * subsystem — and its module-load side effects — into the auth path.
  */
 export async function tearDownSession(
   session: Session,
   clearHandoffState: () => void | Promise<void>,
   events: EventRecorder,
-  clearBrowserProfile: () => Promise<void> = clearAgentBrowserProfile
+  clearBrowserProfile: () => Promise<void>
 ): Promise<void> {
   events.record('sign_out')
   await clearHandoffState()
@@ -179,6 +183,8 @@ export interface SessionLifecycleDeps {
   origin: () => string
   events: EventRecorder
   clearHandoffState: () => void | Promise<void>
+  /** Clears the embedded browser's own partition. See {@link tearDownSession}. */
+  clearBrowserProfile: () => Promise<void>
   onReauthRequested: () => void
 }
 
@@ -212,7 +218,12 @@ export function createSessionLifecycleCoordinator(
     if (tearingDown) return
     tearingDown = true
     logger.info('Sign-out detected; clearing partition')
-    void tearDownSession(deps.appSession, deps.clearHandoffState, deps.events)
+    void tearDownSession(
+      deps.appSession,
+      deps.clearHandoffState,
+      deps.events,
+      deps.clearBrowserProfile
+    )
       .catch((error) => logger.error('Session teardown failed', { error }))
       .finally(() => {
         for (const win of deps.getWindows()) {
@@ -292,18 +303,6 @@ export function createSessionLifecycleCoordinator(
       win.webContents.on('did-navigate-in-page', (_event, url) => onNavigation(url))
     },
   }
-}
-
-/**
- * Single-window compatibility wrapper. Multi-window callers create one
- * coordinator and attach every application window to it.
- */
-export function attachSessionLifecycle(win: BrowserWindow, deps: SessionLifecycleDeps): void {
-  createSessionLifecycleCoordinator({
-    ...deps,
-    getWindow: () => (win.isDestroyed() ? null : win),
-    getWindows: () => (win.isDestroyed() ? [] : [win]),
-  }).attachWindow(win)
 }
 
 /**

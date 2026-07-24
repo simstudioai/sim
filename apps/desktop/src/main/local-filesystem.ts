@@ -784,7 +784,10 @@ export class LocalFilesystemService {
     const directoryEntries = await readdir(resolvedPath.realPath, { withFileTypes: true })
     directoryEntries.sort((a, b) => a.name.localeCompare(b.name))
     const truncated = directoryEntries.length > MAX_LIST_ENTRIES
-    const entries = await Promise.all(
+    // `allSettled`, so one entry disappearing mid-read does not fail the whole
+    // listing. Build output, downloads and caches churn constantly, and a
+    // single ENOENT should drop that row rather than the directory.
+    const settled = await Promise.allSettled(
       directoryEntries.slice(0, MAX_LIST_ENTRIES).map(async (directoryEntry) => {
         const childRelativePath = [resolvedPath.relativePath, directoryEntry.name]
           .filter(Boolean)
@@ -799,6 +802,9 @@ export class LocalFilesystemService {
         }
         return item
       })
+    )
+    const entries = settled.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value] : []
     )
     return { entries, truncated }
   }
@@ -963,27 +969,26 @@ export class LocalFilesystemService {
     const include = typeof request.include === 'string' ? request.include : '**/*'
     const matcher = compileGlob(include)
     const ignoreCase = request.caseSensitive !== true
+    if (rawPattern !== undefined && !safeRegex(expression)) {
+      throw new LocalFilesystemError(
+        'INVALID_REQUEST',
+        'grep pattern was rejected because it may cause catastrophic backtracking.'
+      )
+    }
     let regex: RegExp
     try {
-      if (rawPattern !== undefined && !safeRegex(expression)) {
-        throw new LocalFilesystemError(
-          'INVALID_REQUEST',
-          'grep pattern was rejected because it may cause catastrophic backtracking.'
-        )
-      }
       regex =
         rawPattern !== undefined
           ? new RegExp(expression, ignoreCase ? 'i' : '')
           : new RegExp(expression.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), ignoreCase ? 'i' : '')
-    } catch (error) {
-      if (error instanceof LocalFilesystemError) throw error
-      if (outputMode === 'files_with_matches') {
-        return { files: [], truncated: false }
-      }
-      if (outputMode === 'count') {
-        return { counts: [], truncated: false }
-      }
-      return { matches: [], truncated: false }
+    } catch {
+      // An empty result set would tell the model the string appears nowhere in
+      // the user's files — a factual claim it will act on, when in truth the
+      // search never ran.
+      throw new LocalFilesystemError(
+        'INVALID_REQUEST',
+        'grep pattern is not a valid regular expression.'
+      )
     }
     const resolvedPath = await this.resolveUri(uri)
     const baseStat = await stat(resolvedPath.realPath)

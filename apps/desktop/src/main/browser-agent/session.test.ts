@@ -682,6 +682,37 @@ describe('browser-agent session', () => {
     expect(save).toHaveBeenLastCalledWith(['https://example.com/'])
   })
 
+  it('drops a tab whose renderer crashed instead of wedging the session', () => {
+    const first = session.ensureTab()
+    const second = session.addTab()
+    const crashed = (second.view as unknown as MockView).webContents
+    const onGone = crashed.on.mock.calls.find(
+      ([eventName]) => eventName === 'render-process-gone'
+    )?.[1] as (event: unknown, details: { reason: string }) => void
+
+    onGone({}, { reason: 'crashed' })
+
+    // Left in place, activeTab() filters the dead view out while activeTabId
+    // still names it, so requireTab() reports "no page is open" even though
+    // another tab is right there.
+    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([first.id])
+    expect(session.requireTab().id).toBe(first.id)
+  })
+
+  it('reports the session closed when the only tab crashes', async () => {
+    const onSessionClosed = vi.fn()
+    session = await freshSession(win, { onSessionClosed })
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    const onGone = contents.on.mock.calls.find(
+      ([eventName]) => eventName === 'render-process-gone'
+    )?.[1] as (event: unknown, details: { reason: string }) => void
+
+    onGone({}, { reason: 'oom' })
+
+    expect(session.listTabs()).toHaveLength(0)
+    expect(onSessionClosed).toHaveBeenCalled()
+  })
+
   it('hardens every distinct session, not only the first one configured', () => {
     // Guards against tracking this with one process-wide flag: the second
     // session would then be left with no permission handlers, no SSRF request
