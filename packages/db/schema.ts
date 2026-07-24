@@ -3033,6 +3033,15 @@ export const ssoDomain = pgTable(
     organizationIdIdx: index('sso_domain_organization_id_idx').on(table.organizationId),
     domainIdx: index('sso_domain_domain_idx').on(table.domain),
     /**
+     * An org holds at most one row per domain. Makes claims idempotent under
+     * concurrency: two admins racing to add the same domain cannot create
+     * duplicate pending rows — the second insert hits this constraint.
+     */
+    orgDomainUnique: uniqueIndex('sso_domain_org_domain_unique').on(
+      table.organizationId,
+      table.domain
+    ),
+    /**
      * A verified domain is globally unique — exactly one org owns it. Pending
      * rows may coexist (multiple orgs can race to prove ownership), so the
      * constraint is a partial unique index scoped to verified rows.

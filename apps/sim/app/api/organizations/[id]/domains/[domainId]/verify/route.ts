@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { member, ssoDomain } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyOrganizationDomainContract } from '@/lib/api/contracts/organization'
@@ -80,8 +81,8 @@ export const POST = withRouteHandler(
       )
     }
 
-    // Guard the race where another org verified the same domain between claim
-    // and verify (the partial unique index would also reject the update).
+    // Friendly early return for the common case where another org already owns
+    // the domain (the partial unique index is the actual enforcer, below).
     const [verifiedElsewhere] = await db
       .select({ organizationId: ssoDomain.organizationId })
       .from(ssoDomain)
@@ -94,11 +95,41 @@ export const POST = withRouteHandler(
       )
     }
 
-    const [updated] = await db
-      .update(ssoDomain)
-      .set({ status: 'verified', verifiedAt: new Date(), updatedAt: new Date() })
-      .where(eq(ssoDomain.id, domainId))
-      .returning()
+    // Flip to verified only if the row is still the exact pending challenge we
+    // checked. If it was deleted, re-tokenized, or already verified while the
+    // DNS lookup was in flight, this matches zero rows — we then ask for a retry
+    // instead of mapping an undefined row or trusting a superseded challenge. A
+    // concurrent cross-org verification trips the partial unique index; surface
+    // that as a 409 rather than an unhandled 500.
+    let updated: (typeof row)[]
+    try {
+      updated = await db
+        .update(ssoDomain)
+        .set({ status: 'verified', verifiedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(ssoDomain.id, domainId),
+            eq(ssoDomain.verificationToken, row.verificationToken),
+            eq(ssoDomain.status, 'pending')
+          )
+        )
+        .returning()
+    } catch (error) {
+      if (getPostgresErrorCode(error) === '23505') {
+        return NextResponse.json(
+          { error: 'This domain was verified by another organization' },
+          { status: 409 }
+        )
+      }
+      throw error
+    }
+
+    if (updated.length === 0) {
+      return NextResponse.json(
+        { error: 'The domain changed during verification. Refresh and try again.' },
+        { status: 409 }
+      )
+    }
 
     logger.info('Domain verified', { organizationId, domain: row.domain })
     recordAudit({
@@ -114,6 +145,6 @@ export const POST = withRouteHandler(
       request,
     })
 
-    return NextResponse.json({ success: true, data: { domain: toDomainResponse(updated) } })
+    return NextResponse.json({ success: true, data: { domain: toDomainResponse(updated[0]) } })
   }
 )

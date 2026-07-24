@@ -14,6 +14,7 @@ ALTER TABLE "sso_domain" ADD CONSTRAINT "sso_domain_organization_id_organization
 ALTER TABLE "sso_domain" ADD CONSTRAINT "sso_domain_created_by_user_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "sso_domain_organization_id_idx" ON "sso_domain" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "sso_domain_domain_idx" ON "sso_domain" USING btree ("domain");--> statement-breakpoint
+CREATE UNIQUE INDEX "sso_domain_org_domain_unique" ON "sso_domain" USING btree ("organization_id","domain");--> statement-breakpoint
 CREATE UNIQUE INDEX "sso_domain_verified_unique" ON "sso_domain" USING btree ("domain") WHERE status = 'verified';--> statement-breakpoint
 -- Grandfather existing org-scoped SSO provider domains as verified: they were
 -- claimed under the old first-come model, so treat them as owned/verified to

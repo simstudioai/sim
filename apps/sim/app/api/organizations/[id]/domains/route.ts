@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { member, ssoDomain } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -160,17 +161,35 @@ export const POST = withRouteHandler(
       )
     }
 
-    const [created] = await db
-      .insert(ssoDomain)
-      .values({
-        id: generateId(),
-        organizationId,
-        domain,
-        status: 'pending',
-        verificationToken: generateVerificationToken(),
-        createdBy: session.user.id,
-      })
-      .returning()
+    let created: (typeof orgDomains)[number]
+    try {
+      ;[created] = await db
+        .insert(ssoDomain)
+        .values({
+          id: generateId(),
+          organizationId,
+          domain,
+          status: 'pending',
+          verificationToken: generateVerificationToken(),
+          createdBy: session.user.id,
+        })
+        .returning()
+    } catch (error) {
+      // A concurrent request for the same (org, domain) won the race and the
+      // sso_domain_org_domain_unique index rejected this insert. Stay
+      // idempotent: return the row that landed instead of surfacing a 500.
+      if (getPostgresErrorCode(error) === '23505') {
+        const [winner] = await db
+          .select()
+          .from(ssoDomain)
+          .where(and(eq(ssoDomain.organizationId, organizationId), eq(ssoDomain.domain, domain)))
+          .limit(1)
+        if (winner) {
+          return NextResponse.json({ success: true, data: { domain: toDomainResponse(winner) } })
+        }
+      }
+      throw error
+    }
 
     logger.info('Domain claimed for verification', { organizationId, domain })
     recordAudit({

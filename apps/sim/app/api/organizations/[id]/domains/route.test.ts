@@ -134,5 +134,28 @@ describe('org domains route', () => {
         expect.objectContaining({ action: 'organization.domain.added' })
       )
     })
+
+    it('stays idempotent when a concurrent claim wins the unique index race', async () => {
+      queueTableRows(member, [{ role: 'owner' }]) // membership
+      queueTableRows(ssoDomain, []) // verified-elsewhere check → none
+      queueTableRows(ssoDomain, []) // org-domains read → none existing, under the cap
+      // insert().returning() loses the race and hits sso_domain_org_domain_unique
+      dbChainMockFns.returning.mockRejectedValueOnce(
+        Object.assign(new Error('duplicate key'), { code: '23505' })
+      )
+      queueTableRows(ssoDomain, [
+        {
+          id: 'd-winner',
+          domain: 'acme.com',
+          status: 'pending',
+          verificationToken: 'tok-winner',
+          verifiedAt: null,
+        },
+      ]) // re-read returns the row that landed
+      const res = await POST(req({ domain: 'acme.com' }), routeContext)
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.data.domain).toMatchObject({ id: 'd-winner', status: 'pending' })
+    })
   })
 })

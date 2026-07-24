@@ -625,55 +625,61 @@ async function registerSSOProvider(): Promise<boolean> {
       providerData.samlConfig = JSON.stringify(samlConfig)
     }
 
-    if (existingProviders.length > 0) {
-      await db
-        .update(ssoProvider)
-        .set({
-          issuer: providerData.issuer,
-          domain: providerData.domain,
-          oidcConfig: providerData.oidcConfig,
-          samlConfig: providerData.samlConfig,
-          userId: providerData.userId,
-          organizationId: providerData.organizationId,
-        })
-        .where(eq(ssoProvider.providerId, ssoConfig.providerId))
-    } else {
-      await db.insert(ssoProvider).values(providerData)
-    }
-
-    // Keep the verified-domains model consistent with script registration: a
-    // domain registered for org SSO here is owned by that org, so mark it
-    // verified (mirrors migration 0266's grandfathering). Without this, a
-    // domain added by the script after the migration would be missing its
-    // verified record and the UI/API would treat it as unverified. Org-scoped
-    // only — user-scoped providers have no org to attach a domain to.
-    if (providerData.organizationId) {
-      const normalizedDomain = ssoConfig.domain.trim().toLowerCase()
-      const existingDomain = await db
-        .select({ id: ssoDomain.id })
-        .from(ssoDomain)
-        .where(
-          and(
-            eq(ssoDomain.organizationId, providerData.organizationId),
-            eq(ssoDomain.domain, normalizedDomain)
-          )
-        )
-      if (existingDomain.length === 0) {
-        await db.insert(ssoDomain).values({
-          id: generateId(),
-          organizationId: providerData.organizationId,
-          domain: normalizedDomain,
-          status: 'verified',
-          verificationToken: generateId(),
-          verifiedAt: new Date(),
-        })
+    // Write the provider and its verified-domain ownership record atomically so
+    // a failed domain upsert (e.g. the domain is already owned by another org)
+    // can never leave a live provider without its ownership row. Both commit or
+    // neither does.
+    await db.transaction(async (tx) => {
+      if (existingProviders.length > 0) {
+        await tx
+          .update(ssoProvider)
+          .set({
+            issuer: providerData.issuer,
+            domain: providerData.domain,
+            oidcConfig: providerData.oidcConfig,
+            samlConfig: providerData.samlConfig,
+            userId: providerData.userId,
+            organizationId: providerData.organizationId,
+          })
+          .where(eq(ssoProvider.providerId, ssoConfig.providerId))
       } else {
-        await db
-          .update(ssoDomain)
-          .set({ status: 'verified', verifiedAt: new Date(), updatedAt: new Date() })
-          .where(eq(ssoDomain.id, existingDomain[0].id))
+        await tx.insert(ssoProvider).values(providerData)
       }
-    }
+
+      // Keep the verified-domains model consistent with script registration: a
+      // domain registered for org SSO here is owned by that org, so mark it
+      // verified (mirrors migration 0266's grandfathering). Without this, a
+      // domain added by the script after the migration would be missing its
+      // verified record and the UI/API would treat it as unverified. Org-scoped
+      // only — user-scoped providers have no org to attach a domain to.
+      if (providerData.organizationId) {
+        const normalizedDomain = ssoConfig.domain.trim().toLowerCase()
+        const existingDomain = await tx
+          .select({ id: ssoDomain.id })
+          .from(ssoDomain)
+          .where(
+            and(
+              eq(ssoDomain.organizationId, providerData.organizationId),
+              eq(ssoDomain.domain, normalizedDomain)
+            )
+          )
+        if (existingDomain.length === 0) {
+          await tx.insert(ssoDomain).values({
+            id: generateId(),
+            organizationId: providerData.organizationId,
+            domain: normalizedDomain,
+            status: 'verified',
+            verificationToken: generateId(),
+            verifiedAt: new Date(),
+          })
+        } else {
+          await tx
+            .update(ssoDomain)
+            .set({ status: 'verified', verifiedAt: new Date(), updatedAt: new Date() })
+            .where(eq(ssoDomain.id, existingDomain[0].id))
+        }
+      }
+    })
 
     logger.info('✅ SSO provider registered successfully in database!', {
       providerId: ssoConfig.providerId,
