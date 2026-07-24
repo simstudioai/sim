@@ -37,7 +37,11 @@ interface CustomToolDetailProps {
   workspaceId: string
   /** `null` on the create flow, which starts from an empty draft. */
   tool: CustomToolDefinition | null
+  /** Viewers without edit rights get the same page with every control inert. */
+  readOnly?: boolean
   onBack: () => void
+  /** Lands the caller on the tool it just created, matching the skill create flow. */
+  onCreated?: (toolId: string) => void
 }
 
 /**
@@ -46,7 +50,13 @@ interface CustomToolDetailProps {
  * stacked (no tabs — the page has room for both). Uses the same fields as the
  * canvas modal so the two surfaces never drift.
  */
-export function CustomToolDetail({ workspaceId, tool, onBack }: CustomToolDetailProps) {
+export function CustomToolDetail({
+  workspaceId,
+  tool,
+  readOnly = false,
+  onBack,
+  onCreated,
+}: CustomToolDetailProps) {
   const isEditing = !!tool
 
   const createTool = useCreateCustomTool()
@@ -153,11 +163,15 @@ export function CustomToolDetail({ workspaceId, tool, onBack }: CustomToolDetail
         setSeededSchema(jsonSchema)
         setSeededCode(functionCode)
       } else {
-        await createTool.mutateAsync({
+        const created = await createTool.mutateAsync({
           workspaceId,
           tool: { title, schema, code: functionCode },
         })
-        onBack()
+        // The upsert responds with the workspace's whole tool list (newest
+        // first), not just the new row — match by title rather than index.
+        const createdId = created.find((t) => t.title === title)?.id
+        if (createdId) onCreated?.(createdId)
+        else onBack()
       }
     } catch (error) {
       logger.error('Failed to save custom tool', error)
@@ -209,16 +223,18 @@ export function CustomToolDetail({ workspaceId, tool, onBack }: CustomToolDetail
           'Define the JSON schema your agents call, and the code that runs.'
         }
         actions={[
-          ...(isEditing
-            ? saveDiscardActions({
-                dirty,
-                saving,
-                onSave: handleSave,
-                onDiscard: handleDiscard,
-                saveDisabled: !isSchemaValid || streaming,
-              })
-            : createToolActions),
-          ...(tool
+          ...(readOnly
+            ? []
+            : isEditing
+              ? saveDiscardActions({
+                  dirty,
+                  saving,
+                  onSave: handleSave,
+                  onDiscard: handleDiscard,
+                  saveDisabled: !isSchemaValid || streaming,
+                })
+              : createToolActions),
+          ...(tool && !readOnly
             ? [
                 {
                   text: deleteTool.isPending ? 'Deleting...' : 'Delete',
@@ -237,11 +253,13 @@ export function CustomToolDetail({ workspaceId, tool, onBack }: CustomToolDetail
               schemaError ? <FieldErrorText>{schemaError}</FieldErrorText> : undefined
             }
             action={
-              <GeneratePromptControl
-                isLoading={schemaGeneration.isLoading}
-                isStreaming={schemaGeneration.isStreaming}
-                onSubmit={(prompt) => schemaGeneration.generateStream({ prompt })}
-              />
+              readOnly ? undefined : (
+                <GeneratePromptControl
+                  isLoading={schemaGeneration.isLoading}
+                  isStreaming={schemaGeneration.isStreaming}
+                  onSubmit={(prompt) => schemaGeneration.generateStream({ prompt })}
+                />
+              )
             }
           >
             <CustomToolSchemaField
@@ -259,11 +277,13 @@ export function CustomToolDetail({ workspaceId, tool, onBack }: CustomToolDetail
             label='Code'
             headerAccessory={codeError ? <FieldErrorText>{codeError}</FieldErrorText> : undefined}
             action={
-              <GeneratePromptControl
-                isLoading={codeGeneration.isLoading}
-                isStreaming={codeGeneration.isStreaming}
-                onSubmit={(prompt) => codeGeneration.generateStream({ prompt })}
-              />
+              readOnly ? undefined : (
+                <GeneratePromptControl
+                  isLoading={codeGeneration.isLoading}
+                  isStreaming={codeGeneration.isStreaming}
+                  onSubmit={(prompt) => codeGeneration.generateStream({ prompt })}
+                />
+              )
             }
           >
             <CustomToolCodeField

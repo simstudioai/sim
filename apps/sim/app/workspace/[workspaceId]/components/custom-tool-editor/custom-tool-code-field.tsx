@@ -42,6 +42,8 @@ interface CustomToolCodeFieldProps {
    * tag autocomplete is not offered.
    */
   blockId?: string
+  /** Renders the editor inert for viewers without edit rights. */
+  disabled?: boolean
 }
 
 interface TriggerState {
@@ -81,6 +83,7 @@ export function CustomToolCodeField({
   schemaParameters,
   workspaceId,
   blockId,
+  disabled = false,
 }: CustomToolCodeFieldProps) {
   const codeEditorRef = useRef<HTMLDivElement>(null)
   const schemaParamItemRefs = useRef<Map<number, HTMLElement> | null>(null)
@@ -95,7 +98,7 @@ export function CustomToolCodeField({
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
   const [schemaParamSelectedIndex, setSchemaParamSelectedIndex] = useState(0)
 
-  const busy = generation.isLoading || generation.isStreaming
+  const busy = disabled || generation.isLoading || generation.isStreaming
   const resolvedMinHeight = schemaParameters.length > 0 ? '380px' : '420px'
 
   /** Generation writes bypass `handleChange`, so close any open menu here instead. */

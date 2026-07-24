@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { cn } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus, Wrench } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -76,13 +75,18 @@ export function CustomTools() {
    */
   if (selectedToolId !== null && (isLoading || workspacePermissions.isLoading)) return null
 
-  if (canEdit && (isCreating || selectedTool)) {
+  if ((isCreating && canEdit) || selectedTool) {
     return (
       <CustomToolDetail
         key={isCreating ? 'new' : selectedTool?.id}
         workspaceId={workspaceId}
         tool={isCreating ? null : (selectedTool ?? null)}
+        readOnly={!canEdit}
         onBack={closeDetail}
+        onCreated={(toolId) => {
+          setIsCreating(false)
+          void setSelectedToolId(toolId)
+        }}
       />
     )
   }
@@ -114,19 +118,13 @@ export function CustomTools() {
               key={tool.id}
               type='button'
               onClick={() => void setSelectedToolId(tool.id)}
-              className={cn(
-                'w-full rounded-lg p-2 text-left transition-colors',
-                canEdit ? 'cursor-pointer hover-hover:bg-[var(--surface-active)]' : 'cursor-default'
-              )}
-              disabled={!canEdit}
+              className='w-full cursor-pointer rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
             >
               <SettingsResourceRow
                 icon={<Wrench />}
                 title={tool.title || 'Unnamed Tool'}
                 description={tool.schema?.function?.description || undefined}
-                trailing={
-                  canEdit ? <ArrowRight className='size-4 text-[var(--text-icon)]' /> : undefined
-                }
+                trailing={<ArrowRight className='size-4 text-[var(--text-icon)]' />}
               />
             </button>
           ))}

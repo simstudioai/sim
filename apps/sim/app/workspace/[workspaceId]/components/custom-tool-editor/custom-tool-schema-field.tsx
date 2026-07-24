@@ -9,6 +9,8 @@ interface CustomToolSchemaFieldProps {
   onChange: (value: string) => void
   error: boolean
   generation: ReturnType<typeof useSchemaGeneration>
+  /** Renders the editor inert for viewers without edit rights. */
+  disabled?: boolean
 }
 
 /**
@@ -21,8 +23,9 @@ export function CustomToolSchemaField({
   onChange,
   error,
   generation,
+  disabled = false,
 }: CustomToolSchemaFieldProps) {
-  const busy = generation.isLoading || generation.isStreaming
+  const busy = disabled || generation.isLoading || generation.isStreaming
 
   return (
     <CodeEditor
