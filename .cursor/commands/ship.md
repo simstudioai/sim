@@ -39,8 +39,12 @@ When the user runs `/ship`:
   done
   wait
   # any non-zero line is a FAILED generator — read /tmp/ship-gen-<name>.log and fix before shipping;
-  # a silently-failed generate leaves a stale artifact that Phase B / CI then rejects
-  grep -vE '^0 ' /tmp/ship-gen-results && echo "❌ generator(s) failed" || echo "✅ artifacts regenerated"
+  # a silently-failed generate leaves a stale artifact that Phase B / CI then rejects.
+  # The `exit 1` makes this block itself exit non-zero on failure, so anything gating on the
+  # command's status (an agent, or a wrapping script) actually stops — do NOT collapse it to
+  # `grep … && echo ❌ || echo ✅`, which always exits 0 and silently lets ship continue.
+  if grep -vE '^0 ' /tmp/ship-gen-results; then echo "❌ generator(s) failed — do not ship"; exit 1; fi
+  echo "✅ artifacts regenerated"
   ```
   Then `git status --short` to see what regenerated — those files must be staged in step 7 alongside your own changes.
 
@@ -56,8 +60,11 @@ When the user runs `/ship`:
     ( bun run "$s" >"/tmp/ship-audit-${s//:/-}.log" 2>&1; echo "$? $s" >>/tmp/ship-audit-results ) &
   done
   wait
-  # any non-zero line is a failing audit — read its /tmp/ship-audit-<name>.log and fix before shipping
-  grep -vE '^0 ' /tmp/ship-audit-results && echo "❌ audit(s) failed" || echo "✅ all audits passed"
+  # any non-zero line is a failing audit — read its /tmp/ship-audit-<name>.log and fix before shipping.
+  # `exit 1` on failure preserves the original sequential checks' semantics (their non-zero exit is
+  # what an agent gates on); never use `grep … && echo ❌ || echo ✅` here — it always exits 0.
+  if grep -vE '^0 ' /tmp/ship-audit-results; then echo "❌ audit(s) failed — do not ship"; exit 1; fi
+  echo "✅ all audits passed"
   ```
   If Phase A regenerated a file, its matching `:check` in Phase B now passes trivially — that parity is the point. Do not ship with any generator or audit failing; fix the cause (never silence it) and re-run. `check:migrations` and `type-check` are covered by steps 5 and CI respectively and are not repeated here.
 7. **Stage and commit** the changes with the generated message — including any files Phase A regenerated in step 6
