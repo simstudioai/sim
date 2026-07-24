@@ -40,8 +40,8 @@ export function CliAuthView() {
   return (
     <div className='space-y-6'>
       <AuthHeader
-        title='Does this match your terminal?'
-        description='Approve only if your terminal is showing this same code.'
+        title='Connect your terminal'
+        description='Approve only if the code below matches the one in your terminal.'
       />
       <div className='space-y-4'>
         <div className='flex items-center justify-center rounded-[10px] border border-[var(--border-1)] py-5'>
@@ -65,7 +65,7 @@ export function CliAuthView() {
             )
           }
         >
-          Codes match — connect terminal
+          Connect
         </AuthSubmitButton>
         {approve.isError && (
           <AuthFormMessage type='error' align='center'>

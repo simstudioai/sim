@@ -136,9 +136,8 @@ async function exchangeCode(
 }
 
 /**
- * Races the browser handoff against a live paste prompt — whichever produces
- * a key first wins. Returns null when the handoff times out with nothing
- * pasted; ctrl-c cancels setup as everywhere else.
+ * Waits for the browser handoff and redeems the code it returns. Null on
+ * timeout or a failed exchange; ctrl-c exits setup via the SIGINT handler.
  */
 export async function browserKeyFlow(origin: string): Promise<string | null> {
   const listener = await startCodeListener(origin)
@@ -151,35 +150,12 @@ export async function browserKeyFlow(origin: string): Promise<string | null> {
   )
   openBrowser(listener.authUrl)
 
-  const controller = new AbortController()
-  let browserDone = false
-  listener.code.then(() => {
-    browserDone = true
-    controller.abort()
-  })
+  const spin = p.spinner()
+  spin.start('Waiting for approval in your browser')
+  const code = await listener.code
+  spin.stop(code ? 'Approved' : 'Browser handoff timed out')
 
-  for (;;) {
-    const input = await p.passwordCancellable({
-      message: 'Waiting for the browser… (or paste a key here)',
-      signal: controller.signal,
-    })
-    if (p.isCancel(input)) {
-      if (browserDone) {
-        const code = await listener.code
-        if (!code) {
-          p.log.warn('Browser handoff timed out with no key.')
-          return null
-        }
-        const key = await exchangeCode(origin, code, listener.verifier)
-        if (key) p.log.step('Key received from browser')
-        return key
-      }
-      listener.close()
-      p.cancelAndExit()
-    }
-    if (input) {
-      listener.close()
-      return input
-    }
-  }
+  if (!code) return null
+
+  return exchangeCode(origin, code, listener.verifier)
 }

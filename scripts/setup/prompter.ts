@@ -113,18 +113,3 @@ export function cancelAndExit(): never {
   clack.cancel('Setup cancelled.')
   exitWith(130)
 }
-
-/**
- * Password prompt that surfaces cancellation (abort or ctrl-c) as a symbol
- * instead of exiting — for flows that race a prompt against a background
- * event and must tell the two apart.
- */
-export async function passwordCancellable(params: {
-  message: string
-  signal: AbortSignal
-}): Promise<string | symbol> {
-  return clack.password({
-    message: isRich() ? theme.accent(params.message) : params.message,
-    signal: params.signal,
-  })
-}
