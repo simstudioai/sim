@@ -173,14 +173,14 @@ function syncCachesToOverlayVersion(version: number) {
 
 /**
  * Gets triggers data, computing it once per overlay version and caching for
- * subsequent calls. Non-integration triggers (Start, Schedule, Webhook) are
+ * subsequent calls. Non-integration triggers (Start, Schedule, Webhook Trigger) are
  * prioritized first, followed by all other triggers sorted alphabetically.
  */
 function getTriggers(overlayVersion: number): BlockItem[] {
   syncCachesToOverlayVersion(overlayVersion)
   if (cachedTriggers === null) {
     const allTriggers = getTriggersForSidebar()
-    const priorityOrder = ['Start', 'Schedule', 'Webhook']
+    const priorityOrder = ['Start', 'Schedule', 'Webhook Trigger']
 
     const sortedTriggers = allTriggers.sort((a, b) => {
       const aIndex = priorityOrder.indexOf(a.name)

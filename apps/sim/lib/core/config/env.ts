@@ -456,6 +456,15 @@ export const env = createEnv({
     MOTHERSHIP_E2B_DOC_TEMPLATE_ID:         z.string().optional(),                  // Dedicated E2B template with python-pptx/docx/openpyxl/reportlab for document generation; when set (and E2B enabled), docs compile via Python instead of the JS isolated-vm path
     E2B_PI_TEMPLATE_ID:                     z.string().optional(),                  // E2B template ID/alias with the Pi CLI + git baked in (Create PR and Review Code)
 
+    // Remote Code Execution provider selection
+    SANDBOX_PROVIDER:                      z.string().optional(),                  // Which sandbox provider serves remote executions: 'e2b' (default) or 'daytona'
+
+    // Daytona Remote Code Execution (used when SANDBOX_PROVIDER=daytona)
+    DAYTONA_API_KEY:                       z.string().optional(),                  // Daytona API key; needs write:snapshots to build images, write:sandboxes to run them
+    DAYTONA_SHELL_SNAPSHOT_ID:             z.string().optional(),                  // Daytona snapshot mirroring mothership-shell (must carry an explicit tag; latest is rejected)
+    DAYTONA_DOC_SNAPSHOT_ID:               z.string().optional(),                  // Daytona snapshot mirroring mothership-docs
+    DAYTONA_PI_SNAPSHOT_ID:                z.string().optional(),                  // Daytona snapshot mirroring the Pi template (Create PR and Review Code)
+
     // Access Control (Permission Groups) - for self-hosted deployments
     ACCESS_CONTROL_ENABLED:                z.boolean().optional(),                 // Enable access control on self-hosted (bypasses plan requirements)
 

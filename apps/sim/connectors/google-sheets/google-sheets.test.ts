@@ -116,40 +116,26 @@ describe('googleSheetsConnector trashed handling', () => {
   })
 
   describe('listDocuments', () => {
-    it('returns an empty listing and confirms the empty result when the spreadsheet is trashed', async () => {
+    it('returns an empty listing when the spreadsheet is trashed', async () => {
       stubFetch({
         drive: { status: 200, body: { trashed: true, modifiedTime: '2026-07-01T00:00:00.000Z' } },
       })
-      const syncContext: Record<string, unknown> = {}
 
-      const result = await googleSheetsConnector.listDocuments(
-        ACCESS_TOKEN,
-        SOURCE_CONFIG,
-        undefined,
-        syncContext
-      )
+      const result = await googleSheetsConnector.listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
 
       expect(result).toEqual({ documents: [], hasMore: false })
-      expect(syncContext.sourceConfirmedEmpty).toBe(true)
     })
 
     it('lists every tab when the trashed field is absent', async () => {
       stubFetch({ drive: { status: 200, body: { modifiedTime: '2026-07-01T00:00:00.000Z' } } })
-      const syncContext: Record<string, unknown> = {}
 
-      const result = await googleSheetsConnector.listDocuments(
-        ACCESS_TOKEN,
-        SOURCE_CONFIG,
-        undefined,
-        syncContext
-      )
+      const result = await googleSheetsConnector.listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
 
       expect(result.documents.map((d) => d.externalId)).toEqual([
         `${SPREADSHEET_ID}__sheet__0`,
         `${SPREADSHEET_ID}__sheet__7`,
       ])
       expect(result.hasMore).toBe(false)
-      expect(syncContext.sourceConfirmedEmpty).toBeUndefined()
     })
 
     it('lists every tab when trashed is explicitly false', async () => {
@@ -162,20 +148,13 @@ describe('googleSheetsConnector trashed handling', () => {
 
     it('fails open and lists every tab when the Drive read fails', async () => {
       stubFetch({ drive: { status: 500, body: { error: 'backend error' } } })
-      const syncContext: Record<string, unknown> = {}
 
-      const result = await googleSheetsConnector.listDocuments(
-        ACCESS_TOKEN,
-        SOURCE_CONFIG,
-        undefined,
-        syncContext
-      )
+      const result = await googleSheetsConnector.listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
 
       expect(result.documents.map((d) => d.externalId)).toEqual([
         `${SPREADSHEET_ID}__sheet__0`,
         `${SPREADSHEET_ID}__sheet__7`,
       ])
-      expect(syncContext.sourceConfirmedEmpty).toBeUndefined()
     })
 
     it('fails open when the Drive body is not an object', async () => {
@@ -184,14 +163,6 @@ describe('googleSheetsConnector trashed handling', () => {
       const result = await googleSheetsConnector.listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
 
       expect(result.documents).toHaveLength(2)
-    })
-
-    it('does not throw when trashed and no syncContext is passed', async () => {
-      stubFetch({ drive: { status: 200, body: { trashed: true } } })
-
-      const result = await googleSheetsConnector.listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
-
-      expect(result).toEqual({ documents: [], hasMore: false })
     })
   })
 

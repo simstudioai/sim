@@ -105,7 +105,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
       <div
         ref={isCollapsed ? undefined : scrollContainerRef}
         className={cn(
-          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-1.5 transition-colors duration-150',
+          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t py-1.5 transition-colors duration-150',
           !hasOverflowTop && 'border-transparent'
         )}
       >

@@ -31,8 +31,8 @@ export interface EnvFlagsMockState {
   isDataRetentionEnabled: boolean
   isDataDrainsEnabled: boolean
   isForkingEnabled: boolean
-  isE2bEnabled: boolean
-  isE2BDocEnabled: boolean
+  isRemoteSandboxEnabled: boolean
+  isDocSandboxEnabled: boolean
   isOllamaConfigured: boolean
   isAzureConfigured: boolean
   isCohereConfigured: boolean
@@ -71,8 +71,8 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isDataRetentionEnabled: false,
   isDataDrainsEnabled: false,
   isForkingEnabled: false,
-  isE2bEnabled: false,
-  isE2BDocEnabled: false,
+  isRemoteSandboxEnabled: false,
+  isDocSandboxEnabled: false,
   isOllamaConfigured: false,
   isAzureConfigured: false,
   isCohereConfigured: false,

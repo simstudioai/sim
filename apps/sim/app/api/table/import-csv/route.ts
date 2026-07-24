@@ -26,6 +26,7 @@ import {
   type TableDefinition,
   type TableSchema,
 } from '@/lib/table'
+import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
 import { getUserSettings } from '@/lib/users/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
@@ -107,12 +108,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: 400 }
       )
     }
-    const delimiter = extensionResult.data === 'tsv' ? '\t' : ','
+    // The extension only picks the fallback — the separator is sniffed from the file's
+    // head so semicolon/pipe exports (European-locale Excel) don't land in one column.
+    const { delimiter, stream: csvStream } = await sniffCsvDelimiterFromStream(
+      file.stream,
+      extensionResult.data === 'tsv' ? '\t' : ','
+    )
 
-    const parser = createCsvParser(delimiter)
+    let csvHeaders: string[] = []
+    const parser = createCsvParser(delimiter, (headers) => {
+      csvHeaders = headers
+    })
     // `.pipe` doesn't forward source errors; forward them so the iterator throws.
-    file.stream.on('error', (err) => parser.destroy(err))
-    file.stream.pipe(parser)
+    csvStream.on('error', (err) => parser.destroy(err))
+    csvStream.pipe(parser)
 
     interface ImportState {
       table: TableDefinition
@@ -139,7 +148,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     /** Infer the schema from the buffered sample and create the (empty) table. */
     const buildTable = async (sampleRows: Record<string, unknown>[]): Promise<ImportState> => {
-      const inferred = inferSchemaFromCsv(Object.keys(sampleRows[0]), sampleRows)
+      const inferred = inferSchemaFromCsv(csvHeaders, sampleRows)
       const schema: TableSchema = { columns: inferred.columns.map(normalizeColumn) }
       const planLimits = await getWorkspaceTableLimits(workspaceId)
       const tableName = sanitizeName(file.filename.replace(/\.[^.]+$/, ''), 'imported_table').slice(
