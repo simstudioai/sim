@@ -312,10 +312,13 @@ export class RedisRoomManager implements IRoomManager {
   }
 
   async deleteRoom(room: RoomRef): Promise<void> {
+    // Log AND rethrow (like addUserToRoom): a failed wipe must not be reported as a
+    // clean deletion by the caller — the request surfaces it (and can be retried).
     try {
       await this.redis.del([KEYS.roomUsers(room), KEYS.roomMeta(room)])
     } catch (error) {
       logger.error(`Failed to delete room ${room.type}:${room.id}:`, error)
+      throw error
     }
   }
 
