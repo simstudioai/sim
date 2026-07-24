@@ -50,17 +50,18 @@ export function getBlockRingStyles(options: BlockRingOptions): {
   const ringClassName = cn(
     // Executing block: pulsing success ring with prominent thickness (highest priority)
     isExecuting && 'ring-[3.5px] ring-[var(--border-success)] animate-ring-pulse',
-    // Editor open, selected, or preview selection: static blue ring
+    // Editor open, selected, or preview selection: neutral highlight ring,
+    // matching the selection-highlighted edge color
     !isExecuting &&
       (isEditorOpen || isSelected || isPreviewSelection) &&
-      'ring-[1.75px] ring-[var(--brand-secondary)]',
+      'ring-[1.5px] ring-[var(--text-secondary)]',
     // Non-active states use standard ring utilities
     !isExecuting &&
       !isEditorOpen &&
       !isSelected &&
       !isPreviewSelection &&
       hasRing &&
-      'ring-[1.75px]',
+      'ring-[1.5px]',
     // Pending state: warning ring
     !isExecuting && !isEditorOpen && !isSelected && isPending && 'ring-[var(--warning)]',
     // Deleted state (highest priority after active/pending)

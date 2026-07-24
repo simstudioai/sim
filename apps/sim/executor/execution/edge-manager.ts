@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isPositionedSourceHandle } from '@sim/workflow-types/workflow'
 import { CONTROL_BACK_EDGE_HANDLES, EDGE, SUBFLOW_CONTROL_EDGE_HANDLES } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { DAGEdge } from '@/executor/dag/types'
@@ -284,6 +285,10 @@ export class EdgeManager {
     if (handle.startsWith(EDGE.ROUTER_PREFIX)) {
       const routeId = handle.substring(EDGE.ROUTER_PREFIX.length)
       return output.selectedRoute === routeId
+    }
+
+    if (isPositionedSourceHandle(handle)) {
+      return !output.error
     }
 
     switch (handle) {

@@ -59,6 +59,7 @@ export interface WorkflowActions {
   batchToggleHandles: (ids: string[]) => void
   batchAddEdges: (edges: Edge[], options?: { skipValidation?: boolean }) => void
   batchRemoveEdges: (ids: string[]) => void
+  setBlockErrorEnabled: (id: string, errorEnabled: boolean) => void
   clear: () => Partial<WorkflowState>
   updateLastSaved: () => void
   setBlockEnabled: (id: string, enabled: boolean) => void

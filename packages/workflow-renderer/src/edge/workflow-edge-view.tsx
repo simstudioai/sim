@@ -18,6 +18,11 @@ export interface WorkflowEdgeViewProps extends EdgeProps {
   runStatus: EdgeRunStatus
   /** Whether `runStatus` came from a preview run (drives success coloring). */
   isPreviewRun: boolean
+  /**
+   * Whether either endpoint block is selected on the canvas — brightens the
+   * edge alongside the selected node. Status colors (diff/run/error) win.
+   */
+  isConnectedToSelection?: boolean
 }
 
 /**
@@ -44,6 +49,7 @@ export function WorkflowEdgeView({
   diffStatus,
   runStatus,
   isPreviewRun,
+  isConnectedToSelection = false,
 }: WorkflowEdgeViewProps) {
   const isHorizontal = sourcePosition === 'right' || sourcePosition === 'left'
 
@@ -80,6 +86,9 @@ export function WorkflowEdgeView({
     } else if (isErrorEdge) {
       // Error edges that weren't taken stay red
       color = 'var(--text-error)'
+    } else if (isConnectedToSelection) {
+      // Match the selected block ring / swell (`--text-secondary`)
+      color = 'var(--text-secondary)'
     }
 
     if (isSelected) {
@@ -87,19 +96,14 @@ export function WorkflowEdgeView({
     }
 
     return {
-      ...(style ?? {}),
-      strokeWidth: diffStatus
-        ? 3
-        : runStatus === 'success' || runStatus === 'error'
-          ? 2.5
-          : isSelected
-            ? 2.5
-            : 2,
-      stroke: color,
+      strokeWidth: diffStatus ? 2.5 : runStatus === 'success' || runStatus === 'error' ? 2 : 1.5,
       strokeDasharray: diffStatus === 'deleted' ? '10,5' : undefined,
       opacity,
+      ...(style ?? {}),
+      // Selection/status stroke must win over any default edge style.
+      stroke: color,
     }
-  }, [style, diffStatus, isSelected, isErrorEdge, runStatus, isPreviewRun])
+  }, [style, diffStatus, isSelected, isErrorEdge, runStatus, isPreviewRun, isConnectedToSelection])
 
   return (
     <>

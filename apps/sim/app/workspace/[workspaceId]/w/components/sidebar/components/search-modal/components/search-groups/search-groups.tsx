@@ -73,6 +73,7 @@ export const BlocksGroup = memo(function BlocksGroup({
           icon={block.icon}
           bgColor={block.bgColor}
           showColoredIcon
+          workflowType={block.type}
           label={block.name}
         />
       ))}

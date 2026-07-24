@@ -2,7 +2,11 @@ import { db, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
-import { SUBFLOW_TYPES } from '@sim/workflow-types/workflow'
+import {
+  normalizePositionedSourceHandleId,
+  normalizePositionedTargetHandleId,
+  SUBFLOW_TYPES,
+} from '@sim/workflow-types/workflow'
 import type { InferInsertModel } from 'drizzle-orm'
 import { eq } from 'drizzle-orm'
 import { generateLoopBlocks, generateParallelBlocks } from './subflow-helpers'
@@ -43,7 +47,10 @@ export async function saveWorkflowToNormalizedTables(
         height: String(block.height || 0),
         subBlocks: block.subBlocks || {},
         outputs: block.outputs || {},
-        data: block.data || {},
+        data: {
+          ...(block.data || {}),
+          errorEnabled: block.errorEnabled ?? false,
+        },
         parentId: block.data?.parentId || null,
         extent: block.data?.extent || null,
         locked: block.locked ?? false,
@@ -58,8 +65,8 @@ export async function saveWorkflowToNormalizedTables(
         workflowId,
         sourceBlockId: edge.source,
         targetBlockId: edge.target,
-        sourceHandle: edge.sourceHandle || null,
-        targetHandle: edge.targetHandle || null,
+        sourceHandle: normalizePositionedSourceHandleId(edge.sourceHandle || null),
+        targetHandle: normalizePositionedTargetHandleId(edge.targetHandle || null),
       }))
 
       await tx.insert(workflowEdges).values(edgeInserts)

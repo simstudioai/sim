@@ -736,6 +736,33 @@ async function handleBlockOperationTx(
       break
     }
 
+    case BLOCK_OPERATIONS.UPDATE_ERROR_ENABLED: {
+      if (!payload.id || payload.errorEnabled === undefined) {
+        throw new Error('Missing required fields for update error enabled operation')
+      }
+
+      const updateResult = await tx
+        .update(workflowBlocks)
+        .set({
+          data: sql`jsonb_set(
+            coalesce(${workflowBlocks.data}, '{}'::jsonb),
+            '{errorEnabled}',
+            ${JSON.stringify(payload.errorEnabled)}::jsonb,
+            true
+          )`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
+
+      if (updateResult.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      logger.debug(`Updated block error output: ${payload.id} -> ${payload.errorEnabled}`)
+      break
+    }
+
     case BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE: {
       if (!payload.id || !payload.canonicalId || !payload.canonicalMode) {
         throw new Error('Missing required fields for update canonical mode operation')

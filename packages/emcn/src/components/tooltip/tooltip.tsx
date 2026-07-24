@@ -78,6 +78,14 @@ const HIDDEN_STATE: FloatingTooltipState = {
   alignY: 'below',
 }
 
+export interface UseFloatingTooltipOptions {
+  /**
+   * Prefer placing the bubble above the cursor. Still flips below when the
+   * pointer is too close to the top of the viewport.
+   */
+  preferAbove?: boolean
+}
+
 /**
  * Drives a pointer-reactive floating tooltip. `canShow` is queried on every
  * gesture with the event target, letting the caller gate the tooltip on its own
@@ -85,12 +93,17 @@ const HIDDEN_STATE: FloatingTooltipState = {
  * a {@link FloatingTooltip} and a stable set of {@link FloatingTooltipHandlers}
  * to spread onto the trigger element.
  */
-export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
+export function useFloatingTooltip(
+  canShow: (target: HTMLElement) => boolean,
+  options: UseFloatingTooltipOptions = {}
+): {
   state: FloatingTooltipState
   handlers: FloatingTooltipHandlers
 } {
   const canShowRef = React.useRef(canShow)
   canShowRef.current = canShow
+  const preferAboveRef = React.useRef(options.preferAbove === true)
+  preferAboveRef.current = options.preferAbove === true
 
   const lastPointerRef = React.useRef<PointerSnapshot | null>(null)
   const velocityRef = React.useRef({ x: 0, magnitude: 0 })
@@ -109,7 +122,10 @@ export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
     }
 
     const apply = (clientX: number, clientY: number, motion: TooltipMotion) => {
-      const next = { ...getTooltipPosition(clientX, clientY), ...motion }
+      const next = {
+        ...getTooltipPosition(clientX, clientY, preferAboveRef.current),
+        ...motion,
+      }
       setState((current) =>
         current.visible &&
         current.x === next.x &&
@@ -179,7 +195,7 @@ export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
         if (!canShowRef.current(target)) return
         if (!isFocusVisible(target)) return
         const rect = target.getBoundingClientRect()
-        showFromElement(rect.left + rect.width / 2, rect.bottom)
+        showFromElement(rect.left + rect.width / 2, preferAboveRef.current ? rect.top : rect.bottom)
       },
       onBlur: hide,
     }
@@ -315,7 +331,10 @@ export const FloatingTooltip = React.memo(function FloatingTooltip({
         translate: getTooltipTranslate(state, offset),
         scale: `${state.scaleX} ${state.scaleY}`,
         transform: `skew(${state.skew}deg)`,
-        transformOrigin: state.alignX === 'left' ? '12px 12px' : 'calc(100% - 12px) 12px',
+        transformOrigin: [
+          state.alignX === 'left' ? '12px' : 'calc(100% - 12px)',
+          state.alignY === 'below' ? '12px' : 'calc(100% - 12px)',
+        ].join(' '),
       }}
     >
       {children ?? <span className='block whitespace-normal break-words text-left'>{label}</span>}
@@ -326,14 +345,22 @@ export const FloatingTooltip = React.memo(function FloatingTooltip({
 
 function getTooltipPosition(
   clientX: number,
-  clientY: number
+  clientY: number,
+  preferAbove = false
 ): Pick<FloatingTooltipState, 'x' | 'y' | 'alignX' | 'alignY'> {
   if (typeof window === 'undefined') {
-    return { x: Math.round(clientX), y: Math.round(clientY), alignX: 'left', alignY: 'below' }
+    return {
+      x: Math.round(clientX),
+      y: Math.round(clientY),
+      alignX: 'left',
+      alignY: preferAbove ? 'above' : 'below',
+    }
   }
 
   const alignX = window.innerWidth - clientX < EDGE_THRESHOLD ? 'right' : 'left'
-  const alignY = window.innerHeight - clientY < EDGE_THRESHOLD / 2 ? 'above' : 'below'
+  const nearTop = clientY < EDGE_THRESHOLD / 2
+  const nearBottom = window.innerHeight - clientY < EDGE_THRESHOLD / 2
+  const alignY = preferAbove ? (nearTop ? 'below' : 'above') : nearBottom ? 'above' : 'below'
 
   return {
     x: Math.round(clamp(clientX, EDGE_GUTTER, window.innerWidth - EDGE_GUTTER)),
@@ -392,6 +419,11 @@ interface RootProps {
   children: React.ReactNode
   /** Accepted for API compatibility; the floating tooltip has no hover delay. */
   delayDuration?: number
+  /**
+   * Prefer the bubble above the cursor (e.g. action bars sitting on top of a card).
+   * Still flips below when the pointer is too close to the top of the viewport.
+   */
+  preferAbove?: boolean
 }
 
 /**
@@ -408,9 +440,9 @@ interface RootProps {
  * </Tooltip.Root>
  * ```
  */
-function Root({ children }: RootProps) {
+function Root({ children, preferAbove = false }: RootProps) {
   const contentId = React.useId()
-  const { state, handlers } = useFloatingTooltip(ALWAYS_SHOW)
+  const { state, handlers } = useFloatingTooltip(ALWAYS_SHOW, { preferAbove })
   const value = React.useMemo<TooltipContextValue>(
     () => ({ state, handlers, contentId }),
     [state, handlers, contentId]
