@@ -1,8 +1,8 @@
 /**
- * Field copy shared by every skill editing surface — the canvas modal and the
- * create/detail pages. The modal frames its fields with `ChipModalField` and the
- * pages with `DetailSection`, so they cannot share JSX; keeping the strings here
- * is what stops the three from drifting apart.
+ * Field copy shared by every skill editing surface. The two pages share JSX via
+ * `SkillFields`, but the canvas modal must frame its fields with
+ * `ChipModalField` — required inside a `ChipModalBody` — so it cannot. These
+ * strings are what keep the modal in step with the pages.
  */
 
 export const SKILL_NAME_PLACEHOLDER = 'my-skill-name'

@@ -80,7 +80,6 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
    */
   const [contentSeed, setContentSeed] = useState(0)
   const [errors, setErrors] = useState<FieldErrors>({})
-  const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<TabValue>('create')
   const [prevOpen, setPrevOpen] = useState(false)
   const [prevInitialValues, setPrevInitialValues] = useState(initialValues)
@@ -103,6 +102,8 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
     description !== initialValues.description ||
     content !== initialValues.content
 
+  const saving = createSkill.isPending || updateSkill.isPending
+
   const handleSave = async () => {
     const newErrors: FieldErrors = {}
 
@@ -121,8 +122,6 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
       setErrors(newErrors)
       return
     }
-
-    setSaving(true)
 
     try {
       if (initialValues) {
@@ -144,8 +143,6 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
       } else {
         setErrors({ general: 'Failed to save skill. Please try again.' })
       }
-    } finally {
-      setSaving(false)
     }
   }
 

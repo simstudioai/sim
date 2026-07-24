@@ -69,6 +69,25 @@ function FieldLockTooltip({ reason, children }: FieldLockTooltipProps) {
 }
 
 /**
+ * The hint-or-error line under a field. Renders nothing when there is neither,
+ * so a field without a message reserves no space.
+ */
+function FieldMessage({ error, hint }: { error?: string; hint?: string }) {
+  const message = error ?? hint
+  if (!message) return null
+  return (
+    <p
+      className={cn(
+        'mt-[9px] text-caption',
+        error ? 'text-[var(--text-error)]' : 'text-[var(--text-muted)]'
+      )}
+    >
+      {message}
+    </p>
+  )
+}
+
+/**
  * The Name / Description / Content trio as the full-page skill surfaces render
  * it — `DetailSection` rows with the error line beneath each field. Shared by
  * the create and detail pages so the copy, sizing, and error treatment cannot
@@ -105,14 +124,7 @@ export function SkillFields({
             error={!!errors.name}
           />
         </FieldLockTooltip>
-        <p
-          className={cn(
-            'mt-[9px] text-caption',
-            errors.name ? 'text-[var(--text-error)]' : 'text-[var(--text-muted)]'
-          )}
-        >
-          {errors.name ?? SKILL_NAME_HINT}
-        </p>
+        <FieldMessage error={errors.name} hint={disabled ? undefined : SKILL_NAME_HINT} />
       </DetailSection>
 
       <DetailSection title='Description'>
@@ -130,9 +142,7 @@ export function SkillFields({
             error={!!errors.description}
           />
         </FieldLockTooltip>
-        {errors.description && (
-          <p className='mt-[9px] text-[var(--text-error)] text-caption'>{errors.description}</p>
-        )}
+        <FieldMessage error={errors.description} />
       </DetailSection>
 
       <DetailSection title='Content'>
@@ -149,9 +159,7 @@ export function SkillFields({
             onPasteText={onPasteText}
           />
         </FieldLockTooltip>
-        {errors.content && (
-          <p className='mt-[9px] text-[var(--text-error)] text-caption'>{errors.content}</p>
-        )}
+        <FieldMessage error={errors.content} />
       </DetailSection>
     </>
   )
