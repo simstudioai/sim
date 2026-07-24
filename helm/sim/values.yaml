@@ -61,17 +61,11 @@ app:
     existingSecret:
       # Set to true to use an existing secret instead of creating one from values
       enabled: false
-      # Name of the existing Kubernetes secret containing app credentials
+      # Name of the existing Kubernetes secret containing app credentials.
+      # The secret is consumed wholesale via envFrom, so its keys must use the
+      # standard names (BETTER_AUTH_SECRET, ENCRYPTION_KEY, INTERNAL_API_SECRET,
+      # CRON_SECRET, ...) — key remapping is not supported.
       name: ""
-      # Key mappings - specify the key names in your existing secret
-      # Only needed if your secret uses different key names than the defaults
-      keys:
-        BETTER_AUTH_SECRET: "BETTER_AUTH_SECRET"
-        ENCRYPTION_KEY: "ENCRYPTION_KEY"
-        INTERNAL_API_SECRET: "INTERNAL_API_SECRET"
-        CRON_SECRET: "CRON_SECRET"
-        API_ENCRYPTION_KEY: "API_ENCRYPTION_KEY"
-        REDIS_URL: "REDIS_URL"
 
   # Environment variables
   env:
@@ -542,9 +536,9 @@ realtime:
   extraVolumes: []
   extraVolumeMounts: []
 
-# Database migrations job configuration
+# Database migrations configuration (runs as an init container on the app pods)
 migrations:
-  # Enable/disable migrations job
+  # Enable/disable the migrations init container
   enabled: true
   
   # Image configuration
@@ -592,8 +586,9 @@ postgresql:
     # This enables integration with External Secrets Operator, HashiCorp Vault, etc.
     existingSecret:
       enabled: false
-      name: ""           # Name of existing Kubernetes secret
-      passwordKey: "POSTGRES_PASSWORD"  # Key in the secret containing the password
+      name: ""           # Name of existing Kubernetes secret. Must contain the
+                         # password under the key POSTGRES_PASSWORD — key
+                         # remapping is not supported.
   
   # Node selector for database pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
@@ -711,8 +706,9 @@ externalDatabase:
   # This enables integration with External Secrets Operator, HashiCorp Vault, etc.
   existingSecret:
     enabled: false
-    name: ""           # Name of existing Kubernetes secret
-    passwordKey: "EXTERNAL_DB_PASSWORD"  # Key in the secret containing the password
+    name: ""           # Name of existing Kubernetes secret. Must contain the
+                       # password under the key EXTERNAL_DB_PASSWORD — key
+                       # remapping is not supported.
 
 # Ollama local AI models configuration
 ollama:
@@ -1016,6 +1012,12 @@ serviceAccount:
 # if you use customMetrics) installed in the cluster.
 autoscaling:
   enabled: false
+  # Also scale the realtime Deployment with the same HPA settings. Multi-replica
+  # realtime REQUIRES REDIS_URL in app.env (Socket.IO Redis adapter) — without
+  # Redis, cross-pod collaboration events are silently dropped. Set false to
+  # keep realtime pinned at realtime.replicaCount while the app still scales.
+  realtime:
+    enabled: true
   minReplicas: 1
   maxReplicas: 10
   targetCPUUtilizationPercentage: 80
@@ -1435,7 +1437,9 @@ telemetry:
   # Jaeger tracing backend
   jaeger:
     enabled: false
-    endpoint: "http://jaeger-collector:14250"
+    # Jaeger's OTLP gRPC endpoint (Jaeger >=1.35 accepts OTLP natively; the
+    # legacy jaeger exporter was removed from the collector-contrib image)
+    endpoint: "jaeger-collector:4317"
     tls:
       enabled: false
   
@@ -1680,9 +1684,10 @@ copilot:
     secretKey: DATABASE_URL
     url: ""
   
-  # Migration job configuration
+  # Migration job configuration (Copilot migrations run as a Helm-hook Job,
+  # unlike the app migrations which run as an init container)
   migrations:
-    # Enable/disable migrations job
+    # Enable/disable the Copilot migrations Job
     enabled: true
     
     # Image configuration (same as server)

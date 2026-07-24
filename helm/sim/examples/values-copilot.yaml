@@ -1,6 +1,6 @@
 # values-copilot.yaml
 #
-# When to use: enable the Sim Copilot service (the chat / Mothership backend)
+# When to use: enable the Sim Copilot service (the backend for Chat — the Sim agent)
 # alongside the main app. Provisions a dedicated Copilot Deployment, its own
 # Postgres StatefulSet, and a migration Job for the Copilot schema.
 #

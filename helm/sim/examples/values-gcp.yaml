@@ -7,7 +7,7 @@
 # Prerequisites:
 #   - GKE cluster (Kubernetes 1.25+)
 #   - Workload Identity enabled (for IAM-bound ServiceAccount)
-#   - (optional) Managed certificate or cert-manager for TLS
+#   - A GKE ManagedCertificate named simstudio-ssl-cert (creation manifest in the ingress section below) — or cert-manager if you prefer
 #   - (optional) GPU node pool with accelerator labels for Ollama
 #
 # Install:
@@ -86,10 +86,6 @@ app:
     NODE_ENV: "production"
     NEXT_TELEMETRY_DISABLED: "1"
     
-    # GCP-specific environment variables
-    GOOGLE_CLOUD_PROJECT: "your-project-id"
-    GOOGLE_CLOUD_REGION: "us-central1"
-
     # Google Cloud Storage Configuration (RECOMMENDED for production)
     # Create GCS buckets in your project and grant the Workload Identity
     # service account roles/storage.objectAdmin on them. Signed-URL generation
@@ -117,7 +113,11 @@ app:
 # Realtime service
 realtime:
   enabled: true
-  replicaCount: 2
+  # Keep realtime at 1 replica unless REDIS_URL is set (in app.env — realtime
+  # shares the app secret): Socket.IO only bridges events across pods through
+  # its Redis adapter, so multi-replica realtime without Redis silently drops
+  # cross-pod collaboration updates.
+  replicaCount: 1
 
   # Node selector for realtime pods
   # Uncomment and customize based on your GKE node labels:
@@ -266,10 +266,29 @@ ingress:
       - path: /
         pathType: Prefix
   
-  # TLS configuration
+  # TLS comes from the GKE ManagedCertificate referenced by the
+  # networking.gke.io/managed-certificates annotation above. The chart does NOT
+  # create that resource — create it once before installing (the certificate
+  # provisions automatically after DNS resolves; allow ~15-30 minutes):
+  #
+  #   kubectl create namespace sim
+  #   cat <<'EOF' | kubectl apply -f -
+  #   apiVersion: networking.gke.io/v1
+  #   kind: ManagedCertificate
+  #   metadata:
+  #     name: simstudio-ssl-cert
+  #     namespace: sim
+  #   spec:
+  #     domains:
+  #       - simstudio.acme.com
+  #       - simstudio-ws.acme.com
+  #   EOF
+  #
+  # Keep the chart's secret-based TLS off with GCE managed certificates — an
+  # enabled spec.tls references a Secret nothing creates, and the GKE ingress
+  # controller reports sync errors for it.
   tls:
-    enabled: true
-    secretName: simstudio-tls-secret
+    enabled: false
 
 # Pod disruption budget for high availability
 podDisruptionBudget:
@@ -291,7 +310,7 @@ affinity:
             matchExpressions:
               - key: app.kubernetes.io/name
                 operator: In
-                values: ["simstudio"]
+                values: ["sim"]
           topologyKey: kubernetes.io/hostname
       - weight: 50
         podAffinityTerm:
@@ -299,7 +318,7 @@ affinity:
             matchExpressions:
               - key: app.kubernetes.io/name
                 operator: In
-                values: ["simstudio"]
+                values: ["sim"]
           topologyKey: topology.gke.io/zone
 
 # Service Account with Workload Identity integration
@@ -308,21 +327,27 @@ serviceAccount:
   annotations:
     iam.gke.io/gcp-service-account: "simstudio@your-project-id.iam.gserviceaccount.com"
 
-# Additional environment variables for GCP service integration
-extraEnvVars:
-  - name: GOOGLE_APPLICATION_CREDENTIALS
-    value: "/var/secrets/google/key.json"
-
-# Additional volumes for service account credentials
-extraVolumes:
-  - name: google-cloud-key
-    secret:
-      secretName: google-service-account-key
-
-extraVolumeMounts:
-  - name: google-cloud-key
-    mountPath: /var/secrets/google
-    readOnly: true
+# Key-file credentials — ONLY if NOT using Workload Identity (the serviceAccount
+# annotation above is the recommended path and needs no key file; a mounted
+# GOOGLE_APPLICATION_CREDENTIALS overrides Workload Identity/ADC).
+# If you do use a key file, create the Secret first or every pod is stuck in
+# ContainerCreating on the missing volume:
+#   kubectl -n sim create secret generic google-service-account-key \
+#     --from-file=key.json=/path/to/service-account-key.json
+#
+# extraEnvVars:
+#   - name: GOOGLE_APPLICATION_CREDENTIALS
+#     value: "/var/secrets/google/key.json"
+#
+# extraVolumes:
+#   - name: google-cloud-key
+#     secret:
+#       secretName: google-service-account-key
+#
+# extraVolumeMounts:
+#   - name: google-cloud-key
+#     mountPath: /var/secrets/google
+#     readOnly: true
 # -----------------------------------------------------------------------------
 # External Secrets Operator (ESO) — recommended for production on GCP
 # -----------------------------------------------------------------------------

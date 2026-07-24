@@ -17,7 +17,12 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/secret: {{ include (print $.Template.BasePath "/secrets-app.yaml") . | sha256sum }}
+        {{- /* Hash the inline Secret AND the ExternalSecret manifest so spec
+          changes under externalSecrets.remoteRefs.app roll the pods (with ESO
+          enabled the inline Secret renders empty and would hash to a constant).
+          Rotated values inside the external store still can't be detected at
+          render time — ESO's own reconciliation handles those. */}}
+        checksum/secret: {{ printf "%s%s" (include (print $.Template.BasePath "/secrets-app.yaml") .) (include (print $.Template.BasePath "/external-secret-app.yaml") .) | sha256sum }}
         {{- if .Values.branding.enabled }}
         checksum/config: {{ include (print $.Template.BasePath "/configmap-branding.yaml") . | sha256sum }}
         {{- end }}
