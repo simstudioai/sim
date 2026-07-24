@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isSameRoom, parseRoomName, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
+import { parseRoomName, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
 import { cleanupPendingSubblocksForSocket } from '@/handlers/subblocks'
 import { cleanupPendingVariablesForSocket } from '@/handlers/variables'
 import type { AuthenticatedSocket } from '@/middleware/auth'
@@ -36,13 +36,14 @@ export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager
       const wasInRooms = new Map<string, RoomRef>()
       for (const room of removedRooms) wasInRooms.set(roomName(room), room)
       for (const name of socket.rooms) {
+        // `wasInRooms.has(name)` already excludes every room the manager removed
+        // (same room-name key via the roomName/parseRoomName bijection), so any
+        // room reaching here was NOT in `removedRooms` and needs a removal attempt.
         if (name === socket.id || wasInRooms.has(name)) continue
         const ref = parseRoomName(name)
         if (!ref) continue
         wasInRooms.set(name, ref)
-        if (!removedRooms.some((room) => isSameRoom(room, ref))) {
-          await roomManager.removeUserFromRoom(ref, socket.id)
-        }
+        await roomManager.removeUserFromRoom(ref, socket.id)
       }
 
       // Broadcast a correction to every room this socket was in, EXCLUDING this

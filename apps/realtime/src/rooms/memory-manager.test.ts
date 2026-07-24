@@ -10,11 +10,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRoomManager } from '@/rooms/memory-manager'
 import type { UserPresence } from '@/rooms/types'
 
-function fakeIo() {
+function fakeIo(liveSocketIds: string[] = []) {
   const emit = vi.fn()
   return {
     emit,
-    io: { to: vi.fn().mockReturnValue({ emit }) } as never,
+    io: {
+      to: vi.fn().mockReturnValue({ emit }),
+      in: vi.fn().mockReturnValue({
+        fetchSockets: vi.fn().mockResolvedValue(liveSocketIds.map((id) => ({ id }))),
+      }),
+    } as never,
   }
 }
 
@@ -150,6 +155,20 @@ describe('MemoryRoomManager multi-room', () => {
     // Broadcast as if socket-1 is disconnecting: even though its presence entry is
     // still present, it must not appear in the emitted list.
     await m.broadcastPresenceUpdate(FILES, 'socket-1')
+    const emitted = emit.mock.calls.at(-1)?.[1] as Array<{ socketId: string }>
+    expect(emitted.map((u) => u.socketId)).toEqual(['socket-2'])
+  })
+
+  it('never emits a presence entry whose socket is no longer live (ghost guard)', async () => {
+    // Only socket-2 is a live Socket.IO member; socket-1 is an orphaned entry that
+    // outlived a failed removal.
+    const { emit, io } = fakeIo(['socket-2'])
+    const m = new MemoryRoomManager(io)
+    await m.initialize()
+    await m.addUserToRoom(FILES, 'socket-1', presence(FILES, 'socket-1', 'user-1'))
+    await m.addUserToRoom(FILES, 'socket-2', presence(FILES, 'socket-2', 'user-2'))
+
+    await m.broadcastPresenceUpdate(FILES)
     const emitted = emit.mock.calls.at(-1)?.[1] as Array<{ socketId: string }>
     expect(emitted.map((u) => u.socketId)).toEqual(['socket-2'])
   })

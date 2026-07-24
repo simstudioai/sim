@@ -7,6 +7,7 @@ import {
 } from '@sim/realtime-protocol/rooms'
 import { createClient, type RedisClientType } from 'redis'
 import type { Server } from 'socket.io'
+import { filterVisiblePresence } from '@/rooms/presence-visibility'
 import type { IRoomManager, UserPresence, UserSession } from '@/rooms/types'
 
 const logger = createLogger('RedisRoomManager')
@@ -349,7 +350,7 @@ export class RedisRoomManager implements IRoomManager {
 
   async broadcastPresenceUpdate(room: RoomRef, excludeSocketId?: string): Promise<void> {
     const users = await this.getRoomUsers(room)
-    const visible = excludeSocketId ? users.filter((u) => u.socketId !== excludeSocketId) : users
+    const visible = await filterVisiblePresence(this._io, room, users, excludeSocketId)
     // io.to() with the Redis adapter broadcasts to all pods.
     this._io.to(roomName(room)).emit(presenceEventName(room.type), visible)
   }
