@@ -41,6 +41,7 @@ const workflowBlockDataSchema = z.object({
   batchSize: z.number().optional(),
   type: z.string().optional(),
   canonicalModes: z.record(z.string(), z.enum(['basic', 'advanced'])).optional(),
+  errorEnabled: z.boolean().optional(),
 })
 
 const workflowSubBlockStateSchema = z.object({
@@ -66,6 +67,7 @@ const workflowBlockStateSchema = z.object({
   horizontalHandles: z.boolean().optional(),
   height: z.number().optional(),
   advancedMode: z.boolean().optional(),
+  errorEnabled: z.boolean().optional(),
   triggerMode: z.boolean().optional(),
   data: workflowBlockDataSchema.optional(),
   locked: z.boolean().optional(),

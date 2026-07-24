@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import { isPositionedSourceHandle } from '@sim/workflow-types/workflow'
 import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/copilot/constants'
 import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import type { TraceSpan } from '@/lib/logs/types'
@@ -76,6 +77,10 @@ function shouldActivateEdgeClient(
 
   if (handle.startsWith('router-')) {
     return output?.selectedRoute === handle.substring('router-'.length)
+  }
+
+  if (isPositionedSourceHandle(handle)) {
+    return !output?.error
   }
 
   switch (handle) {

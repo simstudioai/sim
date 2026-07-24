@@ -1045,6 +1045,24 @@ describe('workflow store', () => {
     })
   })
 
+  describe('setBlockErrorEnabled', () => {
+    it('updates the persisted Error output flag', () => {
+      addBlock('function-1', 'function', 'Function 1', { x: 0, y: 0 })
+
+      useWorkflowStore.getState().setBlockErrorEnabled('function-1', true)
+
+      expect(useWorkflowStore.getState().blocks['function-1'].errorEnabled).toBe(true)
+    })
+
+    it('ignores an unknown block id', () => {
+      const before = useWorkflowStore.getState().blocks
+
+      useWorkflowStore.getState().setBlockErrorEnabled('missing', true)
+
+      expect(useWorkflowStore.getState().blocks).toEqual(before)
+    })
+  })
+
   describe('syncDynamicHandleSubblockValue', () => {
     it('should sync condition topology values into the workflow store', () => {
       addBlock('condition-1', 'condition', 'Condition 1', { x: 0, y: 0 })

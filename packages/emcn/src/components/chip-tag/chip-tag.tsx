@@ -24,6 +24,8 @@ import { cn } from '../../lib/cn'
  *   inverse-surface convention one step softer than near-black. For eyebrow
  *   kickers and emphasis labels that should read as a solid chip rather than a
  *   bordered one.
+ * - `workflow` — a restrained type cue for workflow cards. Pair with `tone`;
+ *   the icon remains the non-color identifier.
  * - `invite` — recipient pill used in invite/sharing flows. Borrows the chip
  *   family's icon gap (`gap-1.5`), `--text-body` label, and `--text-icon`
  *   leading/trailing icons; pairs with the `invalid` boolean to flip to an
@@ -39,10 +41,20 @@ const chipTagVariants = cva(
           'h-5 gap-[3px] px-1 bg-[var(--surface-6)] text-[var(--text-primary)] dark:bg-[var(--surface-3)]',
         gray: 'h-5 gap-[3px] px-1 border border-[var(--border-1)] bg-[var(--surface-5)] text-[var(--text-secondary)]',
         solid: 'h-5 gap-[3px] px-1 bg-[var(--text-secondary)] text-[var(--text-inverse)]',
+        workflow: 'h-5 gap-[3px] px-1',
         invite:
           'h-5 gap-1.5 px-1 border border-[var(--border-1)] bg-[var(--surface-5)] text-[var(--text-body)] dark:bg-[var(--surface-4)]',
       },
       invalid: { true: '', false: '' },
+      tone: {
+        neutral: '',
+        inverse: '',
+        teal: '',
+        indigo: '',
+        indigoStrong: '',
+        violet: '',
+        amber: '',
+      },
     },
     compoundVariants: [
       {
@@ -50,8 +62,54 @@ const chipTagVariants = cva(
         invalid: true,
         className: 'bg-[var(--badge-error-bg)] text-[var(--text-error)] border-transparent',
       },
+      {
+        variant: 'workflow',
+        tone: 'neutral',
+        className:
+          'bg-[oklch(0.91_0.012_230)] text-[oklch(0.29_0.015_230)] dark:bg-[oklch(0.32_0.012_230)] dark:text-[oklch(0.9_0.015_230)]',
+      },
+      {
+        variant: 'workflow',
+        tone: 'inverse',
+        className:
+          'bg-[oklch(0.4386_0_0)] text-[oklch(1_0_0)] dark:bg-[oklch(1_0_0)] dark:text-[oklch(0.4386_0_0)]',
+      },
+      {
+        variant: 'workflow',
+        tone: 'teal',
+        className:
+          'bg-[oklch(0.91_0.025_190)] text-[oklch(0.3_0.045_190)] dark:bg-[oklch(0.31_0.035_190)] dark:text-[oklch(0.9_0.035_190)]',
+      },
+      {
+        variant: 'workflow',
+        tone: 'indigo',
+        className:
+          'bg-[oklch(0.91_0.03_270)] text-[oklch(0.3_0.05_270)] dark:bg-[oklch(0.31_0.04_270)] dark:text-[oklch(0.9_0.035_270)]',
+      },
+      {
+        variant: 'workflow',
+        tone: 'indigoStrong',
+        className:
+          'bg-[oklch(0.88_0.065_270)] text-[oklch(0.28_0.075_270)] dark:bg-[oklch(0.33_0.065_270)] dark:text-[oklch(0.92_0.05_270)]',
+      },
+      {
+        variant: 'workflow',
+        tone: 'violet',
+        className:
+          'bg-[oklch(0.91_0.028_305)] text-[oklch(0.3_0.045_305)] dark:bg-[oklch(0.31_0.04_305)] dark:text-[oklch(0.9_0.035_305)]',
+      },
+      {
+        variant: 'workflow',
+        tone: 'amber',
+        className:
+          'bg-[oklch(0.92_0.032_80)] text-[oklch(0.32_0.055_70)] dark:bg-[oklch(0.32_0.04_80)] dark:text-[oklch(0.91_0.04_80)]',
+      },
     ],
-    defaultVariants: { variant: 'mono', invalid: false },
+    defaultVariants: {
+      variant: 'mono',
+      invalid: false,
+      tone: 'neutral',
+    },
   }
 )
 
@@ -100,6 +158,7 @@ export interface ChipTagProps
 export function ChipTag({
   variant,
   invalid,
+  tone,
   className,
   children,
   leftIcon: LeftIcon,
@@ -113,7 +172,7 @@ export function ChipTag({
   const interactive = RightIcon != null && onRightIconClick != null
 
   return (
-    <span className={cn(chipTagVariants({ variant, invalid }), className)} {...props}>
+    <span className={cn(chipTagVariants({ variant, invalid, tone }), className)} {...props}>
       {LeftIcon ? <LeftIcon className={iconClass} /> : null}
       {children}
       {RightIcon ? (
