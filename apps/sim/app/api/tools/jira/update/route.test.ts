@@ -83,6 +83,14 @@ describe('Jira update route custom-field serialization', () => {
     expect(response.status).toBe(400)
   })
 
+  it('rejects a cascading entry whose value is an unresolvable record', async () => {
+    const { response } = await update({
+      customFields: [{ fieldId: 'customfield_10005', type: 'cascading', value: { id: '10' } }],
+    })
+    expect(response.status).toBe(400)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('serializes a multiselect custom field to an array of options', async () => {
     await update({
       customFields: [

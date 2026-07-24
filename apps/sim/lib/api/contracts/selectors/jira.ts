@@ -126,12 +126,27 @@ const numberInputSchema = z.union([
     .refine((s) => s.trim() !== '' && Number.isFinite(Number(s)), 'number value must be numeric'),
 ])
 
-/** Parent scalar, `[parent, child]` array, or `{ parent|value, child }` object. */
+const cascadingScalar = z.union([z.string(), z.number()])
+
+/**
+ * Parent scalar, `[parent, child]` array, or `{ parent | value, child }` object.
+ * Parent and child are constrained to scalars (as tightly as select/userpicker)
+ * so an arbitrary record like `{ id: '10' }` — which the serializer cannot turn
+ * into a valid cascading option — is rejected at the boundary instead of being
+ * silently dropped or serialized to `"[object Object]"`.
+ */
 const cascadingInputSchema = z.union([
-  z.string(),
-  z.number(),
-  z.array(z.union([z.string(), z.number()])).min(1, 'cascading value cannot be empty'),
-  z.record(z.string(), z.unknown()),
+  cascadingScalar,
+  z.array(cascadingScalar).min(1, 'cascading value cannot be empty'),
+  z
+    .object({
+      parent: cascadingScalar.optional(),
+      value: cascadingScalar.optional(),
+      child: cascadingScalar.optional(),
+    })
+    .refine((o) => o.parent !== undefined || o.value !== undefined, {
+      message: 'cascading value must include a parent',
+    }),
 ])
 
 /**
@@ -164,7 +179,7 @@ export const jiraCustomFieldEntrySchema = z.discriminatedUnion('type', [
     fieldId: customFieldIdSchema,
     type: z.literal('cascading'),
     value: cascadingInputSchema,
-    child: z.unknown().optional(),
+    child: cascadingScalar.optional(),
   }),
   z.object({ fieldId: customFieldIdSchema, type: z.literal('raw'), value: z.unknown() }),
 ])
