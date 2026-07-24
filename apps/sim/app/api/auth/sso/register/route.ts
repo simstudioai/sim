@@ -550,6 +550,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return domainNotVerifiedResponse()
     }
 
+    // Record whether this (providerId, orgId) already existed BEFORE the write,
+    // so the compensating delete below can only ever remove a provider WE just
+    // created. registerSSOProvider is create-only today (it throws if the
+    // providerId already exists), so this is belt-and-suspenders — but it makes
+    // the rollback's safety local and independent of Better Auth's internals: if
+    // a future version ever allowed updating an existing provider, we must not
+    // delete that pre-existing row on a revoked-verification rollback.
+    let providerExistedBefore = false
+    if (orgId) {
+      const [prior] = await db
+        .select({ id: ssoProvider.id })
+        .from(ssoProvider)
+        .where(and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.organizationId, orgId)))
+        .limit(1)
+      providerExistedBefore = Boolean(prior)
+    }
+
     const registration = await auth.api.registerSSOProvider({
       body: providerConfig,
       headers,
@@ -557,12 +574,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     // Close the residual TOCTOU between the re-check above and Better Auth
     // persisting the provider: the verified sso_domain row could be removed in
-    // that window. registerSSOProvider is create-only (it throws if the
-    // providerId already exists), so a successful call ALWAYS created this exact
-    // row — this compensating delete can never remove a pre-existing provider.
-    // Scoped to (providerId, orgId) as defense-in-depth; personal SSO is not
-    // gated, so this only runs for org-scoped registration.
-    if (orgId && !(await isOrgDomainVerified())) {
+    // that window. Only roll back a provider this request just created (guarded
+    // by providerExistedBefore), scoped to (providerId, orgId). Personal SSO is
+    // not gated, so this only runs for org-scoped registration.
+    if (orgId && !providerExistedBefore && !(await isOrgDomainVerified())) {
       await db
         .delete(ssoProvider)
         .where(
