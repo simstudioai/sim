@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isPositionedSourceHandle } from '@sim/workflow-types/workflow'
 import type { TraceSpan } from '@/lib/logs/types'
 import type {
   BlockChildWorkflowStartedData,
@@ -70,6 +71,10 @@ function shouldActivateEdgeClient(
 
   if (handle.startsWith('router-')) {
     return output?.selectedRoute === handle.substring('router-'.length)
+  }
+
+  if (isPositionedSourceHandle(handle)) {
+    return !output?.error
   }
 
   switch (handle) {

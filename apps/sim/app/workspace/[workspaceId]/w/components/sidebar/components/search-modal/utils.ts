@@ -91,6 +91,8 @@ export interface CommandItemProps {
   icon: ComponentType<{ className?: string }>
   bgColor: string
   showColoredIcon?: boolean
+  /** Core workflow block type whose shared accent should replace the catalog color. */
+  workflowType?: string
   /** Primary text of the row. */
   label: string
 }

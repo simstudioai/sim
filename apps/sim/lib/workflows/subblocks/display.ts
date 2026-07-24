@@ -312,6 +312,18 @@ export const getDisplayValue = (value: unknown): string => {
 }
 
 /**
+ * Whether a collapsed-node row has a meaningful value to display.
+ * Rows whose value renders as the empty placeholder are hidden from the
+ * node preview so blocks only surface configured fields.
+ * `webhookUrlDisplay*` rows derive their value from the block id rather than
+ * the stored value, so they always count as displayable.
+ */
+export function hasDisplayableRowValue(subBlock: SubBlockConfig, rawValue: unknown): boolean {
+  if (subBlock.id.startsWith('webhookUrlDisplay')) return true
+  return getDisplayValue(rawValue) !== '-'
+}
+
+/**
  * Workflow id -> metadata lookup for the workflow selector resolvers.
  * `ready` gates resolution so missing entries only render as deleted once
  * the lookup has actually loaded.

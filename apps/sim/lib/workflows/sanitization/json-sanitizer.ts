@@ -1,4 +1,5 @@
 import { isRecordLike, sortObjectKeysDeep } from '@sim/utils/object'
+import { isPositionedSourceHandle } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
@@ -33,6 +34,7 @@ interface CopilotBlockState {
   nestedNodes?: Record<string, CopilotBlockState>
   enabled: boolean
   advancedMode?: boolean
+  errorEnabled?: boolean
   triggerMode?: boolean
 }
 
@@ -491,7 +493,9 @@ function extractConnectionsForBlock(
 
   // Group by source handle (converting to simple format)
   for (const edge of outgoingEdges) {
-    let handle = edge.sourceHandle || 'source'
+    let handle = isPositionedSourceHandle(edge.sourceHandle)
+      ? 'source'
+      : edge.sourceHandle || 'source'
 
     // Convert internal UUID handles to simple format (if, else-if-0, route-0, etc.)
     handle = convertToSimpleHandle(handle, blockId, block)
@@ -603,6 +607,7 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
     if (connections) result.connections = connections
     if (Object.keys(nestedNodes).length > 0) result.nestedNodes = nestedNodes
     if (block.advancedMode !== undefined) result.advancedMode = block.advancedMode
+    if (block.errorEnabled !== undefined) result.errorEnabled = block.errorEnabled
     if (block.triggerMode !== undefined) result.triggerMode = block.triggerMode
 
     // Note: outputs, position, height, layout, horizontalHandles are intentionally excluded

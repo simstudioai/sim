@@ -1,10 +1,28 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import { type ComponentType, Fragment, memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { SubBlockRowView, WorkflowBlockView } from '@sim/workflow-renderer'
+import { isPositionedSourceHandle, isPositionedTargetHandle } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
+import {
+  ArrowLeftRight,
+  ArrowUpDown,
+  Braces,
+  Clock,
+  Globe,
+  Hash,
+  KeyRound,
+  ListFilter,
+  MessageSquareText,
+  Paperclip,
+  SkipForward,
+  SlidersHorizontal,
+  Sparkles,
+  ToggleLeft,
+  Wrench,
+} from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { type NodeProps, useUpdateNodeInternals } from 'reactflow'
+import { type NodeProps, useStore as useReactFlowStore, useUpdateNodeInternals } from 'reactflow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -16,6 +34,7 @@ import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/determi
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import {
   getDisplayValue,
+  hasDisplayableRowValue,
   resolveDropdownLabel,
   resolveFilterFieldLabel,
   resolveSandboxLabel,
@@ -71,6 +90,7 @@ import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { getModelSunsetStatus } from '@/providers/models'
+import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -84,6 +104,245 @@ const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
 
 /** Stable empty map for rows that never resolve MCP tool names */
 const EMPTY_MCP_TOOL_NAMES: ReadonlyMap<string, string> = new Map()
+
+/**
+ * Selector subblock types whose hydrated value names the block's primary
+ * target (table, channel, knowledge base, …) — promoted to a chip.
+ */
+const CHIP_TARGET_SELECTOR_TYPES = new Set<string>([
+  'table-selector',
+  'knowledge-base-selector',
+  'workflow-selector',
+  'mcp-server-selector',
+  'mcp-tool-selector',
+  'channel-selector',
+  'user-selector',
+  'file-selector',
+  'sheet-selector',
+  'folder-selector',
+  'project-selector',
+  'document-selector',
+])
+
+/** Maximum fragments in the statement line; remaining candidates fall back to rows. */
+const MAX_CHIPS = 2
+
+type MetaIcon = ComponentType<{ className?: string }>
+
+/** Leading icons for compact meta rows, keyed by subblock id. */
+const SUBBLOCK_META_ICONS_BY_ID: Record<string, MetaIcon> = {
+  filterBuilder: ListFilter,
+  bulkFilterBuilder: ListFilter,
+  filter: ListFilter,
+  filterCriteria: ListFilter,
+  sortBuilder: ArrowUpDown,
+  sort: ArrowUpDown,
+  limit: Hash,
+  offset: SkipForward,
+  rowId: KeyRound,
+  url: Globe,
+  method: ArrowLeftRight,
+  body: Braces,
+  data: Braces,
+}
+
+/** Leading icons for compact meta rows, keyed by subblock type. */
+const SUBBLOCK_META_ICONS_BY_TYPE: Record<string, MetaIcon> = {
+  code: Braces,
+  'messages-input': MessageSquareText,
+  'tool-input': Wrench,
+  'skill-input': Sparkles,
+  'oauth-input': KeyRound,
+  switch: ToggleLeft,
+  'file-upload': Paperclip,
+  'time-input': Clock,
+  slider: SlidersHorizontal,
+}
+
+/** Resolves the meta-row icon for a subblock; null keeps the labeled row. */
+function getMetaIcon(subBlock: SubBlockConfig): MetaIcon | null {
+  return (
+    SUBBLOCK_META_ICONS_BY_ID[subBlock.id] ?? SUBBLOCK_META_ICONS_BY_TYPE[subBlock.type] ?? null
+  )
+}
+
+/** A value token in a summary sentence, referencing a visible subblock. */
+interface SentenceToken {
+  id: string
+}
+
+type SentenceSegment = string | SentenceToken
+
+const T = (id: string): SentenceToken => ({ id })
+
+/**
+ * Builds the natural-language summary for a block as text fragments
+ * interleaved with value tokens (rendered as inline chips). Returns null for
+ * block types or states without a template - those keep the field-row layout.
+ * `resolve` returns the first listed subblock id that is visible with a
+ * displayable value, so templates only reference real, configured fields.
+ */
+function buildSentenceSegments(
+  type: string,
+  operation: unknown,
+  resolve: (...ids: string[]) => string | null
+): SentenceSegment[] | null {
+  if (type === 'table') {
+    const table = resolve('tableSelector', 'manualTableId')
+    if (!table) return null
+    const rowId = resolve('rowId')
+    const data = resolve('data')
+    const filter = resolve('filterBuilder', 'bulkFilterBuilder', 'filter')
+    const sort = resolve('sortBuilder', 'sort')
+    const limit = resolve('limit')
+
+    switch (operation) {
+      case 'query_rows': {
+        const segments: SentenceSegment[] = ['Queries rows from', T(table)]
+        if (filter) segments.push(', where', T(filter))
+        if (sort) segments.push(', sorted by', T(sort))
+        if (limit) segments.push(', up to', T(limit), 'rows')
+        return segments
+      }
+      case 'insert_row':
+        return ['Inserts a row into', T(table), ...(data ? [', with', T(data)] : [])]
+      case 'upsert_row': {
+        const conflict = resolve('conflictColumnSelector', 'manualConflictColumn')
+        return ['Upserts a row into', T(table), ...(conflict ? [', keyed on', T(conflict)] : [])]
+      }
+      case 'batch_insert_rows': {
+        const rows = resolve('rows')
+        return ['Inserts', ...(rows ? [T(rows)] : ['rows']), 'into', T(table)]
+      }
+      case 'update_row':
+        return [
+          'Updates row',
+          ...(rowId ? [T(rowId)] : []),
+          'in',
+          T(table),
+          ...(data ? [', setting', T(data)] : []),
+        ]
+      case 'delete_row':
+        return ['Deletes row', ...(rowId ? [T(rowId)] : []), 'from', T(table)]
+      case 'get_row':
+        return ['Fetches row', ...(rowId ? [T(rowId)] : []), 'from', T(table)]
+      case 'update_rows_by_filter':
+        return [
+          'Updates rows in',
+          T(table),
+          ...(filter ? [', where', T(filter)] : []),
+          ...(data ? [', setting', T(data)] : []),
+        ]
+      case 'delete_rows_by_filter':
+        return ['Deletes rows from', T(table), ...(filter ? [', where', T(filter)] : [])]
+      case 'get_schema':
+        return ['Reads the schema of', T(table)]
+      default:
+        return null
+    }
+  }
+
+  if (type === 'agent') {
+    const model = resolve('model')
+    if (!model) return null
+    const messages = resolve('messages')
+    const tools = resolve('tools')
+    const segments: SentenceSegment[] = ['Prompts', T(model)]
+    if (messages) segments.push('with', T(messages))
+    if (tools) segments.push(', using', T(tools))
+    return segments
+  }
+
+  if (type === 'api') {
+    const url = resolve('url')
+    if (!url) return null
+    const method = resolve('method')
+    const body = resolve('body')
+    const segments: SentenceSegment[] = method
+      ? ['Sends a', T(method), 'request to', T(url)]
+      : ['Sends a request to', T(url)]
+    if (body) segments.push(', with body', T(body))
+    return segments
+  }
+
+  if (type === 'function') {
+    const code = resolve('code')
+    if (!code) return null
+    return ['Runs code', T(code)]
+  }
+
+  return null
+}
+
+/** Approximate character widths for the sentence line estimate (px). */
+const SENTENCE_TEXT_CHAR_PX = 6.3
+const SENTENCE_CHIP_CHAR_PX = 6.8
+/** Inline chip horizontal padding + surrounding gap (px). */
+const SENTENCE_CHIP_EXTRA_PX = 26
+/** Usable sentence width inside the card (px). */
+const SENTENCE_WRAP_WIDTH_PX = 224
+/** Chip text is truncated around this many characters by max-width. */
+const SENTENCE_CHIP_MAX_CHARS = 24
+/**
+ * Rendered cap on an inline value chip: `max-w-[160px]` on the chip itself
+ * (see SubBlockRowView's `inline-value`). Without this clamp a long value is
+ * estimated wider than it can ever paint, which predicts an extra wrapped
+ * line and pads the card's height.
+ */
+const SENTENCE_CHIP_MAX_PX = 160
+
+/**
+ * Estimates the wrapped line count of a summary sentence for the
+ * deterministic node height. Approximate by design - being off by a line
+ * only affects node bounds, never handle anchoring (source/target anchor to
+ * the header and the error port anchors to the bottom).
+ */
+function estimateSentenceLines(
+  segments: SentenceSegment[],
+  getValueText: (id: string) => string
+): number {
+  let widthPx = 0
+  for (const segment of segments) {
+    if (typeof segment === 'string') {
+      widthPx += segment.length * SENTENCE_TEXT_CHAR_PX + 4
+    } else {
+      widthPx += Math.min(
+        Math.min(getValueText(segment.id).length, SENTENCE_CHIP_MAX_CHARS) * SENTENCE_CHIP_CHAR_PX +
+          SENTENCE_CHIP_EXTRA_PX,
+        SENTENCE_CHIP_MAX_PX
+      )
+    }
+  }
+  return Math.max(1, Math.ceil(widthPx / SENTENCE_WRAP_WIDTH_PX))
+}
+
+/**
+ * Priority for promoting a visible subblock into the chips row: the
+ * operation first, then the primary target selector, then the model.
+ * Returns null for subblocks that stay as label/value rows.
+ */
+function chipPriority(subBlock: SubBlockConfig): number | null {
+  if (subBlock.id === 'operation') return 0
+  if (CHIP_TARGET_SELECTOR_TYPES.has(subBlock.type)) return 1
+  if (subBlock.id === 'model') return 2
+  return null
+}
+
+/**
+ * Names of MCP tool-schema parameters whose argument values are displayable
+ * on the collapsed node. Params without a set value are hidden from the
+ * preview, matching the empty-row filtering applied to regular subblocks.
+ */
+function getDisplayableMcpParamNames(schemaValue: unknown, argsValue: unknown): string[] {
+  const schema = schemaValue as { properties?: Record<string, unknown> } | undefined
+  const properties = schema?.properties
+  if (!properties || typeof properties !== 'object') return []
+  const args = (argsValue && typeof argsValue === 'object' ? argsValue : {}) as Record<
+    string,
+    unknown
+  >
+  return Object.keys(properties).filter((name) => getDisplayValue(args[name]) !== '-')
+}
 
 interface BlockSunset {
   status: 'legacy' | 'deprecated'
@@ -171,6 +430,10 @@ interface SubBlockRowProps {
   displayAdvancedOptions?: boolean
   canonicalIndex?: ReturnType<typeof buildCanonicalIndex>
   canonicalModeOverrides?: Record<string, 'basic' | 'advanced'>
+  /** Presentation variant forwarded to the row view. */
+  variant?: 'row' | 'meta' | 'statement-primary' | 'statement-muted' | 'inline-value'
+  /** Leading icon forwarded to the row view (meta variant). */
+  icon?: MetaIcon
 }
 
 /**
@@ -196,7 +459,9 @@ const areSubBlockRowPropsEqual = (
     valueEqual &&
     prevProps.displayAdvancedOptions === nextProps.displayAdvancedOptions &&
     prevProps.canonicalIndex === nextProps.canonicalIndex &&
-    prevProps.canonicalModeOverrides === nextProps.canonicalModeOverrides
+    prevProps.canonicalModeOverrides === nextProps.canonicalModeOverrides &&
+    prevProps.variant === nextProps.variant &&
+    prevProps.icon === nextProps.icon
   )
 }
 
@@ -217,6 +482,8 @@ const SubBlockRow = memo(function SubBlockRow({
   displayAdvancedOptions,
   canonicalIndex,
   canonicalModeOverrides,
+  variant,
+  icon,
 }: SubBlockRowProps) {
   const getStringValue = useCallback(
     (key?: string): string | undefined => {
@@ -486,7 +753,13 @@ const SubBlockRow = memo(function SubBlockRow({
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (
-    <SubBlockRowView title={title} displayValue={displayValue} isMonospace={isMonospaceField} />
+    <SubBlockRowView
+      title={title}
+      displayValue={displayValue}
+      isMonospace={isMonospaceField}
+      variant={variant}
+      icon={icon}
+    />
   )
 }, areSubBlockRowPropsEqual)
 
@@ -579,6 +852,112 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       [activeWorkflowId, id]
     ),
     isEqual
+  )
+
+  /**
+   * Whether a persisted legacy error route is wired from this block. The
+   * renderer uses this only to retain a non-interactive edge anchor.
+   */
+  const hasErrorConnection = useWorkflowStore(
+    useCallback(
+      (state) => state.edges.some((edge) => edge.source === id && edge.sourceHandle === 'error'),
+      [id]
+    )
+  )
+
+  /**
+   * Handle ids whose connected edge is highlighted because an endpoint block
+   * is selected — the view darkens those tabs to the edge highlight color so
+   * port and line read as one piece. Serialized to a string so the ReactFlow
+   * store subscription only re-renders on real changes.
+   */
+  const editorBlockId = usePanelEditorStore((state) => state.currentBlockId)
+  const panelActiveTab = usePanelStore((state) => state.activeTab)
+  const editorOpenBlockId = panelActiveTab === 'editor' ? editorBlockId : null
+  const highlightedHandleKey = useReactFlowStore(
+    useCallback(
+      (state) => {
+        const keys: string[] = []
+        for (const edge of state.edges) {
+          if (edge.source !== id && edge.target !== id) continue
+          /*
+           * Must mirror workflow-edge's shouldHighlightEdge exactly: the edge
+           * darkens when an endpoint is canvas-selected OR open in the editor
+           * panel. If the knob checks fewer conditions than the line, a dark
+           * line runs into a light knob.
+           */
+          const isHighlighted =
+            state.nodeInternals.get(edge.source)?.selected ||
+            state.nodeInternals.get(edge.target)?.selected ||
+            (edge.data as { isConnectedToSelection?: boolean } | undefined)
+              ?.isConnectedToSelection ||
+            (editorOpenBlockId !== null &&
+              (edge.source === editorOpenBlockId || edge.target === editorOpenBlockId))
+          if (!isHighlighted) continue
+          if (edge.source === id) keys.push(edge.sourceHandle || 'source')
+          if (edge.target === id) keys.push(edge.targetHandle || 'target')
+        }
+        return keys.sort().join('|')
+      },
+      [id, editorOpenBlockId]
+    )
+  )
+  const highlightedHandles = useMemo(
+    () => new Set(highlightedHandleKey ? highlightedHandleKey.split('|') : []),
+    [highlightedHandleKey]
+  )
+  const connectedSourceHandleKey = useReactFlowStore(
+    useCallback(
+      (state) => {
+        const handles = new Set<string>()
+        for (const edge of state.edges) {
+          if (edge.source === id && isPositionedSourceHandle(edge.sourceHandle)) {
+            handles.add(edge.sourceHandle)
+          }
+        }
+        return Array.from(handles).sort().join('|')
+      },
+      [id]
+    )
+  )
+  const connectedSourceHandles = useMemo(
+    () => new Set(connectedSourceHandleKey ? connectedSourceHandleKey.split('|') : []),
+    [connectedSourceHandleKey]
+  )
+  const connectedTargetHandleKey = useReactFlowStore(
+    useCallback(
+      (state) => {
+        const handles = new Set<string>()
+        for (const edge of state.edges) {
+          if (edge.target === id && isPositionedTargetHandle(edge.targetHandle)) {
+            handles.add(edge.targetHandle)
+          }
+        }
+        return Array.from(handles).sort().join('|')
+      },
+      [id]
+    )
+  )
+  const connectedTargetHandles = useMemo(
+    () => new Set(connectedTargetHandleKey ? connectedTargetHandleKey.split('|') : []),
+    [connectedTargetHandleKey]
+  )
+
+  const errorOutputEnabled = Boolean(currentBlock?.errorEnabled || hasErrorConnection)
+  const handleToggleErrorOutput = useCallback(
+    (next: boolean) => {
+      const store = useWorkflowStore.getState()
+      data.onSetErrorOutputEnabled?.(id, next)
+      if (!next) {
+        /* Turning the branch off removes its connections — a hidden error
+           edge would still reroute failures with no visible affordance. */
+        const errorEdgeIds = store.edges
+          .filter((edge) => edge.source === id && edge.sourceHandle === 'error')
+          .map((edge) => edge.id)
+        if (errorEdgeIds.length > 0) data.onRemoveEdges?.(errorEdgeIds)
+      }
+    },
+    [data.onRemoveEdges, data.onSetErrorOutputEnabled, id]
   )
 
   const posthog = usePostHog()
@@ -679,12 +1058,21 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         return false
       }
 
-      if (!block.condition) return true
+      if (block.condition && !evaluateSubBlockCondition(block.condition, rawValues)) {
+        return false
+      }
 
-      return evaluateSubBlockCondition(block.condition, rawValues)
+      return hasDisplayableRowValue(block, rawValues[block.id])
     })
 
-    visibleSubBlocks.forEach((block) => {
+    const chipBlocks = visibleSubBlocks
+      .filter((block) => chipPriority(block) !== null)
+      .sort((a, b) => (chipPriority(a) ?? 0) - (chipPriority(b) ?? 0))
+      .slice(0, MAX_CHIPS)
+    const chipIds = new Set(chipBlocks.map((block) => block.id))
+    const rowSubBlocks = visibleSubBlocks.filter((block) => !chipIds.has(block.id))
+
+    rowSubBlocks.forEach((block) => {
       if (currentRowWidth + blockWidth > 1) {
         if (currentRow.length > 0) {
           rows.push([...currentRow])
@@ -701,7 +1089,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       rows.push(currentRow)
     }
 
-    return { rows, stateToUse }
+    return { rows, stateToUse, chipBlocks }
   }, [
     config.subBlocks,
     config.category,
@@ -723,6 +1111,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const subBlockRows = subBlockRowsData.rows
   const subBlockState = subBlockRowsData.stateToUse
+  const chipBlocks = subBlockRowsData.chipBlocks
   const topologySubBlocks = data.isPreview
     ? (data.blockState?.subBlocks ?? {})
     : (currentStoreBlock?.subBlocks ?? {})
@@ -739,13 +1128,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       : displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
   }, [subBlockState, displayAdvancedMode, config.subBlocks, canonicalIndex, canEditWorkflow])
 
-  /**
-   * Determine if block has content below the header (subblocks or error row).
-   * Controls header border visibility and content container rendering.
-   */
   const shouldShowDefaultHandles =
     config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode
-  const hasContentBelowHeader = subBlockRows.length > 0 || shouldShowDefaultHandles
 
   /**
    * Compute per-condition rows (title/value/id) for condition blocks so we can render
@@ -773,6 +1157,18 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   }, [type, topologySubBlocks, id])
 
   /**
+   * Whether anything renders below the header — subblock rows, chips, or the
+   * condition/router branch rows.
+   */
+  const showsErrorRow = shouldShowDefaultHandles && type !== 'response'
+  const hasContentBelowHeader =
+    subBlockRows.length > 0 ||
+    chipBlocks.length > 0 ||
+    conditionRows.length > 0 ||
+    routerRows.length > 0 ||
+    showsErrorRow
+
+  /**
    * Total rendered row count. `mcp-dynamic-args` expands one row per parameter
    * in the cached tool schema, so we count those properties instead of 1.
    */
@@ -781,11 +1177,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     for (const row of subBlockRows) {
       for (const subBlock of row) {
         if (subBlock.type === 'mcp-dynamic-args') {
-          const schema = subBlockState._toolSchema?.value as
-            | { properties?: Record<string, unknown> }
-            | undefined
-          const properties = schema?.properties
-          count += properties && typeof properties === 'object' ? Object.keys(properties).length : 0
+          count += getDisplayableMcpParamNames(
+            subBlockState._toolSchema?.value,
+            subBlockState[subBlock.id]?.value
+          ).length
         } else {
           count += 1
         }
@@ -793,6 +1188,27 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     }
     return count
   }, [subBlockRows, subBlockState])
+
+  /**
+   * Natural-language summary data: segments + line estimate for the block
+   * types with a sentence template. Null keeps the field-row layout.
+   */
+  const sentenceData = useMemo(() => {
+    if (type === 'condition' || type === 'router_v2') return null
+    const visibleSubBlocksById = new Map<string, SubBlockConfig>()
+    for (const subBlock of chipBlocks) visibleSubBlocksById.set(subBlock.id, subBlock)
+    for (const row of subBlockRows) {
+      for (const subBlock of row) visibleSubBlocksById.set(subBlock.id, subBlock)
+    }
+    const resolve = (...ids: string[]) =>
+      ids.find((candidate) => visibleSubBlocksById.has(candidate)) ?? null
+    const segments = buildSentenceSegments(type, subBlockState.operation?.value, resolve)
+    if (!segments) return null
+    const lines = estimateSentenceLines(segments, (subBlockId) =>
+      getDisplayValue(subBlockState[subBlockId]?.value)
+    )
+    return { segments, visibleSubBlocksById, lines }
+  }, [type, chipBlocks, subBlockRows, subBlockState])
 
   /**
    * Compute and publish deterministic layout metrics for workflow blocks.
@@ -805,9 +1221,12 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         blockType: type,
         category: config.category,
         displayTriggerMode,
-        visibleSubBlockCount: totalRenderedRowCount,
+        visibleSubBlockCount: sentenceData ? 0 : totalRenderedRowCount,
         conditionRowCount: conditionRows.length,
         routerRowCount: routerRows.length,
+        chipCount: sentenceData ? 0 : chipBlocks.length,
+        sentenceLineCount: sentenceData?.lines ?? 0,
+        hasErrorRow: showsErrorRow,
       })
     },
     dependencies: [
@@ -817,7 +1236,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       totalRenderedRowCount,
       conditionRows.length,
       routerRows.length,
+      chipBlocks.length,
+      sentenceData?.lines ?? 0,
+      Boolean(sentenceData),
       horizontalHandles,
+      showsErrorRow,
     ],
   })
 
@@ -841,6 +1264,66 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const webhookProviderName = webhookProvider ? getProviderName(webhookProvider) : undefined
 
+  const isBranchBlock = type === 'condition' || type === 'router_v2'
+
+  const sentence = sentenceData ? (
+    <>
+      {sentenceData.segments.map((segment, index) => {
+        if (typeof segment === 'string') {
+          const glue = index > 0 && !segment.startsWith(',') && !segment.startsWith('.') ? ' ' : ''
+          return <Fragment key={`text-${index}`}>{`${glue}${segment}`}</Fragment>
+        }
+        const subBlock = sentenceData.visibleSubBlocksById.get(segment.id)
+        if (!subBlock) return null
+        const rawValue = subBlockState[segment.id]?.value
+        return (
+          <Fragment key={`value-${index}`}>
+            {' '}
+            <SubBlockRow
+              title={subBlock.title ?? subBlock.id}
+              value={getDisplayValue(rawValue)}
+              subBlock={subBlock}
+              rawValue={rawValue}
+              workspaceId={workspaceId}
+              workflowId={currentWorkflowId}
+              blockId={id}
+              allSubBlockValues={subBlockState}
+              displayAdvancedOptions={effectiveAdvanced}
+              canonicalIndex={canonicalIndex}
+              canonicalModeOverrides={canonicalModeOverrides}
+              variant='inline-value'
+            />
+          </Fragment>
+        )
+      })}
+    </>
+  ) : undefined
+
+  const chips =
+    isBranchBlock || sentenceData || chipBlocks.length === 0 ? undefined : (
+      <>
+        {chipBlocks.map((subBlock, index) => (
+          <Fragment key={`statement-${subBlock.id}`}>
+            {index > 0 && <span className='flex-shrink-0 text-[var(--text-muted)] text-sm'>·</span>}
+            <SubBlockRow
+              title={subBlock.title ?? subBlock.id}
+              value={getDisplayValue(subBlockState[subBlock.id]?.value)}
+              subBlock={subBlock}
+              rawValue={subBlockState[subBlock.id]?.value}
+              workspaceId={workspaceId}
+              workflowId={currentWorkflowId}
+              blockId={id}
+              allSubBlockValues={subBlockState}
+              displayAdvancedOptions={effectiveAdvanced}
+              canonicalIndex={canonicalIndex}
+              canonicalModeOverrides={canonicalModeOverrides}
+              variant={subBlock.id === 'operation' ? 'statement-primary' : 'statement-muted'}
+            />
+          </Fragment>
+        ))}
+      </>
+    )
+
   const rows =
     type === 'condition' || type === 'router_v2' ? null : (
       <>
@@ -848,25 +1331,21 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           row.flatMap((subBlock) => {
             const rawValue = subBlockState[subBlock.id]?.value
             if (subBlock.type === 'mcp-dynamic-args') {
-              const schema = subBlockState._toolSchema?.value as
-                | { properties?: Record<string, unknown> }
-                | undefined
-              const properties = schema?.properties
-              if (properties && typeof properties === 'object') {
-                const args = (rawValue && typeof rawValue === 'object' ? rawValue : {}) as Record<
-                  string,
-                  unknown
-                >
-                return Object.keys(properties).map((paramName) => (
+              const args = (rawValue && typeof rawValue === 'object' ? rawValue : {}) as Record<
+                string,
+                unknown
+              >
+              return getDisplayableMcpParamNames(subBlockState._toolSchema?.value, rawValue).map(
+                (paramName) => (
                   <SubBlockRow
                     key={`${subBlock.id}-${paramName}-${rowIndex}`}
                     title={formatParameterLabel(paramName)}
                     value={getDisplayValue(args[paramName])}
                   />
-                ))
-              }
-              return []
+                )
+              )
             }
+            const metaIcon = getMetaIcon(subBlock)
             return [
               <SubBlockRow
                 key={`${subBlock.id}-${rowIndex}`}
@@ -881,6 +1360,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                 displayAdvancedOptions={effectiveAdvanced}
                 canonicalIndex={canonicalIndex}
                 canonicalModeOverrides={canonicalModeOverrides}
+                variant={metaIcon ? 'meta' : 'row'}
+                icon={metaIcon ?? undefined}
               />,
             ]
           })
@@ -903,6 +1384,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       iconBgColor={config.bgColor}
       horizontalHandles={horizontalHandles}
       shouldShowDefaultHandles={shouldShowDefaultHandles}
+      blockHeight={blockHeight}
       hasContentBelowHeader={hasContentBelowHeader}
       conditionRows={conditionRows}
       routerRows={routerRows}
@@ -946,10 +1428,21 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       contentRef={contentRef}
       actionBar={
         !data.isPreview && !data.isEmbedded ? (
-          <ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} />
+          <ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} variant='swell' />
         ) : undefined
       }
       rows={rows}
+      chips={chips}
+      typeLabel={config.name}
+      sentence={sentence}
+      hasErrorConnection={hasErrorConnection}
+      errorOutputEnabled={errorOutputEnabled}
+      onToggleErrorOutput={
+        canEditWorkflow && data.onSetErrorOutputEnabled ? handleToggleErrorOutput : undefined
+      }
+      highlightedHandles={highlightedHandles}
+      connectedSourceHandles={connectedSourceHandles}
+      connectedTargetHandles={connectedTargetHandles}
     />
   )
 }, shouldSkipBlockRender)

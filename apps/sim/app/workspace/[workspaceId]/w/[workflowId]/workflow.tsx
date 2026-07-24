@@ -8,6 +8,7 @@ import ReactFlow, {
   type Edge,
   type Node,
   type NodeChange,
+  type OnConnectStart,
   ReactFlowProvider,
   SelectionMode,
   useReactFlow,
@@ -17,7 +18,20 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import type { SubflowNodeData } from '@sim/workflow-renderer'
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
+import {
+  BLOCK_DIMENSIONS,
+  CONTAINER_DIMENSIONS,
+  normalizeCursorSourceHandleId,
+} from '@sim/workflow-renderer'
+import {
+  getHorizontalWorkflowHandleSide,
+  getPositionedSourceHandleId,
+  getPositionedTargetHandleId,
+  isPositionedTargetHandle,
+  normalizePositionedSourceHandleId,
+  normalizePositionedTargetHandleId,
+  type PositionedSourceHandleSide,
+} from '@sim/workflow-types/workflow'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-tool'
@@ -116,6 +130,10 @@ const LazyChat = lazy(() =>
 const logger = createLogger('Workflow')
 
 const DEFAULT_PASTE_OFFSET = { x: 50, y: 50 }
+const CONNECTION_LINE_STYLE = {
+  stroke: 'var(--connection-line-stroke)',
+  strokeWidth: 2,
+}
 
 /**
  * Calculates the offset to paste blocks at viewport center
@@ -232,7 +250,6 @@ const WorkflowContent = React.memo(
     const [isCanvasReady, setIsCanvasReady] = useState(false)
     const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
     const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
-    const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
     const canvasContainerRef = useRef<HTMLDivElement>(null)
     const embeddedFitFrameRef = useRef<number | null>(null)
     const hasCompletedInitialEmbeddedFitRef = useRef(false)
@@ -526,7 +543,10 @@ const WorkflowContent = React.memo(
       )
 
     /** Stores source node/handle info when a connection drag starts for drop-on-block detection. */
-    const connectionSourceRef = useRef<{ nodeId: string; handleId: string } | null>(null)
+    const connectionSourceRef = useRef<{
+      nodeId: string | null
+      handleId: string | null
+    } | null>(null)
 
     /** Tracks whether onConnect successfully handled the connection (ReactFlow pattern). */
     const connectionCompletedRef = useRef(false)
@@ -598,11 +618,18 @@ const WorkflowContent = React.memo(
         edgesToFilter = [...edges, ...reconstructedEdges]
       }
 
-      return edgesToFilter.filter((edge) => {
-        const sourceBlock = blocks[edge.source]
-        const targetBlock = blocks[edge.target]
-        return Boolean(sourceBlock && targetBlock)
-      })
+      return edgesToFilter
+        .map((edge) => {
+          const sourceHandle = normalizePositionedSourceHandleId(edge.sourceHandle)
+          const targetHandle = normalizePositionedTargetHandleId(edge.targetHandle)
+          if (sourceHandle === edge.sourceHandle && targetHandle === edge.targetHandle) return edge
+          return { ...edge, sourceHandle, targetHandle }
+        })
+        .filter((edge) => {
+          const sourceBlock = blocks[edge.source]
+          const targetBlock = blocks[edge.target]
+          return Boolean(sourceBlock && targetBlock)
+        })
     }, [edges, isShowingDiff, isDiffReady, diffAnalysis, blocks])
 
     const { userPermissions, workspacePermissions, permissionsError } =
@@ -627,8 +654,8 @@ const WorkflowContent = React.memo(
       collaborativeBatchAddBlocks,
       collaborativeBatchRemoveBlocks,
       collaborativeBatchToggleBlockEnabled,
-      collaborativeBatchToggleBlockHandles,
       collaborativeBatchToggleLocked,
+      collaborativeSetBlockErrorEnabled,
       undo,
       redo,
     } = useCollaborativeWorkflow()
@@ -842,15 +869,6 @@ const WorkflowContent = React.memo(
     const getLastExecutionSnapshot = useExecutionStore((s) => s.getLastExecutionSnapshot)
 
     const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
-
-    /** Connection line style - red for error handles, default otherwise. */
-    const connectionLineStyle = useMemo(
-      () => ({
-        stroke: isErrorConnectionDrag ? 'var(--text-error)' : 'var(--workflow-edge)',
-        strokeWidth: 2,
-      }),
-      [isErrorConnectionDrag]
-    )
 
     /** Logs permission loading results for debugging. */
     useEffect(() => {
@@ -1215,11 +1233,6 @@ const WorkflowContent = React.memo(
       const blockIds = contextMenuBlocks.map((block) => block.id)
       collaborativeBatchToggleBlockEnabled(blockIds)
     }, [contextMenuBlocks, collaborativeBatchToggleBlockEnabled])
-
-    const handleContextToggleHandles = useCallback(() => {
-      const blockIds = contextMenuBlocks.map((block) => block.id)
-      collaborativeBatchToggleBlockHandles(blockIds)
-    }, [contextMenuBlocks, collaborativeBatchToggleBlockHandles])
 
     const handleContextToggleLocked = useCallback(() => {
       const blockIds = contextMenuBlocks.map((block) => block.id)
@@ -2638,6 +2651,8 @@ const WorkflowContent = React.memo(
             isPending,
             ...(embedded && { isEmbedded: true }),
             isWorkflowLocked: workflowReadOnly,
+            onSetErrorOutputEnabled: collaborativeSetBlockErrorEnabled,
+            onRemoveEdges: collaborativeBatchRemoveEdges,
           },
           // Include dynamic dimensions for container resizing calculations (must match rendered size)
           // Both note and workflow blocks calculate dimensions deterministically via useBlockDimensions
@@ -2659,6 +2674,8 @@ const WorkflowContent = React.memo(
       getBlockConfig,
       embedded,
       workflowReadOnly,
+      collaborativeSetBlockErrorEnabled,
+      collaborativeBatchRemoveEdges,
     ])
 
     // Local state for nodes - allows smooth drag without store updates on every frame
@@ -3085,20 +3102,36 @@ const WorkflowContent = React.memo(
      * Captures the source handle when a connection drag starts.
      * Resets connectionCompletedRef to track if onConnect handles this connection.
      */
-    const onConnectStart = useCallback((_event: any, params: any) => {
-      const handleId: string | undefined = params?.handleId
-      setIsErrorConnectionDrag(handleId === 'error')
-      connectionSourceRef.current = {
-        nodeId: params?.nodeId,
-        handleId: params?.handleId,
-      }
-      connectionCompletedRef.current = false
-    }, [])
+    const onConnectStart = useCallback<OnConnectStart>(
+      (_event, params) => {
+        const handleId = params.handleId ?? undefined
+        const isSelectedSource = Boolean(
+          getNodes().find((node) => node.id === params?.nodeId)?.selected
+        )
+        const connectionLineVariant =
+          handleId === 'error' ? 'error' : isSelectedSource ? 'selected' : 'default'
+        canvasContainerRef.current?.setAttribute('data-connection-line', connectionLineVariant)
+        canvasContainerRef.current?.setAttribute('data-connection-active', 'true')
+        connectionSourceRef.current = {
+          nodeId: params?.nodeId,
+          handleId: params?.handleId,
+        }
+        connectionCompletedRef.current = false
+      },
+      [getNodes]
+    )
 
     /** Handles new edge connections with container boundary validation. */
     const onConnect = useCallback(
       (connection: any) => {
         if (connection.source && connection.target) {
+          const normalizedConnection = {
+            ...connection,
+            sourceHandle: normalizePositionedSourceHandleId(
+              normalizeCursorSourceHandleId(connection.sourceHandle)
+            ),
+            targetHandle: normalizePositionedTargetHandleId(connection.targetHandle),
+          }
           // Check if connecting nodes across container boundaries
           const sourceNode = getNodes().find((n) => n.id === connection.source)
           const targetNode = getNodes().find((n) => n.id === connection.target)
@@ -3106,7 +3139,7 @@ const WorkflowContent = React.memo(
           if (!sourceNode || !targetNode) return
 
           // Prevent connections to protected blocks (outbound from locked blocks is allowed)
-          if (isEdgeProtected(connection, blocks)) {
+          if (isEdgeProtected(normalizedConnection, blocks)) {
             toast({
               message: 'Cannot connect to locked blocks or blocks inside locked containers',
             })
@@ -3116,9 +3149,9 @@ const WorkflowContent = React.memo(
           // Get parent information (handle container start node case)
           const sourceParentId =
             blocks[sourceNode.id]?.data?.parentId ||
-            (connection.sourceHandle === 'loop-start-source' ||
-            connection.sourceHandle === 'parallel-start-source'
-              ? connection.source
+            (normalizedConnection.sourceHandle === 'loop-start-source' ||
+            normalizedConnection.sourceHandle === 'parallel-start-source'
+              ? normalizedConnection.source
               : undefined)
           const targetParentId = blocks[targetNode.id]?.data?.parentId
 
@@ -3127,14 +3160,14 @@ const WorkflowContent = React.memo(
 
           // Special case for container start source: Always allow connections to nodes within the same container
           if (
-            (connection.sourceHandle === 'loop-start-source' ||
-              connection.sourceHandle === 'parallel-start-source') &&
+            (normalizedConnection.sourceHandle === 'loop-start-source' ||
+              normalizedConnection.sourceHandle === 'parallel-start-source') &&
             blocks[targetNode.id]?.data?.parentId === sourceNode.id
           ) {
             // This is a connection from container start to a node inside the container - always allow
 
             addEdge({
-              ...connection,
+              ...normalizedConnection,
               id: edgeId,
               type: 'workflowEdge',
               // Add metadata about the container context
@@ -3162,7 +3195,7 @@ const WorkflowContent = React.memo(
 
           // Add appropriate metadata for container context
           addEdge({
-            ...connection,
+            ...normalizedConnection,
             id: edgeId,
             type: 'workflowEdge',
             data: isInsideContainer
@@ -3187,7 +3220,8 @@ const WorkflowContent = React.memo(
      */
     const onConnectEnd = useCallback(
       (event: MouseEvent | TouchEvent) => {
-        setIsErrorConnectionDrag(false)
+        canvasContainerRef.current?.setAttribute('data-connection-line', 'default')
+        canvasContainerRef.current?.setAttribute('data-connection-active', 'false')
 
         const source = connectionSourceRef.current
         if (!source?.nodeId) {
@@ -3204,22 +3238,57 @@ const WorkflowContent = React.memo(
         // Find node under cursor using DOM hit-testing
         const clientPos = 'changedTouches' in event ? event.changedTouches[0] : event
         const targetNode = findNodeAtScreenPosition(clientPos.clientX, clientPos.clientY)
+        const sourceHandle = normalizeCursorSourceHandleId(source.handleId) ?? 'source'
 
         // Create connection if valid target found (handle-to-body case)
         if (targetNode && targetNode.id !== source.nodeId) {
-          onConnect({
-            source: source.nodeId,
-            sourceHandle: source.handleId,
-            target: targetNode.id,
-            targetHandle: 'target',
-          })
+          /*
+           * Connections are horizontal-only. A body drop resolves by card
+           * half, so even a top/bottom drop terminates at the nearest left or
+           * right anchor without reintroducing a vertical edge endpoint.
+           */
+          const nodeEl = document.querySelector(
+            `.react-flow__node[data-id="${targetNode.id}"]`
+          ) as HTMLElement | null
+          let dropSide: PositionedSourceHandleSide | null = null
+          if (nodeEl) {
+            const rect = nodeEl.getBoundingClientRect()
+            dropSide = getHorizontalWorkflowHandleSide(clientPos.clientX - rect.left, rect.width)
+          }
+          /*
+           * A drag can start on an INPUT knob (the left target). The dropped
+           * card is then the upstream end: reusing the origin as the edge
+           * source would store 'target' as a sourceHandle, and the edge
+           * renders off arbitrary fallback anchors and never highlights.
+           */
+          const draggedFromInput =
+            source.handleId === 'target' || isPositionedTargetHandle(source.handleId)
+          if (draggedFromInput) {
+            const dropSourceHandle =
+              !dropSide || dropSide === 'right' ? 'source' : getPositionedSourceHandleId(dropSide)
+            onConnect({
+              source: targetNode.id,
+              sourceHandle: dropSourceHandle,
+              target: source.nodeId,
+              targetHandle: source.handleId ?? 'target',
+            })
+          } else {
+            const targetHandle =
+              !dropSide || dropSide === 'left' ? 'target' : getPositionedTargetHandleId(dropSide)
+            onConnect({
+              source: source.nodeId,
+              sourceHandle,
+              target: targetNode.id,
+              targetHandle,
+            })
+          }
         } else if (!targetNode) {
           // Released on empty canvas: open the command palette with the drag origin
           // + drop point, so the chosen block lands here wired from this handle.
           useSearchModalStore.getState().open({
             sections: ['blocks', 'tools', 'toolOperations'],
             pendingConnect: {
-              source: { nodeId: source.nodeId, handleId: source.handleId },
+              source: { nodeId: source.nodeId, handleId: sourceHandle },
               screenX: clientPos.clientX,
               screenY: clientPos.clientY,
             },
@@ -3228,7 +3297,7 @@ const WorkflowContent = React.memo(
 
         connectionSourceRef.current = null
       },
-      [findNodeAtScreenPosition, onConnect]
+      [findNodeAtScreenPosition, onConnect, blocks]
     )
 
     /** Handles node drag to detect container intersections and update highlighting. */
@@ -3861,6 +3930,32 @@ const WorkflowContent = React.memo(
     }, [])
 
     /**
+     * Animates the camera so the given block centers in the canvas frame.
+     * Deferred by two animation frames because selection can switch the right
+     * panel to the Editor tab, resizing the canvas — centering must run
+     * against the settled frame size or the card lands off-center. Zooms in
+     * to 1 when zoomed out; keeps the user's zoom when already closer.
+     */
+    const focusBlockInView = useCallback(
+      (node: Node) => {
+        const position = node.positionAbsolute ?? node.position
+        const nodeWidth = node.width ?? 250
+        const nodeHeight = node.height ?? 100
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const currentZoom = reactFlowInstance.getViewport().zoom
+            const targetZoom = Math.max(currentZoom, 1)
+            reactFlowInstance.setCenter(position.x + nodeWidth / 2, position.y + nodeHeight / 2, {
+              zoom: targetZoom,
+              duration: 500,
+            })
+          })
+        })
+      },
+      [reactFlowInstance]
+    )
+
+    /**
      * Handles node click to select the node in ReactFlow.
      * Uses the controlled display node state so parent-child conflicts are resolved
      * consistently for click, shift-click, and marquee selection.
@@ -3893,9 +3988,84 @@ const WorkflowContent = React.memo(
           }))
           return resolveSelectionConflicts(updated, blocks, isMultiSelect ? node.id : undefined)
         })
+
+        /**
+         * Focus the clicked block: animate the camera so the card centers in
+         * the canvas frame. Only on plain clicks of regular blocks —
+         * multi-select and subflow containers keep the camera still.
+         * onNodeClick never fires after a drag.
+         */
+        if (!embedded && !isMultiSelect && node.type === 'workflowBlock') {
+          focusBlockInView(node)
+        }
       },
-      [blocks, getNodes]
+      [blocks, getNodes, embedded, focusBlockInView]
     )
+
+    /**
+     * Arrow-key navigation: with a single block selected, Right/Down moves to
+     * the next block in canvas reading order (left-to-right, top-to-bottom)
+     * and Left/Up to the previous, wrapping at the ends. Selection, the
+     * editor panel, and the camera focus all follow. Skipped while typing in
+     * inputs/editors or interacting with menus, and in embedded mode.
+     */
+    useEffect(() => {
+      if (embedded) return
+
+      const handleArrowNavigation = (event: KeyboardEvent) => {
+        if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+        const isNext = event.key === 'ArrowRight' || event.key === 'ArrowDown'
+        const isPrev = event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+        if (!isNext && !isPrev) return
+
+        const target = event.target as HTMLElement | null
+        if (
+          target &&
+          (target.tagName === 'INPUT' ||
+            target.tagName === 'TEXTAREA' ||
+            target.tagName === 'SELECT' ||
+            target.isContentEditable ||
+            target.closest(
+              '[contenteditable="true"], [role="listbox"], [role="menu"], [role="combobox"], .cm-editor'
+            ))
+        ) {
+          return
+        }
+
+        const workflowNodes = getNodes().filter((n) => n.type === 'workflowBlock')
+        const selected = workflowNodes.filter((n) => n.selected)
+        if (selected.length !== 1 || workflowNodes.length < 2) return
+
+        const ordered = [...workflowNodes].sort((a, b) => {
+          const pa = a.positionAbsolute ?? a.position
+          const pb = b.positionAbsolute ?? b.position
+          return pa.x - pb.x || pa.y - pb.y
+        })
+        const currentIndex = ordered.findIndex((n) => n.id === selected[0].id)
+        if (currentIndex === -1) return
+
+        event.preventDefault()
+        event.stopPropagation()
+
+        const nextNode =
+          ordered[(currentIndex + (isNext ? 1 : -1) + ordered.length) % ordered.length]
+
+        setDisplayNodes((currentNodes) =>
+          resolveSelectionConflicts(
+            currentNodes.map((currentNode) => ({
+              ...currentNode,
+              selected: currentNode.id === nextNode.id,
+            })),
+            blocks
+          )
+        )
+        usePanelEditorStore.getState().setCurrentBlockId(nextNode.id)
+        focusBlockInView(nextNode)
+      }
+
+      window.addEventListener('keydown', handleArrowNavigation, true)
+      return () => window.removeEventListener('keydown', handleArrowNavigation, true)
+    }, [embedded, getNodes, blocks, focusBlockInView])
 
     /** Handles edge selection with container context tracking and Shift-click multi-selection. */
     const onEdgeClick = useCallback(
@@ -3980,39 +4150,35 @@ const WorkflowContent = React.memo(
     /** Transforms edges to include selection state and delete handlers. Memoized to prevent re-renders. */
     const edgesWithSelection = useMemo(() => {
       const nodeMap = new Map(displayNodes.map((n) => [n.id, n]))
-      const elevatedNodeIdSet = new Set(
-        lastInteractedNodeId ? [...selectedNodeIds, lastInteractedNodeId] : selectedNodeIds
-      )
 
       return edgesForDisplay.map((edge) => {
         const sourceNode = nodeMap.get(edge.source)
         const targetNode = nodeMap.get(edge.target)
         const parentLoopId = sourceNode?.parentId || targetNode?.parentId
         const edgeContextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`
-        const connectedToElevated =
-          elevatedNodeIdSet.has(edge.source) || elevatedNodeIdSet.has(edge.target)
-        // Derive elevated z-index from connected nodes so edges inside subflows
-        // (child nodes at z-1000) stay above their sibling child blocks.
-        const elevatedZIndex = Math.max(
-          22,
-          (sourceNode?.zIndex ?? 21) + 1,
-          (targetNode?.zIndex ?? 21) + 1
-        )
 
         // Edges inside subflows need a z-index above the container's body area
         // (which has pointer-events: auto) so they're directly clickable.
         // Derive from the container's depth-based zIndex (+1) so the edge sits
         // just above its parent container but below canvas blocks (z-21+) and
         // child blocks (z-1000).
+        //
+        // Edges are NEVER elevated above cards — not even when an endpoint is
+        // selected. A line always passes behind cards, knobs, and the action
+        // bar swell; elevating highlighted edges drew them across their own
+        // endpoint's chrome.
         const containerNode = parentLoopId ? nodeMap.get(parentLoopId) : null
         const baseZIndex = containerNode ? (containerNode.zIndex ?? 0) + 1 : 0
+        const isConnectedToSelection =
+          selectedNodeIds.includes(edge.source) || selectedNodeIds.includes(edge.target)
 
         return {
           ...edge,
-          zIndex: connectedToElevated ? elevatedZIndex : baseZIndex,
+          zIndex: baseZIndex,
           data: {
             ...edge.data,
             isSelected: selectedEdges.has(edgeContextId),
+            isConnectedToSelection,
             isInsideLoop: Boolean(parentLoopId),
             parentLoopId,
             sourceHandle: edge.sourceHandle,
@@ -4020,14 +4186,7 @@ const WorkflowContent = React.memo(
           },
         }
       })
-    }, [
-      edgesForDisplay,
-      displayNodes,
-      selectedNodeIds,
-      selectedEdges,
-      handleEdgeDelete,
-      lastInteractedNodeId,
-    ])
+    }, [edgesForDisplay, displayNodes, selectedNodeIds, selectedEdges, handleEdgeDelete])
 
     /** Handles Delete/Backspace to remove selected edges or blocks. */
     useEffect(() => {
@@ -4138,7 +4297,10 @@ const WorkflowContent = React.memo(
     return (
       <div className='flex h-full w-full overflow-hidden'>
         <div className='flex min-w-0 flex-1 flex-col'>
-          <div ref={canvasContainerRef} className='relative flex-1 overflow-hidden'>
+          <div
+            ref={canvasContainerRef}
+            className='relative flex-1 overflow-hidden [--connection-line-stroke:var(--workflow-edge)] data-[connection-line=error]:[--connection-line-stroke:var(--text-error)] data-[connection-line=selected]:[--connection-line-stroke:var(--text-secondary)] data-[connection-active=true]:[&_.react-flow__handle.source]:pointer-events-none'
+          >
             {!isWorkflowReady && (
               <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
                 <div
@@ -4197,7 +4359,7 @@ const WorkflowContent = React.memo(
                   panOnScroll
                   defaultEdgeOptions={defaultEdgeOptions}
                   proOptions={reactFlowProOptions}
-                  connectionLineStyle={connectionLineStyle}
+                  connectionLineStyle={CONNECTION_LINE_STYLE}
                   connectionLineType={ConnectionLineType.SmoothStep}
                   onPaneClick={onPaneClick}
                   onEdgeClick={embedded ? undefined : onEdgeClick}
@@ -4265,7 +4427,6 @@ const WorkflowContent = React.memo(
                       onDuplicate={handleContextDuplicate}
                       onDelete={handleContextDelete}
                       onToggleEnabled={handleContextToggleEnabled}
-                      onToggleHandles={handleContextToggleHandles}
                       onRemoveFromSubflow={handleContextRemoveFromSubflow}
                       onOpenEditor={handleContextOpenEditor}
                       onRename={handleContextRename}
