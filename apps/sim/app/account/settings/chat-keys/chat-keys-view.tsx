@@ -12,9 +12,12 @@ import {
   ChipModalHeader,
   SecretReveal,
 } from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Plus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { getAccountSettingsHref } from '@/components/settings/navigation'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -26,7 +29,7 @@ import {
   useGenerateCopilotKey,
 } from '@/hooks/queries/copilot-keys'
 
-const logger = createLogger('CopilotSettings')
+const logger = createLogger('ChatKeysSettings')
 
 /** Formats a key's last-used timestamp, falling back to "Never" when unset. */
 function formatLastUsed(dateString?: string | null): string {
@@ -35,10 +38,11 @@ function formatLastUsed(dateString?: string | null): string {
 }
 
 /**
- * Copilot Keys management component for handling API keys used with the Copilot feature.
- * Provides functionality to create, view, and delete copilot API keys.
+ * Standalone page for managing the Chat API keys used with the Chat feature.
+ * Provides functionality to create, view, and delete Chat API keys.
  */
-export function Copilot() {
+export function ChatKeysView() {
+  const router = useRouter()
   const { data: keys = [], isLoading } = useCopilotKeys()
   const generateKey = useGenerateCopilotKey()
   const deleteKeyMutation = useDeleteCopilotKey()
@@ -84,7 +88,7 @@ export function Copilot() {
         setIsCreateDialogOpen(false)
       }
     } catch (error) {
-      logger.error('Failed to generate copilot API key', { error })
+      logger.error('Failed to generate Chat API key', { error })
       setCreateError('Failed to create API key. Please check your connection and try again.')
     }
   }
@@ -98,7 +102,7 @@ export function Copilot() {
 
       await deleteKeyMutation.mutateAsync({ keyId: keyToDelete.id })
     } catch (error) {
-      logger.error('Failed to delete copilot API key', { error })
+      logger.error('Failed to delete Chat API key', { error })
     }
   }
 
@@ -122,12 +126,19 @@ export function Copilot() {
   return (
     <>
       <SettingsPanel
+        back={{
+          text: 'Account',
+          icon: ArrowLeft,
+          onSelect: () => router.push(getAccountSettingsHref('general')),
+        }}
         search={{
           value: searchTerm,
           onChange: setSearchTerm,
           placeholder: 'Search API keys...',
         }}
         actions={actions}
+        title='Chat keys'
+        description='Create and manage the API keys that power Chat.'
       >
         {isLoading ? null : showEmptyState ? (
           <SettingsEmptyState>Click "Create API key" above to get started</SettingsEmptyState>

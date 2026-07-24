@@ -25,9 +25,6 @@ const ApiKeys = dynamic(() =>
 const BYOK = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/byok/byok').then((m) => m.BYOK)
 )
-const Copilot = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/copilot/copilot').then((m) => m.Copilot)
-)
 const Forks = dynamic(() => import('@/ee/workspace-forking/components/forks').then((m) => m.Forks))
 const Secrets = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then((m) => m.Secrets)
@@ -182,7 +179,6 @@ export function SettingsPage({ section }: SettingsPageProps) {
         <WhitelabelingSettings organizationId={organizationId} />
       )}
       {effectiveSection === 'byok' && <BYOK />}
-      {effectiveSection === 'copilot' && <Copilot />}
       {effectiveSection === 'mcp' && <MCP />}
       {effectiveSection === 'forks' && <Forks />}
       {effectiveSection === 'custom-tools' && <CustomTools />}

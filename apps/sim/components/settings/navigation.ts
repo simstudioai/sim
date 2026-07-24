@@ -29,13 +29,7 @@ import { isHosted } from '@/lib/core/config/env-flags'
 
 export type SettingsPlane = 'account' | 'organization' | 'workspace'
 
-export type AccountSettingsSection =
-  | 'general'
-  | 'billing'
-  | 'api-keys'
-  | 'copilot'
-  | 'admin'
-  | 'mothership'
+export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin' | 'mothership'
 
 export type OrganizationSettingsSection =
   | 'members'
@@ -92,7 +86,6 @@ export type UnifiedSettingsSection =
   | 'sso'
   | 'domains'
   | 'whitelabeling'
-  | 'copilot'
   | 'forks'
   | 'mcp'
   | 'custom-tools'
@@ -485,19 +478,6 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
     planes: {
       workspace: { id: 'byok', group: 'workspace', order: 2 },
-    },
-  },
-  {
-    label: 'Chat keys',
-    icon: HexSimple,
-    unified: {
-      id: 'copilot',
-      description: 'Manage the model-provider keys that power Chat.',
-      group: 'system',
-      requiresHosted: true,
-    },
-    planes: {
-      account: { id: 'copilot', group: 'developer', order: 3 },
     },
   },
   {

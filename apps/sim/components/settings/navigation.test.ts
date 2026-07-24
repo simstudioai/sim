@@ -38,7 +38,6 @@ describe('settings navigation boundaries', () => {
       'apikeys',
       'workflow-mcp-servers',
       'byok',
-      'copilot',
       'inbox',
       'recently-deleted',
       'sso',
@@ -55,7 +54,6 @@ describe('settings navigation boundaries', () => {
       'general',
       'billing',
       'api-keys',
-      'copilot',
       'admin',
       'mothership',
     ])
