@@ -2,8 +2,6 @@ import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import type OpenAI from 'openai'
-import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
-import type { CompletionUsage } from 'openai/resources/completions'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
@@ -1466,63 +1464,6 @@ export function prepareToolExecution(
   }
 
   return { toolParams, executionParams }
-}
-
-/**
- * Creates a ReadableStream from an OpenAI-compatible streaming response.
- * This is a shared utility used by all OpenAI-compatible providers:
- * OpenAI, Groq, DeepSeek, xAI, OpenRouter, Mistral, Ollama, vLLM, Azure OpenAI, Cerebras
- *
- * @param stream - The async iterable stream from the provider
- * @param providerName - Name of the provider for logging purposes
- * @param onComplete - Optional callback called when stream completes with full content and usage
- * @returns A ReadableStream that can be used for streaming responses
- */
-export function createOpenAICompatibleStream(
-  stream: AsyncIterable<ChatCompletionChunk>,
-  providerName: string,
-  onComplete?: (content: string, usage: CompletionUsage) => void
-): ReadableStream<Uint8Array> {
-  const streamLogger = createLogger(`${providerName}Utils`)
-  let fullContent = ''
-  let promptTokens = 0
-  let completionTokens = 0
-  let totalTokens = 0
-
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of stream) {
-          if (chunk.usage) {
-            promptTokens = chunk.usage.prompt_tokens ?? 0
-            completionTokens = chunk.usage.completion_tokens ?? 0
-            totalTokens = chunk.usage.total_tokens ?? 0
-          }
-
-          const content = chunk.choices?.[0]?.delta?.content || ''
-          if (content) {
-            fullContent += content
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
-
-        if (onComplete) {
-          if (promptTokens === 0 && completionTokens === 0) {
-            streamLogger.warn(`${providerName} stream completed without usage data`)
-          }
-          onComplete(fullContent, {
-            prompt_tokens: promptTokens,
-            completion_tokens: completionTokens,
-            total_tokens: totalTokens || promptTokens + completionTokens,
-          })
-        }
-
-        controller.close()
-      } catch (error) {
-        controller.error(error)
-      }
-    },
-  })
 }
 
 /**

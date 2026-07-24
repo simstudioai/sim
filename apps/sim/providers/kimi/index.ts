@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -204,25 +205,29 @@ export const kimiProvider: ProviderConfig = {
           isStreaming: true,
           streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
-            createReadableStreamFromKimiStream(streamResponse as any, (content, usage) => {
-              output.content = content
-              output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
+            createReadableStreamFromKimiStream(
+              // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
+              streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
+              (content, usage) => {
+                output.content = content
+                output.tokens = {
+                  input: usage.prompt_tokens,
+                  output: usage.completion_tokens,
+                  total: usage.total_tokens,
+                }
 
-              const costResult = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              output.cost = {
-                input: costResult.input,
-                output: costResult.output,
-                total: costResult.total,
+                const costResult = calculateCost(
+                  request.model,
+                  usage.prompt_tokens,
+                  usage.completion_tokens
+                )
+                output.cost = {
+                  input: costResult.input,
+                  output: costResult.output,
+                  total: costResult.total,
+                }
               }
-            }),
+            ),
         })
 
         return streamingResult
@@ -567,27 +572,31 @@ export const kimiProvider: ProviderConfig = {
           isStreaming: true,
           streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
-            createReadableStreamFromKimiStream(streamResponse as any, (content, usage) => {
-              output.content = content
-              output.tokens = {
-                input: tokens.input + usage.prompt_tokens,
-                output: tokens.output + usage.completion_tokens,
-                total: tokens.total + usage.total_tokens,
-              }
+            createReadableStreamFromKimiStream(
+              // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
+              streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
+              (content, usage) => {
+                output.content = content
+                output.tokens = {
+                  input: tokens.input + usage.prompt_tokens,
+                  output: tokens.output + usage.completion_tokens,
+                  total: tokens.total + usage.total_tokens,
+                }
 
-              const streamCost = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              const tc = sumToolCosts(toolResults)
-              output.cost = {
-                input: accumulatedCost.input + streamCost.input,
-                output: accumulatedCost.output + streamCost.output,
-                toolCost: tc || undefined,
-                total: accumulatedCost.total + streamCost.total + tc,
+                const streamCost = calculateCost(
+                  request.model,
+                  usage.prompt_tokens,
+                  usage.completion_tokens
+                )
+                const tc = sumToolCosts(toolResults)
+                output.cost = {
+                  input: accumulatedCost.input + streamCost.input,
+                  output: accumulatedCost.output + streamCost.output,
+                  toolCost: tc || undefined,
+                  total: accumulatedCost.total + streamCost.total + tc,
+                }
               }
-            }),
+            ),
         })
 
         return streamingResult
