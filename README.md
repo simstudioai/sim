@@ -91,6 +91,19 @@ bun run setup
 
 When it finishes, open [http://localhost:3000](http://localhost:3000).
 
+Manage your install with the `sim` CLI — run `bun link` once so `sim` works anywhere (or prefix `bun run`):
+
+```bash
+sim start | stop | restart   # bring your install up / down / cycle
+sim status                    # what's installed and healthy
+sim logs                      # follow logs
+sim doctor                    # diagnose configuration problems
+sim down                      # remove containers (data kept)
+sim reset                     # archive .env and wipe managed data
+```
+
+`sim` detects how you're running (Docker Compose, local dev, or Kubernetes) and acts accordingly.
+
 Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https://docs.vllm.ai/). See the [self-hosting docs](https://docs.sim.ai/self-hosting/docker) for details.
 
 ## Chat API Keys

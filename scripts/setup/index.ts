@@ -2,13 +2,23 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { runDoctor } from './doctor.ts'
 import { SetupError } from './errors.ts'
+import { isLifecycleCommand, runLifecycle } from './lifecycle.ts'
 import { exitWith, restoreTerminal } from './terminal.ts'
 import { theme } from './theme.ts'
 import { runWizard, type WizardMode } from './wizard.ts'
 
 const USAGE = `Usage:
-  bun run setup [--quick] [--mode compose|dev|k8s]
-  bun run doctor [--fix] [--json]`
+  sim                                    run the setup wizard
+  sim setup [--quick] [--mode compose|dev|k8s]
+  sim doctor [--fix] [--json]            check your setup
+  sim start | stop | restart             bring your install up / down / cycle
+  sim status                             what's installed and healthy
+  sim logs                               follow logs
+  sim down                               remove containers (data kept)
+  sim reset                              archive .env + wipe managed data
+
+Not linked yet? Prefix with "bun run" (e.g. bun run sim status), or run
+"bun link" once so "sim" works anywhere.`
 
 function parseMode(value: string | undefined): WizardMode {
   if (value === 'compose' || value === 'dev' || value === 'k8s') return value
@@ -23,7 +33,9 @@ async function main(): Promise<void> {
   }
   process.on('SIGINT', () => exitWith(130))
 
-  if (args[0] === 'doctor') {
+  const command = args[0]
+
+  if (command === 'doctor') {
     process.exitCode = await runDoctor({
       fix: args.includes('--fix'),
       json: args.includes('--json'),
@@ -31,10 +43,25 @@ async function main(): Promise<void> {
     return
   }
 
-  const modeIdx = args.indexOf('--mode')
+  if (command && isLifecycleCommand(command)) {
+    await runLifecycle(command)
+    return
+  }
+
+  // Anything else that looks like a command (not a flag, not `setup`) is a typo.
+  if (command && !command.startsWith('-') && command !== 'setup') {
+    console.error(`Unknown command: ${command}\n`)
+    console.log(USAGE)
+    process.exitCode = 1
+    return
+  }
+
+  // Bare invocation and `setup` both run the wizard; strip the optional keyword.
+  const setupArgs = command === 'setup' ? args.slice(1) : args
+  const modeIdx = setupArgs.indexOf('--mode')
   await runWizard({
-    quick: args.includes('--quick'),
-    mode: modeIdx === -1 ? undefined : parseMode(args[modeIdx + 1]),
+    quick: setupArgs.includes('--quick'),
+    mode: modeIdx === -1 ? undefined : parseMode(setupArgs[modeIdx + 1]),
   })
 }
 

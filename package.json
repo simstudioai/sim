@@ -8,6 +8,9 @@
     "apps/*",
     "packages/*"
   ],
+  "bin": {
+    "sim": "./scripts/setup/index.ts"
+  },
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -57,6 +60,7 @@
     "skills:sync": "bun run scripts/sync-skills.ts",
     "skills:check": "bun run scripts/sync-skills.ts --check",
     "setup": "bun run scripts/setup/index.ts",
+    "sim": "bun run scripts/setup/index.ts",
     "doctor": "bun run scripts/setup/index.ts doctor",
     "agent-stream-docs:generate": "bun run scripts/sync-agent-stream-docs.ts",
     "agent-stream-docs:check": "bun run scripts/sync-agent-stream-docs.ts --check",
