@@ -88,10 +88,6 @@ export const deleteSkillQuerySchema = z.object({
   source: z.enum(['settings', 'tool_input']).optional(),
 })
 
-export const importSkillBodySchema = z.object({
-  url: z.string().url('A valid URL is required'),
-})
-
 export const listSkillsContract = defineRouteContract({
   method: 'GET',
   path: '/api/skills',
@@ -125,18 +121,6 @@ export const deleteSkillContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       success: z.literal(true),
-    }),
-  },
-})
-
-export const importSkillContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/skills/import',
-  body: importSkillBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      content: z.string(),
     }),
   },
 })

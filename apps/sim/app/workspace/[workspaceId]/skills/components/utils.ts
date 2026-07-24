@@ -1,7 +1,7 @@
 import JSZip from 'jszip'
 import { isApiClientError } from '@/lib/api/client/errors'
 
-interface ParsedSkill {
+export interface ParsedSkill {
   name: string
   description: string
   content: string
@@ -87,7 +87,6 @@ function inferNameFromHeading(markdown: string): string {
 /**
  * Extracts the SKILL.md content from a ZIP archive.
  * Searches for a file named SKILL.md at any depth within the archive.
- * Accepts File, Blob, ArrayBuffer, or Uint8Array (anything JSZip supports).
  */
 export async function extractSkillFromZip(
   data: File | Blob | ArrayBuffer | Uint8Array
@@ -114,6 +113,51 @@ export async function extractSkillFromZip(
   const content = await zip.file(candidates[0])!.async('string')
   return content
 }
+const KEBAB_CASE_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/
+
+/**
+ * Validates a skill name against the same rules the API enforces
+ * (`skillNameSchema`). Returns the field message, or null when valid. Shared so
+ * the rule and its copy live in one place across every skill editing surface.
+ */
+export function validateSkillName(name: string): string | null {
+  if (!name.trim()) return 'Name is required'
+  if (name.length > 64) return 'Name must be 64 characters or less'
+  if (!KEBAB_CASE_REGEX.test(name)) return 'Name must be kebab-case (e.g. my-skill)'
+  return null
+}
+
+const SKILL_IMPORT_EXTENSIONS = ['.md', '.zip'] as const
+
+/** ZIPs are read fully in memory to find the SKILL.md, so cap what we'll accept. */
+const MAX_SKILL_ZIP_BYTES = 5 * 1024 * 1024
+
+/** `accept` attribute for the skill file pickers. */
+export const SKILL_IMPORT_ACCEPT = SKILL_IMPORT_EXTENSIONS.join(',')
+
+/**
+ * Reads a user-picked `.md` or `.zip` into structured skill fields — the shared
+ * path behind every import entry point (the create page's Import action and the
+ * canvas modal's Import tab). Throws a user-facing message on an unsupported
+ * extension, an oversized ZIP, or a ZIP with no SKILL.md inside.
+ */
+export async function readSkillFile(file: File): Promise<ParsedSkill> {
+  const name = file.name.toLowerCase()
+
+  if (!SKILL_IMPORT_EXTENSIONS.some((ext) => name.endsWith(ext))) {
+    throw new Error('Unsupported file type. Use .md or .zip files.')
+  }
+
+  if (name.endsWith('.zip')) {
+    if (file.size > MAX_SKILL_ZIP_BYTES) {
+      throw new Error('ZIP file is too large (max 5 MB)')
+    }
+    return parseSkillMarkdown(await extractSkillFromZip(file))
+  }
+
+  return parseSkillMarkdown(await file.text())
+}
+
 /**
  * Whether a skill save failed on the per-workspace unique-name constraint
  * (HTTP 409). Surfaces as an inline Name-field error at the callsites; the

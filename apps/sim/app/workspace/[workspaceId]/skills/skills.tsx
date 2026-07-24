@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { Chip, ChipInput, Search } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus } from 'lucide-react'
@@ -9,7 +9,6 @@ import { useQueryState } from 'nuqs'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
-import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
 import {
   skillIdParam,
   skillIdUrlKeys,
@@ -79,8 +78,6 @@ export function Skills() {
     ...skillIdParam.parser,
     ...skillIdUrlKeys,
   })
-  const [showAddForm, setShowAddForm] = useState(false)
-
   /**
    * Legacy deep links opened the edit modal via `?skillId=`; skills now have a
    * dedicated detail page. Redirect once, stripping the param.
@@ -114,7 +111,7 @@ export function Skills() {
   const addButton = (
     <Chip
       variant='primary'
-      onClick={() => setShowAddForm(true)}
+      onClick={() => router.push(`${skillsHref}/new`)}
       disabled={isLoading}
       leftIcon={Plus}
     >
@@ -163,14 +160,6 @@ export function Skills() {
           </div>
         </div>
       </div>
-
-      <SkillModal
-        open={showAddForm}
-        onOpenChange={(open) => {
-          if (!open) setShowAddForm(false)
-        }}
-        onSave={() => setShowAddForm(false)}
-      />
     </div>
   )
 }

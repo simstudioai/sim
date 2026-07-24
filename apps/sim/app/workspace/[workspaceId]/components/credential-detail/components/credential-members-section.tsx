@@ -1,6 +1,11 @@
 'use client'
 import { createLogger } from '@sim/logger'
-import { credentialRoleLockReason, type MemberRole, MemberRow } from '@/components/permissions'
+import {
+  credentialRoleLockReason,
+  MEMBER_ROLE_OPTIONS,
+  type MemberRole,
+  MemberRow,
+} from '@/components/permissions'
 import {
   useRemoveWorkspaceCredentialMember,
   useUpsertWorkspaceCredentialMember,
@@ -63,6 +68,7 @@ export function CredentialMembersSection({ credentialId, isAdmin }: CredentialMe
               <MemberRow
                 key={member.id}
                 member={member}
+                roleOptions={MEMBER_ROLE_OPTIONS}
                 lockReason={lockReason}
                 canManage={isAdmin}
                 roleDisabled={!isAdmin || roleLocked || lockReason !== null}

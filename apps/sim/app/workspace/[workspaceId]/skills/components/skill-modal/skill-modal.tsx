@@ -19,6 +19,7 @@ import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/ski
 import {
   isSkillNameConflictError,
   parseSkillMarkdown,
+  validateSkillName,
 } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useCreateSkill, useUpdateSkill } from '@/hooks/queries/skills'
@@ -40,8 +41,6 @@ interface SkillModalProps {
   onSave: () => void
   initialValues?: SkillDefinition
 }
-
-const KEBAB_CASE_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/
 
 interface FieldErrors {
   name?: string
@@ -100,13 +99,8 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
   const handleSave = async () => {
     const newErrors: FieldErrors = {}
 
-    if (!name.trim()) {
-      newErrors.name = 'Name is required'
-    } else if (name.length > 64) {
-      newErrors.name = 'Name must be 64 characters or less'
-    } else if (!KEBAB_CASE_REGEX.test(name)) {
-      newErrors.name = 'Name must be kebab-case (e.g. my-skill)'
-    }
+    const nameError = validateSkillName(name)
+    if (nameError) newErrors.name = nameError
 
     if (!description.trim()) {
       newErrors.description = 'Description is required'
@@ -131,8 +125,6 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
           updates: { name, description, content },
         })
       } else {
-        // The creator becomes an editor; editor management lives on the
-        // skill detail page.
         await createSkill.mutateAsync({
           workspaceId,
           skill: { name, description, content },
@@ -247,6 +239,7 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
                 }}
                 placeholder='Skill instructions in markdown...'
                 minHeight={200}
+                maxHeight={360}
                 disabled={readOnly || saving}
                 error={!!errors.content}
                 workspaceId={workspaceId}

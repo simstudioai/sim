@@ -32,6 +32,7 @@ import { useSkillEditorsController } from '@/app/workspace/[workspaceId]/skills/
 import {
   isSkillNameConflictError,
   parseSkillMarkdown,
+  validateSkillName,
 } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import { useDeleteSkill, useSkills, useUpdateSkill } from '@/hooks/queries/skills'
 
@@ -47,8 +48,6 @@ const RichMarkdownField = dynamic(
 )
 
 const logger = createLogger('SkillDetail')
-
-const KEBAB_CASE_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/
 
 interface FieldErrors {
   name?: string
@@ -140,13 +139,8 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
     if (!skill || !canEdit || !isDirty || updateSkill.isPending) return
 
     const newErrors: FieldErrors = {}
-    if (!nameDraft.trim()) {
-      newErrors.name = 'Name is required'
-    } else if (nameDraft.length > 64) {
-      newErrors.name = 'Name must be 64 characters or less'
-    } else if (!KEBAB_CASE_REGEX.test(nameDraft)) {
-      newErrors.name = 'Name must be kebab-case (e.g. my-skill)'
-    }
+    const nameError = validateSkillName(nameDraft)
+    if (nameError) newErrors.name = nameError
     if (!descriptionDraft.trim()) newErrors.description = 'Description is required'
     if (!contentDraft.trim()) newErrors.content = 'Content is required'
     if (Object.keys(newErrors).length > 0) {

@@ -438,12 +438,16 @@
 }
 
 /*
- * Field variant (modal embed): match the surrounding chip fields' typography exactly —
+ * Field variant (form embed): match the surrounding chip fields' typography exactly —
  * body at the chip `text-sm` (14px) scale and the placeholder at `--text-muted` (not the
  * lighter document `--text-subtle`), so the editor reads as one of the form's fields.
+ * The weight drops to a normal 400 as well: the document scale's 430 reads visibly
+ * thicker than a `ChipInput`/`ChipTextarea` beside it. Headings, `strong`, and `th`
+ * set their own 600, so only body text and the placeholder are affected.
  */
 .rich-markdown-field-prose {
   font-size: 14px;
+  font-weight: 400;
   line-height: 22px;
 }
 

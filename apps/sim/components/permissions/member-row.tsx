@@ -2,25 +2,31 @@
 
 import { Avatar, AvatarFallback, Chip, ChipDropdown, cn } from '@sim/emcn'
 import { getUserColor } from '@/lib/workspaces/colors'
-import { MEMBER_ROLE_OPTIONS, type MemberRole } from './member-role-options'
+import type { MemberRole } from './member-role-options'
 import { RoleLockTooltip } from './role-lock'
 
-export interface MemberRowMember {
+export interface MemberRowMember<TRole extends string = MemberRole> {
   userId: string
   userName: string | null
   userEmail: string | null
-  role: MemberRole
+  role: TRole
 }
 
-interface MemberRowProps {
-  member: MemberRowMember
+interface MemberRowProps<TRole extends string = MemberRole> {
+  member: MemberRowMember<TRole>
   /** Why the role is fixed (derived access); null when editable. */
   lockReason: string | null
   /** Whether the viewer can act on rows (shows the Remove column). */
   canManage: boolean
   roleDisabled: boolean
   removeDisabled: boolean
-  onRoleChange: (role: MemberRole) => void
+  /**
+   * Role choices for the dropdown. A surface whose membership is binary
+   * (skills) passes its own single option and always sets `roleDisabled`.
+   */
+  roleOptions: readonly { value: TRole; label: string }[]
+  /** Omitted on surfaces with nothing to switch between (the role stays disabled). */
+  onRoleChange?: (role: TRole) => void
   onRemove: () => void
 }
 
@@ -30,15 +36,16 @@ interface MemberRowProps {
  * action for managers. Consumers own the policy (who is locked/disabled); this
  * row owns the chrome.
  */
-export function MemberRow({
+export function MemberRow<TRole extends string = MemberRole>({
   member,
   lockReason,
   canManage,
   roleDisabled,
   removeDisabled,
+  roleOptions,
   onRoleChange,
   onRemove,
-}: MemberRowProps) {
+}: MemberRowProps<TRole>) {
   return (
     <div
       className={cn(
@@ -56,21 +63,21 @@ export function MemberRow({
           </AvatarFallback>
         </Avatar>
         <div className='flex min-w-0 flex-col'>
-          <span className='truncate text-[14px] text-[var(--text-body)]'>
+          <span className='truncate text-[var(--text-body)] text-sm'>
             {member.userName || member.userEmail || member.userId}
           </span>
-          <span className='truncate text-[12px] text-[var(--text-muted)]'>
+          <span className='truncate text-[var(--text-muted)] text-caption'>
             {member.userEmail || member.userId}
           </span>
         </div>
       </div>
       <RoleLockTooltip reason={lockReason}>
         <ChipDropdown
-          options={MEMBER_ROLE_OPTIONS}
+          options={roleOptions}
           value={member.role}
           placeholder='Role'
           disabled={roleDisabled}
-          onChange={(role) => onRoleChange(role as MemberRole)}
+          onChange={(role) => onRoleChange?.(role as TRole)}
         />
       </RoleLockTooltip>
       {canManage && (
