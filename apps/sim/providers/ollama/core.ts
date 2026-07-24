@@ -9,6 +9,7 @@ import type { CompletionUsage } from 'openai/resources/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
+import type { AgentStreamEvent } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
@@ -54,8 +55,8 @@ export interface OllamaCoreConfig {
   createClient: () => OpenAI
   createStream: (
     stream: AsyncIterable<ChatCompletionChunk>,
-    onComplete?: (content: string, usage: CompletionUsage) => void
-  ) => ReadableStream<Uint8Array>
+    onComplete?: (content: string, usage: CompletionUsage, thinking?: string) => void
+  ) => ReadableStream<AgentStreamEvent>
   logger: Logger
 }
 
@@ -181,6 +182,7 @@ export async function executeOllamaProviderRequest(
         timing: { kind: 'simple', segmentName: request.model },
         initialTokens: { input: 0, output: 0, total: 0 },
         initialCost: { input: 0, output: 0, total: 0 },
+        streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
           config.createStream(streamResponse, (content, usage) => {
             output.content = content
@@ -489,6 +491,7 @@ export async function executeOllamaProviderRequest(
                 count: toolCalls.length,
               }
             : undefined,
+        streamFormat: 'agent-events-v1',
         createStream: ({ output }) =>
           config.createStream(streamResponse, (content, usage) => {
             output.content = content

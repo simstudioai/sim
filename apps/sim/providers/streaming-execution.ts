@@ -1,4 +1,5 @@
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
+import type { AgentStreamEvent, AgentStreamFormat } from '@/providers/stream-events'
 import type { TimeSegment } from '@/providers/types'
 
 /**
@@ -79,12 +80,20 @@ interface CreateStreamingExecutionOptions {
   /** Marks `execution.isStreaming = true` when set. */
   isStreaming?: boolean
   /**
+   * Declares whether {@link createStream} returns UTF-8 answer bytes (`text`)
+   * or an in-process {@link AgentStreamEvent} object stream (`agent-events-v1`).
+   * Defaults to `'text'` so existing providers stay unchanged.
+   */
+  streamFormat?: AgentStreamFormat
+  /**
    * Builds the provider stream. Receives the live `output` object and a
    * `finalizeTiming` hook. The provider wires its native stream factory and, in
    * the drain callback, writes final content/tokens/cost onto `output` then
    * calls `finalizeTiming()`.
    */
-  createStream: (handles: StreamFinalizer) => ReadableStream
+  createStream: (
+    handles: StreamFinalizer
+  ) => ReadableStream<Uint8Array> | ReadableStream<AgentStreamEvent>
 }
 
 /**
@@ -104,6 +113,7 @@ export function createStreamingExecution(
     initialCost,
     toolCalls,
     isStreaming,
+    streamFormat = 'text',
     createStream,
   } = options
 
@@ -155,6 +165,7 @@ export function createStreamingExecution(
 
   return {
     stream,
+    streamFormat,
     execution: {
       success: true,
       output,

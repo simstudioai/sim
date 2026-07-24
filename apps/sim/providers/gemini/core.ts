@@ -13,8 +13,9 @@ import {
 } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import type { IterationToolCall, StreamingExecution } from '@/executor/types'
+import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { createGeminiStreamingToolLoopStream } from '@/providers/gemini/streaming-tool-loop'
 import {
   checkForForcedToolUsage,
   cleanSchemaForGemini,
@@ -28,6 +29,8 @@ import {
   mapToThinkingLevel,
   supportsDisablingGemini25Thinking,
 } from '@/providers/google/utils'
+import { createStreamingExecution } from '@/providers/streaming-execution'
+import { ensureToolCallId } from '@/providers/tool-call-id'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type {
   FunctionCallResponse,
@@ -228,7 +231,7 @@ async function executeToolCallsBatch(
       startTime: r.startTime,
       endTime: r.endTime,
       duration: r.duration,
-      toolCallId: r.part.functionCall?.id ?? undefined,
+      toolCallId: ensureToolCallId(r.part.functionCall?.id, 'gemini'),
     })
 
     totalToolsTime += r.duration
@@ -955,8 +958,10 @@ export async function executeGeminiRequest(
     }
 
     // Gemini 3.x takes thinkingLevel directly; Gemini 2.5-series rejects it and needs thinkingBudget.
+    // includeThoughts is required for thought parts to appear; it is requested
+    // only on agent-events runs so legacy runs keep the pre-agent-events payload.
     if (request.thinkingLevel && request.thinkingLevel !== 'none') {
-      const thinkingConfig: ThinkingConfig = { includeThoughts: false }
+      const thinkingConfig: ThinkingConfig = { includeThoughts: request.agentEvents === true }
       if (isGemini3Model(model)) {
         thinkingConfig.thinkingLevel = mapToThinkingLevel(request.thinkingLevel)
       } else {
@@ -1019,7 +1024,68 @@ export async function executeGeminiRequest(
     }
 
     const initialCallTime = Date.now()
+    /**
+     * Gemini 2 cannot combine responseSchema with tools, so structured output
+     * is applied on a final schema-configured request after tools settle — the
+     * silent path does this; the live loop would break as soon as a turn has
+     * no calls and skip the schema. Gemini 3 carries responseJsonSchema
+     * alongside tools, so its live loop keeps structured output.
+     */
+    const responseFormatNeedsFinalPass = Boolean(request.responseFormat) && !isGemini3Model(model)
+    const shouldStreamToolCalls =
+      (request.streamToolCalls ?? false) && !responseFormatNeedsFinalPass
     const shouldStream = request.stream && !tools?.length
+
+    // Live streaming tool loop
+    if (request.stream && shouldStreamToolCalls && tools?.length) {
+      logger.info('Using streaming tool loop for Gemini request')
+
+      const timeSegments: TimeSegment[] = []
+      const forcedTools = preparedTools?.forcedTools ?? []
+
+      return createStreamingExecution({
+        model,
+        providerStartTime,
+        providerStartTimeISO,
+        timing: {
+          kind: 'accumulated',
+          modelTime: 0,
+          toolsTime: 0,
+          firstResponseTime: 0,
+          iterations: 1,
+          timeSegments,
+        },
+        initialTokens: { input: 0, output: 0, total: 0 },
+        initialCost: { total: 0.0, input: 0.0, output: 0.0 },
+        isStreaming: true,
+        streamFormat: 'agent-events-v1',
+        createStream: ({ output, finalizeTiming }) =>
+          createGeminiStreamingToolLoopStream({
+            ai,
+            model,
+            baseConfig: geminiConfig,
+            contents,
+            request,
+            logger,
+            timeSegments,
+            forcedTools,
+            toolConfig,
+            onComplete: (result) => {
+              output.content = result.content
+              output.tokens = result.tokens
+              output.cost = result.cost
+              output.toolCalls = result.toolCalls as NormalizedBlockOutput['toolCalls']
+              if (output.providerTiming) {
+                output.providerTiming.modelTime = result.modelTime
+                output.providerTiming.toolsTime = result.toolsTime
+                output.providerTiming.firstResponseTime = result.firstResponseTime
+                output.providerTiming.iterations = result.iterations
+              }
+              finalizeTiming()
+            },
+          }),
+      })
+    }
 
     // Streaming without tools
     if (shouldStream) {
@@ -1042,7 +1108,7 @@ export async function executeGeminiRequest(
 
       const stream = createReadableStreamFromGeminiStream(
         streamGenerator,
-        (content: string, usage: GeminiUsage) => {
+        (content: string, usage: GeminiUsage, thinking?: string) => {
           streamingResult.execution.output.content = content
           streamingResult.execution.output.tokens = {
             input: usage.promptTokenCount,
@@ -1056,6 +1122,13 @@ export async function executeGeminiRequest(
             usage.candidatesTokenCount
           )
           streamingResult.execution.output.cost = costResult
+
+          if (thinking) {
+            const segment = streamingResult.execution.output.providerTiming?.timeSegments?.[0]
+            if (segment) {
+              segment.thinkingContent = thinking
+            }
+          }
 
           const streamEndTime = Date.now()
           if (streamingResult.execution.output.providerTiming) {
@@ -1073,7 +1146,7 @@ export async function executeGeminiRequest(
         }
       )
 
-      return { ...streamingResult, stream }
+      return { ...streamingResult, stream, streamFormat: 'agent-events-v1' as const }
     }
 
     // Non-streaming request
@@ -1193,7 +1266,7 @@ export async function executeGeminiRequest(
 
           const stream = createReadableStreamFromGeminiStream(
             streamGenerator,
-            (streamContent: string, usage: GeminiUsage) => {
+            (streamContent: string, usage: GeminiUsage, thinking?: string) => {
               streamingResult.execution.output.content = streamContent
               streamingResult.execution.output.tokens = {
                 input: accumulatedTokens.input + usage.promptTokenCount,
@@ -1215,6 +1288,16 @@ export async function executeGeminiRequest(
                 pricing: streamCost.pricing,
               }
 
+              if (thinking) {
+                const segments = streamingResult.execution.output.providerTiming?.timeSegments
+                const lastModel = segments
+                  ? [...segments].reverse().find((s) => s.type === 'model')
+                  : undefined
+                if (lastModel) {
+                  lastModel.thinkingContent = thinking
+                }
+              }
+
               if (streamingResult.execution.output.providerTiming) {
                 streamingResult.execution.output.providerTiming.endTime = new Date().toISOString()
                 streamingResult.execution.output.providerTiming.duration =
@@ -1223,7 +1306,7 @@ export async function executeGeminiRequest(
             }
           )
 
-          return { ...streamingResult, stream }
+          return { ...streamingResult, stream, streamFormat: 'agent-events-v1' as const }
         }
 
         // Non-streaming: get next response
@@ -1318,7 +1401,7 @@ function enrichLastModelSegmentFromGeminiResponse(
       Boolean(p.functionCall)
     )
     .map((p) => ({
-      id: p.functionCall.id ?? '',
+      id: ensureToolCallId(p.functionCall.id, 'gemini'),
       name: p.functionCall.name ?? '',
       arguments: (p.functionCall.args ?? {}) as Record<string, unknown>,
     }))

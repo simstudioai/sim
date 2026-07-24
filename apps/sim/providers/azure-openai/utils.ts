@@ -3,17 +3,24 @@ import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import type { Stream } from 'openai/streaming'
-import { checkForForcedToolUsageOpenAI, createOpenAICompatibleStream } from '@/providers/utils'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import type { AgentStreamEvent } from '@/providers/stream-events'
+import { checkForForcedToolUsageOpenAI } from '@/providers/utils'
 
 /**
- * Creates a ReadableStream from an Azure OpenAI streaming response.
- * Uses the shared OpenAI-compatible streaming utility.
+ * Creates an agent-events stream from an Azure OpenAI streaming response.
+ * Uses the shared OpenAI-compatible agent event streaming utility.
  */
 export function createReadableStreamFromAzureOpenAIStream(
   azureOpenAIStream: Stream<ChatCompletionChunk>,
-  onComplete?: (content: string, usage: CompletionUsage) => void
-): ReadableStream {
-  return createOpenAICompatibleStream(azureOpenAIStream, 'Azure OpenAI', onComplete)
+  onComplete?: (content: string, usage: CompletionUsage, thinking?: string) => void
+): ReadableStream<AgentStreamEvent> {
+  return createOpenAICompatibleAgentEventStream(azureOpenAIStream, {
+    providerName: 'Azure OpenAI',
+    onComplete: onComplete
+      ? (result) => onComplete(result.content, result.usage, result.thinking)
+      : undefined,
+  })
 }
 
 /**

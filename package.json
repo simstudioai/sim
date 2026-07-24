@@ -56,6 +56,8 @@
     "mship:check": "bun run scripts/generate-mship-contracts.ts --check",
     "skills:sync": "bun run scripts/sync-skills.ts",
     "skills:check": "bun run scripts/sync-skills.ts --check",
+    "agent-stream-docs:generate": "bun run scripts/sync-agent-stream-docs.ts",
+    "agent-stream-docs:check": "bun run scripts/sync-agent-stream-docs.ts --check",
     "prepare": "bun husky",
     "type-check": "turbo run type-check",
     "release": "bun run scripts/create-single-release.ts"

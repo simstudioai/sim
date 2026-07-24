@@ -14,6 +14,7 @@ import {
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
+  supportsReasoningEffort,
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
@@ -98,10 +99,23 @@ export async function executeResponsesProviderRequest(
   if (request.temperature !== undefined) basePayload.temperature = request.temperature
   if (request.maxTokens != null) basePayload.max_output_tokens = request.maxTokens
 
-  if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
-    basePayload.reasoning = {
-      effort: request.reasoningEffort,
-      summary: 'auto',
+  /**
+   * Reasoning summaries feed Thinking chrome. They are requested when an
+   * explicit effort is set (pre-agent-events payload always paired
+   * `summary: 'auto'` with `effort` — kept for parity) and on agent-events
+   * runs even without an explicit effort. Summaries require OpenAI
+   * organization verification; see the strip-and-retry fallback in the
+   * request helpers below.
+   */
+  if (supportsReasoningEffort(config.modelName)) {
+    const hasExplicitEffort =
+      request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto'
+    const reasoning: Record<string, unknown> = {
+      ...(request.agentEvents === true || hasExplicitEffort ? { summary: 'auto' } : {}),
+      ...(hasExplicitEffort ? { effort: request.reasoningEffort } : {}),
+    }
+    if (Object.keys(reasoning).length > 0) {
+      basePayload.reasoning = reasoning
     }
   }
 
@@ -211,21 +225,69 @@ export async function executeResponsesProviderRequest(
     }
   }
 
-  const postResponses = async (
+  /**
+   * OpenAI rejects `reasoning.summary` with a 400 for organizations that have
+   * not completed verification. Summaries are best-effort chrome, so on that
+   * specific failure the request is retried once without the summary field
+   * rather than failing the run.
+   */
+  const isReasoningSummaryVerificationError = (status: number, message: string): boolean =>
+    status === 400 &&
+    message.includes('reasoning.summary') &&
+    message.toLowerCase().includes('verif')
+
+  const stripReasoningSummary = (body: Record<string, unknown>): Record<string, unknown> | null => {
+    const reasoning = body.reasoning as Record<string, unknown> | undefined
+    if (!reasoning || reasoning.summary === undefined) return null
+    const { summary: _summary, ...reasoningRest } = reasoning
+    const { reasoning: _reasoning, ...bodyRest } = body
+    return Object.keys(reasoningRest).length > 0
+      ? { ...bodyRest, reasoning: reasoningRest }
+      : bodyRest
+  }
+
+  const fetchResponsesWithSummaryFallback = async (
     body: Record<string, unknown>
-  ): Promise<OpenAI.Responses.Response> => {
+  ): Promise<Response> => {
     const response = await fetchImpl(config.endpoint, {
       method: 'POST',
       headers: config.headers,
       body: JSON.stringify(body),
       signal: request.abortSignal,
     })
+    if (response.ok) return response
 
-    if (!response.ok) {
-      const message = await parseErrorResponse(response)
+    const message = await parseErrorResponse(response)
+    const strippedBody = isReasoningSummaryVerificationError(response.status, message)
+      ? stripReasoningSummary(body)
+      : null
+    if (!strippedBody) {
       throw new Error(`${config.providerLabel} API error (${response.status}): ${message}`)
     }
 
+    logger.warn(
+      `${config.providerLabel} rejected reasoning summaries (organization not verified); retrying without summary`,
+      { model: config.modelName }
+    )
+    const retryResponse = await fetchImpl(config.endpoint, {
+      method: 'POST',
+      headers: config.headers,
+      body: JSON.stringify(strippedBody),
+      signal: request.abortSignal,
+    })
+    if (!retryResponse.ok) {
+      const retryMessage = await parseErrorResponse(retryResponse)
+      throw new Error(
+        `${config.providerLabel} API error (${retryResponse.status}): ${retryMessage}`
+      )
+    }
+    return retryResponse
+  }
+
+  const postResponses = async (
+    body: Record<string, unknown>
+  ): Promise<OpenAI.Responses.Response> => {
+    const response = await fetchResponsesWithSummaryFallback(body)
     return response.json()
   }
 
@@ -236,17 +298,9 @@ export async function executeResponsesProviderRequest(
     if (request.stream && (!tools || tools.length === 0)) {
       logger.info(`Using streaming response for ${config.providerLabel} request`)
 
-      const streamResponse = await fetchImpl(config.endpoint, {
-        method: 'POST',
-        headers: config.headers,
-        body: JSON.stringify(createRequestBody(initialInput, { stream: true })),
-        signal: request.abortSignal,
-      })
-
-      if (!streamResponse.ok) {
-        const message = await parseErrorResponse(streamResponse)
-        throw new Error(`${config.providerLabel} API error (${streamResponse.status}): ${message}`)
-      }
+      const streamResponse = await fetchResponsesWithSummaryFallback(
+        createRequestBody(initialInput, { stream: true })
+      )
 
       const streamingResult = createStreamingExecution({
         model: request.model,
@@ -255,8 +309,9 @@ export async function executeResponsesProviderRequest(
         timing: { kind: 'simple', segmentName: request.model },
         initialTokens: { input: 0, output: 0, total: 0 },
         initialCost: { input: 0, output: 0, total: 0 },
+        streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
-          createReadableStreamFromResponses(streamResponse, (content, usage) => {
+          createReadableStreamFromResponses(streamResponse, (content, usage, thinking) => {
             output.content = content
             output.tokens = {
               input: usage?.promptTokens || 0,
@@ -273,6 +328,14 @@ export async function executeResponsesProviderRequest(
               input: costResult.input,
               output: costResult.output,
               total: costResult.total,
+            }
+
+            if (thinking) {
+              const segment = output.providerTiming?.timeSegments?.[0]
+              if (segment) {
+                // Label honestly: these are reasoning *summaries*, not raw CoT.
+                segment.thinkingContent = thinking
+              }
             }
 
             finalizeTiming()
@@ -582,11 +645,8 @@ export async function executeResponsesProviderRequest(
       // Copy over non-tool related settings
       if (request.temperature !== undefined) finalPayload.temperature = request.temperature
       if (request.maxTokens != null) finalPayload.max_output_tokens = request.maxTokens
-      if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
-        finalPayload.reasoning = {
-          effort: request.reasoningEffort,
-          summary: 'auto',
-        }
+      if (supportsReasoningEffort(config.modelName) && basePayload.reasoning) {
+        finalPayload.reasoning = basePayload.reasoning
       }
       if (request.verbosity !== undefined && request.verbosity !== 'auto') {
         finalPayload.text = {
@@ -650,17 +710,9 @@ export async function executeResponsesProviderRequest(
         }
       }
 
-      const streamResponse = await fetchImpl(config.endpoint, {
-        method: 'POST',
-        headers: config.headers,
-        body: JSON.stringify(createRequestBody(currentInput, streamOverrides)),
-        signal: request.abortSignal,
-      })
-
-      if (!streamResponse.ok) {
-        const message = await parseErrorResponse(streamResponse)
-        throw new Error(`${config.providerLabel} API error (${streamResponse.status}): ${message}`)
-      }
+      const streamResponse = await fetchResponsesWithSummaryFallback(
+        createRequestBody(currentInput, streamOverrides)
+      )
 
       const streamingResult = createStreamingExecution({
         model: request.model,
@@ -681,8 +733,9 @@ export async function executeResponsesProviderRequest(
           total: accumulatedCost.total,
         },
         toolCalls: toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
+        streamFormat: 'agent-events-v1',
         createStream: ({ output }) =>
-          createReadableStreamFromResponses(streamResponse, (content, usage) => {
+          createReadableStreamFromResponses(streamResponse, (content, usage, thinking) => {
             output.content = content
             output.tokens = {
               input: tokens.input + (usage?.promptTokens || 0),
@@ -701,6 +754,13 @@ export async function executeResponsesProviderRequest(
               output: accumulatedCost.output + streamCost.output,
               toolCost: tc || undefined,
               total: accumulatedCost.total + streamCost.total + tc,
+            }
+
+            if (thinking) {
+              const lastModel = [...timeSegments].reverse().find((s) => s.type === 'model')
+              if (lastModel) {
+                lastModel.thinkingContent = thinking
+              }
             }
           }),
       })

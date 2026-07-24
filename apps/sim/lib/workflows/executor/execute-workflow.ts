@@ -54,6 +54,13 @@ export interface ExecuteWorkflowOptions {
   executionMode?: 'sync' | 'stream' | 'async'
   /** Immutable actor/payer decision captured by preprocessing. */
   billingAttribution?: BillingAttributionSnapshot
+  /** Deployed-chat thinking policy; persisted on the snapshot for resume. */
+  includeThinking?: boolean
+  /**
+   * Run-level agent-events opt-in (see {@link ExecutionMetadata.agentEvents}).
+   * Callers set this only when the surface consumes thinking/tool events.
+   */
+  agentEvents?: boolean
 }
 
 export interface WorkflowInfo {
@@ -111,6 +118,8 @@ export async function executeWorkflow(
       largeValueKeys: streamConfig?.largeValueKeys,
       fileKeys: streamConfig?.fileKeys,
       executionMode: streamConfig?.executionMode,
+      includeThinking: streamConfig?.includeThinking === true ? true : undefined,
+      agentEvents: streamConfig?.agentEvents === true ? true : undefined,
     }
 
     const snapshot = new ExecutionSnapshot(

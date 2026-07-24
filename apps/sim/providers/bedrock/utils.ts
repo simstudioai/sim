@@ -1,6 +1,7 @@
 import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
 import { createLogger } from '@sim/logger'
 import { randomFloat } from '@sim/utils/random'
+import type { AgentStreamEvent } from '@/providers/stream-events'
 import { trackForcedToolUsage } from '@/providers/utils'
 
 const logger = createLogger('BedrockUtils')
@@ -10,10 +11,17 @@ export interface BedrockStreamUsage {
   outputTokens: number
 }
 
+/**
+ * Bedrock ConverseStream → agent-events-v1 for the legacy (non-tool-loop)
+ * streaming path. Text deltas only: tools on this path are never executed, so
+ * emitting `tool_call_start` here would leave a chip running forever with no
+ * matching end. Sim does not request Bedrock reasoning, so there is no
+ * thinking to forward either.
+ */
 export function createReadableStreamFromBedrockStream(
   bedrockStream: AsyncIterable<ConverseStreamOutput>,
   onComplete?: (content: string, usage: BedrockStreamUsage) => void
-): ReadableStream<Uint8Array> {
+): ReadableStream<AgentStreamEvent> {
   let fullContent = ''
   let inputTokens = 0
   let outputTokens = 0
@@ -25,7 +33,7 @@ export function createReadableStreamFromBedrockStream(
           if (event.contentBlockDelta?.delta?.text) {
             const text = event.contentBlockDelta.delta.text
             fullContent += text
-            controller.enqueue(new TextEncoder().encode(text))
+            controller.enqueue({ type: 'text_delta', text, turn: 'final' })
           } else if (event.metadata?.usage) {
             inputTokens = event.metadata.usage.inputTokens ?? 0
             outputTokens = event.metadata.usage.outputTokens ?? 0

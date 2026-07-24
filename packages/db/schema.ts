@@ -1132,6 +1132,13 @@ export const chat = pgTable(
     // Output configuration
     outputConfigs: json('output_configs').default('[]'), // Array of {blockId, path} objects
 
+    /**
+     * When true, public chat SSE may expose provider thinking/tool events if the
+     * client also opts in via `X-Sim-Stream-Protocol: agent-events-v1`.
+     * Default off — never derived from auth type or isSecureMode.
+     */
+    includeThinking: boolean('include_thinking').notNull().default(false),
+
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

@@ -61,6 +61,7 @@ export async function executeCheckDeploymentStatus(
           authType: chat.authType,
           allowedEmails: chat.allowedEmails,
           outputConfigs: chat.outputConfigs,
+          includeThinking: chat.includeThinking,
           password: chat.password,
           customizations: chat.customizations,
         })
@@ -103,6 +104,7 @@ export async function executeCheckDeploymentStatus(
       authType: chatDeploy[0]?.authType || null,
       allowedEmails: chatDeploy[0]?.allowedEmails || null,
       outputConfigs: chatDeploy[0]?.outputConfigs || null,
+      includeThinking: chatDeploy[0]?.includeThinking ?? false,
       welcomeMessage: chatCustomizations.welcomeMessage || null,
       primaryColor: chatCustomizations.primaryColor || null,
       hasPassword: Boolean(chatDeploy[0]?.password),
