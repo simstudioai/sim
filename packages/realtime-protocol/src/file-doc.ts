@@ -52,6 +52,13 @@ export type FileDocMessageType = (typeof FILE_DOC_MESSAGE_TYPE)[keyof typeof FIL
  * Because it lives in the CRDT it merges across clients and the server can read
  * it — the server uses it to decide whether to re-elect a seeder when an elected
  * one disconnects before seeding. Client and server MUST use these exact keys.
+ *
+ * The seeding client MUST write the imported content AND set this flag in a
+ * SINGLE Yjs transaction (`doc.transact(...)`). Otherwise a seeder that dies
+ * between the two writes can leave content with no flag, and a re-elected client
+ * would seed again and duplicate it. `configMap` is a reserved top-level Y.Map
+ * name; the editor must not use a top-level type of the same name (TipTap uses
+ * `getXmlFragment('default')`, so there is no collision today).
  */
 export const FILE_DOC_SEED = {
   configMap: 'config',

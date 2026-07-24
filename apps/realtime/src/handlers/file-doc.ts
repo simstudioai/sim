@@ -37,17 +37,26 @@ const logger = createLogger('FileDocHandlers')
  * pins `realtime.replicaCount: 1`). Horizontal scaling would need a shared Yjs
  * backend (y-redis / Hocuspocus) — out of scope here.
  */
+/** A socket's presence ownership within a room. */
+interface FileDocOwner {
+  /**
+   * The awareness clientID the socket declared at join. It owns exactly this one
+   * and may only publish/remove awareness for it, so an authenticated peer cannot
+   * forge or clear another collaborator's presence.
+   */
+  clientId: number
+  /** The owning user — used to tell a reconnect (same user reusing its Yjs client
+   * id) from a spoof (a different user binding a peer's id). */
+  userId: string
+}
+
 interface FileDocRoom {
   /** The `workspace_files.id` this room edits (for seed-request payloads). */
   fileId: string
   doc: Y.Doc
   awareness: awarenessProtocol.Awareness
-  /**
-   * socketId → the awareness clientID it declared at join. A socket owns exactly
-   * one clientID and may only publish/remove awareness for that one, so an
-   * authenticated peer cannot forge or clear another collaborator's presence.
-   */
-  ownedClientId: Map<string, number>
+  /** socketId → its presence ownership. */
+  owners: Map<string, FileDocOwner>
   /** The socket currently elected to seed initial content, or `null`. */
   seederSocketId: string | null
 }
@@ -121,7 +130,7 @@ function awarenessUpdateClientIds(update: Uint8Array): number[] {
  */
 function electSeederIfNeeded(io: Server, room: FileDocRoom) {
   if (room.seederSocketId !== null || isDocSeeded(room.doc)) return
-  const next = room.ownedClientId.keys().next()
+  const next = room.owners.keys().next()
   if (next.done) return
   room.seederSocketId = next.value
   io.to(next.value).emit(FILE_DOC_EVENTS.SEED_REQUEST, { fileId: room.fileId })
@@ -146,7 +155,7 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     fileId: ref.id,
     doc,
     awareness,
-    ownedClientId: new Map(),
+    owners: new Map(),
     seederSocketId: null,
   }
   fileDocRooms.set(name, room)
@@ -222,7 +231,7 @@ function handleMessage(socket: AuthenticatedSocket, data: unknown) {
         // Enforce presence ownership: a socket may only publish/remove awareness
         // for the clientID it bound at join, so a peer cannot spoof or clear
         // another collaborator's caret.
-        const owned = room.ownedClientId.get(socket.id)
+        const owned = room.owners.get(socket.id)?.clientId
         if (owned === undefined || awarenessUpdateClientIds(update).some((id) => id !== owned)) {
           logger.warn('Dropping awareness frame for an unowned client id', { socketId: socket.id })
           return
@@ -252,12 +261,12 @@ export function cleanupFileDocForSocket(socketId: string, io: Server): void {
   const room = fileDocRooms.get(name)
   if (!room) return
 
-  const owned = room.ownedClientId.get(socketId)
-  room.ownedClientId.delete(socketId)
-  if (owned !== undefined) {
+  const owner = room.owners.get(socketId)
+  room.owners.delete(socketId)
+  if (owner !== undefined) {
     // Fires the awareness `update` handler with a non-socket origin → the removal
     // is broadcast to every remaining client, so the departed caret vanishes.
-    awarenessProtocol.removeAwarenessStates(room.awareness, [owned], null)
+    awarenessProtocol.removeAwarenessStates(room.awareness, [owner.clientId], null)
   }
 
   // Hand off the seeder role: if the elected seeder left before it seeded, elect
@@ -269,7 +278,7 @@ export function cleanupFileDocForSocket(socketId: string, io: Server): void {
 
   // Drop the document + awareness once idle so no memory is held for a file with
   // no active editors; a later joiner re-creates and re-seeds it.
-  if (room.ownedClientId.size === 0) {
+  if (room.owners.size === 0) {
     room.awareness.destroy()
     room.doc.destroy()
     fileDocRooms.delete(name)
@@ -347,28 +356,28 @@ export function setupWorkspaceFileDocHandlers(
 
       // A same socket rejoining with a NEW client id: clear its old caret so it
       // doesn't linger as a ghost after the binding is overwritten below.
-      const previousClientId = entry.ownedClientId.get(socket.id)
-      if (previousClientId !== undefined && previousClientId !== clientId) {
-        awarenessProtocol.removeAwarenessStates(entry.awareness, [previousClientId], null)
+      const previous = entry.owners.get(socket.id)
+      if (previous !== undefined && previous.clientId !== clientId) {
+        awarenessProtocol.removeAwarenessStates(entry.awareness, [previous.clientId], null)
       }
 
-      // A client id must be owned by at most one LIVE socket, or a peer could bind
-      // an active collaborator's id and pass the per-frame ownership check to
-      // spoof/clear its caret. Reject a live duplicate; reclaim a stale binding
-      // (a reconnect reuses the same Yjs client id, and its prior socket may not
-      // be cleaned up yet). `io.sockets.sockets` is this replica's registry — the
-      // same single-replica assumption the in-memory Y.Doc already relies on.
-      for (const [otherSid, otherCid] of entry.ownedClientId) {
-        if (otherCid !== clientId || otherSid === socket.id) continue
-        if (io.sockets.sockets.has(otherSid)) {
+      // A client id must be owned by at most one user, or a peer could bind an
+      // active collaborator's id and pass the per-frame ownership check to
+      // spoof/clear its caret. Distinguish a reconnect from a spoof by the owning
+      // user: the same user reclaiming its own client id (a dropped socket
+      // reconnecting reuses the Yjs client id, and its prior socket may not be
+      // cleaned up yet) takes over the stale binding; a DIFFERENT user is rejected.
+      for (const [otherSid, owner] of entry.owners) {
+        if (owner.clientId !== clientId || otherSid === socket.id) continue
+        if (owner.userId !== userId) {
           emitJoinError(socket, fileId, 'Client id already in use', 'CLIENT_ID_IN_USE', false)
           return
         }
-        entry.ownedClientId.delete(otherSid)
-        awarenessProtocol.removeAwarenessStates(entry.awareness, [otherCid], null)
+        entry.owners.delete(otherSid)
+        awarenessProtocol.removeAwarenessStates(entry.awareness, [owner.clientId], null)
       }
 
-      entry.ownedClientId.set(socket.id, clientId)
+      entry.owners.set(socket.id, { clientId, userId })
       socketToRoomName.set(socket.id, name)
       socket.join(name)
 

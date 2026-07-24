@@ -33,8 +33,6 @@ interface SentMessage {
 /** An `io` mock that records every server-originated emit with its target/except. */
 function createIo() {
   const sent: SentMessage[] = []
-  // Socket ids the mock considers currently connected (for client-id ownership).
-  const connected = new Set<string>()
   const to = vi.fn((target: string) => ({
     except: (exclude: string) => ({
       emit: (event: string, payload: unknown) =>
@@ -42,11 +40,7 @@ function createIo() {
     }),
     emit: (event: string, payload: unknown) => sent.push({ target, event, payload }),
   }))
-  const io = {
-    to,
-    sockets: { sockets: { has: (id: string) => connected.has(id) } },
-  } as unknown as IRoomManager['io']
-  return { io, sent, connected }
+  return { io: { to } as unknown as IRoomManager['io'], sent }
 }
 
 function createSocket(id: string, overrides?: Record<string, unknown>) {
@@ -291,11 +285,10 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(relayed).toBeUndefined()
   })
 
-  it("rejects a join that binds a live peer's client id", async () => {
-    const { io, connected } = createIo()
-    connected.add('socket-a')
+  it("rejects a DIFFERENT user binding a peer's client id (spoof)", async () => {
+    const { io } = createIo()
     const a = setup('socket-a', io)
-    const b = setup('socket-b', io)
+    const b = setup('socket-b', io, { userId: 'attacker' })
 
     await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 7 })
     await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 7 })
@@ -307,13 +300,13 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(b.socket.join).not.toHaveBeenCalled()
   })
 
-  it('reclaims a client id whose prior owner is no longer connected (reconnect)', async () => {
+  it('reclaims a client id for the SAME user reconnecting (reused Yjs client id)', async () => {
     const { io } = createIo()
-    // socket-a joined with client id 7 but is NOT in the connected set (its
-    // disconnect cleanup has not run yet); socket-b reconnects reusing id 7.
+    // The same user's dropped socket still owns client id 7 (its disconnect
+    // cleanup has not run yet) when it reconnects on a new socket reusing id 7.
     const a = setup('socket-a', io)
     await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 7 })
-    const b = setup('socket-b', io)
+    const b = setup('socket-b', io) // same default userId 'user-1'
 
     await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 7 })
 
