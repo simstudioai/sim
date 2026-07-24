@@ -84,3 +84,67 @@ jobs:
               --set copilot.server.env.OPENAI_API_KEY_1=ci-dummy-openai-key \
               --set externalDatabase.password=ci-dummy-password > /dev/null
           done
+
+  version-bump:
+    name: Chart version bumped
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require a Chart.yaml version bump when chart content changes
+        run: |
+          set -euo pipefail
+          base="origin/${{ github.base_ref }}"
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          if git diff --name-only "$base"...HEAD | grep -q '^helm/sim/'; then
+            base_version=$(git show "$base:helm/sim/Chart.yaml" | awk '/^version:/ {print $2}')
+            head_version=$(awk '/^version:/ {print $2}' helm/sim/Chart.yaml)
+            echo "base=$base_version head=$head_version"
+            if [ "$base_version" = "$head_version" ]; then
+              echo "::error::helm/sim/** changed but Chart.yaml version did not (still $head_version). Bump it per SemVer."
+              exit 1
+            fi
+          else
+            echo "No chart changes; skipping."
+          fi
+
+  install:
+    name: Install on kind and run helm test
+    needs: chart
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          version: v0.24.0
+
+      - name: Install chart
+        run: |
+          helm install sim helm/sim \
+            --namespace sim --create-namespace \
+            --values helm/sim/ci/default-values.yaml \
+            --values helm/sim/ci/kind-values.yaml \
+            --wait --timeout 15m
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n sim get pods -o wide || true
+          kubectl -n sim get events --sort-by=.lastTimestamp | tail -40 || true
+          kubectl -n sim describe pods | tail -100 || true
+          kubectl -n sim logs deploy/sim-app -c migrations --tail=50 || true
+          kubectl -n sim logs deploy/sim-app --tail=80 || true
+
+      - name: Run helm test
+        run: helm test sim --namespace sim --timeout 5m
