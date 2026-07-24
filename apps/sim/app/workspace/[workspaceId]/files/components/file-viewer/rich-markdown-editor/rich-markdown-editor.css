@@ -454,3 +454,47 @@
 .rich-markdown-field-prose p.is-editor-empty:first-child::before {
   color: var(--text-muted);
 }
+
+/*
+ * Collaborative carets (TipTap CollaborationCaret). The caret border and the name
+ * label's background are colored inline from each user's assigned color; the
+ * selection is a translucent tint of that color (set via selectionRender). The
+ * name label is hidden until the caret is hovered — a quiet, Google-Docs-style
+ * presence that doesn't clutter the text.
+ */
+.rich-markdown-prose .collaboration-carets__caret {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left-width: 1px;
+  border-left-style: solid;
+  border-right-width: 1px;
+  border-right-style: solid;
+  word-break: normal;
+}
+
+.rich-markdown-prose .collaboration-carets__label {
+  position: absolute;
+  top: -1.4em;
+  left: -1px;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px 3px 3px 0;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: #fff;
+  user-select: none;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.rich-markdown-prose .collaboration-carets__caret:hover .collaboration-carets__label {
+  opacity: 1;
+}
+
+.rich-markdown-prose .collaboration-carets__selection {
+  border-radius: 2px;
+  pointer-events: none;
+}

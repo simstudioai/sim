@@ -2,13 +2,14 @@
 
 import { memo, useEffect, useRef, useState } from 'react'
 import { cn, toast } from '@sim/emcn'
-import type { JSONContent } from '@tiptap/core'
+import type { Extensions, JSONContent } from '@tiptap/core'
 import { Fragment, Slice } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
 import { dropPoint } from '@tiptap/pm/transform'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
+import { useSession } from '@/lib/auth/auth-client'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
@@ -16,6 +17,7 @@ import type { SaveStatus } from '@/hooks/use-autosave'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { PreviewLoadingFrame } from '../preview-shared'
 import { useEditableFileContent } from '../use-editable-file-content'
+import { useFileDocCollaboration } from './collaboration/use-file-doc-collaboration'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { findHeadingPos } from './heading-anchors'
 import {
@@ -41,8 +43,10 @@ import { isRoundTripSafe } from './round-trip-safety'
 import '@sim/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
 
+const PLACEHOLDER = "Write something, or press '/' for commands…"
+
 const EXTENSIONS = createMarkdownEditorExtensions({
-  placeholder: "Write something, or press '/' for commands…",
+  placeholder: PLACEHOLDER,
   embeds: true,
 })
 
@@ -90,6 +94,18 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   previewContextKey,
   disableTagging,
 }: RichMarkdownEditorProps) {
+  const { data: session } = useSession()
+  const userId = session?.user?.id ?? ''
+  const userName = session?.user?.name?.trim() || 'Collaborator'
+
+  /**
+   * Autosave gate for the collaborative path: the child reports `false` while its
+   * shared document is still syncing/seeding and `true` once it is safe to persist
+   * the markdown mirror — so an empty or partially-synced doc can never overwrite
+   * the real file. `true` for non-collaborative files (never gated).
+   */
+  const [collabReady, setCollabReady] = useState(true)
+
   const {
     content,
     setDraftContent,
@@ -108,6 +124,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
     saveRef,
     discardRef,
     normalizeBaseline: normalizeMarkdownContent,
+    canAutosave: collabReady,
   })
 
   if (isContentLoading) return <PreviewLoadingFrame className='flex flex-1 flex-col' />
@@ -128,12 +145,15 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       content={content}
       isStreaming={isStreamInteractionLocked}
       canEdit={canEdit}
+      userId={userId}
+      userName={userName}
       autoFocus={autoFocus}
       streamIsIncremental={streamIsIncremental}
       disableStreamingAutoScroll={disableStreamingAutoScroll}
       disableTagging={disableTagging}
       onChange={setDraftContent}
       onSaveShortcut={saveImmediately}
+      onCollabReadyChange={setCollabReady}
     />
   )
 })
@@ -146,6 +166,9 @@ interface LoadedRichMarkdownEditorProps {
   /** True while agent output is streaming in: the editor renders it read-only and syncs each chunk. */
   isStreaming: boolean
   canEdit: boolean
+  /** Current user id + display name, for the collaborative caret identity. */
+  userId: string
+  userName: string
   autoFocus?: boolean
   /** See {@link RichMarkdownEditorProps.streamIsIncremental}. */
   streamIsIncremental?: boolean
@@ -153,6 +176,8 @@ interface LoadedRichMarkdownEditorProps {
   disableTagging?: boolean
   onChange: (markdown: string) => void
   onSaveShortcut: () => Promise<void>
+  /** Reports whether the collaborative document is synced+seeded (autosave gate). */
+  onCollabReadyChange: (ready: boolean) => void
 }
 
 interface SettledContent {
@@ -172,12 +197,15 @@ export function LoadedRichMarkdownEditor({
   content,
   isStreaming,
   canEdit,
+  userId,
+  userName,
   autoFocus,
   streamIsIncremental,
   disableStreamingAutoScroll,
   disableTagging,
   onChange,
   onSaveShortcut,
+  onCollabReadyChange,
 }: LoadedRichMarkdownEditorProps) {
   /** Whether this editor mounted mid-stream — if so it starts empty and syncs streamed chunks until settle. */
   const streamingAtMountRef = useRef(isStreaming)
@@ -189,9 +217,40 @@ export function LoadedRichMarkdownEditor({
   }
   const isEditable = canEdit && !isStreaming && (settledRef.current?.verdict ?? false)
 
-  /** Seed the doc once via lazy init — chunked parse is linear vs the editor's ~O(n²) whole-body markdown parse. */
+  /**
+   * Collaboration is decided ONCE at mount (TipTap fixes the extension set at
+   * editor creation, so it cannot turn on later): only an editable, round-trip-safe,
+   * non-streaming workspace document with a known user. Latched via a ref because
+   * `settledRef`/`streamingAtMountRef` are available synchronously at mount.
+   */
+  const collaborationEnabledRef = useRef<boolean | null>(null)
+  if (
+    collaborationEnabledRef.current === null &&
+    (streamingAtMountRef.current || settledRef.current !== null)
+  ) {
+    collaborationEnabledRef.current =
+      canEdit &&
+      !streamingAtMountRef.current &&
+      (settledRef.current?.verdict ?? false) &&
+      Boolean(userId) &&
+      (file.storageContext ?? 'workspace') === 'workspace'
+  }
+  const collaboration = useFileDocCollaboration({
+    fileId: file.id,
+    userId,
+    userName,
+    enabled: collaborationEnabledRef.current ?? false,
+  })
+
+  /**
+   * Initial editor content. When collaborating, the Y.Doc is the source of truth —
+   * start empty and let the seed handshake fill it (below); otherwise seed from the
+   * parsed markdown (chunked parse is linear vs the editor's ~O(n²) whole-body parse).
+   */
   const [initialContent] = useState<JSONContent | string>(() =>
-    streamingAtMountRef.current ? '' : parseMarkdownToDoc(splitFrontmatter(content).body)
+    streamingAtMountRef.current || collaborationEnabledRef.current
+      ? ''
+      : parseMarkdownToDoc(splitFrontmatter(content).body)
   )
   /**
    * The body currently shown in the editor: seeded from a settled mount, updated on local edits (via
@@ -289,8 +348,27 @@ export function LoadedRichMarkdownEditor({
     }
   }
 
+  /**
+   * Extensions: the shared module set for the local path, or a per-instance set
+   * carrying this document's Collaboration + CollaborationCaret. Built once (collab
+   * is decided at mount), since `useEditor` fixes the extension set at creation.
+   */
+  const [extensions] = useState<Extensions>(() =>
+    collaboration
+      ? createMarkdownEditorExtensions({
+          placeholder: PLACEHOLDER,
+          embeds: true,
+          collaboration: {
+            doc: collaboration.doc,
+            awareness: collaboration.awareness,
+            user: collaboration.user,
+          },
+        })
+      : EXTENSIONS
+  )
+
   const editor = useEditor({
-    extensions: EXTENSIONS,
+    extensions,
     editable: isEditable,
     enablePasteRules: false,
     autofocus: streamingAtMountRef.current ? false : autoFocus ? 'end' : false,
@@ -449,6 +527,75 @@ export function LoadedRichMarkdownEditor({
   })
   editorInstanceRef.current = editor
 
+  const onCollabReadyChangeRef = useRef(onCollabReadyChange)
+  onCollabReadyChangeRef.current = onCollabReadyChange
+  const seedRequestedRef = useRef(false)
+  // The markdown body to seed the shared doc from — the loaded file content,
+  // captured before any edit (the editor stays empty + gated until seeded).
+  const seedBodyRef = useRef(splitFrontmatter(content).body)
+  seedBodyRef.current = splitFrontmatter(content).body
+
+  /**
+   * Seed the shared document from the file's markdown when this client is elected
+   * (SEED_REQUEST) and the initial sync has completed — writing the content and the
+   * `initialContentLoaded` flag in ONE Yjs transaction, so a re-election can never
+   * duplicate content (the relay's seed contract).
+   */
+  useEffect(() => {
+    const provider = collaboration?.provider
+    const doc = collaboration?.doc
+    if (!provider || !doc || !editor) return
+    const config = doc.getMap('config')
+    const seedIfElected = () => {
+      if (!seedRequestedRef.current || !provider.synced) return
+      if (config.get('initialContentLoaded') === true) return
+      doc.transact(() => {
+        editor.commands.setContent(parseMarkdownToDoc(seedBodyRef.current), {
+          contentType: 'json',
+          emitUpdate: false,
+        })
+        config.set('initialContentLoaded', true)
+      })
+    }
+    const onSeedRequest = () => {
+      seedRequestedRef.current = true
+      seedIfElected()
+    }
+    provider.on('seed-request', onSeedRequest)
+    provider.on('synced', seedIfElected)
+    seedIfElected()
+    return () => {
+      provider.off('seed-request', onSeedRequest)
+      provider.off('synced', seedIfElected)
+    }
+  }, [collaboration, editor])
+
+  /**
+   * Gate the parent's autosave: report ready only once the shared document is both
+   * synced and seeded, so an empty or still-syncing doc can never overwrite the real
+   * file's markdown mirror. Non-collaborative documents are never gated.
+   */
+  useEffect(() => {
+    if (!collaboration) {
+      onCollabReadyChangeRef.current(true)
+      return
+    }
+    const { provider, doc } = collaboration
+    const config = doc.getMap('config')
+    const report = () =>
+      onCollabReadyChangeRef.current(
+        Boolean(provider?.synced) && config.get('initialContentLoaded') === true
+      )
+    report()
+    provider?.on('synced', report)
+    config.observe(report)
+    return () => {
+      provider?.off('synced', report)
+      config.unobserve(report)
+      onCollabReadyChangeRef.current(true)
+    }
+  }, [collaboration])
+
   /**
    * Wire the `/Image` slash command to the hidden picker (per-editor storage, since the extension set is
    * shared across instances). Reads only refs, so the handler stays stable across the editor's life.
@@ -473,6 +620,9 @@ export function LoadedRichMarkdownEditor({
   const lastStreamParseAtRef = useRef(0)
   useEffect(() => {
     if (!editor) return
+    // When collaborating, the Y.Doc is the source of truth — content flows in via
+    // the seed handshake + live sync, never through this manual reconcile loop.
+    if (collaborationEnabledRef.current) return
     const syncEditorBody = (body: string) => {
       if (body === lastSyncedBodyRef.current) return
       lastSyncedBodyRef.current = body
