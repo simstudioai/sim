@@ -567,8 +567,15 @@ export function Chat() {
             }
 
             if (event === 'chunk_reset' && blockId) {
+              // Drop the block's provisional text and its order slot — the
+              // final turn re-registers at the end, keeping render order =
+              // arrival order (separators are recomputed on re-stream).
               if (blockSegments.has(blockId)) {
-                blockSegments.set(blockId, '')
+                blockSegments.delete(blockId)
+                const orderIndex = blockOrder.indexOf(blockId)
+                if (orderIndex !== -1) {
+                  blockOrder.splice(orderIndex, 1)
+                }
                 recomputeContent()
                 contentDirty = true
                 scheduleFlush()

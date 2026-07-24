@@ -152,7 +152,12 @@ export function createOpenAICompatibleAgentEventStream(
                 args: '',
                 started: false,
               }
-              if (tc.id) buf.id = tc.id
+              /**
+               * Never rename a call whose start already went out — a vendor id
+               * arriving after a synthesized one would orphan the emitted
+               * tool_call_start (its end would carry a different id).
+               */
+              if (tc.id && !buf.started) buf.id = tc.id
               if (tc.function?.name) buf.name = tc.function.name
               /**
                * Some compat vendors stream tool calls without ids. Synthesize

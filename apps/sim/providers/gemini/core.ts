@@ -1024,7 +1024,16 @@ export async function executeGeminiRequest(
     }
 
     const initialCallTime = Date.now()
-    const shouldStreamToolCalls = request.streamToolCalls ?? false
+    /**
+     * Gemini 2 cannot combine responseSchema with tools, so structured output
+     * is applied on a final schema-configured request after tools settle — the
+     * silent path does this; the live loop would break as soon as a turn has
+     * no calls and skip the schema. Gemini 3 carries responseJsonSchema
+     * alongside tools, so its live loop keeps structured output.
+     */
+    const responseFormatNeedsFinalPass = Boolean(request.responseFormat) && !isGemini3Model(model)
+    const shouldStreamToolCalls =
+      (request.streamToolCalls ?? false) && !responseFormatNeedsFinalPass
     const shouldStream = request.stream && !tools?.length
 
     // Live streaming tool loop

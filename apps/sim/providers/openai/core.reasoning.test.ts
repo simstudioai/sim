@@ -1,8 +1,9 @@
 /**
  * @vitest-environment node
  *
- * OpenAI Responses reasoning payload: summaries are requested only on
- * agent-events runs, legacy runs keep the pre-agent-events payload, and the
+ * OpenAI Responses reasoning payload: summaries are requested on agent-events
+ * runs and whenever an explicit effort is set (staging parity), legacy runs
+ * without explicit effort keep a reasoning-free payload, and the
  * unverified-organization 400 falls back to a summary-free retry.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -147,10 +148,12 @@ describe('executeResponsesProviderRequest reasoning payload', () => {
       expect(body.reasoning).toBeUndefined()
     })
 
-    it('sends only effort when effort is explicit', async () => {
+    it('keeps the staging payload (effort + summary) when effort is explicit', async () => {
+      // Pre-agent-events payloads always paired summary:'auto' with an
+      // explicit effort — legacy runs must stay byte-identical.
       await run({ model: 'gpt-5.5', reasoningEffort: 'high' })
       const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
-      expect(body.reasoning).toEqual({ effort: 'high' })
+      expect(body.reasoning).toEqual({ summary: 'auto', effort: 'high' })
     })
   })
 

@@ -552,9 +552,16 @@ export function useChatStreaming() {
           if (isChatChunkResetFrame(json)) {
             // The block's live-streamed text belonged to an intermediate turn
             // (tool calls follow); drop it — the final turn re-streams after.
+            // Remove the block from the order too: its re-streamed text
+            // re-registers at the end, keeping render order = arrival order
+            // (the server re-computes the cross-block separator on re-stream).
             const { blockId } = json
             if (blockTextSegments.has(blockId)) {
-              blockTextSegments.set(blockId, '')
+              blockTextSegments.delete(blockId)
+              const orderIndex = blockTextOrder.indexOf(blockId)
+              if (orderIndex !== -1) {
+                blockTextOrder.splice(orderIndex, 1)
+              }
               recomputeAccumulatedText()
               // Spoken audio cannot be unplayed; clamp so slicing stays valid.
               lastAudioPosition = Math.min(lastAudioPosition, accumulatedText.length)

@@ -261,11 +261,42 @@ export function createOpenAICompatStreamingToolLoopStream(
               const toolCallStartTime = Date.now()
               const toolName = tc.function.name
               const toolUseId = tc.id
+              /**
+               * Malformed argument JSON must not execute the tool — running it
+               * with defaulted `{}` args could fire side effects with missing
+               * parameters. Fail the call and let the model react to the error.
+               */
               let toolArgs: Record<string, unknown> = {}
+              let argsParseError = false
               try {
                 toolArgs = JSON.parse(tc.function.arguments || '{}')
               } catch {
-                toolArgs = {}
+                argsParseError = true
+              }
+              if (argsParseError) {
+                const endTime = Date.now()
+                openToolStarts.delete(toolUseId)
+                controller.enqueue({
+                  type: 'tool_call_end',
+                  id: toolUseId,
+                  name: toolName,
+                  status: 'error',
+                })
+                return {
+                  toolUseId,
+                  toolName,
+                  toolArgs: {},
+                  toolParams: {} as Record<string, unknown>,
+                  result: {
+                    success: false as const,
+                    output: undefined,
+                    error: `Invalid tool arguments JSON for ${toolName}`,
+                  },
+                  startTime: toolCallStartTime,
+                  endTime,
+                  duration: endTime - toolCallStartTime,
+                  status: 'error' as ToolCallEndStatus,
+                }
               }
 
               try {

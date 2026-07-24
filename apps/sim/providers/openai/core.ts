@@ -100,18 +100,19 @@ export async function executeResponsesProviderRequest(
   if (request.maxTokens != null) basePayload.max_output_tokens = request.maxTokens
 
   /**
-   * Reasoning summaries feed Thinking chrome, so they are requested only on
-   * agent-events runs — legacy runs keep the pre-agent-events payload (no
-   * `reasoning` key unless the user set an explicit effort). Summaries also
-   * require OpenAI organization verification; see the strip-and-retry fallback
-   * in the request helpers below.
+   * Reasoning summaries feed Thinking chrome. They are requested when an
+   * explicit effort is set (pre-agent-events payload always paired
+   * `summary: 'auto'` with `effort` — kept for parity) and on agent-events
+   * runs even without an explicit effort. Summaries require OpenAI
+   * organization verification; see the strip-and-retry fallback in the
+   * request helpers below.
    */
   if (supportsReasoningEffort(config.modelName)) {
+    const hasExplicitEffort =
+      request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto'
     const reasoning: Record<string, unknown> = {
-      ...(request.agentEvents === true ? { summary: 'auto' } : {}),
-      ...(request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto'
-        ? { effort: request.reasoningEffort }
-        : {}),
+      ...(request.agentEvents === true || hasExplicitEffort ? { summary: 'auto' } : {}),
+      ...(hasExplicitEffort ? { effort: request.reasoningEffort } : {}),
     }
     if (Object.keys(reasoning).length > 0) {
       basePayload.reasoning = reasoning

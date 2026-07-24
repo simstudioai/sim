@@ -35,10 +35,10 @@ Answer text stays on `chunk`. Thinking and tools never reuse `chunk` (so older c
 | `{ "blockId", "event": "chunk_reset" }` | Opted-in only: discard the block’s streamed answer text — it belonged to a turn that resolved to tool calls |
 | `{ "blockId", "event": "thinking", "data": "…" }` | Thinking / reasoning summary delta |
 | `{ "blockId", "event": "tool", "phase": "start"\|"end", "id", "name", "status?" }` | Tool lifecycle (no args / results) |
-| `{ "event": "final", "data": … }` | Terminal success envelope |
-| `{ "event": "error", "error": "…" }` | Terminal failure — followed by `[DONE]`, never by `final` |
+| `{ "event": "final", "data": … }` | Terminal result envelope for a settled execution. `data.success` may be `false` with `data.error` when the workflow itself failed |
+| `{ "event": "error", "error": "…" }` | Terminal stream failure (timeout, client abort, processing error) — followed by `[DONE]`, never by `final` |
 | `{ "event": "stream_error", "blockId?", "error" }` | Non-terminal mid-block read issue; the stream keeps going |
-| `data: [DONE]` | Stream closed (always follows the terminal `final` or `error` frame) |
+| `data: "[DONE]"` | Stream closed (JSON-encoded sentinel; always follows the terminal `final` or `error` frame) |
 
 ### Live answer text and intermediate turns
 

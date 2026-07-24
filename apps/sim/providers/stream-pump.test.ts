@@ -106,6 +106,34 @@ describe('createAgentStreamPump', () => {
     expect(await textPromise).toBe('partial answer')
   })
 
+  it('abort releases a drain blocked on byte backpressure (no deadlock)', async () => {
+    const controller = new AbortController()
+    // Enough text to exceed the byte stream's high-water mark with no reader pulling.
+    const bigChunk = 'x'.repeat(4096)
+    const source = new ReadableStream<AgentStreamEvent>({
+      start(c) {
+        for (let i = 0; i < 8; i++) {
+          c.enqueue({ type: 'text_delta', text: bigChunk, turn: 'final' })
+        }
+        // Never closes — the only way out is the abort.
+      },
+    })
+
+    const pump = createAgentStreamPump({
+      source,
+      streamFormat: 'agent-events-v1',
+      abortSignal: controller.signal,
+    })
+
+    // Intentionally never read pump.textStream — the consumer stalled without cancelling.
+    const runPromise = pump.run()
+    setTimeout(() => controller.abort('user'), 10)
+
+    const result = await runPromise
+    expect(result.cancelled).toBe(true)
+    expect(result.cancelReason).toBe('user')
+  })
+
   it('keeps pending text in answerText on abort so logs match what clients rendered', async () => {
     const controller = new AbortController()
     const source = new ReadableStream<AgentStreamEvent>({

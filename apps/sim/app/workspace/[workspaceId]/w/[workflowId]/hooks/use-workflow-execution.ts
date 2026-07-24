@@ -634,12 +634,13 @@ export function useWorkflowExecution() {
 
             /**
              * Intermediate-turn reconciliation: drop the block's streamed text
-             * (chunk_reset frame) and re-arm separator bookkeeping so the
-             * final turn's text starts a clean segment.
+             * (chunk_reset frame) and remove its bookkeeping entirely so
+             * separator counting ignores it and the final turn (or, if none
+             * re-streams, onBlockComplete's output fallback) starts clean.
              */
             const onStreamReset = (blockId: string) => {
               if (!streamedChunks.has(blockId)) return
-              streamedChunks.set(blockId, [])
+              streamedChunks.delete(blockId)
               processedFirstChunk.delete(blockId)
               safeEnqueue(encodeSSE({ blockId, event: 'chunk_reset' }))
             }
@@ -1249,7 +1250,7 @@ export function useWorkflowExecution() {
             onStreamChunkReset: (data) => {
               // Live-streamed text belonged to an intermediate turn (tools
               // follow); the final turn re-streams as regular chunks.
-              streamedChunks.set(data.blockId, [])
+              streamedChunks.delete(data.blockId)
               if (onStreamReset && isExecutingFromChat) {
                 onStreamReset(data.blockId)
               }

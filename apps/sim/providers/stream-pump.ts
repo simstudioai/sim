@@ -314,6 +314,9 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
         cancelReason = 'unknown'
       }
       void reader.cancel(abortSignal?.reason ?? 'aborted')
+      // Release a drain blocked on byte backpressure — a consumer that stopped
+      // pulling without cancelling would otherwise deadlock the abort.
+      closeTextStream()
     }
 
     if (abortSignal) {

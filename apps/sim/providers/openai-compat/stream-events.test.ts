@@ -95,6 +95,47 @@ describe('createOpenAICompatibleAgentEventStream', () => {
     ])
   })
 
+  it('keeps a synthesized tool id stable when the vendor id arrives after start', async () => {
+    const onComplete = vi.fn()
+    const stream = createOpenAICompatibleAgentEventStream(
+      (async function* () {
+        // Name first (no id) → start emits with a synthesized id.
+        yield {
+          choices: [
+            {
+              delta: {
+                tool_calls: [{ index: 0, function: { name: 'lookup', arguments: '{"q"' } }],
+              },
+            },
+          ],
+        } as any
+        // Vendor id arrives late — must not rename the started call.
+        yield {
+          choices: [
+            {
+              delta: {
+                tool_calls: [{ index: 0, id: 'call_real', function: { arguments: ':1}' } }],
+              },
+            },
+          ],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        } as any
+      })(),
+      { providerName: 'Loose', emitToolCallStarts: true, onComplete }
+    )
+
+    const events = await collectEvents(stream)
+    const start = events.find((e) => e.type === 'tool_call_start')
+    expect(start).toBeDefined()
+    expect(start!.id).not.toBe('call_real')
+
+    // The assembled call keeps the same id as the emitted start.
+    const assembled = onComplete.mock.calls[0][0].toolCalls
+    expect(assembled).toHaveLength(1)
+    expect(assembled[0].id).toBe(start!.id)
+    expect(assembled[0].function).toEqual({ name: 'lookup', arguments: '{"q":1}' })
+  })
+
   it('always enqueues text deltas live and assembles content for onComplete', async () => {
     const onComplete = vi.fn()
     const stream = createOpenAICompatibleAgentEventStream(

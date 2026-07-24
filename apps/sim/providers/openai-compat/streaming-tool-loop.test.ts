@@ -272,6 +272,53 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
     )
   })
 
+  it('fails the call without executing when tool argument JSON is malformed', async () => {
+    let call = 0
+    const createStream = vi.fn(async () => {
+      call += 1
+      if (call === 1) {
+        return (async function* () {
+          yield* toolThenAnswerChunks('lookup', '{"query": "unterminated', '')
+        })()
+      }
+      return (async function* () {
+        yield {
+          choices: [{ delta: { content: 'recovered' } }],
+          usage: { prompt_tokens: 8, completion_tokens: 2, total_tokens: 10 },
+        }
+      })()
+    })
+
+    const events = await collectEvents(
+      createOpenAICompatStreamingToolLoopStream({
+        providerName: 'Deepseek',
+        request: {
+          model: 'deepseek-chat',
+          apiKey: 'k',
+          messages: [],
+          tools: [{ id: 'lookup', name: 'lookup', description: 'd', parameters: {} } as any],
+        },
+        basePayload: { model: 'deepseek-chat' },
+        messages: [{ role: 'user', content: 'use the tool' }],
+        createStream: createStream as any,
+        logger,
+        timeSegments: [],
+        onComplete: () => {},
+      })
+    )
+
+    // Tool must not run with defaulted {} args; the call fails and the model
+    // gets the error result on the next turn.
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+    expect(events).toContainEqual({
+      type: 'tool_call_end',
+      id: 'call_1',
+      name: 'lookup',
+      status: 'error',
+    })
+    expect(createStream).toHaveBeenCalledTimes(2)
+  })
+
   it('streams thinking live and assembles tool args from deltas', async () => {
     let call = 0
     const createStream = vi.fn(async () => {

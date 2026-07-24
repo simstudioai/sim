@@ -186,6 +186,30 @@ describe('useChatStreaming thinking + abort', () => {
     expect(assistant?.content).not.toContain('Let me check')
   })
 
+  it('re-registers a reset block at the end so multi-block order matches arrival', async () => {
+    mockReadSSEEvents.mockImplementation(async (_source, options) => {
+      // Agent A streams provisional text, then resets (tools follow).
+      await options.onEvent({ blockId: 'agent-a', chunk: 'Checking the weather…' })
+      await options.onEvent({ blockId: 'agent-a', event: 'chunk_reset' })
+      // Another block streams while A's tools run.
+      await options.onEvent({ blockId: 'block-b', chunk: 'B output' })
+      // A's final turn re-streams; the server bakes in the cross-block separator.
+      await options.onEvent({ blockId: 'agent-a', chunk: '\n\nIt is 68°F.' })
+      await options.onEvent({
+        event: 'final',
+        data: { success: true, output: {} },
+      })
+    })
+
+    await act(async () => {
+      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
+    })
+    await flushUiBatch()
+
+    const assistant = messages.find((m) => m.id === 'msg-assistant-1')
+    expect(assistant?.content).toBe('B output\n\nIt is 68°F.')
+  })
+
   it('settles thinking chrome when a tool starts', async () => {
     let midStreamThinking: boolean | undefined
     mockReadSSEEvents.mockImplementation(async (_source, options) => {
