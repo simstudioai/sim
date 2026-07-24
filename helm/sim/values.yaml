@@ -1674,9 +1674,10 @@ copilot:
     secretKey: DATABASE_URL
     url: ""
   
-  # Migration job configuration
+  # Migration job configuration (Copilot migrations run as a Helm-hook Job,
+  # unlike the app migrations which run as an init container)
   migrations:
-    # Enable/disable the migrations init container
+    # Enable/disable the Copilot migrations Job
     enabled: true
     
     # Image configuration (same as server)

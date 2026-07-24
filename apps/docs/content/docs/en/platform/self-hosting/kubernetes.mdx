@@ -38,6 +38,8 @@ helm install sim ./helm/sim \
 
 ## Cloud-Specific Values
 
+These commands reuse the `$BETTER_AUTH_SECRET`, `$ENCRYPTION_KEY`, `$INTERNAL_API_SECRET`, `$CRON_SECRET`, and `$POSTGRES_PASSWORD` variables generated in [Installation](#installation) above — run that block's `openssl` lines first in the same shell.
+
 <Tabs items={['AWS EKS', 'Azure AKS', 'GCP GKE']}>
   <Tab value="AWS EKS">
 ```bash

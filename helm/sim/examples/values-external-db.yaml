@@ -175,7 +175,11 @@ networkPolicy:
   # external DB on a different port (or off-cluster), add an egress rule.
   # `networkPolicy.egress` is a LIST of NetworkPolicy egress rules.
   egress:
-    - to: []
+    - to:
+        # Scope to YOUR database's subnet — an empty `to:` would allow the pods
+        # to reach ANY host on 5432, defeating the isolation this teaches.
+        - ipBlock:
+            cidr: 10.0.0.0/16 # replace with your database subnet or /32 host CIDR
       ports:
         - protocol: TCP
           port: 5432
