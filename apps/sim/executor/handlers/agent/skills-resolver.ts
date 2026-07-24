@@ -45,11 +45,11 @@ export async function resolveSkillMetadata(
 
   try {
     const rows = await db
-      .select({ name: skill.name, description: skill.description })
+      .select({ id: skill.id, name: skill.name, description: skill.description })
       .from(skill)
       .where(and(eq(skill.workspaceId, workspaceId), inArray(skill.id, dbSkillIds)))
 
-    return [...metadata, ...rows]
+    return [...metadata, ...rows.map((row) => ({ name: row.name, description: row.description }))]
   } catch (error) {
     logger.error('Failed to resolve skill metadata', { error, dbSkillIds, workspaceId })
     return metadata
@@ -71,7 +71,7 @@ export async function resolveSkillContent(
 
   try {
     const rows = await db
-      .select({ content: skill.content, name: skill.name })
+      .select({ content: skill.content })
       .from(skill)
       .where(and(eq(skill.workspaceId, workspaceId), eq(skill.name, skillName)))
       .limit(1)
@@ -109,7 +109,7 @@ export async function resolveSkillContentById(
       return null
     }
 
-    return rows[0]
+    return { name: rows[0].name, content: rows[0].content }
   } catch (error) {
     logger.error('Failed to resolve skill content', { error, skillId, workspaceId })
     return null

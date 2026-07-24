@@ -155,6 +155,7 @@ export const mistralProvider: ProviderConfig = {
           timing: { kind: 'simple', segmentName: request.model },
           initialTokens: { input: 0, output: 0, total: 0 },
           initialCost: { input: 0, output: 0, total: 0 },
+          streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
             createReadableStreamFromMistralStream(streamResponse, (content, usage) => {
               output.content = content
@@ -440,10 +441,14 @@ export const mistralProvider: ProviderConfig = {
 
         const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 
+        /**
+         * The regeneration exists purely to stream the settled answer as prose —
+         * streamed tool_calls are never executed on this path.
+         */
         const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto',
+          tool_choice: 'none',
           stream: true,
         }
         const streamResponse = await mistral.chat.completions.create(
@@ -480,9 +485,13 @@ export const mistralProvider: ProviderConfig = {
                   count: toolCalls.length,
                 }
               : undefined,
+          streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
-            createReadableStreamFromMistralStream(streamResponse, (content, usage) => {
-              output.content = content
+            createReadableStreamFromMistralStream(streamResponse, (streamedContent, usage) => {
+              if (!streamedContent && content) {
+                logger.warn('Mistral final stream produced no text; keeping tool-loop answer')
+              }
+              output.content = streamedContent || content
               output.tokens = {
                 input: tokens.input + usage.prompt_tokens,
                 output: tokens.output + usage.completion_tokens,

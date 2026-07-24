@@ -3,14 +3,19 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { requestJson } from '@/lib/api/client/request'
 import {
   deleteSkillContract,
+  listSkillMembersContract,
   listSkillsContract,
+  removeSkillMemberContract,
   type Skill,
+  type SkillEditor,
+  upsertSkillMemberContract,
   upsertSkillsContract,
 } from '@/lib/api/contracts'
 
 const logger = createLogger('SkillsQueries')
 
 export const SKILL_LIST_STALE_TIME = 60 * 1000
+export const SKILL_MEMBER_LIST_STALE_TIME = 30 * 1000
 
 export type SkillDefinition = Skill
 
@@ -21,6 +26,7 @@ export const skillsKeys = {
   all: ['skills'] as const,
   lists: () => [...skillsKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...skillsKeys.lists(), workspaceId] as const,
+  members: (skillId?: string) => [...skillsKeys.all, 'members', skillId ?? ''] as const,
 }
 
 /**
@@ -70,7 +76,13 @@ export function useCreateSkill() {
 
       const { data } = await requestJson(upsertSkillsContract, {
         body: {
-          skills: [{ name: s.name, description: s.description, content: s.content }],
+          skills: [
+            {
+              name: s.name,
+              description: s.description,
+              content: s.content,
+            },
+          ],
           workspaceId,
         },
       })
@@ -114,25 +126,11 @@ export function useUpdateSkill() {
     mutationFn: async ({ workspaceId, skillId, updates }: UpdateSkillParams) => {
       logger.info(`Updating skill: ${skillId} in workspace ${workspaceId}`)
 
-      const currentSkills = queryClient.getQueryData<SkillDefinition[]>(
-        skillsKeys.list(workspaceId)
-      )
-      const currentSkill = currentSkills?.find((s) => s.id === skillId)
-
-      if (!currentSkill) {
-        throw new Error('Skill not found')
-      }
-
+      // Updates are partial on the wire — omitted fields are preserved
+      // server-side, so nothing is re-sent from a possibly-stale cache.
       const { data } = await requestJson(upsertSkillsContract, {
         body: {
-          skills: [
-            {
-              id: skillId,
-              name: updates.name ?? currentSkill.name,
-              description: updates.description ?? currentSkill.description,
-              content: updates.content ?? currentSkill.content,
-            },
-          ],
+          skills: [{ id: skillId, ...updates }],
           workspaceId,
         },
       })
@@ -172,6 +170,7 @@ export function useUpdateSkill() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: skillsKeys.list(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: skillsKeys.members(variables.skillId) })
     },
   })
 }
@@ -220,6 +219,91 @@ export function useDeleteSkill() {
       }
     },
     onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: skillsKeys.list(variables.workspaceId) })
+    },
+  })
+}
+
+/**
+ * Fetch the editor roster for a skill (explicit editors plus derived workspace
+ * admins). Built-in skills have no editors — callers should not enable this
+ * for readOnly skills.
+ */
+export function useSkillMembers(skillId?: string, options?: { enabled?: boolean }) {
+  return useQuery<SkillEditor[]>({
+    queryKey: skillsKeys.members(skillId),
+    queryFn: async ({ signal }) => {
+      if (!skillId) return []
+      const data = await requestJson(listSkillMembersContract, {
+        params: { id: skillId },
+        signal,
+      })
+      return data.editors
+    },
+    enabled: Boolean(skillId) && (options?.enabled ?? true),
+    staleTime: SKILL_MEMBER_LIST_STALE_TIME,
+  })
+}
+
+interface UpsertSkillMemberParams {
+  skillId: string
+  workspaceId: string
+  userId: string
+}
+
+export function useUpsertSkillMember() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ skillId, userId }: UpsertSkillMemberParams) => {
+      return requestJson(upsertSkillMemberContract, {
+        params: { id: skillId },
+        body: { userId },
+      })
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: skillsKeys.members(variables.skillId) })
+      queryClient.invalidateQueries({ queryKey: skillsKeys.list(variables.workspaceId) })
+    },
+  })
+}
+
+interface RemoveSkillMemberParams {
+  skillId: string
+  workspaceId: string
+  userId: string
+}
+
+export function useRemoveSkillMember() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ skillId, userId }: RemoveSkillMemberParams) => {
+      return requestJson(removeSkillMemberContract, {
+        params: { id: skillId },
+        query: { userId },
+      })
+    },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: skillsKeys.members(variables.skillId) })
+      const previousEditors = queryClient.getQueryData<SkillEditor[]>(
+        skillsKeys.members(variables.skillId)
+      )
+      if (previousEditors) {
+        queryClient.setQueryData<SkillEditor[]>(
+          skillsKeys.members(variables.skillId),
+          previousEditors.filter((editor) => editor.userId !== variables.userId)
+        )
+      }
+      return { previousEditors }
+    },
+    onError: (_err, variables, context) => {
+      if (context?.previousEditors) {
+        queryClient.setQueryData(skillsKeys.members(variables.skillId), context.previousEditors)
+      }
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: skillsKeys.members(variables.skillId) })
       queryClient.invalidateQueries({ queryKey: skillsKeys.list(variables.workspaceId) })
     },
   })

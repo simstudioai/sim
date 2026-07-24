@@ -135,7 +135,6 @@ export class PiBlockHandler implements BlockHandler {
       }
       return this.runPi(ctx, block, runCloudReviewPi, params)
     }
-
     const memoryConfig: PiMemoryConfig = {
       memoryType: asOptString(inputs.memoryType) as PiMemoryConfig['memoryType'],
       conversationId: asOptString(inputs.conversationId),

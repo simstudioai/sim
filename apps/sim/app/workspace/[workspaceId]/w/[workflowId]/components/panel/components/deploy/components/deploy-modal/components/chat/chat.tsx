@@ -11,6 +11,7 @@ import {
   Label,
   Loader,
   Skeleton,
+  Switch,
   TagInput,
   type TagItem,
   Textarea,
@@ -84,6 +85,7 @@ const initialFormData: ChatFormData = {
   emails: [],
   welcomeMessage: 'Hi there! How can I help you today?',
   selectedOutputBlocks: [],
+  includeThinking: false,
 }
 
 export function ChatDeploy({
@@ -194,6 +196,7 @@ export function ChatDeploy({
               (config: { blockId: string; path: string }) => `${config.blockId}_${config.path}`
             )
           : [],
+        includeThinking: existingChat.includeThinking ?? false,
       })
 
       if (existingChat.customizations?.imageUrl) {
@@ -367,6 +370,23 @@ export function ChatDeploy({
                 {errors.outputBlocks}
               </p>
             )}
+          </div>
+
+          <div className='flex items-center justify-between gap-3'>
+            <div className='min-w-0'>
+              <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+                Include thinking
+              </Label>
+              <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
+                Allow this chat to stream model thinking when the client opts in. Off by default.
+              </p>
+            </div>
+            <Switch
+              checked={formData.includeThinking}
+              disabled={chatSubmitting}
+              onCheckedChange={(checked) => updateField('includeThinking', checked)}
+              aria-label='Include thinking'
+            />
           </div>
 
           <AuthSelector

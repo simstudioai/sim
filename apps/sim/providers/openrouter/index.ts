@@ -169,6 +169,7 @@ export const openRouterProvider: ProviderConfig = {
           timing: { kind: 'simple', segmentName: request.model },
           initialTokens: { input: 0, output: 0, total: 0 },
           initialCost: { input: 0, output: 0, total: 0 },
+          streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
             createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
               output.content = content
@@ -429,10 +430,14 @@ export const openRouterProvider: ProviderConfig = {
       if (request.stream) {
         const accumulatedCost = calculateCost(requestedModel, tokens.input, tokens.output)
 
+        /**
+         * The regeneration exists purely to stream the settled answer as prose —
+         * streamed tool_calls are never executed on this path.
+         */
         const streamingParams: ChatCompletionCreateParamsStreaming & { provider?: any } = {
           ...payload,
           messages: [...currentMessages],
-          tool_choice: 'auto',
+          tool_choice: 'none',
           stream: true,
           stream_options: { include_usage: true },
         }
@@ -471,9 +476,13 @@ export const openRouterProvider: ProviderConfig = {
           },
           toolCalls:
             toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
+          streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
-            createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
-              output.content = content
+            createReadableStreamFromOpenAIStream(streamResponse, (streamedContent, usage) => {
+              if (!streamedContent && content) {
+                logger.warn('OpenRouter final stream produced no text; keeping tool-loop answer')
+              }
+              output.content = streamedContent || content
               output.tokens = {
                 input: tokens.input + usage.prompt_tokens,
                 output: tokens.output + usage.completion_tokens,

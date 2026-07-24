@@ -167,6 +167,7 @@ export const togetherProvider: ProviderConfig = {
           timing: { kind: 'simple', segmentName: request.model },
           initialTokens: { input: 0, output: 0, total: 0 },
           initialCost: { input: 0, output: 0, total: 0 },
+          streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
             createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
               output.content = content
@@ -469,6 +470,7 @@ export const togetherProvider: ProviderConfig = {
           },
           toolCalls:
             toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
+          streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
             createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
               output.content = content

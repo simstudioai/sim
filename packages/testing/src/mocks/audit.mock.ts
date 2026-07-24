@@ -131,6 +131,8 @@ export const auditMock = {
     SKILL_CREATED: 'skill.created',
     SKILL_UPDATED: 'skill.updated',
     SKILL_DELETED: 'skill.deleted',
+    SKILL_MEMBER_ADDED: 'skill_member.added',
+    SKILL_MEMBER_REMOVED: 'skill_member.removed',
     TABLE_CREATED: 'table.created',
     TABLE_UPDATED: 'table.updated',
     TABLE_DELETED: 'table.deleted',

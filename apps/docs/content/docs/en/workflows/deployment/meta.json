@@ -1,4 +1,4 @@
 {
   "title": "Deployment",
-  "pages": ["index", "api", "chat", "mcp"]
+  "pages": ["index", "api", "chat", "agent-events", "mcp"]
 }

@@ -189,4 +189,27 @@ describe('serializePauseSnapshot', () => {
 
     expect(serialized.metadata.billingAttribution).toEqual(billingAttribution)
   })
+
+  it('preserves includeThinking on pause so chat resume can emit thinking SSE', () => {
+    const context = createContext({
+      metadata: {
+        ...createContext().metadata,
+        includeThinking: true,
+        executionMode: 'stream',
+      },
+    })
+
+    const snapshot = serializePauseSnapshot(context, ['next-block'])
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.metadata.includeThinking).toBe(true)
+    expect(serialized.metadata.executionMode).toBe('stream')
+  })
+
+  it('omits includeThinking when the live run did not enable it', () => {
+    const snapshot = serializePauseSnapshot(createContext(), ['next-block'])
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.metadata.includeThinking).toBeUndefined()
+  })
 })

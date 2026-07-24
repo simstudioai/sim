@@ -29,6 +29,8 @@ export interface ChatDeployPayload {
   password?: string | null
   allowedEmails?: string[]
   outputConfigs?: Array<{ blockId: string; path: string }>
+  /** When true, public SSE may expose thinking if the client also opts into agent-events-v1. */
+  includeThinking?: boolean
   workspaceId?: string | null
 }
 
@@ -60,6 +62,7 @@ export async function performChatDeploy(
     password,
     allowedEmails = [],
     outputConfigs = [],
+    includeThinking = false,
   } = params
 
   const customizations = {
@@ -141,6 +144,7 @@ export async function performChatDeploy(
         password: passwordToStore,
         allowedEmails: authType === 'email' || authType === 'sso' ? allowedEmails : [],
         outputConfigs,
+        includeThinking,
         updatedAt: new Date(),
       })
       .where(eq(chat.id, chatId))
@@ -159,6 +163,7 @@ export async function performChatDeploy(
       password: encryptedPassword,
       allowedEmails: authType === 'email' || authType === 'sso' ? allowedEmails : [],
       outputConfigs,
+      includeThinking,
       createdAt: new Date(),
       updatedAt: new Date(),
     })

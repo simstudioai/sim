@@ -1,14 +1,15 @@
 export interface ResolveAddEmailContext {
   /** Lowercased email -> workspace userId for every workspace member. */
   workspaceUserIdByEmail: Map<string, string>
-  /** Lowercased emails that already have access to the credential. */
+  /** Lowercased emails that already have access to the resource. */
   existingMemberEmails: Set<string>
 }
 
 export type ResolveAddEmailResult = { userId: string } | { error: string }
 
 /**
- * Decide whether a format-valid email can be added to a credential: it must
+ * Decide whether a format-valid email can be added to a shared resource
+ * (credential, skill): it must
  * belong to a workspace member and not already have access. Matching is
  * case-insensitive (the context map/set are keyed by lowercased email) while
  * error messages echo the email as the user typed it. Returns the resolved

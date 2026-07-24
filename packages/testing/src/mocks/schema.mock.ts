@@ -406,6 +406,14 @@ export const schemaMock = {
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
   },
+  skillMember: {
+    id: 'id',
+    skillId: 'skillId',
+    userId: 'userId',
+    invitedBy: 'invitedBy',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  },
   subscription: {
     id: 'id',
     plan: 'plan',
@@ -440,6 +448,7 @@ export const schemaMock = {
     password: 'password',
     allowedEmails: 'allowedEmails',
     outputConfigs: 'outputConfigs',
+    includeThinking: 'includeThinking',
     archivedAt: 'archivedAt',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
