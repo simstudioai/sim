@@ -43,10 +43,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     .select()
     .from(workflowBlockAnnotation)
     .where(
-      and(
-        eq(workflowBlockAnnotation.id, annotationId),
-        eq(workflowBlockAnnotation.workflowId, id)
-      )
+      and(eq(workflowBlockAnnotation.id, annotationId), eq(workflowBlockAnnotation.workflowId, id))
     )
     .limit(1)
   if (!existing) {
@@ -106,10 +103,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
     .select()
     .from(workflowBlockAnnotation)
     .where(
-      and(
-        eq(workflowBlockAnnotation.id, annotationId),
-        eq(workflowBlockAnnotation.workflowId, id)
-      )
+      and(eq(workflowBlockAnnotation.id, annotationId), eq(workflowBlockAnnotation.workflowId, id))
     )
     .limit(1)
   if (!existing) {

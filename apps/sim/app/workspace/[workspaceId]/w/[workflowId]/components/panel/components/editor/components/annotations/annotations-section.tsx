@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChevronDown, MessageSquare } from 'lucide-react'
 import { Chip, ChipTextarea, cn } from '@sim/emcn'
+import { ChevronDown, MessageSquare } from 'lucide-react'
 import type { WorkspaceMember } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { AnnotationItem } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/annotations/annotation-item'
@@ -110,9 +110,7 @@ export function AnnotationsSection({
             <AnnotationItem
               key={annotation.id}
               annotation={annotation}
-              author={
-                annotation.createdBy ? membersById.get(annotation.createdBy) : undefined
-              }
+              author={annotation.createdBy ? membersById.get(annotation.createdBy) : undefined}
               isOwn={Boolean(sessionUserId) && annotation.createdBy === sessionUserId}
               canModerate={canModerate}
               canEdit={canEdit}
@@ -131,9 +129,7 @@ export function AnnotationsSection({
               onClick={() => setShowResolved(!showResolved)}
               className='self-start px-0.5 py-1 text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-primary)]'
             >
-              {showResolved
-                ? 'Hide resolved'
-                : `Show resolved (${resolvedCount})`}
+              {showResolved ? 'Hide resolved' : `Show resolved (${resolvedCount})`}
             </button>
           )}
           {canEdit && (

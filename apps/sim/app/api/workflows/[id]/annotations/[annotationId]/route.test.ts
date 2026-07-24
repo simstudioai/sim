@@ -136,7 +136,7 @@ describe('workflow annotation detail route', () => {
       expect(response.status).toBe(404)
     })
 
-    it('forbids deleting someone else\'s comment without admin', async () => {
+    it("forbids deleting someone else's comment without admin", async () => {
       queueTableRows(schemaMock.workflowBlockAnnotation, [makeRow({ createdBy: 'user-2' })])
       const response = await callDelete()
       expect(response.status).toBe(403)

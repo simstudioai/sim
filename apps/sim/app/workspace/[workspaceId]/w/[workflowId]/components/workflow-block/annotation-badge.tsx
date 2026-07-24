@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback } from 'react'
-import { MessageSquare } from 'lucide-react'
 import { Badge, Tooltip } from '@sim/emcn'
+import { MessageSquare } from 'lucide-react'
 import type { WorkflowAnnotationApi } from '@/lib/api/contracts'
 import { useWorkflowAnnotationsQuery } from '@/hooks/queries/workflow-annotations'
 import { usePanelEditorStore } from '@/stores/panel/editor/store'

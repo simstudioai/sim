@@ -11,7 +11,9 @@ type WorkflowBlockAnnotationRow = typeof workflowBlockAnnotation.$inferSelect
 /**
  * Serializes a workflow block annotation row into the contract wire shape.
  */
-export function serializeWorkflowAnnotation(row: WorkflowBlockAnnotationRow): WorkflowAnnotationApi {
+export function serializeWorkflowAnnotation(
+  row: WorkflowBlockAnnotationRow
+): WorkflowAnnotationApi {
   return {
     id: row.id,
     workflowId: row.workflowId,

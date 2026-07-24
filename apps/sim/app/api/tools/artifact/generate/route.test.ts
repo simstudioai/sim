@@ -190,7 +190,7 @@ describe('POST /api/tools/artifact/generate', () => {
 
   it('strips markdown fences from the model output', async () => {
     mockExecuteProviderRequest.mockResolvedValue({
-      content: '```html\n' + VALID_HTML + '\n```',
+      content: `\`\`\`html\n${VALID_HTML}\n\`\`\``,
       cost: { total: 0 },
     })
     const response = await callRoute(makeBody())

@@ -258,7 +258,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const htmlBuffer = Buffer.from(html, 'utf-8')
   if (htmlBuffer.length > MAX_ARTIFACT_HTML_BYTES) {
     return NextResponse.json(
-      { error: `Generated artifact exceeds the ${MAX_ARTIFACT_HTML_BYTES / (1024 * 1024)}MB limit` },
+      {
+        error: `Generated artifact exceeds the ${MAX_ARTIFACT_HTML_BYTES / (1024 * 1024)}MB limit`,
+      },
       { status: 413 }
     )
   }

@@ -1,8 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { formatDistanceToNow } from 'date-fns'
-import { MoreHorizontal } from 'lucide-react'
 import {
   Avatar,
   AvatarFallback,
@@ -16,6 +14,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@sim/emcn'
+import { formatDistanceToNow } from 'date-fns'
+import { MoreHorizontal } from 'lucide-react'
 import type { WorkflowAnnotationApi } from '@/lib/api/contracts'
 import type { WorkspaceMember } from '@/lib/api/contracts/workspaces'
 import { getUserColor } from '@/lib/workspaces/colors'
