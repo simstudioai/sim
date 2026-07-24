@@ -82,10 +82,11 @@ const socketToRoomName = new Map<string, string>()
 /**
  * socketId → a monotonic join generation. A JOIN bumps it on arrival and, after
  * the async authorization, proceeds only if the generation is still its own — so
- * a disconnect, a LEAVE, or a newer JOIN (a fast document switch) that occurred
- * during authorization aborts the now-stale JOIN. Without this, an out-of-order
- * authorize completion could bind the socket to the wrong document, or a
- * disconnect-during-authorize could register a dead socket and leak its room.
+ * a newer JOIN (a fast document switch) or a disconnect (which drops the entry in
+ * cleanup) that occurred during authorization aborts the now-stale JOIN. Without
+ * this, an out-of-order authorize completion could bind the socket to the wrong
+ * document, or a disconnect-during-authorize could register a dead socket and
+ * leak its room.
  */
 const joinGeneration = new Map<string, number>()
 
@@ -138,7 +139,6 @@ function awarenessUpdateClientIds(update: Uint8Array): number[] {
   return ids
 }
 
-/** Cancel a pending seed-deadline timer, if any. */
 function clearSeedTimer(room: FileDocRoom) {
   if (room.seedTimer !== null) {
     clearTimeout(room.seedTimer)
@@ -409,8 +409,8 @@ export function setupWorkspaceFileDocHandlers(
       }
 
       // Abort a JOIN superseded during authorization: the socket disconnected, or
-      // a LEAVE / newer JOIN bumped the generation. Registering here would leak a
-      // dead socket's room or bind the socket to a document it has left behind.
+      // a newer JOIN (a document switch) bumped the generation. Registering here
+      // would leak a dead socket's room or bind the socket to the wrong document.
       if (socket.disconnected || joinGeneration.get(socket.id) !== generation) return
 
       // Switched documents on the same socket — leave the previous one first (a
@@ -474,7 +474,6 @@ export function setupWorkspaceFileDocHandlers(
         socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(awarenessEncoder))
       }
 
-      // Ask a client to seed the initial content if the document is still empty.
       electSeederIfNeeded(io, entry)
 
       logger.info(`User ${userId} joined file-doc room ${fileId}`)
@@ -497,11 +496,10 @@ export function setupWorkspaceFileDocHandlers(
 
   socket.on(FILE_DOC_EVENTS.LEAVE, (payload?: LeaveFileDocPayload) => {
     try {
-      // Invalidate any in-flight JOIN for this socket: a LEAVE arriving while a
-      // JOIN is still authorizing means the client no longer wants the room by
-      // the time that JOIN resolves.
-      joinGeneration.set(socket.id, (joinGeneration.get(socket.id) ?? 0) + 1)
-
+      // Only affect a REGISTERED room; never touch the join generation here. A
+      // leave that raced ahead of an in-flight join (no room registered yet) is a
+      // no-op — bumping the generation would silently abort an unrelated join for
+      // a different file (a document switch), leaving the socket bound to nothing.
       const name = socketToRoomName.get(socket.id)
       if (!name) return
       // Scope the leave to the named file when provided: a deferred leave from a

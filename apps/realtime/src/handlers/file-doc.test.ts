@@ -446,6 +446,22 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-b')
   })
 
+  it('does not abort an in-flight join when a leave for a different file arrives', async () => {
+    const { io } = createIo()
+    let resolveAuth: (v: unknown) => void = () => {}
+    mockAuthorizeRoom.mockReturnValueOnce(new Promise((resolve) => (resolveAuth = resolve)))
+    const s = setup('socket-a', io)
+
+    const pending = s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-2', clientId: 1 })
+    // A stale leave for a DIFFERENT file must not invalidate the in-flight join.
+    s.handlers[FILE_DOC_EVENTS.LEAVE]({ fileId: 'file-1' })
+    resolveAuth({ allowed: true, status: 200, workspacePermission: 'write' })
+    await pending
+
+    expect(joinSuccessFileId(s.socket)).toBe('file-2')
+    expect(s.socket.join).toHaveBeenCalledWith('workspace-file-doc:file-2')
+  })
+
   it('scopes LEAVE to the named file (a leave for a different file is a no-op)', async () => {
     const { io } = createIo()
     const a = setup('socket-a', io)
