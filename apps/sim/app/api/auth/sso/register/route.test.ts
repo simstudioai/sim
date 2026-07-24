@@ -95,8 +95,11 @@ describe('POST /api/auth/sso/register', () => {
     mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('discovery not mocked for this test'))
     mockRegisterSSOProvider.mockResolvedValue({ providerId: 'acme-oidc' })
     // Default: the org has already verified the domain, so the ownership gate
-    // passes and each test exercises the logic beyond it. Gate-specific tests
-    // reset the queue to assert the unverified path.
+    // passes and each test exercises the logic beyond it. The gate is checked
+    // twice for org-scoped registration (fail-fast entry + authoritative
+    // re-check before the write), so queue two rows. Gate-specific tests reset
+    // the queue to assert the unverified path.
+    queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
     queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
   })
 
@@ -130,6 +133,18 @@ describe('POST /api/auth/sso/register', () => {
     resetDbChainMock()
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     queueTableRows(schemaMock.ssoDomain, []) // no verified sso_domain row
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    const json = await res.json()
+    expect(res.status).toBe(403)
+    expect(json.code).toBe('SSO_DOMAIN_NOT_VERIFIED')
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
+  it('re-checks verification before the write and 403s if it was revoked mid-registration', async () => {
+    resetDbChainMock()
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueTableRows(schemaMock.ssoDomain, [{ id: 'v' }]) // entry gate: verified
+    queueTableRows(schemaMock.ssoDomain, []) // re-check before write: revoked
     const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
     const json = await res.json()
     expect(res.status).toBe(403)

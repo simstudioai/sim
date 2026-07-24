@@ -124,8 +124,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     // proven ownership of it (DNS TXT verification). Without this, the old
     // first-come claim let any org wire another company's domain to their own
     // IdP — an account-takeover primitive. Existing domains were grandfathered
-    // as verified by migration 0266, so live tenants are unaffected.
-    if (orgId) {
+    // as verified by migration 0266, so live tenants are unaffected. Personal
+    // (org-less) SSO is not gated.
+    const isOrgDomainVerified = async (): Promise<boolean> => {
+      if (!orgId) return true
       const [verified] = await db
         .select({ id: ssoDomain.id })
         .from(ssoDomain)
@@ -137,16 +139,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         )
         .limit(1)
-      if (!verified) {
-        return NextResponse.json(
-          {
-            error: `Verify ownership of ${domain} under Settings → Verified domains before configuring SSO for it.`,
-            code: 'SSO_DOMAIN_NOT_VERIFIED',
-          },
-          { status: 403 }
-        )
-      }
+      return Boolean(verified)
     }
+
+    const domainNotVerifiedResponse = () =>
+      NextResponse.json(
+        {
+          error: `Verify ownership of ${domain} under Settings → Verified domains before configuring SSO for it.`,
+          code: 'SSO_DOMAIN_NOT_VERIFIED',
+        },
+        { status: 403 }
+      )
+
+    // Fail fast before the expensive OIDC discovery. Re-checked immediately
+    // before the provider write below to close the TOCTOU window (the verified
+    // row could be removed while discovery is in flight).
+    if (!(await isOrgDomainVerified())) return domainNotVerifiedResponse()
 
     const isOwnedByCaller = (provider: {
       userId: string | null
@@ -525,6 +533,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         userId: session.user.id,
       })
       return domainConflictResponse()
+    }
+
+    // Authoritative verification re-check: the verified row could have been
+    // removed during OIDC discovery. Re-checking here (not just at handler
+    // entry) ensures ownership still holds at the moment of the write.
+    if (!(await isOrgDomainVerified())) {
+      logger.warn(
+        'Rejected SSO registration: domain verification was revoked during registration',
+        {
+          domain,
+          orgId,
+          userId: session.user.id,
+        }
+      )
+      return domainNotVerifiedResponse()
     }
 
     const registration = await auth.api.registerSSOProvider({
