@@ -98,11 +98,13 @@ ingress:
     secretName: "sim-acme-tls"
 
 # Auto-scaling
-# NOTE: autoscaling also renders an HPA for realtime with the same minReplicas,
-# overriding realtime.replicaCount. Multi-replica realtime REQUIRES REDIS_URL in
-# app.env (Socket.IO Redis adapter) or cross-pod collaboration events are lost.
 autoscaling:
   enabled: true
+  # Keep realtime out of the HPA until REDIS_URL is set (Socket.IO Redis
+  # adapter) — multi-replica realtime without Redis silently drops cross-pod
+  # collaboration events.
+  realtime:
+    enabled: false
   minReplicas: 2
   maxReplicas: 10
   targetCPUUtilizationPercentage: 70
