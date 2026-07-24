@@ -16,7 +16,7 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
 import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
 import {
   checkEnvVarTrigger,
@@ -24,6 +24,11 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { useMcpServerTest } from '@/hooks/queries/mcp'
+import {
+  buildHeadersFromTemplate,
+  MCP_SERVER_TEMPLATES,
+  type McpServerTemplate,
+} from './mcp-server-templates'
 
 const logger = createLogger('McpServerFormModal')
 
@@ -300,6 +305,41 @@ function updateHeadersArray(
   return updated.filter((h, i) => i === lastIndex || h.key !== '' || h.value !== '')
 }
 
+interface TemplatePickerProps {
+  onSelect: (template: McpServerTemplate) => void
+}
+
+function TemplatePicker({ onSelect }: TemplatePickerProps) {
+  if (MCP_SERVER_TEMPLATES.length === 0) return null
+
+  return (
+    <ChipModalField type='custom' title='Starter templates'>
+      <div className='flex flex-col gap-2'>
+        {MCP_SERVER_TEMPLATES.map((template) => (
+          <button
+            key={template.id}
+            type='button'
+            onClick={() => onSelect(template)}
+            className='group flex w-full items-center justify-between gap-3 rounded-md border border-[var(--border-1)] bg-[var(--surface-3)] px-2.5 py-2 text-left transition-colors hover-hover:bg-[var(--surface-4)]'
+          >
+            <span className='flex min-w-0 flex-col gap-0.5'>
+              <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
+                {template.name}
+              </span>
+              <span className='line-clamp-2 text-[var(--text-muted)] text-xs leading-relaxed'>
+                {template.description}
+              </span>
+            </span>
+            <span className='flex size-6 flex-shrink-0 items-center justify-center rounded-md border border-[var(--border-1)] text-[var(--text-muted)] transition-colors group-hover:text-[var(--text-primary)]'>
+              <Plus className='size-[14px]' />
+            </span>
+          </button>
+        ))}
+      </div>
+    </ChipModalField>
+  )
+}
+
 export function McpServerFormModal({
   open,
   onOpenChange,
@@ -413,6 +453,23 @@ export function McpServerFormModal({
       }))
     }
     resetEnvVarState()
+  }
+
+  const handleTemplateSelect = (template: McpServerTemplate) => {
+    if (testResult) clearTestResult()
+    if (submitError) setSubmitError(null)
+    resetEnvVarState()
+    setFormMode('form')
+    setFormData((prev) => ({
+      ...prev,
+      name: template.name,
+      transport: template.transport,
+      url: template.url,
+      timeout: template.timeout,
+      headers: buildHeadersFromTemplate(template),
+    }))
+    setUrlScrollLeft(0)
+    setHeaderScrollLeft({})
   }
 
   const handleHeaderScroll = (key: string, sl: number) => {
@@ -668,6 +725,7 @@ export function McpServerFormModal({
           />
         ) : (
           <>
+            {mode === 'add' && <TemplatePicker onSelect={handleTemplateSelect} />}
             <input
               type='text'
               name='fakeusernameremembered'
