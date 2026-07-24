@@ -448,10 +448,14 @@ export const cerebrasProvider: ProviderConfig = {
       if (request.stream) {
         logger.info('Using streaming for final Cerebras response after tool processing')
 
+        /**
+         * The regeneration exists purely to stream the settled answer as prose —
+         * streamed tool_calls are never executed on this path.
+         */
         const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto',
+          tool_choice: 'none',
           stream: true,
         }
 
@@ -495,8 +499,11 @@ export const cerebrasProvider: ProviderConfig = {
           isStreaming: true,
           streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
-            createReadableStreamFromCerebrasStream(streamResponse, (content, usage) => {
-              output.content = content
+            createReadableStreamFromCerebrasStream(streamResponse, (streamedContent, usage) => {
+              if (!streamedContent && content) {
+                logger.warn('Cerebras final stream produced no text; keeping tool-loop answer')
+              }
+              output.content = streamedContent || content
               output.tokens = {
                 input: tokens.input + usage.prompt_tokens,
                 output: tokens.output + usage.completion_tokens,

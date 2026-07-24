@@ -942,7 +942,16 @@ export const bedrockProvider: ProviderConfig = {
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
             createReadableStreamFromBedrockStream(bedrockStream, (streamContent, usage) => {
-              output.content = streamContent
+              /**
+               * Bedrock's ToolChoice has no `none`, and toolConfig is required
+               * when history carries toolUse blocks — the regeneration can
+               * re-call a tool that is never executed on this path. Keep the
+               * tool loop's settled answer when the stream ends without text.
+               */
+              if (!streamContent && content) {
+                logger.warn('Bedrock final stream produced no text; keeping tool-loop answer')
+              }
+              output.content = streamContent || content
               output.tokens = {
                 input: tokens.input + usage.inputTokens,
                 output: tokens.output + usage.outputTokens,

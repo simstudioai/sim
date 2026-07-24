@@ -499,10 +499,15 @@ export const groqProvider: ProviderConfig = {
       if (request.stream) {
         logger.info('Using streaming for final Groq response after tool processing')
 
+        /**
+         * The regeneration exists purely to stream the settled answer as prose —
+         * streamed tool_calls are never executed on this path (re-applying the
+         * original forced tool_choice here would even guarantee a dead call).
+         */
         const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          tool_choice: originalToolChoice || 'auto',
+          tool_choice: 'none' as const,
           stream: true,
         }
 
@@ -549,8 +554,11 @@ export const groqProvider: ProviderConfig = {
             createReadableStreamFromGroqStream(
               // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; groq-sdk stream chunks are wire-compatible with the OpenAI ChatCompletionChunk shape the adapter consumes
               streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
-              (content, usage, thinking) => {
-                output.content = content
+              (streamedContent, usage, thinking) => {
+                if (!streamedContent && content) {
+                  logger.warn('Groq final stream produced no text; keeping tool-loop answer')
+                }
+                output.content = streamedContent || content
                 output.tokens = {
                   input: tokens.input + usage.prompt_tokens,
                   output: tokens.output + usage.completion_tokens,
