@@ -120,3 +120,15 @@ export interface JoinFileDocError {
 export interface LeaveFileDocPayload {
   fileId: string
 }
+
+/**
+ * Coerce a Socket.IO binary payload to a `Uint8Array`, or `null` if it is
+ * neither. Shared by the server relay and the client provider so the two agree
+ * on how an inbound {@link FILE_DOC_EVENTS.MESSAGE} frame is read (Socket.IO may
+ * deliver a `Uint8Array`/`Buffer` or an `ArrayBuffer` depending on runtime).
+ */
+export function toFileDocBytes(data: unknown): Uint8Array | null {
+  if (data instanceof Uint8Array) return data
+  if (data instanceof ArrayBuffer) return new Uint8Array(data)
+  return null
+}

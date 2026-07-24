@@ -43,7 +43,12 @@ function createIo() {
   return { io: { to } as unknown as IRoomManager['io'], sent }
 }
 
+/** Every socket id a test created, so `afterEach` can drop their rooms without a
+ * hardcoded list drifting out of sync with the tests. */
+const createdSocketIds = new Set<string>()
+
 function createSocket(id: string, overrides?: Record<string, unknown>) {
+  createdSocketIds.add(id)
   const handlers: Record<string, Handler> = {}
   const socket = {
     id,
@@ -114,6 +119,9 @@ function joinSuccessFileId(socket: { emit: ReturnType<typeof vi.fn> }) {
 describe('setupWorkspaceFileDocHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // The seed deadline uses setTimeout; fake it so tests can drive it and so a
+    // real timer can never fire into a later test.
+    vi.useFakeTimers()
     mockAuthorizeRoom.mockResolvedValue({
       allowed: true,
       status: 200,
@@ -123,11 +131,12 @@ describe('setupWorkspaceFileDocHandlers', () => {
   })
 
   afterEach(() => {
-    // The room store is module-global; drop any room the test's sockets left open.
+    // The room store is module-global; drop every room the test's sockets opened.
     const { io } = createIo()
-    for (const id of ['socket-1', 'socket-a', 'socket-b', 'socket-c']) {
-      cleanupFileDocForSocket(id, io)
-    }
+    for (const id of createdSocketIds) cleanupFileDocForSocket(id, io)
+    createdSocketIds.clear()
+    vi.clearAllTimers()
+    vi.useRealTimers()
   })
 
   it('rejects join when the socket is not authenticated', async () => {
@@ -491,6 +500,62 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     // The seeder leaves a SEEDED doc → no re-election (no duplicate seed).
     cleanupFileDocForSocket('socket-a', io)
+    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)).toBeUndefined()
+  })
+
+  it('leaves the previous document when a socket switches files', async () => {
+    const { io, sent } = createIo()
+    const s = setup('socket-a', io)
+    await s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-2', clientId: 1 })
+
+    expect(s.socket.leave).toHaveBeenCalledWith('workspace-file-doc:file-1')
+    expect(s.socket.join).toHaveBeenCalledWith('workspace-file-doc:file-2')
+
+    // file-1's room was dropped (socket-a was its only owner): a fresh joiner of
+    // file-1 starts a new document and is elected to seed.
+    sent.length = 0
+    const b = setup('socket-b', io)
+    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-b')
+  })
+
+  it('re-elects a new seeder when the elected one misses the seed deadline', async () => {
+    const { io, sent } = createIo()
+    const a = setup('socket-a', io)
+    const b = setup('socket-b', io)
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-a')
+    sent.length = 0
+
+    // socket-a never seeds; the deadline lapses.
+    vi.advanceTimersByTime(10_000)
+
+    // The remaining un-tried client is asked to seed instead.
+    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-b')
+  })
+
+  it('cancels the seed deadline once the document is seeded', async () => {
+    const { io, sent } = createIo()
+    const a = setup('socket-a', io)
+    const b = setup('socket-b', io)
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+
+    // socket-a seeds within the deadline.
+    const seeded = new Y.Doc()
+    seeded.getMap('config').set('initialContentLoaded', true)
+    a.handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(seeded))
+      )
+    )
+    sent.length = 0
+
+    vi.advanceTimersByTime(10_000)
+
+    // No re-election: the successful seed cancelled the deadline.
     expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)).toBeUndefined()
   })
 })

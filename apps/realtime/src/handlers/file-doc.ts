@@ -6,6 +6,7 @@ import {
   FILE_DOC_SEED,
   type JoinFileDocPayload,
   type LeaveFileDocPayload,
+  toFileDocBytes,
 } from '@sim/realtime-protocol/file-doc'
 import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
 import * as decoding from 'lib0/decoding'
@@ -18,6 +19,14 @@ import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager } from '@/rooms'
 
 const logger = createLogger('FileDocHandlers')
+
+/**
+ * How long an elected seeder has to import the initial content before the server
+ * re-elects another client. Seeding is a local, synchronous editor write, so this
+ * only trips when a seeder never completes it (a bug, or a client withholding the
+ * seed) — it keeps the document from staying empty for the rest of the room.
+ */
+const SEED_DEADLINE_MS = 10_000
 
 /**
  * Collaborative document editing (live carets + text selection) for a single
@@ -59,6 +68,11 @@ interface FileDocRoom {
   owners: Map<string, FileDocOwner>
   /** The socket currently elected to seed initial content, or `null`. */
   seederSocketId: string | null
+  /** Deadline timer for the current seeder to complete the seed, or `null`. */
+  seedTimer: ReturnType<typeof setTimeout> | null
+  /** Sockets that were elected but failed to seed within the deadline; skipped
+   * on re-election so a single stuck/withholding client can't block the room. */
+  triedSeeders: Set<string>
 }
 
 /** Live documents keyed by Socket.IO room name. Module-global: one Y.Doc per file. */
@@ -106,12 +120,6 @@ function isDocSeeded(doc: Y.Doc): boolean {
   return doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag) === true
 }
 
-function toUint8Array(data: unknown): Uint8Array | null {
-  if (data instanceof Uint8Array) return data
-  if (data instanceof ArrayBuffer) return new Uint8Array(data)
-  return null
-}
-
 /**
  * Decode the client IDs an awareness update carries, without applying it, to
  * check a frame only touches its sender's own presence. Mirrors the wire format
@@ -130,19 +138,48 @@ function awarenessUpdateClientIds(update: Uint8Array): number[] {
   return ids
 }
 
+/** Cancel a pending seed-deadline timer, if any. */
+function clearSeedTimer(room: FileDocRoom) {
+  if (room.seedTimer !== null) {
+    clearTimeout(room.seedTimer)
+    room.seedTimer = null
+  }
+}
+
 /**
  * Elect a client to seed an unseeded document and ask it to import the stored
  * markdown, if one is needed and not already assigned. Called after a join (to
- * elect the newcomer) and after the elected seeder leaves (to hand the role to a
- * remaining client, so the document never stays permanently empty). A no-op once
- * the document is seeded or a seeder is already assigned.
+ * elect the newcomer), after the elected seeder leaves (to hand the role to a
+ * remaining client), and after a seed deadline lapses (to pass over a client that
+ * never seeded). Skips clients that already failed to seed, and arms a deadline so
+ * a stuck or withholding seeder can't leave the document empty for the whole room.
+ * A no-op once the document is seeded, a seeder is already assigned, or no
+ * un-tried client remains.
  */
 function electSeederIfNeeded(io: Server, room: FileDocRoom) {
   if (room.seederSocketId !== null || isDocSeeded(room.doc)) return
-  const next = room.owners.keys().next()
-  if (next.done) return
-  room.seederSocketId = next.value
-  io.to(next.value).emit(FILE_DOC_EVENTS.SEED_REQUEST, { fileId: room.fileId })
+
+  let elected: string | null = null
+  for (const socketId of room.owners.keys()) {
+    if (!room.triedSeeders.has(socketId)) {
+      elected = socketId
+      break
+    }
+  }
+  if (elected === null) return
+
+  room.seederSocketId = elected
+  io.to(elected).emit(FILE_DOC_EVENTS.SEED_REQUEST, { fileId: room.fileId })
+
+  clearSeedTimer(room)
+  room.seedTimer = setTimeout(() => {
+    room.seedTimer = null
+    // Only act if this election is still the pending one and it never seeded.
+    if (room.seederSocketId !== elected || isDocSeeded(room.doc)) return
+    room.triedSeeders.add(elected)
+    room.seederSocketId = null
+    electSeederIfNeeded(io, room)
+  }, SEED_DEADLINE_MS)
 }
 
 /**
@@ -166,10 +203,14 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     awareness,
     owners: new Map(),
     seederSocketId: null,
+    seedTimer: null,
+    triedSeeders: new Set(),
   }
   fileDocRooms.set(name, room)
 
   doc.on('update', (update: Uint8Array, origin: unknown) => {
+    // Once the document is seeded, the seed deadline is moot — cancel it.
+    if (room.seedTimer !== null && isDocSeeded(doc)) clearSeedTimer(room)
     const encoder = encoding.createEncoder()
     encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
     syncProtocol.writeUpdate(encoder, update)
@@ -212,7 +253,7 @@ function handleMessage(socket: AuthenticatedSocket, data: unknown) {
   const room = fileDocRooms.get(name)
   if (!room) return
 
-  const bytes = toUint8Array(data)
+  const bytes = toFileDocBytes(data)
   if (!bytes) return
 
   // A malformed frame from any client must never escape as a process-level
@@ -292,6 +333,7 @@ export function cleanupFileDocForSocket(socketId: string, io: Server): void {
   // Drop the document + awareness once idle so no memory is held for a file with
   // no active editors; a later joiner re-creates and re-seeds it.
   if (room.owners.size === 0) {
+    clearSeedTimer(room)
     room.awareness.destroy()
     room.doc.destroy()
     fileDocRooms.delete(name)
