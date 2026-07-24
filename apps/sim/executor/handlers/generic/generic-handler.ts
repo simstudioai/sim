@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { getBlock } from '@/blocks/index'
 import { isMcpTool } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import { parseJSON } from '@/executor/utils/json'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool } from '@/tools/utils'
@@ -45,13 +45,7 @@ export class GenericBlockHandler implements BlockHandler {
           if (typeof value === 'string' && value.trim().length > 0) {
             const inputType = typeof inputSchema === 'object' ? inputSchema.type : inputSchema
             if (inputType === 'json' || inputType === 'array') {
-              try {
-                finalInputs[key] = JSON.parse(value.trim())
-              } catch (error) {
-                logger.warn(`Failed to parse ${inputType} field "${key}":`, {
-                  error: toError(error).message,
-                })
-              }
+              finalInputs[key] = parseJSON(value, value)
             }
           }
         }

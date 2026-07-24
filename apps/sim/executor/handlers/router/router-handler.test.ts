@@ -251,6 +251,22 @@ describe('RouterBlockHandler', () => {
     })
   })
 
+  it('should handle non-JSON error response from provider', async () => {
+    const inputs = { prompt: 'Test error handling.', apiKey: 'test-api-key' }
+
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: false,
+        status: 502,
+        json: () => Promise.reject(new Error('Invalid JSON')),
+      })
+    })
+
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
+      'Provider API request failed with status 502'
+    )
+  })
+
   it('should handle server error responses', async () => {
     const inputs = { prompt: 'Test error handling.', apiKey: 'test-api-key' }
 
@@ -588,6 +604,40 @@ describe('RouterBlockHandler V2', () => {
       model: 'gpt-4o',
       apiKey: 'test-api-key',
       routes: '[]',
+    }
+
+    await expect(handler.execute(mockContext, mockRouterV2Block, inputs)).rejects.toThrow(
+      'No routes defined for router'
+    )
+  })
+
+  it('should handle non-JSON error response from provider in V2', async () => {
+    const inputs = {
+      context: 'Test context',
+      model: 'gpt-4o',
+      apiKey: 'test-api-key',
+      routes: JSON.stringify([{ id: 'route-1', title: 'Route 1', value: 'Description' }]),
+    }
+
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: false,
+        status: 503,
+        json: () => Promise.reject(new Error('Not JSON')),
+      })
+    })
+
+    await expect(handler.execute(mockContext, mockRouterV2Block, inputs)).rejects.toThrow(
+      'Provider API request failed with status 503'
+    )
+  })
+
+  it('should throw when routes input is invalid JSON string', async () => {
+    const inputs = {
+      context: 'Test context',
+      model: 'gpt-4o',
+      apiKey: 'test-api-key',
+      routes: '{invalid json routes',
     }
 
     await expect(handler.execute(mockContext, mockRouterV2Block, inputs)).rejects.toThrow(

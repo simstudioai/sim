@@ -1,6 +1,7 @@
 import '@sim/testing/mocks/executor'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { getBlock } from '@/blocks/index'
 import { BlockType } from '@/executor/constants'
 import { GenericBlockHandler } from '@/executor/handlers/generic/generic-handler'
 import type { ExecutionContext } from '@/executor/types'
@@ -142,6 +143,40 @@ describe('GenericBlockHandler', () => {
 
     await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       'Block execution of Some Custom Tool failed with no error message'
+    )
+  })
+
+  it('should handle malformed json field input by keeping original string', async () => {
+    const mockGetBlock = vi.mocked(getBlock)
+    mockGetBlock.mockReturnValue({
+      type: 'custom-type',
+      name: 'Custom Block',
+      description: 'Test block',
+      category: 'tools',
+      bgColor: '#000',
+      icon: () => null,
+      subBlocks: [],
+      tools: {
+        access: ['some_custom_tool'],
+        config: {
+          tool: () => 'some_custom_tool',
+          params: (p: Record<string, unknown>) => p,
+        },
+      },
+      inputs: {
+        data: { type: 'json' },
+      },
+      outputs: {},
+    } as unknown as ReturnType<typeof getBlock>)
+
+    const inputs = { data: '{not valid json' }
+
+    await handler.execute(mockContext, mockBlock, inputs)
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'some_custom_tool',
+      expect.objectContaining({ data: '{not valid json' }),
+      { executionContext: mockContext }
     )
   })
 })
