@@ -319,6 +319,37 @@ describe('access-revalidation sweep', () => {
     }
   })
 
+  it('rotates the scan start so hung checks cannot starve later sockets', async () => {
+    vi.useFakeTimers()
+    try {
+      // Four hung authorization checks consume exactly the 20s pass budget
+      // (4 × 5s per-socket timeout); the revoked socket sits behind them.
+      const hungSockets = [1, 2, 3, 4].map((i) => makeSocket(`sock-${i}`, `user-${i}`, 'wf-1'))
+      const revoked = makeSocket('sock-5', 'user-5', 'wf-1')
+      const manager = makeManager([...hungSockets, revoked])
+      mockResolveRole.mockImplementation(async (userId: string) => {
+        if (userId === 'user-5') return null
+        return new Promise(() => {})
+      })
+
+      const sweep = startAccessRevalidationSweep(manager)
+
+      // First pass burns its whole budget on the hung prefix.
+      await vi.advanceTimersByTimeAsync(ACCESS_REVALIDATION_SWEEP_INTERVAL_MS)
+      await vi.advanceTimersByTimeAsync(25_000)
+      expect(revoked.leave).not.toHaveBeenCalled()
+
+      // Second pass resumes after the last processed socket, so the revoked
+      // socket is examined first and evicted.
+      await vi.advanceTimersByTimeAsync(10_000)
+      sweep.stop()
+
+      expect(revoked.leave).toHaveBeenCalledWith('wf-1')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps scanning on later ticks while a deferred cleanup hangs', async () => {
     vi.useFakeTimers()
     try {

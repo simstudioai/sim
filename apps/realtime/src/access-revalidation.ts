@@ -55,8 +55,15 @@ export interface AccessRevalidationSweep {
   runOnce: () => Promise<void>
 }
 
+interface ScanTarget {
+  workflowId: string
+  socket: AuthenticatedSocket
+  userId: string
+}
+
 /**
- * Groups this pod's local sockets by the workflow room each has joined.
+ * Collects this pod's authenticated sockets with the workflow room each has
+ * joined, in stable socket order.
  *
  * The workflow room is derived from the socket's own `rooms` set (pod-local, no
  * Redis round-trips): a socket joins exactly one workflow room, so its rooms are
@@ -64,19 +71,17 @@ export interface AccessRevalidationSweep {
  * sticky to a pod, so every socket is swept by exactly one pod using that pod's
  * warm role cache (mirroring the per-pod reasoning of the write-path cache).
  */
-function collectLocalMemberships(io: IRoomManager['io']): Map<string, AuthenticatedSocket[]> {
-  const byWorkflow = new Map<string, AuthenticatedSocket[]>()
+function collectScanTargets(io: IRoomManager['io']): ScanTarget[] {
+  const targets: ScanTarget[] = []
   for (const socket of io.sockets.sockets.values()) {
     const authed = socket as AuthenticatedSocket
     if (!authed.userId) continue
     for (const room of socket.rooms) {
       if (room === socket.id) continue
-      const existing = byWorkflow.get(room)
-      if (existing) existing.push(authed)
-      else byWorkflow.set(room, [authed])
+      targets.push({ workflowId: room, socket: authed, userId: authed.userId })
     }
   }
-  return byWorkflow
+  return targets
 }
 
 /**
@@ -104,6 +109,13 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
   const io = roomManager.io
   let scanRunning = false
   let cleanupRunning = false
+  /**
+   * Round-robin cursor: the `${socketId}:${workflowId}` key of the last target
+   * the previous pass processed. Each pass resumes after it, so a fixed prefix
+   * of hanging authorization checks can never starve the sockets behind it —
+   * every target is examined within a bounded number of passes.
+   */
+  let scanCursorKey: string | null = null
 
   /**
    * Room-state cleanups owed for evicted sockets, keyed
@@ -199,48 +211,57 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
   }
 
   async function scanMemberships(): Promise<void> {
-    const memberships = collectLocalMemberships(io)
+    const targets = collectScanTargets(io)
+    if (targets.length === 0) return
+
+    let startIndex = 0
+    if (scanCursorKey !== null) {
+      const cursorIndex = targets.findIndex(
+        ({ socket, workflowId }) => `${socket.id}:${workflowId}` === scanCursorKey
+      )
+      if (cursorIndex !== -1) {
+        startIndex = (cursorIndex + 1) % targets.length
+      }
+    }
+
     const deadline = Date.now() + SCAN_PASS_BUDGET_MS
 
-    for (const [workflowId, sockets] of memberships) {
-      for (const socket of sockets) {
-        const userId = socket.userId
-        if (!userId) continue
+    for (let offset = 0; offset < targets.length; offset++) {
+      const { workflowId, socket, userId } = targets[(startIndex + offset) % targets.length]
 
-        const remainingBudget = deadline - Date.now()
-        if (remainingBudget <= 0) {
-          logger.warn(
-            'Access re-validation scan budget exhausted; remaining sockets defer to the next pass'
-          )
-          return
-        }
+      const remainingBudget = deadline - Date.now()
+      if (remainingBudget <= 0) {
+        logger.warn(
+          'Access re-validation scan budget exhausted; remaining sockets defer to the next pass'
+        )
+        return
+      }
 
-        try {
-          // Bounded wait: a hanging authorization query skips this socket for
-          // the pass instead of wedging the scan lane. The single-flighted
-          // resolution keeps running in the background and is re-raced next
-          // pass, so it is acted on once it settles.
-          const role = await Promise.race([
-            resolveCurrentWorkflowRole(userId, workflowId, FALLBACK_ROLE),
-            sleep(Math.min(SCAN_SOCKET_TIMEOUT_MS, remainingBudget)).then(() => SCAN_TIMED_OUT),
-          ])
-          if (role === SCAN_TIMED_OUT) {
-            logger.warn(
-              `Authorization check timed out for user ${userId} on workflow ${workflowId}; skipping this pass`
-            )
-            continue
-          }
-          if (role === null) {
-            revokeSocket(socket, workflowId)
-          }
-        } catch (error) {
-          // Never evict on an unexpected error — only a definitive `null` role
-          // evicts, so a failure here leaves the socket's access intact.
+      try {
+        // Bounded wait: a hanging authorization query skips this socket for
+        // the pass instead of wedging the scan lane. The single-flighted
+        // resolution keeps running in the background and is re-raced when the
+        // rotation returns to this socket, so it is acted on once it settles.
+        const role = await Promise.race([
+          resolveCurrentWorkflowRole(userId, workflowId, FALLBACK_ROLE),
+          sleep(Math.min(SCAN_SOCKET_TIMEOUT_MS, remainingBudget)).then(() => SCAN_TIMED_OUT),
+        ])
+        if (role === SCAN_TIMED_OUT) {
           logger.warn(
-            `Access re-validation failed for user ${userId} on workflow ${workflowId}; leaving membership intact`,
-            error
+            `Authorization check timed out for user ${userId} on workflow ${workflowId}; skipping this pass`
           )
+        } else if (role === null) {
+          revokeSocket(socket, workflowId)
         }
+      } catch (error) {
+        // Never evict on an unexpected error — only a definitive `null` role
+        // evicts, so a failure here leaves the socket's access intact.
+        logger.warn(
+          `Access re-validation failed for user ${userId} on workflow ${workflowId}; leaving membership intact`,
+          error
+        )
+      } finally {
+        scanCursorKey = `${socket.id}:${workflowId}`
       }
     }
   }
