@@ -701,8 +701,13 @@ export async function executeResponsesProviderRequest(
 
       const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 
-      // For Azure with deferred format in streaming mode, include the format in the streaming call
-      const streamOverrides: Record<string, unknown> = { stream: true, tool_choice: 'auto' }
+      /**
+       * The regeneration exists purely to stream the settled answer as prose —
+       * streamed function calls are never executed. With `tool_choice: 'auto'`
+       * a reasoning model can re-decide to call a tool here, ending the stream
+       * with a dead function_call and an empty answer.
+       */
+      const streamOverrides: Record<string, unknown> = { stream: true, tool_choice: 'none' }
       if (deferredTextFormat) {
         streamOverrides.text = {
           ...((basePayload.text as Record<string, unknown>) ?? {}),
@@ -735,8 +740,18 @@ export async function executeResponsesProviderRequest(
         toolCalls: toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
         streamFormat: 'agent-events-v1',
         createStream: ({ output }) =>
-          createReadableStreamFromResponses(streamResponse, (content, usage, thinking) => {
-            output.content = content
+          createReadableStreamFromResponses(streamResponse, (streamedContent, usage, thinking) => {
+            /**
+             * Belt-and-braces for the regeneration ending without text: keep
+             * the tool loop's settled answer instead of clobbering it with an
+             * empty string (clients then render it from the final envelope).
+             */
+            if (!streamedContent && content) {
+              logger.warn(
+                `${config.providerLabel} final stream produced no text; keeping tool-loop answer`
+              )
+            }
+            output.content = streamedContent || content
             output.tokens = {
               input: tokens.input + (usage?.promptTokens || 0),
               output: tokens.output + (usage?.completionTokens || 0),
