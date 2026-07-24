@@ -88,9 +88,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`[${requestId}] Firecrawl parse successful`)
 
+    const document = firecrawlData.data ?? firecrawlData
     return NextResponse.json({
       success: true,
-      output: firecrawlData.data ?? firecrawlData,
+      output:
+        // Credits reported on the envelope would otherwise be dropped with it,
+        // leaving a paid parse with nothing to meter.
+        firecrawlData.creditsUsed != null
+          ? { ...document, creditsUsed: firecrawlData.creditsUsed }
+          : document,
     })
   } catch (error) {
     const notReady = docNotReadyResponse(error)

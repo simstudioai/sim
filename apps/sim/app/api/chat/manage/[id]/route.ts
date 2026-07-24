@@ -62,6 +62,7 @@ export const GET = withRouteHandler(
 
       const result = {
         ...safeData,
+        includeToolCalls: safeData.includeToolCalls ?? safeData.includeThinking ?? false,
         chatUrl,
         hasPassword: !!password,
       }
@@ -118,6 +119,7 @@ export const PATCH = withRouteHandler(
         allowedEmails,
         outputConfigs,
         includeThinking,
+        includeToolCalls,
       } = validatedData
 
       if (workflowId && workflowId !== existingChat[0].workflowId) {
@@ -255,6 +257,17 @@ export const PATCH = withRouteHandler(
         updateData.includeThinking = includeThinking
       }
 
+      /**
+       * Grandfathering must resolve against the thinking value this request is
+       * setting, not the stored one. Before `includeToolCalls` existed,
+       * `includeThinking` gated tool frames too, so a partial update turning
+       * thinking off has to turn them off as well rather than materializing the
+       * stale `true` and silently leaving tool frames enabled.
+       */
+      const effectiveIncludeThinking = includeThinking ?? existingChatRecord.includeThinking
+      updateData.includeToolCalls =
+        includeToolCalls ?? existingChatRecord.includeToolCalls ?? effectiveIncludeThinking ?? false
+
       const emailCount = Array.isArray(updateData.allowedEmails)
         ? updateData.allowedEmails.length
         : undefined
@@ -269,6 +282,7 @@ export const PATCH = withRouteHandler(
         emailCount,
         outputConfigsCount,
         includeThinking: updateData.includeThinking,
+        includeToolCalls: updateData.includeToolCalls,
       })
 
       await db.update(chat).set(updateData).where(eq(chat.id, chatId))

@@ -1875,11 +1875,28 @@ describe('AgentBlockHandler', () => {
       expect(providerCallArgs.billingAttribution).toEqual(billingAttribution)
     })
 
-    it('forwards agentEvents to executeProviderRequest on opted-in streaming runs', async () => {
+    it('forwards streaming and agent events on opted-in runs', async () => {
       const inputs = {
         model: 'gpt-4o',
         userPrompt: 'Stream this',
         apiKey: 'test-api-key',
+        tools: [
+          {
+            type: 'mcp',
+            title: 'search_files',
+            schema: {
+              type: 'object',
+              properties: { query: { type: 'string' } },
+              required: ['query'],
+            },
+            params: {
+              serverId: 'mcp-search-server',
+              toolName: 'search_files',
+              serverName: 'search',
+            },
+            usageControl: 'auto' as const,
+          },
+        ],
       }
 
       const streamingContext = {
@@ -1899,11 +1916,28 @@ describe('AgentBlockHandler', () => {
       expect(providerCallArgs.agentEvents).toBe(true)
     })
 
-    it('does not set agentEvents on runs without the run-level opt-in', async () => {
+    it('forwards ordinary streaming without exposing agent events', async () => {
       const inputs = {
         model: 'gpt-4o',
         userPrompt: 'Stream this',
         apiKey: 'test-api-key',
+        tools: [
+          {
+            type: 'mcp',
+            title: 'search_files',
+            schema: {
+              type: 'object',
+              properties: { query: { type: 'string' } },
+              required: ['query'],
+            },
+            params: {
+              serverId: 'mcp-search-server',
+              toolName: 'search_files',
+              serverName: 'search',
+            },
+            usageControl: 'auto' as const,
+          },
+        ],
       }
 
       const streamingContext = {
@@ -1918,6 +1952,7 @@ describe('AgentBlockHandler', () => {
 
       expect(mockExecuteProviderRequest).toHaveBeenCalled()
       const providerCallArgs = mockExecuteProviderRequest.mock.calls[0][1]
+      expect(providerCallArgs.stream).toBe(true)
       expect(providerCallArgs.agentEvents).toBe(false)
     })
 

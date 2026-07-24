@@ -159,6 +159,7 @@ export interface DeployChatParams {
   allowedEmails?: string[]
   outputConfigs?: unknown[]
   includeThinking?: boolean
+  includeToolCalls?: boolean
 }
 
 export interface DeployMcpParams {

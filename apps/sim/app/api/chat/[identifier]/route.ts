@@ -28,6 +28,7 @@ interface ChatConfigSource {
   authType: string | null
   outputConfigs: unknown
   includeThinking?: boolean | null
+  includeToolCalls?: boolean | null
 }
 
 function toChatConfigResponse(deployment: ChatConfigSource) {
@@ -39,6 +40,7 @@ function toChatConfigResponse(deployment: ChatConfigSource) {
     authType: deployment.authType,
     outputConfigs: deployment.outputConfigs,
     includeThinking: deployment.includeThinking ?? false,
+    includeToolCalls: deployment.includeToolCalls ?? deployment.includeThinking ?? false,
   }
 }
 
@@ -83,6 +85,7 @@ export const POST = withRouteHandler(
           allowedEmails: chat.allowedEmails,
           outputConfigs: chat.outputConfigs,
           includeThinking: chat.includeThinking,
+          includeToolCalls: chat.includeToolCalls,
         })
         .from(chat)
         .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
@@ -278,8 +281,10 @@ export const POST = withRouteHandler(
         }
 
         const includeThinking = deployment.includeThinking ?? false
+        const includeToolCalls = deployment.includeToolCalls ?? includeThinking
         const agentEvents = shouldEmitAgentStreamEvents({
           includeThinking,
+          includeToolCalls,
           requestHeaders: request.headers,
         })
         const stream = await createStreamingResponse({
@@ -289,6 +294,7 @@ export const POST = withRouteHandler(
             isSecureMode: true,
             workflowTriggerType: 'chat',
             includeThinking,
+            includeToolCalls,
           },
           executionId,
           workspaceId,
@@ -314,6 +320,7 @@ export const POST = withRouteHandler(
                 executionMode: 'stream',
                 billingAttribution,
                 includeThinking,
+                includeToolCalls,
                 agentEvents,
               },
               executionId
@@ -324,10 +331,7 @@ export const POST = withRouteHandler(
           status: 200,
           headers: {
             ...SSE_HEADERS,
-            ...agentStreamProtocolResponseHeaders({
-              includeThinking,
-              requestHeaders: request.headers,
-            }),
+            ...agentStreamProtocolResponseHeaders({ requestHeaders: request.headers }),
           },
         })
         return streamResponse
@@ -366,6 +370,7 @@ export const GET = withRouteHandler(
           allowedEmails: chat.allowedEmails,
           outputConfigs: chat.outputConfigs,
           includeThinking: chat.includeThinking,
+          includeToolCalls: chat.includeToolCalls,
         })
         .from(chat)
         .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))

@@ -1,5 +1,6 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import OpenAI from 'openai'
 import type {
   ChatCompletionChunk,
@@ -9,8 +10,11 @@ import type { CompletionUsage } from 'openai/resources/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
+import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import type { AgentStreamEvent } from '@/providers/stream-events'
+import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
+import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
@@ -63,8 +67,8 @@ export interface OllamaCoreConfig {
 /**
  * Shared execution logic for the Ollama-family providers, which speak the same
  * OpenAI-compatible Ollama API. Ollama ignores `tool_choice`, so tools are sent
- * as `tool_choice: 'auto'` (forced tools degrade to auto) and the final post-tool
- * call drops tools entirely rather than relying on `tool_choice: 'none'`.
+ * as `tool_choice: 'auto'` (forced tools degrade to auto). Tool-disabled calls
+ * drop tools entirely rather than relying on `tool_choice: 'none'`.
  */
 export async function executeOllamaProviderRequest(
   request: ProviderRequest,
@@ -288,10 +292,25 @@ export async function executeOllamaProviderRequest(
         const toolName = toolCall.function.name
 
         try {
-          const toolArgs = JSON.parse(toolCall.function.arguments)
+          const toolArgs = parseToolArguments(toolCall.function.arguments, toolName)
           const tool = request.tools?.find((t) => t.id === toolName)
 
-          if (!tool) return null
+          if (!tool) {
+            const toolCallEndTime = Date.now()
+            return {
+              toolCall,
+              toolName,
+              toolParams: {},
+              result: {
+                success: false,
+                output: undefined,
+                error: `Tool "${toolName}" is not available`,
+              },
+              startTime: toolCallStartTime,
+              endTime: toolCallEndTime,
+              duration: toolCallEndTime - toolCallStartTime,
+            }
+          }
 
           const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
           const result = await executeTool(toolName, executionParams, {
@@ -309,6 +328,9 @@ export async function executeOllamaProviderRequest(
             duration: toolCallEndTime - toolCallStartTime,
           }
         } catch (error) {
+          if (isAbortError(error) || request.abortSignal?.aborted) {
+            throw error
+          }
           const toolCallEndTime = Date.now()
           logger.error('Error processing tool call:', { error, toolName })
 
@@ -328,26 +350,21 @@ export async function executeOllamaProviderRequest(
         }
       })
 
-      const executionResults = await Promise.allSettled(toolExecutionPromises)
+      const executionResults = await Promise.all(toolExecutionPromises)
+      const assistantMessage = currentResponse.choices[0]?.message
+      if (assistantMessage) {
+        currentMessages.push(
+          createOpenAICompatAssistantHistory({
+            message: assistantMessage,
+            toolCalls: toolCallsInResponse,
+            reasoningFields: ['reasoning'],
+          })
+        )
+      }
 
-      currentMessages.push({
-        role: 'assistant',
-        content: null,
-        tool_calls: toolCallsInResponse.map((tc) => ({
-          id: tc.id,
-          type: 'function',
-          function: {
-            name: tc.function.name,
-            arguments: tc.function.arguments,
-          },
-        })),
-      })
-
-      for (const settledResult of executionResults) {
-        if (settledResult.status === 'rejected' || !settledResult.value) continue
-
+      for (const executionResult of executionResults) {
         const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
-          settledResult.value
+          executionResult
 
         timeSegments.push({
           type: 'tool',
@@ -358,10 +375,12 @@ export async function executeOllamaProviderRequest(
           toolCallId: toolCall.id,
         })
 
-        let resultContent: any
-        if (result.success && result.output) {
-          toolResults.push(result.output)
-          resultContent = result.output
+        let resultContent: unknown
+        if (result.success) {
+          if (isRecordLike(result.output)) {
+            toolResults.push(result.output)
+          }
+          resultContent = result.output ?? null
         } else {
           resultContent = {
             error: true,
@@ -440,91 +459,10 @@ export async function executeOllamaProviderRequest(
       )
     }
 
-    if (request.stream) {
-      logger.info(`Using streaming for final ${providerLabel} response after tool processing`)
-
-      const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
-
-      const { tools: _tools, tool_choice: _toolChoice, ...streamPayload } = payload
-
-      const finalMessages = request.responseFormat
-        ? applyJsonResponseFormat(streamPayload, currentMessages, request.responseFormat)
-        : currentMessages
-
-      const streamingParams: ChatCompletionCreateParamsStreaming = {
-        ...streamPayload,
-        messages: finalMessages,
-        stream: true,
-        stream_options: { include_usage: true },
-      }
-      const streamResponse = await ollama.chat.completions.create(
-        streamingParams,
-        request.abortSignal ? { signal: request.abortSignal } : undefined
-      )
-
-      const streamingResult = createStreamingExecution({
-        model: request.model,
-        providerStartTime,
-        providerStartTimeISO,
-        timing: {
-          kind: 'accumulated',
-          modelTime,
-          toolsTime,
-          firstResponseTime,
-          iterations: iterationCount + 1,
-          timeSegments,
-        },
-        initialTokens: {
-          input: tokens.input,
-          output: tokens.output,
-          total: tokens.total,
-        },
-        initialCost: {
-          input: accumulatedCost.input,
-          output: accumulatedCost.output,
-          total: accumulatedCost.total,
-        },
-        toolCalls:
-          toolCalls.length > 0
-            ? {
-                list: toolCalls,
-                count: toolCalls.length,
-              }
-            : undefined,
-        streamFormat: 'agent-events-v1',
-        createStream: ({ output }) =>
-          config.createStream(streamResponse, (content, usage) => {
-            output.content = content
-
-            if (content && request.responseFormat) {
-              output.content = content.replace(/```json\n?|\n?```/g, '').trim()
-            }
-
-            output.tokens = {
-              input: tokens.input + usage.prompt_tokens,
-              output: tokens.output + usage.completion_tokens,
-              total: tokens.total + usage.total_tokens,
-            }
-
-            const streamCost = calculateCost(
-              request.model,
-              usage.prompt_tokens,
-              usage.completion_tokens
-            )
-            const tc = sumToolCosts(toolResults)
-            output.cost = {
-              input: accumulatedCost.input + streamCost.input,
-              output: accumulatedCost.output + streamCost.output,
-              toolCost: tc || undefined,
-              total: accumulatedCost.total + streamCost.total + tc,
-            }
-          }),
-      })
-
-      return streamingResult
-    }
-
-    // Deferred structured output: one final JSON-mode call now that tools have run.
+    /**
+     * Deferred structured output is a distinct extraction step, not streaming
+     * regeneration. Ollama cannot combine its JSON mode reliably with tool use.
+     */
     if (request.responseFormat && hasActiveTools) {
       const finalPayload: any = { model: payload.model }
       if (payload.temperature !== undefined) finalPayload.temperature = payload.temperature
@@ -566,6 +504,92 @@ export async function executeOllamaProviderRequest(
         finalResponse.choices[0]?.message?.tool_calls,
         { model: request.model, provider: providerId }
       )
+    } else if (
+      iterationCount === MAX_TOOL_ITERATIONS &&
+      currentResponse.choices[0]?.message?.tool_calls?.length
+    ) {
+      /**
+       * The capped turn still requests tools, so make one tool-disabled call to
+       * synthesize an answer from the tool results already gathered.
+       */
+      const { tools: _tools, tool_choice: _toolChoice, ...synthesisPayload } = payload
+      const synthesisStartTime = Date.now()
+      const synthesisResponse = await ollama.chat.completions.create(
+        {
+          ...synthesisPayload,
+          messages: currentMessages,
+        },
+        request.abortSignal ? { signal: request.abortSignal } : undefined
+      )
+      const synthesisEndTime = Date.now()
+
+      timeSegments.push({
+        type: 'model',
+        name: 'Final answer after tool limit',
+        startTime: synthesisStartTime,
+        endTime: synthesisEndTime,
+        duration: synthesisEndTime - synthesisStartTime,
+      })
+      modelTime += synthesisEndTime - synthesisStartTime
+
+      content = synthesisResponse.choices[0]?.message?.content || content
+      if (synthesisResponse.usage) {
+        tokens.input += synthesisResponse.usage.prompt_tokens || 0
+        tokens.output += synthesisResponse.usage.completion_tokens || 0
+        tokens.total += synthesisResponse.usage.total_tokens || 0
+      }
+
+      enrichLastModelSegmentFromChatCompletions(
+        timeSegments,
+        synthesisResponse,
+        synthesisResponse.choices[0]?.message?.tool_calls,
+        { model: request.model, provider: providerId }
+      )
+    }
+
+    if (request.stream) {
+      logger.info(`Projecting settled ${providerLabel} response after tool processing`)
+
+      const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
+      const toolCost = sumToolCosts(toolResults)
+
+      return createStreamingExecution({
+        model: request.model,
+        providerStartTime,
+        providerStartTimeISO,
+        timing: {
+          kind: 'accumulated',
+          modelTime,
+          toolsTime,
+          firstResponseTime,
+          iterations: timeSegments.filter((segment) => segment.type === 'model').length,
+          timeSegments,
+        },
+        initialTokens: {
+          input: tokens.input,
+          output: tokens.output,
+          total: tokens.total,
+        },
+        initialCost: {
+          input: accumulatedCost.input,
+          output: accumulatedCost.output,
+          toolCost: toolCost || undefined,
+          total: accumulatedCost.total + toolCost,
+        },
+        toolCalls:
+          toolCalls.length > 0
+            ? {
+                list: toolCalls,
+                count: toolCalls.length,
+              }
+            : undefined,
+        streamFormat: 'agent-events-v1',
+        createStream: ({ output, finalizeTiming }) => {
+          output.content = content
+          finalizeTiming()
+          return createSettledAgentEventStream(content)
+        },
+      })
     }
 
     const providerEndTime = Date.now()
@@ -585,7 +609,7 @@ export async function executeOllamaProviderRequest(
         modelTime: modelTime,
         toolsTime: toolsTime,
         firstResponseTime: firstResponseTime,
-        iterations: iterationCount + 1,
+        iterations: timeSegments.filter((segment) => segment.type === 'model').length,
         timeSegments: timeSegments,
       },
     }
@@ -613,6 +637,10 @@ export async function executeOllamaProviderRequest(
       status,
       duration: totalDuration,
     })
+
+    if (isAbortError(error) || request.abortSignal?.aborted) {
+      throw error
+    }
 
     throw new ProviderError(errorMessage, {
       startTime: providerStartTimeISO,

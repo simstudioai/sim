@@ -146,6 +146,7 @@ describe('Chat Identifier API Route', () => {
       },
       outputConfigs: [{ blockId: 'block-1', path: 'output' }],
       includeThinking: false,
+      includeToolCalls: null,
     },
   ]
 
@@ -239,6 +240,7 @@ describe('Chat Identifier API Route', () => {
       expect(data).toHaveProperty('description', 'Test chat description')
       expect(data).toHaveProperty('customizations')
       expect(data.customizations).toHaveProperty('welcomeMessage', 'Welcome to the test chat')
+      expect(data).toHaveProperty('includeToolCalls', false)
     })
 
     it('should return 404 for non-existent identifier', async () => {
@@ -405,13 +407,16 @@ describe('Chat Identifier API Route', () => {
             isSecureMode: true,
             workflowTriggerType: 'chat',
             includeThinking: false,
+            includeToolCalls: false,
           }),
         })
       )
     }, 10000)
 
-    it('enables agent events for the execution only when policy and protocol header agree', async () => {
-      const thinkingChatResult = [{ ...mockChatResult[0], includeThinking: true }]
+    it('preserves the legacy tool policy when includeToolCalls is null', async () => {
+      const thinkingChatResult = [
+        { ...mockChatResult[0], includeThinking: true, includeToolCalls: null },
+      ]
       dbChainMockFns.select.mockImplementation((fields: Record<string, unknown>) => {
         if (fields && fields.isDeployed !== undefined) {
           return {
@@ -440,7 +445,10 @@ describe('Chat Identifier API Route', () => {
       expect(response.status).toBe(200)
 
       const options = vi.mocked(createStreamingResponse).mock.calls[0][0]
-      expect(options.streamConfig).toMatchObject({ includeThinking: true })
+      expect(options.streamConfig).toMatchObject({
+        includeThinking: true,
+        includeToolCalls: true,
+      })
 
       await options.executeFn({
         onStream: vi.fn(),
@@ -448,11 +456,67 @@ describe('Chat Identifier API Route', () => {
         abortSignal: new AbortController().signal,
       })
       const executeOptions = vi.mocked(executeWorkflow).mock.calls[0][4]
-      expect(executeOptions).toMatchObject({ includeThinking: true, agentEvents: true })
+      expect(executeOptions).toMatchObject({
+        includeThinking: true,
+        includeToolCalls: true,
+        agentEvents: true,
+      })
+    }, 10000)
+
+    it('enables agent events for an independent tool-only policy', async () => {
+      const toolChatResult = [
+        { ...mockChatResult[0], includeThinking: false, includeToolCalls: true },
+      ]
+      dbChainMockFns.select.mockImplementation((fields: Record<string, unknown>) => {
+        if (fields && fields.isDeployed !== undefined) {
+          return {
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue(mockWorkflowResult),
+              }),
+            }),
+          }
+        }
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue(toolChatResult),
+            }),
+          }),
+        }
+      })
+
+      const req = createMockNextRequest(
+        'POST',
+        { input: 'Hello world' },
+        { 'X-Sim-Stream-Protocol': 'agent-events-v1' }
+      )
+      const response = await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
+      expect(response.status).toBe(200)
+
+      const options = vi.mocked(createStreamingResponse).mock.calls[0][0]
+      expect(options.streamConfig).toMatchObject({
+        includeThinking: false,
+        includeToolCalls: true,
+      })
+
+      await options.executeFn({
+        onStream: vi.fn(),
+        onBlockComplete: vi.fn(),
+        abortSignal: new AbortController().signal,
+      })
+      const executeOptions = vi.mocked(executeWorkflow).mock.calls[0][4]
+      expect(executeOptions).toMatchObject({
+        includeThinking: false,
+        includeToolCalls: true,
+        agentEvents: true,
+      })
     }, 10000)
 
     it('keeps agent events off when the protocol header is missing, even with policy on', async () => {
-      const thinkingChatResult = [{ ...mockChatResult[0], includeThinking: true }]
+      const thinkingChatResult = [
+        { ...mockChatResult[0], includeThinking: true, includeToolCalls: false },
+      ]
       dbChainMockFns.select.mockImplementation((fields: Record<string, unknown>) => {
         if (fields && fields.isDeployed !== undefined) {
           return {
@@ -483,7 +547,11 @@ describe('Chat Identifier API Route', () => {
         abortSignal: new AbortController().signal,
       })
       const executeOptions = vi.mocked(executeWorkflow).mock.calls[0][4]
-      expect(executeOptions).toMatchObject({ includeThinking: true, agentEvents: false })
+      expect(executeOptions).toMatchObject({
+        includeThinking: true,
+        includeToolCalls: false,
+        agentEvents: false,
+      })
     }, 10000)
 
     it('should handle streaming response body correctly', async () => {

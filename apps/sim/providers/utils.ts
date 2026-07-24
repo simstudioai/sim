@@ -32,6 +32,7 @@ import {
   getModelPricing as getModelPricingFromDefinitions,
   getModelsWithDeepResearch,
   getModelsWithoutMemory,
+  getModelsWithPromptCaching,
   getModelsWithReasoningEffort,
   getModelsWithTemperatureRange,
   getModelsWithTemperatureSupport,
@@ -1320,6 +1321,7 @@ export const MODELS_WITH_TEMPERATURE_SUPPORT = getModelsWithTemperatureSupport()
 export const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 export const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 export const MODELS_WITH_THINKING = getModelsWithThinking()
+export const MODELS_WITH_PROMPT_CACHING = getModelsWithPromptCaching()
 export const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 export const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = getProvidersWithToolUsageControl()
@@ -1338,6 +1340,11 @@ export function supportsVerbosity(model: string): boolean {
 
 export function supportsThinking(model: string): boolean {
   return MODELS_WITH_THINKING.includes(model.toLowerCase())
+}
+
+/** Whether the model accepts caller-placed prompt-cache breakpoints. */
+export function supportsPromptCaching(model: string): boolean {
+  return MODELS_WITH_PROMPT_CACHING.includes(model.toLowerCase())
 }
 
 export function isDeepResearchModel(model: string): boolean {

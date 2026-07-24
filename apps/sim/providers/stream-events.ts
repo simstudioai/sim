@@ -140,3 +140,13 @@ export function createAgentEventReadableStream(
     },
   })
 }
+
+/**
+ * Projects an already-settled provider answer onto the canonical stream without
+ * asking the model to generate it a second time.
+ */
+export function createSettledAgentEventStream(content: string): ReadableStream<AgentStreamEvent> {
+  return createAgentEventReadableStream(
+    content ? [{ type: 'text_delta', text: content, turn: 'final' }] : []
+  )
+}

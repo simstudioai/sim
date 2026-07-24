@@ -449,6 +449,7 @@ export const schemaMock = {
     allowedEmails: 'allowedEmails',
     outputConfigs: 'outputConfigs',
     includeThinking: 'includeThinking',
+    includeToolCalls: 'includeToolCalls',
     archivedAt: 'archivedAt',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',

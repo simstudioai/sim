@@ -43,6 +43,8 @@ export const createChatBodySchema = z.object({
   outputConfigs: z.array(chatOutputConfigSchema).optional().default([]),
   /** When true, clients may receive thinking SSE if they also send the protocol header. Default off. */
   includeThinking: z.boolean().optional().default(false),
+  /** When true, clients may receive tool lifecycle SSE if they also send the protocol header. */
+  includeToolCalls: z.boolean().optional().default(false),
 })
 export type CreateChatBody = z.input<typeof createChatBodySchema>
 
@@ -61,6 +63,7 @@ export const updateChatBodySchema = z.object({
   allowedEmails: z.array(z.string()).optional(),
   outputConfigs: z.array(chatOutputConfigSchema).optional(),
   includeThinking: z.boolean().optional(),
+  includeToolCalls: z.boolean().optional(),
 })
 export type UpdateChatBody = z.input<typeof updateChatBodySchema>
 
@@ -106,6 +109,8 @@ export const deployedChatConfigSchema = z.object({
   ),
   /** Policy for thinking SSE; clients still need the X-Sim-Stream-Protocol opt-in. */
   includeThinking: z.preprocess((value) => value ?? false, z.boolean()),
+  /** Policy for tool lifecycle SSE; clients still need the protocol opt-in. */
+  includeToolCalls: z.preprocess((value) => value ?? false, z.boolean()),
 })
 export type DeployedChatConfig = z.output<typeof deployedChatConfigSchema>
 
@@ -214,9 +219,12 @@ export const deployedChatPostContract = defineRouteContract({
   params: chatIdentifierParamsSchema,
   body: deployedChatPostBodySchema,
   response: {
-    // Message posts return SSE (`text/event-stream`). Auth-only POSTs use
-    // authenticateDeployedChatContract (JSON). Terminal frames: `final` or one
-    // `error`, then `[DONE]`. Thinking frames require includeThinking + protocol header.
+    /**
+     * Message posts return SSE (`text/event-stream`). Auth-only POSTs use
+     * authenticateDeployedChatContract (JSON). Terminal frames: `final` or one
+     * `error`, then `[DONE]`. Thinking and tool frames use independent deployment
+     * policies; both require the protocol header.
+     */
     mode: 'stream',
   },
 })

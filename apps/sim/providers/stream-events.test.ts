@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   type AgentStreamEvent,
   createAgentEventReadableStream,
+  createSettledAgentEventStream,
   isAgentStreamEvent,
   isTextDeltaTurn,
   isToolCallEndStatus,
@@ -93,5 +94,15 @@ describe('stream-events contract', () => {
       })
       await expect(reader.read()).rejects.toThrow(/Invalid AgentStreamEvent/)
     })
+  })
+
+  it('projects a settled answer without model regeneration', async () => {
+    const reader = createSettledAgentEventStream('settled answer').getReader()
+
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: { type: 'text_delta', text: 'settled answer', turn: 'final' },
+    })
+    await expect(reader.read()).resolves.toEqual({ done: true, value: undefined })
   })
 })
