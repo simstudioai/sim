@@ -121,11 +121,13 @@ export async function checkDomainTxtRecord(domain: string, token: string): Promi
     if (code && RECORD_ABSENT_DNS_CODES.has(code)) {
       logger.debug('TXT verification record not published yet', { host, code })
     } else {
-      // Not a missing record — our resolver path is failing (blocked egress,
-      // timeout, SERVFAIL). Log at warn: production log level is ERROR-only, so
-      // a debug line here would make infrastructure faults invisible and be
-      // misreported to the admin as "record not found yet".
-      logger.warn('TXT verification lookup failed for an infrastructure reason', {
+      // Not a missing record — our resolver path itself is failing (blocked
+      // egress, timeout, SERVFAIL). Log at ERROR, not warn: the default minimum
+      // level in production is ERROR, so anything below it is dropped and the
+      // fault stays invisible while the admin is told their record "isn't
+      // published yet". This is a genuine infrastructure fault, so ERROR is also
+      // the honest severity.
+      logger.error('TXT verification lookup failed for an infrastructure reason', {
         host,
         code,
         error: getErrorMessage(error),
