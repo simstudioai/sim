@@ -1,12 +1,12 @@
 import { db, member, ssoDomain, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { normalizeSSODomain } from '@sim/utils/sso-domain'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth'
-import { normalizeSSODomain } from '@/lib/auth/sso/domain'
 import { hasSSOAccess } from '@/lib/billing'
 import { env } from '@/lib/core/config/env'
 import {

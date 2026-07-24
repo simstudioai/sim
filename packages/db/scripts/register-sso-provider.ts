@@ -40,6 +40,7 @@
 
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { normalizeSSODomain } from '@sim/utils/sso-domain'
 import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -649,12 +650,19 @@ async function registerSSOProvider(): Promise<boolean> {
       // domain added by the script after the migration would be missing its
       // verified record and the UI/API would treat it as unverified. Org-scoped
       // only — user-scoped providers have no org to attach a domain to.
-      if (providerData.organizationId) {
-        // Match normalizeSSODomain's dominant transforms (lower + trim + strip a
-        // leading wildcard) so this row lines up with the runtime gate's lookup.
-        // normalizeSSODomain itself lives in apps/sim and can't be imported here
-        // (packages never import apps); other artifacts don't occur in SSO_DOMAIN.
-        const normalizedDomain = ssoConfig.domain.trim().toLowerCase().replace(/^\*\./, '')
+      // Canonicalize with the SAME shared normalizer the runtime gate uses, so a
+      // script-created ownership row keys on the exact value the gate looks up
+      // (no divergence for protocol/port/path/@/trailing-dot spellings).
+      const normalizedDomain = providerData.organizationId
+        ? normalizeSSODomain(ssoConfig.domain)
+        : null
+      if (providerData.organizationId && !normalizedDomain) {
+        logger.warn(
+          'Skipping verified-domain record: SSO_DOMAIN is not a valid registrable domain',
+          { domain: ssoConfig.domain }
+        )
+      }
+      if (providerData.organizationId && normalizedDomain) {
         const existingDomain = await tx
           .select({ id: ssoDomain.id })
           .from(ssoDomain)

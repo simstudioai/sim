@@ -59,7 +59,7 @@ vi.mock('@/lib/billing', () => ({
   hasSSOAccess: mockHasSSOAccess,
 }))
 
-vi.mock('@/lib/auth/sso/domain', () => ({
+vi.mock('@sim/utils/sso-domain', () => ({
   normalizeSSODomain: (input: unknown): string | null => {
     if (typeof input !== 'string') return null
     const value = input.trim().toLowerCase()
