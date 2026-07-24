@@ -10,7 +10,7 @@ import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   allNavigationItems,
@@ -57,6 +57,11 @@ export function SettingsSidebar({
   const showDiscardDialog = pendingLeave !== null
 
   const [hasOverflowTop, setHasOverflowTop] = useState(false)
+  const [isHydrated, setIsHydrated] = useState(false)
+
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
 
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
@@ -68,7 +73,13 @@ export function SettingsSidebar({
 
   const { config: permissionConfig } = usePermissionConfig()
   const forkingAvailable = useForkingAvailable(workspaceId)
-  const { canAdmin: canAdminWorkspace } = useUserPermissionsContext()
+  const { userPermissions } = useWorkspacePermissionsContext()
+  const { canAdmin: canAdminWorkspace } = userPermissions
+  const authorizationState = userPermissions.isLoading
+    ? 'loading'
+    : userPermissions.canRead
+      ? 'granted'
+      : 'denied'
 
   const userId = session?.user?.id
 
@@ -84,7 +95,7 @@ export function SettingsSidebar({
   const isSSOProviderOwner = useMemo(() => {
     if (isHosted) return null
     if (!userId || isLoadingSSO) return null
-    return ssoProvidersData?.providers?.some((p) => p.userId === userId) || false
+    return ssoProvidersData?.providers?.some((provider) => provider.isCreator) || false
   }, [userId, ssoProvidersData?.providers, isLoadingSSO])
 
   const navigationItems = useMemo(() => {
@@ -265,7 +276,12 @@ export function SettingsSidebar({
         )}
       >
         <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
-          <button type='button' onClick={handleBack} className={chipVariants({ fullWidth: true })}>
+          <button
+            type='button'
+            disabled={!isHydrated}
+            onClick={handleBack}
+            className={chipVariants({ fullWidth: true })}
+          >
             <div className='flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
               <ChevronDown className='size-[10px] rotate-90' />
             </div>
@@ -276,6 +292,10 @@ export function SettingsSidebar({
 
       {/* Settings sections */}
       <div
+        role='navigation'
+        aria-label='Workspace settings sections'
+        aria-busy={authorizationState === 'loading'}
+        data-authorization-state={authorizationState}
         ref={isCollapsed ? undefined : scrollContainerRef}
         className={cn(
           'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-1.5 transition-colors duration-150',
@@ -337,6 +357,9 @@ export function SettingsSidebar({
                     ) : (
                       <button
                         type='button'
+                        disabled={!isHydrated}
+                        aria-label={item.label}
+                        aria-current={active ? 'page' : undefined}
                         className={itemClassName}
                         onMouseEnter={() => handlePrefetch(item.id)}
                         onFocus={() => handlePrefetch(item.id)}

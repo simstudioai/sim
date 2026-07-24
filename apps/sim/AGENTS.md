@@ -221,6 +221,7 @@ export function useEntityList(workspaceId?: string) {
 - Use `vi.hoisted()` + `vi.mock()` + static imports; do not use `vi.resetModules()` + `vi.doMock()` + dynamic imports except for true module-scope singletons.
 - Do not use `vi.importActual()`.
 - Prefer mocks and factories from `@sim/testing`.
+- Before finishing a change that can affect observable settings routes, copy, visibility, authorization, entitlements, mutations, or persisted workflows, follow [`e2e/MAINTENANCE.md`](e2e/MAINTENANCE.md) and assess every applicable literal Playwright contract. Behavior-preserving refactors need focused verification, not artificial expectation edits.
 
 ## Utils Rules
 

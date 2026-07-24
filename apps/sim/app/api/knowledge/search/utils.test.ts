@@ -4,10 +4,25 @@
  *
  * @vitest-environment node
  */
+import { resetEnvMock, setEnv } from '@sim/testing'
 import { mockNextFetchResponse, setupGlobalFetchMock } from '@sim/testing/mocks'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { env } from '@/lib/core/config/env'
 import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
+
+const UNSET_EMBEDDING_ENV = {
+  OPENAI_API_KEY: undefined,
+  OPENAI_API_KEY_1: undefined,
+  OPENAI_API_KEY_2: undefined,
+  OPENAI_API_KEY_3: undefined,
+  AZURE_OPENAI_API_KEY: undefined,
+  AZURE_OPENAI_ENDPOINT: undefined,
+  AZURE_OPENAI_API_VERSION: undefined,
+  KB_OPENAI_MODEL_NAME: undefined,
+}
+
+function setEmbeddingEnv(overrides: Record<string, string | undefined> = {}) {
+  setEnv({ ...UNSET_EMBEDDING_ENV, ...overrides })
+}
 
 /**
  * Spy on the real documents/utils namespace instead of vi.mock: the shared
@@ -22,20 +37,8 @@ afterAll(() => {
   retrySpy.mockRestore()
 })
 
-/**
- * Under `isolate: false` the shared `@/lib/knowledge/embeddings` module may be
- * cached bound to the REAL env module, so tests mutate the real `env` object
- * (the tests below clear and assign it per case) instead of vi.mock'ing a
- * file-local replacement that a cached consumer would never see. The snapshot
- * restores whatever the worker started with after every test.
- */
-const envSnapshot = { ...env }
-
 afterEach(() => {
-  for (const key of Object.keys(env)) {
-    delete (env as Record<string, unknown>)[key]
-  }
-  Object.assign(env, envSnapshot)
+  resetEnvMock()
 })
 
 import {
@@ -53,6 +56,8 @@ describe('Knowledge Search Utils', () => {
     // mockNextFetchResponse always operates on a mocked fetch.
     setupGlobalFetchMock({ json: {} })
     retrySpy.mockImplementation(((fn: () => unknown) => fn()) as never)
+    resetEnvMock()
+    setEmbeddingEnv()
   })
 
   describe('handleTagOnlySearch', () => {
@@ -185,9 +190,7 @@ describe('Knowledge Search Utils', () => {
 
   describe('generateSearchEmbedding', () => {
     it('should use Azure OpenAI when KB-specific config is provided', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
+      setEmbeddingEnv({
         AZURE_OPENAI_API_KEY: 'test-azure-key',
         AZURE_OPENAI_ENDPOINT: 'https://test.openai.azure.com',
         AZURE_OPENAI_API_VERSION: '2024-12-01-preview',
@@ -213,15 +216,10 @@ describe('Knowledge Search Utils', () => {
         })
       )
       expect(result.embedding).toEqual([0.1, 0.2, 0.3])
-
-      // Clean up
-      Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
     it('should fallback to OpenAI when no KB Azure config provided', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
+      setEmbeddingEnv({
         OPENAI_API_KEY: 'test-openai-key',
       })
 
@@ -243,15 +241,10 @@ describe('Knowledge Search Utils', () => {
         })
       )
       expect(result.embedding).toEqual([0.1, 0.2, 0.3])
-
-      // Clean up
-      Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
     it('falls back to OpenAI when AZURE_OPENAI_API_VERSION is not set', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
+      setEmbeddingEnv({
         AZURE_OPENAI_API_KEY: 'test-azure-key',
         AZURE_OPENAI_ENDPOINT: 'https://test.openai.azure.com',
         KB_OPENAI_MODEL_NAME: 'custom-embedding-model',
@@ -271,15 +264,10 @@ describe('Knowledge Search Utils', () => {
         'https://api.openai.com/v1/embeddings',
         expect.any(Object)
       )
-
-      // Clean up
-      Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
     it('should use custom model name when provided in Azure config', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
+      setEmbeddingEnv({
         AZURE_OPENAI_API_KEY: 'test-azure-key',
         AZURE_OPENAI_ENDPOINT: 'https://test.openai.azure.com',
         AZURE_OPENAI_API_VERSION: '2024-12-01-preview',
@@ -300,14 +288,10 @@ describe('Knowledge Search Utils', () => {
         'https://test.openai.azure.com/openai/deployments/custom-embedding-model/embeddings?api-version=2024-12-01-preview',
         expect.any(Object)
       )
-
-      // Clean up
-      Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
     it('should throw error when no API configuration provided', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
+      setEmbeddingEnv()
 
       await expect(generateSearchEmbedding('test query')).rejects.toThrow(
         'OPENAI_API_KEY is not configured'
@@ -315,9 +299,7 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('should handle Azure OpenAI API errors properly', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
+      setEmbeddingEnv({
         AZURE_OPENAI_API_KEY: 'test-azure-key',
         AZURE_OPENAI_ENDPOINT: 'https://test.openai.azure.com',
         AZURE_OPENAI_API_VERSION: '2024-12-01-preview',
@@ -332,15 +314,10 @@ describe('Knowledge Search Utils', () => {
       })
 
       await expect(generateSearchEmbedding('test query')).rejects.toThrow('Embedding API failed')
-
-      // Clean up
-      Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
     it('should handle OpenAI API errors properly', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
+      setEmbeddingEnv({
         OPENAI_API_KEY: 'test-openai-key',
       })
 
@@ -352,15 +329,10 @@ describe('Knowledge Search Utils', () => {
       })
 
       await expect(generateSearchEmbedding('test query')).rejects.toThrow('Embedding API failed')
-
-      // Clean up
-      Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
     it('should include correct request body for Azure OpenAI', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
+      setEmbeddingEnv({
         AZURE_OPENAI_API_KEY: 'test-azure-key',
         AZURE_OPENAI_ENDPOINT: 'https://test.openai.azure.com',
         AZURE_OPENAI_API_VERSION: '2024-12-01-preview',
@@ -386,15 +358,10 @@ describe('Knowledge Search Utils', () => {
           }),
         })
       )
-
-      // Clean up
-      Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
     it('should include correct request body for OpenAI', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
+      setEmbeddingEnv({
         OPENAI_API_KEY: 'test-openai-key',
       })
 
@@ -418,9 +385,6 @@ describe('Knowledge Search Utils', () => {
           }),
         })
       )
-
-      // Clean up
-      Object.keys(env).forEach((key) => delete (env as any)[key])
     })
   })
 

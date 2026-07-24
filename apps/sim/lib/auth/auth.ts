@@ -36,6 +36,11 @@ import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/an
 import { getRequestedSignInProviderId, isSignInProviderAllowed } from '@/lib/auth/constants'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
+import {
+  getAccountLinkingTrustedProviders,
+  getSsoServerSecurityOptions,
+  SSO_DISABLED_PATHS,
+} from '@/lib/auth/sso/config'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
@@ -56,6 +61,11 @@ import {
 import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
 import { isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
+import {
+  buildStripeClientConfig,
+  isGuardedE2eDatabaseUrl,
+  STRIPE_E2E_PROFILE,
+} from '@/lib/billing/stripe-client-config'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -69,7 +79,7 @@ import {
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
-import { env } from '@/lib/core/config/env'
+import { env, isTruthy } from '@/lib/core/config/env'
 import {
   isAuthDisabled,
   isBillingEnabled,
@@ -167,8 +177,8 @@ const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
  * matches an existing account's email. Includes `SSO_PROVIDER_ID` when it is set
  * in the app environment, plus any IDs from `SSO_TRUSTED_PROVIDER_IDS`. Empty when
  * SSO is disabled, so `trustedProviders` is unchanged for non-SSO deployments.
- * Resolved once at startup; `trustEmailVerified` on the SSO plugin handles IdPs
- * that assert `email_verified` live, so this is only needed for IdPs that omit it.
+ * Resolved once at startup. The SSO plugin does not trust IdP email-verification
+ * claims, so adding an ID here is an explicit operator-controlled linking grant.
  */
 const additionalTrustedSsoProviders = isSsoEnabled
   ? [env.SSO_PROVIDER_ID, ...(env.SSO_TRUSTED_PROVIDER_IDS?.split(',') ?? [])]
@@ -190,10 +200,13 @@ const validStripeKey = env.STRIPE_SECRET_KEY
 
 let stripeClient = null
 if (validStripeKey) {
-  stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2025-08-27.basil',
-  })
+  stripeClient = new Stripe(validStripeKey, buildStripeClientConfig(env))
 }
+
+const usesGuardedE2eAuthRateLimit =
+  env.E2E_PROFILE === STRIPE_E2E_PROFILE &&
+  env.BETTER_AUTH_URL === 'http://e2e.sim.ai:3000' &&
+  isGuardedE2eDatabaseUrl(env.DATABASE_URL)
 
 /**
  * Reverse-proxy hops trusted for forwarded-IP resolution. When configured,
@@ -208,6 +221,22 @@ const trustedProxies = (env.AUTH_TRUSTED_PROXIES ?? '')
 
 export const auth = betterAuth({
   baseURL: getBaseUrl(),
+  disabledPaths: [...SSO_DISABLED_PATHS],
+  // Full browser contracts intentionally exercise many isolated sessions from loopback.
+  // Keep Better Auth's limiter enabled while raising only the hermetic profile's ceiling.
+  // Better Auth's built-in sign-in/sign-up rules override the base maximum, so they
+  // require explicit custom rules for the shared loopback IP used by Playwright.
+  ...(usesGuardedE2eAuthRateLimit
+    ? {
+        rateLimit: {
+          max: 10_000,
+          customRules: {
+            '/sign-in/*': { window: 10, max: 10_000 },
+            '/sign-up/*': { window: 10, max: 10_000 },
+          },
+        },
+      }
+    : {}),
   trustedOrigins: [
     getBaseUrl(),
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
@@ -736,13 +765,7 @@ export const auth = betterAuth({
        * nOAuth account takeover. Microsoft sign-in still works — it just links
        * to an existing account only when the IdP asserts a verified email.
        */
-      trustedProviders: [
-        'google',
-        'github',
-        'email-password',
-        ...SSO_TRUSTED_PROVIDERS,
-        ...additionalTrustedSsoProviders,
-      ],
+      trustedProviders: getAccountLinkingTrustedProviders(additionalTrustedSsoProviders),
     },
   },
   socialProviders: {
@@ -3232,12 +3255,7 @@ export const auth = betterAuth({
     ...(env.SSO_ENABLED
       ? [
           sso({
-            /**
-             * Honor the IdP's verified-email claim. Without this the SSO plugin
-             * forces `emailVerified: false`, blocking automatic linking of an SSO
-             * login to an existing same-email account (Better Auth "account not linked").
-             */
-            trustEmailVerified: true,
+            ...getSsoServerSecurityOptions(isTruthy(env.SSO_DOMAIN_VERIFICATION_ENABLED)),
             organizationProvisioning: {
               disabled: false,
               defaultRole: 'member',

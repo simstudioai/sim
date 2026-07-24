@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
-import { betterAuth } from 'better-auth'
+import { type Auth, type BetterAuthOptions, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { oneTimeToken } from 'better-auth/plugins'
 
@@ -11,13 +11,19 @@ export interface VerifyAuthOptions {
   baseURL: string
 }
 
+type VerifyAuthConfig = BetterAuthOptions & {
+  plugins: [ReturnType<typeof oneTimeToken>]
+}
+
+export type VerifyAuth = Auth<VerifyAuthConfig>
+
 /**
  * Minimal Better Auth instance used by services that only need to verify
  * one-time tokens issued by the main app. Shares the Better Auth DB schema
  * (`verification` table) and secret with the main app, so tokens issued by
  * `apps/sim`'s full auth config are accepted here.
  */
-export function createVerifyAuth(options: VerifyAuthOptions) {
+export function createVerifyAuth(options: VerifyAuthOptions): VerifyAuth {
   return betterAuth({
     baseURL: options.baseURL,
     secret: options.secret,
@@ -30,7 +36,5 @@ export function createVerifyAuth(options: VerifyAuthOptions) {
         expiresIn: 24 * 60,
       }),
     ],
-  })
+  }) as VerifyAuth
 }
-
-export type VerifyAuth = ReturnType<typeof createVerifyAuth>

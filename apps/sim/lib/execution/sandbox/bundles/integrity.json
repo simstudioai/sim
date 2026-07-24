@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "bunVersion": "1.3.13",
+  "sources": {
+    "apps/sim/lib/execution/sandbox/bundles/build.ts": "c4036e734738b44b5169c46a008f595c95a691865777117980cc13c5684f7580",
+    "apps/sim/lib/execution/sandbox/bundles/_polyfills.ts": "131dd6e7aec37bff3acf6507d6fe7bc95aeabae07fa2e97bbf2e32aa7251d491",
+    "apps/sim/lib/execution/sandbox/bundles/dependency-resolution.ts": "dac56d7744c09f8d577b575ffdbb4dfd219fb16918fc529f84b017f0ec9d1f3f"
+  },
+  "dependencies": {
+    "pdf-lib": "1.17.1",
+    "docx": "9.7.1",
+    "pptxgenjs": "4.0.1",
+    "buffer": "6.0.3",
+    "process": "0.11.10"
+  },
+  "outputs": {
+    "apps/sim/lib/execution/sandbox/bundles/pdf-lib.cjs": "936750faa220af85bf9b4edfe82bcab64ad38ee637b7f584322598f229d24036",
+    "apps/sim/lib/execution/sandbox/bundles/docx.cjs": "9fd4fd3b8b3ff55e2f1f0bd9198da85f69be8213e8fef3d22a3d6b8d4b260dfd",
+    "apps/sim/lib/execution/sandbox/bundles/pptxgenjs.cjs": "562d0785a71518fe7277330805029a3ee7485309d2f075b8c5958a2c36895b1e"
+  }
+}

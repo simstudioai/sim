@@ -18,6 +18,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
+import type { McpReadinessState } from '@/app/workspace/[workspaceId]/settings/components/mcp/mcp-readiness-state'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,
@@ -63,6 +64,8 @@ export interface McpServerFormModalProps {
   workspaceId: string
   availableEnvVars?: Set<string>
   allowedMcpDomains: string[] | null
+  readinessState?: McpReadinessState
+  readinessError?: string
 }
 
 const ENV_VAR_PATTERN = /\{\{[^}]+\}\}/
@@ -121,6 +124,7 @@ function getTestButtonLabel(
 
 interface FormattedInputProps {
   ref?: React.RefObject<HTMLInputElement | null>
+  ariaLabel?: string
   placeholder: string
   value: string
   scrollLeft: number
@@ -134,6 +138,7 @@ interface FormattedInputProps {
 
 function FormattedInput({
   ref,
+  ariaLabel,
   placeholder,
   value,
   scrollLeft,
@@ -152,6 +157,7 @@ function FormattedInput({
     <div className={cn('relative', className)}>
       <ChipInput
         ref={ref}
+        aria-label={ariaLabel}
         placeholder={placeholder}
         value={value}
         onChange={onChange}
@@ -309,8 +315,12 @@ export function McpServerFormModal({
   workspaceId,
   availableEnvVars,
   allowedMcpDomains,
+  readinessState = 'ready',
+  readinessError,
 }: McpServerFormModalProps) {
   const urlInputRef = useRef<HTMLInputElement>(null)
+  const readinessStateRef = useRef(readinessState)
+  readinessStateRef.current = readinessState
 
   const [formData, setFormData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
   const [originalData, setOriginalData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
@@ -422,6 +432,13 @@ export function McpServerFormModal({
   const isDomainBlocked =
     !!formData.url?.trim() && !isDomainAllowed(formData.url, allowedMcpDomains)
   const isFormValid = !!(formData.name.trim() && formData.url?.trim())
+  const isReady = readinessState === 'ready'
+  const readinessMessage =
+    readinessState === 'error'
+      ? readinessError || 'Unable to load MCP server settings. Test and save are unavailable.'
+      : readinessState === 'loading'
+        ? 'MCP server settings are loading. Test and save are unavailable.'
+        : null
   const testButtonLabel = getTestButtonLabel(testResult, isTestingConnection)
 
   const computeHasChanges = (): boolean => {
@@ -485,7 +502,7 @@ export function McpServerFormModal({
   }
 
   const handleTestConnection = async () => {
-    if (!isFormValid) return
+    if (!isReady || !isFormValid) return
 
     await testConnection({
       name: formData.name,
@@ -498,7 +515,7 @@ export function McpServerFormModal({
   }
 
   const handleSubmitForm = async () => {
-    if (!isFormValid || isDomainBlocked) return
+    if (!isReady || !isFormValid || isDomainBlocked) return
 
     setIsSubmitting(true)
     setSubmitError(null)
@@ -524,6 +541,7 @@ export function McpServerFormModal({
         )
         return
       }
+      if (readinessStateRef.current !== 'ready') return
 
       await onSubmit({
         name: formData.name.trim(),
@@ -556,6 +574,7 @@ export function McpServerFormModal({
   }
 
   const handleSubmitJson = async () => {
+    if (!isReady) return
     const config = parseJsonConfig(jsonInput)
     if (!config) return
 
@@ -587,6 +606,7 @@ export function McpServerFormModal({
         )
         return
       }
+      if (readinessStateRef.current !== 'ready') return
 
       await onSubmit({
         name: config.name,
@@ -607,7 +627,7 @@ export function McpServerFormModal({
   }
 
   const isSubmitDisabled =
-    isSubmitting || !isFormValid || isDomainBlocked || (mode === 'edit' && !hasChanges)
+    !isReady || isSubmitting || !isFormValid || isDomainBlocked || (mode === 'edit' && !hasChanges)
 
   const title = mode === 'add' ? 'Add MCP server' : 'Edit MCP server'
   const submitLabel = mode === 'add' ? 'Add server' : 'Save'
@@ -629,7 +649,7 @@ export function McpServerFormModal({
         ? {
             label: testButtonLabel,
             onClick: handleTestConnection,
-            disabled: isTestingConnection || !isFormValid || isDomainBlocked,
+            disabled: !isReady || isTestingConnection || !isFormValid || isDomainBlocked,
           }
         : undefined
 
@@ -638,7 +658,7 @@ export function McpServerFormModal({
       ? {
           label: isSubmitting ? 'Adding...' : submitLabel,
           onClick: handleSubmitJson,
-          disabled: isSubmitting || !jsonInput.trim(),
+          disabled: !isReady || isSubmitting || !jsonInput.trim(),
         }
       : {
           label: isSubmitting ? (mode === 'add' ? 'Adding...' : 'Saving...') : submitLabel,
@@ -705,6 +725,7 @@ export function McpServerFormModal({
             >
               <FormattedInput
                 ref={urlInputRef}
+                ariaLabel='Server URL'
                 placeholder='https://mcp.server.dev/{{YOUR_API_KEY}}/sse'
                 value={formData.url || ''}
                 scrollLeft={urlScrollLeft}
@@ -804,7 +825,7 @@ export function McpServerFormModal({
             )}
           </>
         )}
-        <ChipModalError>{submitError}</ChipModalError>
+        <ChipModalError>{readinessMessage ?? submitError}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}

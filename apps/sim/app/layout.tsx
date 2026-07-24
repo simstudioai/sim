@@ -28,6 +28,7 @@ export const metadata: Metadata = generateBrandedMetadata()
 
 const GTM_ID = 'GTM-T7PHSRX5' as const
 const GA_ID = 'G-DR7YBE70VS' as const
+const isMarketingAnalyticsEnabled = isHosted && !process.env.E2E_PROFILE
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const themeCSS = generateThemeCSS()
@@ -196,7 +197,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta httpEquiv='x-ua-compatible' content='ie=edge' />
 
         {/* Google Tag Manager — hosted only */}
-        {isHosted && (
+        {isMarketingAnalyticsEnabled && (
           <Script
             id='gtm'
             strategy='afterInteractive'
@@ -211,7 +212,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         )}
 
         {/* Google Analytics (gtag.js) — hosted only */}
-        {isHosted && (
+        {isMarketingAnalyticsEnabled && (
           <>
             <Script
               id='gtag-src'
@@ -232,7 +233,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
       </head>
       <body className={`${season.variable} font-season`} suppressHydrationWarning>
         {/* Google Tag Manager (noscript) — hosted only */}
-        {isHosted && (
+        {isMarketingAnalyticsEnabled && (
           <noscript>
             <iframe
               src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}

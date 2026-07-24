@@ -8,6 +8,7 @@
     "build": "fumadocs-mdx && NODE_OPTIONS='--max-old-space-size=8192' next build",
     "start": "next start",
     "postinstall": "fumadocs-mdx",
+    "test": "vitest run",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
@@ -53,6 +54,7 @@
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "postcss": "^8.5.3",
     "tailwindcss": "^4.0.12",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.0"
   }
 }

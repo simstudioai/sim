@@ -6,13 +6,21 @@ import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUseConfigureSSO, mockUseOrganizationBilling, mockUseSession, mockUseSSOProviders } =
-  vi.hoisted(() => ({
-    mockUseConfigureSSO: vi.fn(),
-    mockUseOrganizationBilling: vi.fn(),
-    mockUseSession: vi.fn(),
-    mockUseSSOProviders: vi.fn(),
-  }))
+const {
+  mockCreateMutate,
+  mockDeleteMutate,
+  mockUpdateMutate,
+  mockUseOrganizationBilling,
+  mockUseSession,
+  mockUseSSOProviders,
+} = vi.hoisted(() => ({
+  mockCreateMutate: vi.fn(),
+  mockDeleteMutate: vi.fn(),
+  mockUpdateMutate: vi.fn(),
+  mockUseOrganizationBilling: vi.fn(),
+  mockUseSession: vi.fn(),
+  mockUseSSOProviders: vi.fn(),
+}))
 
 vi.mock('@sim/emcn', () => ({
   Button: ({ children, ...props }: { children?: ReactNode }) => (
@@ -20,7 +28,16 @@ vi.mock('@sim/emcn', () => ({
       {children}
     </button>
   ),
-  ChipCombobox: () => <div />,
+  ChipCombobox: ({ value, disabled }: { value?: string; disabled?: boolean }) => (
+    <input aria-label='Provider ID' value={value ?? ''} disabled={disabled} readOnly />
+  ),
+  ChipConfirmModal: ({
+    open,
+    confirm,
+  }: {
+    open?: boolean
+    confirm: { label: string; onClick: () => void }
+  }) => (open ? <button onClick={confirm.onClick}>{confirm.label}</button> : null),
   ChipInput: ({
     value,
     onChange,
@@ -28,7 +45,9 @@ vi.mock('@sim/emcn', () => ({
     value?: string
     onChange?: ChangeEventHandler<HTMLInputElement>
   }) => <input value={value ?? ''} onChange={onChange} />,
-  ChipSelect: () => <div />,
+  ChipSelect: ({ disabled }: { disabled?: boolean }) => (
+    <button type='button' aria-label='Provider Type' disabled={disabled} />
+  ),
   ChipTextarea: ({
     value,
     onChange,
@@ -54,7 +73,15 @@ vi.mock('@/lib/auth/auth-client', () => ({
 vi.mock(
   '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions',
   () => ({
-    saveDiscardActions: () => [],
+    saveDiscardActions: ({
+      saveLabel,
+      onSave,
+      saveDisabled,
+    }: {
+      saveLabel: string
+      onSave: () => void
+      saveDisabled: boolean
+    }) => [{ text: saveLabel, onSelect: onSave, disabled: saveDisabled }],
   })
 )
 
@@ -91,7 +118,11 @@ vi.mock('@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard
 }))
 
 vi.mock('@/ee/sso/hooks/sso', () => ({
-  useConfigureSSO: mockUseConfigureSSO,
+  useCreateSSOProvider: () => ({ isPending: false, mutateAsync: mockCreateMutate }),
+  useUpdateSSOProvider: () => ({ isPending: false, mutateAsync: mockUpdateMutate }),
+  useDeleteSSOProvider: () => ({ isPending: false, mutateAsync: mockDeleteMutate }),
+  useRequestSSODomainVerification: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useVerifySSODomain: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useSSOProviders: mockUseSSOProviders,
 }))
 
@@ -99,7 +130,7 @@ vi.mock('@/hooks/queries/organization', () => ({
   useOrganizationBilling: mockUseOrganizationBilling,
 }))
 
-import { SSO } from '@/ee/sso/components/sso-settings'
+import { SSO, validateSSOProviderIdForForm } from '@/ee/sso/components/sso-settings'
 
 function provider(organizationId: string) {
   const suffix = organizationId === 'org-a' ? 'a' : 'b'
@@ -110,6 +141,9 @@ function provider(organizationId: string) {
     issuer: `https://issuer-${suffix}.example.com`,
     organizationId,
     providerType: 'oidc',
+    domainVerified: false,
+    isCreator: true,
+    canManageVerification: true,
     oidcConfig: JSON.stringify({
       clientId: `client-${suffix}`,
       clientSecret: `secret-${suffix}`,
@@ -148,13 +182,13 @@ describe('SSO organization transitions', () => {
       data: { data: { subscriptionPlan: 'enterprise' } },
       isLoading: false,
     })
-    mockUseConfigureSSO.mockReturnValue({
-      isPending: false,
-      mutateAsync: vi.fn(),
-    })
+    mockCreateMutate.mockResolvedValue({ success: true })
+    mockUpdateMutate.mockResolvedValue({ success: true })
+    mockDeleteMutate.mockResolvedValue({ success: true })
     mockUseSSOProviders.mockImplementation(({ organizationId }: { organizationId: string }) => ({
       data: { providers: [provider(organizationId)] },
-      isLoading: false,
+      isPending: false,
+      isError: false,
     }))
   })
 
@@ -181,4 +215,100 @@ describe('SSO organization transitions', () => {
     expect(container).not.toHaveTextContent('org-a.example.com')
     expect(container.querySelector('input[value="client-a"]')).toBeNull()
   })
+
+  it('uses PATCH update behavior and keeps provider ID/type immutable while editing', async () => {
+    renderSso('org-a')
+    const editButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Edit'
+    )
+    act(() => editButton?.click())
+
+    expect(
+      container.querySelector<HTMLInputElement>('input[aria-label="Provider ID"]')?.disabled
+    ).toBe(true)
+    expect(
+      container.querySelector<HTMLButtonElement>('button[aria-label="Provider Type"]')?.disabled
+    ).toBe(true)
+
+    const issuer = Array.from(container.querySelectorAll('input')).find(
+      (input) => input.value === 'https://issuer-a.example.com'
+    )
+    await act(async () => {
+      issuer?.setAttribute('value', 'https://updated.example.com')
+      issuer?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const updateButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Update'
+    )
+    await act(async () => {
+      updateButton?.click()
+    })
+
+    expect(mockUpdateMutate).toHaveBeenCalled()
+    expect(mockCreateMutate).not.toHaveBeenCalled()
+  })
+
+  it('keeps a lapsed provider visible and removable without allowing edits', () => {
+    mockUseOrganizationBilling.mockReturnValue({
+      data: { data: { subscriptionPlan: 'free' } },
+      isLoading: false,
+    })
+
+    renderSso('org-a')
+
+    expect(container).toHaveTextContent('org-a.example.com')
+    expect(container.querySelector('[role="status"]')).toHaveTextContent(
+      'The existing SSO provider is read-only; only provider removal remains available.'
+    )
+    const actionLabels = Array.from(container.querySelectorAll('button')).map(
+      (button) => button.textContent
+    )
+    expect(actionLabels).toContain('Remove')
+    expect(actionLabels).not.toContain('Edit')
+  })
+
+  it('renders fail-closed loading and error states', () => {
+    mockUseSSOProviders.mockReturnValue({ isPending: true, isError: false })
+    renderSso('org-a')
+    expect(container.querySelector('[role="status"]')).toHaveTextContent('Loading SSO settings')
+
+    mockUseSSOProviders.mockReturnValue({ isPending: false, isError: true })
+    renderSso('org-a')
+    expect(container.querySelector('[role="alert"]')).toHaveTextContent(
+      'Failed to load SSO settings'
+    )
+  })
+
+  it('requires confirmation before removing a provider', async () => {
+    renderSso('org-a')
+    const removeButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Remove'
+    )
+    act(() => removeButton?.click())
+    expect(mockDeleteMutate).not.toHaveBeenCalled()
+
+    const confirmButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Remove provider'
+    )
+    await act(async () => {
+      confirmButton?.click()
+    })
+    expect(mockDeleteMutate).toHaveBeenCalledWith({ id: 'sso-a', organizationId: 'org-a' })
+  })
+})
+
+describe('SSO provider ID validation', () => {
+  it.each(['Valid', '-leading', 'trailing-', 'a'.repeat(45), ' with-space', 'google'])(
+    'rejects API-incompatible provider ID %s',
+    (providerId) => {
+      expect(validateSSOProviderIdForForm(providerId)).not.toEqual([])
+    }
+  )
+
+  it.each(['a', 'acme-sso', 'provider44'])(
+    'accepts API-compatible provider ID %s',
+    (providerId) => {
+      expect(validateSSOProviderIdForForm(providerId)).toEqual([])
+    }
+  )
 })

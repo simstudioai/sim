@@ -8,24 +8,34 @@
  */
 import {
   dbChainMockFns,
-  defaultMockEnv,
   queueTableRows,
   resetDbChainMock,
+  resetEnvMock,
   schemaMock,
+  setEnv,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as billingAttributionModule from '@/lib/billing/core/billing-attribution'
-import { env } from '@/lib/core/config/env'
 import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
 import * as workspacesUtilsModule from '@/lib/workspaces/utils'
 
-const envSnapshot = { ...env }
+const UNSET_EMBEDDING_ENV = {
+  OPENAI_API_KEY: undefined,
+  OPENAI_API_KEY_1: undefined,
+  OPENAI_API_KEY_2: undefined,
+  OPENAI_API_KEY_3: undefined,
+  AZURE_OPENAI_API_KEY: undefined,
+  AZURE_OPENAI_ENDPOINT: undefined,
+  AZURE_OPENAI_API_VERSION: undefined,
+  KB_OPENAI_MODEL_NAME: undefined,
+}
+
+function setEmbeddingEnv(overrides: Record<string, string | undefined> = {}) {
+  setEnv({ ...UNSET_EMBEDDING_ENV, ...overrides })
+}
 
 afterAll(() => {
-  for (const key of Object.keys(env)) {
-    delete (env as Record<string, unknown>)[key]
-  }
-  Object.assign(env, envSnapshot)
+  resetEnvMock()
   resetDbChainMock()
   retrySpy.mockRestore()
   vi.mocked(workspacesUtilsModule.getWorkspaceBilledAccountUserId).mockRestore()
@@ -140,14 +150,8 @@ describe('Knowledge Utils', () => {
     // `unstubGlobals: true` removes the module-scope fetch stub after the
     // first test in the worker; re-stub it per test.
     vi.stubGlobal('fetch', createEmbeddingFetchMock())
-    // Under `isolate: false` the shared `@/lib/knowledge/embeddings` module may
-    // be cached bound to the REAL env module, so reset the real `env` object
-    // per test instead of vi.mock'ing a file-local replacement that a cached
-    // consumer would never see.
-    for (const key of Object.keys(env)) {
-      delete (env as Record<string, unknown>)[key]
-    }
-    Object.assign(env, { ...defaultMockEnv, OPENAI_API_KEY: 'test-key' })
+    resetEnvMock()
+    setEmbeddingEnv({ OPENAI_API_KEY: 'test-key' })
     retrySpy.mockImplementation(((fn: () => unknown) => fn()) as never)
     applyBillingSpies()
   })
@@ -279,9 +283,7 @@ describe('Knowledge Utils', () => {
     })
 
     it('should use Azure OpenAI when Azure config is provided', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
+      setEmbeddingEnv({
         AZURE_OPENAI_API_KEY: 'test-azure-key',
         AZURE_OPENAI_ENDPOINT: 'https://test.openai.azure.com',
         AZURE_OPENAI_API_VERSION: '2024-12-01-preview',
@@ -308,14 +310,10 @@ describe('Knowledge Utils', () => {
           }),
         })
       )
-
-      Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
     it('should fallback to OpenAI when no Azure config provided', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
+      setEmbeddingEnv({
         OPENAI_API_KEY: 'test-openai-key',
       })
 
@@ -338,13 +336,10 @@ describe('Knowledge Utils', () => {
           }),
         })
       )
-
-      Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
     it('should throw error when no API configuration provided', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
+      setEmbeddingEnv()
 
       await expect(generateEmbeddings(['test text'])).rejects.toThrow(
         'OPENAI_API_KEY is not configured'

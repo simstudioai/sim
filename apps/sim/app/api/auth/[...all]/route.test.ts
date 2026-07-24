@@ -12,6 +12,13 @@ const handlerMocks = vi.hoisted(() => ({
     user: { id: 'anon' },
     session: { id: 'anon-session' },
   })),
+  withSSOCallbackIntent: vi.fn((_providerId: string, callback: () => Promise<unknown>) =>
+    callback()
+  ),
+}))
+
+vi.mock('@/lib/auth/sso/provider-operation-intent', () => ({
+  withSSOCallbackIntent: handlerMocks.withSSOCallbackIntent,
 }))
 
 vi.mock('better-auth/next-js', () => ({
@@ -130,5 +137,84 @@ describe('auth catch-all route organization mutations', () => {
 
     expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
     expect(json).toEqual({ data: { ok: true } })
+  })
+})
+
+describe('auth catch-all route SSO mutations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it.each([
+    'register',
+    'update-provider',
+    'delete-provider',
+    'request-domain-verification',
+    'verify-domain',
+  ])('blocks the raw Better Auth /sso/%s endpoint', async (path) => {
+    const req = createMockRequest(
+      'POST',
+      undefined,
+      {},
+      `http://localhost:3000/api/auth/sso/${path}`
+    )
+    const res = await POST(req as any)
+
+    expect(res.status).toBe(404)
+    expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+  })
+
+  it('continues to delegate non-mutation SSO endpoints', async () => {
+    const { NextResponse } = await import('next/server')
+    handlerMocks.betterAuthPOST.mockResolvedValueOnce(
+      new NextResponse(null, { status: 200 }) as any
+    )
+    const req = createMockRequest(
+      'POST',
+      undefined,
+      {},
+      'http://localhost:3000/api/auth/sign-in/sso'
+    )
+
+    const res = await POST(req as any)
+    expect(res.status).toBe(200)
+    expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
+    expect(handlerMocks.withSSOCallbackIntent).not.toHaveBeenCalled()
+  })
+
+  it('registers an intent around OIDC GET callbacks', async () => {
+    const { NextResponse } = await import('next/server')
+    handlerMocks.betterAuthGET.mockResolvedValueOnce(new NextResponse(null, { status: 302 }) as any)
+    const req = createMockRequest(
+      'GET',
+      undefined,
+      {},
+      'http://localhost:3000/api/auth/sso/callback/acme'
+    )
+
+    const res = await GET(req as any)
+
+    expect(res.status).toBe(302)
+    expect(handlerMocks.withSSOCallbackIntent).toHaveBeenCalledWith('acme', expect.any(Function))
+    expect(handlerMocks.betterAuthGET).toHaveBeenCalledTimes(1)
+  })
+
+  it('registers an intent around SAML POST callbacks', async () => {
+    const { NextResponse } = await import('next/server')
+    handlerMocks.betterAuthPOST.mockResolvedValueOnce(
+      new NextResponse(null, { status: 302 }) as any
+    )
+    const req = createMockRequest(
+      'POST',
+      undefined,
+      {},
+      'http://localhost:3000/api/auth/sso/saml2/callback/acme'
+    )
+
+    const res = await POST(req as any)
+
+    expect(res.status).toBe(302)
+    expect(handlerMocks.withSSOCallbackIntent).toHaveBeenCalledWith('acme', expect.any(Function))
+    expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
   })
 })

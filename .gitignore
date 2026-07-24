@@ -18,6 +18,11 @@ package-lock.json
 # testing
 /coverage
 /apps/**/coverage
+/apps/**/playwright-report/
+/apps/**/test-results/
+/apps/**/e2e/.runs/
+/apps/**/e2e/.auth/
+/apps/**/e2e/.cache/
 
 # next.js
 /.next/
@@ -31,6 +36,7 @@ package-lock.json
 **/dist/
 **/standalone/
 sim-standalone.tar.gz
+/.artifacts/
 
 # redis
 dump.rdb

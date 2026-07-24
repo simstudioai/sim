@@ -252,7 +252,7 @@ SSO provisioning creates internal organization members. External workspace membe
   },
   {
     question: "A user already has an account with the same email — what happens when they sign in with SSO?",
-    answer: "Sim links the SSO identity to the existing account automatically, as long as your identity provider reports the email as verified (email_verified) or the provider is trusted. Most OIDC providers (Okta, Google Workspace, Auth0) assert email_verified, so linking just works. If sign-in fails with 'account not linked' — common with SAML providers that omit the claim — add the provider's ID to SSO_TRUSTED_PROVIDER_IDS on self-hosted and restart."
+    answer: "Before verified-domain enforcement is activated, Sim links the SSO identity when your identity provider reports a verified email or the provider is operator-trusted. After enforcement is activated, the provider's verified organization domain is the account-linking trust boundary."
   },
   {
     question: "Who can configure SSO on Sim Cloud?",
@@ -281,11 +281,16 @@ Self-hosted deployments use environment variables instead of the billing/plan ch
 SSO_ENABLED=true
 NEXT_PUBLIC_SSO_ENABLED=true
 
+# Enable only after the one-shot pre-migration audit, schema migration,
+# separately approved domain-ownership backfill, and live TXT check below.
+SSO_DOMAIN_VERIFICATION_ENABLED=false
+
 # Required if you want users auto-added to your organization on first SSO sign-in
 ORGANIZATIONS_ENABLED=true
 NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
 
-# Optional: comma-separated SSO provider IDs to trust for automatic account linking
+# Optional while domain verification is disabled: comma-separated SSO provider IDs
+# to trust for automatic account linking
 # (links an SSO sign-in to an existing account with the same email). Needed when your
 # IdP does not assert email_verified — typically SAML providers, or OIDC providers that
 # omit the claim. Set it to the Provider ID you registered, then restart.
@@ -295,13 +300,60 @@ SSO_TRUSTED_PROVIDER_IDS=custom-oidc,partner-saml
 ```
 
 <Callout type="info">
-  When someone signs in with SSO and an account with the same email already exists
-  (for example, they previously signed up with email/password), Sim links the SSO
-  identity to that account automatically as long as your IdP reports the email as
-  verified, or the provider is trusted. If you hit an `account not linked` error,
-  either confirm your IdP sends `email_verified`, or add the provider's ID to
-  `SSO_TRUSTED_PROVIDER_IDS` and restart.
+  While `SSO_DOMAIN_VERIFICATION_ENABLED` is false, existing linking behavior uses
+  the IdP's `email_verified` claim or `SSO_TRUSTED_PROVIDER_IDS`. Once the flag is
+  true, Sim requires the SSO provider's organization domain to be verified and no
+  longer trusts an IdP-controlled email-verification claim by itself.
 </Callout>
+
+<Callout type="warning">
+  Migration 0266 runs a one-shot legacy-provider audit before changing the
+  schema. If the legacy provider table exists, disable SSO/provider mutations
+  and keep them disabled through migration, then set
+  `SSO_PROVIDER_WRITES_QUIESCED=true` even when the table is empty. Provide
+  `SSO_AUDIT_APPROVED_PROVIDER_IDS` only for providers whose existing account
+  links and active sessions operators chose to retain. Omit a provider until
+  its links are migrated or removed and its sessions are revoked.
+  Remediate user-scoped, public-suffix, unknown-suffix, duplicate, or
+  overlapping rows before retrying. The quiescence flag is an acknowledgement,
+  not a technical lock against an older running application.
+
+  Account/session approval does not prove domain ownership. After migration,
+  transactionally backfill `domain_verified` only for domains supported by
+  independently reviewed ownership evidence, read the values back, and keep
+  unknown rows false. Complete a live TXT verification before enabling
+  `SSO_DOMAIN_VERIFICATION_ENABLED`. Internal pseudo-domains are not eligible
+  for verified-domain enforcement.
+</Callout>
+
+For the first 0266 upgrade with Docker Compose, set the one-shot migration
+inputs in the Compose environment while writes are actually disabled:
+
+```bash
+export SSO_PROVIDER_WRITES_QUIESCED=true
+export SSO_AUDIT_APPROVED_PROVIDER_IDS=reviewed-provider-ids
+docker compose -f docker-compose.prod.yml up
+```
+
+For Helm, use inline migration values or a dedicated Secret:
+
+```yaml
+migrations:
+  ssoPreflight:
+    providerWritesQuiesced: "true"
+    auditApprovedProviderIds: "reviewed-provider-ids"
+    # Or set existingSecret to a Secret containing
+    # SSO_PROVIDER_WRITES_QUIESCED and SSO_AUDIT_APPROVED_PROVIDER_IDS.
+```
+
+Secret-backed keys are optional at Kubernetes pod admission so removing retired
+one-shot keys cannot block deployments after 0266. A pending 0266 migration
+still fails closed unless `SSO_PROVIDER_WRITES_QUIESCED` resolves to `true`;
+`SSO_AUDIT_APPROVED_PROVIDER_IDS` may be absent when no linked providers require
+an explicit approval.
+
+Remove the one-shot values after 0266 is journaled. Do not leave provider writes
+disabled or interpret the flag itself as quiescence.
 
 You can register providers through the **Settings UI** (same as cloud) or by running the registration script directly against your database.
 
@@ -318,6 +370,7 @@ SSO_PROVIDER_ID=okta \
 SSO_ISSUER=https://dev-1234567.okta.com/oauth2/default \
 SSO_DOMAIN=company.com \
 SSO_USER_EMAIL=admin@company.com \
+SSO_ORGANIZATION_ID=your-organization-id \
 SSO_OIDC_CLIENT_ID=your-client-id \
 SSO_OIDC_CLIENT_SECRET=your-client-secret \
 bun run packages/db/scripts/register-sso-provider.ts
@@ -332,6 +385,7 @@ SSO_PROVIDER_ID=adfs \
 SSO_ISSUER=https://your-instance.com \
 SSO_DOMAIN=company.com \
 SSO_USER_EMAIL=admin@company.com \
+SSO_ORGANIZATION_ID=your-organization-id \
 SSO_SAML_ENTRY_POINT=https://adfs.company.com/adfs/ls \
 SSO_SAML_CERT="-----BEGIN CERTIFICATE-----
 ...
@@ -345,5 +399,7 @@ To remove a provider:
 
 ```bash
 SSO_USER_EMAIL=admin@company.com \
+SSO_ORGANIZATION_ID=your-organization-id \
+SSO_PROVIDER_ID=adfs \
 bun run packages/db/scripts/deregister-sso-provider.ts
 ```

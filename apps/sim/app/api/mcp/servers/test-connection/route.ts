@@ -222,6 +222,9 @@ export const POST = withRouteHandler(
           const tools = await client.listTools()
           result.toolCount = tools.length
           result.success = true
+          if (Object.keys(testConfig.headers ?? {}).length === 0) {
+            result.authType = 'none'
+          }
         } catch {
           logger.warn(`[${requestId}] Connection established but could not list tools`)
           result.success = false

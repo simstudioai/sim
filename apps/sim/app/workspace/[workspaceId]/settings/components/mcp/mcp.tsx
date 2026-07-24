@@ -23,6 +23,7 @@ import {
   mcpServerIdParam,
   mcpServerIdUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
+import { resolveMcpReadinessState } from '@/app/workspace/[workspaceId]/settings/components/mcp/mcp-readiness-state'
 import { getRefreshActionState } from '@/app/workspace/[workspaceId]/settings/components/mcp/refresh-action-state'
 import { getServerToolsLabel } from '@/app/workspace/[workspaceId]/settings/components/mcp/server-tools-label'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
@@ -111,7 +112,11 @@ function ServerListItem({
     showDiscoveryError
 
   return (
-    <div className='flex items-center justify-between gap-3'>
+    <div
+      role='group'
+      aria-label={`MCP server ${server.name || 'Unnamed server'}`}
+      className='flex items-center justify-between gap-3'
+    >
       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
         <div className='flex items-center gap-1.5'>
           <span className='max-w-[200px] truncate text-[var(--text-body)] text-sm'>
@@ -143,7 +148,7 @@ function ServerListItem({
           <Chip onClick={onAuthorize}>{isConnecting ? 'Reopen authorization' : 'Authorize'}</Chip>
         )}
         <RowActionsMenu
-          label='Server actions'
+          label={`Actions for ${server.name || 'Unnamed server'}`}
           actions={[
             { label: 'Details', onSelect: onViewDetails },
             ...(canManage
@@ -189,10 +194,13 @@ export function MCP() {
   const canEdit = canMutateWorkspaceSettingsSection('mcp', workspacePermissions)
 
   const {
-    data: servers = [],
-    isLoading: serversLoading,
+    data: serversData,
+    isSuccess: serversSuccess,
+    isError: serversQueryError,
+    isPlaceholderData: serversPlaceholder,
     error: serversError,
   } = useMcpServers(workspaceId)
+  const servers = serversData ?? []
   const { data: mcpToolsData = [], toolsStateByServer } = useMcpToolsQuery(workspaceId)
   const { data: storedTools = [], refetch: refetchStoredTools } = useStoredMcpTools(workspaceId)
   const forceRefreshToolsMutation = useForceRefreshMcpTools()
@@ -202,7 +210,27 @@ export function MCP() {
   const refreshServerMutation = useRefreshMcpServer()
   const updateServerMutation = useUpdateMcpServer()
   const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
-  const { data: allowedMcpDomains = null } = useAllowedMcpDomains()
+  const {
+    data: allowedMcpDomains = null,
+    isSuccess: allowedDomainsSuccess,
+    isError: allowedDomainsQueryError,
+    isPlaceholderData: allowedDomainsPlaceholder,
+    error: allowedDomainsError,
+  } = useAllowedMcpDomains()
+  const readinessState = resolveMcpReadinessState({
+    serversSuccess,
+    serversError: serversQueryError,
+    serversPlaceholder,
+    allowedDomainsSuccess,
+    allowedDomainsError: allowedDomainsQueryError,
+    allowedDomainsPlaceholder,
+  })
+  const isReady = readinessState === 'ready'
+  const readinessError = serversQueryError
+    ? getErrorMessage(serversError, 'Unable to load MCP servers')
+    : allowedDomainsQueryError
+      ? getErrorMessage(allowedDomainsError, 'Unable to load MCP server policy')
+      : undefined
 
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingServerId, setEditingServerId] = useState<string | null>(null)
@@ -215,6 +243,9 @@ export function MCP() {
 
   const [serverToDeleteId, setServerToDeleteId] = useState<string | null>(null)
   const showDeleteDialog = serverToDeleteId !== null
+  useEffect(() => {
+    if (!isReady) setServerToDeleteId(null)
+  }, [isReady])
 
   const [selectedServerId, setSelectedServerId] = useQueryState(mcpServerIdParam.key, {
     ...mcpServerIdParam.parser,
@@ -226,19 +257,21 @@ export function MCP() {
   useEffect(() => {
     if (didDeepLinkRefreshRef.current) return
     if (!initialServerIdRef.current) return
+    if (canEdit && !isReady) return
     didDeepLinkRefreshRef.current = true
     if (canEdit) forceRefreshTools(workspaceId)
     refetchStoredTools()
-  }, [canEdit, workspaceId, forceRefreshTools, refetchStoredTools])
+  }, [canEdit, isReady, workspaceId, forceRefreshTools, refetchStoredTools])
 
   const [expandedTools, setExpandedTools] = useState<Set<string>>(() => new Set())
 
   const handleRemoveServer = (serverId: string) => {
+    if (!isReady) return
     setServerToDeleteId(serverId)
   }
 
   const confirmDeleteServer = async () => {
-    if (!serverToDeleteId) return
+    if (!serverToDeleteId || !isReady) return
 
     const serverId = serverToDeleteId
     setServerToDeleteId(null)
@@ -278,7 +311,7 @@ export function MCP() {
 
   const handleViewDetails = (serverId: string) => {
     setSelectedServerId(serverId)
-    if (canEdit) forceRefreshTools(workspaceId)
+    if (canEdit && isReady) forceRefreshTools(workspaceId)
     refetchStoredTools()
   }
 
@@ -301,6 +334,7 @@ export function MCP() {
   }
 
   const handleRefreshServer = async (serverId: string) => {
+    if (!isReady) return
     try {
       const result = await refreshServerMutation.mutateAsync({ workspaceId, serverId })
       logger.info(
@@ -395,14 +429,41 @@ export function MCP() {
     return issues
   }
 
-  // Only a failure to load the server LIST replaces the list. A tool-discovery failure must
-  // not blank the page — the servers still render, each row surfacing its own discovery
-  // state via `toolsStateByServer`.
-  const listError = serversError
+  // Tool-discovery failures do not blank the page; required server and policy query failures do.
   const hasServers = servers && servers.length > 0
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && servers.length > 0
 
-  if (selectedServer) {
+  const editModal = canEdit ? (
+    <McpServerFormModal
+      open={editingServerId !== null}
+      onOpenChange={(open) => {
+        if (!open) setEditingServerId(null)
+      }}
+      mode='edit'
+      initialData={editInitialData}
+      onSubmit={async (config) => {
+        if (!isReady || !editingServerId) {
+          throw new Error(readinessError || 'MCP server settings are not ready')
+        }
+        const currentServer = servers.find((server) => server.id === editingServerId)
+        await updateServerMutation.mutateAsync({
+          workspaceId,
+          serverId: editingServerId,
+          updates: {
+            ...config,
+            enabled: currentServer?.enabled ?? true,
+          },
+        })
+      }}
+      workspaceId={workspaceId}
+      availableEnvVars={availableEnvVars}
+      allowedMcpDomains={allowedMcpDomains}
+      readinessState={readinessState}
+      readinessError={readinessError}
+    />
+  ) : null
+
+  if (selectedServer && isReady) {
     const { server, tools } = selectedServer
     const transportLabel = formatTransportLabel(server.transport || 'http')
     const isCurrentRefresh = refreshServerMutation.variables?.serverId === server.id
@@ -413,299 +474,301 @@ export function MCP() {
     })
 
     return (
-      <SettingsPanel
-        back={{ text: 'MCP tools', icon: ArrowLeft, onSelect: handleBackToList }}
-        title={server.name || 'Unnamed server'}
-        actions={
-          canEdit
-            ? [
-                {
-                  text: refreshAction.text,
-                  textTone: refreshAction.textTone,
-                  onSelect: () => handleRefreshServer(server.id),
-                  disabled: refreshAction.disabled,
-                },
-                {
-                  text: 'Edit',
-                  onSelect: () => setEditingServerId(server.id),
-                },
-              ]
-            : []
-        }
-      >
-        <SettingsSection label='Server'>
-          <div className='flex flex-col gap-4.5'>
-            <div className='flex flex-col gap-2'>
-              <span className='text-[var(--text-muted)] text-caption'>Server name</span>
-              <p className='text-[var(--text-body)] text-sm'>{server.name || 'Unnamed server'}</p>
-            </div>
-
-            <div className='flex flex-col gap-2'>
-              <span className='text-[var(--text-muted)] text-caption'>Transport</span>
-              <p className='text-[var(--text-body)] text-sm'>{transportLabel}</p>
-            </div>
-
-            {server.url && (
-              <div className='flex flex-col gap-2'>
-                <span className='text-[var(--text-muted)] text-caption'>URL</span>
-                <p className='break-all text-[var(--text-body)] text-sm'>{server.url}</p>
-              </div>
-            )}
-
-            {server.connectionStatus !== 'connected' && (
-              <div className='flex flex-col gap-2'>
-                <span className='text-[var(--text-muted)] text-caption'>Status</span>
-                <p className='text-[var(--text-error)] text-sm'>
-                  {getServerToolsLabel(
-                    [],
-                    server.connectionStatus,
-                    server.lastError,
-                    server.authType
-                  )}
-                </p>
-              </div>
-            )}
-
-            {canEdit && server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
-              <div className='flex flex-col gap-2'>
-                <span className='text-[var(--text-muted)] text-caption'>Authentication</span>
-                <div>
-                  <Chip
-                    variant='primary'
-                    onClick={async () => {
-                      await startOauthForServer(server.id)
-                    }}
-                  >
-                    {connectingOauthServers.has(server.id) ? 'Reopen authorization' : 'Authorize'}
-                  </Chip>
+      <>
+        <section aria-label='MCP servers data' aria-busy={false} data-mcp-state={readinessState}>
+          <SettingsPanel
+            back={{ text: 'MCP tools', icon: ArrowLeft, onSelect: handleBackToList }}
+            title={server.name || 'Unnamed server'}
+            actions={
+              canEdit
+                ? [
+                    {
+                      text: refreshAction.text,
+                      textTone: refreshAction.textTone,
+                      onSelect: () => handleRefreshServer(server.id),
+                      disabled: !isReady || refreshAction.disabled,
+                    },
+                    {
+                      text: 'Edit',
+                      onSelect: () => setEditingServerId(server.id),
+                      disabled: !isReady,
+                    },
+                  ]
+                : []
+            }
+          >
+            <SettingsSection label='Server'>
+              <div className='flex flex-col gap-4.5'>
+                <div className='flex flex-col gap-2'>
+                  <span className='text-[var(--text-muted)] text-caption'>Server name</span>
+                  <p className='text-[var(--text-body)] text-sm'>
+                    {server.name || 'Unnamed server'}
+                  </p>
                 </div>
-              </div>
-            )}
-          </div>
-        </SettingsSection>
 
-        <SettingsSection label={`Tools (${tools.length})`}>
-          {tools.length === 0 ? (
-            <p className='text-[var(--text-muted)] text-sm'>No tools available</p>
-          ) : (
-            <div className='flex flex-col gap-2'>
-              {tools.map((tool) => {
-                const issues = getStoredToolIssues(server.id, tool.name)
-                const affectedWorkflows = issues.map((i) => i.workflowName)
-                const isExpanded = expandedTools.has(tool.name)
-                const hasParams =
-                  tool.inputSchema?.properties &&
-                  Object.keys(tool.inputSchema.properties).length > 0
-                const requiredParams = tool.inputSchema?.required || []
+                <div className='flex flex-col gap-2'>
+                  <span className='text-[var(--text-muted)] text-caption'>Transport</span>
+                  <p className='text-[var(--text-body)] text-sm'>{transportLabel}</p>
+                </div>
 
-                return (
-                  <div
-                    key={tool.name}
-                    className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-3)]'
-                  >
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      onClick={() => hasParams && toggleToolExpanded(tool.name)}
-                      className={cn(
-                        'flex h-auto w-full items-start justify-between rounded-none px-2.5 py-2 text-left text-sm',
-                        hasParams && 'cursor-pointer hover-hover:bg-[var(--surface-4)]'
+                {server.url && (
+                  <div className='flex flex-col gap-2'>
+                    <span className='text-[var(--text-muted)] text-caption'>URL</span>
+                    <p className='break-all text-[var(--text-body)] text-sm'>{server.url}</p>
+                  </div>
+                )}
+
+                {server.connectionStatus !== 'connected' && (
+                  <div className='flex flex-col gap-2'>
+                    <span className='text-[var(--text-muted)] text-caption'>Status</span>
+                    <p className='text-[var(--text-error)] text-sm'>
+                      {getServerToolsLabel(
+                        [],
+                        server.connectionStatus,
+                        server.lastError,
+                        server.authType
                       )}
-                      disabled={!hasParams}
-                    >
-                      <div className='flex-1'>
-                        <div className='flex h-[16px] items-center gap-1.5'>
-                          <p className='font-medium text-[var(--text-primary)] text-sm leading-none'>
-                            {tool.name}
-                          </p>
-                          {issues.length > 0 && (
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <div className='flex items-center'>
-                                  <Badge variant={getIssueBadgeVariant(issues[0].issue)} size='sm'>
-                                    {getIssueBadgeLabel(issues[0].issue)}
-                                  </Badge>
-                                </div>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content>
-                                Update in: {affectedWorkflows.join(', ')}
-                              </Tooltip.Content>
-                            </Tooltip.Root>
+                    </p>
+                  </div>
+                )}
+
+                {canEdit &&
+                  server.authType === 'oauth' &&
+                  server.connectionStatus !== 'connected' && (
+                    <div className='flex flex-col gap-2'>
+                      <span className='text-[var(--text-muted)] text-caption'>Authentication</span>
+                      <div>
+                        <Chip
+                          variant='primary'
+                          disabled={!isReady}
+                          onClick={async () => {
+                            if (!isReady) return
+                            await startOauthForServer(server.id)
+                          }}
+                        >
+                          {connectingOauthServers.has(server.id)
+                            ? 'Reopen authorization'
+                            : 'Authorize'}
+                        </Chip>
+                      </div>
+                    </div>
+                  )}
+              </div>
+            </SettingsSection>
+
+            <SettingsSection label={`Tools (${tools.length})`}>
+              {tools.length === 0 ? (
+                <p className='text-[var(--text-muted)] text-sm'>No tools available</p>
+              ) : (
+                <div className='flex flex-col gap-2'>
+                  {tools.map((tool) => {
+                    const issues = getStoredToolIssues(server.id, tool.name)
+                    const affectedWorkflows = issues.map((i) => i.workflowName)
+                    const isExpanded = expandedTools.has(tool.name)
+                    const hasParams =
+                      tool.inputSchema?.properties &&
+                      Object.keys(tool.inputSchema.properties).length > 0
+                    const requiredParams = tool.inputSchema?.required || []
+
+                    return (
+                      <div
+                        key={tool.name}
+                        className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-3)]'
+                      >
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          onClick={() => hasParams && toggleToolExpanded(tool.name)}
+                          className={cn(
+                            'flex h-auto w-full items-start justify-between rounded-none px-2.5 py-2 text-left text-sm',
+                            hasParams && 'cursor-pointer hover-hover:bg-[var(--surface-4)]'
                           )}
-                        </div>
-                        {tool.description && (
-                          <p className='mt-1 text-[var(--text-tertiary)] text-sm'>
-                            {tool.description}
-                          </p>
+                          disabled={!hasParams}
+                        >
+                          <div className='flex-1'>
+                            <div className='flex h-[16px] items-center gap-1.5'>
+                              <p className='font-medium text-[var(--text-primary)] text-sm leading-none'>
+                                {tool.name}
+                              </p>
+                              {issues.length > 0 && (
+                                <Tooltip.Root>
+                                  <Tooltip.Trigger asChild>
+                                    <div className='flex items-center'>
+                                      <Badge
+                                        variant={getIssueBadgeVariant(issues[0].issue)}
+                                        size='sm'
+                                      >
+                                        {getIssueBadgeLabel(issues[0].issue)}
+                                      </Badge>
+                                    </div>
+                                  </Tooltip.Trigger>
+                                  <Tooltip.Content>
+                                    Update in: {affectedWorkflows.join(', ')}
+                                  </Tooltip.Content>
+                                </Tooltip.Root>
+                              )}
+                            </div>
+                            {tool.description && (
+                              <p className='mt-1 text-[var(--text-tertiary)] text-sm'>
+                                {tool.description}
+                              </p>
+                            )}
+                          </div>
+                          {hasParams && (
+                            <ChevronDown
+                              className={cn(
+                                'mt-0.5 size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
+                                isExpanded && 'rotate-180'
+                              )}
+                            />
+                          )}
+                        </Button>
+
+                        {isExpanded && hasParams && (
+                          <div className='border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 py-2'>
+                            <p className='mb-1.5 font-medium text-[var(--text-muted)] text-xs uppercase tracking-wide'>
+                              Parameters
+                            </p>
+                            <div className='flex flex-col gap-1.5'>
+                              {Object.entries(tool.inputSchema!.properties!).map(
+                                ([paramName, param]) => {
+                                  const isRequired = requiredParams.includes(paramName)
+                                  const paramType =
+                                    typeof param === 'object' && param !== null
+                                      ? (param as { type?: string }).type || 'any'
+                                      : 'any'
+                                  const paramDesc =
+                                    typeof param === 'object' && param !== null
+                                      ? (param as { description?: string }).description
+                                      : undefined
+
+                                  return (
+                                    <div
+                                      key={paramName}
+                                      className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-3)] px-2 py-1.5'
+                                    >
+                                      <div className='flex items-center gap-1.5'>
+                                        <span className='font-medium text-[var(--text-primary)] text-small'>
+                                          {paramName}
+                                        </span>
+                                        <Badge variant='outline' size='sm'>
+                                          {paramType}
+                                        </Badge>
+                                        {isRequired && (
+                                          <Badge variant='default' size='sm'>
+                                            required
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      {paramDesc && (
+                                        <p className='mt-[3px] text-[var(--text-tertiary)] text-xs leading-relaxed'>
+                                          {paramDesc}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )
+                                }
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
-                      {hasParams && (
-                        <ChevronDown
-                          className={cn(
-                            'mt-0.5 size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
-                            isExpanded && 'rotate-180'
-                          )}
-                        />
-                      )}
-                    </Button>
-
-                    {isExpanded && hasParams && (
-                      <div className='border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 py-2'>
-                        <p className='mb-1.5 font-medium text-[var(--text-muted)] text-xs uppercase tracking-wide'>
-                          Parameters
-                        </p>
-                        <div className='flex flex-col gap-1.5'>
-                          {Object.entries(tool.inputSchema!.properties!).map(
-                            ([paramName, param]) => {
-                              const isRequired = requiredParams.includes(paramName)
-                              const paramType =
-                                typeof param === 'object' && param !== null
-                                  ? (param as { type?: string }).type || 'any'
-                                  : 'any'
-                              const paramDesc =
-                                typeof param === 'object' && param !== null
-                                  ? (param as { description?: string }).description
-                                  : undefined
-
-                              return (
-                                <div
-                                  key={paramName}
-                                  className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-3)] px-2 py-1.5'
-                                >
-                                  <div className='flex items-center gap-1.5'>
-                                    <span className='font-medium text-[var(--text-primary)] text-small'>
-                                      {paramName}
-                                    </span>
-                                    <Badge variant='outline' size='sm'>
-                                      {paramType}
-                                    </Badge>
-                                    {isRequired && (
-                                      <Badge variant='default' size='sm'>
-                                        required
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  {paramDesc && (
-                                    <p className='mt-[3px] text-[var(--text-tertiary)] text-xs leading-relaxed'>
-                                      {paramDesc}
-                                    </p>
-                                  )}
-                                </div>
-                              )
-                            }
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </SettingsSection>
-
-        {canEdit && (
-          <McpServerFormModal
-            open={editingServerId !== null}
-            onOpenChange={(open) => {
-              if (!open) setEditingServerId(null)
-            }}
-            mode='edit'
-            initialData={editInitialData}
-            onSubmit={async (config) => {
-              const currentServer = servers.find((s) => s.id === selectedServerId)
-              await updateServerMutation.mutateAsync({
-                workspaceId,
-                serverId: selectedServerId!,
-                updates: {
-                  ...config,
-                  enabled: currentServer?.enabled ?? true,
-                },
-              })
-            }}
-            workspaceId={workspaceId}
-            availableEnvVars={availableEnvVars}
-            allowedMcpDomains={allowedMcpDomains}
-          />
-        )}
-      </SettingsPanel>
+                    )
+                  })}
+                </div>
+              )}
+            </SettingsSection>
+          </SettingsPanel>
+        </section>
+        {editModal}
+      </>
     )
   }
 
   return (
     <>
-      <SettingsPanel
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: 'Search servers...',
-        }}
-        actions={
-          canEdit
-            ? [
-                {
-                  text: 'Add server',
-                  icon: Plus,
-                  variant: 'primary',
-                  onSelect: () => setShowAddModal(true),
-                  disabled: serversLoading,
-                },
-              ]
-            : []
-        }
+      <section
+        aria-label='MCP servers data'
+        aria-busy={readinessState === 'loading'}
+        data-mcp-state={readinessState}
       >
-        {listError ? (
-          <div className='flex h-full flex-col items-center justify-center gap-2'>
-            <p className='text-[var(--text-error)] text-small leading-tight'>
-              {getErrorMessage(listError, 'Failed to load MCP servers')}
-            </p>
-          </div>
-        ) : serversLoading ? (
-          <SettingsEmptyState>Loading...</SettingsEmptyState>
-        ) : !hasServers ? (
-          <SettingsEmptyState>
-            {canEdit ? 'Click "Add server" above to get started' : 'No MCP servers configured'}
-          </SettingsEmptyState>
-        ) : (
-          <div className='flex flex-col gap-2'>
-            {filteredServers.map((server) => {
-              if (!server?.id) return null
-              const tools = toolsByServer[server.id] || []
-              const serverToolsState = toolsStateByServer.get(server.id)
-              const isLoadingTools = serverToolsState
-                ? serverToolsState.isLoading || serverToolsState.isFetching
-                : false
+        <SettingsPanel
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: 'Search servers...',
+          }}
+          actions={
+            canEdit
+              ? [
+                  {
+                    text: 'Add server',
+                    icon: Plus,
+                    variant: 'primary',
+                    onSelect: () => {
+                      if (isReady) setShowAddModal(true)
+                    },
+                    disabled: !isReady,
+                  },
+                ]
+              : []
+          }
+        >
+          {readinessState === 'error' ? (
+            <div className='flex h-full flex-col items-center justify-center gap-2'>
+              <p className='text-[var(--text-error)] text-small leading-tight'>
+                {readinessError || 'Unable to load MCP server settings'}
+              </p>
+            </div>
+          ) : readinessState === 'loading' ? (
+            <SettingsEmptyState>Loading...</SettingsEmptyState>
+          ) : !hasServers ? (
+            <SettingsEmptyState>
+              {canEdit ? 'Click "Add server" above to get started' : 'No MCP servers configured'}
+            </SettingsEmptyState>
+          ) : (
+            <div className='flex flex-col gap-2'>
+              {filteredServers.map((server) => {
+                if (!server?.id) return null
+                const tools = toolsByServer[server.id] || []
+                const serverToolsState = toolsStateByServer.get(server.id)
+                const isLoadingTools = serverToolsState
+                  ? serverToolsState.isLoading || serverToolsState.isFetching
+                  : false
 
-              return (
-                <ServerListItem
-                  key={server.id}
-                  canManage={canEdit}
-                  server={server}
-                  tools={tools}
-                  isDeleting={deletingServers.has(server.id)}
-                  isConnecting={connectingOauthServers.has(server.id)}
-                  isLoadingTools={isLoadingTools}
-                  isRefreshing={
-                    refreshServerMutation.isPending &&
-                    refreshServerMutation.variables?.serverId === server.id
-                  }
-                  discoveryError={
-                    serverToolsState?.error ? getErrorMessage(serverToolsState.error) : null
-                  }
-                  onRemove={() => handleRemoveServer(server.id)}
-                  onViewDetails={() => handleViewDetails(server.id)}
-                  onAuthorize={() => startOauthForServer(server.id)}
-                />
-              )
-            })}
-            {showNoResults && (
-              <SettingsEmptyState variant='inline'>
-                No servers found matching &quot;{searchTerm}&quot;
-              </SettingsEmptyState>
-            )}
-          </div>
-        )}
-      </SettingsPanel>
+                return (
+                  <ServerListItem
+                    key={server.id}
+                    canManage={canEdit && isReady}
+                    server={server}
+                    tools={tools}
+                    isDeleting={deletingServers.has(server.id)}
+                    isConnecting={connectingOauthServers.has(server.id)}
+                    isLoadingTools={isLoadingTools}
+                    isRefreshing={
+                      refreshServerMutation.isPending &&
+                      refreshServerMutation.variables?.serverId === server.id
+                    }
+                    discoveryError={
+                      serverToolsState?.error ? getErrorMessage(serverToolsState.error) : null
+                    }
+                    onRemove={() => handleRemoveServer(server.id)}
+                    onViewDetails={() => handleViewDetails(server.id)}
+                    onAuthorize={() => startOauthForServer(server.id)}
+                  />
+                )
+              })}
+              {showNoResults && (
+                <SettingsEmptyState variant='inline'>
+                  No servers found matching &quot;{searchTerm}&quot;
+                </SettingsEmptyState>
+              )}
+            </div>
+          )}
+        </SettingsPanel>
+      </section>
+
+      {editModal}
 
       {canEdit && (
         <McpServerFormModal
@@ -713,6 +776,9 @@ export function MCP() {
           onOpenChange={setShowAddModal}
           mode='add'
           onSubmit={async (config) => {
+            if (!isReady) {
+              throw new Error(readinessError || 'MCP server settings are not ready')
+            }
             const result = await createServerMutation.mutateAsync({
               workspaceId,
               config: { ...config, enabled: true },
@@ -724,6 +790,8 @@ export function MCP() {
           workspaceId={workspaceId}
           availableEnvVars={availableEnvVars}
           allowedMcpDomains={allowedMcpDomains}
+          readinessState={readinessState}
+          readinessError={readinessError}
         />
       )}
 

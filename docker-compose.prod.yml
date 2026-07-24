@@ -84,6 +84,10 @@ services:
     working_dir: /app/packages/db
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
+      # Required once for an established pre-0266 database, including an empty
+      # SSO provider table. Set true only while provider writes are quiesced.
+      - SSO_PROVIDER_WRITES_QUIESCED=${SSO_PROVIDER_WRITES_QUIESCED:-}
+      - SSO_AUDIT_APPROVED_PROVIDER_IDS=${SSO_AUDIT_APPROVED_PROVIDER_IDS:-}
     depends_on:
       db:
         condition: service_healthy

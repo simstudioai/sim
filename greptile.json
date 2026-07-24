@@ -1,0 +1,3 @@
+{
+  "includeBranches": ["main", "staging", "dev"]
+}

@@ -74,9 +74,11 @@ export function CustomBlocks() {
 
   if (!canManage) {
     return (
-      <SettingsEmptyState>
-        Custom blocks require an Enterprise plan. Contact your admin to enable them.
-      </SettingsEmptyState>
+      <SettingsPanel>
+        <SettingsEmptyState>
+          Custom blocks require an Enterprise plan. Contact your admin to enable them.
+        </SettingsEmptyState>
+      </SettingsPanel>
     )
   }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChipDropdown, Plus, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
@@ -20,7 +20,9 @@ import {
   MemberSection,
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { resolveTeammatesDataState } from '@/app/workspace/[workspaceId]/settings/components/teammates/teammates-state'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import {
@@ -73,27 +75,67 @@ export function Teammates() {
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
 
-  const { data: permissions, isPending: permissionsLoading } =
-    useWorkspacePermissionsQuery(workspaceId)
-  const { data: invitations } = usePendingInvitations(workspaceId)
-  const { data: workspaces } = useWorkspacesQuery()
+  const {
+    data: permissions,
+    isPending: permissionsLoading,
+    isError: permissionsError,
+    isPlaceholderData: permissionsPlaceholder,
+  } = useWorkspacePermissionsQuery(workspaceId)
+  const {
+    data: invitations,
+    isPending: invitationsLoading,
+    isError: invitationsError,
+    isPlaceholderData: invitationsPlaceholder,
+  } = usePendingInvitations(workspaceId)
+  const {
+    data: workspaces,
+    isPending: workspacesLoading,
+    isError: workspacesError,
+    isPlaceholderData: workspacesPlaceholder,
+  } = useWorkspacesQuery()
 
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { isInvitationsDisabled: isInvitationsDisabledByConfig } = usePermissionConfig()
+  const {
+    isInvitationsDisabled: isInvitationsDisabledByConfig,
+    isPermissionLoading: permissionConfigLoading,
+    isPermissionError: permissionConfigError,
+  } = usePermissionConfig()
 
   const resendInvitation = useResendWorkspaceInvitation()
   const cancelInvitation = useCancelWorkspaceInvitation()
   const removeMember = useRemoveWorkspaceMember()
   const updatePermissions = useUpdateWorkspacePermissions()
 
-  const viewer = permissions?.viewer
-  const canManage = canMutateWorkspaceSettingsSection('teammates', {
-    canEdit: viewer?.permissionType === 'write' || viewer?.permissionType === 'admin',
-    canAdmin: Boolean(viewer?.isAdmin),
-  })
-
   const activeWorkspace = workspaces?.find((workspace) => workspace.id === workspaceId)
+  const queryDataState = resolveTeammatesDataState({
+    permissionsError,
+    invitationsError,
+    workspacesError,
+    permissionConfigError,
+    permissionsLoading,
+    permissionsPlaceholder,
+    invitationsLoading,
+    invitationsPlaceholder,
+    workspacesLoading,
+    workspacesPlaceholder,
+    permissionConfigLoading,
+  })
+  const dataState = queryDataState === 'ready' && !activeWorkspace ? 'error' : queryDataState
+  const hasLoadError = dataState === 'error'
+  const isLoading = dataState === 'loading'
+
+  const viewer = permissions?.viewer
+  const canManage =
+    canMutateWorkspaceSettingsSection('teammates', {
+      canEdit: viewer?.permissionType === 'write' || viewer?.permissionType === 'admin',
+      canAdmin: Boolean(viewer?.isAdmin),
+    }) && dataState === 'ready'
+
+  useEffect(() => {
+    if (!canManage) setIsInviteModalOpen(false)
+  }, [canManage])
+
   const inviteDisabledReason = activeWorkspace?.inviteDisabledReason ?? null
   const isInvitationsDisabled = isInvitationsDisabledByConfig || inviteDisabledReason !== null
 
@@ -154,151 +196,174 @@ export function Teammates() {
     )
   }, [teammates, searchTerm])
 
-  const showNoResults = !permissionsLoading && filteredTeammates.length === 0
+  const showNoResults = dataState === 'ready' && filteredTeammates.length === 0
 
   const handleRoleChange = (teammate: Teammate, role: WorkspacePermission) => {
     if (!teammate.userId || role === teammate.role) return
     updatePermissions.mutate({
       workspaceId,
+      organizationId: activeWorkspace?.organizationId ?? undefined,
       updates: [{ userId: teammate.userId, permissions: role }],
     })
   }
 
   return (
     <>
-      <SettingsPanel
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: 'Search teammates...',
-        }}
-        actions={
-          canManage
-            ? [
-                {
-                  text: 'Invite',
-                  icon: Plus,
-                  variant: 'primary',
-                  onSelect: handleInvite,
-                  tooltip: inviteDisabledReason ?? undefined,
-                  onPrefetch: isInvitationsDisabled ? prefetchUpgrade : undefined,
-                },
-              ]
-            : []
-        }
+      <section
+        aria-label='Workspace teammates'
+        aria-busy={isLoading}
+        data-teammates-state={dataState}
       >
-        <MemberSection
-          label={`Teammates (${teammates.length})`}
-          isEmpty={showNoResults}
-          emptyText={
-            searchTerm.trim() ? `No teammates found matching “${searchTerm}”` : 'No teammates yet'
+        <SettingsPanel
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: 'Search teammates...',
+          }}
+          actions={
+            canManage
+              ? [
+                  {
+                    text: 'Invite',
+                    icon: Plus,
+                    variant: 'primary',
+                    onSelect: handleInvite,
+                    tooltip: inviteDisabledReason ?? undefined,
+                    onPrefetch: isInvitationsDisabled ? prefetchUpgrade : undefined,
+                  },
+                ]
+              : []
           }
         >
-          {filteredTeammates.map((teammate) => (
-            <MemberRow
-              key={teammate.key}
-              name={teammate.name}
-              email={teammate.email}
-              image={teammate.image}
-              status={teammate.status}
-              roleControl={(() => {
-                const lockReason = teammate.isPending
-                  ? null
-                  : workspaceRoleLockReason(teammate.roleSource)
-                return (
-                  <RoleLockTooltip reason={lockReason}>
-                    <ChipDropdown
-                      value={teammate.role}
-                      onChange={(role) => handleRoleChange(teammate, role as WorkspacePermission)}
-                      options={ROLE_OPTIONS}
-                      matchTriggerWidth={false}
-                      disabled={
-                        teammate.isPending ||
-                        !canManage ||
-                        teammate.userId === viewer?.userId ||
-                        lockReason !== null
-                      }
-                    />
-                  </RoleLockTooltip>
-                )
-              })()}
-              menu={
-                <RowActionsMenu
-                  label='Teammate actions'
-                  actions={[
-                    {
-                      label: 'Copy email',
-                      onSelect: () => copyToClipboard(teammate.email),
-                    },
-                    ...(canManage && teammate.isPending
-                      ? [
-                          {
-                            label: 'Resend invite',
-                            onSelect: () => {
-                              if (teammate.invitationId) {
-                                resendInvitation.mutate({
-                                  invitationId: teammate.invitationId,
-                                  workspaceId,
-                                })
-                              }
-                            },
-                          },
-                          {
-                            label: 'Copy invite link',
-                            onSelect: () => {
-                              if (teammate.invitationId && teammate.token) {
-                                copyToClipboard(
-                                  buildInviteLink(teammate.invitationId, teammate.token)
-                                )
-                              }
-                            },
-                          },
-                          {
-                            label: 'Revoke invite',
-                            destructive: true,
-                            onSelect: () => {
-                              if (teammate.invitationId) {
-                                cancelInvitation.mutate({
-                                  invitationId: teammate.invitationId,
-                                  workspaceId,
-                                })
-                              }
-                            },
-                          },
-                        ]
-                      : []),
-                    ...(canManage && !teammate.isPending && teammate.userId !== viewer?.userId
-                      ? [
-                          {
-                            label: 'Remove',
-                            destructive: true,
-                            onSelect: () => {
-                              if (teammate.userId) {
-                                removeMember.mutate(
-                                  { userId: teammate.userId, workspaceId },
-                                  {
-                                    onError: (error) => {
-                                      toast.error("Couldn't remove teammate", {
-                                        description: getErrorMessage(
-                                          error,
-                                          'Please try again in a moment.'
-                                        ),
-                                      })
-                                    },
-                                  }
-                                )
-                              }
-                            },
-                          },
-                        ]
-                      : []),
-                  ]}
-                />
+          {hasLoadError ? (
+            <SettingsEmptyState>Unable to load teammates</SettingsEmptyState>
+          ) : isLoading ? null : (
+            <MemberSection
+              label={`Teammates (${teammates.length})`}
+              ariaLabel='Teammates'
+              isEmpty={showNoResults}
+              emptyText={
+                searchTerm.trim()
+                  ? `No teammates found matching “${searchTerm}”`
+                  : 'No teammates yet'
               }
-            />
-          ))}
-        </MemberSection>
-      </SettingsPanel>
+            >
+              {filteredTeammates.map((teammate) => (
+                <MemberRow
+                  key={teammate.key}
+                  name={teammate.name}
+                  email={teammate.email}
+                  image={teammate.image}
+                  status={teammate.status}
+                  roleControl={(() => {
+                    const lockReason = teammate.isPending
+                      ? null
+                      : workspaceRoleLockReason(teammate.roleSource)
+                    return (
+                      <RoleLockTooltip reason={lockReason}>
+                        <ChipDropdown
+                          value={teammate.role}
+                          onChange={(role) =>
+                            handleRoleChange(teammate, role as WorkspacePermission)
+                          }
+                          options={ROLE_OPTIONS}
+                          matchTriggerWidth={false}
+                          disabled={
+                            teammate.isPending ||
+                            !canManage ||
+                            teammate.userId === viewer?.userId ||
+                            lockReason !== null
+                          }
+                        />
+                      </RoleLockTooltip>
+                    )
+                  })()}
+                  menu={
+                    <RowActionsMenu
+                      label='Teammate actions'
+                      actions={[
+                        {
+                          label: 'Copy email',
+                          onSelect: () => copyToClipboard(teammate.email),
+                        },
+                        ...(canManage && teammate.isPending
+                          ? [
+                              {
+                                label: 'Resend invite',
+                                onSelect: () => {
+                                  if (teammate.invitationId) {
+                                    resendInvitation.mutate({
+                                      invitationId: teammate.invitationId,
+                                      workspaceId,
+                                      organizationId: activeWorkspace?.organizationId ?? undefined,
+                                    })
+                                  }
+                                },
+                              },
+                              {
+                                label: 'Copy invite link',
+                                onSelect: () => {
+                                  if (teammate.invitationId && teammate.token) {
+                                    copyToClipboard(
+                                      buildInviteLink(teammate.invitationId, teammate.token)
+                                    )
+                                  }
+                                },
+                              },
+                              {
+                                label: 'Revoke invite',
+                                destructive: true,
+                                onSelect: () => {
+                                  if (teammate.invitationId) {
+                                    cancelInvitation.mutate({
+                                      invitationId: teammate.invitationId,
+                                      workspaceId,
+                                      organizationId: activeWorkspace?.organizationId ?? undefined,
+                                    })
+                                  }
+                                },
+                              },
+                            ]
+                          : []),
+                        ...(canManage && !teammate.isPending && teammate.userId !== viewer?.userId
+                          ? [
+                              {
+                                label: 'Remove',
+                                destructive: true,
+                                onSelect: () => {
+                                  if (teammate.userId) {
+                                    removeMember.mutate(
+                                      {
+                                        userId: teammate.userId,
+                                        workspaceId,
+                                        organizationId:
+                                          activeWorkspace?.organizationId ?? undefined,
+                                      },
+                                      {
+                                        onError: (error) => {
+                                          toast.error("Couldn't remove teammate", {
+                                            description: getErrorMessage(
+                                              error,
+                                              'Please try again in a moment.'
+                                            ),
+                                          })
+                                        },
+                                      }
+                                    )
+                                  }
+                                },
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
+                  }
+                />
+              ))}
+            </MemberSection>
+          )}
+        </SettingsPanel>
+      </section>
 
       {canManage && (
         <InviteModal

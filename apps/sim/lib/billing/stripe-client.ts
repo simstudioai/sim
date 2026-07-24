@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import Stripe from 'stripe'
+import { buildStripeClientConfig } from '@/lib/billing/stripe-client-config'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('StripeClient')
@@ -37,9 +38,7 @@ const createStripeClientSingleton = () => {
       try {
         isInitializing = true
 
-        stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', {
-          apiVersion: '2025-08-27.basil',
-        })
+        stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', buildStripeClientConfig(env))
 
         logger.info('Stripe client initialized successfully')
         return stripeClient

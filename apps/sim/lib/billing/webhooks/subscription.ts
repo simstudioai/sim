@@ -6,8 +6,9 @@ import { and, eq, inArray, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
-import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import { isEnterprise, isPaid, isPro } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { hasOtherEntitledOrganizationSubscription } from '@/lib/billing/subscriptions/organization-coverage'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
 import {
@@ -82,32 +83,6 @@ export interface OrganizationDormantTransitionResult {
   organizationRetainsTeamOrEnterprise: boolean
 }
 
-/**
- * Returns true when the organization is still covered by an **active
- * Team or Enterprise** subscription other than `excludeSubscriptionId`.
- * The org keeps its team-owned workspaces only while such a sub exists;
- * a Pro sub on the org does not count.
- */
-async function hasOtherActiveTeamOrEnterpriseSubscription(
-  organizationId: string,
-  excludeSubscriptionId: string | null
-): Promise<boolean> {
-  const filters = [
-    eq(subscription.referenceId, organizationId),
-    inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
-  ]
-  if (excludeSubscriptionId) {
-    filters.push(ne(subscription.id, excludeSubscriptionId))
-  }
-
-  const rows = await db
-    .select({ plan: subscription.plan })
-    .from(subscription)
-    .where(and(...filters))
-
-  return rows.some((row) => isTeam(row.plan) || isEnterprise(row.plan))
-}
-
 async function transitionOrganizationToDormantState(
   organizationId: string,
   triggeringSubscriptionId: string | null
@@ -117,7 +92,7 @@ async function transitionOrganizationToDormantState(
     .from(member)
     .where(eq(member.organizationId, organizationId))
 
-  if (await hasOtherActiveTeamOrEnterpriseSubscription(organizationId, triggeringSubscriptionId)) {
+  if (await hasOtherEntitledOrganizationSubscription(organizationId, triggeringSubscriptionId)) {
     logger.info(
       'Skipping dormant transition - another Team/Enterprise subscription still covers this organization',
       { organizationId, triggeringSubscriptionId }

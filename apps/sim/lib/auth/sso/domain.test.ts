@@ -9,31 +9,34 @@ describe('normalizeSSODomain', () => {
     expect(normalizeSSODomain('  Company.COM ')).toBe('company.com')
   })
 
-  it('strips protocol, path, query, and port', () => {
-    expect(normalizeSSODomain('https://company.com/sso?x=1')).toBe('company.com')
-    expect(normalizeSSODomain('company.com:8443')).toBe('company.com')
-  })
-
-  it('strips wildcard, leading @, and email local part', () => {
-    expect(normalizeSSODomain('*.company.com')).toBe('company.com')
-    expect(normalizeSSODomain('@company.com')).toBe('company.com')
-    expect(normalizeSSODomain('user@company.com')).toBe('company.com')
-  })
-
   it('drops a trailing dot', () => {
     expect(normalizeSSODomain('company.com.')).toBe('company.com')
   })
 
-  it('treats casing and formatting variants as the same domain', () => {
+  it('treats casing variants as the same domain', () => {
     expect(normalizeSSODomain('Company.COM')).toBe(normalizeSSODomain('company.com'))
-    expect(normalizeSSODomain('user@Company.com')).toBe(normalizeSSODomain('company.com'))
   })
 
-  it('rejects values that are not registrable domains', () => {
+  it('accepts registrable domains and subdomains', () => {
+    expect(normalizeSSODomain('login.company.co.uk')).toBe('login.company.co.uk')
+  })
+
+  it('rejects transformed values and comma lists', () => {
+    expect(normalizeSSODomain('https://company.com/sso')).toBeNull()
+    expect(normalizeSSODomain('company.com:8443')).toBeNull()
+    expect(normalizeSSODomain('*.company.com')).toBeNull()
+    expect(normalizeSSODomain('@company.com')).toBeNull()
+    expect(normalizeSSODomain('user@company.com')).toBeNull()
+    expect(normalizeSSODomain('company.com,subsidiary.com')).toBeNull()
+  })
+
+  it('rejects values that are not registrable or use unknown suffixes', () => {
     expect(normalizeSSODomain('')).toBeNull()
     expect(normalizeSSODomain('localhost')).toBeNull()
     expect(normalizeSSODomain('not a domain')).toBeNull()
     expect(normalizeSSODomain('company')).toBeNull()
+    expect(normalizeSSODomain('company.invalid')).toBeNull()
+    expect(normalizeSSODomain('com')).toBeNull()
   })
 
   it('rejects bare IP addresses and numeric TLDs', () => {

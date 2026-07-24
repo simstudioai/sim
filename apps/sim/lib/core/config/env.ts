@@ -70,7 +70,9 @@ export const env = createEnv({
     REDIS_TLS_SERVERNAME:                  z.string().min(1).optional(),           // TLS SNI override; required when REDIS_URL targets an IP over rediss:// (e.g. trigger.dev PrivateLink VPCE IP) so cert hostname verification matches the ElastiCache cert's CN
 
     // Payment & Billing
+    E2E_PROFILE:                           z.string().min(1).optional(),           // Server-only E2E deployment profile selector
     STRIPE_SECRET_KEY:                     z.string().min(1).optional(),           // Stripe secret key for payment processing
+    STRIPE_API_BASE_URL:                   z.string().url().optional(),            // Guarded server-only Stripe API override for E2E fakes
     STRIPE_WEBHOOK_SECRET:                 z.string().min(1).optional(),           // General Stripe webhook secret
     STRIPE_FREE_PRICE_ID:                  z.string().min(1).optional(),           // Stripe price ID for free tier
     FREE_TIER_COST_LIMIT:                  z.number().optional(),                  // Cost limit for free tier users
@@ -491,6 +493,7 @@ export const env = createEnv({
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
+    SSO_DOMAIN_VERIFICATION_ENABLED:       z.boolean().optional(),                 // Enable verified-domain enforcement after the schema migration and provider audit
     SSO_PROVIDER_TYPE:                     z.enum(['oidc', 'saml']).optional(),    // [REQUIRED] SSO provider type
     SSO_PROVIDER_ID:                       z.string().optional(),                  // [REQUIRED] SSO provider ID
     SSO_ISSUER:                            z.string().optional(),                  // [REQUIRED] SSO issuer URL

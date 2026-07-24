@@ -21,6 +21,8 @@
   "scripts": {
     "db:push": "bunx drizzle-kit push --config=./drizzle.config.ts",
     "db:migrate": "bun --env-file=.env run ./scripts/migrate.ts",
+    "db:audit-sso-providers": "bun --env-file=.env run ./scripts/audit-sso-providers.ts",
+    "db:rehearse-sso-migration": "bun --no-env-file run ./scripts/rehearse-sso-migration.ts",
     "db:reconcile-workspace-storage": "bun --env-file=.env run ./scripts/reconcile-workspace-storage.ts",
     "db:studio": "bunx drizzle-kit studio --config=./drizzle.config.ts",
     "test": "vitest run",
@@ -35,6 +37,7 @@
     "@sim/utils": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5",
+    "tldts": "7.0.30",
     "zod": "4.3.6"
   },
   "devDependencies": {

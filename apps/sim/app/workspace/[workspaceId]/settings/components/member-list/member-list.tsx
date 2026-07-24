@@ -55,7 +55,7 @@ interface MemberRowProps {
  */
 export function MemberRow({ name, email, image, status, roleControl, menu }: MemberRowProps) {
   return (
-    <div className={ROW_CLASSES}>
+    <div role='group' aria-label={email} className={ROW_CLASSES}>
       <MemberAvatar name={name} image={image} />
       <span className={ROW_EMAIL_CLASSES}>{email}</span>
       <span className={ROW_STATUS_CLASSES}>{status}</span>
@@ -68,6 +68,8 @@ export function MemberRow({ name, email, image, status, roleControl, menu }: Mem
 interface MemberSectionProps {
   /** Section label, e.g. "Teammates (3)" or a workspace name with a count. */
   label: string
+  /** Stable accessible name when `label` includes a mutable count. */
+  ariaLabel?: string
   /** Renders the empty state instead of the row group. */
   isEmpty?: boolean
   /** Copy shown when {@link isEmpty} is true. */
@@ -82,12 +84,13 @@ interface MemberSectionProps {
  */
 export function MemberSection({
   label,
+  ariaLabel,
   isEmpty = false,
   emptyText = 'No members yet',
   children,
 }: MemberSectionProps) {
   return (
-    <SettingsSection label={label}>
+    <SettingsSection label={label} ariaLabel={ariaLabel}>
       {isEmpty ? (
         <SettingsEmptyState variant='inline'>{emptyText}</SettingsEmptyState>
       ) : (
