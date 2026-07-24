@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http'
+import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { safeCompare } from '@sim/security/compare'
 import { env } from '@/env'
 import { type IRoomManager, WorkflowRoomService } from '@/rooms'
@@ -148,6 +149,28 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       } catch (error) {
         logger.error('Error handling workflow revert notification:', error)
         sendError(res, 'Failed to process revert notification')
+      }
+      return
+    }
+
+    // Fan out a file-tree change to everyone viewing a workspace's files, so their
+    // browser refetches. File mutations happen over the HTTP API (not the socket);
+    // this is the lossy liveness signal — a missed one only means stale-until-refetch.
+    if (req.method === 'POST' && req.url === '/api/workspace-files-changed') {
+      try {
+        const body = await readRequestBody(req)
+        const { workspaceId } = JSON.parse(body)
+        if (typeof workspaceId === 'string' && workspaceId.length > 0) {
+          roomManager.emitToRoom(
+            { type: ROOM_TYPES.WORKSPACE_FILES, id: workspaceId },
+            'workspace-files-changed',
+            { workspaceId, timestamp: Date.now() }
+          )
+        }
+        sendSuccess(res)
+      } catch (error) {
+        logger.error('Error handling workspace files changed notification:', error)
+        sendError(res, 'Failed to process files change notification')
       }
       return
     }

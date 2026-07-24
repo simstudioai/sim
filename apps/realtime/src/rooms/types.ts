@@ -19,6 +19,11 @@ export interface UserPresence {
   cursor?: { x: number; y: number }
   selection?: { type: 'block' | 'edge' | 'none'; id?: string }
   avatarUrl?: string | null
+  /**
+   * The subfolder the user is viewing, recorded at join for room types that track
+   * a per-viewer location (e.g. the workspace file browser). `null` is the root.
+   */
+  folderId?: string | null
 }
 
 /**

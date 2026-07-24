@@ -40,7 +40,7 @@ async function fetchWorkspaceFileFolders(
   return data.folders
 }
 
-function invalidateWorkspaceFileBrowsers(
+export function invalidateWorkspaceFileBrowsers(
   queryClient: ReturnType<typeof useQueryClient>,
   workspaceId: string
 ) {

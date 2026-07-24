@@ -61,6 +61,7 @@ import {
   Resource,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
+import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
 import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
@@ -74,6 +75,7 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import {
   filesFilterParsers,
@@ -202,6 +204,11 @@ export function Files() {
   const userPermissions = useUserPermissionsContext()
   const canEdit = userPermissions.canEdit === true
   const { config: permissionConfig } = usePermissionConfig()
+
+  const { otherUsers: filesPresenceUsers } = useWorkspaceFilesRoom(
+    workspaceId,
+    currentFolderId ?? null
+  )
 
   useEffect(() => {
     if (permissionConfig.hideFilesTab) {
@@ -1959,6 +1966,7 @@ export function Files() {
           title='Files'
           breadcrumbs={listBreadcrumbs}
           actions={headerActionsConfig}
+          aside={<PresenceAvatars users={filesPresenceUsers} />}
         />
         <Resource.Options
           search={searchConfig}
