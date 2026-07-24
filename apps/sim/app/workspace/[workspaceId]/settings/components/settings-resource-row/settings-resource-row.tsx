@@ -20,6 +20,11 @@ interface SettingsResourceRowProps {
    * normalize to 20px so a fallback icon doesn't balloon.
    */
   iconFill?: boolean
+  /**
+   * Fills the tile like the skills/tools resource tiles instead of the default
+   * page-background tile, so a settings list can match its gallery counterpart.
+   */
+  iconFilled?: boolean
   /** Primary line — truncates. */
   title: ReactNode
   /** Secondary muted line — truncates. */
@@ -29,11 +34,12 @@ interface SettingsResourceRowProps {
 }
 
 const TILE_BASE =
-  'flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] [&_svg]:size-5'
+  'flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] [&_svg]:size-5'
 
 export function SettingsResourceRow({
   icon,
   iconFill = false,
+  iconFilled = false,
   title,
   description,
   trailing,
@@ -41,7 +47,13 @@ export function SettingsResourceRow({
   return (
     <div className='flex items-center justify-between gap-2.5'>
       <div className='flex min-w-0 items-center gap-2.5'>
-        <div className={cn(TILE_BASE, iconFill ? '[&_img]:size-full' : '[&_img]:size-5')}>
+        <div
+          className={cn(
+            TILE_BASE,
+            iconFilled ? 'bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' : 'bg-[var(--bg)]',
+            iconFill ? '[&_img]:size-full' : '[&_img]:size-5'
+          )}
+        >
           {icon}
         </div>
         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>

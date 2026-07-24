@@ -155,6 +155,7 @@ export const mistralProvider: ProviderConfig = {
           timing: { kind: 'simple', segmentName: request.model },
           initialTokens: { input: 0, output: 0, total: 0 },
           initialCost: { input: 0, output: 0, total: 0 },
+          streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
             createReadableStreamFromMistralStream(streamResponse, (content, usage) => {
               output.content = content
@@ -480,6 +481,7 @@ export const mistralProvider: ProviderConfig = {
                   count: toolCalls.length,
                 }
               : undefined,
+          streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
             createReadableStreamFromMistralStream(streamResponse, (content, usage) => {
               output.content = content

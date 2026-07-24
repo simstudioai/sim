@@ -1,5 +1,5 @@
 {
-  "id": "6c7b1105-fc72-40fe-9e57-18f3d53eebfe",
+  "id": "dd2e88e1-ce36-426e-9857-a9f8ab6141fb",
   "prevId": "18059bad-80c8-4739-a925-3883824a5cd2",
   "version": "7",
   "dialect": "postgresql",
@@ -1171,6 +1171,13 @@
           "primaryKey": false,
           "notNull": false,
           "default": "'[]'"
+        },
+        "include_thinking": {
+          "name": "include_thinking",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "archived_at": {
           "name": "archived_at",
@@ -10232,163 +10239,6 @@
           "tableFrom": "skill",
           "tableTo": "user",
           "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.sso_domain": {
-      "name": "sso_domain",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "domain": {
-          "name": "domain",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "verification_token": {
-          "name": "verification_token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "verified_at": {
-          "name": "verified_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "sso_domain_organization_id_idx": {
-          "name": "sso_domain_organization_id_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "sso_domain_domain_idx": {
-          "name": "sso_domain_domain_idx",
-          "columns": [
-            {
-              "expression": "domain",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "sso_domain_org_domain_unique": {
-          "name": "sso_domain_org_domain_unique",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "domain",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "sso_domain_verified_unique": {
-          "name": "sso_domain_verified_unique",
-          "columns": [
-            {
-              "expression": "domain",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "status = 'verified'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "sso_domain_organization_id_organization_id_fk": {
-          "name": "sso_domain_organization_id_organization_id_fk",
-          "tableFrom": "sso_domain",
-          "tableTo": "organization",
-          "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "sso_domain_created_by_user_id_fk": {
-          "name": "sso_domain_created_by_user_id_fk",
-          "tableFrom": "sso_domain",
-          "tableTo": "user",
-          "columnsFrom": ["created_by"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"

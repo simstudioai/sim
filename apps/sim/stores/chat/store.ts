@@ -232,6 +232,14 @@ export const useChatStore = create<ChatState>()(
           })
         },
 
+        setMessageContent: (messageId, content) => {
+          set((state) => ({
+            messages: state.messages.map((message) =>
+              message.id === messageId ? { ...message, content } : message
+            ),
+          }))
+        },
+
         finalizeMessageStream: (messageId) => {
           set((state) => {
             const newMessages = state.messages.map((message) => {

@@ -345,10 +345,23 @@ describe('Knowledge Utils', () => {
     it('should throw error when no API configuration provided', async () => {
       const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
+      // The env object lazily reads process.env, so a developer's local .env
+      // keys survive the deletion above — stub the direct key empty and fail
+      // the hosted rotation fallback for hermeticity on any machine.
+      vi.stubEnv('OPENAI_API_KEY', '')
+      const apiKeysModule = await import('@/lib/core/config/api-keys')
+      const rotationSpy = vi.spyOn(apiKeysModule, 'getRotatingApiKey').mockImplementation(() => {
+        throw new Error('No rotation keys configured')
+      })
 
-      await expect(generateEmbeddings(['test text'])).rejects.toThrow(
-        'OPENAI_API_KEY is not configured'
-      )
+      try {
+        await expect(generateEmbeddings(['test text'])).rejects.toThrow(
+          'OPENAI_API_KEY is not configured'
+        )
+      } finally {
+        rotationSpy.mockRestore()
+        vi.unstubAllEnvs()
+      }
     })
   })
 })

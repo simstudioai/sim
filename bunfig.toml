@@ -11,6 +11,9 @@ minimumReleaseAge = 604800
 # July 2026 advisories (SSRF, cache confusion, DoS, middleware bypass — GHSA-89xv-2m56-2m9x
 # et al.); published 2026-07-21, they age out of the gate on 2026-07-28 — drop these two
 # entries then.
+# @anthropic-ai/sdk is exactly pinned to 0.114.0, vetted for the agent-events
+# streaming work (adaptive thinking display types + transform-json-schema);
+# published 2026-07-23, it ages out of the gate on 2026-07-30 — drop this entry then.
 minimumReleaseAgeExcludes = [
   "@typescript/native-preview",
   "@earendil-works/pi-agent-core",
@@ -19,6 +22,7 @@ minimumReleaseAgeExcludes = [
   "@earendil-works/pi-tui",
   "next",
   "@next/env",
+  "@anthropic-ai/sdk",
 ]
 
 [run]

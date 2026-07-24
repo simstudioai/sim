@@ -3,8 +3,14 @@ import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema
 import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages/messages'
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import type { BlockTokens, IterationToolCall, StreamingExecution } from '@/executor/types'
+import type {
+  BlockTokens,
+  IterationToolCall,
+  NormalizedBlockOutput,
+  StreamingExecution,
+} from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { createAnthropicStreamingToolLoopStream } from '@/providers/anthropic/streaming-tool-loop'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromAnthropicStream,
@@ -45,12 +51,12 @@ export interface AnthropicProviderConfig {
 
 /**
  * Custom payload type extending the SDK's base message creation params.
- * Adds fields not yet in the SDK: adaptive thinking, output_format, output_config.
+ * Message params plus `output_format`: Sim's structured outputs ride the
+ * anthropic-beta header with a top-level `output_format` field, which the SDK
+ * does not model (it exposes the newer `output_config.format` shape instead).
  */
-interface AnthropicPayload extends Omit<Anthropic.Messages.MessageStreamParams, 'thinking'> {
-  thinking?: Anthropic.Messages.ThinkingConfigParam | { type: 'adaptive' }
+interface AnthropicPayload extends Anthropic.Messages.MessageStreamParams {
   output_format?: { type: 'json_schema'; schema: Record<string, unknown> }
-  output_config?: { effort: string }
 }
 
 /**
@@ -119,14 +125,21 @@ function supportsAdaptiveThinking(modelId: string): boolean {
  * - Opus 4.6, Sonnet 4.6: Uses adaptive thinking with effort parameter
  * - Other models: Uses budget_tokens-based extended thinking
  *
+ * The newest Claude generations default `thinking.display` to `omitted`
+ * (empty thinking blocks, no thinking deltas). Their registry entries mark
+ * `capabilities.thinking.streamed: 'summary'`, and for those models Sim opts
+ * back in with `display: 'summarized'` — but only on agent-events runs, so
+ * legacy runs keep the exact pre-agent-events request shape.
+ *
  * Returns both the thinking config and optional output_config for adaptive thinking.
  */
-function buildThinkingConfig(
+export function buildThinkingConfig(
   modelId: string,
-  thinkingLevel: string
+  thinkingLevel: string,
+  agentEvents: boolean
 ): {
-  thinking: { type: 'enabled'; budget_tokens: number } | { type: 'adaptive' }
-  outputConfig?: { effort: string }
+  thinking: Anthropic.Messages.ThinkingConfigParam
+  outputConfig?: Anthropic.Messages.OutputConfig
 } | null {
   const capability = getThinkingCapability(modelId)
   if (!capability || !capability.levels.includes(thinkingLevel)) {
@@ -135,9 +148,14 @@ function buildThinkingConfig(
 
   // Models with effort support use adaptive thinking
   if (supportsAdaptiveThinking(modelId)) {
+    const requestSummarizedDisplay = agentEvents && capability.streamed === 'summary'
     return {
-      thinking: { type: 'adaptive' },
-      outputConfig: { effort: thinkingLevel },
+      thinking: {
+        type: 'adaptive',
+        ...(requestSummarizedDisplay ? { display: 'summarized' as const } : {}),
+      },
+      // Levels are validated against the model's capability list above.
+      outputConfig: { effort: thinkingLevel as Anthropic.Messages.OutputConfig['effort'] },
     }
   }
 
@@ -337,7 +355,11 @@ export async function executeAnthropicProviderRequest(
   // Add extended thinking configuration if supported and requested
   // The 'none' sentinel means "disable thinking" — skip configuration entirely.
   if (request.thinkingLevel && request.thinkingLevel !== 'none') {
-    const thinkingConfig = buildThinkingConfig(request.model, request.thinkingLevel)
+    const thinkingConfig = buildThinkingConfig(
+      request.model,
+      request.thinkingLevel,
+      request.agentEvents === true
+    )
     if (thinkingConfig) {
       payload.thinking = thinkingConfig.thinking
       if (thinkingConfig.outputConfig) {
@@ -403,6 +425,56 @@ export async function executeAnthropicProviderRequest(
 
   const shouldStreamToolCalls = request.streamToolCalls ?? false
 
+  if (request.stream && shouldStreamToolCalls && anthropicTools && anthropicTools.length > 0) {
+    logger.info(`Using streaming tool loop for ${providerLabel} request`)
+
+    const providerStartTime = Date.now()
+    const providerStartTimeISO = new Date(providerStartTime).toISOString()
+    const timeSegments: TimeSegment[] = []
+    const forcedTools = preparedTools?.forcedTools || []
+
+    return createStreamingExecution({
+      model: request.model,
+      providerStartTime,
+      providerStartTimeISO,
+      timing: {
+        kind: 'accumulated',
+        modelTime: 0,
+        toolsTime: 0,
+        firstResponseTime: 0,
+        iterations: 1,
+        timeSegments,
+      },
+      initialTokens: { input: 0, output: 0, total: 0 },
+      initialCost: { total: 0.0, input: 0.0, output: 0.0 },
+      isStreaming: true,
+      streamFormat: 'agent-events-v1',
+      createStream: ({ output, finalizeTiming }) =>
+        createAnthropicStreamingToolLoopStream({
+          anthropic,
+          payload,
+          request,
+          messages,
+          logger,
+          timeSegments,
+          forcedTools,
+          onComplete: (result) => {
+            output.content = result.content
+            output.tokens = result.tokens
+            output.cost = result.cost
+            output.toolCalls = result.toolCalls as NormalizedBlockOutput['toolCalls']
+            if (output.providerTiming) {
+              output.providerTiming.modelTime = result.modelTime
+              output.providerTiming.toolsTime = result.toolsTime
+              output.providerTiming.firstResponseTime = result.firstResponseTime
+              output.providerTiming.iterations = result.iterations
+            }
+            finalizeTiming()
+          },
+        }),
+    })
+  }
+
   if (request.stream && (!anthropicTools || anthropicTools.length === 0)) {
     logger.info(`Using streaming response for ${providerLabel} request (no tools)`)
 
@@ -425,10 +497,11 @@ export async function executeAnthropicProviderRequest(
       initialTokens: { input: 0, output: 0, total: 0 },
       initialCost: { total: 0.0, input: 0.0, output: 0.0 },
       isStreaming: true,
+      streamFormat: 'agent-events-v1',
       createStream: ({ output, finalizeTiming }) =>
         createReadableStreamFromAnthropicStream(
           streamResponse as AsyncIterable<RawMessageStreamEvent>,
-          (content, usage) => {
+          ({ content, usage, thinking }) => {
             output.content = content
             output.tokens = {
               input: usage.input_tokens,
@@ -441,6 +514,13 @@ export async function executeAnthropicProviderRequest(
               input: costResult.input,
               output: costResult.output,
               total: costResult.total,
+            }
+
+            if (thinking) {
+              const segment = output.providerTiming?.timeSegments?.[0]
+              if (segment) {
+                segment.thinkingContent = thinking
+              }
             }
 
             finalizeTiming()
@@ -805,10 +885,11 @@ export async function executeAnthropicProviderRequest(
         },
         toolCalls: toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
         isStreaming: true,
+        streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
           createReadableStreamFromAnthropicStream(
             streamResponse as AsyncIterable<RawMessageStreamEvent>,
-            (streamContent, usage) => {
+            ({ content: streamContent, usage, thinking }) => {
               output.content = streamContent
               output.tokens = {
                 input: tokens.input + usage.input_tokens,
@@ -827,6 +908,16 @@ export async function executeAnthropicProviderRequest(
                 output: accumulatedCost.output + streamCost.output,
                 toolCost: tc || undefined,
                 total: accumulatedCost.total + streamCost.total + tc,
+              }
+
+              if (thinking) {
+                const segments = output.providerTiming?.timeSegments
+                const lastModel = segments
+                  ? [...segments].reverse().find((segment) => segment.type === 'model')
+                  : undefined
+                if (lastModel) {
+                  lastModel.thinkingContent = thinking
+                }
               }
 
               finalizeTiming()
@@ -1228,10 +1319,11 @@ export async function executeAnthropicProviderRequest(
         },
         toolCalls: toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
         isStreaming: true,
+        streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
           createReadableStreamFromAnthropicStream(
             streamResponse as AsyncIterable<RawMessageStreamEvent>,
-            (streamContent, usage) => {
+            ({ content: streamContent, usage, thinking }) => {
               output.content = streamContent
               output.tokens = {
                 input: tokens.input + usage.input_tokens,
@@ -1250,6 +1342,16 @@ export async function executeAnthropicProviderRequest(
                 output: cost.output + streamCost.output,
                 toolCost: tc2 || undefined,
                 total: cost.total + streamCost.total + tc2,
+              }
+
+              if (thinking) {
+                const segments = output.providerTiming?.timeSegments
+                const lastModel = segments
+                  ? [...segments].reverse().find((segment) => segment.type === 'model')
+                  : undefined
+                if (lastModel) {
+                  lastModel.thinkingContent = thinking
+                }
               }
 
               finalizeTiming()

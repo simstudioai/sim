@@ -1,11 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { Groq } from 'groq-sdk'
-import type { StreamingExecution } from '@/executor/types'
+import type { ChatCompletionCreateParamsStreaming as GroqChatCompletionCreateParamsStreaming } from 'groq-sdk/resources/chat/completions'
+import type {
+  ChatCompletionChunk,
+  ChatCompletionMessageParam,
+} from 'openai/resources/chat/completions'
+import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import { createReadableStreamFromGroqStream } from '@/providers/groq/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-compat/streaming-tool-loop'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
@@ -77,6 +83,27 @@ export const groqProvider: ProviderConfig = {
     if (request.temperature !== undefined) payload.temperature = request.temperature
     if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
 
+    /**
+     * Groq reasoning: GPT-OSS uses include_reasoning + reasoning_effort; Qwen
+     * uses reasoning_format: parsed (compatible with tools) and disables via
+     * reasoning_effort: none. Reasoning params are only sent when the user set
+     * a thinking level or an explicit effort — otherwise the request keeps the
+     * legacy shape (Groq's server defaults already match what would be sent).
+     */
+    const groqModelId = payload.model as string
+    const isGptOss = groqModelId.includes('gpt-oss')
+    const isQwenReasoning = /qwen3/i.test(groqModelId)
+    const hasExplicitEffort = Boolean(request.reasoningEffort && request.reasoningEffort !== 'auto')
+    const hasThinkingLevel = Boolean(request.thinkingLevel && request.thinkingLevel !== 'none')
+    if (isGptOss && (hasExplicitEffort || hasThinkingLevel)) {
+      payload.include_reasoning = true
+      payload.reasoning_effort = hasExplicitEffort ? request.reasoningEffort : 'medium'
+    } else if (isQwenReasoning && hasThinkingLevel) {
+      payload.reasoning_format = 'parsed'
+    } else if (isQwenReasoning && request.thinkingLevel === 'none') {
+      payload.reasoning_effort = 'none'
+    }
+
     if (request.responseFormat) {
       payload.response_format = {
         type: 'json_schema',
@@ -112,6 +139,71 @@ export const groqProvider: ProviderConfig = {
       }
     }
 
+    const shouldStreamToolCalls = request.streamToolCalls ?? false
+
+    if (request.stream && shouldStreamToolCalls && payload.tools?.length) {
+      logger.info('Using streaming tool loop for Groq request')
+
+      const providerStartTime = Date.now()
+      const providerStartTimeISO = new Date(providerStartTime).toISOString()
+      const timeSegments: TimeSegment[] = []
+
+      return createStreamingExecution({
+        model: request.model,
+        providerStartTime,
+        providerStartTimeISO,
+        timing: {
+          kind: 'accumulated',
+          modelTime: 0,
+          toolsTime: 0,
+          firstResponseTime: 0,
+          iterations: 1,
+          timeSegments,
+        },
+        initialTokens: { input: 0, output: 0, total: 0 },
+        initialCost: { total: 0.0, input: 0.0, output: 0.0 },
+        isStreaming: true,
+        streamFormat: 'agent-events-v1',
+        createStream: ({ output, finalizeTiming }) =>
+          createOpenAICompatStreamingToolLoopStream({
+            providerName: 'Groq',
+            request,
+            basePayload: payload,
+            // double-cast-allowed: formatMessagesForProvider returns loosely-typed provider messages that are wire-compatible with the OpenAI chat.completions message params the shared loop expects
+            messages: formattedMessages as unknown as ChatCompletionMessageParam[],
+            createStream: async (params, options) => {
+              const groqParams = {
+                ...params,
+                stream: true,
+                // double-cast-allowed: groq-sdk chat params are wire-compatible with the OpenAI-typed payload built by the shared compat tool loop
+              } as unknown as GroqChatCompletionCreateParamsStreaming
+              const stream = await groq.chat.completions.create(groqParams, options)
+              // double-cast-allowed: groq-sdk stream chunks are wire-compatible with the OpenAI ChatCompletionChunk shape the shared compat loop consumes
+              return stream as unknown as AsyncIterable<ChatCompletionChunk>
+            },
+            logger,
+            timeSegments,
+            forcedTools,
+            preserveAssistantReasoning:
+              (!!request.thinkingLevel && request.thinkingLevel !== 'none') ||
+              (payload.model as string).includes('gpt-oss'),
+            onComplete: (result) => {
+              output.content = result.content
+              output.tokens = result.tokens
+              output.cost = result.cost
+              output.toolCalls = result.toolCalls as NormalizedBlockOutput['toolCalls']
+              if (output.providerTiming) {
+                output.providerTiming.modelTime = result.modelTime
+                output.providerTiming.toolsTime = result.toolsTime
+                output.providerTiming.firstResponseTime = result.firstResponseTime
+                output.providerTiming.iterations = result.iterations
+              }
+              finalizeTiming()
+            },
+          }),
+      })
+    }
+
     if (request.stream && (!tools || tools.length === 0)) {
       logger.info('Using streaming response for Groq request (no tools)')
 
@@ -134,26 +226,38 @@ export const groqProvider: ProviderConfig = {
         initialTokens: { input: 0, output: 0, total: 0 },
         initialCost: { input: 0, output: 0, total: 0 },
         isStreaming: true,
+        streamFormat: 'agent-events-v1',
         createStream: ({ output }) =>
-          createReadableStreamFromGroqStream(streamResponse as any, (content, usage) => {
-            output.content = content
-            output.tokens = {
-              input: usage.prompt_tokens,
-              output: usage.completion_tokens,
-              total: usage.total_tokens,
-            }
+          createReadableStreamFromGroqStream(
+            // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; groq-sdk stream chunks are wire-compatible with the OpenAI ChatCompletionChunk shape the adapter consumes
+            streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
+            (content, usage, thinking) => {
+              output.content = content
+              output.tokens = {
+                input: usage.prompt_tokens,
+                output: usage.completion_tokens,
+                total: usage.total_tokens,
+              }
 
-            const costResult = calculateCost(
-              request.model,
-              usage.prompt_tokens,
-              usage.completion_tokens
-            )
-            output.cost = {
-              input: costResult.input,
-              output: costResult.output,
-              total: costResult.total,
+              const costResult = calculateCost(
+                request.model,
+                usage.prompt_tokens,
+                usage.completion_tokens
+              )
+              output.cost = {
+                input: costResult.input,
+                output: costResult.output,
+                total: costResult.total,
+              }
+
+              if (thinking) {
+                const segment = output.providerTiming?.timeSegments?.[0]
+                if (segment) {
+                  segment.thinkingContent = thinking
+                }
+              }
             }
-          }),
+          ),
       })
 
       return streamingResult
@@ -440,28 +544,40 @@ export const groqProvider: ProviderConfig = {
                 }
               : undefined,
           isStreaming: true,
+          streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
-            createReadableStreamFromGroqStream(streamResponse as any, (content, usage) => {
-              output.content = content
-              output.tokens = {
-                input: tokens.input + usage.prompt_tokens,
-                output: tokens.output + usage.completion_tokens,
-                total: tokens.total + usage.total_tokens,
-              }
+            createReadableStreamFromGroqStream(
+              // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; groq-sdk stream chunks are wire-compatible with the OpenAI ChatCompletionChunk shape the adapter consumes
+              streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
+              (content, usage, thinking) => {
+                output.content = content
+                output.tokens = {
+                  input: tokens.input + usage.prompt_tokens,
+                  output: tokens.output + usage.completion_tokens,
+                  total: tokens.total + usage.total_tokens,
+                }
 
-              const streamCost = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              const tc = sumToolCosts(toolResults)
-              output.cost = {
-                input: accumulatedCost.input + streamCost.input,
-                output: accumulatedCost.output + streamCost.output,
-                toolCost: tc || undefined,
-                total: accumulatedCost.total + streamCost.total + tc,
+                const streamCost = calculateCost(
+                  request.model,
+                  usage.prompt_tokens,
+                  usage.completion_tokens
+                )
+                const tc = sumToolCosts(toolResults)
+                output.cost = {
+                  input: accumulatedCost.input + streamCost.input,
+                  output: accumulatedCost.output + streamCost.output,
+                  toolCost: tc || undefined,
+                  total: accumulatedCost.total + streamCost.total + tc,
+                }
+
+                if (thinking) {
+                  const lastModel = [...timeSegments].reverse().find((s) => s.type === 'model')
+                  if (lastModel) {
+                    lastModel.thinkingContent = thinking
+                  }
+                }
               }
-            }),
+            ),
         })
 
         return streamingResult

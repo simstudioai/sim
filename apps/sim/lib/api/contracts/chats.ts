@@ -41,6 +41,8 @@ export const createChatBodySchema = z.object({
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional().default([]),
   outputConfigs: z.array(chatOutputConfigSchema).optional().default([]),
+  /** When true, clients may receive thinking SSE if they also send the protocol header. Default off. */
+  includeThinking: z.boolean().optional().default(false),
 })
 export type CreateChatBody = z.input<typeof createChatBodySchema>
 
@@ -58,6 +60,7 @@ export const updateChatBodySchema = z.object({
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional(),
   outputConfigs: z.array(chatOutputConfigSchema).optional(),
+  includeThinking: z.boolean().optional(),
 })
 export type UpdateChatBody = z.input<typeof updateChatBodySchema>
 
@@ -101,6 +104,8 @@ export const deployedChatConfigSchema = z.object({
     (value) => value ?? undefined,
     z.array(deployedChatOutputConfigSchema).optional()
   ),
+  /** Policy for thinking SSE; clients still need the X-Sim-Stream-Protocol opt-in. */
+  includeThinking: z.preprocess((value) => value ?? false, z.boolean()),
 })
 export type DeployedChatConfig = z.output<typeof deployedChatConfigSchema>
 
@@ -209,8 +214,10 @@ export const deployedChatPostContract = defineRouteContract({
   params: chatIdentifierParamsSchema,
   body: deployedChatPostBodySchema,
   response: {
-    mode: 'json',
-    schema: deployedChatConfigSchema,
+    // Message posts return SSE (`text/event-stream`). Auth-only POSTs use
+    // authenticateDeployedChatContract (JSON). Terminal frames: `final` or one
+    // `error`, then `[DONE]`. Thinking frames require includeThinking + protocol header.
+    mode: 'stream',
   },
 })
 
