@@ -1,16 +1,30 @@
 import { createLogger } from '@sim/logger'
+import {
+  presenceEventName,
+  type RoomRef,
+  type RoomType,
+  roomName,
+} from '@sim/realtime-protocol/rooms'
 import type { Server } from 'socket.io'
-import type { IRoomManager, UserPresence, UserSession, WorkflowRoom } from '@/rooms/types'
+import { filterVisiblePresence } from '@/rooms/presence-visibility'
+import type { IRoomManager, RoomState, UserPresence, UserSession } from '@/rooms/types'
 
 const logger = createLogger('MemoryRoomManager')
 
+/** Stable string key for a room in the local maps (distinct from the Socket.IO room name). */
+function roomKey(room: RoomRef): string {
+  return `${room.type}:${room.id}`
+}
+
 /**
- * In-memory room manager for single-pod deployments
- * Used as fallback when REDIS_URL is not configured
+ * In-memory room manager for single-pod deployments. Used when REDIS_URL is not
+ * configured. Domain-neutral: keyed by {@link RoomRef}, supports a socket in
+ * multiple rooms (one per {@link RoomType}).
  */
 export class MemoryRoomManager implements IRoomManager {
-  private workflowRooms = new Map<string, WorkflowRoom>()
-  private socketToWorkflow = new Map<string, string>()
+  private rooms = new Map<string, RoomState>()
+  /** socketId -> (roomType -> roomId) */
+  private socketRooms = new Map<string, Map<RoomType, string>>()
   private userSessions = new Map<string, UserSession>()
   private _io: Server
 
@@ -31,228 +45,151 @@ export class MemoryRoomManager implements IRoomManager {
   }
 
   async shutdown(): Promise<void> {
-    this.workflowRooms.clear()
-    this.socketToWorkflow.clear()
+    this.rooms.clear()
+    this.socketRooms.clear()
     this.userSessions.clear()
     logger.info('MemoryRoomManager shutdown complete')
   }
 
-  async addUserToRoom(workflowId: string, socketId: string, presence: UserPresence): Promise<void> {
-    // Create room if it doesn't exist
-    if (!this.workflowRooms.has(workflowId)) {
-      this.workflowRooms.set(workflowId, {
-        workflowId,
-        users: new Map(),
-        lastModified: Date.now(),
-        activeConnections: 0,
-      })
+  async addUserToRoom(room: RoomRef, socketId: string, presence: UserPresence): Promise<void> {
+    const key = roomKey(room)
+    let state = this.rooms.get(key)
+    if (!state) {
+      state = { room, users: new Map(), lastModified: Date.now(), activeConnections: 0 }
+      this.rooms.set(key, state)
     }
 
-    const room = this.workflowRooms.get(workflowId)!
-    room.users.set(socketId, presence)
-    room.activeConnections++
-    room.lastModified = Date.now()
+    state.users.set(socketId, presence)
+    state.activeConnections++
+    state.lastModified = Date.now()
 
-    // Map socket to workflow
-    this.socketToWorkflow.set(socketId, workflowId)
+    let socketRoomMap = this.socketRooms.get(socketId)
+    if (!socketRoomMap) {
+      socketRoomMap = new Map()
+      this.socketRooms.set(socketId, socketRoomMap)
+    }
+    socketRoomMap.set(room.type, room.id)
 
-    // Store session
     this.userSessions.set(socketId, {
       userId: presence.userId,
       userName: presence.userName,
       avatarUrl: presence.avatarUrl,
     })
 
-    logger.debug(`Added user ${presence.userId} to workflow ${workflowId} (socket: ${socketId})`)
+    logger.debug(`Added user ${presence.userId} to room ${key} (socket: ${socketId})`)
   }
 
-  async removeUserFromRoom(socketId: string, _workflowIdHint?: string): Promise<string | null> {
-    const workflowId = this.socketToWorkflow.get(socketId)
+  async removeUserFromRoom(room: RoomRef, socketId: string): Promise<boolean> {
+    const key = roomKey(room)
+    const state = this.rooms.get(key)
+    let existed = false
 
-    if (!workflowId) {
-      return null
-    }
-
-    const room = this.workflowRooms.get(workflowId)
-    if (room) {
-      room.users.delete(socketId)
-      room.activeConnections = Math.max(0, room.activeConnections - 1)
-
-      // Clean up empty rooms
-      if (room.activeConnections === 0) {
-        this.workflowRooms.delete(workflowId)
-        logger.info(`Cleaned up empty workflow room: ${workflowId}`)
+    if (state?.users.has(socketId)) {
+      existed = true
+      state.users.delete(socketId)
+      state.activeConnections = Math.max(0, state.activeConnections - 1)
+      if (state.users.size === 0) {
+        this.rooms.delete(key)
+        logger.info(`Cleaned up empty room: ${key}`)
       }
     }
 
-    this.socketToWorkflow.delete(socketId)
-    this.userSessions.delete(socketId)
+    const socketRoomMap = this.socketRooms.get(socketId)
+    if (socketRoomMap && socketRoomMap.get(room.type) === room.id) {
+      socketRoomMap.delete(room.type)
+      // Drop the shared session only when the socket has left its last room.
+      if (socketRoomMap.size === 0) {
+        this.socketRooms.delete(socketId)
+        this.userSessions.delete(socketId)
+      }
+    }
 
-    logger.debug(`Removed socket ${socketId} from workflow ${workflowId}`)
-    return workflowId
+    return existed
   }
 
-  async getWorkflowIdForSocket(socketId: string): Promise<string | null> {
-    return this.socketToWorkflow.get(socketId) ?? null
+  async removeSocketFromAllRooms(socketId: string): Promise<RoomRef[]> {
+    const socketRoomMap = this.socketRooms.get(socketId)
+    if (!socketRoomMap || socketRoomMap.size === 0) {
+      this.userSessions.delete(socketId)
+      return []
+    }
+
+    const rooms: RoomRef[] = Array.from(socketRoomMap.entries()).map(([type, id]) => ({ type, id }))
+    for (const room of rooms) {
+      await this.removeUserFromRoom(room, socketId)
+    }
+    // Belt-and-suspenders: ensure session is gone even if the map drifted.
+    this.socketRooms.delete(socketId)
+    this.userSessions.delete(socketId)
+    return rooms
+  }
+
+  async getRoomsForSocket(socketId: string): Promise<RoomRef[]> {
+    const socketRoomMap = this.socketRooms.get(socketId)
+    if (!socketRoomMap) return []
+    return Array.from(socketRoomMap.entries()).map(([type, id]) => ({ type, id }))
+  }
+
+  async getRoomForSocket(socketId: string, type: RoomType): Promise<RoomRef | null> {
+    const id = this.socketRooms.get(socketId)?.get(type)
+    return id ? { type, id } : null
   }
 
   async getUserSession(socketId: string): Promise<UserSession | null> {
     return this.userSessions.get(socketId) ?? null
   }
 
-  async getWorkflowUsers(workflowId: string): Promise<UserPresence[]> {
-    const room = this.workflowRooms.get(workflowId)
-    if (!room) return []
-    return Array.from(room.users.values())
+  async getRoomUsers(room: RoomRef): Promise<UserPresence[]> {
+    const state = this.rooms.get(roomKey(room))
+    if (!state) return []
+    return Array.from(state.users.values())
   }
 
-  async hasWorkflowRoom(workflowId: string): Promise<boolean> {
-    return this.workflowRooms.has(workflowId)
+  async hasRoom(room: RoomRef): Promise<boolean> {
+    return this.rooms.has(roomKey(room))
   }
 
   async updateUserActivity(
-    workflowId: string,
+    room: RoomRef,
     socketId: string,
     updates: Partial<Pick<UserPresence, 'cursor' | 'selection' | 'lastActivity'>>
   ): Promise<void> {
-    const room = this.workflowRooms.get(workflowId)
-    if (!room) return
+    const presence = this.rooms.get(roomKey(room))?.users.get(socketId)
+    if (!presence) return
 
-    const presence = room.users.get(socketId)
-    if (presence) {
-      if (updates.cursor !== undefined) presence.cursor = updates.cursor
-      if (updates.selection !== undefined) presence.selection = updates.selection
-      presence.lastActivity = updates.lastActivity ?? Date.now()
-    }
+    if (updates.cursor !== undefined) presence.cursor = updates.cursor
+    if (updates.selection !== undefined) presence.selection = updates.selection
+    presence.lastActivity = updates.lastActivity ?? Date.now()
   }
 
-  async updateRoomLastModified(workflowId: string): Promise<void> {
-    const room = this.workflowRooms.get(workflowId)
-    if (room) {
-      room.lastModified = Date.now()
-    }
+  async updateRoomLastModified(room: RoomRef): Promise<void> {
+    const state = this.rooms.get(roomKey(room))
+    if (state) state.lastModified = Date.now()
   }
 
-  async broadcastPresenceUpdate(workflowId: string): Promise<void> {
-    const users = await this.getWorkflowUsers(workflowId)
-    this._io.to(workflowId).emit('presence-update', users)
+  async broadcastPresenceUpdate(room: RoomRef, excludeSocketId?: string): Promise<void> {
+    const users = await this.getRoomUsers(room)
+    const visible = await filterVisiblePresence(this._io, room, users, excludeSocketId)
+    this._io.to(roomName(room)).emit(presenceEventName(room.type), visible)
   }
 
-  emitToWorkflow<T = unknown>(workflowId: string, event: string, payload: T): void {
-    this._io.to(workflowId).emit(event, payload)
+  emitToRoom<T = unknown>(room: RoomRef, event: string, payload: T): void {
+    this._io.to(roomName(room)).emit(event, payload)
   }
 
-  async getUniqueUserCount(workflowId: string): Promise<number> {
-    const room = this.workflowRooms.get(workflowId)
-    if (!room) return 0
-
+  async getUniqueUserCount(room: RoomRef): Promise<number> {
+    const state = this.rooms.get(roomKey(room))
+    if (!state) return 0
     const uniqueUsers = new Set<string>()
-    room.users.forEach((presence) => {
-      uniqueUsers.add(presence.userId)
-    })
-
+    state.users.forEach((presence) => uniqueUsers.add(presence.userId))
     return uniqueUsers.size
   }
 
   async getTotalActiveConnections(): Promise<number> {
     let total = 0
-    for (const room of this.workflowRooms.values()) {
-      total += room.activeConnections
+    for (const state of this.rooms.values()) {
+      total += state.activeConnections
     }
     return total
-  }
-
-  async handleWorkflowDeletion(workflowId: string): Promise<void> {
-    logger.info(`Handling workflow deletion notification for ${workflowId}`)
-
-    const room = this.workflowRooms.get(workflowId)
-    if (!room) {
-      logger.debug(`No active room found for deleted workflow ${workflowId}`)
-      return
-    }
-
-    this._io.to(workflowId).emit('workflow-deleted', {
-      workflowId,
-      message: 'This workflow has been deleted',
-      timestamp: Date.now(),
-    })
-
-    const socketsToDisconnect: string[] = []
-    room.users.forEach((_presence, socketId) => {
-      socketsToDisconnect.push(socketId)
-    })
-
-    for (const socketId of socketsToDisconnect) {
-      const socket = this._io.sockets.sockets.get(socketId)
-      if (socket) {
-        socket.leave(workflowId)
-        logger.debug(`Disconnected socket ${socketId} from deleted workflow ${workflowId}`)
-      }
-      await this.removeUserFromRoom(socketId)
-    }
-
-    this.workflowRooms.delete(workflowId)
-    logger.info(
-      `Cleaned up workflow room ${workflowId} after deletion (${socketsToDisconnect.length} users disconnected)`
-    )
-  }
-
-  async handleWorkflowRevert(workflowId: string, timestamp: number): Promise<void> {
-    logger.info(`Handling workflow revert notification for ${workflowId}`)
-
-    const room = this.workflowRooms.get(workflowId)
-    if (!room) {
-      logger.debug(`No active room found for reverted workflow ${workflowId}`)
-      return
-    }
-
-    this._io.to(workflowId).emit('workflow-reverted', {
-      workflowId,
-      message: 'Workflow has been reverted to deployed state',
-      timestamp,
-    })
-
-    room.lastModified = timestamp
-
-    logger.info(`Notified ${room.users.size} users about workflow revert: ${workflowId}`)
-  }
-
-  async handleWorkflowUpdate(workflowId: string): Promise<void> {
-    logger.info(`Handling workflow update notification for ${workflowId}`)
-
-    const room = this.workflowRooms.get(workflowId)
-    if (!room) {
-      logger.debug(`No active room found for updated workflow ${workflowId}`)
-      return
-    }
-
-    const timestamp = Date.now()
-
-    this._io.to(workflowId).emit('workflow-updated', {
-      workflowId,
-      message: 'Workflow has been updated externally',
-      timestamp,
-    })
-
-    room.lastModified = timestamp
-
-    logger.info(`Notified ${room.users.size} users about workflow update: ${workflowId}`)
-  }
-
-  async handleWorkflowDeployed(workflowId: string): Promise<void> {
-    logger.info(`Handling workflow deployed notification for ${workflowId}`)
-
-    const room = this.workflowRooms.get(workflowId)
-    if (!room) {
-      logger.debug(`No active room found for deployed workflow ${workflowId}`)
-      return
-    }
-
-    this._io.to(workflowId).emit('workflow-deployed', {
-      workflowId,
-      timestamp: Date.now(),
-    })
-
-    logger.info(`Notified ${room.users.size} users about workflow deployment change: ${workflowId}`)
   }
 }

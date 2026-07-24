@@ -1,10 +1,11 @@
 import { db, user } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { eq } from 'drizzle-orm'
 import { getWorkflowState } from '@/database/operations'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { verifyWorkflowAccess } from '@/middleware/permissions'
-import type { IRoomManager, UserPresence } from '@/rooms'
+import { type IRoomManager, type UserPresence, workflowRoom as wf } from '@/rooms'
 
 const logger = createLogger('WorkflowHandlers')
 
@@ -64,18 +65,18 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
         return
       }
 
-      // Leave current room if in one
-      const currentWorkflowId = await roomManager.getWorkflowIdForSocket(socket.id)
-      if (currentWorkflowId) {
-        socket.leave(currentWorkflowId)
-        await roomManager.removeUserFromRoom(socket.id, currentWorkflowId)
-        await roomManager.broadcastPresenceUpdate(currentWorkflowId)
+      // Leave current workflow room if in one
+      const currentRoom = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.WORKFLOW)
+      if (currentRoom) {
+        socket.leave(currentRoom.id)
+        await roomManager.removeUserFromRoom(currentRoom, socket.id)
+        await roomManager.broadcastPresenceUpdate(currentRoom)
       }
 
       // Keep this above Redis socket key TTL (1h) so a normal idle user is not evicted too aggressively.
       const STALE_THRESHOLD_MS = 75 * 60 * 1000
       const now = Date.now()
-      const existingUsers = await roomManager.getWorkflowUsers(workflowId)
+      const existingUsers = await roomManager.getRoomUsers(wf(workflowId))
       let liveSocketIds = new Set<string>()
       let canCheckLiveness = false
 
@@ -106,7 +107,7 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
             logger.info(
               `Cleaning up socket ${existingUser.socketId} for user ${existingUser.userId} (same tab)`
             )
-            await roomManager.removeUserFromRoom(existingUser.socketId, workflowId)
+            await roomManager.removeUserFromRoom(wf(workflowId), existingUser.socketId)
             await roomManager.io.in(existingUser.socketId).socketsLeave(workflowId)
             continue
           }
@@ -124,7 +125,7 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
           logger.info(
             `Cleaning up socket ${existingUser.socketId} for user ${existingUser.userId} (stale activity)`
           )
-          await roomManager.removeUserFromRoom(existingUser.socketId, workflowId)
+          await roomManager.removeUserFromRoom(wf(workflowId), existingUser.socketId)
           await roomManager.io.in(existingUser.socketId).socketsLeave(workflowId)
         } catch (error) {
           logger.warn(`Best-effort cleanup failed for socket ${existingUser.socketId}`, error)
@@ -153,7 +154,7 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       // Create presence entry
       const userPresence: UserPresence = {
         userId,
-        workflowId,
+        room: wf(workflowId),
         userName,
         socketId: socket.id,
         tabSessionId,
@@ -164,10 +165,10 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       }
 
       // Add user to room
-      await roomManager.addUserToRoom(workflowId, socket.id, userPresence)
+      await roomManager.addUserToRoom(wf(workflowId), socket.id, userPresence)
 
       // Get current presence list for the join acknowledgment
-      const presenceUsers = await roomManager.getWorkflowUsers(workflowId)
+      const presenceUsers = await roomManager.getRoomUsers(wf(workflowId))
 
       // Get workflow state
       const workflowState = await getWorkflowState(workflowId)
@@ -183,9 +184,9 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       socket.emit('workflow-state', workflowState)
 
       // Broadcast presence update to all users in the room
-      await roomManager.broadcastPresenceUpdate(workflowId)
+      await roomManager.broadcastPresenceUpdate(wf(workflowId))
 
-      const uniqueUserCount = await roomManager.getUniqueUserCount(workflowId)
+      const uniqueUserCount = await roomManager.getUniqueUserCount(wf(workflowId))
       logger.info(
         `User ${userId} (${userName}) joined workflow ${workflowId}. Room now has ${uniqueUserCount} unique users.`
       )
@@ -193,7 +194,7 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       logger.error('Error joining workflow:', error)
       // Undo socket.join and room manager entry if any operation failed
       socket.leave(workflowId)
-      await roomManager.removeUserFromRoom(socket.id, workflowId)
+      await roomManager.removeUserFromRoom(wf(workflowId), socket.id)
       const isReady = roomManager.isReady()
       socket.emit('join-workflow-error', {
         workflowId,
@@ -210,15 +211,15 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
         return
       }
 
-      const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
+      const room = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.WORKFLOW)
       const session = await roomManager.getUserSession(socket.id)
 
-      if (workflowId && session) {
-        socket.leave(workflowId)
-        await roomManager.removeUserFromRoom(socket.id, workflowId)
-        await roomManager.broadcastPresenceUpdate(workflowId)
+      if (room && session) {
+        socket.leave(room.id)
+        await roomManager.removeUserFromRoom(room, socket.id)
+        await roomManager.broadcastPresenceUpdate(room)
 
-        logger.info(`User ${session.userId} (${session.userName}) left workflow ${workflowId}`)
+        logger.info(`User ${session.userId} (${session.userName}) left workflow ${room.id}`)
       }
     } catch (error) {
       logger.error('Error leaving workflow:', error)

@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http'
 import { safeCompare } from '@sim/security/compare'
 import { env } from '@/env'
-import type { IRoomManager } from '@/rooms'
+import { type IRoomManager, WorkflowRoomService } from '@/rooms'
 
 interface Logger {
   info: (message: string, ...args: unknown[]) => void
@@ -58,6 +58,8 @@ function sendError(res: ServerResponse, message: string, status = 500): void {
  * @returns HTTP request handler function
  */
 export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
+  const workflowRoomService = new WorkflowRoomService(roomManager)
+
   return async (req: IncomingMessage, res: ServerResponse) => {
     // Health check doesn't require auth
     if (req.method === 'GET' && req.url === '/health') {
@@ -99,7 +101,7 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       try {
         const body = await readRequestBody(req)
         const { workflowId } = JSON.parse(body)
-        await roomManager.handleWorkflowDeletion(workflowId)
+        await workflowRoomService.handleWorkflowDeletion(workflowId)
         sendSuccess(res)
       } catch (error) {
         logger.error('Error handling workflow deletion notification:', error)
@@ -113,7 +115,7 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       try {
         const body = await readRequestBody(req)
         const { workflowId } = JSON.parse(body)
-        await roomManager.handleWorkflowUpdate(workflowId)
+        await workflowRoomService.handleWorkflowUpdate(workflowId)
         sendSuccess(res)
       } catch (error) {
         logger.error('Error handling workflow update notification:', error)
@@ -127,7 +129,7 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       try {
         const body = await readRequestBody(req)
         const { workflowId } = JSON.parse(body)
-        await roomManager.handleWorkflowDeployed(workflowId)
+        await workflowRoomService.handleWorkflowDeployed(workflowId)
         sendSuccess(res)
       } catch (error) {
         logger.error('Error handling workflow deployed notification:', error)
@@ -141,7 +143,7 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       try {
         const body = await readRequestBody(req)
         const { workflowId, timestamp } = JSON.parse(body)
-        await roomManager.handleWorkflowRevert(workflowId, timestamp)
+        await workflowRoomService.handleWorkflowRevert(workflowId, timestamp)
         sendSuccess(res)
       } catch (error) {
         logger.error('Error handling workflow revert notification:', error)
