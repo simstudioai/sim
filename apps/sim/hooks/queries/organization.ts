@@ -56,7 +56,12 @@ export const ORGANIZATION_SUBSCRIPTION_STALE_TIME = 30 * 1000
 export const ORGANIZATION_BILLING_STALE_TIME = 30 * 1000
 export const ORGANIZATION_MEMBERS_STALE_TIME = 30 * 1000
 export const ORGANIZATION_MEMBER_USAGE_LIMIT_STALE_TIME = 30 * 1000
-export const ORGANIZATION_REMOVAL_IMPACT_STALE_TIME = 30 * 1000
+/**
+ * Zero: removal impact is a consent disclosure, so every dialog open must
+ * refetch — a cached list may omit credentials added moments ago, and the
+ * dialog holds its confirm on `isFetching` until fresh data lands.
+ */
+export const ORGANIZATION_REMOVAL_IMPACT_STALE_TIME = 0
 
 type OrganizationSubscriptionCandidate = {
   id: string

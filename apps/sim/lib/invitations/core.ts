@@ -710,6 +710,40 @@ async function acceptLockedInvitation(
     shouldJoinOrganization = false
   }
 
+  /**
+   * A member-role organization invite whose grants ALL left the stamped
+   * organization can never land its member anywhere — fail before any
+   * mutation. This must precede the disclosure check: the preview mirrors
+   * this gate with an empty disclosure, and rejecting on disclosure first
+   * would loop the client on disclosure-outdated instead of surfacing the
+   * real cause. The grant rows are advisory-locked, so this read cannot
+   * change for the rest of the transaction.
+   */
+  if (
+    shouldJoinOrganization &&
+    inv.kind === 'organization' &&
+    inv.organizationId &&
+    !isOrgAdminRole(inv.role) &&
+    inv.grants.length > 0
+  ) {
+    const [liveGrant] = await tx
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(
+        and(
+          inArray(
+            workspace.id,
+            inv.grants.map((grant) => grant.workspaceId)
+          ),
+          eq(workspace.organizationId, inv.organizationId)
+        )
+      )
+      .limit(1)
+    if (!liveGrant) {
+      return { success: false, kind: 'workspace-not-found' }
+    }
+  }
+
   let targetOrganizationId = workspaceOrganizationId
 
   if (shouldJoinOrganization) {

@@ -692,12 +692,6 @@ describe('acceptInvitation', () => {
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
-    mockEnsureTeamOrganizationForAcceptance.mockResolvedValueOnce({
-      success: true,
-      organizationId: 'org-1',
-      fixedSeats: false,
-    })
-
     queueWhereResponses([
       [
         {
@@ -727,14 +721,8 @@ describe('acceptInvitation', () => {
       [{ name: 'Owner', email: 'owner@example.com' }],
       // Invitee-owned personal workspaces for the acceptance lock plan.
       [],
-      // Post-join owned-set re-check under the billing-identity lock.
+      // Pre-join staleness gate: no grant workspace remains in the stamped org.
       [],
-      // Grant-txn membership re-check under the lock: member still present.
-      [{ id: 'member-1' }],
-      // Invitation status update under the lock.
-      [],
-      // The granted workspace left the stamped organization.
-      [{ organizationId: 'org-elsewhere' }],
     ])
 
     const result = await acceptInvitation({
@@ -745,6 +733,7 @@ describe('acceptInvitation', () => {
     })
 
     expect(result).toEqual({ success: false, kind: 'workspace-not-found' })
+    expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
     expect(auditMock.recordAudit).not.toHaveBeenCalled()
   })
 
@@ -986,6 +975,8 @@ describe('acceptInvitation', () => {
       [{ name: 'Owner', email: 'owner@example.com' }],
       // Invitee-owned personal workspaces for the acceptance lock plan.
       [],
+      // Pre-join staleness gate: the granted workspace is still in the org.
+      [{ id: 'workspace-1' }],
       // Post-join owned-set re-check under the billing-identity lock.
       [],
       // Grant-txn membership re-check under the lock: member still present.
