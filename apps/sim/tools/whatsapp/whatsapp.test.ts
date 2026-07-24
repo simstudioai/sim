@@ -347,36 +347,35 @@ describe('WhatsAppBlock file param mapping', () => {
 
   /**
    * The serializer deletes the `uploadFile`/`uploadFileRef` subblock IDs and republishes
-   * the value under the `mediaUpload` canonicalParamId, so the params mapper must read the
+   * the value under the `file` canonicalParamId, so the params mapper must read the
    * canonical key. Reading a subblock ID here would silently upload nothing.
    */
-  it('maps the canonical mediaUpload param onto the tool file param', () => {
-    expect(mapParams({ operation: 'upload_media', mediaUpload: userFile }).file).toEqual(userFile)
+  it('maps the canonical file param onto the tool file param', () => {
+    expect(mapParams({ operation: 'upload_media', file: userFile }).file).toEqual(userFile)
   })
 
   it('parses a JSON-stringified file reference from advanced mode', () => {
-    expect(
-      mapParams({ operation: 'upload_media', mediaUpload: JSON.stringify(userFile) }).file
-    ).toEqual(userFile)
+    expect(mapParams({ operation: 'upload_media', file: JSON.stringify(userFile) }).file).toEqual(
+      userFile
+    )
   })
 
   it('unwraps a single-element array so a file reference resolves to one file', () => {
-    expect(mapParams({ operation: 'upload_media', mediaUpload: [userFile] }).file).toEqual(userFile)
+    expect(mapParams({ operation: 'upload_media', file: [userFile] }).file).toEqual(userFile)
   })
 
   it('omits file entirely when nothing was uploaded', () => {
     expect(mapParams({ operation: 'upload_media' })).not.toHaveProperty('file')
   })
 
-  it('does not leak the canonical or UI-only params to the tool', () => {
+  it('does not leak the UI-only params to the tool', () => {
     const mapped = mapParams({
       operation: 'upload_media',
-      mediaUpload: userFile,
+      file: userFile,
       interactiveType: 'button',
       downloadMediaId: 'should-not-leak',
     })
 
-    expect(mapped).not.toHaveProperty('mediaUpload')
     expect(mapped).not.toHaveProperty('interactiveType')
     expect(mapped).not.toHaveProperty('downloadMediaId')
   })

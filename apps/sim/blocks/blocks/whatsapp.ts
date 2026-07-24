@@ -395,7 +395,7 @@ Return ONLY the valid JSON array - no explanations, no extra text.`,
       id: 'uploadFile',
       title: 'File',
       type: 'file-upload',
-      canonicalParamId: 'mediaUpload',
+      canonicalParamId: 'file',
       placeholder: 'Upload a file',
       description:
         'WhatsApp limits: images 5 MB, video and audio 16 MB, documents 100 MB, stickers 500 KB.',
@@ -410,7 +410,7 @@ Return ONLY the valid JSON array - no explanations, no extra text.`,
       id: 'uploadFileRef',
       title: 'File',
       type: 'short-input',
-      canonicalParamId: 'mediaUpload',
+      canonicalParamId: 'file',
       placeholder: 'Reference a file from a previous block',
       mode: 'advanced',
       required: true,
@@ -472,10 +472,16 @@ Return ONLY the valid JSON array - no explanations, no extra text.`,
     config: {
       tool: (params) => `whatsapp_${params.operation || 'send_message'}`,
       params: (params) => {
-        const { interactiveType, mediaUpload, mediaSource, downloadMediaId, ...rest } = params
+        const {
+          interactiveType,
+          file: uploadedFile,
+          mediaSource,
+          downloadMediaId,
+          ...rest
+        } = params
         // Both file canonical pairs resolve to the tool's single `file` param; only one
         // operation is ever active, so they cannot collide.
-        const file = normalizeFileInput(mediaUpload ?? mediaSource, { single: true })
+        const file = normalizeFileInput(uploadedFile ?? mediaSource, { single: true })
 
         return {
           ...rest,
@@ -520,7 +526,7 @@ Return ONLY the valid JSON array - no explanations, no extra text.`,
       type: 'string',
       description: 'Whether to show a typing indicator when marking a message as read',
     },
-    mediaUpload: { type: 'json', description: 'File to upload to WhatsApp' },
+    file: { type: 'json', description: 'File to upload to WhatsApp' },
     downloadMediaId: { type: 'string', description: 'Media asset ID to download' },
     phoneNumberId: { type: 'string', description: 'WhatsApp phone number ID' },
     accessToken: { type: 'string', description: 'WhatsApp access token' },
