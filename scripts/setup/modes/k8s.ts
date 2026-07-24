@@ -194,7 +194,7 @@ export async function runK8sMode(detection: Detection): Promise<void> {
     [
       `kubectl --context ${shq(context)} -n ${NAMESPACE} port-forward svc/${RELEASE}-app 3000:3000`,
       `kubectl --context ${shq(context)} -n ${NAMESPACE} get pods`,
-      `helm uninstall ${RELEASE} --kube-context ${context} -n ${NAMESPACE}   # tear down`,
+      `helm uninstall ${RELEASE} --kube-context ${shq(context)} -n ${NAMESPACE}   # tear down`,
     ].join('\n'),
     'Reach your cluster'
   )
