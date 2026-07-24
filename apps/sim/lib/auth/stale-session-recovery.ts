@@ -13,7 +13,7 @@ const logger = createLogger('StaleSessionRecovery')
  * would only get bounced back to /workspace by the middleware.
  *
  * Shared by the /workspace loader (stale-cookie 401s and clean-null sessions)
- * and the impersonation-expired screen, so every identity-recovery path clears
+ * and the session-expired screen, so every identity-recovery path clears
  * cookies and persisted client state the same way.
  */
 export async function recoverFromStaleSession(): Promise<boolean> {

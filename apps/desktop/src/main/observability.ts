@@ -20,7 +20,6 @@ export type DesktopEventName =
   | 'load_failure'
   | 'renderer_gone'
   | 'renderer_unresponsive'
-  | 'session_expired'
   | 'sign_out'
   | 'origin_changed'
   | 'handoff_started'

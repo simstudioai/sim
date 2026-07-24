@@ -191,14 +191,12 @@ function main(): void {
       appSession: ses,
       origin: appOrigin,
       events,
-      getWindow: getMainWindow,
       getWindows,
       clearHandoffState: async () => {
         handoff.clear()
         await localFilesystem.forgetAll()
       },
       clearBrowserProfile: clearAgentBrowserProfile,
-      onReauthRequested: () => void authFlow.beginLoginHandoff(),
     })
     return ses
   }

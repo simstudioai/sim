@@ -7,7 +7,6 @@ import type { EventRecorder } from '@/main/observability'
 
 const logger = createLogger('DesktopSessionLifecycle')
 
-const EXPIRY_PROMPT_COOLDOWN_MS = 30_000
 const SESSION_PROBE_TIMEOUT_MS = 5000
 const START_ROUTE_PROBE_TIMEOUT_MS = 1500
 const TEARDOWN_COOLDOWN_MS = 3000
@@ -185,7 +184,6 @@ export interface SessionLifecycleDeps {
   clearHandoffState: () => void | Promise<void>
   /** Clears the embedded browser's own partition. See {@link tearDownSession}. */
   clearBrowserProfile: () => Promise<void>
-  onReauthRequested: () => void
 }
 
 export interface SessionLifecycleCoordinator {
@@ -200,15 +198,20 @@ export interface SessionLifecycleCoordinator {
 }
 
 interface SessionLifecycleCoordinatorDeps extends SessionLifecycleDeps {
-  getWindow: () => BrowserWindow | null
   getWindows: () => BrowserWindow[]
 }
 
 /**
  * Owns shared app-session observers once per Electron process while allowing
  * every full Sim window to contribute navigation signals. This prevents
- * duplicate cookie listeners, storage clears, and expiry dialogs when
- * multiple application windows are open.
+ * duplicate cookie listeners and storage clears when multiple application
+ * windows are open.
+ *
+ * Session *expiry* is deliberately not handled here. The web app owns it: its
+ * session query settles to `null` and `SessionExpired` signs out and redirects,
+ * identically in the browser and the app. A shell-side detector could only
+ * infer that state from cookie events and 401 statuses, which is how it ended
+ * up prompting on ordinary sign-outs and on launching signed out.
  */
 export function createSessionLifecycleCoordinator(
   deps: SessionLifecycleCoordinatorDeps
@@ -254,37 +257,6 @@ export function createSessionLifecycleCoordinator(
       if (state === 'invalid') {
         runTeardown()
       }
-    })
-  })
-
-  let lastExpiryPromptAt = 0
-  deps.appSession.webRequest.onCompleted({ urls: [`${deps.origin()}/api/*`] }, (details) => {
-    if (details.statusCode !== 401 || details.url.includes('/api/auth/')) {
-      return
-    }
-    const nowTs = Date.now()
-    if (nowTs - lastExpiryPromptAt < EXPIRY_PROMPT_COOLDOWN_MS) {
-      return
-    }
-    lastExpiryPromptAt = nowTs
-    void probeSession(deps.appSession, deps.origin()).then((state) => {
-      const win = deps.getWindow()
-      if (state !== 'invalid' || !win || win.isDestroyed()) return
-      deps.events.record('session_expired')
-      void dialog
-        .showMessageBox(win, {
-          type: 'info',
-          buttons: ['Sign In', 'Not Now'],
-          defaultId: 0,
-          cancelId: 1,
-          message: 'Your session has expired',
-          detail: 'Sign in again to keep working.',
-        })
-        .then(({ response }) => {
-          if (response === 0) {
-            deps.onReauthRequested()
-          }
-        })
     })
   })
 

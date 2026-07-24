@@ -204,8 +204,6 @@ describe('createSessionLifecycleCoordinator', () => {
       events: { filePath: '/tmp/events.log', record: vi.fn() },
       clearHandoffState,
       clearBrowserProfile: vi.fn(async () => {}),
-      onReauthRequested: vi.fn(),
-      getWindow: () => first,
       getWindows: () => [first, second],
     })
 
@@ -213,7 +211,9 @@ describe('createSessionLifecycleCoordinator', () => {
     coordinator.attachWindow(second)
 
     expect(cookiesOn).toHaveBeenCalledOnce()
-    expect(webRequestOnCompleted).toHaveBeenCalledOnce()
+    // The shell no longer watches API responses: session expiry is the web
+    // app's to detect, so nothing here should subscribe to /api/* statuses.
+    expect(webRequestOnCompleted).not.toHaveBeenCalled()
 
     const windowEventCalls = vi.mocked(first.webContents.on).mock.calls as unknown as Array<
       [string, (...args: unknown[]) => unknown]
