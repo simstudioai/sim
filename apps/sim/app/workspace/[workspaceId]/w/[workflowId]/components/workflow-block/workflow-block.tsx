@@ -35,6 +35,7 @@ import {
 } from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
+import { AnnotationBadge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/annotation-badge'
 import {
   useBlockProperties,
   useChildWorkflow,
@@ -926,6 +927,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       actionBar={
         !data.isPreview && !data.isEmbedded ? (
           <ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} />
+        ) : undefined
+      }
+      headerBadge={
+        !data.isPreview && !data.isEmbedded && currentWorkflowId ? (
+          <AnnotationBadge workflowId={currentWorkflowId} blockId={id} />
         ) : undefined
       }
       rows={rows}

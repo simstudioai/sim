@@ -107,6 +107,8 @@ export interface WorkflowBlockViewProps {
   contentRef?: Ref<HTMLDivElement>
   /** Editor-only action bar; omit in read-only / preview contexts. */
   actionBar?: ReactNode
+  /** Editor-only extra header badge (e.g. comment count); omit in read-only contexts. */
+  headerBadge?: ReactNode
   /**
    * Non-branch collapsed subblock summary rows, built by the container.
    * Condition/router/error rows are rendered by the view itself from
@@ -164,6 +166,7 @@ export function WorkflowBlockView({
   onSelect,
   contentRef,
   actionBar,
+  headerBadge,
   rows,
 }: WorkflowBlockViewProps) {
   return (
@@ -360,6 +363,7 @@ export function WorkflowBlockView({
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
+            {headerBadge}
             {/* {isActive && (
               <div className='mr-0.5 ml-2 flex size-[16px] items-center justify-center'>
                 <div

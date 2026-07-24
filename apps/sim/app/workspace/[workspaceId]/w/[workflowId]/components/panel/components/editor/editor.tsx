@@ -29,6 +29,7 @@ import {
 } from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
+  AnnotationsSection,
   ConnectionBlocks,
   SubBlock,
   SubflowEditor,
@@ -714,6 +715,14 @@ export function Editor() {
                     })}
                   </div>
                 )}
+                <FieldDivider subblockMarker />
+                <AnnotationsSection
+                  workspaceId={workspaceId}
+                  workflowId={workflowId}
+                  blockId={currentBlockId}
+                  canEdit={userPermissions.canEdit && !workflowLocked}
+                  canModerate={userPermissions.canAdmin}
+                />
               </div>
             </div>
 
