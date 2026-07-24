@@ -20,7 +20,7 @@ app:
   # Image configuration
   image:
     repository: simstudioai/simstudio
-    # tag defaults to Chart.AppVersion. Override with a release tag (e.g. "0.6.73") or pin via image.digest.
+    # tag defaults to Chart.AppVersion. Override with a release tag (e.g. "v0.7.44") or pin via image.digest.
     tag: ""
     # Optional image digest pin: "sha256:..." — when set, overrides tag.
     digest: ""

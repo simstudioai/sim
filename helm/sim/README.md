@@ -469,6 +469,7 @@ kubectl --namespace sim logs deploy/sim-app -c migrations
 
 ## Upgrading to 1.2.0
 
+* `appVersion` (the default image tag when `image.tag` is unset) is now `v0.7.44` — the previous `0.6.73` referenced a tag that does not exist on GHCR, so an unpinned default install could not pull images. Production installs should still pin `image.tag` explicitly.
 * `externalSecrets.apiVersion` now defaults to `"v1"` — current External Secrets Operator releases no longer serve `v1beta1` (removed upstream in 2026). Set `externalSecrets.apiVersion: "v1beta1"` only if you still run ESO < 0.17.
 * `values.schema.json` now declares every top-level key and rejects unknown top-level keys, so a typo like `networkPolciy:` fails fast at install time instead of being silently ignored. If an upgrade suddenly fails schema validation, check your values file for stray top-level keys.
 * The opt-in telemetry collector no longer ships a Prometheus scrape config for the app/realtime services (they expose no `/metrics` endpoint); OTLP ingestion is unchanged.
