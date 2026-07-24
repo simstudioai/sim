@@ -21,6 +21,13 @@ export const FILE_DOC_EVENTS = {
   JOIN_SUCCESS: 'join-file-doc-success',
   /** Server → client: join rejected ({@link JoinFileDocError}). */
   JOIN_ERROR: 'join-file-doc-error',
+  /**
+   * Server → client: this client is elected to seed the document's initial
+   * content from the file's stored markdown ({@link SeedRequestPayload}). Sent to
+   * exactly one client of an unseeded document — at join, or later to a remaining
+   * client if the previously-elected seeder disconnects before it seeds.
+   */
+  SEED_REQUEST: 'file-doc-seed-request',
   /** Client → server: leave the session ({@link LeaveFileDocPayload}). */
   LEAVE: 'leave-file-doc',
   /** Both directions: a framed Yjs message (binary), tagged by {@link FILE_DOC_MESSAGE_TYPE}. */
@@ -54,19 +61,27 @@ export const FILE_DOC_SEED = {
 /** Client → server join request. `fileId` is the `workspace_files.id`. */
 export interface JoinFileDocPayload {
   fileId: string
+  /**
+   * The joining Yjs document's `clientID`. The server binds it to this socket so
+   * a client can only publish/remove awareness (cursor/selection) for its own
+   * client — an authenticated peer cannot forge or clear another's presence.
+   */
+  clientId: number
 }
 
 /** Server → client acceptance of a {@link FILE_DOC_EVENTS.JOIN}. */
 export interface JoinFileDocSuccess {
   fileId: string
-  /**
-   * Whether this client was elected to seed the document's initial content from
-   * the file's stored markdown. The server elects exactly one client per empty
-   * document, so seeding never duplicates even under a cold-start race; the
-   * client additionally guards on the CRDT `initialContentLoaded` flag to cover
-   * the case where an elected seeder disconnects before it seeds.
-   */
-  shouldSeed: boolean
+}
+
+/**
+ * Server → client seed election ({@link FILE_DOC_EVENTS.SEED_REQUEST}). The
+ * recipient imports the file's stored markdown into the (empty) document. The
+ * client still guards on the CRDT `initialContentLoaded` flag so a re-election
+ * that races an in-flight seed can never duplicate content.
+ */
+export interface SeedRequestPayload {
+  fileId: string
 }
 
 /** Server → client rejection of a {@link FILE_DOC_EVENTS.JOIN}. */

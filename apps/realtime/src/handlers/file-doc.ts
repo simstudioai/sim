@@ -38,11 +38,17 @@ const logger = createLogger('FileDocHandlers')
  * backend (y-redis / Hocuspocus) — out of scope here.
  */
 interface FileDocRoom {
+  /** The `workspace_files.id` this room edits (for seed-request payloads). */
+  fileId: string
   doc: Y.Doc
   awareness: awarenessProtocol.Awareness
-  /** socketId → the awareness clientIDs it controls, cleared on its disconnect. */
-  controlledIds: Map<string, Set<number>>
-  /** The socket elected to seed initial content, or `null` if unseeded/unelected. */
+  /**
+   * socketId → the awareness clientID it declared at join. A socket owns exactly
+   * one clientID and may only publish/remove awareness for that one, so an
+   * authenticated peer cannot forge or clear another collaborator's presence.
+   */
+  ownedClientId: Map<string, number>
+  /** The socket currently elected to seed initial content, or `null`. */
   seederSocketId: string | null
 }
 
@@ -89,11 +95,45 @@ function toUint8Array(data: unknown): Uint8Array | null {
 }
 
 /**
+ * Decode the client IDs an awareness update carries, without applying it, to
+ * check a frame only touches its sender's own presence. Mirrors the wire format
+ * of `awarenessProtocol.encodeAwarenessUpdate`: a count, then per client a
+ * varUint id, a varUint clock, and a varString state.
+ */
+function awarenessUpdateClientIds(update: Uint8Array): number[] {
+  const decoder = decoding.createDecoder(update)
+  const count = decoding.readVarUint(decoder)
+  const ids: number[] = []
+  for (let i = 0; i < count; i++) {
+    ids.push(decoding.readVarUint(decoder))
+    decoding.readVarUint(decoder) // clock
+    decoding.readVarString(decoder) // state json
+  }
+  return ids
+}
+
+/**
+ * Elect a client to seed an unseeded document and ask it to import the stored
+ * markdown, if one is needed and not already assigned. Called after a join (to
+ * elect the newcomer) and after the elected seeder leaves (to hand the role to a
+ * remaining client, so the document never stays permanently empty). A no-op once
+ * the document is seeded or a seeder is already assigned.
+ */
+function electSeederIfNeeded(io: Server, room: FileDocRoom) {
+  if (room.seederSocketId !== null || isDocSeeded(room.doc)) return
+  const next = room.ownedClientId.keys().next()
+  if (next.done) return
+  room.seederSocketId = next.value
+  io.to(next.value).emit(FILE_DOC_EVENTS.SEED_REQUEST, { fileId: room.fileId })
+}
+
+/**
  * Get (or lazily create) the authoritative document for a room, wiring the two
  * relay handlers exactly once: document updates and awareness changes are
  * broadcast to the room, excluding the origin socket (it already applied them).
  */
-function getOrCreateRoom(io: Server, name: string): FileDocRoom {
+function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
+  const name = roomName(ref)
   const existing = fileDocRooms.get(name)
   if (existing) return existing
 
@@ -102,7 +142,13 @@ function getOrCreateRoom(io: Server, name: string): FileDocRoom {
   // The server holds no cursor of its own; it only relays clients' awareness.
   awareness.setLocalState(null)
 
-  const room: FileDocRoom = { doc, awareness, controlledIds: new Map(), seederSocketId: null }
+  const room: FileDocRoom = {
+    fileId: ref.id,
+    doc,
+    awareness,
+    ownedClientId: new Map(),
+    seederSocketId: null,
+  }
   fileDocRooms.set(name, room)
 
   doc.on('update', (update: Uint8Array, origin: unknown) => {
@@ -113,14 +159,6 @@ function getOrCreateRoom(io: Server, name: string): FileDocRoom {
   })
 
   awareness.on('update', ({ added, updated, removed }: AwarenessChange, origin: unknown) => {
-    const from = originSocketId(origin)
-    if (from) {
-      const controlled = room.controlledIds.get(from)
-      if (controlled) {
-        for (const id of added) controlled.add(id)
-        for (const id of removed) controlled.delete(id)
-      }
-    }
     const changed = added.concat(updated, removed)
     if (changed.length === 0) return
     const encoder = encoding.createEncoder()
@@ -129,7 +167,7 @@ function getOrCreateRoom(io: Server, name: string): FileDocRoom {
       encoder,
       awarenessProtocol.encodeAwarenessUpdate(awareness, changed)
     )
-    broadcast(io, name, encoding.toUint8Array(encoder), from)
+    broadcast(io, name, encoding.toUint8Array(encoder), originSocketId(origin))
   })
 
   return room
@@ -159,39 +197,50 @@ function handleMessage(socket: AuthenticatedSocket, data: unknown) {
   const bytes = toUint8Array(data)
   if (!bytes) return
 
-  const decoder = decoding.createDecoder(bytes)
-  const messageType = decoding.readVarUint(decoder)
+  // A malformed frame from any client must never escape as a process-level
+  // exception; drop it and keep the relay running.
+  try {
+    const decoder = decoding.createDecoder(bytes)
+    const messageType = decoding.readVarUint(decoder)
 
-  switch (messageType) {
-    case FILE_DOC_MESSAGE_TYPE.SYNC: {
-      const encoder = encoding.createEncoder()
-      encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
-      // `socket.id` is the transaction origin, so the doc's `update` handler
-      // excludes this sender when relaying the applied update to the room.
-      syncProtocol.readSyncMessage(decoder, encoder, room.doc, socket.id)
-      // A reply longer than the 1-byte type tag is a sync step 2 (or step 1)
-      // destined for the sender only; applied updates fan out via `doc.on`.
-      if (encoding.length(encoder) > 1) {
-        socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
+    switch (messageType) {
+      case FILE_DOC_MESSAGE_TYPE.SYNC: {
+        const encoder = encoding.createEncoder()
+        encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+        // `socket.id` is the transaction origin, so the doc's `update` handler
+        // excludes this sender when relaying the applied update to the room.
+        syncProtocol.readSyncMessage(decoder, encoder, room.doc, socket.id)
+        // A reply longer than the 1-byte type tag is a sync step 2 (or step 1)
+        // destined for the sender only; applied updates fan out via `doc.on`.
+        if (encoding.length(encoder) > 1) {
+          socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
+        }
+        break
       }
-      break
+      case FILE_DOC_MESSAGE_TYPE.AWARENESS: {
+        const update = decoding.readVarUint8Array(decoder)
+        // Enforce presence ownership: a socket may only publish/remove awareness
+        // for the clientID it bound at join, so a peer cannot spoof or clear
+        // another collaborator's caret.
+        const owned = room.ownedClientId.get(socket.id)
+        if (owned === undefined || awarenessUpdateClientIds(update).some((id) => id !== owned)) {
+          logger.warn('Dropping awareness frame for an unowned client id', { socketId: socket.id })
+          return
+        }
+        awarenessProtocol.applyAwarenessUpdate(room.awareness, update, socket.id)
+        break
+      }
+      default:
+        logger.warn('Unknown file-doc message type', { messageType })
     }
-    case FILE_DOC_MESSAGE_TYPE.AWARENESS: {
-      awarenessProtocol.applyAwarenessUpdate(
-        room.awareness,
-        decoding.readVarUint8Array(decoder),
-        socket.id
-      )
-      break
-    }
-    default:
-      logger.warn('Unknown file-doc message type', { messageType })
+  } catch (error) {
+    logger.warn('Dropping malformed file-doc frame', { socketId: socket.id, error })
   }
 }
 
 /**
  * Remove a socket from its file-doc room: clear its awareness state (so its caret
- * disappears for everyone else), free the seeder election if it left before
+ * disappears for everyone else), hand off the seeder role if it left before
  * seeding, and drop the room's document when the last collaborator leaves.
  * Exported for the disconnect handler; safe to call for a socket in no room.
  */
@@ -203,23 +252,24 @@ export function cleanupFileDocForSocket(socketId: string, io: Server): void {
   const room = fileDocRooms.get(name)
   if (!room) return
 
-  const controlled = room.controlledIds.get(socketId)
-  room.controlledIds.delete(socketId)
-  if (controlled && controlled.size > 0) {
+  const owned = room.ownedClientId.get(socketId)
+  room.ownedClientId.delete(socketId)
+  if (owned !== undefined) {
     // Fires the awareness `update` handler with a non-socket origin → the removal
     // is broadcast to every remaining client, so the departed caret vanishes.
-    awarenessProtocol.removeAwarenessStates(room.awareness, Array.from(controlled), null)
+    awarenessProtocol.removeAwarenessStates(room.awareness, [owned], null)
   }
 
-  // If the elected seeder left before it seeded, free the election so the next
-  // joiner seeds — otherwise the document would stay permanently empty.
-  if (room.seederSocketId === socketId && !isDocSeeded(room.doc)) {
+  // Hand off the seeder role: if the elected seeder left before it seeded, elect
+  // a remaining client so the document doesn't stay permanently empty.
+  if (room.seederSocketId === socketId) {
     room.seederSocketId = null
+    electSeederIfNeeded(io, room)
   }
 
   // Drop the document + awareness once idle so no memory is held for a file with
   // no active editors; a later joiner re-creates and re-seeds it.
-  if (room.controlledIds.size === 0) {
+  if (room.ownedClientId.size === 0) {
     room.awareness.destroy()
     room.doc.destroy()
     fileDocRooms.delete(name)
@@ -238,7 +288,7 @@ export function setupWorkspaceFileDocHandlers(
 ) {
   const io = roomManager.io
 
-  socket.on(FILE_DOC_EVENTS.JOIN, async ({ fileId }: JoinFileDocPayload) => {
+  socket.on(FILE_DOC_EVENTS.JOIN, async ({ fileId, clientId }: JoinFileDocPayload) => {
     try {
       const userId = socket.userId
       const userName = socket.userName
@@ -251,8 +301,8 @@ export function setupWorkspaceFileDocHandlers(
         emitJoinError(socket, fileId, 'Realtime unavailable', 'ROOM_MANAGER_UNAVAILABLE', true)
         return
       }
-      if (typeof fileId !== 'string' || fileId.length === 0) {
-        emitJoinError(socket, fileId, 'Invalid file id', 'INVALID_PAYLOAD', false)
+      if (typeof fileId !== 'string' || fileId.length === 0 || typeof clientId !== 'number') {
+        emitJoinError(socket, fileId, 'Invalid join payload', 'INVALID_PAYLOAD', false)
         return
       }
 
@@ -293,17 +343,12 @@ export function setupWorkspaceFileDocHandlers(
         cleanupFileDocForSocket(socket.id, io)
       }
 
-      const entry = getOrCreateRoom(io, name)
-      if (!entry.controlledIds.has(socket.id)) entry.controlledIds.set(socket.id, new Set())
+      const entry = getOrCreateRoom(io, room)
+      entry.ownedClientId.set(socket.id, clientId)
       socketToRoomName.set(socket.id, name)
       socket.join(name)
 
-      // Elect exactly one seeder for an unseeded document, so its initial content
-      // is imported from the stored markdown once and never duplicated.
-      const shouldSeed = !isDocSeeded(entry.doc) && entry.seederSocketId === null
-      if (shouldSeed) entry.seederSocketId = socket.id
-
-      socket.emit(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId, shouldSeed })
+      socket.emit(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId })
 
       // Begin the sync handshake: send the server's state (sync step 1). The
       // client replies with its updates and requests the server's in return.
@@ -324,7 +369,10 @@ export function setupWorkspaceFileDocHandlers(
         socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(awarenessEncoder))
       }
 
-      logger.info(`User ${userId} joined file-doc room ${fileId} (seed=${shouldSeed})`)
+      // Ask a client to seed the initial content if the document is still empty.
+      electSeederIfNeeded(io, entry)
+
+      logger.info(`User ${userId} joined file-doc room ${fileId}`)
     } catch (error) {
       logger.error('Error joining file-doc room:', error)
       try {
