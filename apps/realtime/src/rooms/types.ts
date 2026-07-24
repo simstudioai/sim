@@ -106,8 +106,13 @@ export interface IRoomManager {
   /** Bump a room's lastModified timestamp. */
   updateRoomLastModified(room: RoomRef): Promise<void>
 
-  /** Broadcast the room's presence list to all clients in the room. */
-  broadcastPresenceUpdate(room: RoomRef): Promise<void>
+  /**
+   * Broadcast the room's presence list to all clients in the room. Pass
+   * `excludeSocketId` (e.g. a disconnecting socket) to omit that socket from the
+   * broadcast even if its presence entry outlived a failed removal — so it is
+   * never shown as a ghost collaborator.
+   */
+  broadcastPresenceUpdate(room: RoomRef, excludeSocketId?: string): Promise<void>
 
   /** Emit an event to all clients in a room. */
   emitToRoom<T = unknown>(room: RoomRef, event: string, payload: T): void

@@ -139,4 +139,18 @@ describe('MemoryRoomManager multi-room', () => {
     await m.broadcastPresenceUpdate(WORKFLOW)
     expect(emit).toHaveBeenCalledWith('presence-update', expect.any(Array))
   })
+
+  it('omits an excluded socket from the presence broadcast (disconnect ghost guard)', async () => {
+    const { emit, io } = fakeIo()
+    const m = new MemoryRoomManager(io)
+    await m.initialize()
+    await m.addUserToRoom(FILES, 'socket-1', presence(FILES, 'socket-1', 'user-1'))
+    await m.addUserToRoom(FILES, 'socket-2', presence(FILES, 'socket-2', 'user-2'))
+
+    // Broadcast as if socket-1 is disconnecting: even though its presence entry is
+    // still present, it must not appear in the emitted list.
+    await m.broadcastPresenceUpdate(FILES, 'socket-1')
+    const emitted = emit.mock.calls.at(-1)?.[1] as Array<{ socketId: string }>
+    expect(emitted.map((u) => u.socketId)).toEqual(['socket-2'])
+  })
 })

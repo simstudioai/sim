@@ -347,10 +347,11 @@ export class RedisRoomManager implements IRoomManager {
     await this.redis.hSet(KEYS.roomMeta(room), 'lastModified', Date.now().toString())
   }
 
-  async broadcastPresenceUpdate(room: RoomRef): Promise<void> {
+  async broadcastPresenceUpdate(room: RoomRef, excludeSocketId?: string): Promise<void> {
     const users = await this.getRoomUsers(room)
+    const visible = excludeSocketId ? users.filter((u) => u.socketId !== excludeSocketId) : users
     // io.to() with the Redis adapter broadcasts to all pods.
-    this._io.to(roomName(room)).emit(presenceEventName(room.type), users)
+    this._io.to(roomName(room)).emit(presenceEventName(room.type), visible)
   }
 
   emitToRoom<T = unknown>(room: RoomRef, event: string, payload: T): void {

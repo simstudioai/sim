@@ -166,9 +166,10 @@ export class MemoryRoomManager implements IRoomManager {
     if (state) state.lastModified = Date.now()
   }
 
-  async broadcastPresenceUpdate(room: RoomRef): Promise<void> {
+  async broadcastPresenceUpdate(room: RoomRef, excludeSocketId?: string): Promise<void> {
     const users = await this.getRoomUsers(room)
-    this._io.to(roomName(room)).emit(presenceEventName(room.type), users)
+    const visible = excludeSocketId ? users.filter((u) => u.socketId !== excludeSocketId) : users
+    this._io.to(roomName(room)).emit(presenceEventName(room.type), visible)
   }
 
   emitToRoom<T = unknown>(room: RoomRef, event: string, payload: T): void {

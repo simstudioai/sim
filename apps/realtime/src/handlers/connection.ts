@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { parseRoomName, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
+import { isSameRoom, parseRoomName, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
 import { cleanupPendingSubblocksForSocket } from '@/handlers/subblocks'
 import { cleanupPendingVariablesForSocket } from '@/handlers/variables'
 import type { AuthenticatedSocket } from '@/middleware/auth'
@@ -28,31 +28,36 @@ export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager
       // A socket may occupy multiple rooms (one per type). Remove it from every
       // room the manager knows about.
       const removedRooms = await roomManager.removeSocketFromAllRooms(socket.id)
-      const handled = new Set(removedRooms.map((room) => roomName(room)))
 
-      // Fallback: clean up any room the live Socket.IO membership still lists that
-      // the manager's (possibly-evicted) state no longer tracked. Only treat a room
-      // as removed when the manager confirms it (returns true) — symmetric with
-      // `removeSocketFromAllRooms`, which only reports rooms it actually removed. A
-      // false result (already absent, or a transient Redis error) is not rebroadcast
-      // here: on a real error `broadcastPresenceUpdate` would emit a stale list, and
-      // any orphaned entry is reclaimed by the next join's stale-presence sweep.
-      const fallbackRooms: RoomRef[] = []
+      // Union with the live Socket.IO membership (authoritative here, and it
+      // survives a Redis eviction/TTL lapse that would leave the manager's tracked
+      // rooms empty). Attempt removal for any room the manager didn't already
+      // remove — best-effort, since a transient Redis error can't be recovered here.
+      const wasInRooms = new Map<string, RoomRef>()
+      for (const room of removedRooms) wasInRooms.set(roomName(room), room)
       for (const name of socket.rooms) {
-        if (name === socket.id || handled.has(name)) continue
+        if (name === socket.id || wasInRooms.has(name)) continue
         const ref = parseRoomName(name)
         if (!ref) continue
-        const removed = await roomManager.removeUserFromRoom(ref, socket.id)
-        if (removed) fallbackRooms.push(ref)
+        wasInRooms.set(name, ref)
+        if (!removedRooms.some((room) => isSameRoom(room, ref))) {
+          await roomManager.removeUserFromRoom(ref, socket.id)
+        }
       }
 
-      const allRooms = [...removedRooms, ...fallbackRooms]
-      for (const room of allRooms) {
-        await roomManager.broadcastPresenceUpdate(room)
+      // Broadcast a correction to every room this socket was in, EXCLUDING this
+      // socket — so it is never shown as a ghost collaborator even if its presence
+      // entry outlived a failed removal (transient Redis error; the hashes have no
+      // TTL). Any orphaned entry is additionally reclaimed by the next join's
+      // stale-presence sweep.
+      for (const room of wasInRooms.values()) {
+        await roomManager.broadcastPresenceUpdate(room, socket.id)
       }
 
-      if (allRooms.length > 0) {
-        const rooms = allRooms.map((room) => `${room.type}:${room.id}`).join(', ')
+      if (wasInRooms.size > 0) {
+        const rooms = Array.from(wasInRooms.values())
+          .map((room) => `${room.type}:${room.id}`)
+          .join(', ')
         logger.info(`Socket ${socket.id} disconnected from [${rooms}] (reason: ${reason})`)
       }
     } catch (error) {
