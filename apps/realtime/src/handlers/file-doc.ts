@@ -133,7 +133,7 @@ function awarenessUpdateClientIds(update: Uint8Array): number[] {
   for (let i = 0; i < count; i++) {
     ids.push(decoding.readVarUint(decoder))
     decoding.readVarUint(decoder) // clock
-    decoding.readVarString(decoder) // state json
+    decoding.readVarUint8Array(decoder) // state bytes — advanced past, only ids matter
   }
   return ids
 }
@@ -144,6 +144,19 @@ function clearSeedTimer(room: FileDocRoom) {
     clearTimeout(room.seedTimer)
     room.seedTimer = null
   }
+}
+
+/**
+ * Drop a room's document + awareness (and its seed timer) once it has no owners,
+ * so an idle file holds no memory. A later joiner re-creates and re-seeds it.
+ */
+function destroyRoomIfIdle(name: string) {
+  const room = fileDocRooms.get(name)
+  if (!room || room.owners.size > 0) return
+  clearSeedTimer(room)
+  room.awareness.destroy()
+  room.doc.destroy()
+  fileDocRooms.delete(name)
 }
 
 /**
@@ -330,14 +343,7 @@ export function cleanupFileDocForSocket(socketId: string, io: Server): void {
     electSeederIfNeeded(io, room)
   }
 
-  // Drop the document + awareness once idle so no memory is held for a file with
-  // no active editors; a later joiner re-creates and re-seeds it.
-  if (room.owners.size === 0) {
-    clearSeedTimer(room)
-    room.awareness.destroy()
-    room.doc.destroy()
-    fileDocRooms.delete(name)
-  }
+  destroyRoomIfIdle(name)
 }
 
 /**
@@ -481,12 +487,7 @@ export function setupWorkspaceFileDocHandlers(
         // If the failure happened after `getOrCreateRoom` but before the socket
         // registered as an owner, `cleanupFileDocForSocket` (which keys off
         // `socketToRoomName`) can't drop the freshly-created empty room — do it here.
-        const room = fileDocRooms.get(name)
-        if (room && room.owners.size === 0) {
-          room.awareness.destroy()
-          room.doc.destroy()
-          fileDocRooms.delete(name)
-        }
+        destroyRoomIfIdle(name)
       } catch {}
       emitJoinError(socket, fileId, 'Failed to join file document', 'JOIN_FAILED', true)
     }
