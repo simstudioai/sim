@@ -86,24 +86,6 @@ export async function withLockedTable<T>(
  * the wire. The client doesn't have to join the two arrays itself — every
  * consumer (grid, sidebar, copilot, mothership) gets the same ordered list.
  */
-/**
- * Backward-compat for the removed `'multiselect'` column type: map it to a
- * `select` column with `multiple: true`. Applied on every schema read so legacy
- * tables — created before the two types were unified — load, edit, and validate
- * under the current model; the migrated shape persists on the table's next
- * schema write.
- */
-function migrateLegacyColumns(schema: TableSchema): TableSchema {
-  let mutated = false
-  const columns = schema.columns.map((c) => {
-    if ((c.type as string) !== 'multiselect') return c
-    mutated = true
-    const { type: _legacyType, ...rest } = c
-    return { ...rest, type: 'select' as const, multiple: true }
-  })
-  return mutated ? { ...schema, columns } : schema
-}
-
 function applyColumnOrderToSchema(
   schema: TableSchema,
   metadata: TableMetadata | null
@@ -169,7 +151,7 @@ export async function getTableById(
     id: table.id,
     name: table.name,
     description: table.description,
-    schema: applyColumnOrderToSchema(migrateLegacyColumns(table.schema as TableSchema), metadata),
+    schema: applyColumnOrderToSchema(table.schema as TableSchema, metadata),
     metadata,
     rowCount: Math.max(0, table.rowCount - pendingDeleteRemaining),
     maxRows: table.maxRows,
@@ -233,7 +215,7 @@ export async function listTables(
       id: t.id,
       name: t.name,
       description: t.description,
-      schema: applyColumnOrderToSchema(migrateLegacyColumns(t.schema as TableSchema), metadata),
+      schema: applyColumnOrderToSchema(t.schema as TableSchema, metadata),
       metadata,
       rowCount: Math.max(0, t.rowCount - pendingDeleteRemaining),
       maxRows: t.maxRows,
