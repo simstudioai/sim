@@ -653,7 +653,11 @@ async function registerSSOProvider(): Promise<boolean> {
       // verified record and the UI/API would treat it as unverified. Org-scoped
       // only — user-scoped providers have no org to attach a domain to.
       if (providerData.organizationId) {
-        const normalizedDomain = ssoConfig.domain.trim().toLowerCase()
+        // Match normalizeSSODomain's dominant transforms (lower + trim + strip a
+        // leading wildcard) so this row lines up with the runtime gate's lookup.
+        // normalizeSSODomain itself lives in apps/sim and can't be imported here
+        // (packages never import apps); other artifacts don't occur in SSO_DOMAIN.
+        const normalizedDomain = ssoConfig.domain.trim().toLowerCase().replace(/^\*\./, '')
         const existingDomain = await tx
           .select({ id: ssoDomain.id })
           .from(ssoDomain)

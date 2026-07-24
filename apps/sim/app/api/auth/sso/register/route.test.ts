@@ -96,9 +96,11 @@ describe('POST /api/auth/sso/register', () => {
     mockRegisterSSOProvider.mockResolvedValue({ providerId: 'acme-oidc' })
     // Default: the org has already verified the domain, so the ownership gate
     // passes and each test exercises the logic beyond it. The gate is checked
-    // twice for org-scoped registration (fail-fast entry + authoritative
-    // re-check before the write), so queue two rows. Gate-specific tests reset
-    // the queue to assert the unverified path.
+    // three times for a successful org-scoped registration (fail-fast entry +
+    // authoritative re-check before the write + compensating re-check after the
+    // write), so queue three rows. Gate-specific tests reset the queue to assert
+    // the unverified paths.
+    queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
     queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
     queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
   })
@@ -150,6 +152,20 @@ describe('POST /api/auth/sso/register', () => {
     expect(res.status).toBe(403)
     expect(json.code).toBe('SSO_DOMAIN_NOT_VERIFIED')
     expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
+  it('rolls back the newly-created provider if verification is revoked after the write', async () => {
+    resetDbChainMock()
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueTableRows(schemaMock.ssoDomain, [{ id: 'v' }]) // entry gate: verified
+    queueTableRows(schemaMock.ssoDomain, [{ id: 'v' }]) // pre-write re-check: verified
+    queueTableRows(schemaMock.ssoDomain, []) // post-write compensating check: revoked
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    const json = await res.json()
+    expect(res.status).toBe(403)
+    expect(json.code).toBe('SSO_DOMAIN_NOT_VERIFIED')
+    expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1) // it was created…
+    expect(dbChainMockFns.delete).toHaveBeenCalled() // …then rolled back
   })
 
   it('rejects a domain already registered by another organization', async () => {

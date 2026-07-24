@@ -92,6 +92,18 @@ describe('verify org domain route', () => {
     )
   })
 
+  it('is idempotent when a concurrent same-org request already verified the row', async () => {
+    queueAdminWithPendingRow()
+    queueTableRows(ssoDomain, []) // verified-elsewhere check → none
+    dbChainMockFns.returning.mockResolvedValueOnce([]) // our conditional update lost the race
+    queueTableRows(ssoDomain, [{ ...PENDING_ROW, status: 'verified' }]) // re-read: now verified
+    const res = await POST(createMockRequest('POST'), routeContext)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.data.domain).toMatchObject({ status: 'verified' })
+    expect(mockRecordAudit).not.toHaveBeenCalled() // the winning request recorded it
+  })
+
   it('409s when the row changed (deleted/re-tokenized) during the DNS lookup', async () => {
     queueAdminWithPendingRow()
     queueTableRows(ssoDomain, []) // verified-elsewhere check → none

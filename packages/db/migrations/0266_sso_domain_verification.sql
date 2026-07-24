@@ -18,19 +18,26 @@ CREATE UNIQUE INDEX "sso_domain_org_domain_unique" ON "sso_domain" USING btree (
 CREATE UNIQUE INDEX "sso_domain_verified_unique" ON "sso_domain" USING btree ("domain") WHERE status = 'verified';--> statement-breakpoint
 -- Grandfather existing org-scoped SSO provider domains as verified: they were
 -- claimed under the old first-come model, so treat them as owned/verified to
--- avoid breaking live SSO. DISTINCT ON keeps one verified row per domain
--- (the partial unique index is global on verified rows); the token is a
--- placeholder since these rows are already verified.
+-- avoid breaking live SSO. The normalized value must match normalizeSSODomain
+-- (the runtime gate's canonicalizer) so grandfathered lookups hit — hence
+-- lower + trim + strip a leading wildcard label; other artifacts (protocol,
+-- port, path) never occur in stored SSO domains. Computing it in a subquery
+-- keeps the DISTINCT ON dedup key identical to the inserted value, so the
+-- global partial unique index on verified rows can never be violated. The
+-- token is a placeholder since these rows are already verified.
 INSERT INTO "sso_domain" ("id", "organization_id", "domain", "status", "verification_token", "verified_at", "created_at", "updated_at")
-SELECT DISTINCT ON (lower("domain"))
+SELECT DISTINCT ON ("norm_domain")
 	gen_random_uuid()::text,
 	"organization_id",
-	lower("domain"),
+	"norm_domain",
 	'verified',
 	gen_random_uuid()::text,
 	now(),
 	now(),
 	now()
-FROM "sso_provider"
-WHERE "organization_id" IS NOT NULL
-ORDER BY lower("domain"), "organization_id";
+FROM (
+	SELECT "organization_id", lower(regexp_replace(btrim("domain"), '^\*\.', '')) AS "norm_domain"
+	FROM "sso_provider"
+	WHERE "organization_id" IS NOT NULL
+) AS "normalized"
+ORDER BY "norm_domain", "organization_id";

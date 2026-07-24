@@ -125,6 +125,18 @@ export const POST = withRouteHandler(
     }
 
     if (updated.length === 0) {
+      // The conditional update matched nothing. If a concurrent request for this
+      // same org already flipped the row to verified, treat this as an idempotent
+      // success; otherwise the challenge is genuinely stale (row deleted or
+      // re-tokenized mid-lookup) and we ask the caller to retry.
+      const [current] = await db
+        .select()
+        .from(ssoDomain)
+        .where(and(eq(ssoDomain.id, domainId), eq(ssoDomain.organizationId, organizationId)))
+        .limit(1)
+      if (current?.status === 'verified') {
+        return NextResponse.json({ success: true, data: { domain: toDomainResponse(current) } })
+      }
       return NextResponse.json(
         { error: 'The domain changed during verification. Refresh and try again.' },
         { status: 409 }

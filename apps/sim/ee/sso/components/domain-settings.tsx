@@ -51,7 +51,7 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
   }
 
   return (
-    <div className='flex flex-col gap-3 rounded-[10px] border border-[var(--border-1)] px-3 py-3'>
+    <div className='flex flex-col gap-3 rounded-lg border border-[var(--border-1)] px-3 py-3'>
       <div className='flex items-center justify-between gap-2'>
         <span className='truncate text-[var(--text-body)] text-sm'>{domain.domain}</span>
         <div className='flex items-center gap-2'>
@@ -193,5 +193,3 @@ export function DomainSettings({ organizationId }: DomainSettingsProps) {
     </>
   )
 }
-
-export default DomainSettings

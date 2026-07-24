@@ -555,6 +555,31 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers,
     })
 
+    // Close the residual TOCTOU between the re-check above and Better Auth
+    // persisting the provider: the verified sso_domain row could be removed in
+    // that window. registerSSOProvider is create-only (it throws if the
+    // providerId already exists), so a successful call ALWAYS created this exact
+    // row — this compensating delete can never remove a pre-existing provider.
+    // Scoped to (providerId, orgId) as defense-in-depth; personal SSO is not
+    // gated, so this only runs for org-scoped registration.
+    if (orgId && !(await isOrgDomainVerified())) {
+      await db
+        .delete(ssoProvider)
+        .where(
+          and(
+            eq(ssoProvider.providerId, registration.providerId),
+            eq(ssoProvider.organizationId, orgId)
+          )
+        )
+      logger.warn('Rolled back SSO provider: domain verification revoked mid-registration', {
+        domain,
+        orgId,
+        providerId: registration.providerId,
+        userId: session.user.id,
+      })
+      return domainNotVerifiedResponse()
+    }
+
     logger.info('SSO provider registered successfully', {
       providerId,
       providerType,
