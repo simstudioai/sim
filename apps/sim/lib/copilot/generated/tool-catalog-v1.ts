@@ -78,6 +78,7 @@ export interface ToolCatalogEntry {
     | 'list_workspace_mcp_servers'
     | 'load_deployment'
     | 'load_integration_tool'
+    | 'load_skill'
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_folder'
@@ -197,6 +198,7 @@ export interface ToolCatalogEntry {
     | 'list_workspace_mcp_servers'
     | 'load_deployment'
     | 'load_integration_tool'
+    | 'load_skill'
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_folder'
@@ -2937,6 +2939,24 @@ export const LoadIntegrationTool: ToolCatalogEntry = {
   },
 }
 
+export const LoadSkill: ToolCatalogEntry = {
+  id: 'load_skill',
+  name: 'load_skill',
+  route: 'go',
+  mode: 'sync',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description:
+          "Skill name exactly as it appears in the Loadable Skills index (e.g. 'pptx-writing').",
+      },
+    },
+    required: ['name'],
+  },
+}
+
 export const ManageCredential: ToolCatalogEntry = {
   id: 'manage_credential',
   name: 'manage_credential',
@@ -5259,6 +5279,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ListWorkspaceMcpServers.id]: ListWorkspaceMcpServers,
   [LoadDeployment.id]: LoadDeployment,
   [LoadIntegrationTool.id]: LoadIntegrationTool,
+  [LoadSkill.id]: LoadSkill,
   [ManageCredential.id]: ManageCredential,
   [ManageCustomTool.id]: ManageCustomTool,
   [ManageFolder.id]: ManageFolder,

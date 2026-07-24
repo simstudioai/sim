@@ -2627,6 +2627,20 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  load_skill: {
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description:
+            "Skill name exactly as it appears in the Loadable Skills index (e.g. 'pptx-writing').",
+        },
+      },
+      required: ['name'],
+    },
+    resultSchema: undefined,
+  },
   manage_credential: {
     parameters: {
       type: 'object',
