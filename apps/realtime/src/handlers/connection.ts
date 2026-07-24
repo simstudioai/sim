@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { parseRoomName, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
+import { cleanupFileDocForSocket } from '@/handlers/file-doc'
 import { cleanupPendingSubblocksForSocket } from '@/handlers/subblocks'
 import { cleanupPendingVariablesForSocket } from '@/handlers/variables'
 import type { AuthenticatedSocket } from '@/middleware/auth'
@@ -31,6 +32,9 @@ export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager
       // Clean up pending debounce entries for this socket to prevent memory leaks
       cleanupPendingSubblocksForSocket(socket.id)
       cleanupPendingVariablesForSocket(socket.id)
+      // Clear the socket's collaborative-document awareness (removes its caret for
+      // everyone else) and drop the room if it was the last editor.
+      cleanupFileDocForSocket(socket.id, roomManager.io)
 
       // A socket may occupy multiple rooms (one per type). Remove it from every
       // room the manager knows about.

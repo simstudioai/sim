@@ -22,6 +22,13 @@ export const ROOM_TYPES = {
   WORKFLOW: 'workflow',
   /** The workspace file browser (one room per workspace). */
   WORKSPACE_FILES: 'workspace-files',
+  /**
+   * A single collaborative file document — the rich-text editor for one file
+   * (one room per file). Carries Yjs document sync + awareness (live carets and
+   * text selection), so its id space is the file id, distinct from the
+   * workspace-scoped {@link ROOM_TYPES.WORKSPACE_FILES} browser room.
+   */
+  WORKSPACE_FILE_DOC: 'workspace-file-doc',
 } as const
 
 export type RoomType = (typeof ROOM_TYPES)[keyof typeof ROOM_TYPES]

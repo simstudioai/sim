@@ -25,6 +25,10 @@
     "./rooms": {
       "types": "./src/rooms.ts",
       "default": "./src/rooms.ts"
+    },
+    "./file-doc": {
+      "types": "./src/file-doc.ts",
+      "default": "./src/file-doc.ts"
     }
   },
   "scripts": {
