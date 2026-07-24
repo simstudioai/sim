@@ -104,12 +104,20 @@ export const jiraCustomFieldTypeSchema = z.enum([
 
 const customFieldIdSchema = z.string().min(1, 'fieldId is required')
 
-/** A non-empty option value/id — as a scalar or a `{ value }` / `{ id }` object. */
+/**
+ * A non-empty option value/id — a scalar, or an object that sets exactly one of
+ * `value` / `id`. Setting both is rejected: `toSelectOption` would keep one and
+ * silently discard the other, so Jira could store an option the caller didn't
+ * unambiguously request.
+ */
 const optionScalar = z.union([z.string().min(1, 'option value cannot be empty'), z.number()])
 const optionInputSchema = z.union([
   optionScalar,
-  z.object({ value: optionScalar }),
-  z.object({ id: optionScalar }),
+  z
+    .object({ value: optionScalar.optional(), id: optionScalar.optional() })
+    .refine((o) => (o.value !== undefined) !== (o.id !== undefined), {
+      message: 'option object must set exactly one of value or id',
+    }),
 ])
 
 /** An accountId string or a `{ accountId }` object for a user picker. */

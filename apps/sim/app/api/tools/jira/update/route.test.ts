@@ -119,6 +119,15 @@ describe('Jira update route custom-field serialization', () => {
     expect(response.status).toBe(400)
   })
 
+  it('rejects a select option object that sets both value and id', async () => {
+    const { response } = await update({
+      customFields: [
+        { fieldId: 'customfield_10001', type: 'select', value: { value: 'High', id: '10' } },
+      ],
+    })
+    expect(response.status).toBe(400)
+  })
+
   it('rejects a cascading object that sets both parent and value aliases', async () => {
     const { response } = await update({
       customFields: [
