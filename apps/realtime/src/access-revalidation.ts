@@ -95,10 +95,20 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
         return
       }
 
+      // Synchronous re-join guard with no awaits before the removal: if the
+      // socket legitimately re-joined this room after the eviction (access
+      // restored), that join re-added its presence — removal would erase it.
+      if (io.sockets.sockets.get(socketId)?.rooms.has(workflowId)) {
+        pendingCleanups.delete(key)
+        return
+      }
+
       const removed = await roomManager.removeUserFromRoom(socketId, workflowId)
-      if (removed === null && currentWorkflowId !== null) {
-        // The Redis manager swallows transport errors into null — a live
-        // mapping with no reported removal means the removal did not happen.
+      if (removed === null) {
+        // The sweep always passes the target room, and both managers report a
+        // performed removal by returning it — the Redis manager swallows
+        // transport errors into null, so null means the removal did not happen
+        // (even when the socket's mapping keys have already expired).
         throw new Error('room-state removal not confirmed')
       }
 
@@ -114,15 +124,7 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
   }
 
   async function retryPendingCleanups(): Promise<void> {
-    for (const [key, { socketId, workflowId }] of pendingCleanups) {
-      const liveSocket = io.sockets.sockets.get(socketId)
-      if (liveSocket?.rooms.has(workflowId)) {
-        // The socket re-joined legitimately after the eviction (access was
-        // restored); that join re-added its presence entry, so there is
-        // nothing stale left to clean and removal would erase live presence.
-        pendingCleanups.delete(key)
-        continue
-      }
+    for (const [, { socketId, workflowId }] of pendingCleanups) {
       await cleanupEvictedSocket(socketId, workflowId)
     }
   }

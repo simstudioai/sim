@@ -30,7 +30,16 @@ interface FakeSocket {
 function makeSocket(id: string, userId: string | undefined, workflowId?: string): FakeSocket {
   const rooms = new Set<string>([id])
   if (workflowId) rooms.add(workflowId)
-  return { id, userId, rooms, emit: vi.fn(), leave: vi.fn() }
+  return {
+    id,
+    userId,
+    rooms,
+    emit: vi.fn(),
+    // Socket.IO's leave removes the room from `rooms` synchronously.
+    leave: vi.fn((room: string) => {
+      rooms.delete(room)
+    }),
+  }
 }
 
 function makeManager(sockets: FakeSocket[], presence: Partial<UserPresence>[] = []) {
@@ -179,9 +188,29 @@ describe('access-revalidation sweep', () => {
     expect(socket.leave).toHaveBeenCalledWith('wf-1')
     expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
 
-    // The evicted socket is out of the room now, so membership scans no longer
-    // see it — the retry queue must drive the cleanup to completion.
-    socket.rooms = new Set(['sock-1'])
+    // The evicted socket left the room, so membership scans no longer see it —
+    // the retry queue must drive the cleanup to completion.
+    await sweep.runOnce()
+    sweep.stop()
+
+    expect(manager.removeUserFromRoom).toHaveBeenCalledTimes(2)
+    expect(manager.broadcastPresenceUpdate).toHaveBeenCalledWith('wf-1')
+  })
+
+  it('defers cleanup when removal fails with expired socket mappings', async () => {
+    const socket = makeSocket('sock-1', 'user-1', 'wf-1')
+    const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
+    // Mapping keys already expired (lookup resolves null) AND the removal fails
+    // (the Redis manager swallows the transport error into null) — the failed
+    // removal must still defer instead of reading as success.
+    manager.removeUserFromRoom.mockResolvedValueOnce(null)
+    mockResolveRole.mockResolvedValue(null)
+
+    const sweep = startAccessRevalidationSweep(manager)
+    await sweep.runOnce()
+
+    expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
+
     await sweep.runOnce()
     sweep.stop()
 
@@ -204,8 +233,7 @@ describe('access-revalidation sweep', () => {
     expect(socket.leave).toHaveBeenCalledWith('wf-1')
     expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
 
-    // Next pass: the socket left the room, and the removal now succeeds.
-    socket.rooms = new Set(['sock-1'])
+    // Next pass: the removal now succeeds and the cleanup completes.
     await sweep.runOnce()
     sweep.stop()
 
@@ -240,8 +268,9 @@ describe('access-revalidation sweep', () => {
     await sweep.runOnce()
     expect(socket.leave).toHaveBeenCalledWith('wf-1')
 
-    // Access restored and the socket re-joined (still in the room in this
-    // fake): the retry must NOT remove the fresh presence entry.
+    // Access restored and the socket re-joined the same room: the retry must
+    // NOT remove the fresh presence entry that re-join created.
+    socket.rooms.add('wf-1')
     mockResolveRole.mockResolvedValue('read')
     await sweep.runOnce()
     sweep.stop()

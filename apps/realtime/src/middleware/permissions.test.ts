@@ -23,10 +23,23 @@ vi.mock('@sim/platform-authz/workflow', () => ({
   authorizeWorkflowByWorkspacePermission: mockAuthorize,
 }))
 
+vi.mock('@sim/db', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [{ workspaceId: 'ws-1', name: 'Test Workflow' }]),
+        })),
+      })),
+    })),
+  },
+}))
+
 import {
   checkRolePermission,
   checkWorkflowOperationPermission,
   resolveCurrentWorkflowRole,
+  verifyWorkflowAccess,
 } from '@/middleware/permissions'
 
 describe('checkRolePermission', () => {
@@ -479,5 +492,30 @@ describe('resolveCurrentWorkflowRole single-flight', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('verifyWorkflowAccess role-cache refresh', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('records the fresh decision so a stale cached revocation does not block a re-granted join', async () => {
+    const userId = 'vw-user-1'
+    const workflowId = 'vw-wf-1'
+
+    // A sweep-style resolution records the revocation.
+    mockAuthorize.mockResolvedValue({ allowed: false, workspacePermission: null })
+    expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBeNull()
+
+    // Access is restored and a fresh join-time verify succeeds.
+    mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'write' })
+    const access = await verifyWorkflowAccess(userId, workflowId)
+    expect(access.hasAccess).toBe(true)
+
+    // The pre-join gate's warm read now sees the fresh role, not the stale
+    // cached null recorded before the re-grant.
+    mockAuthorize.mockRejectedValue(new Error('must not re-query'))
+    expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBe('write')
   })
 })

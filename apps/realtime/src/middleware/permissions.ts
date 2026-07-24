@@ -129,6 +129,21 @@ function purgeExpiredRoles(now: number): void {
   }
 }
 
+/**
+ * Records a freshly-read authoritative decision into the role cache. Every
+ * successful DB read of a user's workspace role goes through this — including
+ * the join-time {@link verifyWorkflowAccess} — so a stale cached revocation
+ * never outlives a newer authoritative read (e.g. a re-granted user re-joining
+ * within the TTL of the sweep's recorded `null`).
+ */
+function recordRoleDecision(key: string, role: string | null): void {
+  const now = Date.now()
+  if (roleCache.size >= MAX_ROLE_CACHE_ENTRIES) {
+    purgeExpiredRoles(now)
+  }
+  roleCache.set(key, { role, expiresAt: now + ROLE_REVALIDATION_TTL_MS })
+}
+
 async function resolveRoleUncached(
   key: string,
   userId: string,
@@ -142,11 +157,7 @@ async function resolveRoleUncached(
       action: 'read',
     })
     const role = authorization.allowed ? (authorization.workspacePermission ?? null) : null
-    const now = Date.now()
-    if (roleCache.size >= MAX_ROLE_CACHE_ENTRIES) {
-      purgeExpiredRoles(now)
-    }
-    roleCache.set(key, { role, expiresAt: now + ROLE_REVALIDATION_TTL_MS })
+    recordRoleDecision(key, role)
     return role
   } catch (error) {
     logger.warn(
@@ -226,6 +237,11 @@ export async function checkWorkflowOperationPermission(
  * Returns `hasAccess: false` only for genuine denials (workflow missing/archived
  * or no workspace permission). Transient failures (DB errors) are rethrown so the
  * caller can report them as retryable instead of a permanent access denial.
+ *
+ * The fresh authorization decision is recorded into the role cache, so the
+ * pre-join re-check and the eviction sweep see it immediately — in particular,
+ * a user whose access was revoked and then restored is not blocked by the
+ * sweep's stale cached revocation for the remainder of its TTL.
  */
 export async function verifyWorkflowAccess(
   userId: string,
@@ -252,6 +268,11 @@ export async function verifyWorkflowAccess(
       userId,
       action: 'read',
     })
+
+    recordRoleDecision(
+      `${userId}:${workflowId}`,
+      authorization.allowed ? (authorization.workspacePermission ?? null) : null
+    )
 
     if (!authorization.allowed || !authorization.workspacePermission) {
       logger.warn(
