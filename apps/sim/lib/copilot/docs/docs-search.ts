@@ -3,6 +3,7 @@ import { docsEmbeddings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, like, notLike, or, sql } from 'drizzle-orm'
 import { docsPathForSourceDocument, isDocsDir, isDocsPage } from '@/lib/copilot/docs/docs-corpus'
+import { docsSourceCandidates } from '@/lib/copilot/docs/docs-path'
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
 const logger = createLogger('DocsSearch')
@@ -65,10 +66,10 @@ function scopeCondition(path?: string) {
 
   if (isDocsPage(normalized)) {
     // One page: on disk it is either `<tail>.mdx` or `<tail>/index.mdx`.
-    const stem = tail.replace(/\.mdx$/, '')
+    const [pageFile, indexFile] = docsSourceCandidates(tail)
     return or(
-      eq(docsEmbeddings.sourceDocument, `${stem}.mdx`),
-      eq(docsEmbeddings.sourceDocument, `${stem}/index.mdx`)
+      eq(docsEmbeddings.sourceDocument, pageFile),
+      eq(docsEmbeddings.sourceDocument, indexFile)
     )
   }
 

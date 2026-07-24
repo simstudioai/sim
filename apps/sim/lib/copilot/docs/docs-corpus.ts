@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { foldDocsIndexPath } from '@/lib/copilot/docs/docs-path'
 import { DOCS_MANIFEST } from '@/lib/copilot/generated/docs-manifest'
 import type { GrepCountEntry, GrepMatch, GrepOptions } from '@/lib/copilot/vfs/operations'
-import { glob as globPaths, grep as grepFiles } from '@/lib/copilot/vfs/operations'
+import { glob as globPaths, grepReadResult } from '@/lib/copilot/vfs/operations'
 
 const logger = createLogger('DocsCorpus')
 
@@ -56,12 +57,11 @@ export function isDocsPath(path: string | undefined): boolean {
  * True when a glob `pattern` could match the docs corpus. Like `uploads/` and
  * `recently-deleted/`, the corpus is opt-in: only a pattern that explicitly
  * starts with `docs/` (or is exactly `docs`) sees it, so a broad `**` glob never
- * drags 300+ doc pages into the result.
+ * drags 300+ doc pages into the result. Same rule as {@link isDocsPath}; the
+ * separate name reads correctly at the glob call site.
  */
 export function couldMatchDocsScope(pattern: string | undefined): boolean {
-  if (!pattern) return false
-  const normalized = normalize(pattern)
-  return normalized === 'docs' || normalized.startsWith(DOCS_PREFIX)
+  return isDocsPath(pattern)
 }
 
 /** Manifest paths (and their virtual directories) matching an explicit `docs/` pattern. */
@@ -82,7 +82,7 @@ export function isDocsPage(path: string): boolean {
  */
 export function docsPathForSourceDocument(sourceDocument: string | null): string | null {
   if (!sourceDocument) return null
-  const path = `${DOCS_PREFIX}${sourceDocument.replace(/^\/+/, '').replace(/\/index\.mdx$/, '.mdx')}`
+  const path = `${DOCS_PREFIX}${foldDocsIndexPath(sourceDocument.replace(/^\/+/, ''))}`
   return docsKeyView.has(path) ? path : null
 }
 
@@ -108,9 +108,16 @@ export interface DocsPage {
  * to its raw-markdown route), so no mapping table is needed. Returns null when
  * the page is not in the manifest or the site does not serve it.
  */
-async function fetchDocsPage(path: string): Promise<string | null> {
+type DocsFetchResult =
+  | { outcome: 'ok'; content: string }
+  /** The site will not serve this path however many times we ask. */
+  | { outcome: 'missing' }
+  /** Transient: 5xx, 429, network error, or timeout. */
+  | { outcome: 'unavailable' }
+
+async function fetchDocsPage(path: string): Promise<DocsFetchResult> {
   const key = normalize(path)
-  if (!docsKeyView.has(key)) return null
+  if (!docsKeyView.has(key)) return { outcome: 'missing' }
   const url = `${DOCS_BASE_URL}/${key.slice(DOCS_PREFIX.length)}`
   try {
     const response = await fetch(url, {
@@ -119,12 +126,13 @@ async function fetchDocsPage(path: string): Promise<string | null> {
     })
     if (!response.ok) {
       logger.warn('Docs page fetch returned a non-OK status', { url, status: response.status })
-      return null
+      const permanent = response.status >= 400 && response.status < 500 && response.status !== 429
+      return { outcome: permanent ? 'missing' : 'unavailable' }
     }
-    return await response.text()
+    return { outcome: 'ok', content: await response.text() }
   } catch (err) {
     logger.warn('Docs page fetch failed', { url, error: toError(err).message })
-    return null
+    return { outcome: 'unavailable' }
   }
 }
 
@@ -144,13 +152,18 @@ export async function readDocsPage(path: string): Promise<DocsPage> {
       `Docs page not found: ${path}. Use glob("docs/**") to list the docs corpus.`
     )
   }
-  const content = await fetchDocsPage(key)
-  if (content === null) {
+  const result = await fetchDocsPage(key)
+  if (result.outcome === 'missing') {
+    throw new DocsCorpusError(
+      `${key} is in the docs index but ${DOCS_BASE_URL} does not serve it — the page was likely moved or removed. Use glob("docs/**") to find the current path; retrying will not help.`
+    )
+  }
+  if (result.outcome === 'unavailable') {
     throw new DocsCorpusError(
       `Could not load ${key} from ${DOCS_BASE_URL} — the docs site is temporarily unavailable. Retry shortly.`
     )
   }
-  return { content, totalLines: content.split('\n').length }
+  return { content: result.content, totalLines: result.content.split('\n').length }
 }
 
 /**
@@ -170,5 +183,5 @@ export async function grepDocsPage(
     )
   }
   const page = await readDocsPage(key)
-  return grepFiles(new Map([[key, page.content]]), pattern, undefined, options)
+  return grepReadResult(key, page, pattern, key, options)
 }

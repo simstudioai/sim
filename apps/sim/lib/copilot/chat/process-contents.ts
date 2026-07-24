@@ -62,7 +62,6 @@ type AgentContextType =
   | 'file'
   | 'file_selection'
   | 'workflow_block'
-  | 'docs'
   | 'folder'
   | 'filefolder'
   | 'active_resource'
