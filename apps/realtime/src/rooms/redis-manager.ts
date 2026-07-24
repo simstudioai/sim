@@ -311,6 +311,14 @@ export class RedisRoomManager implements IRoomManager {
     return exists > 0
   }
 
+  async deleteRoom(room: RoomRef): Promise<void> {
+    try {
+      await this.redis.del([KEYS.roomUsers(room), KEYS.roomMeta(room)])
+    } catch (error) {
+      logger.error(`Failed to delete room ${room.type}:${room.id}:`, error)
+    }
+  }
+
   async updateUserActivity(
     room: RoomRef,
     socketId: string,

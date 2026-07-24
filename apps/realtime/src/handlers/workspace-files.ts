@@ -159,6 +159,14 @@ export function setupWorkspaceFilesHandlers(
         logger.info(`User ${userId} (${userName}) joined files room for workspace ${workspaceId}`)
       } catch (error) {
         logger.error('Error joining workspace files room:', error)
+        // Roll back any partial join so a failed attempt can't leave the socket in
+        // the Socket.IO room or a stale presence entry behind (mirrors the workflow
+        // join's rollback), before signalling a retryable failure.
+        try {
+          const room = filesRoom(workspaceId)
+          socket.leave(roomName(room))
+          await roomManager.removeUserFromRoom(room, socket.id)
+        } catch {}
         socket.emit('join-workspace-files-error', {
           workspaceId,
           error: 'Failed to join workspace files',

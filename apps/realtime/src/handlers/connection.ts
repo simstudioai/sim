@@ -21,6 +21,13 @@ export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager
   // evicted or TTL-expired (which would leave the manager's stored rooms empty).
   socket.on('disconnecting', async (reason) => {
     try {
+      // Snapshot the live Socket.IO room membership SYNCHRONOUSLY, before any
+      // await: Socket.IO clears `socket.rooms` via leaveAll() as soon as the
+      // synchronous portion of this `disconnecting` handler returns (i.e. at the
+      // first await below), so reading it afterwards would see an empty set and
+      // the eviction fallback would be dead.
+      const liveRoomNames = [...socket.rooms]
+
       // Clean up pending debounce entries for this socket to prevent memory leaks
       cleanupPendingSubblocksForSocket(socket.id)
       cleanupPendingVariablesForSocket(socket.id)
@@ -29,13 +36,13 @@ export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager
       // room the manager knows about.
       const removedRooms = await roomManager.removeSocketFromAllRooms(socket.id)
 
-      // Union with the live Socket.IO membership (authoritative here, and it
+      // Union with the snapshotted Socket.IO membership (authoritative, and it
       // survives a Redis eviction/TTL lapse that would leave the manager's tracked
       // rooms empty). Attempt removal for any room the manager didn't already
       // remove — best-effort, since a transient Redis error can't be recovered here.
       const wasInRooms = new Map<string, RoomRef>()
       for (const room of removedRooms) wasInRooms.set(roomName(room), room)
-      for (const name of socket.rooms) {
+      for (const name of liveRoomNames) {
         // `wasInRooms.has(name)` already excludes every room the manager removed
         // (same room-name key via the roomName/parseRoomName bijection), so any
         // room reaching here was NOT in `removedRooms` and needs a removal attempt.

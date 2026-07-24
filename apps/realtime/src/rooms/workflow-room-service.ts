@@ -23,25 +23,28 @@ export class WorkflowRoomService {
     const room = workflowRoom(workflowId)
 
     const users = await this.manager.getRoomUsers(room)
-    if (users.length === 0) {
-      logger.debug(`No active users found for deleted workflow ${workflowId}`)
-      return
-    }
 
-    this.manager.emitToRoom(room, 'workflow-deleted', {
-      workflowId,
-      message: 'This workflow has been deleted',
-      timestamp: Date.now(),
-    })
+    if (users.length > 0) {
+      this.manager.emitToRoom(room, 'workflow-deleted', {
+        workflowId,
+        message: 'This workflow has been deleted',
+        timestamp: Date.now(),
+      })
+    }
 
     // Remove every socket from the Socket.IO room (cross-pod via the Redis adapter).
     const name = roomName(room)
     await this.manager.io.in(name).socketsLeave(name)
 
-    // Drop presence state for each socket; empty-room cleanup is handled by the manager.
+    // Drop presence state for each socket.
     for (const user of users) {
       await this.manager.removeUserFromRoom(room, user.socketId)
     }
+
+    // Final unconditional wipe — the workflow is gone, so no state may linger even
+    // if a per-socket removal failed or a socket joined mid-teardown (matches the
+    // pre-refactor managers, which ended deletion with an unconditional room drop).
+    await this.manager.deleteRoom(room)
 
     logger.info(
       `Cleaned up workflow room ${workflowId} after deletion (${users.length} users disconnected)`

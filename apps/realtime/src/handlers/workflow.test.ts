@@ -61,6 +61,7 @@ function createRoomManager(overrides?: Partial<IRoomManager>): IRoomManager {
     broadcastPresenceUpdate: vi.fn().mockResolvedValue(undefined),
     getRoomUsers: vi.fn().mockResolvedValue([]),
     hasRoom: vi.fn().mockResolvedValue(false),
+    deleteRoom: vi.fn().mockResolvedValue(undefined),
     addUserToRoom: vi.fn().mockResolvedValue(undefined),
     getUserSession: vi.fn().mockResolvedValue(null),
     updateUserActivity: vi.fn().mockResolvedValue(undefined),

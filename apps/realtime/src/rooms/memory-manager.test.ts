@@ -120,6 +120,17 @@ describe('MemoryRoomManager multi-room', () => {
     expect(await manager.getUserSession('socket-2')).not.toBeNull()
   })
 
+  it('deleteRoom unconditionally drops all room state', async () => {
+    await manager.addUserToRoom(FILES, 'socket-1', presence(FILES, 'socket-1', 'user-1'))
+    await manager.addUserToRoom(FILES, 'socket-2', presence(FILES, 'socket-2', 'user-2'))
+    expect(await manager.hasRoom(FILES)).toBe(true)
+
+    await manager.deleteRoom(FILES)
+
+    expect(await manager.hasRoom(FILES)).toBe(false)
+    expect(await manager.getRoomUsers(FILES)).toHaveLength(0)
+  })
+
   it('ignores removal of a room the socket is not in (id-guarded)', async () => {
     await manager.addUserToRoom(FILES, 'socket-1', presence(FILES, 'socket-1', 'user-1'))
 

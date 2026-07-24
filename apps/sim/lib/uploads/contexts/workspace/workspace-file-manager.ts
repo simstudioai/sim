@@ -23,6 +23,7 @@ import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-ali
 import { isReservedWorkflowAliasBackingDisplayPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
+import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
   deleteFile,
@@ -379,6 +380,11 @@ export async function uploadWorkspaceFile(
 
       const pathPrefix = getServePathPrefix()
       const serveUrl = `${pathPrefix}${encodeURIComponent(uploadResult.key)}?context=workspace`
+
+      // Fan out the live-tree signal for the direct-upload paths (multipart
+      // fallback, copilot create, /api/files/upload, v1 files) — the presigned
+      // path already notifies from its register route.
+      await notifyWorkspaceFilesChanged(workspaceId)
 
       return {
         id: fileId,
