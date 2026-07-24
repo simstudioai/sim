@@ -236,7 +236,30 @@ export const jiraUpdateBodySchema = z.object({
   environment: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
   customFieldId: z.string().optional(),
   customFieldValue: z.string().optional(),
-  customFields: z.array(jiraCustomFieldEntrySchema).max(50).optional(),
+  customFields: z
+    .array(jiraCustomFieldEntrySchema)
+    .max(50)
+    .superRefine((entries, ctx) => {
+      // Two entries that normalize to the same `customfield_XXXXX` (including a
+      // lookalike pair like `10001` and `customfield_10001`) would last-write-win
+      // in buildJiraCustomFields, silently applying one value. Reject the
+      // collision at the boundary.
+      const seen = new Set<string>()
+      entries.forEach((entry, index) => {
+        const normalized = entry.fieldId.startsWith('customfield_')
+          ? entry.fieldId
+          : `customfield_${entry.fieldId}`
+        if (seen.has(normalized)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `duplicate custom field id: ${entry.fieldId}`,
+            path: [index, 'fieldId'],
+          })
+        }
+        seen.add(normalized)
+      })
+    })
+    .optional(),
   notifyUsers: z.boolean().optional(),
   cloudId: z.string().optional(),
 })

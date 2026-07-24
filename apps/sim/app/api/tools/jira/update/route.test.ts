@@ -135,6 +135,17 @@ describe('Jira update route custom-field serialization', () => {
     expect(response.status).toBe(400)
   })
 
+  it('rejects duplicate custom field ids after normalization', async () => {
+    const { response } = await update({
+      customFields: [
+        { fieldId: '10001', type: 'select', value: 'High' },
+        { fieldId: 'customfield_10001', type: 'select', value: 'Low' },
+      ],
+    })
+    expect(response.status).toBe(400)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('rejects a cascading object that sets both parent and value aliases', async () => {
     const { response } = await update({
       customFields: [
