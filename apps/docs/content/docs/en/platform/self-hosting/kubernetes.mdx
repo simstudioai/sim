@@ -38,7 +38,7 @@ helm install sim ./helm/sim \
 
 ## Cloud-Specific Values
 
-These are cloud-tuned **alternatives** to the generic install above — pick one path, don't run both. The commands reuse the `$BETTER_AUTH_SECRET`, `$ENCRYPTION_KEY`, `$INTERNAL_API_SECRET`, `$CRON_SECRET`, and `$POSTGRES_PASSWORD` variables generated in [Installation](#installation) above, so run that block's `openssl` lines first in the same shell. They use `helm upgrade --install`, which also converts an existing generic install to the cloud values in place.
+These are cloud-tuned **alternatives** to the generic install above — pick one path, don't run both. The commands reuse the `$BETTER_AUTH_SECRET`, `$ENCRYPTION_KEY`, `$INTERNAL_API_SECRET`, `$CRON_SECRET`, and `$POSTGRES_PASSWORD` variables generated in [Installation](#installation) above, so run that block's `openssl` lines first in the same shell. They use `helm upgrade --install`, so they work whether or not a release exists yet. One caveat when converting an existing generic install: the cloud values rename the bundled PostgreSQL database to `simstudio`, but Postgres only applies that setting on first initialization — so either add `--set postgresql.auth.database=sim` to keep your existing database, or start fresh (`helm uninstall sim -n simstudio` and delete its PVCs) before running the cloud command.
 
 <Tabs items={['AWS EKS', 'Azure AKS', 'GCP GKE']}>
   <Tab value="AWS EKS">
