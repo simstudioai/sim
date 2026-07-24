@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
@@ -35,6 +36,22 @@ import {
 
 type PreparedTools = ReturnType<typeof prepareToolsWithUsageControl>
 type ToolChoice = PreparedTools['toolChoice']
+
+/**
+ * Stable routing key for OpenAI's prompt cache, scoped to one agent block.
+ *
+ * Per-block rather than per-workflow: two blocks in the same workflow have
+ * different prefixes, so sharing a key would pull them onto the same engine and
+ * lower the hit rate. Hashed so no internal identifier leaves the system.
+ * Returns `undefined` when the caller has no stable identity to key on.
+ */
+function buildPromptCacheKey(request: ProviderRequest): string | undefined {
+  if (!request.workflowId || !request.blockId) return undefined
+  return createHash('sha256')
+    .update(`${request.workflowId}:${request.blockId}`)
+    .digest('hex')
+    .slice(0, 32)
+}
 
 export interface ResponsesProviderConfig {
   providerId: string
@@ -96,6 +113,19 @@ export async function executeResponsesProviderRequest(
   const basePayload: Record<string, unknown> = {
     model: config.modelName,
   }
+
+  /**
+   * OpenAI prompt caching is automatic and free, so there is nothing to toggle
+   * — but requests only hit a warm cache when they route to the same engine.
+   * A stable key per agent block sharpens that routing and is required for
+   * reliable matching on GPT-5.6+.
+   *
+   * `prompt_cache_key` is absent from the pinned SDK's typings, which is
+   * harmless: this body is a plain object posted through `fetch`, never
+   * `responses.create()`. Do not delete it as an unknown parameter.
+   */
+  const promptCacheKey = buildPromptCacheKey(request)
+  if (promptCacheKey) basePayload.prompt_cache_key = promptCacheKey
 
   if (request.temperature !== undefined) basePayload.temperature = request.temperature
   if (request.maxTokens != null) basePayload.max_output_tokens = request.maxTokens

@@ -80,7 +80,10 @@ Some settings live under advanced, or appear only for models that support them:
 - **Temperature.** How varied the output is. Stay low (0–0.3) when you need accuracy and repeatability, middle (around 0.5) for everyday work, higher (0.7+) when you want creative variety.
 - **Max output tokens.** Caps the response length. Defaults to the model's full limit.
 - **Reasoning effort / Thinking level.** For models with extended reasoning, how much the model thinks before answering. Higher is more thorough but slower and costs more tokens.
+- **Prompt caching.** For Anthropic Claude models, reuses the system prompt and tool definitions between runs instead of re-reading them every time. Cached input costs a tenth of the normal rate, but writing the cache costs 1.25x, so leave it off for one-off runs and turn it on when the same agent runs repeatedly. The cache covers a prefix only if it reaches 1,024 tokens (2,048 on Haiku) — below that Anthropic ignores it and nothing changes. Entries expire after five minutes of no use.
 - **API key.** Your key for the chosen provider. Hidden on hosted Sim, which supplies one.
+
+OpenAI and Gemini cache automatically at no extra cost and need no setting; their discount is already reflected in what you are charged.
 
 ## Outputs
 
@@ -141,6 +144,7 @@ The Agent reads the message from Start with `<start.input>` and returns a result
   { question: "What is the difference between the tool usage controls (Auto, Force, None)?", answer: "In Auto, the model decides when to call a tool based on context. In Force, the model must call the tool on every run. In None, the tool is hidden from the model and never sent, which disables it without removing it from the block." },
   { question: "How does the Response Format work?", answer: "It enforces structured output by providing a JSON Schema. When set, the model's response is constrained to match the schema exactly, and each field is read directly by downstream blocks using <agent.fieldName>. Without a response format, the agent returns its standard outputs: content, model, tokens, and toolCalls." },
   { question: "What does the Reasoning Effort / Thinking Level setting do?", answer: "They appear only for models that support extended reasoning. Reasoning Effort (OpenAI o-series and GPT-5 models) and Thinking Level (Anthropic Claude and Gemini models with thinking) control how much compute the model spends reasoning before responding. Higher levels produce more thorough answers but cost more tokens and take longer." },
+  { question: "When should I turn on Prompt Caching?", answer: "Turn it on when the same agent runs repeatedly with a large, stable system prompt or tool set — cached input bills at a tenth of the normal input rate. Leave it off for one-off runs, because writing the cache costs 1.25x and nothing reads it back. The setting appears only for Anthropic Claude models; OpenAI and Gemini cache automatically with no setting and no write fee. Anthropic only caches a prefix of at least 1,024 tokens (2,048 on Haiku), and entries expire after five minutes of no use." },
   { question: "How does max output tokens work with Anthropic models?", answer: "The Agent block uses each Anthropic model's full max output token limit by default (for example, 64,000 tokens). You can override this with the Max Output Tokens setting. For non-streaming requests that exceed the SDK's internal threshold, the provider automatically uses internal streaming to avoid timeouts." },
   { question: "Can I use the Agent block with a custom or self-hosted model?", answer: "Yes. Use any Ollama or VLLM-compatible model by typing the model name directly into the model combobox, as long as it exposes a compatible API endpoint." },
 ]} />

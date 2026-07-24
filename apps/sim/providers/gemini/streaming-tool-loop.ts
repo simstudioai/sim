@@ -38,6 +38,7 @@ import {
   isAbortError,
   type StreamingToolLoopComplete,
   settleOpenTools,
+  terminateToolLoop,
 } from '@/providers/streaming-tool-loop-shared'
 import { ensureToolCallId } from '@/providers/tool-call-id'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
@@ -613,23 +614,28 @@ export function createGeminiStreamingToolLoopStream(
           controller.close()
         } catch (error) {
           reportProgress()
-          if (loopAbortController.signal.aborted) {
-            if (!consumerCancelled) {
-              settleOpenTools(controller, openToolStarts, 'cancelled')
-              controller.close()
-            }
-          } else {
-            settleOpenTools(controller, openToolStarts, 'error')
-            logger.error('Gemini streaming tool loop failed', {
-              error: toError(error).message,
-            })
-            controller.error(error)
-          }
+          terminateToolLoop({
+            controller,
+            openTools: openToolStarts,
+            aborted: loopAbortController.signal.aborted,
+            consumerCancelled,
+            error,
+            onUnexpectedError: (cause) =>
+              logger.error('Gemini streaming tool loop failed', {
+                error: toError(cause).message,
+              }),
+          })
         } finally {
           activeStreamIterator = undefined
           request.abortSignal?.removeEventListener('abort', abortFromRequest)
         }
-      })()
+      })().catch((error) => {
+        // `start` cannot be async (the loop must not block the first pull), so
+        // a throw escaping the IIFE would surface as an unhandled rejection.
+        logger.error('Unhandled failure in Gemini streaming tool loop', {
+          error: toError(error).message,
+        })
+      })
     },
     async cancel(reason) {
       consumerCancelled = true

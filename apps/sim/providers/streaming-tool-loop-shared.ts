@@ -6,6 +6,7 @@
  * provider-agnostic contract they share.
  */
 
+import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
@@ -78,4 +79,50 @@ export function settleOpenTools(
     controller.enqueue({ type: 'tool_call_end', id, name, status })
   }
   openTools.clear()
+}
+
+interface TerminateToolLoopOptions {
+  controller: ReadableStreamDefaultController<AgentStreamEvent>
+  /** Tools that emitted `tool_call_start` without a matching end. */
+  openTools: Map<string, string>
+  /** The loop's abort controller fired — request abort or consumer cancel. */
+  aborted: boolean
+  /** The stream consumer called `cancel()`; the controller is already closed. */
+  consumerCancelled: boolean
+  error: unknown
+  /** Invoked only for a genuine failure, before the stream is errored. */
+  onUnexpectedError?: (error: unknown) => void
+}
+
+/**
+ * Terminates a streaming tool loop that threw, settling any still-open tools.
+ *
+ * A consumer `cancel()` leaves the controller in the *closed* state, where
+ * `enqueue` and `close` both throw `TypeError: Invalid state`. That state is
+ * indistinguishable via `desiredSize` — it reports `0` when closed and `null`
+ * only when errored — so loops must track the cancel explicitly and stop
+ * writing. Every provider loop routes its catch block through here so the
+ * five of them cannot drift.
+ */
+export function terminateToolLoop({
+  controller,
+  openTools,
+  aborted,
+  consumerCancelled,
+  error,
+  onUnexpectedError,
+}: TerminateToolLoopOptions): void {
+  if (consumerCancelled) {
+    return
+  }
+
+  if (aborted) {
+    settleOpenTools(controller, openTools, 'cancelled')
+    controller.close()
+    return
+  }
+
+  settleOpenTools(controller, openTools, 'error')
+  onUnexpectedError?.(error)
+  controller.error(toError(error))
 }

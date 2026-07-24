@@ -1,13 +1,14 @@
 import type OpenAI from 'openai'
 import type { IterationToolCall } from '@/executor/types'
+import { LIST_PRICE_POLICY, priceModelUsage } from '@/providers/cost-policy'
 import {
   extractResponseReasoning,
   parseResponsesUsage,
   type ResponsesToolCall,
+  toOpenAIModelUsage,
 } from '@/providers/openai/utils'
 import { enrichLastModelSegment, parseToolCallArguments } from '@/providers/trace-enrichment'
 import type { TimeSegment } from '@/providers/types'
-import { calculateCost } from '@/providers/utils'
 
 /**
  * Maps a Responses API terminal response to Sim's conventional finish reason.
@@ -53,12 +54,7 @@ export function enrichLastModelSegmentFromOpenAIResponse(
 
   let cost: { input: number; output: number; total: number } | undefined
   if (extras?.model && usage) {
-    const full = calculateCost(
-      extras.model,
-      usage.promptTokens,
-      usage.completionTokens,
-      usage.cachedTokens > 0
-    )
+    const full = priceModelUsage(extras.model, toOpenAIModelUsage(usage), LIST_PRICE_POLICY)
     cost = { input: full.input, output: full.output, total: full.total }
   }
 
@@ -73,6 +69,7 @@ export function enrichLastModelSegmentFromOpenAIResponse(
           output: usage.completionTokens,
           total: usage.totalTokens,
           ...(usage.cachedTokens > 0 && { cacheRead: usage.cachedTokens }),
+          ...(usage.cacheWriteTokens > 0 && { cacheWrite: usage.cacheWriteTokens }),
           ...(usage.reasoningTokens > 0 && { reasoning: usage.reasoningTokens }),
         }
       : undefined,

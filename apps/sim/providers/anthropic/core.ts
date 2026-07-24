@@ -51,6 +51,46 @@ export interface AnthropicProviderConfig {
 
 type AnthropicPayload = Anthropic.Messages.MessageStreamParams
 
+/** Anthropic's only cache type; the default 5-minute TTL suits agent reuse. */
+const EPHEMERAL_CACHE: Anthropic.Messages.CacheControlEphemeral = { type: 'ephemeral' }
+
+/**
+ * Builds the `system` field as text blocks.
+ *
+ * Always an array, never a bare string, so the shape does not depend on whether
+ * prompt caching is on and `cache_control` always has a block to attach to.
+ * Returns `undefined` when there is no system text so the field is omitted.
+ */
+function buildSystemBlocks(
+  texts: string[],
+  cacheLastBlock: boolean
+): Anthropic.Messages.TextBlockParam[] | undefined {
+  const blocks: Anthropic.Messages.TextBlockParam[] = texts
+    .filter((text) => text.trim().length > 0)
+    .map((text) => ({ type: 'text', text }))
+
+  if (blocks.length === 0) return undefined
+
+  if (cacheLastBlock) {
+    blocks[blocks.length - 1] = { ...blocks[blocks.length - 1], cache_control: EPHEMERAL_CACHE }
+  }
+  return blocks
+}
+
+/**
+ * Marks the final tool definition, caching every tool ahead of it.
+ *
+ * Typed on `ToolUnion` to match the payload field: every member of that union,
+ * including the server-side tools, accepts `cache_control`.
+ */
+function withCacheBreakpointOnLast(
+  tools: Anthropic.Messages.ToolUnion[]
+): Anthropic.Messages.ToolUnion[] {
+  const marked = [...tools]
+  marked[marked.length - 1] = { ...marked[marked.length - 1], cache_control: EPHEMERAL_CACHE }
+  return marked
+}
+
 /**
  * Generates prompt-based schema instructions for older models that don't support native structured outputs.
  * This is a fallback approach that adds schema requirements to the system prompt.
@@ -266,10 +306,16 @@ export async function executeAnthropicProviderRequest(
     }
   }
 
+  /**
+   * System text accumulates here and is turned into blocks once, below, after
+   * any schema instructions are appended. Keeping it as plain strings until
+   * then means only one place knows the wire shape.
+   */
+  const systemTexts = systemPrompt ? [systemPrompt] : []
+
   const payload: AnthropicPayload = {
     model: wireModel,
     messages,
-    system: systemPrompt,
     max_tokens:
       Number.parseInt(String(request.maxTokens)) || getMaxOutputTokensForModel(request.model),
     ...(supportsTemperature(request.model) && {
@@ -291,10 +337,7 @@ export async function executeAnthropicProviderRequest(
       }
       logger.info(`Using native structured outputs for model: ${modelId}`)
     } else {
-      const schemaInstructions = generateSchemaInstructions(schema, request.responseFormat.name)
-      payload.system = payload.system
-        ? `${payload.system}\n\n${schemaInstructions}`
-        : schemaInstructions
+      systemTexts.push(generateSchemaInstructions(schema, request.responseFormat.name))
       logger.info(`Using prompt-based structured outputs for model: ${modelId}`)
     }
   }
@@ -372,6 +415,20 @@ export async function executeAnthropicProviderRequest(
       payload.tool_choice = toolChoice
     }
   }
+
+  /**
+   * Prompt-cache breakpoints go on the static prefix, once, after tools and
+   * system text are final. Anthropic hashes the prefix in tools → system →
+   * messages order, so marking the last tool and the last system block caches
+   * everything ahead of the conversation, which is the part that stays byte
+   * stable across turns. Both tool loops spread this payload, so placing them
+   * here covers the streaming and non-streaming paths alike.
+   */
+  const cacheStaticPrefix = request.promptCaching === true
+  if (cacheStaticPrefix && payload.tools?.length) {
+    payload.tools = withCacheBreakpointOnLast(payload.tools)
+  }
+  payload.system = buildSystemBlocks(systemTexts, cacheStaticPrefix)
 
   if (request.stream && anthropicTools && anthropicTools.length > 0) {
     logger.info(`Using streaming tool loop for ${providerLabel} request`)

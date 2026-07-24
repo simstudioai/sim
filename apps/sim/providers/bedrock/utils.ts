@@ -140,6 +140,32 @@ const GEO_PROFILE_UNSUPPORTED_MODEL_IDS = new Set([
   'cohere.command-r-plus-v1:0',
 ])
 
+/** Cross-region inference profile prefixes Bedrock prepends to a base model ID. */
+const GEO_PROFILE_PREFIX_PATTERN = /^(us-gov|us|eu|apac|au|ca|jp|global)\./
+
+/**
+ * Strips Sim's `bedrock/` namespace and any cross-region inference prefix,
+ * leaving the bare `<vendor>.<model>` ID that capability checks key off.
+ */
+function getBedrockBaseModelId(modelId: string): string {
+  const withoutNamespace = modelId.startsWith('bedrock/') ? modelId.slice(8) : modelId
+  return withoutNamespace.replace(GEO_PROFILE_PREFIX_PATTERN, '')
+}
+
+/**
+ * Whether the model accepts `status` on a `toolResult` content block.
+ *
+ * Only Amazon Nova and Anthropic Claude 3/4 support it; Llama, Mistral, Cohere,
+ * and Titan reject the whole request with
+ * `ValidationException: This model doesn't support the status field.`
+ *
+ * Source: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolResultBlock.html
+ */
+export function supportsToolResultStatus(modelId: string): boolean {
+  const baseModelId = getBedrockBaseModelId(modelId)
+  return baseModelId.startsWith('anthropic.') || baseModelId.startsWith('amazon.nova')
+}
+
 /**
  * Converts a model ID to the Bedrock inference profile format.
  * AWS Bedrock requires inference profile IDs (e.g., us.anthropic.claude-...)
@@ -153,7 +179,7 @@ const GEO_PROFILE_UNSUPPORTED_MODEL_IDS = new Set([
 export function getBedrockInferenceProfileId(modelId: string, region: string): string {
   const baseModelId = modelId.startsWith('bedrock/') ? modelId.slice(8) : modelId
 
-  if (/^(us-gov|us|eu|apac|au|ca|jp|global)\./.test(baseModelId)) {
+  if (GEO_PROFILE_PREFIX_PATTERN.test(baseModelId)) {
     return baseModelId
   }
 

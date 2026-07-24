@@ -954,6 +954,7 @@ export class AgentBlockHandler implements BlockHandler {
       reasoningEffort: inputs.reasoningEffort,
       verbosity: inputs.verbosity,
       thinkingLevel: inputs.thinkingLevel,
+      promptCaching: inputs.promptCaching === true,
       previousInteractionId: inputs.previousInteractionId,
       /** Agent-events remains the opt-in for exposing thinking and tool lifecycle events. */
       agentEvents: streaming && ctx.metadata?.agentEvents === true,
@@ -1030,6 +1031,9 @@ export class AgentBlockHandler implements BlockHandler {
         reasoningEffort: providerRequest.reasoningEffort,
         verbosity: providerRequest.verbosity,
         thinkingLevel: providerRequest.thinkingLevel,
+        promptCaching: providerRequest.promptCaching,
+        // Stable per-block identity; providers use it to route cache lookups.
+        blockId: block.id,
         previousInteractionId: providerRequest.previousInteractionId,
         agentEvents: providerRequest.agentEvents,
         abortSignal: ctx.abortSignal,

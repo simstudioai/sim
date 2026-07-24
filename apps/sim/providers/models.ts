@@ -54,6 +54,18 @@ export interface ModelCapabilities {
   verbosity?: {
     values: string[]
   }
+  /**
+   * Model accepts caller-placed prompt-cache breakpoints, so caching is a real
+   * opt-in with a cost tradeoff (writes carry a premium over base input).
+   *
+   * Absent for providers whose caching is automatic and free — OpenAI and
+   * Gemini implicit caching need no switch, and exposing one would imply a
+   * control that does not exist.
+   */
+  promptCaching?: {
+    /** Prefixes shorter than this are silently not cached by the vendor. */
+    minimumCacheableTokens: number
+  }
   thinking?: {
     levels: string[]
     default?: string
@@ -754,6 +766,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     color: '#D97757',
     capabilities: {
       toolUsageControl: true,
+      // Every Claude model accepts cache_control breakpoints; Haiku raises the
+      // minimum prefix and overrides this per-model.
+      promptCaching: { minimumCacheableTokens: 1024 },
     },
     models: [
       {
@@ -997,6 +1012,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: 64000,
+          promptCaching: { minimumCacheableTokens: 2048 },
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -1351,6 +1367,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     isReseller: true,
     capabilities: {
       toolUsageControl: true,
+      // Microsoft Foundry supports the same cache_control breakpoints.
+      promptCaching: { minimumCacheableTokens: 1024 },
     },
     models: [
       {
@@ -1449,6 +1467,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: 64000,
+          promptCaching: { minimumCacheableTokens: 2048 },
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -4388,6 +4407,33 @@ export function getThinkingCapability(
     }
   }
   return null
+}
+
+/**
+ * Get all models that accept caller-placed prompt-cache breakpoints.
+ *
+ * Reads merged provider+model capabilities because prompt caching is declared
+ * once per provider (every Claude model supports it) with per-model overrides
+ * only for the minimum prefix length.
+ */
+export function getModelsWithPromptCaching(): string[] {
+  const models: string[] = []
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    for (const model of provider.models) {
+      if (model.capabilities.promptCaching ?? provider.capabilities?.promptCaching) {
+        models.push(model.id)
+      }
+    }
+  }
+  return models
+}
+
+/**
+ * Minimum prefix length the model will cache, or `null` when the model does
+ * not support caller-placed breakpoints.
+ */
+export function getPromptCachingMinimumTokens(modelId: string): number | null {
+  return getModelCapabilities(modelId)?.promptCaching?.minimumCacheableTokens ?? null
 }
 
 /**

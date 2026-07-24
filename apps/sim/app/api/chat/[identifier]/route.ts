@@ -331,11 +331,7 @@ export const POST = withRouteHandler(
           status: 200,
           headers: {
             ...SSE_HEADERS,
-            ...agentStreamProtocolResponseHeaders({
-              includeThinking,
-              includeToolCalls,
-              requestHeaders: request.headers,
-            }),
+            ...agentStreamProtocolResponseHeaders({ requestHeaders: request.headers }),
           },
         })
         return streamResponse

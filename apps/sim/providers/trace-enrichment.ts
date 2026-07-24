@@ -1,9 +1,9 @@
 import type { BlockTokens, IterationToolCall, ProviderTimingSegment } from '@/executor/types'
+import { LIST_PRICE_POLICY, priceModelUsage } from '@/providers/cost-policy'
 import {
   getOpenRouterReasoningDetailText,
   type OpenRouterReasoningDetail,
 } from '@/providers/openrouter/reasoning'
-import { calculateCost } from '@/providers/utils'
 
 /**
  * Minimal structural shape shared by OpenAI Chat Completions and every
@@ -194,7 +194,17 @@ export function enrichLastModelSegmentFromChatCompletions(
 
   let derivedCost = extras?.cost
   if (!derivedCost && extras?.model && promptTokens != null && completionTokens != null) {
-    const full = calculateCost(extras.model, promptTokens, completionTokens, cacheRead > 0)
+    // OpenAI-compatible vendors report cached tokens as a subset of the prompt
+    // total, so the uncached remainder is the subtraction.
+    const full = priceModelUsage(
+      extras.model,
+      {
+        input: Math.max(0, promptTokens - cacheRead),
+        output: completionTokens,
+        cacheRead,
+      },
+      LIST_PRICE_POLICY
+    )
     derivedCost = { input: full.input, output: full.output, total: full.total }
   }
 

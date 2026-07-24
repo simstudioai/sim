@@ -16,6 +16,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { LIST_PRICE_POLICY, priceModelUsage } from '@/providers/cost-policy'
 import { createGeminiStreamingToolLoopStream } from '@/providers/gemini/streaming-tool-loop'
 import {
   checkForForcedToolUsage,
@@ -1431,11 +1432,16 @@ function enrichLastModelSegmentFromGeminiResponse(
     typeof usage.promptTokenCount === 'number' &&
     typeof usage.candidatesTokenCount === 'number'
   ) {
-    const full = calculateCost(
+    // Gemini's implicit cache reports `cachedContentTokenCount` as a subset of
+    // `promptTokenCount`, so the uncached remainder is the subtraction.
+    const full = priceModelUsage(
       extras.model,
-      usage.promptTokenCount,
-      usage.candidatesTokenCount,
-      cachedContentTokens > 0
+      {
+        input: Math.max(0, usage.promptTokenCount - cachedContentTokens),
+        output: usage.candidatesTokenCount,
+        cacheRead: cachedContentTokens,
+      },
+      LIST_PRICE_POLICY
     )
     cost = { input: full.input, output: full.output, total: full.total }
   }

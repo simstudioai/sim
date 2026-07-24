@@ -23,6 +23,8 @@ vi.mock('@/providers/bedrock/utils', () => ({
   createReadableStreamFromBedrockStream: vi.fn(),
   generateToolUseId: vi.fn().mockReturnValue('tool-1'),
   getBedrockStreamError: vi.fn().mockReturnValue(null),
+  // The mocked inference profile above is a Claude model, which supports it.
+  supportsToolResultStatus: vi.fn().mockReturnValue(true),
 }))
 
 vi.mock('@/providers/models', () => ({

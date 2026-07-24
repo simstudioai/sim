@@ -84,9 +84,14 @@ export interface ProviderResponse {
   content: string
   model: string
   tokens?: {
+    /** Tokens billed at the base input rate, excluding cache reads and writes. */
     input?: number
     output?: number
     total?: number
+    /** Input tokens served from the provider's prompt cache. */
+    cacheRead?: number
+    /** Input tokens written to the provider's prompt cache. */
+    cacheWrite?: number
   }
   toolCalls?: FunctionCallResponse[]
   toolResults?: Record<string, unknown>[]
@@ -191,6 +196,14 @@ export interface ProviderRequest {
   reasoningEffort?: string
   verbosity?: string
   thinkingLevel?: string
+  /**
+   * Opt in to caller-placed prompt-cache breakpoints on the static prefix.
+   * Only meaningful for models declaring `capabilities.promptCaching`;
+   * `sanitizeRequest` clears it otherwise.
+   */
+  promptCaching?: boolean
+  /** Stable identity of the block issuing the request, used for cache routing. */
+  blockId?: string
   isDeployedContext?: boolean
   callChain?: string[]
   /**

@@ -257,11 +257,16 @@ export const PATCH = withRouteHandler(
         updateData.includeThinking = includeThinking
       }
 
+      /**
+       * Grandfathering must resolve against the thinking value this request is
+       * setting, not the stored one. Before `includeToolCalls` existed,
+       * `includeThinking` gated tool frames too, so a partial update turning
+       * thinking off has to turn them off as well rather than materializing the
+       * stale `true` and silently leaving tool frames enabled.
+       */
+      const effectiveIncludeThinking = includeThinking ?? existingChatRecord.includeThinking
       updateData.includeToolCalls =
-        includeToolCalls ??
-        existingChatRecord.includeToolCalls ??
-        existingChatRecord.includeThinking ??
-        false
+        includeToolCalls ?? existingChatRecord.includeToolCalls ?? effectiveIncludeThinking ?? false
 
       const emailCount = Array.isArray(updateData.allowedEmails)
         ? updateData.allowedEmails.length

@@ -142,6 +142,11 @@ export const mistralProvider: ProviderConfig = {
       if (request.stream && (!tools || tools.length === 0)) {
         logger.info('Using streaming response for Mistral request')
 
+        /**
+         * Mistral reports stream usage on the terminal chunk on its own and
+         * rejects `stream_options` with HTTP 422 (`extra_forbidden`), so the
+         * opt-in every other OpenAI-compatible provider sends is omitted here.
+         */
         const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           stream: true,

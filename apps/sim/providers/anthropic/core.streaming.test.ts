@@ -156,3 +156,65 @@ describe('executeAnthropicProviderRequest live tool streaming', () => {
     }
   )
 })
+
+/**
+ * Streaming is the common path, and breakpoints are placed on the shared
+ * payload before the loop is handed it. A regression that moved placement
+ * below the streaming branch would silently stop caching while the
+ * non-streaming payload tests still passed.
+ */
+describe('executeAnthropicProviderRequest streaming prompt caching', () => {
+  it('carries cache breakpoints into every turn of the live tool loop', async () => {
+    mockExecuteTool.mockResolvedValue({ success: true, output: { value: 'tool result' } })
+
+    const createStream = vi
+      .fn()
+      .mockReturnValueOnce(
+        stream(
+          [{ type: 'message_stop' }],
+          message([{ type: 'tool_use', id: 'tool-1', name: 'lookup', input: {} }], 'tool_use')
+        )
+      )
+      .mockReturnValueOnce(
+        stream([{ type: 'message_stop' }], message([{ type: 'text', text: 'done' }], 'end_turn'))
+      )
+
+    const result = (await executeAnthropicProviderRequest(
+      {
+        model: 'claude-sonnet-4-5',
+        apiKey: 'test-key',
+        stream: true,
+        maxTokens: 1024,
+        promptCaching: true,
+        systemPrompt: 'Remain concise.',
+        messages: [{ role: 'user', content: 'Look this up' }],
+        tools: [
+          {
+            id: 'lookup',
+            name: 'lookup',
+            description: 'Lookup',
+            params: {},
+            parameters: { type: 'object', properties: {}, required: [] },
+          },
+        ],
+      },
+      {
+        providerId: 'anthropic',
+        providerLabel: 'Anthropic',
+        createClient: () => ({ messages: { stream: createStream } }) as never,
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      }
+    )) as StreamingExecution
+
+    await collectEvents(result)
+
+    expect(createStream).toHaveBeenCalledTimes(2)
+    for (const call of createStream.mock.calls) {
+      const payload = call[0]
+      expect(payload.system).toEqual([
+        { type: 'text', text: 'Remain concise.', cache_control: { type: 'ephemeral' } },
+      ])
+      expect(payload.tools.at(-1).cache_control).toEqual({ type: 'ephemeral' })
+    }
+  })
+})

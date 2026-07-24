@@ -26,6 +26,7 @@ import {
   createReadableStreamFromBedrockStream,
   generateToolUseId,
   getBedrockInferenceProfileId,
+  supportsToolResultStatus,
 } from '@/providers/bedrock/utils'
 import { getCachedProviderClient } from '@/providers/client-cache'
 import {
@@ -694,7 +695,11 @@ export const bedrockProvider: ProviderConfig = {
 
         const executionResults = await Promise.all(toolExecutionPromises)
 
-        const assistantContent: ContentBlock[] = currentResponse.output?.message?.content ?? []
+        // Bedrock rejects a blank text block on replay even when it produced
+        // one itself, so drop whitespace-only text while echoing the rest.
+        const assistantContent: ContentBlock[] = (
+          currentResponse.output?.message?.content ?? []
+        ).filter((block) => !('text' in block) || Boolean(block.text?.trim()))
         currentMessages.push({
           role: 'assistant' as ConversationRole,
           content: assistantContent,
@@ -749,7 +754,9 @@ export const bedrockProvider: ProviderConfig = {
           const toolResultBlock: ToolResultBlock = {
             toolUseId,
             content: [{ text: JSON.stringify(resultContent) }],
-            status: result.success ? 'success' : 'error',
+            ...(supportsToolResultStatus(bedrockModelId)
+              ? { status: result.success ? 'success' : 'error' }
+              : {}),
           }
           toolResultContent.push({ toolResult: toolResultBlock })
         }

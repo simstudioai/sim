@@ -1,8 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
-import { getCostMultiplier } from '@/lib/core/config/env-flags'
 import type { StreamingExecution } from '@/executor/types'
+import {
+  applyModelCostPolicy,
+  applySegmentCostPolicy,
+  calculateBillableModelCost,
+  installStreamingCostPolicy,
+  type ModelCostPolicy,
+  resolveModelCostPolicy,
+  withoutToolCost,
+} from '@/providers/cost-policy'
 import {
   attachLargeFileRemoteUrls,
   uploadLargeFilesToProvider,
@@ -10,10 +18,9 @@ import {
 import { getProviderExecutor } from '@/providers/registry'
 import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
-  calculateCost,
   generateStructuredOutputInstructions,
-  shouldBillModelUsage,
   sumToolCosts,
+  supportsPromptCaching,
   supportsReasoningEffort,
   supportsTemperature,
   supportsThinking,
@@ -48,6 +55,10 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
     sanitizedRequest.thinkingLevel = undefined
   }
 
+  if (model && !supportsPromptCaching(model)) {
+    sanitizedRequest.promptCaching = undefined
+  }
+
   return sanitizedRequest
 }
 
@@ -59,71 +70,26 @@ function isReadableStream(response: any): response is ReadableStream {
   return response instanceof ReadableStream
 }
 
-const ZERO_COST = Object.freeze({
-  input: 0,
-  output: 0,
-  total: 0,
-  pricing: Object.freeze({ input: 0, output: 0, updatedAt: new Date(0).toISOString() }),
-})
-
-const ZERO_SEGMENT_COST = Object.freeze({ input: 0, output: 0, total: 0 })
-
 /**
- * Zeroes per-segment model cost on already-populated time segments so that
- * `calculateCostSummary` (which sums `span.children[].cost.total` from the
- * trace-spans pipeline) does not re-introduce the gross hosted-rate cost
- * after the provider response's block-level cost was correctly zeroed for
- * BYOK. Tool-segment costs are intentionally left intact.
- */
-function zeroModelSegmentCosts(
-  segments: { type?: string; cost?: { input?: number; output?: number; total?: number } }[]
-): void {
-  for (const segment of segments) {
-    if (segment.type === 'model' && segment.cost) {
-      segment.cost = { ...ZERO_SEGMENT_COST }
-    }
-  }
-}
-
-/**
- * Prevents streaming callbacks from writing non-zero model cost for BYOK users
- * while preserving tool costs. The property is frozen via defineProperty because
- * providers set cost inside streaming callbacks that fire after this function returns.
+ * Applies the shared model-cost policy to a streaming response.
  *
- * Also zeroes any per-segment model cost already written by trace enrichers
- * (which run synchronously before streaming begins for all current providers).
+ * The streaming and non-streaming paths must charge identically for the same
+ * model and tokens, but streaming providers write their cost from inside the
+ * stream drain — long after this function returns — so the policy is installed
+ * on the live output object rather than applied to a value.
  */
-function zeroCostForBYOK(response: StreamingExecution): void {
-  const output = response.execution?.output as
-    | (Record<string, unknown> & {
-        providerTiming?: {
-          timeSegments?: Array<{
-            type?: string
-            cost?: { input?: number; output?: number; total?: number }
-          }>
-        }
-      })
-    | undefined
+function applyStreamingCostPolicy(response: StreamingExecution, policy: ModelCostPolicy): void {
+  const output = response.execution?.output
   if (!output || typeof output !== 'object') {
-    logger.warn('zeroCostForBYOK: output not available at intercept time; cost may not be zeroed')
+    logger.warn('Streaming output unavailable at intercept time; cost policy not applied')
     return
   }
 
-  let toolCost = 0
-  Object.defineProperty(output, 'cost', {
-    get: () => (toolCost > 0 ? { ...ZERO_COST, toolCost, total: toolCost } : ZERO_COST),
-    set: (value: Record<string, unknown>) => {
-      if (value?.toolCost && typeof value.toolCost === 'number') {
-        toolCost = value.toolCost
-      }
-    },
-    configurable: true,
-    enumerable: true,
-  })
+  installStreamingCostPolicy(output, policy)
 
   const segments = output.providerTiming?.timeSegments
   if (Array.isArray(segments)) {
-    zeroModelSegmentCosts(segments)
+    applySegmentCostPolicy(segments, policy)
   }
 }
 
@@ -201,9 +167,7 @@ export async function executeProviderRequest(
 
   if (isStreamingExecution(response)) {
     logger.info('Provider returned StreamingExecution', { isBYOK })
-    if (isBYOK) {
-      zeroCostForBYOK(response)
-    }
+    applyStreamingCostPolicy(response, resolveModelCostPolicy(sanitizedRequest.model, isBYOK))
     return response
   }
 
@@ -212,54 +176,57 @@ export async function executeProviderRequest(
     return response
   }
 
-  if (response.tokens) {
-    const { input: promptTokens = 0, output: completionTokens = 0 } = response.tokens
-    const useCachedInput = !!request.context && request.context.length > 0
+  const costPolicy = resolveModelCostPolicy(response.model, isBYOK)
 
-    const shouldBill = shouldBillModelUsage(response.model) && !isBYOK
-    if (shouldBill) {
-      const costMultiplier = getCostMultiplier()
-      response.cost = calculateCost(
-        response.model,
-        promptTokens,
-        completionTokens,
-        useCachedInput,
-        costMultiplier,
-        costMultiplier
+  if (response.tokens) {
+    const {
+      input: promptTokens = 0,
+      output: completionTokens = 0,
+      cacheRead,
+      cacheWrite,
+    } = response.tokens
+
+    /**
+     * A provider that priced its own usage knows cache tiers this layer cannot
+     * reconstruct from token counts alone (Anthropic's 5m vs 1h writes), so its
+     * cost is authoritative and only the policy is applied on top. Everything
+     * else is priced from reported tokens. Tool cost is stripped either way —
+     * it is re-derived from `toolResults` below and must not be counted twice.
+     */
+    response.cost = response.cost
+      ? (applyModelCostPolicy(withoutToolCost(response.cost), costPolicy) as typeof response.cost)
+      : calculateBillableModelCost(response.model, promptTokens, completionTokens, {
+          cacheRead,
+          ...(cacheWrite ? { cacheWrites: [{ tokens: cacheWrite, inputRateMultiplier: 1 }] } : {}),
+          isBYOK,
+        })
+
+    if (!costPolicy.billable) {
+      logger.info(
+        isBYOK
+          ? `Not billing model usage for ${response.model} - workspace BYOK key used`
+          : `Not billing model usage for ${response.model} - user provided API key or not hosted model`
       )
-    } else {
-      response.cost = {
-        input: 0,
-        output: 0,
-        total: 0,
-        pricing: {
-          input: 0,
-          output: 0,
-          updatedAt: new Date().toISOString(),
-        },
-      }
-      if (isBYOK) {
-        logger.info(`Not billing model usage for ${response.model} - workspace BYOK key used`)
-      } else {
-        logger.info(
-          `Not billing model usage for ${response.model} - user provided API key or not hosted model`
-        )
-      }
     }
   }
 
-  // Per-segment model costs are written by trace enrichers regardless of BYOK
-  // status. Zero them here so the trace-spans aggregator (which sums child
-  // span cost) does not re-introduce the gross hosted-rate cost after the
-  // block-level response.cost was already set to zero above.
-  if (isBYOK && response.timing?.timeSegments) {
-    zeroModelSegmentCosts(response.timing.timeSegments)
+  // Per-segment model costs are written by trace enrichers regardless of key
+  // provenance. Align them with the block-level decision so the displayed
+  // breakdown does not contradict the authoritative block cost.
+  if (response.timing?.timeSegments) {
+    applySegmentCostPolicy(response.timing.timeSegments, costPolicy)
   }
 
   const toolCost = sumToolCosts(response.toolResults)
   if (toolCost > 0 && response.cost) {
-    response.cost.toolCost = toolCost
-    response.cost.total += toolCost
+    // Replaced rather than mutated: a provider-supplied cost can be the same
+    // object it also handed to a time segment, and tool cost belongs only to
+    // the block total.
+    response.cost = {
+      ...response.cost,
+      toolCost,
+      total: response.cost.total + toolCost,
+    }
   }
 
   return response

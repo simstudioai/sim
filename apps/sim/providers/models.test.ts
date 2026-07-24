@@ -5,11 +5,14 @@ import { describe, expect, it } from 'vitest'
 import {
   getBaseModelProviders,
   getHostedModels,
+  getModelsWithPromptCaching,
+  getPromptCachingMinimumTokens,
   getThinkingStreamVisibility,
   isModelDeprecated,
   orderModelIdsByReleaseDate,
   PROVIDER_DEFINITIONS,
 } from '@/providers/models'
+import { supportsPromptCaching } from '@/providers/utils'
 
 describe('Anthropic thinking stream visibility', () => {
   it('classifies visible Claude thinking as summarized rather than raw', () => {
@@ -26,6 +29,38 @@ describe('Anthropic thinking stream visibility', () => {
 describe('Meta thinking stream visibility', () => {
   it('classifies private Muse reasoning as not streamed', () => {
     expect(getThinkingStreamVisibility('muse-spark-1.1')).toBe('none')
+  })
+})
+
+describe('prompt caching capability', () => {
+  const cachingModels = new Set(getModelsWithPromptCaching())
+
+  it('covers every Claude model on both Anthropic surfaces', () => {
+    for (const providerId of ['anthropic', 'azure-anthropic'] as const) {
+      for (const model of PROVIDER_DEFINITIONS[providerId].models) {
+        expect(cachingModels.has(model.id)).toBe(true)
+      }
+    }
+  })
+
+  /**
+   * OpenAI and Gemini cache automatically with no caller control, so declaring
+   * the capability would put a switch in the UI that does nothing.
+   */
+  it('excludes providers whose caching is automatic', () => {
+    for (const providerId of ['openai', 'google'] as const) {
+      for (const model of PROVIDER_DEFINITIONS[providerId].models) {
+        expect(cachingModels.has(model.id)).toBe(false)
+      }
+    }
+    expect(supportsPromptCaching('gpt-5.5')).toBe(false)
+  })
+
+  it('reports the vendor minimum prefix, raised for Haiku', () => {
+    expect(getPromptCachingMinimumTokens('claude-sonnet-5')).toBe(1024)
+    expect(getPromptCachingMinimumTokens('claude-haiku-4-5')).toBe(2048)
+    expect(getPromptCachingMinimumTokens('azure-anthropic/claude-haiku-4-5')).toBe(2048)
+    expect(getPromptCachingMinimumTokens('gpt-5.5')).toBeNull()
   })
 })
 

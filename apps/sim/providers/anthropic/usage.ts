@@ -1,6 +1,11 @@
 import type { BlockTokens } from '@/executor/types'
+import {
+  LIST_PRICE_POLICY,
+  type ModelCostPolicy,
+  type ModelUsage,
+  priceModelUsage,
+} from '@/providers/cost-policy'
 import type { ModelPricing } from '@/providers/types'
-import { calculateCost } from '@/providers/utils'
 
 export interface AnthropicUsageLike {
   input_tokens?: number | null
@@ -93,29 +98,50 @@ export function buildAnthropicUsageTokens(
   }
 }
 
+/** 5-minute cache writes cost 1.25x the base input rate, 1-hour writes 2x. */
+const FIVE_MINUTE_WRITE_MULTIPLIER = 1.25
+const ONE_HOUR_WRITE_MULTIPLIER = 2
+
 /**
- * Prices Anthropic prompt-cache tiers independently from ordinary input.
+ * Builds the normalized usage for one Anthropic request.
+ *
+ * Anthropic reports `input_tokens` already excluding cache reads and writes
+ * (`total_input = cache_read + cache_creation + input_tokens`), so `input` maps
+ * across directly — unlike OpenAI and Gemini, whose cached counts are subsets
+ * of their prompt totals and must be subtracted.
+ */
+export function buildAnthropicModelUsage(accumulator: AnthropicUsageAccumulator): ModelUsage {
+  return {
+    input: accumulator.input,
+    output: accumulator.output,
+    cacheRead: accumulator.cacheRead,
+    cacheWrites: [
+      {
+        tokens: accumulator.cacheWriteFiveMinute,
+        inputRateMultiplier: FIVE_MINUTE_WRITE_MULTIPLIER,
+      },
+      { tokens: accumulator.cacheWriteOneHour, inputRateMultiplier: ONE_HOUR_WRITE_MULTIPLIER },
+    ],
+  }
+}
+
+/**
+ * Prices one Anthropic request, cache tiers included, through the shared
+ * pricing function.
  */
 export function buildAnthropicUsageCost(
   model: string,
   accumulator: AnthropicUsageAccumulator,
-  toolCost = 0
+  toolCost = 0,
+  policy: ModelCostPolicy = LIST_PRICE_POLICY
 ): AnthropicUsageCost {
-  const standard = calculateCost(model, accumulator.input, accumulator.output)
-  const cacheRead = calculateCost(model, accumulator.cacheRead, 0, true)
-  const fiveMinuteWrite = calculateCost(model, accumulator.cacheWriteFiveMinute, 0, false, 1.25)
-  const oneHourWrite = calculateCost(model, accumulator.cacheWriteOneHour, 0, false, 2)
-  const input = roundedCost(
-    standard.input + cacheRead.input + fiveMinuteWrite.input + oneHourWrite.input
-  )
-  const output = standard.output
-  const total = roundedCost(input + output + toolCost)
+  const cost = priceModelUsage(model, buildAnthropicModelUsage(accumulator), policy)
 
   return {
-    input,
-    output,
-    total,
+    input: cost.input,
+    output: cost.output,
+    total: roundedCost(cost.total + toolCost),
     ...(toolCost > 0 ? { toolCost } : {}),
-    pricing: standard.pricing,
+    pricing: cost.pricing,
   }
 }

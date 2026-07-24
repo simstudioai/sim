@@ -22,6 +22,7 @@ import {
   parseToolArguments,
   type StreamingToolLoopComplete,
   settleOpenTools,
+  terminateToolLoop,
 } from '@/providers/streaming-tool-loop-shared'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
 import { calculateCost, prepareToolExecution, sumToolCosts } from '@/providers/utils'
@@ -317,6 +318,7 @@ export function createOpenAIResponsesStreamingToolLoopStream(
   const forcedTools = options.forcedTools ?? []
   const loopAbortController = new AbortController()
   const abortFromRequest = () => loopAbortController.abort(request.abortSignal?.reason)
+  let consumerCancelled = false
 
   if (request.abortSignal?.aborted) {
     abortFromRequest()
@@ -544,25 +546,32 @@ export function createOpenAIResponsesStreamingToolLoopStream(
           controller.close()
         } catch (error) {
           reportProgress()
-          if (loopAbortController.signal.aborted) {
-            if (controller.desiredSize !== null) {
-              controller.close()
-            }
-            return
-          }
-
-          settleOpenTools(controller, openTools, 'error')
-          logger.error(`Error in ${providerLabel} streaming tool loop`, {
-            providerId,
+          terminateToolLoop({
+            controller,
+            openTools,
+            aborted: loopAbortController.signal.aborted,
+            consumerCancelled,
             error,
+            onUnexpectedError: (cause) =>
+              logger.error(`Error in ${providerLabel} streaming tool loop`, {
+                providerId,
+                error: cause,
+              }),
           })
-          controller.error(toError(error))
         } finally {
           request.abortSignal?.removeEventListener('abort', abortFromRequest)
         }
-      })()
+      })().catch((error) => {
+        // `start` cannot be async (the loop must not block the first pull), so
+        // a throw escaping the IIFE would surface as an unhandled rejection.
+        logger.error(`Unhandled failure in ${providerLabel} streaming tool loop`, {
+          providerId,
+          error: toError(error).message,
+        })
+      })
     },
     cancel(reason) {
+      consumerCancelled = true
       loopAbortController.abort(reason)
       request.abortSignal?.removeEventListener('abort', abortFromRequest)
     },

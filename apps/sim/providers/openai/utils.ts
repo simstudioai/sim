@@ -1,15 +1,49 @@
 import type OpenAI from 'openai'
 import { Stream } from 'openai/streaming'
 import { buildOpenAIMessageContent } from '@/providers/attachments'
+import type { ModelUsage } from '@/providers/cost-policy'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { Message } from '@/providers/types'
 
 export interface ResponsesUsageTokens {
+  /** Total input tokens. INCLUDES {@link cachedTokens}, per the OpenAI usage schema. */
   promptTokens: number
   completionTokens: number
   totalTokens: number
+  /** Input tokens served from cache — a subset of {@link promptTokens}. */
   cachedTokens: number
+  /** Input tokens written to cache. Billed at 1.25x on GPT-5.6+, free before it. */
+  cacheWriteTokens: number
   reasoningTokens: number
+}
+
+/** GPT-5.6 and later bill cache writes at 1.25x the uncached input rate. */
+const OPENAI_CACHE_WRITE_MULTIPLIER = 1.25
+
+/**
+ * Normalizes OpenAI usage into the shared {@link ModelUsage} shape.
+ *
+ * `cached_tokens` is a subset of `input_tokens`, so the uncached remainder is
+ * the subtraction — the opposite of Anthropic, whose `input_tokens` already
+ * excludes cache tokens.
+ */
+export function toOpenAIModelUsage(usage: ResponsesUsageTokens): ModelUsage {
+  const promptTokens = Math.max(0, usage.promptTokens)
+  const cacheRead = Math.min(Math.max(0, usage.cachedTokens), promptTokens)
+  /**
+   * A write can only cover tokens this request processed uncached, so it can
+   * never exceed the remainder. OpenAI has shipped usage payloads where reads
+   * plus writes summed past the prompt total; clamping keeps a vendor
+   * reporting bug from over-charging the run.
+   */
+  const cacheWrite = Math.min(Math.max(0, usage.cacheWriteTokens), promptTokens - cacheRead)
+
+  return {
+    input: promptTokens - cacheRead - cacheWrite,
+    output: usage.completionTokens,
+    cacheRead,
+    cacheWrites: [{ tokens: cacheWrite, inputRateMultiplier: OPENAI_CACHE_WRITE_MULTIPLIER }],
+  }
 }
 
 export interface ResponsesToolCall {
@@ -335,7 +369,12 @@ export function parseResponsesUsage(
 
   const inputTokens = usage.input_tokens ?? 0
   const outputTokens = usage.output_tokens ?? 0
-  const cachedTokens = usage.input_tokens_details?.cached_tokens ?? 0
+  const details = usage.input_tokens_details as
+    | { cached_tokens?: number | null; cache_write_tokens?: number | null }
+    | undefined
+  const cachedTokens = details?.cached_tokens ?? 0
+  // Added for GPT-5.6; absent (and free) on earlier model families.
+  const cacheWriteTokens = details?.cache_write_tokens ?? 0
   const reasoningTokens = usage.output_tokens_details?.reasoning_tokens ?? 0
   const completionTokens = Math.max(outputTokens, reasoningTokens)
   const totalTokens = inputTokens + completionTokens
@@ -345,6 +384,7 @@ export function parseResponsesUsage(
     completionTokens,
     totalTokens,
     cachedTokens,
+    cacheWriteTokens,
     reasoningTokens,
   }
 }

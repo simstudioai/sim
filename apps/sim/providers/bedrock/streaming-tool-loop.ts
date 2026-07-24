@@ -27,12 +27,14 @@ import {
   checkForForcedToolUsage,
   generateToolUseId,
   getBedrockStreamError,
+  supportsToolResultStatus,
 } from '@/providers/bedrock/utils'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import {
   isAbortError,
   type StreamingToolLoopComplete,
   settleOpenTools,
+  terminateToolLoop,
 } from '@/providers/streaming-tool-loop-shared'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
@@ -174,6 +176,7 @@ export function createBedrockStreamingToolLoopStream(
   const originalToolChoice = options.toolChoice
   const loopAbortController = new AbortController()
   const abortFromRequest = () => loopAbortController.abort(request.abortSignal?.reason)
+  let consumerCancelled = false
 
   if (request.abortSignal?.aborted) {
     abortFromRequest()
@@ -232,8 +235,16 @@ export function createBedrockStreamingToolLoopStream(
           }
 
           const finalSynthesis = iterationCount >= MAX_TOOL_ITERATIONS
-          const toolConfig: ToolConfiguration | undefined =
-            bedrockTools.length && !finalSynthesis ? { tools: bedrockTools, toolChoice } : undefined
+          /**
+           * Bedrock's ToolChoice has no `none`, and `toolConfig` is required
+           * once the history carries toolUse/toolResult blocks — dropping it to
+           * force a text-only turn makes Bedrock reject the request outright.
+           * Keep the tools and relax to `auto`; the `finalSynthesis` guard below
+           * rejects a tool call the model makes anyway.
+           */
+          const toolConfig: ToolConfiguration | undefined = bedrockTools.length
+            ? { tools: bedrockTools, toolChoice: finalSynthesis ? { auto: {} } : toolChoice }
+            : undefined
 
           const modelStart = Date.now()
           const command = new ConverseStreamCommand({
@@ -485,7 +496,9 @@ export function createBedrockStreamingToolLoopStream(
           toolsTime += Date.now() - toolsStartTime
 
           const assistantContent: ContentBlock[] = [
-            ...(drained.text ? [{ text: drained.text }] : []),
+            // Bedrock rejects a blank text block, and a model can emit only
+            // whitespace before a tool call.
+            ...(drained.text.trim() ? [{ text: drained.text }] : []),
             ...assembledToolUses.map((toolUse) => ({
               toolUse: {
                 toolUseId: toolUse.toolUseId,
@@ -539,7 +552,9 @@ export function createBedrockStreamingToolLoopStream(
             const toolResultBlock: ToolResultBlock = {
               toolUseId,
               content: [{ text: JSON.stringify(resultContent) }],
-              status: result.success ? 'success' : 'error',
+              ...(supportsToolResultStatus(modelId)
+                ? { status: result.success ? 'success' : 'error' }
+                : {}),
             }
             toolResultContent.push({ toolResult: toolResultBlock })
           }
@@ -574,26 +589,23 @@ export function createBedrockStreamingToolLoopStream(
         controller.close()
       } catch (error) {
         reportProgress()
-        if (loopAbortController.signal.aborted) {
-          settleOpenTools(controller, openToolStarts, 'cancelled')
-        } else {
-          settleOpenTools(controller, openToolStarts, 'error')
-          logger.error('Bedrock streaming tool loop failed', {
-            error: toError(error).message,
-          })
-        }
-        if (loopAbortController.signal.aborted) {
-          if (controller.desiredSize !== null) {
-            controller.close()
-          }
-        } else {
-          controller.error(error)
-        }
+        terminateToolLoop({
+          controller,
+          openTools: openToolStarts,
+          aborted: loopAbortController.signal.aborted,
+          consumerCancelled,
+          error,
+          onUnexpectedError: (cause) =>
+            logger.error('Bedrock streaming tool loop failed', {
+              error: toError(cause).message,
+            }),
+        })
       } finally {
         request.abortSignal?.removeEventListener('abort', abortFromRequest)
       }
     },
     cancel(reason) {
+      consumerCancelled = true
       loopAbortController.abort(reason)
       request.abortSignal?.removeEventListener('abort', abortFromRequest)
     },

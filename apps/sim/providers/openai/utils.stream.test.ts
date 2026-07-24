@@ -134,6 +134,7 @@ describe('createReadableStreamFromResponses', () => {
         completionTokens: 5,
         totalTokens: 8,
         cachedTokens: 0,
+        cacheWriteTokens: 0,
         reasoningTokens: 0,
       },
       undefined

@@ -285,11 +285,7 @@ export const POST = withRouteHandler(
           headers: {
             ...SSE_HEADERS,
             // Echo the negotiated stream protocol (same as the public chat route).
-            ...agentStreamProtocolResponseHeaders({
-              includeThinking,
-              includeToolCalls,
-              requestHeaders: request.headers,
-            }),
+            ...agentStreamProtocolResponseHeaders({ requestHeaders: request.headers }),
             'X-Execution-Id': enqueueResult.resumeExecutionId,
           },
         })

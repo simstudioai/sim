@@ -28,6 +28,7 @@ import {
   parseToolArguments,
   type StreamingToolLoopComplete,
   settleOpenTools,
+  terminateToolLoop,
 } from '@/providers/streaming-tool-loop-shared'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
@@ -92,6 +93,7 @@ export function createOpenAICompatStreamingToolLoopStream(
   const loopAbortController = new AbortController()
   const abortFromRequest = () => loopAbortController.abort(request.abortSignal?.reason)
   let activeEventReader: ReadableStreamDefaultReader<AgentStreamEvent> | undefined
+  let consumerCancelled = false
 
   if (request.abortSignal?.aborted) {
     abortFromRequest()
@@ -567,21 +569,24 @@ export function createOpenAICompatStreamingToolLoopStream(
         controller.close()
       } catch (error) {
         reportProgress()
-        const cancelled = loopAbortController.signal.aborted
-        settleOpenTools(controller, openToolStarts, cancelled ? 'cancelled' : 'error')
-        if (cancelled) {
-          if (controller.desiredSize !== null) {
-            controller.close()
-          }
-        } else {
-          controller.error(toError(error))
-        }
+        terminateToolLoop({
+          controller,
+          openTools: openToolStarts,
+          aborted: loopAbortController.signal.aborted,
+          consumerCancelled,
+          error,
+          onUnexpectedError: (cause) =>
+            logger.error(`${providerName} streaming tool loop failed`, {
+              error: toError(cause).message,
+            }),
+        })
       } finally {
         activeEventReader = undefined
         request.abortSignal?.removeEventListener('abort', abortFromRequest)
       }
     },
     async cancel(reason) {
+      consumerCancelled = true
       loopAbortController.abort(reason)
       await activeEventReader?.cancel(reason)
       request.abortSignal?.removeEventListener('abort', abortFromRequest)

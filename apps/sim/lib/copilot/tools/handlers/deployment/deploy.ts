@@ -402,10 +402,15 @@ export async function executeDeployChat(
       typeof params.includeThinking === 'boolean'
         ? params.includeThinking
         : (existingDeployment?.includeThinking ?? false)
+    /**
+     * Grandfathers off the thinking value this call resolves to, not the stored
+     * one: before `includeToolCalls` existed, `includeThinking` gated tool
+     * frames too, so turning thinking off must turn them off with it.
+     */
     const resolvedIncludeToolCalls =
       typeof params.includeToolCalls === 'boolean'
         ? params.includeToolCalls
-        : (existingDeployment?.includeToolCalls ?? existingDeployment?.includeThinking ?? false)
+        : (existingDeployment?.includeToolCalls ?? resolvedIncludeThinking)
     const welcomeMessage =
       typeof params.welcomeMessage === 'string'
         ? params.welcomeMessage
