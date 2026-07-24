@@ -205,7 +205,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       providerId,
       issuer,
       domain,
-      mapping,
       ...(orgId ? { organizationId: orgId } : {}),
     }
 
@@ -417,6 +416,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       oidcConfig.skipDiscovery = true
+      // Better Auth reads the attribute mapping from oidcConfig.mapping, not a
+      // top-level field — nesting it here is what makes a custom mapping apply.
+      if (mapping) oidcConfig.mapping = mapping
       providerConfig.oidcConfig = oidcConfig
     } else if (providerType === 'saml') {
       const {
@@ -498,6 +500,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (signatureAlgorithm) samlConfig.signatureAlgorithm = signatureAlgorithm
       if (digestAlgorithm) samlConfig.digestAlgorithm = digestAlgorithm
       if (identifierFormat) samlConfig.identifierFormat = identifierFormat
+      // Better Auth reads the attribute mapping from samlConfig.mapping.
+      if (mapping) samlConfig.mapping = mapping
 
       providerConfig.samlConfig = samlConfig
     }
@@ -553,21 +557,38 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return domainNotVerifiedResponse()
     }
 
-    // Record whether this (providerId, orgId) already existed BEFORE the write,
-    // so the compensating delete below can only ever remove a provider WE just
-    // created. registerSSOProvider is create-only today (it throws if the
-    // providerId already exists), so this is belt-and-suspenders — but it makes
-    // the rollback's safety local and independent of Better Auth's internals: if
-    // a future version ever allowed updating an existing provider, we must not
-    // delete that pre-existing row on a revoked-verification rollback.
-    let providerExistedBefore = false
-    if (orgId) {
-      const [prior] = await db
-        .select({ id: ssoProvider.id })
-        .from(ssoProvider)
-        .where(and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.organizationId, orgId)))
-        .limit(1)
-      providerExistedBefore = Boolean(prior)
+    // Better Auth's registerSSOProvider is create-only (it throws on an existing
+    // providerId). If the caller already owns a provider with this id, route the
+    // edit through updateSSOProvider so re-saving an SSO config works instead of
+    // failing. The verification gate above already ran against the target domain,
+    // so an edit that moves SSO to an unverified domain is still blocked.
+    const ownerClause = orgId
+      ? and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.organizationId, orgId))
+      : and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.userId, session.user.id))
+    const [existingOwnedProvider] = await db
+      .select({ id: ssoProvider.id })
+      .from(ssoProvider)
+      .where(ownerClause)
+      .limit(1)
+
+    if (existingOwnedProvider) {
+      await auth.api.updateSSOProvider({
+        body: {
+          providerId,
+          issuer,
+          domain,
+          ...(providerConfig.oidcConfig ? { oidcConfig: providerConfig.oidcConfig } : {}),
+          ...(providerConfig.samlConfig ? { samlConfig: providerConfig.samlConfig } : {}),
+        },
+        headers,
+      })
+      logger.info('SSO provider updated successfully', { providerId, providerType, domain })
+      return NextResponse.json({
+        success: true,
+        providerId,
+        providerType,
+        message: `${providerType.toUpperCase()} provider updated successfully`,
+      })
     }
 
     const registration = await auth.api.registerSSOProvider({
@@ -577,14 +598,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     // Close the residual TOCTOU between the re-check above and Better Auth
     // persisting the provider: the verified sso_domain row could be removed in
-    // that window. Roll back only the exact row this request created — delete by
-    // its primary-key `id`, not the logical (providerId, orgId): providerId is
-    // unique, so if our row were deleted and recreated by a concurrent
-    // registration in this window, a logical-key delete would remove that other
-    // request's row. Guarded by providerExistedBefore so a hypothetical future
-    // update of a pre-existing provider is never rolled back. Personal SSO is
-    // not gated, so this only runs for org-scoped registration.
-    if (orgId && !providerExistedBefore && !(await isOrgDomainVerified())) {
+    // that window. registerSSOProvider is create-only (it throws if the
+    // providerId already exists), so a successful call always created a brand-new
+    // row — we roll it back by its primary-key `id` (not the logical providerId,
+    // which a concurrent delete+recreate could point at a different row). Personal
+    // SSO is not gated, so this only runs for org-scoped registration.
+    if (orgId && !(await isOrgDomainVerified())) {
       // double-cast-allowed: registerSSOProvider spreads the created row's `id` at runtime but Better Auth's return type omits it
       const createdRowId = (registration as unknown as { id: string }).id
       await db
@@ -612,16 +631,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       message: `${providerType.toUpperCase()} provider registered successfully`,
     })
   } catch (error) {
-    logger.error('Failed to register SSO provider', {
+    logger.error('Failed to save SSO provider', {
       error,
       errorMessage: getErrorMessage(error, 'Unknown error'),
       errorStack: error instanceof Error ? error.stack : undefined,
       errorDetails: JSON.stringify(error),
     })
 
+    // Surface Better Auth's own APIError (e.g. a 409 when identity fields change
+    // while linked accounts exist, or a 404) with its status and message instead
+    // of a generic 500, so the client shows an actionable error.
+    const apiError = error as { statusCode?: unknown; body?: { message?: unknown } }
+    if (typeof apiError.statusCode === 'number' && typeof apiError.body?.message === 'string') {
+      return NextResponse.json({ error: apiError.body.message }, { status: apiError.statusCode })
+    }
+
     return NextResponse.json(
       {
-        error: 'Failed to register SSO provider',
+        error: 'Failed to save the SSO provider',
         details: getErrorMessage(error, 'Unknown error'),
       },
       { status: 500 }

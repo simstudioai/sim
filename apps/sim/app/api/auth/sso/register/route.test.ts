@@ -16,12 +16,14 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockGetSession,
   mockRegisterSSOProvider,
+  mockUpdateSSOProvider,
   mockHasSSOAccess,
   mockValidateUrlWithDNS,
   mockSecureFetchWithPinnedIP,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockRegisterSSOProvider: vi.fn(),
+  mockUpdateSSOProvider: vi.fn(),
   mockHasSSOAccess: vi.fn(),
   mockValidateUrlWithDNS: vi.fn(),
   mockSecureFetchWithPinnedIP: vi.fn(),
@@ -45,7 +47,12 @@ function queueProviders(rows: Array<Record<string, unknown>>) {
 
 vi.mock('@/lib/auth', () => ({
   getSession: mockGetSession,
-  auth: { api: { registerSSOProvider: mockRegisterSSOProvider } },
+  auth: {
+    api: {
+      registerSSOProvider: mockRegisterSSOProvider,
+      updateSSOProvider: mockUpdateSSOProvider,
+    },
+  },
 }))
 
 vi.mock('@/lib/billing', () => ({
@@ -94,6 +101,7 @@ describe('POST /api/auth/sso/register', () => {
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '1.2.3.4' })
     mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('discovery not mocked for this test'))
     mockRegisterSSOProvider.mockResolvedValue({ providerId: 'acme-oidc' })
+    mockUpdateSSOProvider.mockResolvedValue({ providerId: 'acme-oidc' })
     // Default: the org has already verified the domain, so the ownership gate
     // passes and each test exercises the logic beyond it. The gate is checked
     // three times for a successful org-scoped registration (fail-fast entry +
@@ -196,6 +204,30 @@ describe('POST /api/auth/sso/register', () => {
     const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
     expect(res.status).toBe(200)
     expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
+  })
+
+  it('nests the attribute mapping inside oidcConfig (Better Auth reads it there)', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    await POST(
+      request({ ...OIDC_BODY, orgId: 'org1', mapping: { id: 'oid', email: 'upn', name: 'name' } })
+    )
+    expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
+    const sent = mockRegisterSSOProvider.mock.calls[0][0].body
+    expect(sent.mapping).toBeUndefined() // not passed at the top level (silently ignored there)
+    expect(sent.oidcConfig.mapping).toMatchObject({ id: 'oid', email: 'upn', name: 'name' })
+  })
+
+  it('routes an edit of an existing owned provider through updateSSOProvider', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueTableRows(schemaMock.ssoProvider, []) // findDomainConflict #1 → no conflict
+    queueTableRows(schemaMock.ssoProvider, []) // findDomainConflict #2 → no conflict
+    queueTableRows(schemaMock.ssoProvider, [{ id: 'p1' }]) // provider already owned → edit
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.message).toContain('updated')
+    expect(mockUpdateSSOProvider).toHaveBeenCalledTimes(1)
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
   })
 
   it('allows the owning tenant to update its own provider for the same domain', async () => {
