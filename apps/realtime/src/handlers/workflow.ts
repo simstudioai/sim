@@ -134,9 +134,11 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       // Re-authorize immediately before joining: the access-revalidation sweep
       // may have evicted this socket while the awaits above were in flight, and
       // its eviction is recorded in the shared role cache before it runs — so a
-      // revoked user resolves to null here. No awaits sit between this check
-      // and socket.join, so a sweep eviction cannot interleave after it and be
-      // reversed by this join.
+      // revoked user resolves to null here. The resolver is single-flighted per
+      // (user, workflow), so this read cannot race the sweep's and overwrite a
+      // recorded revocation with a stale role; and no awaits sit between this
+      // check and socket.join, so a sweep eviction cannot interleave after it
+      // and be reversed by this join.
       const currentRole = await resolveCurrentWorkflowRole(userId, workflowId, userRole)
       if (currentRole === null) {
         logger.warn(

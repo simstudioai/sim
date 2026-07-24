@@ -72,6 +72,44 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
   const io = roomManager.io
   let running = false
 
+  /**
+   * Evictions whose room-state cleanup failed transiently, keyed
+   * `${socketId}:${workflowId}`. The evicted socket has already left the
+   * Socket.IO room, so membership scans will never see it again — these are
+   * retried at the start of every sweep pass until they succeed, so remaining
+   * collaborators do not keep a stale presence entry for the evicted socket.
+   */
+  const pendingCleanups = new Map<string, { socketId: string; workflowId: string }>()
+
+  async function cleanupEvictedSocket(socketId: string, workflowId: string): Promise<void> {
+    const key = `${socketId}:${workflowId}`
+    try {
+      await roomManager.removeUserFromRoom(socketId, workflowId)
+      await roomManager.broadcastPresenceUpdate(workflowId)
+      pendingCleanups.delete(key)
+    } catch (error) {
+      pendingCleanups.set(key, { socketId, workflowId })
+      logger.warn(
+        `Room-state cleanup failed for evicted socket ${socketId} on ${workflowId}; will retry next sweep`,
+        error
+      )
+    }
+  }
+
+  async function retryPendingCleanups(): Promise<void> {
+    for (const [key, { socketId, workflowId }] of pendingCleanups) {
+      const liveSocket = io.sockets.sockets.get(socketId)
+      if (liveSocket?.rooms.has(workflowId)) {
+        // The socket re-joined legitimately after the eviction (access was
+        // restored); that join re-added its presence entry, so there is
+        // nothing stale left to clean and removal would erase live presence.
+        pendingCleanups.delete(key)
+        continue
+      }
+      await cleanupEvictedSocket(socketId, workflowId)
+    }
+  }
+
   async function revokeSocket(socket: AuthenticatedSocket, workflowId: string): Promise<void> {
     // Security-critical, pod-local, and synchronous: stop this socket receiving
     // room broadcasts immediately, before any async bookkeeping that could fail.
@@ -87,27 +125,14 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
       `Revoked live access for user ${socket.userId} on workflow ${workflowId} (socket ${socket.id})`
     )
 
-    // Best-effort cleanups; each is independent so one failure neither restores
-    // access nor prevents the other from running.
-    try {
-      await roomManager.removeUserFromRoom(socket.id, workflowId)
-    } catch (error) {
-      logger.warn(
-        `Failed to remove evicted socket ${socket.id} from room state for ${workflowId}`,
-        error
-      )
-    }
-    try {
-      await roomManager.broadcastPresenceUpdate(workflowId)
-    } catch (error) {
-      logger.warn(
-        `Failed to broadcast presence after evicting socket ${socket.id} from ${workflowId}`,
-        error
-      )
-    }
+    // Cleanup failure never restores access (the socket already left the room);
+    // it defers to pendingCleanups and is retried on subsequent passes.
+    await cleanupEvictedSocket(socket.id, workflowId)
   }
 
   async function runOnce(): Promise<void> {
+    await retryPendingCleanups()
+
     const memberships = collectLocalMemberships(io)
 
     for (const [workflowId, sockets] of memberships) {

@@ -163,18 +163,46 @@ describe('access-revalidation sweep', () => {
     expect(noRoom.leave).not.toHaveBeenCalled()
   })
 
-  it('still broadcasts presence when room-state removal fails', async () => {
+  it('defers failed room-state cleanup and retries it on the next pass', async () => {
     const socket = makeSocket('sock-1', 'user-1', 'wf-1')
     const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
-    manager.removeUserFromRoom.mockRejectedValue(new Error('redis down'))
+    manager.removeUserFromRoom.mockRejectedValueOnce(new Error('redis down'))
     mockResolveRole.mockResolvedValue(null)
 
     const sweep = startAccessRevalidationSweep(manager)
     await sweep.runOnce()
-    sweep.stop()
 
     expect(socket.leave).toHaveBeenCalledWith('wf-1')
+    expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
+
+    // The evicted socket is out of the room now, so membership scans no longer
+    // see it — the retry queue must drive the cleanup to completion.
+    socket.rooms = new Set(['sock-1'])
+    await sweep.runOnce()
+    sweep.stop()
+
+    expect(manager.removeUserFromRoom).toHaveBeenCalledTimes(2)
     expect(manager.broadcastPresenceUpdate).toHaveBeenCalledWith('wf-1')
+  })
+
+  it('drops a deferred cleanup when the socket legitimately re-joined the room', async () => {
+    const socket = makeSocket('sock-1', 'user-1', 'wf-1')
+    const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
+    manager.removeUserFromRoom.mockRejectedValueOnce(new Error('redis down'))
+    mockResolveRole.mockResolvedValueOnce(null)
+
+    const sweep = startAccessRevalidationSweep(manager)
+    await sweep.runOnce()
+    expect(socket.leave).toHaveBeenCalledWith('wf-1')
+
+    // Access restored and the socket re-joined (still in the room in this
+    // fake): the retry must NOT remove the fresh presence entry.
+    mockResolveRole.mockResolvedValue('read')
+    await sweep.runOnce()
+    sweep.stop()
+
+    expect(manager.removeUserFromRoom).toHaveBeenCalledTimes(1)
+    expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
   })
 
   it('still evaluates access when presence lookup fails (falls back safely)', async () => {

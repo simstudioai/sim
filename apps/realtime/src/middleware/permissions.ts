@@ -112,6 +112,15 @@ interface CachedRole {
  */
 const roleCache = new Map<string, CachedRole>()
 
+/**
+ * In-flight resolutions keyed like {@link roleCache}. Concurrent callers for the same
+ * (user, workflow) share one authorization query instead of racing independent ones, so
+ * cache writes per key are serialized — a slow, stale pre-revocation read can never
+ * overwrite a newer recorded decision (e.g. the revocation the eviction sweep just
+ * cached before kicking the socket).
+ */
+const inFlightRoleResolutions = new Map<string, Promise<string | null>>()
+
 function purgeExpiredRoles(now: number): void {
   for (const [key, entry] of roleCache) {
     if (entry.expiresAt <= now) {
@@ -120,28 +129,12 @@ function purgeExpiredRoles(now: number): void {
   }
 }
 
-/**
- * Resolves a user's current workspace role for a workflow, re-reading the `permissions`
- * table at most once per {@link ROLE_REVALIDATION_TTL_MS} per pod.
- *
- * Returns `null` when the user genuinely has no access (removed/revoked). On a transient
- * DB failure it reuses the last recorded decision for this (user, workflow) — including a
- * previously recorded revocation (`null`) — and only falls back to `fallbackRole` when no
- * decision has been recorded yet, so a blip neither blocks legitimate editors nor
- * resurrects already-revoked access.
- */
-export async function resolveCurrentWorkflowRole(
+async function resolveRoleUncached(
+  key: string,
   userId: string,
   workflowId: string,
   fallbackRole: string
 ): Promise<string | null> {
-  const now = Date.now()
-  const key = `${userId}:${workflowId}`
-  const cached = roleCache.get(key)
-  if (cached && cached.expiresAt > now) {
-    return cached.role
-  }
-
   try {
     const authorization = await authorizeWorkflowByWorkspacePermission({
       workflowId,
@@ -149,6 +142,7 @@ export async function resolveCurrentWorkflowRole(
       action: 'read',
     })
     const role = authorization.allowed ? (authorization.workspacePermission ?? null) : null
+    const now = Date.now()
     if (roleCache.size >= MAX_ROLE_CACHE_ENTRIES) {
       purgeExpiredRoles(now)
     }
@@ -166,6 +160,41 @@ export async function resolveCurrentWorkflowRole(
     const lastKnown = roleCache.get(key)
     return lastKnown !== undefined ? lastKnown.role : fallbackRole
   }
+}
+
+/**
+ * Resolves a user's current workspace role for a workflow, re-reading the `permissions`
+ * table at most once per {@link ROLE_REVALIDATION_TTL_MS} per pod. Concurrent calls for
+ * the same (user, workflow) coalesce onto a single in-flight query (single-flight), so
+ * out-of-order cache writes cannot resurrect revoked access.
+ *
+ * Returns `null` when the user genuinely has no access (removed/revoked). On a transient
+ * DB failure it reuses the last recorded decision for this (user, workflow) — including a
+ * previously recorded revocation (`null`) — and only falls back to `fallbackRole` when no
+ * decision has been recorded yet, so a blip neither blocks legitimate editors nor
+ * resurrects already-revoked access.
+ */
+export async function resolveCurrentWorkflowRole(
+  userId: string,
+  workflowId: string,
+  fallbackRole: string
+): Promise<string | null> {
+  const key = `${userId}:${workflowId}`
+  const cached = roleCache.get(key)
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.role
+  }
+
+  const inFlight = inFlightRoleResolutions.get(key)
+  if (inFlight) {
+    return inFlight
+  }
+
+  const resolution = resolveRoleUncached(key, userId, workflowId, fallbackRole).finally(() => {
+    inFlightRoleResolutions.delete(key)
+  })
+  inFlightRoleResolutions.set(key, resolution)
+  return resolution
 }
 
 /**

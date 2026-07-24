@@ -23,7 +23,11 @@ vi.mock('@sim/platform-authz/workflow', () => ({
   authorizeWorkflowByWorkspacePermission: mockAuthorize,
 }))
 
-import { checkRolePermission, checkWorkflowOperationPermission } from '@/middleware/permissions'
+import {
+  checkRolePermission,
+  checkWorkflowOperationPermission,
+  resolveCurrentWorkflowRole,
+} from '@/middleware/permissions'
 
 describe('checkRolePermission', () => {
   describe('admin role', () => {
@@ -409,6 +413,69 @@ describe('checkWorkflowOperationPermission', () => {
       const result = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'read')
       expect(result.allowed).toBe(true)
       expect(result.role).toBe('write')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('resolveCurrentWorkflowRole single-flight', () => {
+  const userId = 'sf-user-1'
+  let workflowCounter = 0
+  let workflowId: string
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Unique workflowId per test so the module-level role cache never leaks across tests
+    workflowCounter += 1
+    workflowId = `sf-wf-${workflowCounter}`
+  })
+
+  it('coalesces concurrent resolutions into a single authorization query', async () => {
+    let resolveAuthorize!: (value: { allowed: boolean; workspacePermission: string | null }) => void
+    mockAuthorize.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAuthorize = resolve
+      })
+    )
+
+    // Both callers race the same expired/cold cache entry; they must share one
+    // in-flight query so a slower duplicate can never overwrite a newer
+    // decision (e.g. a revocation recorded by the eviction sweep).
+    const first = resolveCurrentWorkflowRole(userId, workflowId, 'read')
+    const second = resolveCurrentWorkflowRole(userId, workflowId, 'read')
+
+    resolveAuthorize({ allowed: true, workspacePermission: 'write' })
+
+    expect(await first).toBe('write')
+    expect(await second).toBe('write')
+    expect(mockAuthorize).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not coalesce resolutions for different workflows', async () => {
+    mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'read' })
+
+    const [first, second] = await Promise.all([
+      resolveCurrentWorkflowRole(userId, workflowId, 'read'),
+      resolveCurrentWorkflowRole(userId, `${workflowId}-other`, 'read'),
+    ])
+
+    expect(first).toBe('read')
+    expect(second).toBe('read')
+    expect(mockAuthorize).toHaveBeenCalledTimes(2)
+  })
+
+  it('starts a fresh query after an in-flight resolution settles and its cache entry expires', async () => {
+    vi.useFakeTimers()
+    try {
+      mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'write' })
+      expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBe('write')
+
+      vi.advanceTimersByTime(31_000)
+      mockAuthorize.mockResolvedValue({ allowed: false, workspacePermission: null })
+
+      expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBeNull()
+      expect(mockAuthorize).toHaveBeenCalledTimes(2)
     } finally {
       vi.useRealTimers()
     }
