@@ -236,6 +236,33 @@ export async function getInvitationJoinPreview(
   if (!(await stampedOrganizationAllowsEscalation(inv, workspaceOrganizationId))) return noJoin
 
   /**
+   * Mirror of acceptance's stale-grant gate: a member-role organization
+   * invite whose grants ALL left the stamped organization rolls back at
+   * accept, so the preview must not promise a migration for it.
+   */
+  if (
+    inv.kind === 'organization' &&
+    inv.organizationId &&
+    !isOrgAdminRole(inv.role) &&
+    inv.grants.length > 0
+  ) {
+    const [liveGrant] = await db
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(
+        and(
+          inArray(
+            workspace.id,
+            inv.grants.map((grant) => grant.workspaceId)
+          ),
+          eq(workspace.organizationId, inv.organizationId)
+        )
+      )
+      .limit(1)
+    if (!liveGrant) return noJoin
+  }
+
+  /**
    * Mirror acceptance's billing gates: an unusable organization subscription
    * (or, for personal-workspace invites, a billed owner without a convertible
    * paid plan) makes acceptance fail with upgrade-required — the disclosure
