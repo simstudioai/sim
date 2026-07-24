@@ -87,6 +87,33 @@ function hasModelAttachment(result: unknown): boolean {
   )
 }
 
+/**
+ * Trim an oversized docs page to the largest whole-line prefix that fits the
+ * inline budget, preserving the true `totalLines` so the model can page through
+ * the rest with offset/limit.
+ */
+function truncateDocsPageToInlineCap(page: { content: string; totalLines: number }): {
+  output: { content: string; totalLines: number }
+  returnedLines: number
+} {
+  const lines = page.content.split('\n')
+  const notice = (shown: number) =>
+    `\n\n[Page truncated: showing lines 1-${shown} of ${page.totalLines}. Grep this path for the section you need, then read with offset/limit.]`
+
+  let kept = lines.length
+  let content = page.content
+  while (kept > 0) {
+    content = `${lines.slice(0, kept).join('\n')}${notice(kept)}`
+    if (
+      serializedResultSize({ content, totalLines: page.totalLines }) <= TOOL_RESULT_MAX_INLINE_CHARS
+    ) {
+      break
+    }
+    kept = Math.floor(kept / 2)
+  }
+  return { output: { content, totalLines: page.totalLines }, returnedLines: kept }
+}
+
 export async function executeVfsGrep(
   params: Record<string, unknown>,
   context: ExecutionContext
@@ -274,10 +301,24 @@ export async function executeVfsRead(
       const page = await readDocsPage(path)
       const windowed = applyWindow(page)
       if (serializedResultSize(windowed) > TOOL_RESULT_MAX_INLINE_CHARS) {
-        return {
-          success: false,
-          error: `${path} is too large to return inline. Grep that one page for the relevant section, then retry read with offset/limit.`,
+        // Several real docs pages (the largest integration references) exceed the
+        // inline cap, so failing here would make a plain read of them always fail
+        // and cost a second fetch to recover. Truncate to what fits instead and
+        // tell the model how to page — but only when it did not ask for a window,
+        // since an explicit offset/limit that still overflows is a caller error.
+        if (offset !== undefined || limit !== undefined) {
+          return {
+            success: false,
+            error: `${path} is still too large over the requested window. Narrow offset/limit, or grep this page for the section you need.`,
+          }
         }
+        const truncated = truncateDocsPageToInlineCap(page)
+        logger.debug('vfs_read truncated oversized docs page', {
+          path,
+          totalLines: page.totalLines,
+          returnedLines: truncated.returnedLines,
+        })
+        return { success: true, output: truncated.output }
       }
       logger.debug('vfs_read resolved docs page', { path, totalLines: page.totalLines })
       return { success: true, output: windowed }

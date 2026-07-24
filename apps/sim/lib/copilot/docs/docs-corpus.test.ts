@@ -93,8 +93,27 @@ describe('readDocsPage', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('surfaces a docs-site failure as a retryable error', async () => {
+  it('surfaces a docs-site outage as a retryable error', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 502, text: async () => '' })
+    await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/temporarily unavailable/)
+  })
+
+  it('treats a network failure as retryable', async () => {
+    fetchMock.mockRejectedValue(new Error('socket hang up'))
+    await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/temporarily unavailable/)
+  })
+
+  it('reports a page the site no longer serves as permanent, not retryable', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 404, text: async () => '' })
+    const error = await readDocsPage(`docs/${SAMPLE_PAGE}`).catch((e) => e)
+    expect(error).toBeInstanceOf(DocsCorpusError)
+    expect(error.message).toMatch(/does not serve it/)
+    expect(error.message).toMatch(/retrying will not help/)
+    expect(error.message).not.toMatch(/temporarily unavailable/)
+  })
+
+  it('still treats 429 as retryable rather than permanent', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 429, text: async () => '' })
     await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/temporarily unavailable/)
   })
 })

@@ -42,7 +42,6 @@ type AgentContextType =
   | 'table'
   | 'file'
   | 'workflow_block'
-  | 'docs'
   | 'folder'
   | 'filefolder'
   | 'active_resource'

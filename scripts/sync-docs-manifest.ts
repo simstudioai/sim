@@ -26,6 +26,7 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { foldDocsIndexPath } from '../apps/sim/lib/copilot/docs/docs-path'
 import { formatGeneratedSource } from './format-generated-source'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
@@ -55,7 +56,7 @@ async function collectMdxPaths(dir: string, prefix = ''): Promise<string[]> {
 /** Map an `en`-relative mdx file path to its docs.sim.ai URL path, or null to drop it. */
 function toDocsPath(mdxPath: string): string | null {
   if (mdxPath === 'index.mdx') return null
-  return mdxPath.replace(/\/index\.mdx$/, '.mdx')
+  return foldDocsIndexPath(mdxPath)
 }
 
 function render(paths: string[]): string {
