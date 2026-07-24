@@ -26,7 +26,9 @@
 global:
   imageRegistry: "ghcr.io"
   # For production, use a StorageClass with reclaimPolicy: Retain
-  storageClass: "managed-csi-premium"
+  # Set to YOUR cluster's StorageClass: gp3 (EKS), standard-rwo (GKE),
+  # managed-csi-premium (AKS). Empty uses the cluster default.
+  storageClass: ""
 
 # Main application
 app:
@@ -45,7 +47,6 @@ app:
   env:
     NEXT_PUBLIC_APP_URL: "https://sim.acme.ai"
     BETTER_AUTH_URL: "https://sim.acme.ai"
-    SOCKET_SERVER_URL: "https://sim-ws.acme.ai"
     NEXT_PUBLIC_SOCKET_URL: "https://sim-ws.acme.ai"
     
     # Security settings (REQUIRED - replace with your own secure secrets)
@@ -72,7 +73,12 @@ app:
 # Realtime service
 realtime:
   enabled: true
-  replicaCount: 2
+  # Keep realtime at 1 replica unless REDIS_URL is set (in app.env — realtime
+  # shares the app secret): Socket.IO only bridges events across pods through
+  # its Redis adapter, so multi-replica realtime without Redis silently drops
+  # cross-pod collaboration updates. NOTE: with autoscaling.enabled below, the
+  # realtime HPA overrides this value — set REDIS_URL before enabling it.
+  replicaCount: 1
 
   resources:
     limits:
@@ -121,10 +127,12 @@ postgresql:
   # Persistent storage configuration
   persistence:
     enabled: true
-    storageClass: "managed-csi-premium"
+    storageClass: ""  # your cluster's StorageClass (empty = cluster default)
     size: 50Gi
   
-  # SSL/TLS configuration (recommended for production)
+  # SSL/TLS configuration (recommended for production). Requires
+  # certManager.enabled below — the Certificate's issuerRef (sim-ca-issuer)
+  # only exists when the chart creates its CA issuer.
   tls:
     enabled: true
     certificatesSecret: postgres-tls-secret
@@ -168,7 +176,14 @@ ingress:
     enabled: true
     secretName: sim-tls-secret
 
+# Chart-managed CA issuer — required for postgresql.tls above (issuerRef sim-ca-issuer)
+certManager:
+  enabled: true
+
 # Horizontal Pod Autoscaler (automatically scales pods based on CPU/memory usage)
+# NOTE: this also renders an HPA for realtime with the same minReplicas, which
+# overrides realtime.replicaCount. Multi-replica realtime REQUIRES REDIS_URL in
+# app.env (Socket.IO Redis adapter) or cross-pod collaboration events are lost.
 autoscaling:
   enabled: true
   minReplicas: 2

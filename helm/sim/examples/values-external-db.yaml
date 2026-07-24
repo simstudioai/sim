@@ -63,7 +63,12 @@ app:
 # Realtime service
 realtime:
   enabled: true
-  replicaCount: 2
+  # Keep realtime at 1 replica unless REDIS_URL is set (in app.env — realtime
+  # shares the app secret): Socket.IO only bridges events across pods through
+  # its Redis adapter, so multi-replica realtime without Redis silently drops
+  # cross-pod collaboration updates. NOTE: with autoscaling.enabled below, the
+  # realtime HPA overrides this value — set REDIS_URL before enabling it.
+  replicaCount: 1
   
   resources:
     limits:
@@ -101,9 +106,9 @@ externalDatabase:
   enabled: true
   
   # Database connection details (REQUIRED - configure for your external database)
-  host: ""                    # Database hostname (e.g., "postgres.acme.com" or RDS endpoint)
+  host: "postgres.acme.com"   # REQUIRED - your database hostname (RDS/Cloud SQL/Azure endpoint or IP)
   port: 5432
-  username: ""                # Database username (e.g., "simstudio_user")
+  username: "simstudio_user"  # REQUIRED - your database username
   password: ""                # Database password - set via --set flag or external secret
   database: ""                # Database name (e.g., "simstudio_production")
   
@@ -140,6 +145,9 @@ ingress:
     secretName: simstudio-tls-secret
 
 # Production-ready features (autoscaling, monitoring, etc.)
+# NOTE: autoscaling also renders an HPA for realtime with the same minReplicas,
+# overriding realtime.replicaCount. Multi-replica realtime REQUIRES REDIS_URL in
+# app.env (Socket.IO Redis adapter) or cross-pod collaboration events are lost.
 autoscaling:
   enabled: true
   minReplicas: 2
@@ -164,11 +172,11 @@ networkPolicy:
   # Custom egress rules to allow database connectivity to an external DB.
   # The chart's app/realtime NetworkPolicies already permit egress to
   # `postgresql.service.targetPort` when `postgresql.enabled=true`. For an
-  # external DB on a different port (or off-cluster), append to extraRules.
+  # external DB on a different port (or off-cluster), add an egress rule.
+  # `networkPolicy.egress` is a LIST of NetworkPolicy egress rules.
   egress:
-    extraRules:
-      - to: []
-        ports:
+    - to: []
+      ports:
         - protocol: TCP
           port: 5432
 

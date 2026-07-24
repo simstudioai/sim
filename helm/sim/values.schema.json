@@ -1,7 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["app", "realtime"],
+  "required": [
+    "app",
+    "realtime"
+  ],
   "properties": {
     "global": {
       "type": "object",
@@ -29,7 +32,9 @@
     },
     "app": {
       "type": "object",
-      "required": ["enabled"],
+      "required": [
+        "enabled"
+      ],
       "properties": {
         "enabled": {
           "type": "boolean",
@@ -94,10 +99,6 @@
                 "name": {
                   "type": "string",
                   "description": "Name of the existing Kubernetes secret"
-                },
-                "keys": {
-                  "type": "object",
-                  "description": "Key name mappings in the existing secret"
                 }
               }
             }
@@ -108,17 +109,38 @@
           "properties": {
             "BETTER_AUTH_SECRET": {
               "type": "string",
-              "anyOf": [{ "minLength": 32 }, { "const": "" }],
+              "anyOf": [
+                {
+                  "minLength": 32
+                },
+                {
+                  "const": ""
+                }
+              ],
               "description": "Auth secret (minimum 32 characters required when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "ENCRYPTION_KEY": {
               "type": "string",
-              "anyOf": [{ "minLength": 32 }, { "const": "" }],
+              "anyOf": [
+                {
+                  "minLength": 32
+                },
+                {
+                  "const": ""
+                }
+              ],
               "description": "Encryption key (minimum 32 characters required when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "NEXT_PUBLIC_APP_URL": {
               "type": "string",
-              "anyOf": [{ "format": "uri" }, { "const": "" }],
+              "anyOf": [
+                {
+                  "format": "uri"
+                },
+                {
+                  "const": ""
+                }
+              ],
               "description": "Public application URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
             },
             "INTERNAL_API_BASE_URL": {
@@ -135,7 +157,14 @@
             },
             "BETTER_AUTH_URL": {
               "type": "string",
-              "anyOf": [{ "format": "uri" }, { "const": "" }],
+              "anyOf": [
+                {
+                  "format": "uri"
+                },
+                {
+                  "const": ""
+                }
+              ],
               "description": "Authentication service URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
             },
             "SOCKET_SERVER_URL": {
@@ -169,7 +198,11 @@
             },
             "NODE_ENV": {
               "type": "string",
-              "enum": ["development", "test", "production"],
+              "enum": [
+                "development",
+                "test",
+                "production"
+              ],
               "description": "Runtime environment"
             },
             "NEXT_TELEMETRY_DISABLED": {
@@ -194,7 +227,7 @@
             },
             "AZURE_ACS_CONNECTION_STRING": {
               "type": "string",
-              "description": "Azure Communication Services connection string (email provider — used when Resend/SES/SMTP are not configured)."
+              "description": "Azure Communication Services connection string (email provider \u2014 used when Resend/SES/SMTP are not configured)."
             },
             "SMTP_HOST": {
               "type": "string",
@@ -206,11 +239,11 @@
             },
             "SMTP_USER": {
               "type": "string",
-              "description": "SMTP username (optional — leave empty for unauthenticated relays like MailHog)."
+              "description": "SMTP username (optional \u2014 leave empty for unauthenticated relays like MailHog)."
             },
             "SMTP_PASS": {
               "type": "string",
-              "description": "SMTP password (optional — leave empty for unauthenticated relays)."
+              "description": "SMTP password (optional \u2014 leave empty for unauthenticated relays)."
             },
             "SMTP_SECURE": {
               "type": "string",
@@ -386,7 +419,14 @@
             },
             "NEXT_PUBLIC_SUPPORT_EMAIL": {
               "type": "string",
-              "anyOf": [{ "format": "email" }, { "const": "" }],
+              "anyOf": [
+                {
+                  "format": "email"
+                },
+                {
+                  "const": ""
+                }
+              ],
               "description": "Support email address (default help@sim.ai via envDefaults; set explicitly here to override in Secret)"
             },
             "NEXT_PUBLIC_DOCUMENTATION_URL": {
@@ -415,7 +455,9 @@
     },
     "realtime": {
       "type": "object",
-      "required": ["enabled"],
+      "required": [
+        "enabled"
+      ],
       "properties": {
         "enabled": {
           "type": "boolean",
@@ -466,17 +508,38 @@
           "properties": {
             "BETTER_AUTH_SECRET": {
               "type": "string",
-              "anyOf": [{ "minLength": 32 }, { "const": "" }],
+              "anyOf": [
+                {
+                  "minLength": 32
+                },
+                {
+                  "const": ""
+                }
+              ],
               "description": "Auth secret (minimum 32 characters required when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "NEXT_PUBLIC_APP_URL": {
               "type": "string",
-              "anyOf": [{ "format": "uri" }, { "const": "" }],
+              "anyOf": [
+                {
+                  "format": "uri"
+                },
+                {
+                  "const": ""
+                }
+              ],
               "description": "Public application URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
             },
             "BETTER_AUTH_URL": {
               "type": "string",
-              "anyOf": [{ "format": "uri" }, { "const": "" }],
+              "anyOf": [
+                {
+                  "format": "uri"
+                },
+                {
+                  "const": ""
+                }
+              ],
               "description": "Authentication service URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
             },
             "ALLOWED_ORIGINS": {
@@ -485,7 +548,11 @@
             },
             "NODE_ENV": {
               "type": "string",
-              "enum": ["development", "test", "production"],
+              "enum": [
+                "development",
+                "test",
+                "production"
+              ],
               "description": "Runtime environment"
             }
           }
@@ -563,7 +630,14 @@
             },
             "password": {
               "type": "string",
-              "anyOf": [{ "minLength": 8 }, { "const": "" }],
+              "anyOf": [
+                {
+                  "minLength": 8
+                },
+                {
+                  "const": ""
+                }
+              ],
               "description": "PostgreSQL password (minimum 8 characters when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "existingSecret": {
@@ -620,7 +694,14 @@
         },
         "sslMode": {
           "type": "string",
-          "enum": ["disable", "allow", "prefer", "require", "verify-ca", "verify-full"],
+          "enum": [
+            "disable",
+            "allow",
+            "prefer",
+            "require",
+            "verify-ca",
+            "verify-full"
+          ],
           "description": "SSL mode for database connection"
         },
         "existingSecret": {
@@ -650,7 +731,12 @@
         }
       },
       "then": {
-        "required": ["host", "username", "password", "database"]
+        "required": [
+          "host",
+          "username",
+          "password",
+          "database"
+        ]
       }
     },
     "autoscaling": {
@@ -679,7 +765,10 @@
         }
       },
       "then": {
-        "required": ["minReplicas", "maxReplicas"]
+        "required": [
+          "minReplicas",
+          "maxReplicas"
+        ]
       }
     },
     "ollama": {
@@ -779,10 +868,23 @@
         "image": {
           "type": "object",
           "properties": {
-            "repository": { "type": "string" },
-            "tag": { "type": "string" },
-            "digest": { "type": "string" },
-            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+            "repository": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
           }
         },
         "resources": {
@@ -823,21 +925,56 @@
         "service": {
           "type": "object",
           "properties": {
-            "type": { "type": "string" },
-            "port": { "type": "integer" },
-            "targetPort": { "type": "integer" }
+            "type": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer"
+            },
+            "targetPort": {
+              "type": "integer"
+            }
           }
         },
-        "env": { "type": "object" },
-        "nodeSelector": { "type": "object" },
-        "topologySpreadConstraints": { "type": "array", "items": { "type": "object" } },
-        "podSecurityContext": { "type": "object" },
-        "securityContext": { "type": "object" },
-        "startupProbe": { "type": "object" },
-        "livenessProbe": { "type": "object" },
-        "readinessProbe": { "type": "object" },
-        "extraVolumes": { "type": "array", "items": { "type": "object" } },
-        "extraVolumeMounts": { "type": "array", "items": { "type": "object" } }
+        "env": {
+          "type": "object"
+        },
+        "nodeSelector": {
+          "type": "object"
+        },
+        "topologySpreadConstraints": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "podSecurityContext": {
+          "type": "object"
+        },
+        "securityContext": {
+          "type": "object"
+        },
+        "startupProbe": {
+          "type": "object"
+        },
+        "livenessProbe": {
+          "type": "object"
+        },
+        "readinessProbe": {
+          "type": "object"
+        },
+        "extraVolumes": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "extraVolumeMounts": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
       }
     },
     "telemetry": {
@@ -858,18 +995,41 @@
       "type": "object",
       "description": "Helm test hook configuration (helm test)",
       "properties": {
-        "enabled": { "type": "boolean" },
+        "enabled": {
+          "type": "boolean"
+        },
         "image": {
           "type": "object",
           "properties": {
-            "repository": { "type": "string" },
-            "tag": { "type": "string" },
-            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
-            "pullSecrets": { "type": "array", "items": { "type": "object" } }
+            "repository": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            },
+            "pullSecrets": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
           }
         },
-        "timeoutSeconds": { "type": "integer", "minimum": 1 },
-        "resources": { "type": "object" }
+        "timeoutSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "resources": {
+          "type": "object"
+        }
       }
     },
     "sharedStorage": {
@@ -883,7 +1043,10 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["name", "size"],
+            "required": [
+              "name",
+              "size"
+            ],
             "properties": {
               "name": {
                 "type": "string",
@@ -928,7 +1091,11 @@
                 },
                 "pullPolicy": {
                   "type": "string",
-                  "enum": ["Always", "IfNotPresent", "Never"],
+                  "enum": [
+                    "Always",
+                    "IfNotPresent",
+                    "Never"
+                  ],
                   "description": "Image pull policy"
                 }
               }
@@ -936,27 +1103,39 @@
             "resources": {
               "type": "object",
               "properties": {
-                "limits": { "type": "object" },
-                "requests": { "type": "object" }
+                "limits": {
+                  "type": "object"
+                },
+                "requests": {
+                  "type": "object"
+                }
               }
             },
             "nodeSelector": {
               "type": "object",
-              "additionalProperties": { "type": "string" }
+              "additionalProperties": {
+                "type": "string"
+              }
             },
             "env": {
               "type": "object",
-              "additionalProperties": { "type": "string" },
+              "additionalProperties": {
+                "type": "string"
+              },
               "description": "Environment variables for Copilot"
             },
             "extraEnv": {
               "type": "array",
-              "items": { "type": "object" },
+              "items": {
+                "type": "object"
+              },
               "description": "Additional environment variable definitions"
             },
             "extraEnvFrom": {
               "type": "array",
-              "items": { "type": "object" },
+              "items": {
+                "type": "object"
+              },
               "description": "Additional envFrom sources"
             },
             "secret": {
@@ -972,7 +1151,9 @@
                 },
                 "annotations": {
                   "type": "object",
-                  "additionalProperties": { "type": "string" },
+                  "additionalProperties": {
+                    "type": "string"
+                  },
                   "description": "Annotations added to the Copilot secret"
                 }
               }
@@ -980,9 +1161,15 @@
             "service": {
               "type": "object",
               "properties": {
-                "type": { "type": "string" },
-                "port": { "type": "integer" },
-                "targetPort": { "type": "integer" }
+                "type": {
+                  "type": "string"
+                },
+                "port": {
+                  "type": "integer"
+                },
+                "targetPort": {
+                  "type": "integer"
+                }
               }
             },
             "podDisruptionBudget": {
@@ -1014,17 +1201,29 @@
             "auth": {
               "type": "object",
               "properties": {
-                "username": { "type": "string" },
-                "password": { "type": "string" },
-                "database": { "type": "string" }
+                "username": {
+                  "type": "string"
+                },
+                "password": {
+                  "type": "string"
+                },
+                "database": {
+                  "type": "string"
+                }
               }
             },
             "persistence": {
               "type": "object",
               "properties": {
-                "enabled": { "type": "boolean" },
-                "size": { "type": "string" },
-                "storageClass": { "type": "string" }
+                "enabled": {
+                  "type": "boolean"
+                },
+                "size": {
+                  "type": "string"
+                },
+                "storageClass": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -1056,16 +1255,26 @@
             "image": {
               "type": "object",
               "properties": {
-                "repository": { "type": "string" },
-                "tag": { "type": "string" },
-                "pullPolicy": { "type": "string" }
+                "repository": {
+                  "type": "string"
+                },
+                "tag": {
+                  "type": "string"
+                },
+                "pullPolicy": {
+                  "type": "string"
+                }
               }
             },
             "resources": {
               "type": "object",
               "properties": {
-                "limits": { "type": "object" },
-                "requests": { "type": "object" }
+                "limits": {
+                  "type": "object"
+                },
+                "requests": {
+                  "type": "object"
+                }
               }
             },
             "backoffLimit": {
@@ -1074,7 +1283,10 @@
             },
             "restartPolicy": {
               "type": "string",
-              "enum": ["Never", "OnFailure"]
+              "enum": [
+                "Never",
+                "OnFailure"
+              ]
             }
           }
         }
@@ -1090,7 +1302,10 @@
         },
         "apiVersion": {
           "type": "string",
-          "enum": ["v1", "v1beta1"],
+          "enum": [
+            "v1",
+            "v1beta1"
+          ],
           "description": "ESO API version - use v1 for ESO v0.17+ (recommended), v1beta1 for older versions"
         },
         "refreshInterval": {
@@ -1106,7 +1321,10 @@
             },
             "kind": {
               "type": "string",
-              "enum": ["SecretStore", "ClusterSecretStore"],
+              "enum": [
+                "SecretStore",
+                "ClusterSecretStore"
+              ],
               "description": "Kind of the store"
             }
           }
@@ -1117,18 +1335,24 @@
           "properties": {
             "app": {
               "type": "object",
-              "additionalProperties": { "type": "string" }
+              "additionalProperties": {
+                "type": "string"
+              }
             },
             "postgresql": {
               "type": "object",
               "properties": {
-                "password": { "type": "string" }
+                "password": {
+                  "type": "string"
+                }
               }
             },
             "externalDatabase": {
               "type": "object",
               "properties": {
-                "password": { "type": "string" }
+                "password": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -1179,8 +1403,12 @@
               "items": {
                 "type": "object",
                 "properties": {
-                  "path": { "type": "string" },
-                  "pathType": { "type": "string" }
+                  "path": {
+                    "type": "string"
+                  },
+                  "pathType": {
+                    "type": "string"
+                  }
                 }
               },
               "description": "Ingress paths for Copilot service"
@@ -1249,7 +1477,9 @@
                 "const": true
               }
             },
-            "required": ["enabled"]
+            "required": [
+              "enabled"
+            ]
           }
         }
       }

@@ -40,8 +40,8 @@ This chart deploys the Sim platform on a Kubernetes cluster using the Helm packa
 * **`app`** — the Sim Next.js web application (Deployment).
 * **`realtime`** — the WebSocket service for live workflow updates (Deployment).
 * **`postgresql`** — an in-cluster `pgvector/pgvector` Postgres (StatefulSet, with a headless Service for stable per-pod DNS).
-* **`migrations`** — a Job that applies database migrations on install/upgrade.
-* **`cronjobs`** — scheduled jobs for workflow schedule execution, inbox/calendar/drive polling (Gmail, Outlook, Calendar, Drive, Sheets, IMAP, RSS), workspace event polling, subscription renewal, data drains, and connector syncs.
+* **`migrations`** — an init container on the app Deployment that applies database migrations before each app pod starts.
+* **`cronjobs`** — scheduled jobs for workflow schedule execution, inbox/calendar/drive polling (Gmail, Outlook, Calendar, Drive, Sheets, IMAP, RSS), workspace event and HubSpot webhook polling, outbox processing, subscription renewal, billing-seat and inbox-entitlement reconciliation, time-pause/resume polling, data drains, and connector syncs.
 * **`serviceaccount`** — a dedicated ServiceAccount with `automountServiceAccountToken: false`.
 
 Optional components (off by default):
@@ -214,7 +214,7 @@ cat ./helm/sim/values.schema.json
 
 Before installing in production, confirm each of the following:
 
-* **High availability** — scale `app.replicaCount > 1`. The chart auto-creates a `PodDisruptionBudget` with `minAvailable: 1`. Set `podDisruptionBudget.maxUnavailable: "25%"` for a more permissive policy or `minAvailable: "50%"` for a stricter one.
+* **High availability** — scale `app.replicaCount > 1`. The chart auto-creates a `PodDisruptionBudget` with `maxUnavailable: "25%"`. Set `podDisruptionBudget.minAvailable` instead for a stricter policy.
 * **Pinned images** — override `image.tag` (or `image.digest`) with an explicit version. Do not rely on the chart's default tag in production.
 * **Secrets management** — provide secrets via External Secrets Operator (ESO) or pre-created Kubernetes Secrets. Never commit secrets to `values.yaml`.
 * **TLS / Ingress** — set the `cert-manager.io/cluster-issuer` annotation on the ingress and tune `proxy-body-size` / `proxy-read-timeout` for your workload. See commented examples in `values.yaml`.
@@ -370,7 +370,7 @@ monitoring:
     interval: 30s
 ```
 
-Requires the Prometheus Operator CRDs. Scrapes `/metrics` on the app and realtime services.
+Requires the Prometheus Operator CRDs. Scrapes `/metrics` on the app and realtime services — note the default images do not currently expose a `/metrics` endpoint, so enable this only with a build that does.
 
 ---
 
@@ -427,7 +427,7 @@ Common causes:
 
 * `NEXT_PUBLIC_APP_URL` still set to `http://localhost:3000` in a clustered deploy → set it to your public origin.
 * `DATABASE_URL` not reachable → check the Postgres pod is running and `postgresql.auth.password` matches.
-* Missing migration → check `kubectl logs job/sim-migrations`.
+* Missing migration → check `kubectl logs deploy/sim-app -c migrations` (migrations run as an init container on the app pod).
 
 ### Image pull errors (`ErrImagePull` / `ImagePullBackOff`)
 
@@ -463,7 +463,7 @@ kubectl describe ingress --namespace sim
 kubectl --namespace sim logs -f deployment/sim-app
 kubectl --namespace sim logs -f deployment/sim-realtime
 kubectl --namespace sim logs -f statefulset/sim-postgresql
-kubectl --namespace sim logs job/sim-migrations
+kubectl --namespace sim logs deploy/sim-app -c migrations
 ```
 
 ---

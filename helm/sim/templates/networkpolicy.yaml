@@ -247,16 +247,6 @@ spec:
     - protocol: TCP
       port: {{ .Values.postgresql.service.targetPort }}
   {{- end }}
-  # Allow ingress from migrations job
-  {{- if .Values.migrations.enabled }}
-  - from:
-    - podSelector:
-        matchLabels:
-          {{- include "sim.migrations.labels" . | nindent 10 }}
-    ports:
-    - protocol: TCP
-      port: {{ .Values.postgresql.service.targetPort }}
-  {{- end }}
   egress:
   # Allow minimal egress (for health checks, etc.)
   - to: []

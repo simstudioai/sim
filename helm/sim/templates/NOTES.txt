@@ -46,7 +46,7 @@ Your release is named {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
 
 3. Required secrets:
 
-   Sim requires three application secrets and a Postgres password to start.
+   Sim requires four application secrets and a Postgres password to start.
    {{- if .Values.externalSecrets.enabled }}
 
    Using External Secrets Operator. Verify the ExternalSecret has synced:

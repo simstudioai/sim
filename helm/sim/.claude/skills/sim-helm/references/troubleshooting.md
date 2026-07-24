@@ -11,7 +11,7 @@ kubectl --namespace $NS describe pod -l app.kubernetes.io/instance=sim
 kubectl --namespace $NS logs deploy/sim-app --tail=200
 kubectl --namespace $NS logs deploy/sim-realtime --tail=200
 kubectl --namespace $NS logs sts/sim-postgresql --tail=200
-kubectl --namespace $NS logs job/sim-migrations --tail=200 2>/dev/null || true
+kubectl --namespace $NS logs deploy/sim-app -c migrations --tail=200 2>/dev/null || true
 ```
 
 ---
@@ -63,9 +63,9 @@ Match the error:
 |---|---|---|
 | `Invalid env: ... NEXT_PUBLIC_APP_URL: Invalid url` | URL field set to empty string or invalid format | Set `app.env.NEXT_PUBLIC_APP_URL` to a valid URL — `https://sim.example.com` in prod, `http://localhost:3000` in dev |
 | `getaddrinfo ENOTFOUND ... -postgresql` / `connect ECONNREFUSED` | App can't reach Postgres | Check `kubectl get pod -l app.kubernetes.io/name=postgresql` is `Running`; check `postgresql.auth.password` matches the password in the Secret |
-| `password authentication failed for user "sim"` | Postgres password rotated but app pod wasn't restarted, OR password contains URL-unsafe chars | `kubectl rollout restart deploy/sim-app -n sim`; regenerate password with `openssl rand -base64 24 \| tr -d '/+='` |
+| `password authentication failed for user "postgres"` | Postgres password rotated but app pod wasn't restarted, OR password contains URL-unsafe chars | `kubectl rollout restart deploy/sim-app -n sim`; regenerate password with `openssl rand -base64 24 \| tr -d '/+='` |
 | `BETTER_AUTH_SECRET is missing` / `INTERNAL_API_SECRET is required` | Required env var not present in the Secret | Verify with `kubectl get secret sim-app-secrets -o jsonpath='{.data}' \| jq 'keys'`; if missing, fix your secret strategy |
-| `Migration failed` or app starts before migration | Migration Job hasn't completed | `kubectl logs job/sim-migrations -n sim`; rerun with `kubectl delete job/sim-migrations && helm upgrade ...` |
+| `Migration failed` | Migrations init container on the app pod failed | `kubectl logs deploy/sim-app -c migrations -n sim`; rerun with `kubectl rollout restart deploy/sim-app -n sim` (migrations run before each app pod starts, so the app can never start ahead of them) |
 
 ---
 
@@ -112,7 +112,7 @@ kubectl describe ingress -n sim
 | No `ADDRESS` in `kubectl get ingress` | Ingress controller not installed — install `ingress-nginx`, AWS LBC, GCP LB controller, etc. |
 | `ingressClassName` doesn't match installed controller | `kubectl get ingressclass` to list installed classes, set `ingress.className` to match |
 | Address is set but DNS resolves to wrong IP | `dig <your-host>` — point DNS at the ingress controller's external IP / LoadBalancer / CNAME |
-| TLS cert errors | If using cert-manager, check `kubectl describe certificate -n sim`; verify `ingress.tls.issuerRef` |
+| TLS cert errors | If using cert-manager, check `kubectl describe certificate -n sim`; verify the `cert-manager.io/cluster-issuer` annotation on the ingress |
 | `503 Service Unavailable` | Ingress routing is fine but app pod isn't `Ready` — go back to the diagnostic block |
 
 ---
@@ -153,7 +153,7 @@ Bump the relevant resource limit. Defaults:
 |---|---|---|
 | `app` | `1000m` CPU / `4Gi` memory | `2000m` CPU / `8Gi` memory |
 | `realtime` | `250m` CPU / `512Mi` memory | `500m` CPU / `1Gi` memory |
-| `postgresql` | `250m` CPU / `512Mi` memory | `1000m` CPU / `2Gi` memory |
+| `postgresql` | `500m` CPU / `1Gi` memory | `2Gi` memory (no CPU limit) |
 
 Override in values:
 
@@ -172,7 +172,7 @@ app:
 
 ```bash
 helm version
-kubectl version --short
+kubectl version
 helm get values sim -n sim --revision $(helm history sim -n sim | tail -1 | awk '{print $1}')
 kubectl get all,pvc,ingress,externalsecret -n sim -o wide
 kubectl describe pods -n sim -l app.kubernetes.io/instance=sim | head -200

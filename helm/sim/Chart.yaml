@@ -2,7 +2,7 @@ apiVersion: v2
 name: sim
 description: A Helm chart for Sim - the open-source AI workspace where teams build, deploy, and manage AI agents
 type: application
-version: 1.0.0
+version: 1.0.1
 appVersion: "0.6.73"
 kubeVersion: ">=1.25.0-0"
 home: https://sim.ai

@@ -61,17 +61,11 @@ app:
     existingSecret:
       # Set to true to use an existing secret instead of creating one from values
       enabled: false
-      # Name of the existing Kubernetes secret containing app credentials
+      # Name of the existing Kubernetes secret containing app credentials.
+      # The secret is consumed wholesale via envFrom, so its keys must use the
+      # standard names (BETTER_AUTH_SECRET, ENCRYPTION_KEY, INTERNAL_API_SECRET,
+      # CRON_SECRET, ...) — key remapping is not supported.
       name: ""
-      # Key mappings - specify the key names in your existing secret
-      # Only needed if your secret uses different key names than the defaults
-      keys:
-        BETTER_AUTH_SECRET: "BETTER_AUTH_SECRET"
-        ENCRYPTION_KEY: "ENCRYPTION_KEY"
-        INTERNAL_API_SECRET: "INTERNAL_API_SECRET"
-        CRON_SECRET: "CRON_SECRET"
-        API_ENCRYPTION_KEY: "API_ENCRYPTION_KEY"
-        REDIS_URL: "REDIS_URL"
 
   # Environment variables
   env:
@@ -542,9 +536,9 @@ realtime:
   extraVolumes: []
   extraVolumeMounts: []
 
-# Database migrations job configuration
+# Database migrations configuration (runs as an init container on the app pods)
 migrations:
-  # Enable/disable migrations job
+  # Enable/disable the migrations init container
   enabled: true
   
   # Image configuration
@@ -1682,7 +1676,7 @@ copilot:
   
   # Migration job configuration
   migrations:
-    # Enable/disable migrations job
+    # Enable/disable the migrations init container
     enabled: true
     
     # Image configuration (same as server)
