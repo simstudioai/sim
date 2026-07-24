@@ -101,6 +101,13 @@ export interface IRoomManager {
   /** Whether a room currently has any presence. */
   hasRoom(room: RoomRef): Promise<boolean>
 
+  /**
+   * Unconditionally drop all state for a room (presence + metadata). Used when a
+   * room's underlying resource is destroyed (e.g. a deleted workflow) to guarantee
+   * no state lingers even if per-socket removals failed or a socket joined mid-teardown.
+   */
+  deleteRoom(room: RoomRef): Promise<void>
+
   /** Update a socket's activity (cursor, selection, lastActivity) within a room. */
   updateUserActivity(
     room: RoomRef,

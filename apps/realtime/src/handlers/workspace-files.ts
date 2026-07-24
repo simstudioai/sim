@@ -5,6 +5,7 @@ import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms
 import { eq } from 'drizzle-orm'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager, UserPresence } from '@/rooms'
+import { filterVisiblePresence, sweepStalePresence } from '@/rooms/presence-visibility'
 
 const logger = createLogger('WorkspaceFilesHandlers')
 
@@ -77,6 +78,19 @@ export function setupWorkspaceFilesHandlers(
           return
         }
 
+        // Validate the client-supplied id before it reaches the DB query (matches
+        // the /api/workspace-files-changed guard; join payloads are otherwise raw
+        // client input).
+        if (typeof workspaceId !== 'string' || workspaceId.length === 0) {
+          socket.emit('join-workspace-files-error', {
+            workspaceId: typeof workspaceId === 'string' ? workspaceId : '',
+            error: 'Invalid workspace id',
+            code: 'INVALID_PAYLOAD',
+            retryable: false,
+          })
+          return
+        }
+
         const room = filesRoom(workspaceId)
 
         let authorized: Awaited<ReturnType<typeof authorizeRoom>>
@@ -130,6 +144,10 @@ export function setupWorkspaceFilesHandlers(
           }
         }
 
+        // Reclaim any presence orphaned by an ungraceful disconnect (pod crash
+        // fires no `disconnecting` event; the room hashes have no TTL).
+        await sweepStalePresence(roomManager, room)
+
         socket.join(roomName(room))
 
         const presence: UserPresence = {
@@ -147,7 +165,13 @@ export function setupWorkspaceFilesHandlers(
 
         await roomManager.addUserToRoom(room, socket.id, presence)
 
-        const presenceUsers = await roomManager.getRoomUsers(room)
+        // Filter the join ack to live members so a new joiner never briefly sees a
+        // ghost from an entry the sweep hasn't reclaimed yet.
+        const presenceUsers = await filterVisiblePresence(
+          roomManager.io,
+          room,
+          await roomManager.getRoomUsers(room)
+        )
         socket.emit('join-workspace-files-success', {
           workspaceId,
           socketId: socket.id,
@@ -159,6 +183,14 @@ export function setupWorkspaceFilesHandlers(
         logger.info(`User ${userId} (${userName}) joined files room for workspace ${workspaceId}`)
       } catch (error) {
         logger.error('Error joining workspace files room:', error)
+        // Roll back any partial join so a failed attempt can't leave the socket in
+        // the Socket.IO room or a stale presence entry behind (mirrors the workflow
+        // join's rollback), before signalling a retryable failure.
+        try {
+          const room = filesRoom(workspaceId)
+          socket.leave(roomName(room))
+          await roomManager.removeUserFromRoom(room, socket.id)
+        } catch {}
         socket.emit('join-workspace-files-error', {
           workspaceId,
           error: 'Failed to join workspace files',
@@ -169,14 +201,18 @@ export function setupWorkspaceFilesHandlers(
     }
   )
 
-  socket.on('leave-workspace-files', async () => {
+  socket.on('leave-workspace-files', async (payload?: { workspaceId?: string }) => {
     try {
       if (!roomManager.isReady()) return
       const room = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.WORKSPACE_FILES)
       if (!room) return
+      // Scope the leave to a specific workspace when the client provides one: a
+      // deferred leave from a prior page must not evict the socket from a room it
+      // has since switched into (workspace A→B leaves A's leave targeting B).
+      if (payload?.workspaceId && payload.workspaceId !== room.id) return
       socket.leave(roomName(room))
       await roomManager.removeUserFromRoom(room, socket.id)
-      await roomManager.broadcastPresenceUpdate(room)
+      await roomManager.broadcastPresenceUpdate(room, socket.id)
     } catch (error) {
       logger.error('Error leaving workspace files room:', error)
     }

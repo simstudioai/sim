@@ -11,9 +11,14 @@ const NOTIFY_TIMEOUT_MS = 2000
 /**
  * Best-effort fan-out to the realtime server that a workspace's file tree changed,
  * so every browser currently viewing that workspace's files refetches. File
- * mutations happen over the HTTP API (not the socket); this is the lossy liveness
- * signal — a dropped notification only degrades to stale-until-refetch, so it must
- * never throw or block the originating mutation.
+ * mutations happen over the HTTP API (not the socket); this is a lossy liveness
+ * signal — a dropped notification only degrades to stale-until-refetch.
+ *
+ * Never throws. Callers `await` it (rather than fire-and-forget) so the fetch is
+ * guaranteed to dispatch before a Node route handler returns — a floating promise
+ * can be dropped after the response is sent. It is a normally-sub-millisecond
+ * local call and is hard-bounded to {@link NOTIFY_TIMEOUT_MS}, so it adds that
+ * latency only when the socket pod is unreachable.
  */
 export async function notifyWorkspaceFilesChanged(workspaceId: string): Promise<void> {
   try {

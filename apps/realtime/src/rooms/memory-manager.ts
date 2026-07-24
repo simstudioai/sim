@@ -149,6 +149,10 @@ export class MemoryRoomManager implements IRoomManager {
     return this.rooms.has(roomKey(room))
   }
 
+  async deleteRoom(room: RoomRef): Promise<void> {
+    this.rooms.delete(roomKey(room))
+  }
+
   async updateUserActivity(
     room: RoomRef,
     socketId: string,

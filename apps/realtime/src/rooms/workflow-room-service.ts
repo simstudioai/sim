@@ -22,29 +22,44 @@ export class WorkflowRoomService {
     logger.info(`Handling workflow deletion notification for ${workflowId}`)
     const room = workflowRoom(workflowId)
 
-    const users = await this.manager.getRoomUsers(room)
-    if (users.length === 0) {
-      logger.debug(`No active users found for deleted workflow ${workflowId}`)
-      return
-    }
+    const name = roomName(room)
 
+    // Always notify — reach every socket still in the Socket.IO room so the client
+    // clears the deleted workflow, even if that socket's Redis presence was evicted
+    // (in which case it would be missing from getRoomUsers). Emitting to an empty
+    // room is a harmless no-op.
     this.manager.emitToRoom(room, 'workflow-deleted', {
       workflowId,
       message: 'This workflow has been deleted',
       timestamp: Date.now(),
     })
 
+    // Clean per-socket state for every socket that is either a live Socket.IO member
+    // OR still has presence — so an evicted/late-joined socket's room mapping and
+    // session are dropped too, not just the presence-tracked ones.
+    const socketIds = new Set<string>()
+    try {
+      const liveSockets = await this.manager.io.in(name).fetchSockets()
+      for (const s of liveSockets) socketIds.add(s.id)
+    } catch (error) {
+      logger.warn(`Could not enumerate sockets for deleted workflow ${workflowId}`, error)
+    }
+    for (const user of await this.manager.getRoomUsers(room)) socketIds.add(user.socketId)
+
     // Remove every socket from the Socket.IO room (cross-pod via the Redis adapter).
-    const name = roomName(room)
     await this.manager.io.in(name).socketsLeave(name)
 
-    // Drop presence state for each socket; empty-room cleanup is handled by the manager.
-    for (const user of users) {
-      await this.manager.removeUserFromRoom(room, user.socketId)
+    for (const socketId of socketIds) {
+      await this.manager.removeUserFromRoom(room, socketId)
     }
 
+    // Final unconditional wipe — the workflow is gone, so no room state may linger
+    // even if a per-socket removal failed (matches the pre-refactor managers, which
+    // ended deletion with an unconditional room drop).
+    await this.manager.deleteRoom(room)
+
     logger.info(
-      `Cleaned up workflow room ${workflowId} after deletion (${users.length} users disconnected)`
+      `Cleaned up workflow room ${workflowId} after deletion (${socketIds.size} sockets removed)`
     )
   }
 

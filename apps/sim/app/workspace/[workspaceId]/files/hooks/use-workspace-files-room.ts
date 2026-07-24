@@ -77,6 +77,12 @@ export function useWorkspaceFilesRoom(
     }) => {
       if (data.workspaceId !== workspaceId) return
       retries = 0
+      // Cancel any retry scheduled by a prior retryable error so it can't fire an
+      // extra join after we're already in.
+      if (retryTimer) {
+        clearTimeout(retryTimer)
+        retryTimer = null
+      }
       setPresenceUsers(data.presenceUsers ?? [])
     }
     const handleJoinError = (data: JoinErrorPayload) => {
@@ -103,13 +109,18 @@ export function useWorkspaceFilesRoom(
 
     return () => {
       if (retryTimer) clearTimeout(retryTimer)
-      socket.emit('leave-workspace-files')
       socket.off('connect', join)
       socket.off('join-workspace-files-success', handleJoinSuccess)
       socket.off('join-workspace-files-error', handleJoinError)
       socket.off('workspace-files:presence-update', handlePresence)
       socket.off('workspace-files-changed', handleChanged)
       setPresenceUsers([])
+
+      // Leave the room, scoped to THIS workspace: the server no-ops if the socket
+      // has already switched to another workspace's files room (so a workspace
+      // A→B switch, where B's join runs first and auto-leaves A, can't have A's
+      // leave evict the fresh B membership).
+      socket.emit('leave-workspace-files', { workspaceId })
     }
   }, [socket, workspaceId, queryClient])
 
