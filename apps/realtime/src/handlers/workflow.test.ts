@@ -54,21 +54,20 @@ function createSocket(overrides?: Partial<Record<string, unknown>>) {
 function createRoomManager(overrides?: Partial<IRoomManager>): IRoomManager {
   return {
     isReady: vi.fn().mockReturnValue(true),
-    getWorkflowIdForSocket: vi.fn().mockResolvedValue(null),
-    removeUserFromRoom: vi.fn().mockResolvedValue(null),
+    getRoomForSocket: vi.fn().mockResolvedValue(null),
+    getRoomsForSocket: vi.fn().mockResolvedValue([]),
+    removeUserFromRoom: vi.fn().mockResolvedValue(false),
+    removeSocketFromAllRooms: vi.fn().mockResolvedValue([]),
     broadcastPresenceUpdate: vi.fn().mockResolvedValue(undefined),
-    getWorkflowUsers: vi.fn().mockResolvedValue([]),
-    hasWorkflowRoom: vi.fn().mockResolvedValue(false),
+    getRoomUsers: vi.fn().mockResolvedValue([]),
+    hasRoom: vi.fn().mockResolvedValue(false),
     addUserToRoom: vi.fn().mockResolvedValue(undefined),
     getUserSession: vi.fn().mockResolvedValue(null),
     updateUserActivity: vi.fn().mockResolvedValue(undefined),
     updateRoomLastModified: vi.fn().mockResolvedValue(undefined),
-    emitToWorkflow: vi.fn(),
+    emitToRoom: vi.fn(),
     getUniqueUserCount: vi.fn().mockResolvedValue(1),
     getTotalActiveConnections: vi.fn().mockResolvedValue(0),
-    handleWorkflowDeletion: vi.fn().mockResolvedValue(undefined),
-    handleWorkflowRevert: vi.fn().mockResolvedValue(undefined),
-    handleWorkflowUpdate: vi.fn().mockResolvedValue(undefined),
     shutdown: vi.fn().mockResolvedValue(undefined),
     initialize: vi.fn().mockResolvedValue(undefined),
     io: {
@@ -173,8 +172,8 @@ describe('setupWorkflowHandlers', () => {
   it('includes workflowId when an unexpected join failure occurs', async () => {
     const { socket, handlers } = createSocket()
     const roomManager = createRoomManager({
-      getWorkflowIdForSocket: vi.fn().mockRejectedValue(new Error('boom')),
-      removeUserFromRoom: vi.fn().mockResolvedValue(null),
+      getRoomForSocket: vi.fn().mockRejectedValue(new Error('boom')),
+      removeUserFromRoom: vi.fn().mockResolvedValue(false),
     })
 
     setupWorkflowHandlers(

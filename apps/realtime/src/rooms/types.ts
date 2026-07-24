@@ -1,11 +1,15 @@
+import type { RoomRef, RoomType } from '@sim/realtime-protocol/rooms'
 import type { Server } from 'socket.io'
 
 /**
- * User presence data stored in room state
+ * User presence data stored in room state.
+ *
+ * `room` is the generic room address (see `@sim/realtime-protocol/rooms`). A
+ * socket may hold presence in more than one room, but only one room per type.
  */
 export interface UserPresence {
   userId: string
-  workflowId: string
+  room: RoomRef
   userName: string
   socketId: string
   tabSessionId?: string
@@ -18,7 +22,8 @@ export interface UserPresence {
 }
 
 /**
- * User session data (minimal info for quick lookups)
+ * User session data (minimal info for quick lookups). Shared across all rooms a
+ * socket is in — keyed by socket, not by room.
  */
 export interface UserSession {
   userId: string
@@ -27,120 +32,89 @@ export interface UserSession {
 }
 
 /**
- * Workflow room state
+ * Room presence state.
  */
-export interface WorkflowRoom {
-  workflowId: string
+export interface RoomState {
+  room: RoomRef
   users: Map<string, UserPresence>
   lastModified: number
   activeConnections: number
 }
 
 /**
- * Common interface for room managers (in-memory and Redis)
- * All methods that access state are async to support Redis operations
+ * Common interface for room managers (in-memory and Redis).
+ *
+ * The manager is domain-neutral: it tracks room membership and presence keyed by
+ * {@link RoomRef}, and knows nothing about workflows, files, or any specific
+ * domain. Domain lifecycle concerns (e.g. workflow deletion/deploy broadcasts)
+ * live in domain services that compose a manager — see `WorkflowRoomService`.
+ *
+ * A socket may occupy multiple rooms, at most one per {@link RoomType}. The
+ * shared session key is dropped only when a socket leaves its last room.
+ *
+ * All state-accessing methods are async to support the Redis implementation.
  */
 export interface IRoomManager {
   readonly io: Server
 
-  /**
-   * Initialize the room manager (connect to Redis, etc.)
-   */
+  /** Initialize the manager (connect to Redis, load scripts, etc.). */
   initialize(): Promise<void>
 
-  /**
-   * Whether the room manager is ready to serve requests
-   */
+  /** Whether the manager is ready to serve requests. */
   isReady(): boolean
 
-  /**
-   * Clean shutdown
-   */
+  /** Clean shutdown. */
   shutdown(): Promise<void>
 
-  /**
-   * Add a user to a workflow room
-   */
-  addUserToRoom(workflowId: string, socketId: string, presence: UserPresence): Promise<void>
+  /** Add a socket's presence to a room. */
+  addUserToRoom(room: RoomRef, socketId: string, presence: UserPresence): Promise<void>
 
   /**
-   * Remove a user from their current room
-   * Optional workflowIdHint is used when socket mapping keys are missing/expired.
-   * Returns the workflowId they were in, or null if not in any room.
+   * Remove a socket from a single room. Returns `true` if it was a member. The
+   * shared session is dropped only if this was the socket's last room.
    */
-  removeUserFromRoom(socketId: string, workflowIdHint?: string): Promise<string | null>
+  removeUserFromRoom(room: RoomRef, socketId: string): Promise<boolean>
 
   /**
-   * Get the workflow ID for a socket
+   * Remove a socket from every room it occupies (disconnect). Returns the rooms
+   * it was in, so the caller can rebroadcast presence per room.
    */
-  getWorkflowIdForSocket(socketId: string): Promise<string | null>
+  removeSocketFromAllRooms(socketId: string): Promise<RoomRef[]>
 
-  /**
-   * Get user session data for a socket
-   */
+  /** Every room the socket currently occupies. */
+  getRoomsForSocket(socketId: string): Promise<RoomRef[]>
+
+  /** The socket's room of a given type (at most one per type), or `null`. */
+  getRoomForSocket(socketId: string, type: RoomType): Promise<RoomRef | null>
+
+  /** Session data for a socket (shared across its rooms). */
   getUserSession(socketId: string): Promise<UserSession | null>
 
-  /**
-   * Get all users in a workflow room
-   */
-  getWorkflowUsers(workflowId: string): Promise<UserPresence[]>
+  /** All users present in a room. */
+  getRoomUsers(room: RoomRef): Promise<UserPresence[]>
 
-  /**
-   * Check if a workflow room exists
-   */
-  hasWorkflowRoom(workflowId: string): Promise<boolean>
+  /** Whether a room currently has any presence. */
+  hasRoom(room: RoomRef): Promise<boolean>
 
-  /**
-   * Update user activity (cursor, selection, lastActivity)
-   */
+  /** Update a socket's activity (cursor, selection, lastActivity) within a room. */
   updateUserActivity(
-    workflowId: string,
+    room: RoomRef,
     socketId: string,
     updates: Partial<Pick<UserPresence, 'cursor' | 'selection' | 'lastActivity'>>
   ): Promise<void>
 
-  /**
-   * Update room's lastModified timestamp
-   */
-  updateRoomLastModified(workflowId: string): Promise<void>
+  /** Bump a room's lastModified timestamp. */
+  updateRoomLastModified(room: RoomRef): Promise<void>
 
-  /**
-   * Broadcast presence update to all clients in a workflow room
-   */
-  broadcastPresenceUpdate(workflowId: string): Promise<void>
+  /** Broadcast the room's presence list to all clients in the room. */
+  broadcastPresenceUpdate(room: RoomRef): Promise<void>
 
-  /**
-   * Emit an event to all clients in a workflow room
-   */
-  emitToWorkflow<T = unknown>(workflowId: string, event: string, payload: T): void
+  /** Emit an event to all clients in a room. */
+  emitToRoom<T = unknown>(room: RoomRef, event: string, payload: T): void
 
-  /**
-   * Get the number of unique users in a workflow room
-   */
-  getUniqueUserCount(workflowId: string): Promise<number>
+  /** Number of unique users in a room. */
+  getUniqueUserCount(room: RoomRef): Promise<number>
 
-  /**
-   * Get total active connections across all rooms
-   */
+  /** Total active connections tracked by this instance. */
   getTotalActiveConnections(): Promise<number>
-
-  /**
-   * Handle workflow deletion - notify users and clean up room
-   */
-  handleWorkflowDeletion(workflowId: string): Promise<void>
-
-  /**
-   * Handle workflow revert - notify users
-   */
-  handleWorkflowRevert(workflowId: string, timestamp: number): Promise<void>
-
-  /**
-   * Handle workflow update - notify users
-   */
-  handleWorkflowUpdate(workflowId: string): Promise<void>
-
-  /**
-   * Handle workflow deployment change - notify users to refresh deployment state
-   */
-  handleWorkflowDeployed(workflowId: string): Promise<void>
 }

@@ -87,3 +87,13 @@ export function parseRoomName(name: string): RoomRef | null {
 export function isSameRoom(a: RoomRef, b: RoomRef): boolean {
   return a.type === b.type && a.id === b.id
 }
+
+/**
+ * The `presence-update` broadcast event name for a room type. `WORKFLOW` keeps
+ * the historical bare `presence-update` name (client backward-compat); every
+ * other type is namespaced so a socket joined to more than one room can tell the
+ * presence streams apart on a single connection.
+ */
+export function presenceEventName(type: RoomType): string {
+  return type === ROOM_TYPES.WORKFLOW ? 'presence-update' : `${type}:presence-update`
+}

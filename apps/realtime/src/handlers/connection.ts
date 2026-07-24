@@ -21,14 +21,17 @@ export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager
       cleanupPendingSubblocksForSocket(socket.id)
       cleanupPendingVariablesForSocket(socket.id)
 
-      const workflowIdHint = [...socket.rooms].find((roomId) => roomId !== socket.id)
-      const workflowId = await roomManager.removeUserFromRoom(socket.id, workflowIdHint)
+      // A socket may occupy multiple rooms (one per type). Remove it from all of
+      // them and rebroadcast presence per room so no room leaks a stale entry.
+      const removedRooms = await roomManager.removeSocketFromAllRooms(socket.id)
 
-      if (workflowId) {
-        await roomManager.broadcastPresenceUpdate(workflowId)
-        logger.info(
-          `Socket ${socket.id} disconnected from workflow ${workflowId} (reason: ${reason})`
-        )
+      for (const room of removedRooms) {
+        await roomManager.broadcastPresenceUpdate(room)
+      }
+
+      if (removedRooms.length > 0) {
+        const rooms = removedRooms.map((room) => `${room.type}:${room.id}`).join(', ')
+        logger.info(`Socket ${socket.id} disconnected from [${rooms}] (reason: ${reason})`)
       }
     } catch (error) {
       logger.error(`Error handling disconnect for socket ${socket.id}:`, error)

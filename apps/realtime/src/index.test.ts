@@ -7,8 +7,9 @@ import { createServer, request as httpRequest } from 'http'
 import { createMockLogger } from '@sim/testing'
 import { randomInt } from '@sim/utils/random'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { createSocketIOServer } from '@/config/socket'
-import { MemoryRoomManager } from '@/rooms'
+import { MemoryRoomManager, workflowRoom } from '@/rooms'
 import { createHttpHandler } from '@/routes/http'
 
 vi.mock('@/auth', () => ({
@@ -230,9 +231,10 @@ describe('Socket Server Index Integration', () => {
       const workflowId = 'test-workflow-123'
       const socketId = 'test-socket-123'
 
+      const room = workflowRoom(workflowId)
       const presence = {
         userId: 'user-123',
-        workflowId,
+        room,
         userName: 'Test User',
         socketId,
         joinedAt: Date.now(),
@@ -240,10 +242,10 @@ describe('Socket Server Index Integration', () => {
         role: 'admin',
       }
 
-      await roomManager.addUserToRoom(workflowId, socketId, presence)
+      await roomManager.addUserToRoom(room, socketId, presence)
 
-      expect(await roomManager.hasWorkflowRoom(workflowId)).toBe(true)
-      const users = await roomManager.getWorkflowUsers(workflowId)
+      expect(await roomManager.hasRoom(room)).toBe(true)
+      const users = await roomManager.getRoomUsers(room)
       expect(users).toHaveLength(1)
       expect(users[0].socketId).toBe(socketId)
     })
@@ -252,9 +254,10 @@ describe('Socket Server Index Integration', () => {
       const socketId = 'test-socket-123'
       const workflowId = 'test-workflow-456'
 
+      const room = workflowRoom(workflowId)
       const presence = {
         userId: 'user-123',
-        workflowId,
+        room,
         userName: 'Test User',
         socketId,
         joinedAt: Date.now(),
@@ -262,9 +265,9 @@ describe('Socket Server Index Integration', () => {
         role: 'admin',
       }
 
-      await roomManager.addUserToRoom(workflowId, socketId, presence)
+      await roomManager.addUserToRoom(room, socketId, presence)
 
-      expect(await roomManager.getWorkflowIdForSocket(socketId)).toBe(workflowId)
+      expect(await roomManager.getRoomForSocket(socketId, ROOM_TYPES.WORKFLOW)).toEqual(room)
       const session = await roomManager.getUserSession(socketId)
       expect(session).toBeDefined()
       expect(session?.userId).toBe('user-123')
@@ -274,9 +277,10 @@ describe('Socket Server Index Integration', () => {
       const workflowId = 'test-workflow-789'
       const socketId = 'test-socket-789'
 
+      const room = workflowRoom(workflowId)
       const presence = {
         userId: 'user-789',
-        workflowId,
+        room,
         userName: 'Test User',
         socketId,
         joinedAt: Date.now(),
@@ -284,16 +288,16 @@ describe('Socket Server Index Integration', () => {
         role: 'admin',
       }
 
-      await roomManager.addUserToRoom(workflowId, socketId, presence)
+      await roomManager.addUserToRoom(room, socketId, presence)
 
-      expect(await roomManager.hasWorkflowRoom(workflowId)).toBe(true)
+      expect(await roomManager.hasRoom(room)).toBe(true)
 
       // Remove user
-      await roomManager.removeUserFromRoom(socketId)
+      await roomManager.removeUserFromRoom(room, socketId)
 
       // Room should be cleaned up since it's now empty
-      expect(await roomManager.hasWorkflowRoom(workflowId)).toBe(false)
-      expect(await roomManager.getWorkflowIdForSocket(socketId)).toBeNull()
+      expect(await roomManager.hasRoom(room)).toBe(false)
+      expect(await roomManager.getRoomForSocket(socketId, ROOM_TYPES.WORKFLOW)).toBeNull()
     })
   })
 
@@ -324,7 +328,7 @@ describe('Socket Server Index Integration', () => {
 
       expect(typeof roomManager.addUserToRoom).toBe('function')
       expect(typeof roomManager.removeUserFromRoom).toBe('function')
-      expect(typeof roomManager.handleWorkflowDeletion).toBe('function')
+      expect(typeof roomManager.removeSocketFromAllRooms).toBe('function')
       expect(typeof roomManager.broadcastPresenceUpdate).toBe('function')
     })
   })
