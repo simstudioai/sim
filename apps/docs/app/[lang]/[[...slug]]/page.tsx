@@ -121,7 +121,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
     const urlParts = page.url.split('/').filter(Boolean)
     let currentPath = ''
 
-    urlParts.forEach((part, index) => {
+    urlParts.forEach((part: string, index: number) => {
       if (index === 0 && SUPPORTED_LANGUAGES.has(part)) {
         currentPath = `/${part}`
         return
@@ -131,7 +131,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
 
       const name = part
         .split('-')
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ')
 
       if (index === urlParts.length - 1) {

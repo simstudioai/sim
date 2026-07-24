@@ -16,6 +16,10 @@ interface RemoveMemberDialogProps {
    * never blocking.
    */
   breakingCredentials?: string[]
+  /** The impact check is still loading — confirm is held until it resolves. */
+  credentialImpactPending?: boolean
+  /** The impact check failed — removal stays possible, with a caution shown. */
+  credentialImpactFailed?: boolean
   isSubmitting?: boolean
   error?: Error | null
   onOpenChange: (open: boolean) => void
@@ -33,6 +37,8 @@ export function RemoveMemberDialog({
   isSelfRemoval = false,
   isExternalRemoval = false,
   breakingCredentials = [],
+  credentialImpactPending = false,
+  credentialImpactFailed = false,
   isSubmitting = false,
 }: RemoveMemberDialogProps) {
   const title = isSelfRemoval
@@ -43,8 +49,9 @@ export function RemoveMemberDialog({
 
   const errorMessage = error ? getErrorMessage(error) || null : null
 
-  const credentialWarning =
-    breakingCredentials.length > 0
+  const credentialWarning = credentialImpactFailed
+    ? `Couldn't check which credentials ${isSelfRemoval ? 'you own' : 'they own'} will be affected — connected accounts backed by ${isSelfRemoval ? 'your' : 'their'} identity may stop working after removal.`
+    : breakingCredentials.length > 0
       ? `${breakingCredentials.length === 1 ? 'A credential' : `${breakingCredentials.length} credentials`} ${
           isSelfRemoval ? 'you own' : 'they own'
         } (${formatQuotedNameList(breakingCredentials, MAX_LISTED_CREDENTIALS)}) will stop working in organization workspaces until another member reconnects ${
@@ -79,7 +86,9 @@ export function RemoveMemberDialog({
       confirm={{
         label: isSelfRemoval ? 'Leave Organization' : 'Remove',
         onClick: () => onConfirmRemove(),
-        pending: isSubmitting,
+        pending: isSubmitting || credentialImpactPending,
+        pendingLabel:
+          credentialImpactPending && !isSubmitting ? 'Checking credentials…' : undefined,
       }}
     >
       {credentialWarning ? (

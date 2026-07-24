@@ -237,6 +237,7 @@ export default function Invite() {
   })
   const invitation = invitationQuery.data?.invitation ?? null
   const joinPreview = invitationQuery.data?.joinPreview ?? null
+  const joinPreviewUnavailable = invitationQuery.data?.joinPreviewUnavailable === true
   const isLoading = Boolean(session?.user) && invitationQuery.isPending
 
   const fetchError = invitationQuery.error
@@ -455,7 +456,15 @@ export default function Invite() {
 
   const isOrg = invitation?.kind === 'organization'
   const organizationLabel = invitation?.organizationName || 'the organization'
-  const migrationNotice = buildWorkspaceMigrationNotice(joinPreview, organizationLabel)
+  /**
+   * When the server could not compute the preview, fall back to a generic
+   * migration notice for membership invites — a missing preview must never
+   * read as "nothing moves".
+   */
+  const migrationNotice =
+    joinPreviewUnavailable && invitation?.membershipIntent !== 'external'
+      ? ` If you own personal workspaces, accepting membership moves them into ${organizationLabel}: its admins get full access, and they stay with the organization if you leave.`
+      : buildWorkspaceMigrationNotice(joinPreview, organizationLabel)
 
   return (
     <InviteLayout>

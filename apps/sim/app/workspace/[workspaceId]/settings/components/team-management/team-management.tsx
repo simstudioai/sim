@@ -76,11 +76,13 @@ export function TeamManagement({
   const [orgName, setOrgName] = useState('')
   const [orgSlug, setOrgSlug] = useState('')
 
-  const { data: removalImpactCredentials } = useMemberRemovalImpact(
-    organizationId,
-    removeMemberDialog.memberId,
-    { enabled: removeMemberDialog.open }
-  )
+  const {
+    data: removalImpactCredentials,
+    isLoading: isRemovalImpactLoading,
+    isError: isRemovalImpactError,
+  } = useMemberRemovalImpact(organizationId, removeMemberDialog.memberId, {
+    enabled: removeMemberDialog.open,
+  })
 
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
   const usedSeats = organizationBillingData?.data?.members?.length ?? 0
@@ -385,6 +387,8 @@ export function TeamManagement({
         breakingCredentials={[
           ...new Set(removalImpactCredentials?.map((c) => c.displayName) ?? []),
         ]}
+        credentialImpactPending={isRemovalImpactLoading}
+        credentialImpactFailed={isRemovalImpactError}
         isSubmitting={removeMemberMutation.isPending}
         error={removeMemberMutation.error}
         onOpenChange={(open: boolean) => {
