@@ -15,6 +15,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createLogger } from '@sim/logger'
+import { readAppResolvedPackageVersion } from './dependency-resolution'
 
 const logger = createLogger('SandboxBundleBuild')
 
@@ -37,7 +38,11 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const APP_SIM_ROOT = join(HERE, '..', '..', '..', '..')
 const REPO_ROOT = join(APP_SIM_ROOT, '..', '..')
 const INTEGRITY_PATH = join(HERE, 'integrity.json')
-const INTEGRITY_SOURCES = [join(HERE, 'build.ts'), join(HERE, '_polyfills.ts')] as const
+const INTEGRITY_SOURCES = [
+  join(HERE, 'build.ts'),
+  join(HERE, '_polyfills.ts'),
+  join(HERE, 'dependency-resolution.ts'),
+] as const
 const INTEGRITY_DEPENDENCIES = ['pdf-lib', 'docx', 'pptxgenjs', 'buffer', 'process'] as const
 
 interface BundleSpec {
@@ -187,8 +192,7 @@ function writeIntegrityManifest(): void {
     dependencies: Object.fromEntries(
       INTEGRITY_DEPENDENCIES.map((packageName) => [
         packageName,
-        readJson<{ version: string }>(join(REPO_ROOT, 'node_modules', packageName, 'package.json'))
-          .version,
+        readAppResolvedPackageVersion(packageName, APP_SIM_ROOT),
       ])
     ),
     outputs: Object.fromEntries(

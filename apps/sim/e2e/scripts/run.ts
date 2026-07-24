@@ -117,6 +117,7 @@ async function main(): Promise<void> {
   let canaryCoverageComplete = true
   let diagnosticsRetained = true
   let failed = false
+  let seedAttempted = false
 
   const persistFakeRequestLogs = (): void => {
     const failures: unknown[] = []
@@ -373,6 +374,7 @@ async function main(): Promise<void> {
     )
     assertNoForbiddenProviderInitialization([app.logPath, realtime.logPath])
 
+    seedAttempted = true
     await seedE2eWorld({
       ...commandOptions,
       env: {
@@ -435,7 +437,7 @@ async function main(): Promise<void> {
       process.off('SIGINT', handleSigint)
       process.off('SIGTERM', handleSigterm)
 
-      if (runDatabase) {
+      if (runDatabase && seedAttempted) {
         try {
           assertSeededScenarioManifestExists(manifestPath)
           await Promise.all([

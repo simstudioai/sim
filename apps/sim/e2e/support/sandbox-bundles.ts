@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { REPO_ROOT } from './paths'
+import { readAppResolvedPackageVersion } from '@/lib/execution/sandbox/bundles/dependency-resolution'
+import { REPO_ROOT, SIM_APP_DIR } from './paths'
 
 const INTEGRITY_PATH = 'apps/sim/lib/execution/sandbox/bundles/integrity.json'
 
@@ -36,12 +37,10 @@ export function verifySandboxBundleIntegrity(options?: { runningBunVersion?: str
   verifyHashes('source', integrity.sources)
   verifyHashes('output', integrity.outputs)
   for (const [packageName, expectedVersion] of Object.entries(integrity.dependencies)) {
-    const packageJson = readJson<{ version?: string }>(
-      path.join(REPO_ROOT, 'node_modules', packageName, 'package.json')
-    )
-    if (packageJson.version !== expectedVersion) {
+    const resolvedVersion = readAppResolvedPackageVersion(packageName, SIM_APP_DIR)
+    if (resolvedVersion !== expectedVersion) {
       throw new Error(
-        `Sandbox bundle dependency ${packageName} changed: expected ${expectedVersion}, received ${packageJson.version ?? 'missing'}`
+        `Sandbox bundle dependency ${packageName} changed: expected ${expectedVersion}, received ${resolvedVersion}`
       )
     }
   }
