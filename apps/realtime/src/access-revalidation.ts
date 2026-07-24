@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { AccessRevokedBroadcast } from '@sim/realtime-protocol/events'
+import { sleep } from '@sim/utils/helpers'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { ROLE_REVALIDATION_TTL_MS, resolveCurrentWorkflowRole } from '@/middleware/permissions'
 import type { IRoomManager } from '@/rooms'
@@ -27,6 +28,25 @@ export const ACCESS_REVALIDATION_SWEEP_INTERVAL_MS = ROLE_REVALIDATION_TTL_MS
  * only job is to be non-null.
  */
 const FALLBACK_ROLE = 'read'
+
+/**
+ * Upper bound on a single socket's authorization check inside the scan. A DB
+ * query that hangs (wedged connection, exhausted pool, network partition) must
+ * not wedge the scan lane — on timeout the socket is skipped for this pass
+ * (never evicted) and re-checked next pass, where the single-flighted
+ * resolution is re-raced and acted on once it finally settles.
+ */
+const SCAN_SOCKET_TIMEOUT_MS = 5_000
+
+/**
+ * Hard budget for one whole scan pass, deliberately below
+ * {@link ACCESS_REVALIDATION_SWEEP_INTERVAL_MS} so `scanRunning` can never
+ * starve subsequent ticks: a pass that runs out of budget ends early and the
+ * remaining sockets are evaluated on the next pass.
+ */
+const SCAN_PASS_BUDGET_MS = 20_000
+
+const SCAN_TIMED_OUT = Symbol('scan-timed-out')
 
 export interface AccessRevalidationSweep {
   /** Stop the periodic sweep (clears the interval). */
@@ -75,7 +95,10 @@ function collectLocalMemberships(io: IRoomManager['io']): Map<string, Authentica
  * best-effort room-state cleanup (Redis presence) runs in its own lane. A Redis
  * outage — including commands that hang in the client's offline queue rather
  * than failing — can therefore stall only presence cleanup, never revocation
- * enforcement on subsequent ticks.
+ * enforcement on subsequent ticks. Within the scan, every authorization wait is
+ * bounded ({@link SCAN_SOCKET_TIMEOUT_MS}) and the whole pass has a hard budget
+ * below the interval ({@link SCAN_PASS_BUDGET_MS}), so a hanging DB query can
+ * delay a socket's re-check but can never wedge the scan lane itself.
  */
 export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessRevalidationSweep {
   const io = roomManager.io
@@ -177,14 +200,36 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
 
   async function scanMemberships(): Promise<void> {
     const memberships = collectLocalMemberships(io)
+    const deadline = Date.now() + SCAN_PASS_BUDGET_MS
 
     for (const [workflowId, sockets] of memberships) {
       for (const socket of sockets) {
         const userId = socket.userId
         if (!userId) continue
 
+        const remainingBudget = deadline - Date.now()
+        if (remainingBudget <= 0) {
+          logger.warn(
+            'Access re-validation scan budget exhausted; remaining sockets defer to the next pass'
+          )
+          return
+        }
+
         try {
-          const role = await resolveCurrentWorkflowRole(userId, workflowId, FALLBACK_ROLE)
+          // Bounded wait: a hanging authorization query skips this socket for
+          // the pass instead of wedging the scan lane. The single-flighted
+          // resolution keeps running in the background and is re-raced next
+          // pass, so it is acted on once it settles.
+          const role = await Promise.race([
+            resolveCurrentWorkflowRole(userId, workflowId, FALLBACK_ROLE),
+            sleep(Math.min(SCAN_SOCKET_TIMEOUT_MS, remainingBudget)).then(() => SCAN_TIMED_OUT),
+          ])
+          if (role === SCAN_TIMED_OUT) {
+            logger.warn(
+              `Authorization check timed out for user ${userId} on workflow ${workflowId}; skipping this pass`
+            )
+            continue
+          }
           if (role === null) {
             revokeSocket(socket, workflowId)
           }

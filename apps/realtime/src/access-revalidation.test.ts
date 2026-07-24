@@ -284,6 +284,41 @@ describe('access-revalidation sweep', () => {
     expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
   })
 
+  it('skips a socket whose authorization query hangs and still evicts the rest', async () => {
+    vi.useFakeTimers()
+    try {
+      const hung = makeSocket('sock-1', 'user-1', 'wf-1')
+      const revoked = makeSocket('sock-2', 'user-2', 'wf-1')
+      const manager = makeManager([hung, revoked])
+      // user-1's authorization query hangs (wedged DB connection); user-2's
+      // resolves to a confirmed revocation.
+      mockResolveRole.mockImplementation(async (userId: string) => {
+        if (userId === 'user-1') return new Promise(() => {})
+        return null
+      })
+
+      const sweep = startAccessRevalidationSweep(manager)
+
+      // First tick starts the scan; the per-socket timeout fires at +5s and the
+      // scan moves on to evict the revoked socket in the same pass.
+      await vi.advanceTimersByTimeAsync(ACCESS_REVALIDATION_SWEEP_INTERVAL_MS)
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      expect(hung.leave).not.toHaveBeenCalled()
+      expect(revoked.leave).toHaveBeenCalledWith('wf-1')
+
+      // The next tick's scan still runs — the hung query did not wedge the lane.
+      const callsAfterFirstPass = mockResolveRole.mock.calls.length
+      await vi.advanceTimersByTimeAsync(ACCESS_REVALIDATION_SWEEP_INTERVAL_MS)
+      await vi.advanceTimersByTimeAsync(10_000)
+      sweep.stop()
+
+      expect(mockResolveRole.mock.calls.length).toBeGreaterThan(callsAfterFirstPass)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps scanning on later ticks while a deferred cleanup hangs', async () => {
     vi.useFakeTimers()
     try {
