@@ -97,6 +97,10 @@ function describeReadTarget(path: string | undefined): string | undefined {
 
   if (segments.length === 0) return undefined
 
+  if (segments[0] === 'docs') {
+    return describeDocsReadTarget(segments)
+  }
+
   const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
   if (!resourceType) {
     return humanizeDisplayIdentifier(stripExtension(segments[segments.length - 1]), 'sentence')
@@ -138,6 +142,29 @@ function describeFileReadTarget(segments: string[]): string {
   // Show just the file name, not the folder path — these are glanceable status
   // lines, and the other resource types already render the leaf only.
   return lastSegment
+}
+
+const DOCS_TAB_SEGMENTS = new Set(['documentation', 'academy', 'api-reference'])
+
+/**
+ * Labels a docs/ corpus read as `<Section>/<filename>` (e.g. `Workflows/index`
+ * for docs/documentation/workflows/index.mdx). The tab segment is dropped and
+ * single-level pages show just their capitalized name (e.g. `Getting-started`,
+ * or `Workflows` for the api-reference tag file workflows.json).
+ */
+function describeDocsReadTarget(segments: string[]): string {
+  let rest = segments.slice(1)
+  if (rest.length > 0 && DOCS_TAB_SEGMENTS.has(rest[0])) {
+    rest = rest.slice(1)
+  }
+  if (rest.length === 0) return 'docs'
+  const leaf = stripExtension(rest[rest.length - 1])
+  if (rest.length === 1) return capitalizeFirst(leaf)
+  return `${capitalizeFirst(rest[0])}/${leaf}`
+}
+
+function capitalizeFirst(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
 function getLeafResourceSegment(segments: string[]): string {
