@@ -1,0 +1,57 @@
+---
+title: Verified Domains
+description: Prove ownership of your email domains before configuring single sign-on
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+
+Verified Domains let organization owners and admins on Enterprise plans prove they control an email domain (like `acme.com`) with a DNS TXT record. Verifying a domain is the security precondition for configuring single sign-on for it.
+
+<Callout type="warning">
+  Configuring SSO for a domain requires it to be verified first. Verifying proves your organization controls the domain — without it, anyone could point another company's domain at their own identity provider. Domains you had already configured for SSO are automatically treated as verified.
+</Callout>
+
+---
+
+## Verify a domain
+
+Go to **Settings → Security → Verified domains** in your organization settings.
+
+1. Enter the domain, for example `acme.com`, and click **Add domain**.
+2. Sim shows a DNS **TXT record** to publish — a host (`_sim-challenge.acme.com`) and a unique value (`sim-domain-verification=…`).
+3. Add that TXT record at your DNS provider.
+4. Click **Verify**. Sim looks up the record; on success the domain is marked **Verified**.
+
+DNS changes can take up to 48 hours to propagate — if verification does not succeed immediately, wait and retry. You can remove the TXT record after the domain is verified; the verification persists.
+
+Add each domain you own separately. Subdomains (`eng.acme.com`) are verified independently of the apex.
+
+---
+
+## FAQ
+
+<FAQ
+  items={[
+    {
+      question: 'Where does the TXT record go?',
+      answer:
+        'On a dedicated host, _sim-challenge.<your-domain>, rather than the root of your domain — this avoids colliding with your SPF, DMARC, or other root TXT records.',
+    },
+    {
+      question: 'What happens to domains we already use for SSO?',
+      answer:
+        'They are automatically treated as verified, so existing single sign-on keeps working with no action needed.',
+    },
+    {
+      question: 'Can two organizations verify the same domain?',
+      answer:
+        'No. A verified domain belongs to exactly one organization. Once verified, another organization cannot claim it.',
+    },
+    {
+      question: 'What if I remove a verified domain?',
+      answer:
+        'You lose the ownership proof, so you cannot configure SSO for that domain until you re-add and re-verify it. Removing it does not sign anyone out — an already-configured SSO provider keeps working.',
+    },
+  ]}
+/>

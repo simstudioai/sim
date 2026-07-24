@@ -1,6 +1,6 @@
 {
-  "id": "e341f9c4-ac9a-4386-b6a6-4dfb31b952dd",
-  "prevId": "25435972-1fe1-4766-a728-d8e5c8818168",
+  "id": "dea711e3-b8c7-4279-bb8a-353bdaffdfe8",
+  "prevId": "e341f9c4-ac9a-4386-b6a6-4dfb31b952dd",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1178,6 +1178,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "include_tool_calls": {
+          "name": "include_tool_calls",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
         },
         "archived_at": {
           "name": "archived_at",
