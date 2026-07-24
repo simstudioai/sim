@@ -1,5 +1,6 @@
 export * from './a2a'
 export * from './agiloft'
+export * from './artifact'
 export * from './asana'
 export * from './brex'
 export * from './clickup'
