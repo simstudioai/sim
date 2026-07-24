@@ -66,6 +66,23 @@ describe('Jira update route custom-field serialization', () => {
     expect(putFields()).toEqual({ customfield_10001: { id: '10023' } })
   })
 
+  it('rejects a customFields entry whose value shape mismatches its type', async () => {
+    const { response } = await update({
+      customFields: [{ fieldId: 'customfield_10001', type: 'select', value: { label: 'High' } }],
+    })
+    expect(response.status).toBe(400)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a userpicker entry passed an { email } object', async () => {
+    const { response } = await update({
+      customFields: [
+        { fieldId: 'customfield_10003', type: 'userpicker', value: { email: 'x@y.com' } },
+      ],
+    })
+    expect(response.status).toBe(400)
+  })
+
   it('serializes a multiselect custom field to an array of options', async () => {
     await update({
       customFields: [

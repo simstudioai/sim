@@ -102,17 +102,72 @@ export const jiraCustomFieldTypeSchema = z.enum([
   'raw',
 ])
 
+const customFieldIdSchema = z.string().min(1, 'fieldId is required')
+
+/** A scalar or `{ value }` / `{ id }` option object for a select/multiselect. */
+const optionInputSchema = z.union([
+  z.string(),
+  z.number(),
+  z.object({ value: z.union([z.string(), z.number()]) }),
+  z.object({ id: z.union([z.string(), z.number()]) }),
+])
+
+/** An accountId string or a `{ accountId }` object for a user picker. */
+const userInputSchema = z.union([
+  z.string().min(1, 'accountId cannot be empty'),
+  z.object({ accountId: z.string().min(1, 'accountId cannot be empty') }),
+])
+
+/** A number or a numeric string for a number field. */
+const numberInputSchema = z.union([
+  z.number(),
+  z
+    .string()
+    .refine((s) => s.trim() !== '' && Number.isFinite(Number(s)), 'number value must be numeric'),
+])
+
+/** Parent scalar, `[parent, child]` array, or `{ parent|value, child }` object. */
+const cascadingInputSchema = z.union([
+  z.string(),
+  z.number(),
+  z.array(z.union([z.string(), z.number()])).min(1, 'cascading value cannot be empty'),
+  z.record(z.string(), z.unknown()),
+])
+
 /**
- * One structured custom field to write. `value` is intentionally `unknown` — its
- * meaning depends on `type` and is serialized into the Jira REST v3 shape by
- * `serializeJiraCustomField` in the route.
+ * One structured custom field to write, validated per `type` so a shape/value
+ * mismatch (e.g. a select passed as `{ label }`, a user picker as `{ email }`, a
+ * non-numeric number) is rejected at the boundary instead of serializing into a
+ * malformed Jira value that would reject the whole combined update. `raw` is the
+ * escape hatch: its value is passed through untouched.
  */
-export const jiraCustomFieldEntrySchema = z.object({
-  fieldId: z.string().min(1, 'fieldId is required'),
-  type: jiraCustomFieldTypeSchema,
-  value: z.unknown(),
-  child: z.unknown().optional(),
-})
+export const jiraCustomFieldEntrySchema = z.discriminatedUnion('type', [
+  z.object({
+    fieldId: customFieldIdSchema,
+    type: z.literal('text'),
+    value: z.union([z.string(), z.number()]),
+  }),
+  z.object({ fieldId: customFieldIdSchema, type: z.literal('number'), value: numberInputSchema }),
+  z.object({ fieldId: customFieldIdSchema, type: z.literal('select'), value: optionInputSchema }),
+  z.object({
+    fieldId: customFieldIdSchema,
+    type: z.literal('multiselect'),
+    value: z.union([z.array(optionInputSchema), optionInputSchema]),
+  }),
+  z.object({ fieldId: customFieldIdSchema, type: z.literal('userpicker'), value: userInputSchema }),
+  z.object({
+    fieldId: customFieldIdSchema,
+    type: z.literal('multiuserpicker'),
+    value: z.union([z.array(userInputSchema), userInputSchema]),
+  }),
+  z.object({
+    fieldId: customFieldIdSchema,
+    type: z.literal('cascading'),
+    value: cascadingInputSchema,
+    child: z.unknown().optional(),
+  }),
+  z.object({ fieldId: customFieldIdSchema, type: z.literal('raw'), value: z.unknown() }),
+])
 
 export const jiraUpdateBodySchema = z.object({
   domain: z.string().min(1, 'Domain is required'),

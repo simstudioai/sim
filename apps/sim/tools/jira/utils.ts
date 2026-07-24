@@ -136,9 +136,11 @@ function toAccountId(value: unknown): string {
 /**
  * Serializes a cascading select into `{ value: <parent>, child: { value: <child> } }`.
  * The parent/child pair is taken from an explicit `entry.child`, a `{ parent, child }`
- * or `{ value, child }` object, or a two-element `[parent, child]` array.
+ * or `{ value, child }` object, or a two-element `[parent, child]` array. Returns
+ * `undefined` when no parent can be resolved, so a blank cascading entry is skipped
+ * rather than emitting a literal `"undefined"` value that Jira would reject.
  */
-function toCascadingOption(entry: JiraCustomFieldEntry): Record<string, unknown> {
+function toCascadingOption(entry: JiraCustomFieldEntry): Record<string, unknown> | undefined {
   let parent: unknown = entry.value
   let child: unknown = entry.child
 
@@ -150,6 +152,8 @@ function toCascadingOption(entry: JiraCustomFieldEntry): Record<string, unknown>
     parent = rec.parent !== undefined ? rec.parent : rec.value
     if (child === undefined) child = rec.child
   }
+
+  if (isEmptyScalar(parent)) return undefined
 
   const result: Record<string, unknown> = { value: optionValue(parent) }
   if (!isEmptyScalar(child)) {
@@ -226,7 +230,11 @@ export function buildJiraCustomFields(args: {
       if (!entry || typeof entry.fieldId !== 'string' || entry.fieldId === '') continue
       const valueIsEmpty = !Array.isArray(entry.value) && isEmptyScalar(entry.value)
       if (entry.type !== 'raw' && valueIsEmpty && entry.child === undefined) continue
-      result[normalizeCustomFieldId(entry.fieldId)] = serializeJiraCustomField(entry)
+      const serialized = serializeJiraCustomField(entry)
+      // A serializer can decline an entry (e.g. cascading with no resolvable
+      // parent) by returning undefined — skip rather than emit a bad value.
+      if (serialized === undefined) continue
+      result[normalizeCustomFieldId(entry.fieldId)] = serialized
     }
   }
 

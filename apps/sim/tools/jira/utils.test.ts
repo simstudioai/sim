@@ -42,15 +42,15 @@ describe('serializeJiraCustomField', () => {
   })
 
   it('wraps a scalar multiselect value into a single-element array', () => {
-    expect(
-      serializeJiraCustomField({ fieldId: 'cf', type: 'multiselect', value: 'Only' })
-    ).toEqual([{ value: 'Only' }])
+    expect(serializeJiraCustomField({ fieldId: 'cf', type: 'multiselect', value: 'Only' })).toEqual(
+      [{ value: 'Only' }]
+    )
   })
 
   it('serializes a userpicker to { accountId }', () => {
-    expect(
-      serializeJiraCustomField({ fieldId: 'cf', type: 'userpicker', value: 'acc-1' })
-    ).toEqual({ accountId: 'acc-1' })
+    expect(serializeJiraCustomField({ fieldId: 'cf', type: 'userpicker', value: 'acc-1' })).toEqual(
+      { accountId: 'acc-1' }
+    )
   })
 
   it('unwraps a { accountId } object for a userpicker', () => {
@@ -110,6 +110,15 @@ describe('serializeJiraCustomField', () => {
     expect(
       serializeJiraCustomField({ fieldId: 'cf', type: 'cascading', value: 'Americas' })
     ).toEqual({ value: 'Americas' })
+  })
+
+  it('returns undefined for a cascading with no resolvable parent', () => {
+    expect(
+      serializeJiraCustomField({ fieldId: 'cf', type: 'cascading', value: [] })
+    ).toBeUndefined()
+    expect(
+      serializeJiraCustomField({ fieldId: 'cf', type: 'cascading', value: { id: '10' } })
+    ).toBeUndefined()
   })
 
   it('passes text through untouched', () => {
@@ -181,6 +190,17 @@ describe('buildJiraCustomFields', () => {
       customfield_10001: 'legacy',
       customfield_10002: { accountId: 'acc-1' },
     })
+  })
+
+  it('skips a cascading entry with no resolvable parent', () => {
+    expect(
+      buildJiraCustomFields({
+        customFields: [
+          { fieldId: 'customfield_1', type: 'cascading', value: [] },
+          { fieldId: 'customfield_2', type: 'select', value: 'High' },
+        ],
+      })
+    ).toEqual({ customfield_2: { value: 'High' } })
   })
 
   it('skips blank non-raw entries but keeps raw passthroughs', () => {
