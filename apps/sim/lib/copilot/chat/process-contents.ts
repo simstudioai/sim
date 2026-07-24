@@ -204,12 +204,12 @@ export async function processContextsServer(
       }
       if (ctx.kind === 'docs') {
         try {
-          const { searchDocumentationServerTool } = await import(
-            '@/lib/copilot/tools/server/docs/search-documentation'
+          const { searchDocsServerTool } = await import(
+            '@/lib/copilot/tools/server/docs/search-docs'
           )
           const rawQuery = (userMessage || '').trim() || ctx.label || 'Sim documentation'
           const query = sanitizeMessageForDocs(rawQuery, contexts)
-          const res = await searchDocumentationServerTool.execute({ query, topK: 10 })
+          const res = await searchDocsServerTool.execute({ query, topK: 10 })
           const content = JSON.stringify(res?.results || [])
           return { type: 'docs', tag: ctx.label ? `@${ctx.label}` : '@', content }
         } catch (e) {
