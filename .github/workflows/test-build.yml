@@ -32,21 +32,12 @@ jobs:
       # push runs (whose caches feed production image builds) or with trusted
       # internal-PR runs.
       #
-      # node_modules ALSO keys on the lockfile hash, the other two deliberately
-      # do not. A sticky disk is a persistent mutable volume, so every branch
-      # sharing one key shares one node_modules tree, and `bun install
-      # --frozen-lockfile` installs what the lockfile needs without pruning what
-      # it no longer references. Branches cut before a dependency bump therefore
-      # wrote their older copies onto the shared disk and every other branch
-      # inherited them — that is how builds on next 16.2.11 ended up loading a
-      # stale @next/swc 16.2.6 that appears nowhere in bun.lock. Hashing the
-      # lockfile gives each distinct dependency set its own disk, so a tree can
-      # never mix versions from two different lockfiles.
-      #
-      # The bun download cache is content-addressed by package+version and the
-      # Turbo cache is keyed by task hash, so both are safe to share across
-      # lockfiles — and sharing them is what keeps a fresh node_modules disk
-      # cheap to populate.
+      # node_modules also keys on the lockfile hash: a sticky disk is a mutable
+      # volume, and `bun install --frozen-lockfile` adds what the lockfile needs
+      # without pruning what it dropped, so branches on different lockfiles were
+      # contaminating each other (a stale @next/swc 16.2.6 outlived the 16.2.11
+      # bump). The bun and Turbo caches are content/hash-addressed, so they stay
+      # shared — that is what keeps a fresh node_modules disk cheap to fill.
       - name: Mount Bun cache
         uses: ./.github/actions/cache-mount
         with:
@@ -209,21 +200,16 @@ jobs:
   # Next.js production build, in parallel with lint + tests. Sticky disks are
   # cloned from the last committed snapshot per job and committed last-writer-
   # wins, so concurrent mounts are safe. The bun/node_modules disks are shared
-  # with test-build — and because the node_modules key now includes the lockfile
-  # hash, the two jobs only ever share a disk when they really do resolve the
-  # same dependency tree, so the LWW loss really is harmless. The Turbo cache
-  # gets its own key: with a shared key, only
-  # the last committer's new entries survive each run, so the test and build
-  # Turbo entries would evict each other nondeterministically.
-  # Same next build as the app image, so it needs a large runner. Peak RSS
-  # tracks Turbo/Turbopack cache warmth, and it is the COLD case that sizes the
-  # runner: warm peaks ~12 GB, partial ~28 GB, and a cold full rebuild peaked
-  # 51 GB. The 8vcpu tier only has 30.4 GB, so cold-cache runs OOM-killed the VM
-  # (oom_count 1, memory p100 ~30.5 GB, ~99% of the tier) — the job burned 8-15
-  # min and died, while warm runs finished under 8 min. NODE_OPTIONS'
-  # --max-old-space-size only caps Node's JS heap; the bulk is native Turbopack
-  # worker memory, so the cap cannot prevent this. 16vcpu = 60.8 GB fits the
-  # 51 GB cold peak with headroom. Keep the test job on 8vcpu; its memory is fine.
+  # with test-build (the lockfile-hashed key means they only ever share when the
+  # dependency tree really is identical, so LWW loss is harmless), but the Turbo
+  # cache gets its own key: with a shared key, only the last committer's new
+  # entries survive each run, so the test and build Turbo entries would evict
+  # each other nondeterministically.
+  #
+  # Runner is sized for the COLD-cache build, which is what OOM-killed the 8vcpu
+  # tier (23 kills / 1074 runs at 98% of its 30.4 GB): warm peaks ~12 GB, cold
+  # peaked 51 GB. NODE_OPTIONS' --max-old-space-size caps only Node's JS heap,
+  # not the native Turbopack workers that dominate, so it cannot prevent this.
   build:
     name: Build App
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
@@ -275,6 +261,20 @@ jobs:
           provider: ${{ vars.CI_PROVIDER }}
           key: ${{ github.repository }}-nextjs-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./apps/sim/.next/cache
+
+      # A cold build peaks ~51 GB, and running out of RAM kills the whole VM —
+      # which surfaces only as "the runner has received a shutdown signal", with
+      # no mention of memory. Fail up front with the actual numbers instead, so
+      # an undersized runner (any CI_PROVIDER, including the GitHub fallback)
+      # is a one-line diagnosis rather than a 12-minute mystery.
+      - name: Check runner has enough memory
+        run: |
+          TOTAL_GB=$(awk '/MemTotal/ {printf "%d", $2/1048576}' /proc/meminfo)
+          echo "Runner memory: ${TOTAL_GB} GB (cold-cache build peaks ~51 GB)"
+          if [ "$TOTAL_GB" -lt 40 ]; then
+            echo "::error::Runner has ${TOTAL_GB} GB; this build needs ~51 GB on a cold cache and will be OOM-killed. Use a larger runner for the Build App job."
+            exit 1
+          fi
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
